@@ -1,0 +1,102 @@
+"use client";
+import Link from "next/link";
+import { useMemo, useState } from "react";
+import type { Snapshot } from "@/data/types";
+import { computeIndex, type IndexConfig } from "@/engine";
+import { encodeIndices } from "@/lib/url";
+import { Wordmark } from "../Wordmark";
+import { Rankings } from "../Rankings";
+import { ParetoChart } from "../chart/ParetoChart";
+import { SpeedChart } from "../chart/SpeedChart";
+import { BenchmarkTable } from "./BenchmarkTable";
+import { DatePicker } from "../DatePicker";
+import { authEnabled } from "@/app/providers";
+import { PageEditor } from "./PageEditor";
+
+export interface Section {
+  id: string; kind: "rankings" | "pareto" | "speed" | "benchmark" | "text" | "links" | "history";
+  title?: string; indexId?: string; benchmarkId?: string; body?: string; links?: { label: string; url: string }[]; hidden?: boolean;
+}
+export interface Profile {
+  _id: string; handle: string; displayName: string; avatarUrl?: string; bio?: string;
+  socials?: { label: string; url: string }[]; indices: IndexConfig[]; sections: Section[];
+  theme?: { accent?: string; surface?: "bone" | "white"; serif?: string };
+  imports?: { benchmark: Snapshot["benchmarks"][0]; rows: import("@/data/types").RawRow[] }[];
+}
+
+export function IndexPage({ profile, snapshot, dates, edit }: { profile: Profile; snapshot: Snapshot; dates: string[]; edit: boolean }) {
+  const [p, setPState] = useState(profile);
+  const [prevProfile, setPrevProfile] = useState(profile);
+  if (profile !== prevProfile) { setPrevProfile(profile); setPState(profile); }
+  const setP = setPState;
+  const results = useMemo(() => new Map(p.indices.map((i) => [i.id, computeIndex(snapshot, i)])), [snapshot, p.indices]);
+  const accent = p.theme?.accent ?? "#2F4FB0";
+  const surface = p.theme?.surface === "white" ? "#FFFFFF" : "#FBFBF9";
+  const builderHref = `/?${encodeIndices(p.indices).toString()}`;
+  const [selected, setSelected] = useState<string | null>(null);
+
+  return (
+    <div className="min-h-screen" style={{ ["--indigo" as string]: accent, background: surface }}>
+      <header className="flex items-center gap-6 px-8 h-14 border-b hairline sticky top-0 z-10" style={{ background: surface + "E6", backdropFilter: "blur(8px)" }}>
+        <Wordmark size={22} />
+        <span className="text-grey text-[13px]">/ {p.handle}</span>
+        <div className="ml-auto flex items-center gap-3">
+          <DatePicker current={snapshot.date} dates={dates} />
+          <Link href={builderHref as "/"} className="btn-quiet">Open in builder</Link>
+          {authEnabled && <PageEditor profile={p} onChange={setP} snapshot={snapshot} editing={edit} />}
+        </div>
+      </header>
+
+      <main className="max-w-[1100px] mx-auto px-8 py-12 grid gap-14">
+        <section className="flex items-start gap-5">
+          {p.avatarUrl ? <img src={p.avatarUrl} alt="" className="w-16 h-16 rounded-full border hairline object-cover" /> : <div className="w-16 h-16 rounded-full bg-hair-2 grid place-items-center serif text-2xl text-ink-2">{p.displayName[0]}</div>}
+          <div className="grid gap-1.5">
+            <h1 className="text-[34px] leading-tight">{p.displayName}</h1>
+            <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-[13px] text-ink-2">
+              <span className="mono text-grey">priors.so/{p.handle}</span>
+              {p.socials?.map((s) => <a key={s.url} href={s.url} target="_blank" rel="noreferrer" className="hover:text-ink" style={{ color: accent }}>{s.label}</a>)}
+            </div>
+            {p.bio && <p className="text-[15px] text-ink-2 max-w-[62ch] mt-1">{p.bio}</p>}
+          </div>
+        </section>
+
+        {p.sections.filter((s) => !s.hidden).map((s) => {
+          const idx = s.indexId ? p.indices.find((i) => i.id === s.indexId) : undefined;
+          const r = idx ? results.get(idx.id) : undefined;
+          const title = s.title ?? defaultTitle(s, idx?.name);
+          if (s.kind === "text") return <section key={s.id} className="max-w-[68ch]">{s.title && <h2 className="text-[24px] mb-3">{s.title}</h2>}<p className="text-[15.5px] leading-[1.7] text-ink-2 whitespace-pre-wrap">{s.body}</p></section>;
+          if (s.kind === "links") return <section key={s.id}>{title && <h2 className="text-[24px] mb-3">{title}</h2>}<ul className="grid gap-1.5 text-[14px]">{s.links?.map((l) => <li key={l.url}><a href={l.url} target="_blank" rel="noreferrer" style={{ color: accent }}>{l.label}</a></li>)}</ul></section>;
+          if (s.kind === "benchmark" && s.benchmarkId) return <section key={s.id}><h2 className="text-[24px] mb-3">{title}</h2><BenchmarkTable snapshot={snapshot} benchmarkId={s.benchmarkId} /></section>;
+          if (!idx || !r) return null;
+          if (s.kind === "rankings") return (
+            <section key={s.id}>
+              <div className="flex items-baseline justify-between mb-3"><h2 className="text-[24px]">{title}</h2><span className="cap">{r.benchmarks.map((b) => `${b.benchmark.shortName ?? b.benchmark.name} ${b.share.toFixed(0)}%`).join(" · ")}</span></div>
+              <Rankings ranked={r.ranked} labs={snapshot.labs} limit={25} selected={selected} onSelect={(x) => setSelected(x?.variant.id ?? null)} />
+            </section>
+          );
+          if (s.kind === "pareto") return <section key={s.id}><div className="flex items-baseline justify-between mb-1"><h2 className="text-[24px]">{title}</h2><span className="cap">measured cost per task · ink ring = frontier</span></div><ParetoChart ranked={r.ranked} labs={snapshot.labs} height={440} /></section>;
+          if (s.kind === "speed") return <section key={s.id}><div className="flex items-baseline justify-between mb-1"><h2 className="text-[24px]">{title}</h2><span className="cap">output tokens per second</span></div><SpeedChart ranked={r.ranked} labs={snapshot.labs} /></section>;
+          if (s.kind === "history") return <section key={s.id}><h2 className="text-[24px] mb-2">{title}</h2><p className="cap">Use the date picker above to view this page as of any earlier snapshot.</p></section>;
+          return null;
+        })}
+
+        <footer className="border-t hairline pt-6 flex items-baseline justify-between text-[12.5px] text-grey">
+          <span>Data as of {snapshot.date}. Sources: {[...new Set(snapshot.benchmarks.map((b) => b.sourceId))].join(", ")}.</span>
+          <Link href="/" className="hover:text-ink">Build your own</Link>
+        </footer>
+      </main>
+    </div>
+  );
+}
+
+function defaultTitle(s: Section, indexName?: string) {
+  switch (s.kind) {
+    case "rankings": return indexName ?? "Rankings";
+    case "pareto": return `${indexName ?? "Score"} vs cost per task`;
+    case "speed": return `${indexName ?? "Score"} vs speed`;
+    case "history": return `${indexName ?? "Frontier"} over time`;
+    case "benchmark": return "Benchmark";
+    case "links": return "Links";
+    default: return "";
+  }
+}
