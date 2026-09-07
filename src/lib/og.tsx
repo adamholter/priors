@@ -25,7 +25,7 @@ export async function renderShareCard(snapshot: Snapshot, index: IndexConfig, wh
             {who.avatarUrl ? <img src={who.avatarUrl} width={56} height={56} style={{ borderRadius: 28, border: "1px solid #DDDBD4" }} alt="" /> : <div style={{ width: 56, height: 56, borderRadius: 28, background: "#ECEAE3", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "Newsreader", fontSize: 28, color: "#4A4A46" }}>{who.name[0] ?? "?"}</div>}
             <div style={{ display: "flex", flexDirection: "column" }}>
               <div style={{ fontSize: 26, fontWeight: 500 }}>{who.name}</div>
-              {who.handle && <div style={{ fontSize: 18, color: "#8A8A80", fontFamily: "JetBrains Mono" }}>priors.so/{who.handle}</div>}
+              {who.handle && <div style={{ fontSize: 18, color: "#8A8A80", fontFamily: "JetBrains Mono" }}>{`priors.so/${who.handle}`}</div>}
             </div>
           </div>
           <div style={{ fontFamily: "Newsreader", fontSize: 52, marginTop: 36, marginBottom: 28, letterSpacing: -0.5 }}>{index.name}</div>
@@ -49,7 +49,7 @@ export async function renderShareCard(snapshot: Snapshot, index: IndexConfig, wh
           )}
           <div style={{ fontSize: 13, color: "#8A8A80", fontFamily: "JetBrains Mono", marginTop: 8 }}>{pts.length > 2 ? "score vs cost per task" : ""}</div>
         </div>
-        <div style={{ position: "absolute", right: 64, bottom: 48, fontFamily: "Newsreader", fontSize: 38, letterSpacing: -0.5, display: "flex" }}>pr<span style={{ color: accent }}>i</span>ors</div>
+        <div style={{ position: "absolute", right: 64, bottom: 48, fontFamily: "Newsreader", fontSize: 38, letterSpacing: -0.5, display: "flex" }}><span>pr</span><span style={{ color: accent }}>i</span><span>ors</span></div>
       </div>
     ),
     { width: 1200, height: 630, fonts: [{ name: "Newsreader", data: serif, style: "normal" }, { name: "Inter", data: sans, style: "normal" }, { name: "JetBrains Mono", data: mono, style: "normal" }] },

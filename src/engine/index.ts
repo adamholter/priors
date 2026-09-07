@@ -198,7 +198,7 @@ export function computeIndex(snapshot: Snapshot, config: IndexConfig): IndexResu
     if (den <= 0) continue;
     const cost = costFor(snapshot, idx, v.id, shares.map((s) => s.benchmark.id));
     const speedObs = idx.get(SPEED_BENCHMARK)?.get(v.id);
-    ranked.push({ variant: v, model, score: num / den, coverage: covered / 100, values, costUsd: cost?.usd, costSource: cost?.source, speed: speedObs && speedObs.value > 0 ? speedObs.value : undefined, onFrontier: false, rank: 0 });
+    ranked.push({ variant: v, model, score: num / den, coverage: Math.min(1, Math.round(covered * 1e4) / 1e6), values, costUsd: cost?.usd, costSource: cost?.source, speed: speedObs && speedObs.value > 0 ? speedObs.value : undefined, onFrontier: false, rank: 0 });
   }
 
   let out = ranked;

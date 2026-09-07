@@ -31,7 +31,7 @@ export function ParetoChart({ ranked, labs, height = 460, yLabel = "Index score"
         data: pts.map((p) => ({ name: variantLabel(p), value: [p.costUsd, p.score], id: p.variant.id, itemStyle: { color: color.get(p.model.labId), borderColor: p.onFrontier ? INK : "#FBFBF9", borderWidth: 1.5 }, extra: p })),
         symbolSize: 10,
         label: { show: true, position: "right", formatter: "{b}", fontSize: 11.5, color: INK, distance: 6 },
-        labelLayout: { hideOverlap: false, moveOverlap: "shiftY" },
+        labelLayout: { hideOverlap: true, moveOverlap: "shiftY" },
         emphasis: { scale: 1.4, label: { fontWeight: 600 } },
         universalTransition: { enabled: true },
         animationDurationUpdate: 500, animationEasingUpdate: "cubicOut",
