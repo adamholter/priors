@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-09-08T18:33:45.750Z",
+  "sourceCommit": "2c2d8c7761007867333f0a8fa7b77385a38efa6a",
+  "workingTreeChanges": [
+    "M package.json",
+    "?? scripts/exportDataset.js",
+    "?? scripts/share/"
+  ],
+  "counts": {
+    "configurations": 57,
+    "releaseObservations": 1340,
+    "assignedObservations": 1110,
+    "bestObservations": 773,
+    "referenceModels": 13,
+    "referenceObservations": 26,
+    "rawMetrics": 31,
+    "compositeMetrics": 9,
+    "resolvedBenchmarks": 1767,
+    "compositeScores": 513
+  },
+  "files": {
+    "dataset.json": "1183df82e5d4215c9efbf676e9a0b50ef3b0d42ec7fa359036148203399dcf8a",
+    "formulas.json": "b0d0d20596e76866d29aa8796af98f7aa6bcba470886fd160e751b4f7710ceaf",
+    "composite-scores.json": "bf7a59bca0ef9eed60bd51d050c09c4f77db163cd3a6610e578196ccb438851c",
+    "resolved-benchmarks.json": "de861e9b72de0db1cb67ec38a76cc37064b298dee863d294c2f065a8d6d9c27d",
+    "calibration-evidence.json": "39a074a861ce897ebf5cc763fa858ab51b3089b6474fb944c178cba6e126888c",
+    ".gitattributes": "705fd4d6451a31d36b3df7de96f83f30ac976c9b4a6d1e51671d8e2f33e2d0da",
+    "engine.mjs": "15ac854a1105a5a695da8dd01d6de0395439923d38b28b9fde801fe93babc179",
+    "README.md": "a62b2eb4ceff3dead8e14f6715fd77aaaecc2915e685a1ac71c4b2b79723e8a1",
+    "priors.mjs": "ee16a58bdb9eeab66f0a1276f037a62dd0c910c68cf22e813eec1d17f179d6d8",
+    "verify.mjs": "513bfec74aeb8c1f7754a676acc5232146faa03a133d3a67fba84965d3b59fe9",
+    "methodology.md": "9d5c78aacee75abac462624d26c33397fbaa5478dc683c154e1ec314df1b9629",
+    "arc-overlap-calibration-2026-09-05.md": "21eac377fa167b5176a0174ae0e030d0584f03c34f97c645701ac4ae99365ff4",
+    "source-files.json": "dca9832d91e83e5f96c6a0fd61666749a0da9ebd0d096ed5cd076038175999bf"
+  }
+}
