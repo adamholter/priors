@@ -58,6 +58,17 @@ describe("fitPriors", () => {
     expect(selectedPairAgreement(["a", "b", "c"], scores)).toMatchObject({ total: 3, matched: 0 });
   });
 
+  it("ignores outsiders inserted above or between selected models", () => {
+    const target = ["a", "b", "c"];
+    const selected = new Map([["a", 90], ["b", 70], ["c", 50]]);
+    const expected = selectedPairAgreement(target, selected, { baseline: ["b", "a", "c"] });
+    selected.set("outside-top", 100);
+    selected.set("outside-middle", 80);
+    selected.set("outside-bottom", 55);
+    expect(selectedPairAgreement(target, selected, { baseline: ["b", "a", "c"] })).toEqual(expected);
+    expect(expected).toMatchObject({ matchedPositions: 3, matched: 3, weightedErrors: 0 });
+  });
+
   it("updates the objective when a model is added to the lineup", async () => {
     const small = await fitPriors(snapshot(), ["a", "b"], () => {});
     expect(small.totalPairs).toBe(1);
