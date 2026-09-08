@@ -14,6 +14,8 @@ function Arrow({ direction = "right" }: { direction?: "right" | "up" | "down" })
 function Grip() { return <svg width="16" height="18" viewBox="0 0 16 18" aria-hidden="true" fill="currentColor">{[4,9,14].flatMap(y => [5,10].map(x => <circle key={`${x}-${y}`} cx={x} cy={y} r="1" />))}</svg>; }
 function Cross() { return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg>; }
 function searchMessage(u: FitUpdate, snapshot: Snapshot) {
+  if (u.log.startsWith("Exploring ")) return "Trying a fresh search direction.";
+  if (u.log.startsWith("Read a new search path")) return "Testing another mix against your lineup.";
   if (u.phase === "complete") return u.exactMatch ? "Your selected models match your order." : "No exact match found for this lineup.";
   const benchmark = snapshot.benchmarks.find(b => ["Refining ", "Kept ", "Removed "].some(prefix => u.log === `${prefix}${b.id}`));
   const name = benchmark?.shortName ?? benchmark?.name;

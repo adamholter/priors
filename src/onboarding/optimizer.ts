@@ -1,3 +1,4 @@
+import { acceptExploration, explorationTemperature } from "./annealing";
 import type { Snapshot } from "../data/types";
 import { computeIndex, type IndexConfig } from "../engine";
 
@@ -11,7 +12,7 @@ const LEVELS=[1,5,15,30,60,100]; const yieldUi=()=>new Promise<void>(r=>setTimeo
 const compare=(a:number[],b:number[])=>{for(let i=0;i<a.length;i++)if(a[i]!==b[i])return a[i]-b[i];return 0};
 const rng=(seed:number)=>()=>((seed=Math.imul(seed^seed>>>15,1|seed)),((seed+Math.imul(seed^seed>>>7,61|seed))^seed)>>>0)/4294967296;
 
-function normalize(raw:Record<string,number>){const e=Object.entries(raw).filter(([,w])=>w>0).sort(([a],[b])=>a.localeCompare(b));const max=Math.max(1,...e.map(([,w])=>w));return Object.fromEntries(e.map(([id,w])=>[id,Math.max(1,Math.round(w/max*100))]));}
+function normalize(raw:Record<string,number>){const e=Object.entries(raw).filter(([,w])=>w>0).sort(([a],[b])=>a.localeCompare(b));const max=Math.max(1,...e.map(([,w])=>w));return Object.fromEntries(e.map(([id,w])=>[id,Math.max(.1,Math.round(w/max*1000)/10)]));}
 function config(snapshot:Snapshot,target:string[],raw:Record<string,number>,s:Settings):IndexConfig{const weights=normalize(raw),keep=new Set(target);return{id:"fit",name:"My fit",weights,required:[],optional:Object.keys(weights),cutoff:5,estimateMissing:s.estimateMissing,variants:"best",rankingVariants:"best",effortMatching:s.effortMatching,strictness:s.strictness,excludeModels:snapshot.models.filter(m=>!keep.has(m.id)).map(m=>m.id)}}
 function eligible(snapshot:Snapshot,id:string,target:Set<string>){const b=snapshot.benchmarks.find(x=>x.id===id);if(!b||b.proxy||["cost","speed","composite"].includes(b.category)||/arena|image|subjective|price|cost|speed/i.test(`${b.id} ${b.name} ${b.description}`))return false;const modelByVariant=new Map(snapshot.variants.map(v=>[v.id,v.modelId]));const seen=new Set(snapshot.observations.filter(o=>o.benchmarkId===id).map(o=>modelByVariant.get(o.variantId)));let n=0;for(const m of target)if(seen.has(m))n++;return n>=Math.min(2,target.size)&&n/target.size>=.45}
 export function selectedPairAgreement(target:string[],scores:Map<string,number>,priorities:FitPriorities={}){
@@ -69,7 +70,7 @@ function search(target:string[],columns:Column[],quality:Record<string,number>,s
    }
    if(!Object.keys(trial).length||Object.keys(trial).length>12)continue;
    const x=evaluate(trial);
-   if(compare(guided(x),guided(local))<0)local=x;
+   if(acceptExploration(guided(local),guided(x),explorationTemperature(step,350),walkRandom))local=x;
   }
  }
  return best!;
@@ -78,8 +79,8 @@ function search(target:string[],columns:Column[],quality:Record<string,number>,s
 export async function fitPriors(snapshot:Snapshot,target:string[],onUpdate:(u:FitUpdate)=>void,quality:Record<string,number>={},frameDelay=0,priorities:FitPriorities={}):Promise<FitUpdate>{
 // Yield between exact candidates so the UI can animate measured states without inventing progress.
 const show=async(u:FitUpdate)=>{onUpdate(u);if(frameDelay&&u.phase!=="preparing"&&u.phase!=="complete"&&!u.log.startsWith("Read "))await new Promise<void>(r=>setTimeout(r,frameDelay));};
-const wanted=[...new Set(target)];if(wanted.length!==target.length||wanted.some(id=>!snapshot.models.some(m=>m.id===id&&m.kind==="llm")))throw new Error("Every preferred model must be a distinct known LLM in this snapshot.");if(wanted.length<2)throw new Error("Choose at least two models to fit.");const ids=snapshot.benchmarks.map(b=>b.id).filter(id=>eligible(snapshot,id,new Set(wanted)));if(!ids.length)throw new Error("No benchmark covers enough selected models.");ids.sort((a,b)=>Number(PREFERRED.includes(b as typeof PREFERRED[number]))-Number(PREFERRED.includes(a as typeof PREFERRED[number]))||a.localeCompare(b));let tested=0,iteration=0,lastEmit=0;let best=exact(snapshot,wanted,{[ids[0]]:100},SETTINGS[0],quality,"preparing",iteration,tested,`Preparing ${ids.length} benchmarks.`,priorities);onUpdate(best.update);
-for(let si=0;si<SETTINGS.length;si++){const s=SETTINGS[si],columns:Column[]=[];for(const id of ids){const one=exact(snapshot,wanted,{[id]:100},s,quality,"preparing",iteration,++tested,`Preparing ${id}`,priorities),map=new Map(one.update.ranking.map(r=>[r.modelId,r.score]));columns.push({id,score:wanted.map(m=>map.get(m)??0),present:wanted.map(m=>map.has(m))});if(performance.now()-lastEmit>100){await show({...best.update,phase:si===0?"preparing":"searching",iteration,tested,log:`Read ${columns.length}/${ids.length} tests, strictness ${s.strictness}.`});lastEmit=performance.now()}await yieldUi()}const finalists:Approx[]=[];for(let seed=1;seed<=4;seed++)finalists.push(search(wanted,columns,quality,si*101+seed,()=>tested++,priorities));finalists.sort((a,b)=>compare(a.loss,b.loss));for(const candidate of finalists.slice(0,3)){const verified=exact(snapshot,wanted,candidate.weights,s,quality,"searching",++iteration,++tested,`Check ${si+1}/${SETTINGS.length}: ${s.effortMatching}, strictness ${s.strictness}`,priorities);if(compare(verified.loss,best.loss)<0)best=verified;await show({...best.update,phase:"searching",iteration,tested,log:verified.update.log});await yieldUi()}}
+const wanted=[...new Set(target)];if(wanted.length!==target.length||wanted.some(id=>!snapshot.models.some(m=>m.id===id&&m.kind==="llm")))throw new Error("Every preferred model must be a distinct known LLM in this snapshot.");if(wanted.length<2)throw new Error("Choose at least two models to fit.");const ids=snapshot.benchmarks.map(b=>b.id).filter(id=>eligible(snapshot,id,new Set(wanted)));if(!ids.length)throw new Error("No benchmark covers enough selected models.");ids.sort((a,b)=>Number(PREFERRED.includes(b as typeof PREFERRED[number]))-Number(PREFERRED.includes(a as typeof PREFERRED[number]))||a.localeCompare(b));const verifiedStarts:Exact[]=[];let tested=0,iteration=0,lastEmit=0;let best=exact(snapshot,wanted,{[ids[0]]:100},SETTINGS[0],quality,"preparing",iteration,tested,`Preparing ${ids.length} benchmarks.`,priorities);onUpdate(best.update);
+for(let si=0;si<SETTINGS.length;si++){const s=SETTINGS[si],columns:Column[]=[];for(const id of ids){const one=exact(snapshot,wanted,{[id]:100},s,quality,"preparing",iteration,++tested,`Preparing ${id}`,priorities),map=new Map(one.update.ranking.map(r=>[r.modelId,r.score]));columns.push({id,score:wanted.map(m=>map.get(m)??0),present:wanted.map(m=>map.has(m))});if(performance.now()-lastEmit>100){await show({...best.update,phase:si===0?"preparing":"searching",iteration,tested,log:`Read ${columns.length}/${ids.length} tests, strictness ${s.strictness}.`});lastEmit=performance.now()}await yieldUi()}const finalists:Approx[]=[];for(let seed=1;seed<=4;seed++)finalists.push(search(wanted,columns,quality,si*101+seed,()=>tested++,priorities));finalists.sort((a,b)=>compare(a.loss,b.loss));for(const candidate of finalists.slice(0,3)){const verified=exact(snapshot,wanted,candidate.weights,s,quality,"searching",++iteration,++tested,`Check ${si+1}/${SETTINGS.length}: ${s.effortMatching}, strictness ${s.strictness}`,priorities);verifiedStarts.push(verified);if(compare(verified.loss,best.loss)<0)best=verified;await show({...best.update,phase:"searching",iteration,tested,log:verified.update.log});await yieldUi()}}
 // Refine against the full engine, because a model's best effort can change with the mix.
 for(let pass=0;pass<3;pass++){
  const refineIds=[...new Set([...Object.keys(best.update.weights),...ids])];
@@ -113,8 +114,13 @@ const exactGuide=(candidate:Exact)=>{
  const prefix=1+wanted.length,n=rankingLossLength(wanted.length);
  return[...candidate.loss.slice(0,prefix),...priorityMargins,...candidate.loss.slice(prefix,n),margin,...candidate.loss.slice(n)];
 };
-for(let step=0;step<1200&&!best.update.exactMatch;step++){
- if(step%200===0)walk=best;
+for(let step=0;step<2400&&!best.update.exactMatch;step++){
+ if(step%300===0){
+  // Different settings and benchmark supports provide separate basins to explore.
+  const round=Math.floor(step/300);
+  walk=round===0?best:verifiedStarts[(round*7)%verifiedStarts.length]??best;
+  await show({...best.update,phase:"searching",tested,iteration,log:"Exploring a different starting mix."});
+ }
  const trial={...walk.update.weights};
  for(let change=0;change<1+Math.floor(exactRandom()*3);change++){
   const id=ids[Math.floor(exactRandom()*ids.length)],w=trial[id]??0;
@@ -122,8 +128,22 @@ for(let step=0;step<1200&&!best.update.exactMatch;step++){
  }
  if(!Object.keys(trial).length||Object.keys(trial).length>12)continue;
  const candidate=exact(snapshot,wanted,trial,step%40===0?SETTINGS[Math.floor(exactRandom()*SETTINGS.length)]:walk.update.config,quality,"searching",++iteration,++tested,"Refining the remaining disagreements",priorities);
- if(compare(exactGuide(candidate),exactGuide(walk))<0)walk=candidate;
+ if(acceptExploration(exactGuide(walk),exactGuide(candidate),explorationTemperature(step,300),exactRandom))walk=candidate;
  if(compare(candidate.loss,best.loss)<0){best=candidate;await show(best.update)}
- if(step%30===0){await show({...best.update,phase:"searching",tested,iteration,log:"Read the remaining disagreements against full model configurations."});await yieldUi()}
+ if(step%30===0){await show({...best.update,phase:"searching",tested,iteration,log:"Read a new search path across model configurations."});await yieldUi()}
+}
+// Polish the basin reached by annealing with finer weights that survive URL round-tripping.
+walk=best;
+for(let pass=0;pass<2&&!best.update.exactMatch;pass++){
+ for(const id of Object.keys(walk.update.weights)){
+  const w=walk.update.weights[id];
+  for(const value of [w-.5,w-.1,w+.1,w+.5,w*.9,w*1.1]){
+   if(value<=0)continue;
+   const candidate=exact(snapshot,wanted,{...walk.update.weights,[id]:value},walk.update.config,quality,"searching",++iteration,++tested,"Refining the final weights",priorities);
+   if(compare(exactGuide(candidate),exactGuide(walk))<0)walk=candidate;
+   if(compare(candidate.loss,best.loss)<0){best=candidate;await show(best.update)}
+  }
+  await yieldUi();
+ }
 }
 let simple=best;for(const id of Object.keys(simple.update.weights).sort((a,b)=>(quality[a]??50)-(quality[b]??50))){if(simple.update.benchmarkCount<=1)break;const trial={...simple.update.weights};delete trial[id];const v=exact(snapshot,wanted,trial,simple.update.config,quality,"simplifying",++iteration,++tested,`Trying without ${id}`,priorities);const removed=compare(v.loss.slice(0,rankingLossLength(wanted.length)),simple.loss.slice(0,rankingLossLength(wanted.length)))<=0;if(removed)simple=v;await show({...simple.update,phase:"simplifying",iteration,tested,log:`${removed?"Removed":"Kept"} ${id}`});await yieldUi()}const done=exact(snapshot,wanted,simple.update.weights,simple.update.config,quality,"complete",iteration,tested,simple.update.exactMatch?"Matched your full requested order.":"No matching configuration found. Showing the closest result.",priorities).update;await show(done);return done}
