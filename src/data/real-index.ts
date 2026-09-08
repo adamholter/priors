@@ -116,16 +116,22 @@ export function appendRealIndex(snapshot: Snapshot): Snapshot {
   const addedModelIds = new Set(addedModels.map((m) => m.id));
   const existingVariantIds = new Set(snapshot.variants.map((v) => v.id));
   const variantCrosswalk = new Map<string, string>();
+  const plainVariantCrosswalk = new Map<string, string>();
   for (const v of supplement.variants) {
     const releaseId = v.modelId.slice("real-index:".length);
     const mapped = RELEASE_CROSSWALK[releaseId];
-    const canonical = mapped ? `${mapped}@${v.effort}` : undefined;
-    if (canonical && existingVariantIds.has(canonical)) variantCrosswalk.set(v.id, canonical);
+    const plain = mapped ? `${mapped}@${v.effort}` : undefined;
+    const matches = mapped ? snapshot.variants.filter((candidate) => candidate.modelId === mapped && candidate.effort === v.effort) : [];
+    const canonical = plain && existingVariantIds.has(plain) ? plain : matches.length === 1 ? matches[0].id : undefined;
+    if (canonical) {
+      variantCrosswalk.set(v.id, canonical);
+      if (plain) plainVariantCrosswalk.set(plain, canonical);
+    }
   }
   const addedVariants = supplement.variants.filter((v) => addedModelIds.has(v.modelId));
   const addedVariantIds = new Set(addedVariants.map((v) => v.id));
   const observations = supplement.observations.flatMap((o) => {
-    if (!o.variantId.startsWith("real-index:")) return [o];
+    if (!o.variantId.startsWith("real-index:")) return [{ ...o, variantId: plainVariantCrosswalk.get(o.variantId) ?? o.variantId }];
     const canonical = variantCrosswalk.get(o.variantId);
     if (canonical) return [{ ...o, variantId: canonical }];
     return addedVariantIds.has(o.variantId) ? [o] : [];

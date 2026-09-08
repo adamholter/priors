@@ -60,4 +60,19 @@ describe("Real Index supplement", () => {
     const historical = { ...base, date: "2026-09-07" };
     expect(appendRealIndex(historical)).toBe(historical);
   });
+
+  it("maps reviewed evidence to a unique configured canonical variant", () => {
+    const configured = "claude-fable-5.1@max~aa-claude-fable-5-1-3e87c73e";
+    const base: Snapshot = {
+      version: 1, date: "2026-09-08", generatedAt: "", labs: [],
+      models: [{ id: "claude-fable-5.1", name: "Fable 5.1", labId: "anthropic", kind: "llm", reasoning: true, aliases: [] }],
+      variants: [{ id: configured, modelId: "claude-fable-5.1", effort: "max" }],
+      benchmarks: [], observations: [], series: [], sources: [],
+    };
+    const merged = appendRealIndex(base);
+    expect(merged.models.filter((m) => /Fable 5\.1/i.test(m.name))).toHaveLength(1);
+    expect(merged.observations.some((o) => o.variantId === configured && o.benchmarkId === "real-index:terminal-bench-v4")).toBe(true);
+    expect(merged.observations.some((o) => o.variantId === "claude-fable-5.1@max")).toBe(false);
+    expect(merged.estimates?.some((o) => o.variantId === configured)).toBe(true);
+  });
 });
