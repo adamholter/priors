@@ -32,7 +32,7 @@ describe("Real Index supplement", () => {
     expect(data.observations.some((o) => o.variantId === "gpt-5.6-sol@max" && o.benchmarkId === "terminalbench-4")).toBe(true);
     expect(data.observations.some((o) => o.variantId === "gpt-6-astra@max" && o.benchmarkId === "terminalbench-4")).toBe(true);
     expect(data.observations.some((o) => o.variantId === "muse-spark-1.3@max" && o.benchmarkId === "deepswe-1.1")).toBe(true);
-    expect(data.observations.find((o) => o.variantId === "muse-spark-1.3@max")?.details?.realIndex).toMatchObject({ releaseDateDiscrepancy: true });
+    expect(data.observations.find((o) => o.variantId === "muse-spark-1.3@max")?.details?.realIndex).toMatchObject({ sourceReleaseDate: "2026-07-22" });
   });
 
   it("adds calibrated raw fallback routes and appends at most once", () => {

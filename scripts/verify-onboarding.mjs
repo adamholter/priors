@@ -1,13 +1,13 @@
 import { chromium } from 'playwright';
 import assert from 'node:assert/strict';
-import { readFile, mkdir } from 'node:fs/promises';
-import { gunzipSync } from 'node:zlib';
+import { mkdir } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import 'tsx/cjs';
 const require=createRequire(import.meta.url);
 const {computeIndex}=require('../src/engine/index.ts');
 const {decodeIndices}=require('../src/lib/url.ts');
-const snapshot=JSON.parse(gunzipSync(await readFile('data/snapshots/latest.json.gz')));
+const {loadSnapshot}=require('../src/data/load.ts');
+const snapshot=await loadSnapshot();
 const out='/tmp/priors-onboarding-qa';await mkdir(out,{recursive:true});
 const browser=await chromium.launch({headless:true});
 try {
@@ -25,7 +25,7 @@ try {
  const result=computeIndex(snapshot,config);const ranked=result.ranked.map(r=>r.model.id);assert.deepEqual(await page.locator('[data-model]').evaluateAll(es=>es.map(e=>e.dataset.model)),ranked);
  assert.equal(ranked.length,wanted.length);assert(Object.keys(config.weights).length<=12);
  const score=new Map(result.ranked.map(r=>[r.model.id,r.score]));let matched=0;for(let i=0;i<wanted.length;i++)for(let j=i+1;j<wanted.length;j++)if(score.get(wanted[i])>score.get(wanted[j])+1e-7)matched++;
- const pairs=wanted.length*(wanted.length-1)/2;assert((await page.locator('.agreement').innerText()).includes(`${matched} of ${pairs} pairs`));
+ const pairs=wanted.length*(wanted.length-1)/2;const positions=wanted.filter((id,i)=>ranked[i]===id).length;assert((await page.locator('.agreement strong').innerText()).includes(`${positions}/${wanted.length}`));
  await page.getByRole('button',{name:'Copy index link',exact:true}).click();assert.equal(await page.evaluate(()=>window.__copied),`http://localhost:48741${href}`);
  await page.getByRole('button',{name:'About the evidence',exact:false}).click();await page.waitForTimeout(300);await page.screenshot({path:`${out}/quality.png`});await page.keyboard.press('Escape');assert(!await page.getByRole('dialog').isVisible());
  await link.click();await page.getByRole('heading',{name:'My priors',exact:true}).waitFor();assert.deepEqual(await page.locator('.ranking-list [data-k]').evaluateAll(es=>es.map(e=>e.dataset.k)),result.ranked.slice(0,30).map(r=>r.variant.id));

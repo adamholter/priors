@@ -70,6 +70,36 @@ describe("fitPriors", () => {
     expect(updates.every((value, i) => i === 0 || value >= updates[i - 1])).toBe(true);
   });
 
+  it("identifies a changed top ordering and every relation for an added model", () => {
+    const target = ["b", "a", "new", "c"];
+    const scores = new Map([["a", 100], ["b", 90], ["new", 110], ["c", 10], ["outside", 999]]);
+    const result = selectedPairAgreement(target, scores, { baseline: ["a", "b", "c"] });
+    expect(result.priorityTotal).toBe(4);
+    expect(result.priorityMatched).toBe(1);
+    expect(result.priorityErrors).toEqual([2, 1, 0, 0]);
+    expect(result.total).toBe(6);
+    expect(result.matchedPositions).toBe(2);
+  });
+
+  it("penalizes mistakes near the top more than the same mistake near the bottom", () => {
+    const target = ["a", "b", "c", "d"];
+    const top = selectedPairAgreement(target, new Map([["a", 3], ["b", 4], ["c", 2], ["d", 1]]));
+    const bottom = selectedPairAgreement(target, new Map([["a", 4], ["b", 3], ["c", 1], ["d", 2]]));
+    expect(top.matched).toBe(bottom.matched);
+    expect(top.weightedErrors).toBeGreaterThan(bottom.weightedErrors);
+  });
+
+  it("reports an impossible requested order as an incomplete fit", async () => {
+    const s = snapshot();
+    s.benchmarks = s.benchmarks.filter(b => b.id === "deepswe-1.1");
+    s.observations = s.observations.filter(o => o.benchmarkId === "deepswe-1.1");
+    const result = await fitPriors(s, ["b", "a", "c"], () => {}, {}, 0, { baseline: ["a", "b", "c"] });
+    expect(result.exactMatch).toBe(false);
+    expect(result.priorityTotal).toBe(1);
+    expect(result.priorityMatched).toBe(0);
+    expect(result.log).toMatch(/No matching configuration found/);
+  });
+
   it("exports the preferred benchmark order", () => {
     expect(PREFERRED[0]).toBe("deepswe-1.1");
     expect(PREFERRED).toHaveLength(8);

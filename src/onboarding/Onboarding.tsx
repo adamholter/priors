@@ -15,7 +15,7 @@ function Grip() { return <svg width="16" height="18" viewBox="0 0 16 18" aria-hi
 function Cross() { return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg>; }
 function Trace({ values }: { values: number[] }) {
   const path = values.map((v, i) => `${i ? "L" : "M"}${i / Math.max(1, values.length - 1) * 300},${68 - v * .6}`).join(" ");
-  return <svg className="fit-trace" viewBox="0 0 300 76" role="img" aria-label="Ranking agreement over the search"><path d="M0 68H300M0 38H300M0 8H300" stroke="#333732" strokeWidth=".5" /><path d={path} fill="none" stroke="#BBC9A6" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />{values.length > 0 && <circle cx="300" cy={68 - values[values.length - 1] * .6} r="3" fill="#BBC9A6" />}</svg>;
+  return <svg className="fit-trace" viewBox="0 0 300 76" role="img" aria-label="Models in their requested positions during the search"><path d="M0 68H300M0 38H300M0 8H300" stroke="#333732" strokeWidth=".5" /><path d={path} fill="none" stroke="#BBC9A6" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />{values.length > 0 && <circle cx="300" cy={68 - values[values.length - 1] * .6} r="3" fill="#BBC9A6" />}</svg>;
 }
 
 export function Onboarding({ snapshot }: { snapshot: Snapshot }) {
@@ -96,8 +96,8 @@ export function Onboarding({ snapshot }: { snapshot: Snapshot }) {
         setUpdate(u);
         const entry = { id: ++logId, text: u.log };
         setLogs(l => l.at(-1)?.text === u.log ? l : [...l.slice(-5), entry]);
-        setHistory(h => [...h.slice(-23), u.agreement]);
-        if (u.phase === "complete") setAnnouncement(`Search complete. ${u.matchedPairs} of ${u.totalPairs} pairs among your ${order.length} selected models match.`);
+        setHistory(h => [...h.slice(-23), u.matchedPositions / order.length * 100]);
+        if (u.phase === "complete") setAnnouncement(`Search complete. ${u.exactMatch ? "Your full order matches." : "No matching configuration found."} ${u.matchedPositions} of ${order.length} models are in their requested positions.`);
       };
       w.onmessage = (e: MessageEvent<FitUpdate | { error: string }>) => {
         if (worker.current !== w) return;
@@ -110,7 +110,7 @@ export function Onboarding({ snapshot }: { snapshot: Snapshot }) {
         if (e.data.phase === "complete") w.terminate();
       };
       w.onerror = () => { setError("The search stopped unexpectedly. Your order is still here."); w.terminate(); };
-      w.postMessage({ snapshot, target: order, reducedMotion: window.matchMedia("(prefers-reduced-motion: reduce)").matches, quality: Object.fromEntries(quality.map(q => [q.id, q.score])) });
+      w.postMessage({ snapshot, target: order, priorities: { baseline: original }, reducedMotion: window.matchMedia("(prefers-reduced-motion: reduce)").matches, quality: Object.fromEntries(quality.map(q => [q.id, q.score])) });
     } catch { setError("Could not start the search. Please try again."); }
   }
   function edit() { worker.current?.terminate(); worker.current = null; if (displayTimer.current) clearTimeout(displayTimer.current); displayTimer.current = null; latest.current = null; setStage("order"); setUpdate(null); setError(""); }
@@ -129,8 +129,8 @@ export function Onboarding({ snapshot }: { snapshot: Snapshot }) {
     <main className="onboard-main">
       <div className="step-line"><span className={stage === "order" ? "current" : "passed"}>01 <span>Your intuition</span></span><i /><span className={stage === "fit" ? "current" : ""}>02 <span>The evidence</span></span></div>
       <div className="onboard-intro" key={stage}>
-        <h1>{stage === "order" ? <>What are your <em>priors?</em></> : complete ? <>Your priors, <em>in numbers.</em></> : <>Putting your priors<br className="mobile-break" /> <em>to the test.</em></>}</h1>
-        <p>{stage === "order" ? "You have a sense of which models are better. Put them in order." : complete ? "Here’s the simplest fit we found for the order you believe in." : "Trying the benchmarks. Adjusting the weights. Keeping only what helps."}</p>
+        <h1>{stage === "order" ? <>What are your <em>priors?</em></> : complete ? update?.exactMatch ? <>Your priors, <em>in numbers.</em></> : <>The closest <em>we found.</em></> : <>Putting your priors<br className="mobile-break" /> <em>to the test.</em></>}</h1>
+        <p>{stage === "order" ? "You have a sense of which models are better. Put them in order." : complete ? update?.exactMatch ? "A compact benchmark mix that matches your full order." : "No matching configuration found for your priors. The result below still has disagreements." : "Trying the benchmarks. Adjusting the weights. Keeping only what helps."}</p>
       </div>
       <div className="experiment-grid">
         <section className="order-board" aria-label={stage === "order" ? "Your model preferences" : "Fitted model ranking"}>
@@ -154,7 +154,7 @@ export function Onboarding({ snapshot }: { snapshot: Snapshot }) {
           {stage === "order" ? <div className="setup-note">
             <div className="equal-bars" aria-hidden="true">{["#282828", "#CE7155", "#CE7155", "#397ACC", "#24A38B"].map((c, i) => <i key={i} style={{ background: c, animationDelay: `${i * 65}ms` }} />)}</div>
             <h2>Intuition first.<br />Evidence next.</h2>
-            <p>Start with equal footing. We’ll look for a small benchmark mix that comes closest to your order.</p>
+            <p>Your top choices lead the search. Changes you make and models you add get extra priority.</p>
             <div className="preference-note"><span className="tiny-star" aria-hidden="true">✳</span><p>Your eight favorites get first consideration. Newer, less saturated, more objective tests get more weight when choosing between similar fits.</p></div>
             <button className="primary-action" onClick={start} disabled={order.length < 3}>Find my index <Arrow /></button>
             <span className="action-note">{order.length} models · up to 12 benchmarks</span>
@@ -163,17 +163,17 @@ export function Onboarding({ snapshot }: { snapshot: Snapshot }) {
             <div className="solver-monitor" role="region" aria-label="Optimization monitor">
               <span className="sr-only" role="status" aria-label={error ? "Search error" : complete ? "Search complete" : "Search running"}>{error ? "Search stopped" : complete ? "Search complete" : "Searching benchmark combinations"}</span>
               <div className="monitor-top"><span><i className={running ? "pulse" : ""} />{error ? "SEARCH STOPPED" : complete ? "SEARCH COMPLETE" : "SEARCH IN PROGRESS"}</span><span>{elapsed.toFixed(1)}s</span></div>
-              <div className="agreement"><strong>{update ? Math.round(update.agreement) : "0"}<span>%</span></strong><span>selected-model agreement<br /><small>{update ? `${update.matchedPairs} of ${update.totalPairs} pairs · ${order.length} models` : "Preparing model comparisons"}</small></span></div>
+              <div className="agreement"><strong>{update?.matchedPositions ?? 0}<span>/{order.length}</span></strong><span>models in the right position<br /><small>{update?.priorityTotal ? update.priorityMatched === update.priorityTotal ? "Your edits are preserved" : "Some of your edits remain unresolved" : "Only your selected lineup counts"}</small></span></div>
               <Trace values={history} />
               <div className="monitor-metrics"><span>{(update?.tested ?? 0).toLocaleString()} <small>combinations</small></span><span>{update?.benchmarkCount ?? "—"} <small>benchmarks</small></span></div>
               <div className="terminal-log" aria-hidden="true">{logs.length ? logs.map(log => <div key={log.id}><span>›</span>{log.text}</div>) : <div><span>›</span>Loading the measured results<span className="cursor">_</span></div>}</div>
             </div>
             {error && <div className="fit-error" role="alert"><p>{error}</p><button className="text-control" onClick={start}>Try again <Arrow /></button></div>}
-            <div className="mix-panel"><div className="mix-heading"><h2>{complete ? "Your benchmark mix" : update ? phaseNames[update.phase] : "Reading the evidence"}</h2><span className="phase-mark">{complete ? "✓" : "⋯"}</span></div>
+            <div className="mix-panel"><div className="mix-heading"><h2>{complete ? "Your benchmark mix" : update ? phaseNames[update.phase] : "Reading the evidence"}</h2><span className="phase-mark">{complete ? update?.exactMatch ? "✓" : "≈" : "⋯"}</span></div>
               {activeWeights.length ? <div className="mix-rows">{activeWeights.map(([id, w]) => { const q = qMap.get(id); return <button key={id} className="mix-row" onClick={() => openDialog("quality")} title={q?.reason}><span className="mix-name">{q?.preferred && <span className="preferred-star" aria-label="Preferred benchmark">✳</span>}{q?.name ?? snapshot.benchmarks.find(b => b.id === id)?.name ?? id}</span><span className="mix-percent">{(w / totalWeight * 100).toFixed(1)}%</span><span className="mix-weight-track"><i style={{ width: `${w / totalWeight * 100}%` }} /></span></button>; })}</div> : <div className="mix-empty">Checking coverage across your models<span className="cursor">_</span></div>}
               {update && <div className="mix-quality"><button className="text-control" onClick={() => openDialog("quality")}>Evidence quality <span>{Math.round(update.quality)}/100</span></button><span>✳ Your preferred benchmarks</span></div>}
             </div>
-            {complete && <div className="result-actions"><p className="fit-disclosure">{update!.matchedPairs === update!.totalPairs ? "Every pair matches your order." : `${update!.totalPairs - update!.matchedPairs} ${update!.totalPairs - update!.matchedPairs === 1 ? "pair differs" : "pairs differ"} from your order. This is the closest fit found, not proof that your ranking is right.`} {update!.estimatedShare > 0 && `${Math.round(update!.estimatedShare * 100)}% of weighted evidence is estimated.`}</p>{update!.mismatches.length > 0 && <details className="fit-details"><summary>See the disagreements</summary><ul>{update!.mismatches.map((pair, i) => <li key={i}>You placed <strong>{models.get(pair.above)?.name}</strong> above <strong>{models.get(pair.below)?.name}</strong>.</li>)}</ul></details>}<details className="fit-details"><summary>How this fit was calculated</summary><p>Strictness {update!.config.strictness ?? 20}/100. {update!.config.effortMatching === "strict" ? "Exact reasoning efforts only." : "Calibrated reasoning-effort estimates allowed."} {update!.config.estimateMissing ? "Missing benchmark results may be estimated from peers." : "Missing results are left out and available weights are renormalized."} Only pairs within your selected lineup count toward agreement. Unselected models cannot compensate for a mistake in that lineup. Best effort per model. Candidates are screened, then checked with the builder’s scoring engine. We search nonnegative weights and prune benchmarks. This is a best fit found, not a guarantee of the global minimum.</p></details><a className="primary-action" href={resultUrl}>Explore this index <Arrow /></a><button className="text-control copy-result" onClick={copy}>{copied ? "Link copied ✓" : "Copy index link"}</button></div>}
+            {complete && <div className="result-actions"><p className="fit-disclosure">{update!.exactMatch ? "Every model matches your requested order." : "No matching configuration found. This is an approximate fit, not your requested ranking."} {update!.estimatedShare > 0 && `${Math.round(update!.estimatedShare * 100)}% of weighted evidence is estimated.`}</p>{update!.mismatches.length > 0 && <details className="fit-details"><summary>See the disagreements</summary><ul>{update!.mismatches.map((pair, i) => <li key={i}>You placed <strong>{models.get(pair.above)?.name}</strong> above <strong>{models.get(pair.below)?.name}</strong>.</li>)}</ul></details>}<details className="fit-details"><summary>How this fit was calculated</summary><p>Strictness {update!.config.strictness ?? 20}/100. {update!.config.effortMatching === "strict" ? "Exact reasoning efforts only." : "Calibrated reasoning-effort estimates allowed."} {update!.config.estimateMissing ? "Peer estimates may fill remaining gaps." : "Remaining gaps are left out and available weights are renormalized."} Calibrated benchmark fallbacks are allowed below maximum strictness. Only your selected lineup is optimized. Your reversals and the placements of added models take priority, starting at the top. Remaining comparisons favor higher ranks. A comparison checks whether one selected model ranks above another; it is not an extra model. Unselected models cannot compensate for a mistake in that lineup. Best effort per model. Candidates are screened, then checked with the builder’s scoring engine. We search nonnegative weights and prune benchmarks. This is a best fit found, not a guarantee of the global minimum.</p></details><a className="primary-action" href={resultUrl}>Explore this index <Arrow /></a><button className="text-control copy-result" onClick={copy}>{copied ? "Link copied ✓" : "Copy index link"}</button></div>}
           </>}
         </aside>
       </div>

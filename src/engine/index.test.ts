@@ -53,7 +53,7 @@ describe("computeIndex", () => {
     s.observations.push({ benchmarkId: "deep1", variantId: "a@high", value: 40, observedAt: "", sourceUrl: "" }, { benchmarkId: "deep1", variantId: "a@max", value: 80, observedAt: "", sourceUrl: "" });
     const r = computeIndex(s, { ...base, weights: { swe: 50, term: 50 }, effortMatching: "calibrated" });
     const v = r.ranked.find((x) => x.variant.id === "a@high")!.values.find((v) => v.benchmarkId === "term")!;
-    expect(v.value).toBeCloseTo(72 * (0.875 + 0.5) / 2);
+    expect(v.value).toBeCloseTo(72 * (70 + 40) / (80 + 80));
     expect(v.evidence).toHaveLength(2);
   });
   it("does not copy a maximum score when no paired effort evidence exists", () => {
@@ -165,6 +165,17 @@ describe("computeIndex", () => {
     const b = r.ranked.find((x) => x.variant.id === "b@xhigh")!;
     expect(b.values[0].from).toBe("deep1");
     expect(r.ranked.find((x) => x.variant.id === "a@max")!.values[0].from).toBe("deep11");
+  });
+  it("uses explicit paired calibration as estimated evidence and strict mode rejects it", () => {
+    const s = snap();
+    s.benchmarks.push({ id: "preferred", name: "Preferred", sourceId: "s", url: "", description: "", unit: "score", higherIsBetter: true, category: "coding", normalization: { kind: "linear", min: 0, max: 100 }, estimationRoutes: [{ sourceId: "term", factor: 0.5, method: "paired-average", pairedCount: 8, evidenceId: "calibration:test" }] });
+    const loose = computeIndex(s, { ...base, weights: { preferred: 100 }, cutoff: 101 });
+    const fallback = loose.ranked.find((r) => r.variant.id === "a@max")?.values[0];
+    expect(fallback).toMatchObject({ value: 36, estimated: true, estimateKind: "calibrated-fallback", from: "term", evidence: ["calibration:test", "8 paired configurations"] });
+    expect(fallback?.raw).toBeUndefined();
+    expect(loose.ranked.find((r) => r.variant.id === "a@max")?.mixedEfforts).toBe(false);
+    const strict = computeIndex(s, { ...base, weights: { preferred: 100 }, strictness: 100, optional: ["preferred"] });
+    expect(strict.ranked).toHaveLength(0);
   });
   it("marks pareto frontier by measured cost", () => {
     const r = computeIndex(snap(), base);

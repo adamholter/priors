@@ -7,7 +7,7 @@ const ns = (id: string) => `real-index:${id}`;
 const efforts = new Set<Effort>(["none", "minimal", "low", "medium", "high", "xhigh", "max"]);
 type Metric = (typeof formulas.metrics)[number];
 
-// Reviewed exact release identities only. Names that match but carry different release dates stay isolated.
+// Reviewed AA release identities and native efforts. Source release dates remain in provenance.
 const RELEASE_CROSSWALK: Record<string, string> = {
   "claude-fable-5-1-max": "claude-fable-5.1",
   "claude-opus-5-max": "claude-opus-5",
@@ -90,7 +90,7 @@ export function realIndexSupplement(): Pick<Snapshot, "labs" | "models" | "varia
     const mappedBenchmark = BENCHMARK_CROSSWALK[o.metricId];
     if (!mappedModel || !mappedBenchmark) return [primary];
     const effort = efforts.has(sourceConfig.reasoningConfiguration.effort as Effort) ? sourceConfig.reasoningConfiguration.effort : "default";
-    return [primary, { ...primary, benchmarkId: mappedBenchmark, variantId: `${mappedModel}@${effort}`, value: o.value, details: { realIndex: { ...o, rawValue: o.value, evidenceKind: "recorded-observation", crosswalk: "source-release-and-effort", releaseDateDiscrepancy: true } } }];
+    return [primary, { ...primary, benchmarkId: mappedBenchmark, variantId: `${mappedModel}@${effort}`, value: o.value, details: { realIndex: { ...o, rawValue: o.value, evidenceKind: "recorded-observation", crosswalk: "source-release-and-effort", sourceReleaseDate: dataset.modelCatalog.find(m => m.id === sourceConfig.reasoningConfiguration.releaseId)?.releaseDate } } }];
   });
   const estimates: NonNullable<Snapshot["estimates"]> = resolved.filter((r) => r.state === "estimated").map((r) => ({
     benchmarkId: ns(r.metricId), variantId: ns(r.modelId), value: r.normalizedValue,

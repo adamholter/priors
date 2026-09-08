@@ -92,6 +92,7 @@ export interface BenchValue {
   value: number;
   raw?: number;
   estimated: boolean;
+  estimateKind?: "effort" | "calibrated-fallback" | "peer";
   /** which concrete benchmark supplied it (fallback versions) */
   from?: string;
   sourceVariantId?: string;
@@ -141,28 +142,58 @@ function indexObservations(snapshot: Snapshot): ObsIndex {
     // prefer rows without harness (source's canonical) or first seen
     if (!m.has(o.variantId)) m.set(o.variantId, o);
   }
+  for (const estimate of snapshot.estimates ?? []) {
+    let m = idx.get(estimate.benchmarkId);
+    if (!m) idx.set(estimate.benchmarkId, (m = new Map()));
+    if (!m.has(estimate.variantId)) m.set(estimate.variantId, {
+      benchmarkId: estimate.benchmarkId, variantId: estimate.variantId, value: estimate.value,
+      observedAt: "", sourceUrl: estimate.sourceUrl ?? "", sourceModelId: estimate.sourceVariantId, details: { priorsEstimate: estimate },
+    });
+  }
   return idx;
 }
 
+function inferredObservation(o: Observation) {
+  return Boolean(o.details?.priorsEstimate || (o.details?.realIndex as { effortAttribution?: string } | undefined)?.effortAttribution === "assumed-top");
+}
+
 /** Resolve a logical benchmark value through fallback chains. */
-function lookup(idx: ObsIndex, benches: Map<string, Benchmark>, benchmarkId: string, variantId: string, depth = 0): { obs: Observation; from: string } | undefined {
+function lookup(idx: ObsIndex, benches: Map<string, Benchmark>, benchmarkId: string, variantId: string, depth = 0, allowEstimated = true, allowCrossEffort = true): { obs: Observation; from: string; value?: number; estimated?: boolean; evidence?: string[] } | undefined {
   const o = idx.get(benchmarkId)?.get(variantId);
-  if (o) return { obs: o, from: benchmarkId };
+  const explicitEstimate = o?.details?.priorsEstimate as { sourceBenchmarkId?: string; estimateKind?: string; evidence?: string[] } | undefined;
+  const assumedTop = (o?.details?.realIndex as { effortAttribution?: string } | undefined)?.effortAttribution === "assumed-top";
+  if (o && (!(explicitEstimate || assumedTop) || allowEstimated) && (allowCrossEffort || explicitEstimate?.estimateKind !== "cross-effort")) return {
+    obs: o, from: explicitEstimate?.sourceBenchmarkId ?? benchmarkId,
+    estimated: Boolean(explicitEstimate || assumedTop), evidence: explicitEstimate?.evidence ?? (assumedTop ? ["Real Index Top-effort assumption; native effort not published"] : undefined),
+  };
   const b = benches.get(benchmarkId);
-  if (b?.versionPolicy?.kind === "fallback" && depth < 4) return lookup(idx, benches, b.versionPolicy.fallbackTo, variantId, depth + 1);
+  if (b?.versionPolicy?.kind === "fallback" && depth < 4) {
+    const version = lookup(idx, benches, b.versionPolicy.fallbackTo, variantId, depth + 1, allowEstimated, allowCrossEffort);
+    if (version) return version;
+  }
+  if (allowEstimated && depth < 4) {
+    for (const route of b?.estimationRoutes ?? []) {
+      const source = idx.get(route.sourceId)?.get(variantId);
+      if (!source || inferredObservation(source) || !Number.isFinite(route.factor) || route.factor < 0) continue;
+      return {
+        obs: source, from: route.sourceId, value: clamp(source.value * route.factor, 0, 100), estimated: true,
+        evidence: [route.evidenceId, ...(route.pairedCount == null ? [] : [`${route.pairedCount} paired configurations`])],
+      };
+    }
+  }
   return undefined;
 }
 
-function lookupEffort(idx: ObsIndex, benches: Map<string, Benchmark>, benchmarkId: string, variant: Variant, strict: boolean) {
-  const exact = lookup(idx, benches, benchmarkId, variant.id);
-  if (exact || strict) return exact;
+function lookupEffort(idx: ObsIndex, benches: Map<string, Benchmark>, benchmarkId: string, variant: Variant, strictEffort: boolean, allowEstimated: boolean) {
+  const exact = lookup(idx, benches, benchmarkId, variant.id, 0, allowEstimated, !strictEffort);
+  if (exact || strictEffort) return exact;
   const order = ["none", "minimal", "low", "medium", "high", "xhigh", "max", "default"];
   const target = order.indexOf(variant.effort);
   const visited = new Set<string>();
   let id: string | undefined = benchmarkId;
   while (id && !visited.has(id)) {
     visited.add(id);
-    const candidates = [...(idx.get(id)?.values() ?? [])].filter((o) => o.variantId.startsWith(`${variant.modelId}@`) && o.variantId.split("~")[1] === variant.id.split("~")[1]);
+    const candidates = [...(idx.get(id)?.values() ?? [])].filter((o) => !inferredObservation(o) && o.variantId.startsWith(`${variant.modelId}@`) && o.variantId.split("~")[1] === variant.id.split("~")[1]);
     candidates.sort((a, b) => {
       const ai = order.indexOf(a.variantId.split("@")[1].split("~")[0]), bi = order.indexOf(b.variantId.split("@")[1].split("~")[0]);
       return Math.abs(ai - target) - Math.abs(bi - target) || ai - bi || a.variantId.localeCompare(b.variantId);
@@ -188,22 +219,21 @@ function effortAdjustment(idx: ObsIndex, benches: Map<string, Benchmark>, normal
       }
     }
   }
-  const comparisons: { id: string; ratio: number; weight: number }[] = [];
+  const comparisons: { id: string; numerator: number; denominator: number }[] = [];
   for (const b of benches.values()) {
     if (related.has(b.id) || b.proxy || ["cost", "speed", "composite"].includes(b.category)) continue;
     const a = idx.get(b.id)?.get(target.id), donor = idx.get(b.id)?.get(source.variantId);
-    if (!a || !donor || a.harness !== donor.harness || /estimated/i.test(`${a.note ?? ""} ${donor.note ?? ""}`)) continue;
+    if (!a || !donor || inferredObservation(a) || inferredObservation(donor) || a.harness !== donor.harness || /estimated/i.test(`${a.note ?? ""} ${donor.note ?? ""}`)) continue;
     const denominator = normalize.get(b.id)!(donor.value), numerator = normalize.get(b.id)!(a.value);
     if (!Number.isFinite(numerator) || !Number.isFinite(denominator) || denominator < 5) continue;
-    comparisons.push({ id: b.id, ratio: Math.min(4, Math.max(0, numerator / denominator)), weight: b.category === benches.get(targetBenchmark)?.category ? 2 : 1 });
+    comparisons.push({ id: b.id, numerator, denominator });
   }
   const minimum = strictness >= 95 ? 3 : strictness >= 75 ? 2 : 1;
   if (comparisons.length < minimum) return undefined;
-  comparisons.sort((a, b) => a.ratio - b.ratio || a.id.localeCompare(b.id));
-  const trim = comparisons.length >= 5 ? Math.floor(comparisons.length * 0.2) : 0;
-  const central = comparisons.slice(trim, comparisons.length - trim);
-  const factor = central.reduce((sum, c) => sum + c.ratio * c.weight, 0) / central.reduce((sum, c) => sum + c.weight, 0);
-  return { effortFactor: to < from ? Math.min(1, factor) : Math.max(1, factor), evidence: central.map((c) => c.id) };
+  comparisons.sort((a, b) => a.id.localeCompare(b.id));
+  // Ratio of means over paired, directly measured benchmarks. Each benchmark counts once.
+  const factor = comparisons.reduce((sum, c) => sum + c.numerator, 0) / comparisons.reduce((sum, c) => sum + c.denominator, 0);
+  return { effortFactor: factor, evidence: comparisons.map((c) => c.id) };
 }
 
 /** Percent benchmarks are used raw; everything else is min-max scaled over the pool of values present. */
@@ -252,17 +282,18 @@ export function computeIndex(snapshot: Snapshot, config: IndexConfig): IndexResu
   });
 
   // raw values per benchmark over the pool -> normalizers
-  type Resolved = { raw: number; from: string; sourceVariantId: string; sourceUrl: string; substituted: boolean; effortFactor?: number; evidence?: string[] };
+  type Resolved = { normalizedEstimate: boolean; raw: number; from: string; sourceVariantId: string; sourceUrl: string; substituted: boolean; estimateKind?: BenchValue["estimateKind"]; effortFactor?: number; evidence?: string[] };
   const rawByBench = new Map<string, Map<string, Resolved>>();
   for (const s of shares) {
     const m = new Map<string, Resolved>();
     for (const v of pool) {
-      const r = lookupEffort(idx, benches, s.benchmark.id, v, config.effortMatching === "strict" || strictness === 100 || s.benchmark.proxy === true || ["cost", "speed"].includes(s.benchmark.category));
+      const r = lookupEffort(idx, benches, s.benchmark.id, v, config.effortMatching === "strict" || strictness === 100 || s.benchmark.proxy === true || ["cost", "speed"].includes(s.benchmark.category), strictness < 100);
       if (!r) continue;
       const substituted = r.obs.variantId !== v.id;
       const adjustment = substituted ? effortAdjustment(idx, benches, normalizeMeasured, s.benchmark.id, v, r.obs, strictness) : undefined;
       if (substituted && !adjustment) continue;
-      m.set(v.id, { raw: r.obs.value, from: r.from, sourceVariantId: r.obs.variantId, sourceUrl: r.obs.sourceUrl, substituted, ...adjustment });
+      const shippedKind = (r.obs.details?.priorsEstimate as { estimateKind?: string } | undefined)?.estimateKind;
+      m.set(v.id, { normalizedEstimate: Boolean(r.obs.details?.priorsEstimate), raw: r.value ?? r.obs.value, from: r.from, sourceVariantId: (r.obs.details?.priorsEstimate as { sourceVariantId?: string } | undefined)?.sourceVariantId ?? r.obs.variantId, sourceUrl: r.obs.sourceUrl, substituted: substituted || r.estimated === true, estimateKind: r.estimated ? (shippedKind === "cross-effort" ? "effort" : "calibrated-fallback") : substituted ? "effort" : undefined, ...adjustment, evidence: [...(r.evidence ?? []), ...(adjustment?.evidence ?? [])] });
     }
     rawByBench.set(s.benchmark.id, m);
   }
@@ -282,15 +313,19 @@ export function computeIndex(snapshot: Snapshot, config: IndexConfig): IndexResu
     let num = 0, den = 0, covered = 0;
     for (const s of shares) {
       const nv = normValue(s.benchmark.id, v.id);
-      if (nv) { values.push({ benchmarkId: s.benchmark.id, ...nv, estimated: nv.substituted }); num += nv.value * s.share; den += s.share; if (!nv.substituted) covered += s.share; continue; }
+      if (nv) {
+        const { raw, normalizedEstimate, ...publicValue } = nv;
+        values.push({ benchmarkId: s.benchmark.id, ...publicValue, ...(normalizedEstimate || nv.estimateKind === "calibrated-fallback" ? {} : { raw }), estimated: nv.substituted });
+        num += nv.value * s.share; den += s.share; if (!nv.substituted) covered += s.share; continue;
+      }
       if (!config.estimateMissing || strictness === 100) continue; // renormalize: just skip
       const est = estimate(v, s.benchmark.id, pool, shares.map((x) => x.benchmark.id), observedValue, models, 5, strictness);
-      if (est != null) { values.push({ benchmarkId: s.benchmark.id, value: est, estimated: true }); num += est * s.share; den += s.share; }
+      if (est != null) { values.push({ benchmarkId: s.benchmark.id, value: est, estimated: true, estimateKind: "peer" }); num += est * s.share; den += s.share; }
     }
     if (den <= 0) continue;
     const cost = costFor(snapshot, idx, v.id, shares.map((s) => ({ id: s.benchmark.id, share: s.share })));
     const speedObs = idx.get(SPEED_BENCHMARK)?.get(v.id);
-    ranked.push({ variant: v, model, score: num / den, coverage: Math.min(1, Math.round(covered * 1e4) / 1e6), values, mixedEfforts: values.some((v) => v.substituted), costUsd: cost?.usd, costSource: cost?.source, speed: speedObs && speedObs.value > 0 ? speedObs.value : undefined, onFrontier: false, rank: 0 });
+    ranked.push({ variant: v, model, score: num / den, coverage: Math.min(1, Math.round(covered * 1e4) / 1e6), values, mixedEfforts: values.some((value) => value.estimateKind === "effort"), costUsd: cost?.usd, costSource: cost?.source, speed: speedObs && speedObs.value > 0 ? speedObs.value : undefined, onFrontier: false, rank: 0 });
   }
 
   let out = ranked;
