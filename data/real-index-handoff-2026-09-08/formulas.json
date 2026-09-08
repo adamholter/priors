@@ -1,0 +1,1693 @@
+{
+  "schemaVersion": 1,
+  "observationSelection": "exact-reasoning-configuration-unspecified-top-v2",
+  "crossEffortPolicy": "same-release-top-paired-capability-means-v1",
+  "tokenPriceBlend": {
+    "cachedInput": 0.7,
+    "input": 0.2,
+    "output": 0.1
+  },
+  "fallbackMarginPoints": 10,
+  "catalog": {
+    "compositeMetrics": [
+      {
+        "id": "composite-speed-score",
+        "version": "2026.2",
+        "kind": "composite",
+        "family": "speed",
+        "name": "Speed Score",
+        "description": "Leans primarily on Time per Intelligence Index Task from Artificial Analysis but also includes a small amount of Time to First Answer Token and Median Output Speed weight in order to reflect the user experience in more standard usage (e.g. not always solving intentionally complex problems)",
+        "components": [
+          {
+            "metricId": "time-per-task",
+            "weight": 0.78
+          },
+          {
+            "metricId": "time-to-first-answer-token",
+            "weight": 0.12
+          },
+          {
+            "metricId": "output-speed",
+            "weight": 0.1
+          }
+        ]
+      },
+      {
+        "id": "composite-affordability-score",
+        "version": "2026.2",
+        "kind": "composite",
+        "family": "cost",
+        "name": "Affordability Score",
+        "description": "Shared AA workload reference: mostly task cost and a little bit fixed blended token price. Task cost is not measured on the selected capability mixture. This blend helps account for the fact that cost per task reflects particular types of tasks as from benchmarks instead of realistic day-to-day use.",
+        "components": [
+          {
+            "metricId": "cost-per-task",
+            "weight": 0.9
+          },
+          {
+            "metricId": "blended-token-price",
+            "weight": 0.1
+          }
+        ]
+      },
+      {
+        "id": "real-coding-composite",
+        "version": "2026.2",
+        "kind": "composite",
+        "family": "quality",
+        "name": "Real Software Engineering Index",
+        "description": "Long-horizon engineering, architecting, and repository comprehension. ",
+        "components": [
+          {
+            "metricId": "deepswe-1-1",
+            "weight": 0.2488488749365937
+          },
+          {
+            "metricId": "terminal-bench-v4",
+            "weight": 0.2488488749365937
+          },
+          {
+            "metricId": "swe-atlas-qna",
+            "weight": 0.18130418031094686
+          },
+          {
+            "metricId": "aa-omniscience-accuracy",
+            "weight": 0.08024951745396645
+          },
+          {
+            "metricId": "scicode",
+            "weight": 0.08024951745396645
+          },
+          {
+            "metricId": "baby-vision",
+            "weight": 0.08024951745396645
+          },
+          {
+            "metricId": "mmmu-pro",
+            "weight": 0.08024951745396645
+          }
+        ]
+      },
+      {
+        "id": "real-stem-composite",
+        "version": "2026.2",
+        "kind": "composite",
+        "family": "quality",
+        "name": "Real Reasoning & Knowledge Index",
+        "description": "Deep understanding and problem solving. Broad knowledge and reasoning capacity.",
+        "components": [
+          {
+            "metricId": "hle",
+            "weight": 0.27666486206471946
+          },
+          {
+            "metricId": "scicode",
+            "weight": 0.07532604088988294
+          },
+          {
+            "metricId": "critpt",
+            "weight": 0.1375926854118652
+          },
+          {
+            "metricId": "aa-omniscience",
+            "weight": 0.14794912409878067
+          },
+          {
+            "metricId": "arc-agi-3",
+            "weight": 0.263114129724775
+          },
+          {
+            "metricId": "aa-briefcase",
+            "weight": 0.024027116920093815
+          },
+          {
+            "metricId": "aa-lcr",
+            "weight": 0.07532604088988294
+          }
+        ]
+      },
+      {
+        "id": "real-frontier-2026-custom-custom-composite",
+        "version": "2026.1",
+        "kind": "composite",
+        "family": "quality",
+        "name": "Real Frontier Index",
+        "description": "Overall Weighted Real Intelligence Index",
+        "components": [
+          {
+            "metricId": "real-coding-composite",
+            "weight": 0.12209670879196223
+          },
+          {
+            "metricId": "real-stem-composite",
+            "weight": 0.12209670879196223
+          },
+          {
+            "metricId": "aa-omniscience",
+            "weight": 0.12209670879196223
+          },
+          {
+            "metricId": "tau3-banking",
+            "weight": 0.08030235812631839
+          },
+          {
+            "metricId": "arc-agi-3",
+            "weight": 0.030312735948243918
+          },
+          {
+            "metricId": "aa-omniscience-accuracy",
+            "weight": 0.05070608718928385
+          },
+          {
+            "metricId": "aa-briefcase",
+            "weight": 0.08546769615437352
+          },
+          {
+            "metricId": "aa-lcr",
+            "weight": 0.08086590475440969
+          },
+          {
+            "metricId": "mmmu-pro",
+            "weight": 0.052429776335612785
+          },
+          {
+            "metricId": "baby-vision",
+            "weight": 0.052429776335612785
+          },
+          {
+            "metricId": "hle",
+            "weight": 0.14065540852834046
+          },
+          {
+            "metricId": "arena-text-multi-turn",
+            "weight": 0.03027006512595892
+          },
+          {
+            "metricId": "agent-arena-praise-vs-complaint",
+            "weight": 0.03027006512595892
+          }
+        ]
+      },
+      {
+        "id": "arc-hle-roboflow-fallback",
+        "version": "1.0",
+        "kind": "composite",
+        "family": "quality",
+        "name": "HLE + Roboflow",
+        "description": "Equal-weight secondary ARC-AGI-3 fallback using HLE and Roboflow Visual Reasoning.",
+        "fallbackOnly": true,
+        "components": [
+          {
+            "metricId": "hle",
+            "weight": 0.6
+          },
+          {
+            "metricId": "roboflow-visual-reasoning",
+            "weight": 0.2
+          },
+          {
+            "metricId": "aa-omniscience-accuracy",
+            "weight": 0.2
+          }
+        ]
+      },
+      {
+        "id": "atlas-qna-fallback-composite",
+        "version": "1.0",
+        "kind": "composite",
+        "family": "quality",
+        "name": "Atlas-QnA Fallback",
+        "description": "",
+        "fallbackOnly": true,
+        "components": [
+          {
+            "metricId": "aa-omniscience",
+            "weight": 0.2
+          },
+          {
+            "metricId": "aa-lcr",
+            "weight": 0.5
+          },
+          {
+            "metricId": "deepswe-1-1",
+            "weight": 0.3
+          }
+        ]
+      },
+      {
+        "id": "saas-agentic-composite",
+        "version": "1.0",
+        "kind": "composite",
+        "family": "quality",
+        "name": "Real SaaS Index - Agentic",
+        "description": "Prioritizes agentic tool use at high speeds without getting access to web search",
+        "components": [
+          {
+            "metricId": "aa-omniscience",
+            "weight": 0.0864168635115155
+          },
+          {
+            "metricId": "tau3-banking",
+            "weight": 0.14840467547556419
+          },
+          {
+            "metricId": "terminal-bench-v4",
+            "weight": 0.2081967920107127
+          },
+          {
+            "metricId": "composite-speed-score",
+            "weight": 0.27875019643552224
+          },
+          {
+            "metricId": "aa-briefcase",
+            "weight": 0.10858878693333963
+          },
+          {
+            "metricId": "aa-lcr",
+            "weight": 0.08322582212183016
+          },
+          {
+            "metricId": "aa-omniscience-hallucination-rate",
+            "weight": 0.0864168635115155
+          }
+        ]
+      },
+      {
+        "id": "saas-conversational-composite",
+        "version": "1.0",
+        "kind": "composite",
+        "family": "quality",
+        "name": "Real SaaS Index - Conversational",
+        "description": "Prioritizes speed and informative responses while maintaining a large context and without web search or significant tool calling",
+        "components": [
+          {
+            "metricId": "time-to-first-answer-token",
+            "weight": 0.22018234659140157
+          },
+          {
+            "metricId": "composite-speed-score",
+            "weight": 0.0825888738038999
+          },
+          {
+            "metricId": "arena-text-multi-turn",
+            "weight": 0.20647218450974975
+          },
+          {
+            "metricId": "aa-omniscience",
+            "weight": 0.12763735042420896
+          },
+          {
+            "metricId": "aa-lcr",
+            "weight": 0.22148834338318613
+          },
+          {
+            "metricId": "agent-arena-praise-vs-complaint",
+            "weight": 0.06137339055793991
+          },
+          {
+            "metricId": "aa-briefcase",
+            "weight": 0.08025751072961372
+          }
+        ]
+      }
+    ],
+    "publishedIndices": [
+      {
+        "id": "real-frontier-2026-custom-custom",
+        "version": "2026.1",
+        "title": "Real Frontier Index",
+        "lastUpdated": "2026-09-06",
+        "subtitle": "Balanced frontier capability",
+        "description": "Overall Weighted Real Intelligence Index",
+        "rootMetricId": "real-frontier-2026-custom-custom-composite",
+        "isDefault": true
+      },
+      {
+        "id": "real-coding-2026",
+        "version": "2026.2",
+        "title": "Real Software Engineering Index",
+        "lastUpdated": "2026-09-06",
+        "subtitle": "Engineering work",
+        "description": "Long-horizon engineering, architecting, and repository comprehension. ",
+        "rootMetricId": "real-coding-composite"
+      },
+      {
+        "id": "real-stem-2026",
+        "version": "2026.2",
+        "title": "Real Reasoning & Knowledge Index",
+        "lastUpdated": "2026-09-06",
+        "subtitle": "Broad knowledge and reasoning capacity",
+        "description": "Deep understanding and problem solving. Broad knowledge and reasoning capacity.",
+        "rootMetricId": "real-stem-composite"
+      },
+      {
+        "id": "saas-agentic",
+        "version": "1.0",
+        "title": "Real SaaS Index - Agentic",
+        "lastUpdated": "2026-09-06",
+        "subtitle": "Action based agentic Saas environments. Prioritizing navigating custom agentic environments with speed",
+        "description": "Prioritizes agentic tool use at high speeds without getting access to web search",
+        "rootMetricId": "saas-agentic-composite"
+      },
+      {
+        "id": "saas-conversational",
+        "version": "1.0",
+        "title": "Real SaaS Index - Conversational",
+        "lastUpdated": "2026-09-06",
+        "subtitle": "Quick conversational clarity and accuracy with heavy context",
+        "description": "Prioritizes speed and informative responses while maintaining a large context and without web search or significant tool calling",
+        "rootMetricId": "saas-conversational-composite"
+      }
+    ],
+    "fallbackRoutes": [
+      {
+        "metricId": "osworld-2",
+        "fallbackMetricIds": [
+          "osworld-verified"
+        ]
+      },
+      {
+        "metricId": "mmmu-pro",
+        "fallbackMetricIds": [
+          "roboflow-visual-reasoning"
+        ]
+      },
+      {
+        "metricId": "terminal-bench-v4",
+        "fallbackMetricIds": [
+          "terminal-bench-2-1"
+        ]
+      },
+      {
+        "metricId": "baby-vision",
+        "fallbackMetricIds": [
+          "roboflow-visual-reasoning"
+        ]
+      },
+      {
+        "metricId": "tau3-banking",
+        "fallbackMetricIds": [
+          "automationbench",
+          "enterprise-ops-gym-aa"
+        ]
+      },
+      {
+        "metricId": "scicode",
+        "fallbackMetricIds": [
+          "terminal-bench-science"
+        ]
+      },
+      {
+        "metricId": "arc-agi-3",
+        "fallbackMetricIds": [
+          "arc-agi-2",
+          "arc-hle-roboflow-fallback"
+        ]
+      },
+      {
+        "metricId": "swe-atlas-qna",
+        "fallbackMetricIds": [
+          "atlas-qna-fallback-composite"
+        ]
+      },
+      {
+        "metricId": "arena-text-multi-turn",
+        "fallbackMetricIds": [
+          "agent-arena",
+          "aa-briefcase"
+        ]
+      },
+      {
+        "metricId": "agent-arena-praise-vs-complaint",
+        "fallbackMetricIds": [
+          "aa-briefcase"
+        ]
+      }
+    ]
+  },
+  "metrics": [
+    {
+      "id": "arena-text-multi-turn",
+      "version": "2026-09-02-scale-3",
+      "kind": "raw",
+      "family": "quality",
+      "name": "Arena Text — Multi-Turn",
+      "shortName": "Arena Multi-Turn",
+      "requiresVisionInput": false,
+      "unit": "Arena rating",
+      "direction": "higher",
+      "normalization": {
+        "lowerAnchor": 1428.888888888889,
+        "upperAnchor": 1600,
+        "clamp": true
+      },
+      "source": {
+        "benchmarkName": "Arena Text — Multi-Turn",
+        "primarySourceUrl": "https://arena.ai/leaderboard/text/multi-turn",
+        "citation": "Official benchmark source, September 5, 2026 collection",
+        "description": "Anonymous human preference votes on multi-turn conversations. Fixed editorial rating anchors approximately 1428.8889–1600 place Grok 4.6's September 5 recorded rating of 1446 at 10 points. Bounds do not move with new results; ratings are not percentages. Agent Arena is a related collaboration fallback, not the same preference experiment."
+      },
+      "fallbackMetricIds": [
+        "agent-arena",
+        "aa-briefcase"
+      ]
+    },
+    {
+      "id": "agent-arena",
+      "version": "2026-09-01-scale-2",
+      "kind": "raw",
+      "family": "quality",
+      "name": "Agent Arena",
+      "shortName": "Agent Arena",
+      "requiresVisionInput": false,
+      "unit": "Net improvement (pp)",
+      "direction": "higher",
+      "normalization": {
+        "lowerAnchor": -5,
+        "upperAnchor": 25,
+        "clamp": true
+      },
+      "source": {
+        "benchmarkName": "Agent Arena",
+        "primarySourceUrl": "https://arena.ai/leaderboard/agent",
+        "citation": "Official benchmark source, September 5, 2026 collection",
+        "description": "Overall causal net improvement across five signals from real user sessions. Stored in percentage points relative to the comparison baseline, not task success percent. Fixed editorial -5 to +25 percentage-point anchors map linearly to 0–100 points; zero improvement maps to 16.67 points. Includes Praise vs Complaint, so weighting that separately introduces intentional overlap."
+      },
+      "fallbackMetricIds": []
+    },
+    {
+      "id": "agent-arena-praise-vs-complaint",
+      "version": "2026-09-01-scale-2",
+      "kind": "raw",
+      "family": "quality",
+      "name": "Agent Arena — Praise vs Complaint",
+      "shortName": "Praise vs Complaint",
+      "requiresVisionInput": false,
+      "unit": "Net improvement (pp)",
+      "direction": "higher",
+      "normalization": {
+        "lowerAnchor": -5,
+        "upperAnchor": 35,
+        "clamp": true
+      },
+      "source": {
+        "benchmarkName": "Agent Arena — Praise vs Complaint",
+        "primarySourceUrl": "https://arena.ai/blog/agent-arena-methodology",
+        "citation": "Official benchmark source, September 5, 2026 collection",
+        "description": "Separately weightable causal treatment effect for tasks where explicit praise outnumbers complaints. This is improvement relative to a baseline, not the percentage of users who praise a model. Fixed editorial -5 to +35 percentage-point anchors map linearly to 0–100 points; zero improvement maps to 12.5 points."
+      },
+      "fallbackMetricIds": [
+        "aa-briefcase"
+      ]
+    },
+    {
+      "id": "osworld-2",
+      "version": "2.0-2026.08.08-full",
+      "kind": "raw",
+      "family": "quality",
+      "name": "OSWorld 2.0 (August, full completion)",
+      "shortName": "OSWorld 2.0",
+      "requiresVisionInput": true,
+      "unit": "Completed tasks (%)",
+      "direction": "higher",
+      "normalization": {
+        "lowerAnchor": 0,
+        "upperAnchor": 100,
+        "clamp": true
+      },
+      "source": {
+        "benchmarkName": "OSWorld 2.0 (August, full completion)",
+        "primarySourceUrl": "https://osworld-v2.xlang.ai/",
+        "citation": "Official benchmark source, September 5, 2026 collection",
+        "description": "Full-task binary/strict completion on the authors' August 2026 full task release. Desktop and browser workflows with computer tools, including image input. Preserve harness differences in observations; never mix partial rewards, offline-only results, or June task files into this metric."
+      },
+      "fallbackMetricIds": [
+        "osworld-verified"
+      ]
+    },
+    {
+      "id": "osworld-verified",
+      "version": "verified-2025.07.28",
+      "kind": "raw",
+      "family": "quality",
+      "name": "OSWorld Verified",
+      "shortName": "OSWorld Verified",
+      "requiresVisionInput": true,
+      "unit": "Task success (%)",
+      "direction": "higher",
+      "normalization": {
+        "lowerAnchor": 0,
+        "upperAnchor": 100,
+        "clamp": true
+      },
+      "source": {
+        "benchmarkName": "OSWorld Verified",
+        "primarySourceUrl": "https://osworld-v1.xlang.ai/",
+        "citation": "Official benchmark source, September 5, 2026 collection",
+        "description": "Verified real desktop and browser task success. Run-specific step limits, tools and evaluated task denominators remain in provenance. A shorter-workflow fallback for OSWorld 2.0."
+      },
+      "fallbackMetricIds": []
+    },
+    {
+      "id": "roboflow-visual-reasoning",
+      "version": "high-2026-09-05",
+      "kind": "raw",
+      "family": "vision",
+      "name": "Roboflow Visual Reasoning (high)",
+      "shortName": "Roboflow Vision",
+      "requiresVisionInput": true,
+      "unit": "Accuracy (%)",
+      "direction": "higher",
+      "normalization": {
+        "lowerAnchor": 0,
+        "upperAnchor": 100,
+        "clamp": true
+      },
+      "source": {
+        "benchmarkName": "Roboflow Visual Reasoning",
+        "primarySourceUrl": "https://playground.roboflow.com/evals/visual-reasoning",
+        "citation": "Roboflow Vision Evals, September 5, 2026 high-tier snapshot",
+        "description": "Reasoning from images through spatial relationships, comparisons, arithmetic and multi-step inference. Uses ground-truth accuracy graded by Gemini 3.5 Flash, not the strict-match score. High-tier settings may differ from catalogued max/xhigh efforts; those observations are marked as supporting evidence."
+      },
+      "fallbackMetricIds": []
+    },
+    {
+      "id": "terminal-bench-2-1",
+      "version": "2.1-scale-2",
+      "kind": "raw",
+      "family": "quality",
+      "name": "Terminal-Bench 2.1",
+      "shortName": "TermBench 2.1",
+      "requiresVisionInput": false,
+      "unit": "Score (%)",
+      "direction": "higher",
+      "normalization": {
+        "lowerAnchor": 50,
+        "upperAnchor": 100,
+        "clamp": true
+      },
+      "source": {
+        "benchmarkName": "Terminal-Bench 2.1",
+        "primarySourceUrl": "https://artificialanalysis.ai/evaluations/terminalbench-v2-1",
+        "citation": "September 5, 2026 fallback research snapshot",
+        "description": "AA Terminus 2 evaluation of Terminal-Bench 2.1. Older, easier tasks than v4; converted to the v4 scale only through a frozen calibration."
+      },
+      "fallbackMetricIds": []
+    },
+    {
+      "id": "mmmu-pro",
+      "version": "aa-10-option-2026-09-05-scale-2",
+      "kind": "raw",
+      "family": "vision",
+      "name": "MMMU-Pro (AA 10-option)",
+      "shortName": "MMMU-Pro",
+      "requiresVisionInput": true,
+      "unit": "Score (%)",
+      "direction": "higher",
+      "normalization": {
+        "lowerAnchor": 50,
+        "upperAnchor": 100,
+        "clamp": true
+      },
+      "source": {
+        "benchmarkName": "MMMU-Pro (AA 10-option)",
+        "primarySourceUrl": "https://artificialanalysis.ai/evaluations/mmmu-pro",
+        "citation": "September 5, 2026 fallback research snapshot",
+        "description": "AA 10-option visual academic reasoning evaluation. Related to Baby Vision but more knowledge-dependent; native image input is required."
+      },
+      "fallbackMetricIds": [
+        "roboflow-visual-reasoning"
+      ]
+    },
+    {
+      "id": "arc-agi-2",
+      "version": "2.0",
+      "kind": "raw",
+      "family": "quality",
+      "name": "ARC-AGI-2 (verified semi-private)",
+      "shortName": "ARC-AGI-2",
+      "requiresVisionInput": false,
+      "unit": "Score (%)",
+      "direction": "higher",
+      "normalization": {
+        "lowerAnchor": 0,
+        "upperAnchor": 100,
+        "clamp": true
+      },
+      "source": {
+        "benchmarkName": "ARC-AGI-2 (verified semi-private)",
+        "primarySourceUrl": "https://arcprize.org/arc-agi/2",
+        "citation": "September 5, 2026 fallback research snapshot",
+        "description": "Verified semi-private static grid reasoning. This older suite does not measure all of ARC-AGI-3's interactive exploration abilities."
+      },
+      "fallbackMetricIds": []
+    },
+    {
+      "id": "automationbench",
+      "version": "1.0.6",
+      "kind": "raw",
+      "family": "quality",
+      "name": "AutomationBench 1.0.6",
+      "shortName": "AutomationBench",
+      "requiresVisionInput": false,
+      "unit": "Task success (%)",
+      "direction": "higher",
+      "normalization": {
+        "lowerAnchor": 0,
+        "upperAnchor": 100,
+        "clamp": true
+      },
+      "source": {
+        "benchmarkName": "AutomationBench 1.0.6",
+        "primarySourceUrl": "https://zapier.com/benchmarks",
+        "citation": "Zapier AutomationBench 1.0.6 (2026)",
+        "description": "Strict task completion on held-out business workflows: every final-state assertion must pass. Uses Zapier leaderboard runs, not AA objective-completion scores."
+      },
+      "fallbackMetricIds": []
+    },
+    {
+      "id": "enterprise-ops-gym-aa",
+      "version": "2026-09-05-scale-2",
+      "kind": "raw",
+      "family": "quality",
+      "name": "EnterpriseOps-Gym-AA",
+      "shortName": "EnterpriseOps",
+      "requiresVisionInput": false,
+      "unit": "Task success (%)",
+      "direction": "higher",
+      "normalization": {
+        "lowerAnchor": 20,
+        "upperAnchor": 100,
+        "clamp": true
+      },
+      "source": {
+        "benchmarkName": "EnterpriseOps-Gym-AA",
+        "primarySourceUrl": "https://artificialanalysis.ai/evaluations/enterprise-ops-gym-aa",
+        "citation": "ServiceNow EnterpriseOps-Gym; independent Artificial Analysis evaluation (2026)",
+        "description": "Strict final-state success across eight enterprise domains, using AA Stirrup in oracle tool mode with three repeats. Relevant tools are supplied; this is not a tool-discovery evaluation."
+      },
+      "fallbackMetricIds": []
+    },
+    {
+      "id": "terminal-bench-science",
+      "version": "0.1",
+      "kind": "raw",
+      "family": "quality",
+      "name": "Terminal-Bench-Science 0.1",
+      "shortName": "TB Science",
+      "requiresVisionInput": false,
+      "unit": "Task success (%)",
+      "direction": "higher",
+      "normalization": {
+        "lowerAnchor": 0,
+        "upperAnchor": 100,
+        "clamp": true
+      },
+      "source": {
+        "benchmarkName": "Terminal-Bench-Science 0.1",
+        "primarySourceUrl": "https://www.terminal-bench-science.ai/",
+        "citation": "Stanford / Laude Institute Terminal-Bench-Science 0.1 (2026)",
+        "description": "70 scientific research workflow tasks, with executable evaluation and three trials per task. Official leaderboard observations retain each model’s agent and reasoning effort."
+      },
+      "fallbackMetricIds": []
+    },
+    {
+      "id": "aa-lcr",
+      "requiresVisionInput": false,
+      "version": "1.1-scale-2",
+      "kind": "raw",
+      "family": "quality",
+      "name": "AA-LCR v1.1",
+      "shortName": "AA-LCR",
+      "unit": "Accuracy (%)",
+      "direction": "higher",
+      "normalization": {
+        "lowerAnchor": 50,
+        "upperAnchor": 100,
+        "clamp": true
+      },
+      "source": {
+        "benchmarkName": "Artificial Analysis Long Context Reasoning v1.1",
+        "primarySourceUrl": "https://artificialanalysis.ai/evaluations/artificial-analysis-long-context-reasoning",
+        "citation": "Artificial Analysis AA-LCR v1.1 (2026)",
+        "description": "100 human-written questions requiring reasoning across document sets of 10k–100k tokens. Independent AA evaluation reports pass@1 accuracy averaged over three runs."
+      },
+      "fallbackMetricIds": []
+    },
+    {
+      "id": "aa-briefcase",
+      "requiresVisionInput": false,
+      "version": "2026-09-05-scale-3",
+      "kind": "raw",
+      "family": "quality",
+      "name": "AA-Briefcase",
+      "shortName": "AA-Briefcase",
+      "unit": "Elo",
+      "direction": "higher",
+      "normalization": {
+        "lowerAnchor": 500,
+        "upperAnchor": 2000,
+        "clamp": true
+      },
+      "source": {
+        "benchmarkName": "AA-Briefcase",
+        "primarySourceUrl": "https://artificialanalysis.ai/evaluations/aa-briefcase",
+        "citation": "Artificial Analysis AA-Briefcase (September 2026 snapshot)",
+        "description": "91 private agentic knowledge-work tasks across four business scenarios, evaluated with Stirrup. Combined Elo incorporates rubric correctness, analytical quality, and presentation. Index normalization uses fixed editorial anchors of 500 to 2000 Elo, not a benchmark percentage or official upper bound."
+      },
+      "fallbackMetricIds": []
+    },
+    {
+      "id": "terminal-bench-v4",
+      "requiresVisionInput": false,
+      "version": "4.0",
+      "kind": "raw",
+      "family": "quality",
+      "name": "Terminal-Bench v4",
+      "shortName": "TermBench v4",
+      "unit": "Accuracy (%)",
+      "direction": "higher",
+      "normalization": {
+        "lowerAnchor": 0,
+        "upperAnchor": 100,
+        "clamp": true
+      },
+      "source": {
+        "benchmarkName": "Terminal-Bench v4",
+        "primarySourceUrl": "https://hub.harborframework.com/datasets/terminal-bench/terminal-bench/latest?leaderboard=4-0-0&tab=leaderboard",
+        "citation": "Harbor Framework / Laude Institute Terminal-Bench 4.0 (2026)",
+        "description": "66 difficult terminal tasks evaluated in isolated Harbor environments, using the official versioned dataset and leaderboard accuracy."
+      },
+      "fallbackMetricIds": [
+        "terminal-bench-2-1"
+      ]
+    },
+    {
+      "id": "deepswe-1-1",
+      "requiresVisionInput": false,
+      "version": "1.1-scale-2",
+      "kind": "raw",
+      "family": "quality",
+      "name": "DeepSWE 1.1",
+      "shortName": "DeepSWE",
+      "unit": "Resolved (%)",
+      "direction": "higher",
+      "normalization": {
+        "lowerAnchor": 30,
+        "upperAnchor": 100,
+        "clamp": true
+      },
+      "source": {
+        "benchmarkName": "DeepSWE 1.1",
+        "primarySourceUrl": "https://deepswe.datacurve.ai/",
+        "citation": "Datacurve DeepSWE Benchmark (2026)",
+        "description": "Deep software engineering benchmark requiring multi-file architectural refactoring, complex bug reproduction, and multi-package patch synthesis in sandboxed repositories."
+      },
+      "fallbackMetricIds": []
+    },
+    {
+      "id": "swe-atlas-qna",
+      "requiresVisionInput": false,
+      "version": "1.0",
+      "kind": "raw",
+      "family": "quality",
+      "name": "SWE Atlas-QnA",
+      "shortName": "Atlas-QnA",
+      "unit": "Accuracy (%)",
+      "direction": "higher",
+      "normalization": {
+        "lowerAnchor": 0,
+        "upperAnchor": 100,
+        "clamp": true
+      },
+      "source": {
+        "benchmarkName": "SWE Atlas-QnA",
+        "primarySourceUrl": "https://labs.scale.com/leaderboard/sweatlas-qna",
+        "citation": "Scale AI SWE Atlas Benchmark (2026)",
+        "description": "Whole-repository architectural comprehension, deep call-graph tracing, system design rationale, and cross-file dependency QA."
+      },
+      "fallbackMetricIds": [
+        "atlas-qna-fallback-composite"
+      ]
+    },
+    {
+      "id": "arc-agi-3",
+      "requiresVisionInput": false,
+      "version": "3.0",
+      "kind": "raw",
+      "family": "quality",
+      "name": "ARC-AGI-3",
+      "shortName": "ARC-AGI-3",
+      "unit": "Score (%)",
+      "direction": "higher",
+      "normalization": {
+        "lowerAnchor": 0,
+        "upperAnchor": 100,
+        "clamp": true
+      },
+      "source": {
+        "benchmarkName": "ARC-AGI-3",
+        "primarySourceUrl": "https://htv3.arc-prize.com/leaderboard",
+        "citation": "Abstraction and Reasoning Corpus v3 (Chollet & ARC Prize Foundation, 2025-2026)",
+        "description": "Interaction with unfamiliar environments, scored by level completion and action efficiency relative to humans."
+      },
+      "fallbackMetricIds": [
+        "arc-agi-2",
+        "arc-hle-roboflow-fallback"
+      ]
+    },
+    {
+      "id": "hle",
+      "requiresVisionInput": false,
+      "version": "1.0",
+      "kind": "raw",
+      "family": "quality",
+      "name": "Humanity's Last Exam (HLE)",
+      "shortName": "HLE",
+      "unit": "Accuracy (%)",
+      "direction": "higher",
+      "normalization": {
+        "lowerAnchor": 0,
+        "upperAnchor": 100,
+        "clamp": true
+      },
+      "source": {
+        "benchmarkName": "Humanity's Last Exam",
+        "primarySourceUrl": "https://artificialanalysis.ai/evaluations/humanitys-last-exam",
+        "citation": "Center for AI Safety / Scale AI; independent scores by Artificial Analysis (2025-2026)",
+        "description": "Ultra-challenging multidisciplinary academic questions designed to test frontier knowledge at the limits of domain expertise."
+      },
+      "fallbackMetricIds": []
+    },
+    {
+      "id": "baby-vision",
+      "requiresVisionInput": true,
+      "version": "1.0",
+      "kind": "raw",
+      "family": "vision",
+      "name": "Baby Vision",
+      "shortName": "Baby Vision",
+      "unit": "Score (%)",
+      "direction": "higher",
+      "normalization": {
+        "lowerAnchor": 0,
+        "upperAnchor": 100,
+        "clamp": true
+      },
+      "source": {
+        "benchmarkName": "Baby Vision",
+        "primarySourceUrl": "https://arxiv.org/abs/2601.06521",
+        "citation": "BabyVision: Visual Reasoning Beyond Language (2026)",
+        "description": "Fine-grained spatial grounding, visual object occlusion, physical 3D relationship tracking, and complex diagram parsing."
+      },
+      "fallbackMetricIds": [
+        "roboflow-visual-reasoning"
+      ]
+    },
+    {
+      "id": "aa-omniscience",
+      "requiresVisionInput": false,
+      "version": "2026.1",
+      "kind": "raw",
+      "family": "knowledge",
+      "name": "Artificial Analysis Omniscience",
+      "shortName": "AA Omniscience",
+      "unit": "Index (-100 to 100)",
+      "direction": "higher",
+      "normalization": {
+        "lowerAnchor": -100,
+        "upperAnchor": 100,
+        "clamp": true
+      },
+      "source": {
+        "benchmarkName": "AA-Omniscience Index",
+        "primarySourceUrl": "https://artificialanalysis.ai/evaluations/omniscience",
+        "citation": "Artificial Analysis AA-Omniscience (2026)",
+        "description": "Knowledge reliability index ranging from -100 to 100; correct answers are rewarded, hallucinations are penalized, and refusals are not penalized."
+      },
+      "fallbackMetricIds": []
+    },
+    {
+      "id": "tau3-banking",
+      "requiresVisionInput": false,
+      "version": "3.0",
+      "kind": "raw",
+      "family": "quality",
+      "name": "𝜏³-Banking Benchmark",
+      "shortName": "𝜏³ Banking",
+      "unit": "Pass@1 (%)",
+      "direction": "higher",
+      "normalization": {
+        "lowerAnchor": 0,
+        "upperAnchor": 100,
+        "clamp": true
+      },
+      "source": {
+        "benchmarkName": "𝜏³-Banking",
+        "primarySourceUrl": "https://artificialanalysis.ai/evaluations/tau3-banking",
+        "citation": "Sierra Research τ-Bench / τ-Knowledge; independent scores by Artificial Analysis (2026)",
+        "description": "97 multi-turn banking customer-service tasks over a large knowledge base, evaluated through policy-following, knowledge retrieval, and state-changing tool-use success."
+      },
+      "fallbackMetricIds": [
+        "automationbench",
+        "enterprise-ops-gym-aa"
+      ]
+    },
+    {
+      "id": "scicode",
+      "requiresVisionInput": false,
+      "version": "1.0-scale-2",
+      "kind": "raw",
+      "family": "quality",
+      "name": "SciCode",
+      "shortName": "SciCode",
+      "unit": "Accuracy (%)",
+      "direction": "higher",
+      "normalization": {
+        "lowerAnchor": 20,
+        "upperAnchor": 100,
+        "clamp": true
+      },
+      "source": {
+        "benchmarkName": "SciCode",
+        "primarySourceUrl": "https://artificialanalysis.ai/evaluations/scicode",
+        "citation": "SciCode Benchmark; independent scores by Artificial Analysis (2024-2026)",
+        "description": "Scientist-curated scientific research coding problems requiring domain knowledge, reasoning, code synthesis, and executable validation across the natural sciences."
+      },
+      "fallbackMetricIds": [
+        "terminal-bench-science"
+      ]
+    },
+    {
+      "id": "aa-omniscience-accuracy",
+      "requiresVisionInput": false,
+      "version": "2026.1",
+      "kind": "raw",
+      "family": "knowledge",
+      "name": "AA-Omniscience Accuracy",
+      "shortName": "AA Accuracy",
+      "unit": "Accuracy (%)",
+      "direction": "higher",
+      "normalization": {
+        "lowerAnchor": 0,
+        "upperAnchor": 100,
+        "clamp": true
+      },
+      "source": {
+        "benchmarkName": "AA-Omniscience Accuracy",
+        "primarySourceUrl": "https://artificialanalysis.ai/evaluations/omniscience",
+        "citation": "Artificial Analysis AA-Omniscience (2026)",
+        "description": "Proportion of correctly answered questions out of all questions, regardless of whether the model chooses to answer."
+      },
+      "fallbackMetricIds": []
+    },
+    {
+      "id": "aa-omniscience-hallucination-rate",
+      "requiresVisionInput": false,
+      "version": "2026.1",
+      "kind": "raw",
+      "family": "knowledge",
+      "name": "AA-Omniscience Hallucination Rate",
+      "shortName": "AA Hallucination",
+      "unit": "Rate (%)",
+      "direction": "lower",
+      "normalization": {
+        "lowerAnchor": 0,
+        "upperAnchor": 100,
+        "clamp": true
+      },
+      "source": {
+        "benchmarkName": "AA-Omniscience Hallucination Rate",
+        "primarySourceUrl": "https://artificialanalysis.ai/evaluations/omniscience",
+        "citation": "Artificial Analysis AA-Omniscience (2026)",
+        "description": "Proportion of incorrect answers among non-correct responses when the model should have refused or admitted it did not know the answer."
+      },
+      "fallbackMetricIds": []
+    },
+    {
+      "id": "critpt",
+      "requiresVisionInput": false,
+      "version": "1.0",
+      "kind": "raw",
+      "family": "quality",
+      "name": "CritPt",
+      "shortName": "CritPt",
+      "unit": "Accuracy (%)",
+      "direction": "higher",
+      "normalization": {
+        "lowerAnchor": 0,
+        "upperAnchor": 100,
+        "clamp": true
+      },
+      "source": {
+        "benchmarkName": "CritPt",
+        "primarySourceUrl": "https://artificialanalysis.ai/evaluations/critpt",
+        "citation": "CritPt Benchmark; independent scores by Artificial Analysis (2025-2026)",
+        "description": "Research-level physics reasoning benchmark built from unpublished challenges across modern physics domains and evaluated with challenge-level accuracy."
+      },
+      "fallbackMetricIds": []
+    },
+    {
+      "id": "output-speed",
+      "requiresVisionInput": false,
+      "version": "1.2",
+      "kind": "raw",
+      "family": "speed",
+      "name": "Median Output Speed",
+      "shortName": "Speed",
+      "unit": "tokens/s",
+      "direction": "higher",
+      "normalization": {
+        "lowerAnchor": 25,
+        "upperAnchor": 1000,
+        "clamp": true
+      },
+      "source": {
+        "benchmarkName": "Output Throughput",
+        "primarySourceUrl": "https://artificialanalysis.ai/methodology/performance-benchmarking",
+        "citation": "Artificial Analysis Performance Benchmarking (2026)",
+        "description": "Median generation speed in tokens per second under standard API evaluation workloads."
+      },
+      "fallbackMetricIds": []
+    },
+    {
+      "id": "time-per-task",
+      "requiresVisionInput": false,
+      "version": "1.1",
+      "kind": "raw",
+      "family": "latency",
+      "name": "Time per Intelligence Index Task",
+      "shortName": "Task Time",
+      "unit": "seconds",
+      "direction": "lower",
+      "normalization": {
+        "scale": "log",
+        "lowerAnchor": 20,
+        "upperAnchor": 1020,
+        "clamp": true
+      },
+      "source": {
+        "benchmarkName": "Artificial Analysis Intelligence Index Task Time",
+        "primarySourceUrl": "https://artificialanalysis.ai/methodology/performance-benchmarking",
+        "citation": "Artificial Analysis Performance Benchmarking (2026)",
+        "description": "Weighted average decode time in seconds per Artificial Analysis Intelligence Index task, excluding time to first token and overhead."
+      },
+      "fallbackMetricIds": []
+    },
+    {
+      "id": "time-to-first-answer-token",
+      "requiresVisionInput": false,
+      "version": "1.1",
+      "kind": "raw",
+      "family": "latency",
+      "name": "Time to First Answer Token",
+      "shortName": "TTFAT",
+      "unit": "seconds",
+      "direction": "lower",
+      "normalization": {
+        "scale": "log",
+        "lowerAnchor": 1,
+        "upperAnchor": 350,
+        "clamp": true
+      },
+      "source": {
+        "benchmarkName": "Time to First Answer Token",
+        "primarySourceUrl": "https://artificialanalysis.ai/methodology/performance-benchmarking",
+        "citation": "Artificial Analysis Performance Benchmarking (2026)",
+        "description": "Seconds from API request submission until the first answer token is received; for reasoning models this includes thinking time."
+      },
+      "fallbackMetricIds": []
+    },
+    {
+      "id": "cost-per-task",
+      "requiresVisionInput": false,
+      "version": "1.1",
+      "kind": "raw",
+      "family": "cost",
+      "name": "Cost per Task",
+      "shortName": "Cost/Task",
+      "unit": "USD ($)",
+      "direction": "lower",
+      "normalization": {
+        "scale": "log",
+        "lowerAnchor": 0.0283533923674851,
+        "upperAnchor": 6.336425908810413,
+        "clamp": true
+      },
+      "source": {
+        "benchmarkName": "Cost per Intelligence Task",
+        "primarySourceUrl": "https://artificialanalysis.ai/methodology",
+        "citation": "Artificial Analysis Intelligence Index Task Pricing (2026)",
+        "description": "Weighted average monetary cost in USD required to execute one Artificial Analysis Intelligence Index task."
+      },
+      "fallbackMetricIds": []
+    },
+    {
+      "id": "blended-token-price",
+      "requiresVisionInput": false,
+      "version": "2.0-cache-7-2-1",
+      "kind": "raw",
+      "family": "cost",
+      "name": "Blended Price per 1M Tokens",
+      "shortName": "Price/1M",
+      "unit": "USD ($)",
+      "direction": "lower",
+      "normalization": {
+        "scale": "log",
+        "lowerAnchor": 0.28004983977981524,
+        "upperAnchor": 32.137136757786074,
+        "clamp": true
+      },
+      "source": {
+        "benchmarkName": "Blended API Pricing",
+        "primarySourceUrl": "https://artificialanalysis.ai/methodology",
+        "citation": "Artificial Analysis 7:2:1 cache-hit/input/output pricing methodology (2026-09-05)",
+        "description": "70% cache-hit input, 20% uncached input and 10% output per million total tokens. Uses a coherent provider endpoint and pricing tier; cache creation and storage charges are outside this token-price blend."
+      },
+      "fallbackMetricIds": []
+    },
+    {
+      "id": "composite-speed-score",
+      "version": "2026.2",
+      "kind": "composite",
+      "family": "speed",
+      "name": "Speed Score",
+      "description": "Leans primarily on Time per Intelligence Index Task from Artificial Analysis but also includes a small amount of Time to First Answer Token and Median Output Speed weight in order to reflect the user experience in more standard usage (e.g. not always solving intentionally complex problems)",
+      "components": [
+        {
+          "metricId": "time-per-task",
+          "weight": 0.78
+        },
+        {
+          "metricId": "time-to-first-answer-token",
+          "weight": 0.12
+        },
+        {
+          "metricId": "output-speed",
+          "weight": 0.1
+        }
+      ]
+    },
+    {
+      "id": "composite-affordability-score",
+      "version": "2026.2",
+      "kind": "composite",
+      "family": "cost",
+      "name": "Affordability Score",
+      "description": "Shared AA workload reference: mostly task cost and a little bit fixed blended token price. Task cost is not measured on the selected capability mixture. This blend helps account for the fact that cost per task reflects particular types of tasks as from benchmarks instead of realistic day-to-day use.",
+      "components": [
+        {
+          "metricId": "cost-per-task",
+          "weight": 0.9
+        },
+        {
+          "metricId": "blended-token-price",
+          "weight": 0.1
+        }
+      ]
+    },
+    {
+      "id": "real-coding-composite",
+      "version": "2026.2",
+      "kind": "composite",
+      "family": "quality",
+      "name": "Real Software Engineering Index",
+      "description": "Long-horizon engineering, architecting, and repository comprehension. ",
+      "components": [
+        {
+          "metricId": "deepswe-1-1",
+          "weight": 0.2488488749365937
+        },
+        {
+          "metricId": "terminal-bench-v4",
+          "weight": 0.2488488749365937
+        },
+        {
+          "metricId": "swe-atlas-qna",
+          "weight": 0.18130418031094686
+        },
+        {
+          "metricId": "aa-omniscience-accuracy",
+          "weight": 0.08024951745396645
+        },
+        {
+          "metricId": "scicode",
+          "weight": 0.08024951745396645
+        },
+        {
+          "metricId": "baby-vision",
+          "weight": 0.08024951745396645
+        },
+        {
+          "metricId": "mmmu-pro",
+          "weight": 0.08024951745396645
+        }
+      ]
+    },
+    {
+      "id": "real-stem-composite",
+      "version": "2026.2",
+      "kind": "composite",
+      "family": "quality",
+      "name": "Real Reasoning & Knowledge Index",
+      "description": "Deep understanding and problem solving. Broad knowledge and reasoning capacity.",
+      "components": [
+        {
+          "metricId": "hle",
+          "weight": 0.27666486206471946
+        },
+        {
+          "metricId": "scicode",
+          "weight": 0.07532604088988294
+        },
+        {
+          "metricId": "critpt",
+          "weight": 0.1375926854118652
+        },
+        {
+          "metricId": "aa-omniscience",
+          "weight": 0.14794912409878067
+        },
+        {
+          "metricId": "arc-agi-3",
+          "weight": 0.263114129724775
+        },
+        {
+          "metricId": "aa-briefcase",
+          "weight": 0.024027116920093815
+        },
+        {
+          "metricId": "aa-lcr",
+          "weight": 0.07532604088988294
+        }
+      ]
+    },
+    {
+      "id": "real-frontier-2026-custom-custom-composite",
+      "version": "2026.1",
+      "kind": "composite",
+      "family": "quality",
+      "name": "Real Frontier Index",
+      "description": "Overall Weighted Real Intelligence Index",
+      "components": [
+        {
+          "metricId": "real-coding-composite",
+          "weight": 0.12209670879196223
+        },
+        {
+          "metricId": "real-stem-composite",
+          "weight": 0.12209670879196223
+        },
+        {
+          "metricId": "aa-omniscience",
+          "weight": 0.12209670879196223
+        },
+        {
+          "metricId": "tau3-banking",
+          "weight": 0.08030235812631839
+        },
+        {
+          "metricId": "arc-agi-3",
+          "weight": 0.030312735948243918
+        },
+        {
+          "metricId": "aa-omniscience-accuracy",
+          "weight": 0.05070608718928385
+        },
+        {
+          "metricId": "aa-briefcase",
+          "weight": 0.08546769615437352
+        },
+        {
+          "metricId": "aa-lcr",
+          "weight": 0.08086590475440969
+        },
+        {
+          "metricId": "mmmu-pro",
+          "weight": 0.052429776335612785
+        },
+        {
+          "metricId": "baby-vision",
+          "weight": 0.052429776335612785
+        },
+        {
+          "metricId": "hle",
+          "weight": 0.14065540852834046
+        },
+        {
+          "metricId": "arena-text-multi-turn",
+          "weight": 0.03027006512595892
+        },
+        {
+          "metricId": "agent-arena-praise-vs-complaint",
+          "weight": 0.03027006512595892
+        }
+      ]
+    },
+    {
+      "id": "arc-hle-roboflow-fallback",
+      "version": "1.0",
+      "kind": "composite",
+      "family": "quality",
+      "name": "HLE + Roboflow",
+      "description": "Equal-weight secondary ARC-AGI-3 fallback using HLE and Roboflow Visual Reasoning.",
+      "fallbackOnly": true,
+      "components": [
+        {
+          "metricId": "hle",
+          "weight": 0.6
+        },
+        {
+          "metricId": "roboflow-visual-reasoning",
+          "weight": 0.2
+        },
+        {
+          "metricId": "aa-omniscience-accuracy",
+          "weight": 0.2
+        }
+      ]
+    },
+    {
+      "id": "atlas-qna-fallback-composite",
+      "version": "1.0",
+      "kind": "composite",
+      "family": "quality",
+      "name": "Atlas-QnA Fallback",
+      "description": "",
+      "fallbackOnly": true,
+      "components": [
+        {
+          "metricId": "aa-omniscience",
+          "weight": 0.2
+        },
+        {
+          "metricId": "aa-lcr",
+          "weight": 0.5
+        },
+        {
+          "metricId": "deepswe-1-1",
+          "weight": 0.3
+        }
+      ]
+    },
+    {
+      "id": "saas-agentic-composite",
+      "version": "1.0",
+      "kind": "composite",
+      "family": "quality",
+      "name": "Real SaaS Index - Agentic",
+      "description": "Prioritizes agentic tool use at high speeds without getting access to web search",
+      "components": [
+        {
+          "metricId": "aa-omniscience",
+          "weight": 0.0864168635115155
+        },
+        {
+          "metricId": "tau3-banking",
+          "weight": 0.14840467547556419
+        },
+        {
+          "metricId": "terminal-bench-v4",
+          "weight": 0.2081967920107127
+        },
+        {
+          "metricId": "composite-speed-score",
+          "weight": 0.27875019643552224
+        },
+        {
+          "metricId": "aa-briefcase",
+          "weight": 0.10858878693333963
+        },
+        {
+          "metricId": "aa-lcr",
+          "weight": 0.08322582212183016
+        },
+        {
+          "metricId": "aa-omniscience-hallucination-rate",
+          "weight": 0.0864168635115155
+        }
+      ]
+    },
+    {
+      "id": "saas-conversational-composite",
+      "version": "1.0",
+      "kind": "composite",
+      "family": "quality",
+      "name": "Real SaaS Index - Conversational",
+      "description": "Prioritizes speed and informative responses while maintaining a large context and without web search or significant tool calling",
+      "components": [
+        {
+          "metricId": "time-to-first-answer-token",
+          "weight": 0.22018234659140157
+        },
+        {
+          "metricId": "composite-speed-score",
+          "weight": 0.0825888738038999
+        },
+        {
+          "metricId": "arena-text-multi-turn",
+          "weight": 0.20647218450974975
+        },
+        {
+          "metricId": "aa-omniscience",
+          "weight": 0.12763735042420896
+        },
+        {
+          "metricId": "aa-lcr",
+          "weight": 0.22148834338318613
+        },
+        {
+          "metricId": "agent-arena-praise-vs-complaint",
+          "weight": 0.06137339055793991
+        },
+        {
+          "metricId": "aa-briefcase",
+          "weight": 0.08025751072961372
+        }
+      ]
+    }
+  ],
+  "calibrations": [
+    {
+      "id": "paired-mean-manual-v3:arena-text-multi-turn:agent-arena",
+      "targetMetricId": "arena-text-multi-turn",
+      "sourceMetricId": "agent-arena",
+      "targetSignature": "[\"arena-text-multi-turn\",\"2026-09-02-scale-3\",\"higher\",false,\"linear\",1428.888888888889,1600]",
+      "sourceSignature": "[\"agent-arena\",\"2026-09-01-scale-2\",\"higher\",false,\"linear\",-5,25]",
+      "targetReferenceCount": 12,
+      "sourceReferenceCount": 12,
+      "pairedCount": 10,
+      "method": "paired-mean",
+      "status": "ready",
+      "reason": "Ratio of mean primary to mean secondary points across 10 overlapping models.",
+      "scale": {
+        "sourceAnchor": 29.570000000000004,
+        "targetAnchor": 29.636363636363626
+      }
+    },
+    {
+      "id": "paired-mean-manual-v3:arena-text-multi-turn:aa-briefcase",
+      "targetMetricId": "arena-text-multi-turn",
+      "sourceMetricId": "aa-briefcase",
+      "targetSignature": "[\"arena-text-multi-turn\",\"2026-09-02-scale-3\",\"higher\",false,\"linear\",1428.888888888889,1600]",
+      "sourceSignature": "[\"aa-briefcase\",\"2026-09-05-scale-3\",\"higher\",false,\"linear\",500,2000]",
+      "targetReferenceCount": 12,
+      "sourceReferenceCount": 33,
+      "pairedCount": 11,
+      "method": "paired-mean",
+      "status": "ready",
+      "reason": "Ratio of mean primary to mean secondary points across 11 overlapping models.",
+      "scale": {
+        "sourceAnchor": 57.24006060606061,
+        "targetAnchor": 28.75442739079102
+      }
+    },
+    {
+      "id": "paired-mean-manual-v3:agent-arena-praise-vs-complaint:aa-briefcase",
+      "targetMetricId": "agent-arena-praise-vs-complaint",
+      "sourceMetricId": "aa-briefcase",
+      "targetSignature": "[\"agent-arena-praise-vs-complaint\",\"2026-09-01-scale-2\",\"higher\",false,\"linear\",-5,35]",
+      "sourceSignature": "[\"aa-briefcase\",\"2026-09-05-scale-3\",\"higher\",false,\"linear\",500,2000]",
+      "targetReferenceCount": 12,
+      "sourceReferenceCount": 33,
+      "pairedCount": 9,
+      "method": "paired-mean",
+      "status": "ready",
+      "reason": "Ratio of mean primary to mean secondary points across 9 overlapping models.",
+      "scale": {
+        "sourceAnchor": 53.619481481481486,
+        "targetAnchor": 29.769444444444446
+      }
+    },
+    {
+      "id": "paired-mean-manual-v3:osworld-2:osworld-verified",
+      "targetMetricId": "osworld-2",
+      "sourceMetricId": "osworld-verified",
+      "targetSignature": "[\"osworld-2\",\"2.0-2026.08.08-full\",\"higher\",true,\"linear\",0,100]",
+      "sourceSignature": "[\"osworld-verified\",\"verified-2025.07.28\",\"higher\",true,\"linear\",0,100]",
+      "targetReferenceCount": 5,
+      "sourceReferenceCount": 6,
+      "pairedCount": 2,
+      "method": "paired-mean",
+      "status": "ready",
+      "reason": "Ratio of mean primary to mean secondary points across 2 overlapping models.",
+      "scale": {
+        "sourceAnchor": 83.195,
+        "targetAnchor": 33.47
+      }
+    },
+    {
+      "id": "paired-mean-manual-v3:mmmu-pro:roboflow-visual-reasoning",
+      "targetMetricId": "mmmu-pro",
+      "sourceMetricId": "roboflow-visual-reasoning",
+      "targetSignature": "[\"mmmu-pro\",\"aa-10-option-2026-09-05-scale-2\",\"higher\",true,\"linear\",50,100]",
+      "sourceSignature": "[\"roboflow-visual-reasoning\",\"high-2026-09-05\",\"higher\",true,\"linear\",0,100]",
+      "targetReferenceCount": 28,
+      "sourceReferenceCount": 14,
+      "pairedCount": 10,
+      "method": "paired-mean",
+      "status": "ready",
+      "reason": "Ratio of mean primary to mean secondary points across 10 overlapping models.",
+      "scale": {
+        "sourceAnchor": 74.78,
+        "targetAnchor": 64.28993063583816
+      }
+    },
+    {
+      "id": "paired-mean-manual-v3:terminal-bench-v4:terminal-bench-2-1",
+      "targetMetricId": "terminal-bench-v4",
+      "sourceMetricId": "terminal-bench-2-1",
+      "targetSignature": "[\"terminal-bench-v4\",\"4.0\",\"higher\",false,\"linear\",0,100]",
+      "sourceSignature": "[\"terminal-bench-2-1\",\"2.1-scale-2\",\"higher\",false,\"linear\",50,100]",
+      "targetReferenceCount": 8,
+      "sourceReferenceCount": 39,
+      "pairedCount": 8,
+      "method": "paired-mean",
+      "status": "ready",
+      "reason": "Ratio of mean primary to mean secondary points across 8 overlapping models.",
+      "scale": {
+        "sourceAnchor": 74.44135767790262,
+        "targetAnchor": 37.9575
+      }
+    },
+    {
+      "id": "paired-mean-manual-v3:swe-atlas-qna:atlas-qna-fallback-composite",
+      "targetMetricId": "swe-atlas-qna",
+      "sourceMetricId": "atlas-qna-fallback-composite",
+      "targetSignature": "[\"swe-atlas-qna\",\"1.0\",\"higher\",false,\"linear\",0,100]",
+      "sourceSignature": "[\"atlas-qna-fallback-composite\",\"1.0\",[[0.2,\"[\\\"aa-omniscience\\\",\\\"2026.1\\\",\\\"higher\\\",false,\\\"linear\\\",-100,100]\"],[0.5,\"[\\\"aa-lcr\\\",\\\"1.1-scale-2\\\",\\\"higher\\\",false,\\\"linear\\\",50,100]\"],[0.3,\"[\\\"deepswe-1-1\\\",\\\"1.1-scale-2\\\",\\\"higher\\\",false,\\\"linear\\\",30,100]\"]]]",
+      "targetReferenceCount": 8,
+      "sourceReferenceCount": 31,
+      "pairedCount": 7,
+      "method": "paired-mean",
+      "status": "ready",
+      "reason": "Ratio of mean primary to mean secondary points across 7 overlapping models.",
+      "scale": {
+        "sourceAnchor": 59.755018219128154,
+        "targetAnchor": 36.90114285714286
+      }
+    },
+    {
+      "id": "paired-mean-manual-v3:arc-agi-3:arc-agi-2",
+      "targetMetricId": "arc-agi-3",
+      "sourceMetricId": "arc-agi-2",
+      "targetSignature": "[\"arc-agi-3\",\"3.0\",\"higher\",false,\"linear\",0,100]",
+      "sourceSignature": "[\"arc-agi-2\",\"2.0\",\"higher\",false,\"linear\",0,100]",
+      "targetReferenceCount": 11,
+      "sourceReferenceCount": 20,
+      "pairedCount": 6,
+      "method": "paired-mean",
+      "status": "ready",
+      "reason": "Ratio of mean primary to mean secondary points across 6 overlapping models.",
+      "scale": {
+        "sourceAnchor": 80.01666666666667,
+        "targetAnchor": 12.238800350101046
+      }
+    },
+    {
+      "id": "paired-mean-manual-v3:arc-agi-3:arc-hle-roboflow-fallback",
+      "targetMetricId": "arc-agi-3",
+      "sourceMetricId": "arc-hle-roboflow-fallback",
+      "targetSignature": "[\"arc-agi-3\",\"3.0\",\"higher\",false,\"linear\",0,100]",
+      "sourceSignature": "[\"arc-hle-roboflow-fallback\",\"1.0\",[[0.6,\"[\\\"hle\\\",\\\"1.0\\\",\\\"higher\\\",false,\\\"linear\\\",0,100]\"],[0.2,\"[\\\"roboflow-visual-reasoning\\\",\\\"high-2026-09-05\\\",\\\"higher\\\",true,\\\"linear\\\",0,100]\"],[0.2,\"[\\\"aa-omniscience-accuracy\\\",\\\"2026.1\\\",\\\"higher\\\",false,\\\"linear\\\",0,100]\"]]]",
+      "targetReferenceCount": 19,
+      "sourceReferenceCount": 14,
+      "pairedCount": 5,
+      "method": "paired-mean",
+      "status": "ready",
+      "reason": "Ratio of mean primary to mean secondary points across 5 overlapping models.",
+      "scale": {
+        "sourceAnchor": 53.43085259932036,
+        "targetAnchor": 14.382560420121257
+      }
+    },
+    {
+      "id": "paired-mean-manual-v3:baby-vision:roboflow-visual-reasoning",
+      "targetMetricId": "baby-vision",
+      "sourceMetricId": "roboflow-visual-reasoning",
+      "targetSignature": "[\"baby-vision\",\"1.0\",\"higher\",true,\"linear\",0,100]",
+      "sourceSignature": "[\"roboflow-visual-reasoning\",\"high-2026-09-05\",\"higher\",true,\"linear\",0,100]",
+      "targetReferenceCount": 6,
+      "sourceReferenceCount": 14,
+      "pairedCount": 5,
+      "method": "paired-mean",
+      "status": "ready",
+      "reason": "Ratio of mean primary to mean secondary points across 5 overlapping models.",
+      "scale": {
+        "sourceAnchor": 69.25999999999999,
+        "targetAnchor": 73.04
+      }
+    },
+    {
+      "id": "paired-mean-manual-v3:tau3-banking:automationbench",
+      "targetMetricId": "tau3-banking",
+      "sourceMetricId": "automationbench",
+      "targetSignature": "[\"tau3-banking\",\"3.0\",\"higher\",false,\"linear\",0,100]",
+      "sourceSignature": "[\"automationbench\",\"1.0.6\",\"higher\",false,\"linear\",0,100]",
+      "targetReferenceCount": 39,
+      "sourceReferenceCount": 10,
+      "pairedCount": 8,
+      "method": "paired-mean",
+      "status": "ready",
+      "reason": "Ratio of mean primary to mean secondary points across 8 overlapping models.",
+      "scale": {
+        "sourceAnchor": 25.825000000000003,
+        "targetAnchor": 39.819602448453615
+      }
+    },
+    {
+      "id": "paired-mean-manual-v3:tau3-banking:enterprise-ops-gym-aa",
+      "targetMetricId": "tau3-banking",
+      "sourceMetricId": "enterprise-ops-gym-aa",
+      "targetSignature": "[\"tau3-banking\",\"3.0\",\"higher\",false,\"linear\",0,100]",
+      "sourceSignature": "[\"enterprise-ops-gym-aa\",\"2026-09-05-scale-2\",\"higher\",false,\"linear\",20,100]",
+      "targetReferenceCount": 39,
+      "sourceReferenceCount": 12,
+      "pairedCount": 12,
+      "method": "paired-mean",
+      "status": "ready",
+      "reason": "Ratio of mean primary to mean secondary points across 12 overlapping models.",
+      "scale": {
+        "sourceAnchor": 27.201457276434894,
+        "targetAnchor": 39.690728951890044
+      }
+    },
+    {
+      "id": "paired-mean-manual-v3:scicode:terminal-bench-science",
+      "targetMetricId": "scicode",
+      "sourceMetricId": "terminal-bench-science",
+      "targetSignature": "[\"scicode\",\"1.0-scale-2\",\"higher\",false,\"linear\",20,100]",
+      "sourceSignature": "[\"terminal-bench-science\",\"0.1\",\"higher\",false,\"linear\",0,100]",
+      "targetReferenceCount": 36,
+      "sourceReferenceCount": 8,
+      "pairedCount": 8,
+      "method": "paired-mean",
+      "status": "ready",
+      "reason": "Ratio of mean primary to mean secondary points across 8 overlapping models.",
+      "scale": {
+        "sourceAnchor": 25.066666666666666,
+        "targetAnchor": 47.13903356481482
+      }
+    }
+  ]
+}
