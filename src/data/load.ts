@@ -2,6 +2,7 @@ import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { gunzipSync } from "node:zlib";
 import type { Snapshot } from "./types";
+import { appendRealIndex } from "./real-index";
 
 const SNAP_DIR = path.resolve(process.cwd(), "data/snapshots");
 
@@ -17,6 +18,6 @@ export async function listSnapshotDates(): Promise<string[]> {
 export async function loadSnapshot(date?: string): Promise<Snapshot | null> {
   try {
     const file = date ? `${date}.json.gz` : "latest.json.gz";
-    return JSON.parse(gunzipSync(await readFile(path.join(SNAP_DIR, file))).toString("utf8")) as Snapshot;
+    return appendRealIndex(JSON.parse(gunzipSync(await readFile(path.join(SNAP_DIR, file))).toString("utf8")) as Snapshot);
   } catch { return null; }
 }

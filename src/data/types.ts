@@ -53,6 +53,15 @@ export interface Benchmark {
    *  models missing here (DeepSWE 1.1 -> 1). "fresh": a new version is a new benchmark; older
    *  versions stay only for time travel. */
   versionPolicy?: { kind: "fallback"; fallbackTo: string } | { kind: "fresh"; supersedes?: string };
+  /** Explicit score-space conversions for related benchmarks, in preference order.
+   * Factors must come from recorded paired calibration evidence. */
+  estimationRoutes?: {
+    sourceId: string;
+    factor: number;
+    method: "paired-average" | "manual";
+    pairedCount?: number;
+    evidenceId: string;
+  }[];
   /** Sub-splits or advanced knobs a user may expose; UI hides these by default. */
   advanced?: { id: string; name: string }[];
   /** True when it's a proxy (e.g. token price) rather than a measured quantity. */
@@ -112,6 +121,17 @@ export interface Snapshot {
   variants: Variant[];
   benchmarks: Benchmark[];
   observations: Observation[];
+  /** Explicit normalized estimates, kept separate so they cannot masquerade as measurements. */
+  estimates?: {
+    benchmarkId: string;
+    variantId: string;
+    value: number;
+    estimateKind: "scaled" | "cross-effort";
+    sourceBenchmarkId?: string;
+    sourceVariantId?: string;
+    sourceUrl?: string;
+    evidence: string[];
+  }[];
   series: Series[];
   sources: SourceRun[];
 }
