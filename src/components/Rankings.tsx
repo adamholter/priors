@@ -1,45 +1,42 @@
 "use client";
-import { useLayoutEffect, useRef } from "react";
+import { ChartExport, escapeSvg } from "./chart/ChartExport";
+import { useState } from "react";
 import type { Lab } from "@/data/types";
 import type { RankedVariant } from "@/engine";
 import { variantLabel } from "./chart/ParetoChart";
 
 /** Dense horizontal bars, color by lab, rows slide to their new position when the order changes. */
-export function Rankings({ ranked, labs, limit = 30, onSelect, selected }: { ranked: RankedVariant[]; labs: Lab[]; limit?: number; onSelect?: (r: RankedVariant | null) => void; selected?: string | null }) {
+export function Rankings({ ranked, labs, limit = 30, onSelect, selected, showEffort = true }: { ranked: RankedVariant[]; labs: Lab[]; limit?: number; showEffort?: boolean; onSelect?: (r: RankedVariant | null) => void; selected?: string | null }) {
   const color = new Map(labs.map((l) => [l.id, l.color]));
-  const rows = ranked.slice(0, limit);
+  const [expanded, setExpanded] = useState(false);
+  const rows = expanded ? ranked : ranked.slice(0, limit);
   const max = Math.max(...rows.map((r) => r.score), 1);
-  const listRef = useRef<HTMLDivElement>(null);
-  const prev = useRef<Map<string, number>>(new Map());
-
-  useLayoutEffect(() => {
-    const el = listRef.current; if (!el) return;
-    const next = new Map<string, number>();
-    for (const child of el.children) { const k = (child as HTMLElement).dataset.k!; next.set(k, (child as HTMLElement).getBoundingClientRect().top); }
-    for (const child of el.children) {
-      const c = child as HTMLElement; const k = c.dataset.k!;
-      const before = prev.current.get(k); const after = next.get(k)!;
-      if (before != null && before !== after) {
-        c.style.transition = "none"; c.style.transform = `translateY(${before - after}px)`;
-        requestAnimationFrame(() => { c.style.transition = ""; c.style.transform = ""; });
-      }
-    }
-    prev.current = next;
-  });
 
   if (!rows.length) return <p className="cap py-6">No model has every required benchmark. Loosen a requirement or lower a weight.</p>;
   return (
-    <div ref={listRef} className="grid gap-[4px]">
-      {rows.map((r) => (
-        <button type="button" key={r.variant.id} data-k={r.variant.id} onClick={() => onSelect?.(selected === r.variant.id ? null : r)}
-          className={`row-move grid grid-cols-[28px_minmax(150px,210px)_1fr_48px] items-center gap-2.5 h-[26px] text-left text-[12.5px] rounded-sm px-1 -mx-1 ${selected === r.variant.id ? "bg-white" : "hover:bg-white/60"}`}>
+    <>
+    <ChartExport name="Rankings" getSvg={() => {
+      const h = 88 + rows.length * 38;
+      return `<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="${h}" viewBox="0 0 1600 ${h}"><rect width="1600" height="${h}" fill="#FBFBF9"/><g font-family="Inter,Arial,sans-serif" fill="#1A1A1A"><text x="30" y="36" font-size="24">Rankings</text>${rows.map((r, i) => {
+        const y = 76 + i * 38;
+        const label = showEffort ? variantLabel(r) : r.model.name;
+        return `<text x="30" y="${y}" font-size="14" fill="#8A8A80">${i + 1}</text><text x="70" y="${y}" font-size="15">${escapeSvg(label)}</text><rect x="850" y="${y - 13}" width="600" height="14" fill="#ECEAE3"/><rect x="850" y="${y - 13}" width="${r.score / max * 600}" height="14" fill="${escapeSvg(color.get(r.model.labId) ?? '#A3A39B')}"/><text x="1550" y="${y}" text-anchor="end" font-size="16">${r.score.toFixed(1)}</text>`;
+      }).join('')}</g></svg>`;
+    }} />
+    <div className="ranking-list relative overflow-hidden isolate" style={{ height: Math.max(0, rows.length * 30 - 4), contain: "layout paint" }}>
+      {rows.map((r, index) => (
+        <button type="button" key={showEffort ? r.variant.id : r.model.id} title={r.variant.sourceModel?.name ?? variantLabel(r)} aria-label={`${r.variant.sourceModel?.name ?? variantLabel(r)}, ${r.score.toFixed(1)}`} data-k={r.variant.id} data-mixed={r.mixedEfforts || undefined} onClick={() => onSelect?.(selected === r.variant.id ? null : r)}
+          style={{ transform: `translateY(${index * 30}px)` }}
+          className={`row-move absolute top-0 left-0 w-full grid grid-cols-[28px_minmax(120px,210px)_minmax(0,1fr)_48px] items-center gap-2.5 h-[26px] text-left text-[12.5px] rounded-sm px-1 focus-visible:outline-offset-[-2px] ${selected === r.variant.id ? "bg-white" : "hover:bg-white/60"}`}>
           <span className="cap text-right">{r.rank}</span>
-          <span className="truncate">{r.model.name}{r.variant.effort !== "default" && <em className="not-italic cap ml-1.5">{r.variant.effort}</em>}{r.coverage < 1 && <span title={`${Math.round(r.coverage * 100)}% of weight measured; rest estimated`} className="ml-1 text-grey">·</span>}</span>
-          <span className="h-[12px] rounded-[2px] bg-hair-2 overflow-hidden"><i className="bar-fill block h-full rounded-[2px]" style={{ width: `${(r.score / max) * 100}%`, background: color.get(r.model.labId) ?? "#A3A39B", opacity: r.coverage < 1 ? 0.75 : 1 }} /></span>
+          <span className="truncate">{r.model.name}{showEffort && r.variant.effort !== "default" && <em className="not-italic cap ml-1.5">{r.variant.effort}</em>}</span>
+          <span className="h-[12px] rounded-[2px] bg-hair-2 overflow-hidden"><i className="bar-fill block h-full rounded-[2px]" style={{ width: `${(r.score / max) * 100}%`, background: color.get(r.model.labId) ?? "#A3A39B" }} /></span>
           <span className="num text-right">{r.score.toFixed(1)}</span>
         </button>
       ))}
       <span className="sr-only">{variantLabel(rows[0])}</span>
     </div>
+    {ranked.length > limit && <button className="cap mt-3 hover:text-ink" onClick={() => setExpanded(!expanded)}>{expanded ? "Show fewer" : `Show all ${ranked.length} ${showEffort ? "variants" : "models"}`}</button>}
+    </>
   );
 }

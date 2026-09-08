@@ -10,7 +10,7 @@ export default async function SkillPage() {
   const md = await readFile(path.join(process.cwd(), "public/skill/SKILL.md"), "utf8");
   return (
     <main className="min-h-screen">
-      <header className="flex items-center gap-6 px-8 h-14 border-b hairline"><Wordmark size={22} /><Link href="/" className="text-grey text-[13px] hover:text-ink">Builder</Link></header>
+      <header className="flex items-center gap-6 px-8 h-14 border-b hairline"><Wordmark /><Link href="/" className="text-grey text-[13px] hover:text-ink">Builder</Link></header>
       <div className="max-w-[820px] mx-auto px-8 py-12 grid gap-8">
         <div>
           <h1 className="text-[36px] mb-3">One skill for your agent</h1>

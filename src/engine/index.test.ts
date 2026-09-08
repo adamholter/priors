@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Snapshot } from "../data/types";
 import { LABS } from "../data/normalize";
-import { computeIndex, type IndexConfig } from "./index";
+import { computeIndex, isBenchmarkRequired, selectVariants, chartVariantMode, type IndexConfig } from "./index";
 
 function snap(): Snapshot {
   const models = [
@@ -35,9 +35,95 @@ function snap(): Snapshot {
   return { version: 1, date: "2026-09-05", generatedAt: "", labs: LABS, models, variants, benchmarks, observations, series: [], sources: [] };
 }
 
-const base: IndexConfig = { id: "t", name: "t", weights: { swe: 40, term: 40, elo: 20 }, required: [], cutoff: 5, estimateMissing: true, variants: "all" };
+const base: IndexConfig = { id: "t", name: "t", weights: { swe: 40, term: 40, elo: 20 }, required: [], cutoff: 5, estimateMissing: true, variants: "all", effortMatching: "strict" };
 
 describe("computeIndex", () => {
+  it("reduces missing lower-effort scores using paired results from other benchmarks", () => {
+    const s = snap();
+    s.observations = s.observations.filter((o) => !(o.benchmarkId === "term" && o.variantId === "a@high"));
+    const r = computeIndex(s, { ...base, weights: { swe: 50, term: 50 }, effortMatching: "calibrated" });
+    const a = r.ranked.find((x) => x.variant.id === "a@high")!;
+    expect(a.values.find((v) => v.benchmarkId === "term")).toMatchObject({ value: 63, raw: 72, estimated: true, effortFactor: 0.875, evidence: ["swe"] });
+    expect(a.coverage).toBe(0.5);
+    expect(a.costUsd).toBe(4);
+  });
+  it("combines multiple measured effort ratios, including unselected benchmarks", () => {
+    const s = snap();
+    s.observations = s.observations.filter((o) => !(o.benchmarkId === "term" && o.variantId === "a@high"));
+    s.observations.push({ benchmarkId: "deep1", variantId: "a@high", value: 40, observedAt: "", sourceUrl: "" }, { benchmarkId: "deep1", variantId: "a@max", value: 80, observedAt: "", sourceUrl: "" });
+    const r = computeIndex(s, { ...base, weights: { swe: 50, term: 50 }, effortMatching: "calibrated" });
+    const v = r.ranked.find((x) => x.variant.id === "a@high")!.values.find((v) => v.benchmarkId === "term")!;
+    expect(v.value).toBeCloseTo(72 * (0.875 + 0.5) / 2);
+    expect(v.evidence).toHaveLength(2);
+  });
+  it("does not copy a maximum score when no paired effort evidence exists", () => {
+    const s = snap();
+    s.observations = s.observations.filter((o) => !(o.variantId === "a@high" && o.benchmarkId !== "swe") && !(o.variantId === "a@max" && o.benchmarkId === "swe"));
+    const r = computeIndex(s, { ...base, weights: { swe: 50, term: 50 }, effortMatching: "calibrated" });
+    expect(r.ranked.some((r) => r.variant.id === "a@high")).toBe(false);
+  });
+  it("strictness controls automatic requirements while manual choices win", () => {
+    expect(isBenchmarkRequired({ ...base, strictness: 0 }, "term", 20)).toBe(false);
+    expect(isBenchmarkRequired({ ...base, strictness: 80 }, "term", 20)).toBe(true);
+    expect(isBenchmarkRequired({ ...base, strictness: 100, optional: ["term"] }, "term", 20)).toBe(false);
+    expect(isBenchmarkRequired({ ...base, strictness: 0, required: ["term"] }, "term", 1)).toBe(true);
+    const r = computeIndex(snap(), { ...base, strictness: 100, optional: ["term"] });
+    expect(r.ranked.some((r) => r.model.id === "d")).toBe(true);
+  });
+  it("higher strictness requires more effort evidence and maximum disables estimates", () => {
+    const s = snap();
+    s.observations = s.observations.filter((o) => !(o.benchmarkId === "term" && o.variantId === "a@high"));
+    const cfg = { ...base, weights: { swe: 50, term: 50 }, effortMatching: "calibrated" as const };
+    expect(computeIndex(s, { ...cfg, strictness: 50 }).ranked.some((r) => r.variant.id === "a@high")).toBe(true);
+    expect(computeIndex(s, { ...cfg, strictness: 80 }).ranked.some((r) => r.variant.id === "a@high")).toBe(false);
+    expect(computeIndex(s, { ...cfg, strictness: 100 }).ranked.some((r) => r.variant.id === "a@high")).toBe(false);
+  });
+  it("bar and Pareto effort modes are independent and selecting does not mutate results", () => {
+    const r = computeIndex(snap(), { ...base, weights: { swe: 100 } });
+    const before = structuredClone(r.ranked);
+    expect(chartVariantMode(base, "ranking")).toBe("best");
+    expect(chartVariantMode(base, "pareto")).toBe("all");
+    expect(selectVariants(r.ranked, "best").filter((r) => r.model.id === "a")).toHaveLength(1);
+    expect(selectVariants(r.ranked, "all").filter((r) => r.model.id === "a")).toHaveLength(2);
+    expect(r.ranked).toEqual(before);
+  });
+  it("fills effort gaps by default, without inventing scores or borrowing another model", () => {
+    const s = snap();
+    s.observations = s.observations.filter((o) => !(o.benchmarkId === "term" && o.variantId === "a@max"));
+    const r = computeIndex(s, { ...base, weights: { swe: 50, term: 50 }, effortMatching: undefined });
+    const a = r.ranked.find((x) => x.variant.id === "a@max")!;
+    expect(a).toBeDefined();
+    expect(a.score).toBeCloseTo((80 + 60 * 80 / 70) / 2);
+    expect(a.values.find((v) => v.benchmarkId === "term")).toMatchObject({ raw: 60, estimated: true, substituted: true, sourceVariantId: "a@high", evidence: ["swe"] });
+    expect(a.costUsd).toBe(12);
+    expect(a.mixedEfforts).toBe(true);
+    expect(r.excluded.find((x) => x.model.id === "d")?.missing).toContain("term");
+  });
+  it("prefers exact effort and picks nearest effort deterministically, not the highest score", () => {
+    const s = snap();
+    s.variants.push({ id: "a@xhigh", modelId: "a", effort: "xhigh" });
+    s.observations.push({ benchmarkId: "swe", variantId: "a@xhigh", value: 75, observedAt: "", sourceUrl: "https://example.com/eval" });
+    const cfg = { ...base, weights: { swe: 50, term: 50 }, effortMatching: "nearest" as const };
+    const r = computeIndex(s, cfg);
+    const a = r.ranked.find((x) => x.variant.id === "a@xhigh")!;
+    expect(a.values.find((v) => v.benchmarkId === "term")).toMatchObject({ raw: 60, sourceVariantId: "a@high", substituted: true });
+    expect(a.values.find((v) => v.benchmarkId === "swe")).toMatchObject({ raw: 75, sourceVariantId: "a@xhigh", substituted: false, sourceUrl: "https://example.com/eval" });
+    expect(a.costUsd).toBeUndefined();
+  });
+  it("keeps version fallback independent from effort matching", () => {
+    const s = snap();
+    s.observations.push({ benchmarkId: "deep1", variantId: "a@high", value: 45, observedAt: "", sourceUrl: "" });
+    const r = computeIndex(s, { ...base, weights: { deep11: 100 }, effortMatching: "nearest" });
+    expect(r.ranked.find((x) => x.variant.id === "a@high")?.values[0]).toMatchObject({ raw: 45, from: "deep1", substituted: false });
+  });
+  it("does not combine a high-effort score with a max-effort score to pass requirements", () => {
+    const s = snap();
+    s.observations = s.observations.filter((o) => !(o.benchmarkId === "term" && o.variantId === "a@max"));
+    const config = { ...base, weights: { swe: 50, term: 50 }, variants: "best" as const };
+    const r = computeIndex(s, config);
+    expect(r.ranked.find((x) => x.model.id === "a")?.variant.id).toBe("a@high");
+    expect(r.excluded.find((x) => x.variant.id === "a@max")?.missing).toEqual(["term"]);
+  });
   it("ranks variants, excludes non-LLMs, implicit required via cutoff", () => {
     const r = computeIndex(snap(), base);
     expect(r.ranked.map((x) => x.variant.id)).not.toContain("img@default");

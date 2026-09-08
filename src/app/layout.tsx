@@ -10,7 +10,7 @@ const jetbrains = JetBrains_Mono({ variable: "--font-jetbrains", subsets: ["lati
 export const metadata: Metadata = {
   title: { default: "priors", template: "%s · priors" },
   description: "Build your own index of AI models. Pick the benchmarks that matter to you, weight them, and share the ranking.",
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"),
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:48740"),
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

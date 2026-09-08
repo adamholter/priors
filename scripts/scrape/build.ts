@@ -3,10 +3,10 @@
  *   data/snapshots/YYYY-MM-DD.json  (+ latest.json)
  * Usage: npx tsx scripts/scrape/build.ts [--only aa,deepswe] [--date YYYY-MM-DD]
  */
-import { mkdir, readdir, writeFile, readFile } from "node:fs/promises";
+import { mkdir, readdir, writeFile, readFile, rename } from "node:fs/promises";
 import path from "node:path";
 import { gzipSync, gunzipSync } from "node:zlib";
-import type { Benchmark, Effort, Model, Observation, RawRow, RawSeries, Series, Snapshot, Source, SourceRun, Variant } from "../../src/data/types";
+import type { Benchmark, Effort, Model, Observation, RawRow, RawSeries, Series, Snapshot, Source, SourceRun, ScrapeResult, Variant } from "../../src/data/types";
 import { LABS, normalizeLabel, variantId } from "../../src/data/normalize";
 import { makeContext, saveRaw } from "./harness";
 
@@ -36,7 +36,7 @@ async function main() {
   const benchmarks = new Map<string, Benchmark>();
   const rows: (RawRow & { sourceId: string })[] = [];
   const rawSeries: (RawSeries & { sourceId: string })[] = [];
-  const meta = new Map<string, { labHint?: string; releaseDateHint?: string; kind?: Model["kind"] }>();
+  const meta = new Map<string, NonNullable<ScrapeResult["modelMeta"]>[number]>();
 
   await Promise.all(sources.map(async (src) => {
     const ctx = makeContext(src.id);
@@ -71,18 +71,21 @@ async function main() {
     models.set(m.id, m);
   };
   for (const row of rows) {
-    const n = normalizeLabel(row.modelLabel, row.effort);
+    const n = row.identity ? { ok: true as const, ...row.identity, reasoningFamily: row.identity.effort !== "none", cleaned: row.modelLabel } : normalizeLabel(row.modelLabel, row.effort);
     if (!n.ok) { (unknownBySource.get(row.sourceId) ?? unknownBySource.set(row.sourceId, new Set()).get(row.sourceId)!).add(row.modelLabel); continue; }
     touch(n, row.modelLabel, meta.get(row.modelLabel.toLowerCase()) ?? { releaseDateHint: row.releaseDateHint });
     pending.push({ row, modelId: n.modelId, effort: n.effort });
   }
-  for (const [label, hint] of meta) { const n = normalizeLabel(label); touch(n, label, hint); }
+  for (const [label, hint] of meta) {
+    const n = hint.identity ? { ok: true as const, ...hint.identity, reasoningFamily: hint.identity.effort !== "none", cleaned: label } : normalizeLabel(label);
+    touch(n, label, hint);
+  }
   runs.forEach((r) => (r.unknownLabels = [...(unknownBySource.get(r.sourceId) ?? [])]));
 
   // ---- resolve variants. Unspecified effort -> max effort seen for that model, else "default".
   const effortsSeen = new Map<string, Set<Effort>>();
   pending.forEach((p) => { if (p.effort) (effortsSeen.get(p.modelId) ?? effortsSeen.set(p.modelId, new Set()).get(p.modelId)!).add(p.effort); });
-  const ORDER: Effort[] = ["low", "medium", "high", "xhigh", "max"];
+  const ORDER: Effort[] = ["none", "minimal", "low", "medium", "high", "xhigh", "max"];
   const resolveEffort = (modelId: string, e?: Effort): Effort => {
     if (e) return e;
     const seen = effortsSeen.get(modelId);
@@ -93,11 +96,25 @@ async function main() {
   const observations: Observation[] = [];
   for (const p of pending) {
     const effort = resolveEffort(p.modelId, p.effort);
-    const vid = variantId(p.modelId, effort);
-    variants.set(vid, { id: vid, modelId: p.modelId, effort });
-    const { modelLabel, effort: _e, labHint: _l, releaseDateHint: _r, sourceId: _s, ...rest } = p.row;
-    void modelLabel; void _e; void _l; void _r; void _s;
+    const vid = p.row.identity?.variantId ?? variantId(p.modelId, effort);
+    const identity = p.row.identity;
+    variants.set(vid, { ...variants.get(vid), id: vid, modelId: p.modelId, effort, ...(identity ? {
+      configuration: identity.configuration,
+      sourceModel: { id: identity.sourceModelId, slug: identity.sourceSlug, name: p.row.modelLabel, url: `https://artificialanalysis.ai/models/${identity.sourceSlug}`, metadata: p.row.modelMetadata },
+    } : {}) });
+    const { modelLabel, identity: _identity, modelMetadata: _metadata, effort: _e, labHint: _l, releaseDateHint: _r, sourceId: _s, ...rest } = p.row;
+    void _identity; void _metadata; void modelLabel; void _e; void _l; void _r; void _s;
     observations.push({ ...rest, variantId: vid, observedAt: date, note: rest.note ?? (p.effort ? undefined : effort !== "default" ? "effort unspecified; attributed to max" : undefined) });
+  }
+  // Keep authoritative AA catalog entries even when no evaluation is measured yet.
+  // computeIndex still requires an observed selected benchmark, so they cannot rank.
+  const catalogModelIds = new Set<string>();
+  for (const hint of meta.values()) {
+    const i = hint.identity;
+    if (!i) continue;
+    catalogModelIds.add(i.modelId);
+    if (!variants.has(i.variantId)) variants.set(i.variantId, { id: i.variantId, modelId: i.modelId, effort: i.effort, configuration: i.configuration,
+      sourceModel: { id: i.sourceModelId, slug: i.sourceSlug, name: hint.modelLabel, url: `https://artificialanalysis.ai/models/${i.sourceSlug}`, metadata: hint.modelMetadata } });
   }
   const series: Series[] = [];
   for (const s of rawSeries) {
@@ -115,8 +132,8 @@ async function main() {
 
   const snap: Snapshot = {
     version: 1, date, generatedAt: new Date().toISOString(),
-    labs: LABS,
-    models: [...models.values()].filter((m) => deduped.some((o) => o.variantId.startsWith(m.id + "@")) || series.some((s) => s.variantId.startsWith(m.id + "@"))).sort((a, b) => a.id.localeCompare(b.id)),
+    labs: [...LABS, ...[...models.values()].filter((m) => !LABS.some((l) => l.id === m.labId)).filter((m, i, a) => a.findIndex((x) => x.labId === m.labId) === i).map((m) => ({ id: m.labId, name: m.labId, color: "#A3A39B" }))],
+    models: [...models.values()].filter((m) => catalogModelIds.has(m.id) || deduped.some((o) => o.variantId.startsWith(m.id + "@")) || series.some((s) => s.variantId.startsWith(m.id + "@"))).sort((a, b) => a.id.localeCompare(b.id)),
     variants: [...variants.values()].sort((a, b) => a.id.localeCompare(b.id)),
     benchmarks: [...benchmarks.values()].sort((a, b) => a.id.localeCompare(b.id)),
     observations: deduped, series, sources: runs,
@@ -125,13 +142,16 @@ async function main() {
   // merge with previous snapshot for failed sources so one outage doesn't blank a benchmark
   try {
     const prev: Snapshot = JSON.parse(gunzipSync(await readFile(path.join(SNAP_DIR, "latest.json.gz"))).toString("utf8"));
-    for (const r of runs.filter((r) => r.status === "failed")) {
+    const unselected = prev.sources.filter((r) => !runs.some((run) => run.sourceId === r.sourceId));
+    const retained = [...runs.filter((r) => r.status === "failed"), ...(only ? unselected : [])];
+    if (only) snap.sources.push(...unselected);
+    for (const r of retained) {
       const prevRun = prev.sources.find((p) => p.sourceId === r.sourceId);
       if (!prevRun) continue;
       const prevBench = prev.benchmarks.filter((b) => b.sourceId === r.sourceId);
       prevBench.forEach((b) => snap.benchmarks.push(b));
       const ids = new Set(prevBench.map((b) => b.id));
-      prev.observations.filter((o) => ids.has(o.benchmarkId)).forEach((o) => snap.observations.push({ ...o, note: `carried from ${prev.date}` }));
+      prev.observations.filter((o) => ids.has(o.benchmarkId)).forEach((o) => snap.observations.push({ ...o, note: only && r.status !== "failed" ? o.note : [o.note, `carried from ${prev.date}`].filter(Boolean).join("; ") }));
       prev.series.filter((s) => ids.has(s.benchmarkId)).forEach((s) => snap.series.push(s));
       prev.variants.forEach((v) => { if (!snap.variants.some((x) => x.id === v.id)) snap.variants.push(v); });
       prev.models.forEach((m) => { if (!snap.models.some((x) => x.id === m.id)) snap.models.push(m); });
@@ -143,8 +163,11 @@ async function main() {
   const json = JSON.stringify(snap);
   // gz only: ~130 KB/day committed to the repo is the backup and the time-travel archive.
   const gz = gzipSync(json);
-  await writeFile(path.join(SNAP_DIR, `${date}.json.gz`), gz);
-  await writeFile(path.join(SNAP_DIR, "latest.json.gz"), gz);
+  for (const name of [`${date}.json.gz`, "latest.json.gz"]) {
+    const temp = path.join(SNAP_DIR, `${name}.${process.pid}.tmp`);
+    await writeFile(temp, gz);
+    await rename(temp, path.join(SNAP_DIR, name));
+  }
 
   console.log(`\nsnapshot ${date}: ${snap.models.length} models, ${snap.variants.length} variants, ${snap.benchmarks.length} benchmarks, ${snap.observations.length} observations, ${(json.length / 1024).toFixed(0)} KB (${(gzipSync(json).length / 1024).toFixed(0)} KB gz)`);
   for (const r of runs) console.log(`  ${r.status.padEnd(7)} ${r.sourceId.padEnd(16)} rows=${r.rowCount} unknown=${r.unknownLabels.length}${r.unknownLabels.length ? " [" + r.unknownLabels.slice(0, 6).join(" | ") + (r.unknownLabels.length > 6 ? " …" : "") + "]" : ""}${r.error ? " " + r.error : ""}`);

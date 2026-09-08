@@ -1,36 +1,55 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState, useRef, useCallback } from "react";
 import type { Benchmark, Snapshot } from "@/data/types";
-import type { IndexConfig, IndexResult } from "@/engine";
+import { isBenchmarkRequired, strictnessOf, type IndexConfig, type IndexResult } from "@/engine";
+
+import { useLightDismiss } from "@/hooks/useLightDismiss";
 
 const CATS: Record<string, string> = { coding: "Coding", agentic: "Agentic", reasoning: "Reasoning", knowledge: "Knowledge", math: "Math", "long-context": "Long context", instruction: "Instruction following", creative: "Creative", safety: "Safety", economics: "Economics", composite: "Composite indices", speed: "Speed", cost: "Cost", other: "Other" };
 
-export function WeightsPanel({ snapshot, config, result, onChange }: { snapshot: Snapshot; config: IndexConfig; result: IndexResult; onChange: (c: IndexConfig) => void }) {
+export function WeightsPanel({ snapshot, config, onChange }: { snapshot: Snapshot; config: IndexConfig; result: IndexResult; onChange: (c: IndexConfig) => void }) {
   const [open, setOpen] = useState(false);
-  const [advanced, setAdvanced] = useState(false);
+  const picker = useRef<HTMLDivElement>(null);
+  const search = useRef<HTMLInputElement>(null);
+  const dismiss = useCallback((reason: "outside" | "escape") => {
+    setOpen(false);
+    if (reason === "escape") search.current?.focus();
+  }, []);
+  useLightDismiss(picker, dismiss);
+  const [query, setQuery] = useState("");
+  const resultsId = useId();
+  const strictness = strictnessOf(config);
   const benches = useMemo(() => new Map(snapshot.benchmarks.map((b) => [b.id, b])), [snapshot]);
   const active = Object.entries(config.weights).filter(([, w]) => w > 0).map(([id]) => benches.get(id)).filter((b): b is Benchmark => !!b);
   const total = active.reduce((a, b) => a + config.weights[b.id], 0) || 1;
   const shareOf = (id: string) => (config.weights[id] / total) * 100;
-  const isRequired = (id: string) => config.required.includes(id) || shareOf(id) > config.cutoff;
+  const isRequired = (id: string) => isBenchmarkRequired(config, id, shareOf(id));
   const set = (patch: Partial<IndexConfig>) => onChange({ ...config, ...patch });
   const setW = (id: string, w: number) => set({ weights: { ...config.weights, [id]: w } });
-  const toggleReq = (id: string) => set({ required: config.required.includes(id) ? config.required.filter((x) => x !== id) : [...config.required, id] });
+  const toggleReq = (id: string, checked: boolean) => set({
+    required: [...config.required.filter((x) => x !== id), ...(checked ? [id] : [])],
+    optional: [...(config.optional ?? []).filter((x) => x !== id), ...(checked ? [] : [id])],
+  });
   const coverage = (id: string) => { const n = new Set(snapshot.observations.filter((o) => o.benchmarkId === id).map((o) => o.variantId.split("@")[0])).size; return n; };
   const inactive = snapshot.benchmarks.filter((b) => !(config.weights[b.id] > 0) && !b.proxy && b.category !== "speed").sort((a, b) => a.category.localeCompare(b.category) || a.name.localeCompare(b.name));
-  const groups = inactive.reduce<Record<string, Benchmark[]>>((acc, b) => ((acc[b.category] ??= []).push(b), acc), {});
+  const normalize = (value: string) => value.toLowerCase().replace(/[\s._-]+/g, "");
+  const terms = query.trim().split(/\s+/).filter(Boolean).map(normalize);
+  const matches = inactive.filter((b) => terms.every((term) => normalize([b.name, b.shortName, b.id, b.sourceId, CATS[b.category]].join(" ")).includes(term)));
+  const groups = matches.reduce<Record<string, Benchmark[]>>((acc, b) => ((acc[b.category] ??= []).push(b), acc), {});
+  const addBenchmark = (id: string) => { setW(id, 10); setQuery(""); setOpen(false); search.current?.focus(); };
 
   return (
     <div className="grid gap-5">
       <div className="grid gap-2.5">
         {active.map((b) => {
-          const share = shareOf(b.id), req = isRequired(b.id), explicit = config.required.includes(b.id);
+          const share = shareOf(b.id), req = isRequired(b.id);
           return (
             <div key={b.id} className="grid grid-cols-[1fr_44px] gap-x-3 gap-y-1 items-center">
               <div className="flex items-baseline justify-between gap-2 min-w-0">
-                <span className="truncate text-[13px]" title={b.description}>{b.name}{result.benchmarks.find((x) => x.benchmark.id === b.id)?.benchmark.versionPolicy?.kind === "fallback" && <span className="cap ml-1" title="falls back to the previous version for models not yet evaluated">+fallback</span>}</span>
-                <button type="button" onClick={() => toggleReq(b.id)} title={explicit ? "Required (click to unpin)" : req ? `Required because its share exceeds the ${config.cutoff}% cutoff` : "Optional (click to require)"}
-                  className={`cap shrink-0 ${explicit ? "text-indigo" : req ? "text-ink-2" : "text-grey/70 hover:text-ink-2"}`}>{explicit ? "required" : req ? "required·" : "optional"}</button>
+                <span className="truncate text-[13px]" title={b.description}>{b.name}</span>
+                <label className="flex items-center gap-1.5 text-[11px] text-grey shrink-0 cursor-pointer">
+                  <input type="checkbox" aria-label={`${b.name} required`} checked={req} onChange={(e) => toggleReq(b.id, e.target.checked)} className="accent-indigo" />Required
+                </label>
               </div>
               <span className="num text-right text-[12.5px]">{share.toFixed(0)}%</span>
               <input type="range" min={0} max={60} step={1} value={config.weights[b.id]} onChange={(e) => setW(b.id, +e.target.value)} className="w-full h-[3px]" aria-label={`${b.name} weight`} />
@@ -40,15 +59,26 @@ export function WeightsPanel({ snapshot, config, result, onChange }: { snapshot:
         })}
       </div>
 
-      <div>
-        <button type="button" onClick={() => setOpen(!open)} className="btn-quiet w-full text-left flex justify-between"><span>Add a benchmark</span><span className="cap">{inactive.length}</span></button>
+      <div ref={picker}>
+        <div className="flex items-center gap-2 border hairline rounded-sm px-2.5 py-1.5 focus-within:border-indigo">
+          <input ref={search} type="search" aria-label="Add a benchmark" aria-controls={resultsId} autoComplete="off" placeholder="Add a benchmark" value={query}
+            onFocus={(e) => { if (!picker.current?.contains(e.relatedTarget as Node | null)) setOpen(true); }} onClick={() => setOpen(true)}
+            onChange={(e) => { setQuery(e.target.value); setOpen(true); }}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") { e.preventDefault(); setQuery(""); setOpen(false); }
+              if (e.key === "Enter" && open && terms.length && matches.length) { e.preventDefault(); addBenchmark(matches[0].id); }
+            }}
+            className="min-w-0 flex-1 bg-transparent text-[12.5px] text-ink-2 outline-none placeholder:text-ink-2" />
+          <button type="button" aria-label={open ? "Hide benchmarks" : "Show benchmarks"} aria-expanded={open} aria-controls={resultsId} onClick={() => setOpen(!open)} className="cap shrink-0 hover:text-ink">{matches.length}</button>
+        </div>
         {open && (
-          <div className="mt-2 grid gap-3 max-h-[360px] overflow-auto pr-1">
+          <div id={resultsId} aria-label="Available benchmarks" className="mt-2 grid gap-3 max-h-[360px] overflow-auto pr-1">
+            {!matches.length && <p className="cap py-2" role="status">No matching benchmarks.</p>}
             {Object.entries(groups).map(([cat, list]) => (
               <div key={cat}>
                 <div className="cap mb-1">{CATS[cat] ?? cat}</div>
                 {list.map((b) => (
-                  <button type="button" key={b.id} onClick={() => setW(b.id, 10)} className="w-full text-left flex items-baseline justify-between gap-2 py-[3px] text-[12.5px] hover:text-indigo" title={b.description}>
+                  <button type="button" key={b.id} onClick={() => addBenchmark(b.id)} className="w-full text-left flex items-baseline justify-between gap-2 py-[3px] text-[12.5px] hover:text-indigo" title={b.description}>
                     <span className="truncate">{b.name}</span><span className="cap shrink-0">{coverage(b.id)} models</span>
                   </button>
                 ))}
@@ -58,22 +88,11 @@ export function WeightsPanel({ snapshot, config, result, onChange }: { snapshot:
         )}
       </div>
 
-      <div>
-        <button type="button" onClick={() => setAdvanced(!advanced)} className="cap hover:text-ink">{advanced ? "Hide" : "Show"} eligibility rules</button>
-        {advanced && (
-          <div className="mt-3 grid gap-3 text-[12.5px]">
-            <label className="grid grid-cols-[1fr_44px] gap-x-3 items-center">
-              <span>Benchmarks above this share are required<br /><span className="cap">Missing a required benchmark excludes the model.</span></span>
-              <span className="num text-right">{config.cutoff}%</span>
-              <input type="range" min={0} max={50} step={1} value={config.cutoff} onChange={(e) => set({ cutoff: +e.target.value })} className="col-span-2 h-[3px]" />
-            </label>
-            <label className="flex items-start gap-2"><input type="checkbox" checked={config.estimateMissing} onChange={(e) => set({ estimateMissing: e.target.checked })} className="mt-1 accent-indigo" /><span>Estimate small missing benchmarks from similar models<br /><span className="cap">Otherwise weights renormalize over what was measured. Estimates are always marked.</span></span></label>
-            <label className="flex items-center gap-2"><span>Rank</span>
-              <select value={config.variants} onChange={(e) => set({ variants: e.target.value as "all" | "best" })} className="btn-quiet"><option value="all">every reasoning effort</option><option value="best">each model’s best effort</option></select>
-            </label>
-          </div>
-        )}
-      </div>
+      <label className="grid gap-2 text-[13px] pt-2">
+        <span className="flex justify-between"><span>Strictness</span><span className="cap">{Math.round(strictness)}</span></span>
+        <input type="range" aria-label="Strictness" min={0} max={100} value={strictness} onChange={(e) => set({ strictness: Number(e.target.value) })} className="h-[3px] w-full" />
+        <span className="flex justify-between text-[11px] text-grey"><span>Flexible</span><span>Strict</span></span>
+      </label>
     </div>
   );
 }

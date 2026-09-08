@@ -2,8 +2,9 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import type { Snapshot } from "@/data/types";
-import { computeIndex, type IndexConfig } from "@/engine";
+import { chartVariantMode, computeIndex, selectVariants, type IndexConfig } from "@/engine";
 import { encodeIndices } from "@/lib/url";
+import { ShareCards } from "../ShareCards";
 import { Wordmark } from "../Wordmark";
 import { Rankings } from "../Rankings";
 import { ParetoChart } from "../chart/ParetoChart";
@@ -12,6 +13,7 @@ import { BenchmarkTable } from "./BenchmarkTable";
 import { DatePicker } from "../DatePicker";
 import { authEnabled } from "@/app/providers";
 import { PageEditor } from "./PageEditor";
+import { ChartSettings } from "../chart/ChartSettings";
 
 export interface Section {
   id: string; kind: "rankings" | "pareto" | "speed" | "benchmark" | "text" | "links" | "history";
@@ -29,7 +31,7 @@ export function IndexPage({ profile, snapshot, dates, edit }: { profile: Profile
   const [prevProfile, setPrevProfile] = useState(profile);
   if (profile !== prevProfile) { setPrevProfile(profile); setPState(profile); }
   const setP = setPState;
-  const results = useMemo(() => new Map(p.indices.map((i) => [i.id, computeIndex(snapshot, i)])), [snapshot, p.indices]);
+  const results = useMemo(() => new Map(p.indices.map((i) => [i.id, computeIndex(snapshot, { ...i, variants: "all" })])), [snapshot, p.indices]);
   const accent = p.theme?.accent ?? "#2F4FB0";
   const surface = p.theme?.surface === "white" ? "#FFFFFF" : "#FBFBF9";
   const builderHref = `/?${encodeIndices(p.indices).toString()}`;
@@ -37,11 +39,12 @@ export function IndexPage({ profile, snapshot, dates, edit }: { profile: Profile
 
   return (
     <div className="min-h-screen" style={{ ["--indigo" as string]: accent, background: surface }}>
-      <header className="flex items-center gap-6 px-8 h-14 border-b hairline sticky top-0 z-10" style={{ background: surface + "E6", backdropFilter: "blur(8px)" }}>
-        <Wordmark size={22} />
+      <header className="flex flex-wrap items-center gap-x-6 gap-y-2 px-4 sm:px-8 min-h-14 py-2 border-b hairline sticky top-0 z-10" style={{ background: surface + "E6", backdropFilter: "blur(8px)" }}>
+        <Wordmark />
         <span className="text-grey text-[13px]">/ {p.handle}</span>
-        <div className="ml-auto flex items-center gap-3">
+        <div className="ml-auto flex flex-wrap items-center justify-end gap-3">
           <DatePicker current={snapshot.date} dates={dates} />
+          {p.indices[0] && <ShareCards indices={p.indices} active={p.indices[0]} date={snapshot.date} profile={p} />}
           <Link href={builderHref as "/"} className="btn-quiet">Open in builder</Link>
           {authEnabled && <PageEditor profile={p} onChange={setP} snapshot={snapshot} editing={edit} />}
         </div>
@@ -68,13 +71,15 @@ export function IndexPage({ profile, snapshot, dates, edit }: { profile: Profile
           if (s.kind === "links") return <section key={s.id}>{title && <h2 className="text-[24px] mb-3">{title}</h2>}<ul className="grid gap-1.5 text-[14px]">{s.links?.map((l) => <li key={l.url}><a href={l.url} target="_blank" rel="noreferrer" style={{ color: accent }}>{l.label}</a></li>)}</ul></section>;
           if (s.kind === "benchmark" && s.benchmarkId) return <section key={s.id}><h2 className="text-[24px] mb-3">{title}</h2><BenchmarkTable snapshot={snapshot} benchmarkId={s.benchmarkId} /></section>;
           if (!idx || !r) return null;
+          const rankingMode = chartVariantMode(idx, "ranking"), paretoMode = chartVariantMode(idx, "pareto");
+          const updateIndex = (patch: Partial<IndexConfig>) => setP({ ...p, indices: p.indices.map((i) => i.id === idx.id ? { ...i, ...patch } : i) });
           if (s.kind === "rankings") return (
             <section key={s.id}>
-              <div className="flex items-baseline justify-between mb-3"><h2 className="text-[24px]">{title}</h2><span className="cap">{r.benchmarks.map((b) => `${b.benchmark.shortName ?? b.benchmark.name} ${b.share.toFixed(0)}%`).join(" · ")}</span></div>
-              <Rankings ranked={r.ranked} labs={snapshot.labs} limit={25} selected={selected} onSelect={(x) => setSelected(x?.variant.id ?? null)} />
+              <div className="flex items-baseline justify-between mb-3"><h2 className="text-[24px]">{title}</h2><ChartSettings label="Ranking" mode={rankingMode} onChange={(rankingVariants) => updateIndex({ rankingVariants })} /></div>
+              <Rankings ranked={selectVariants(r.ranked, rankingMode)} showEffort={rankingMode === "all"} labs={snapshot.labs} limit={25} selected={selected} onSelect={(x) => setSelected(x?.variant.id ?? null)} />
             </section>
           );
-          if (s.kind === "pareto") return <section key={s.id}><div className="flex items-baseline justify-between mb-1"><h2 className="text-[24px]">{title}</h2><span className="cap">measured cost per task · ink ring = frontier</span></div><ParetoChart ranked={r.ranked} labs={snapshot.labs} height={440} /></section>;
+          if (s.kind === "pareto") return <section key={s.id}><div className="flex items-baseline justify-between mb-1"><h2 className="text-[24px]">{title}</h2><ChartSettings label="Pareto" mode={paretoMode} onChange={(paretoVariants) => updateIndex({ paretoVariants })} /></div><ParetoChart ranked={selectVariants(r.ranked, paretoMode)} labs={snapshot.labs} height={440} /></section>;
           if (s.kind === "speed") return <section key={s.id}><div className="flex items-baseline justify-between mb-1"><h2 className="text-[24px]">{title}</h2><span className="cap">output tokens per second</span></div><SpeedChart ranked={r.ranked} labs={snapshot.labs} /></section>;
           if (s.kind === "history") return <section key={s.id}><h2 className="text-[24px] mb-2">{title}</h2><p className="cap">Use the date picker above to view this page as of any earlier snapshot.</p></section>;
           return null;

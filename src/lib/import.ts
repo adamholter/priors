@@ -56,7 +56,7 @@ export function mergeImports(snapshot: Snapshot, imports: { benchmark: Omit<Benc
   return { snapshot: s, unknown };
 }
 
-const ORDER = ["low", "medium", "high", "xhigh", "max"] as const;
+const ORDER = ["none", "minimal", "low", "medium", "high", "xhigh", "max"] as const;
 function maxEffort(s: Snapshot, modelId: string) {
   const efforts = s.variants.filter((v) => v.modelId === modelId && v.effort !== "default").map((v) => v.effort);
   if (!efforts.length) return "default" as const;

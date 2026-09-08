@@ -1,29 +1,44 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import type { IndexConfig } from "@/engine";
 
-/** "Index: General frontier  +" — the name is double-click editable, one line, no cards. */
 export function IndexTabs({ indices, activeId, onSelect, onRename, onAdd, onRemove }: {
-  indices: IndexConfig[]; activeId: string; onSelect: (id: string) => void; onRename: (id: string, name: string) => void; onAdd: () => void; onRemove: (id: string) => void;
+  indices: { id: string; name: string }[]; activeId: string;
+  onSelect: (id: string) => void; onRename: (id: string, name: string) => void;
+  onAdd: () => void; onRemove: (id: string) => void;
 }) {
   const [editing, setEditing] = useState<string | null>(null);
-  const ref = useRef<HTMLSpanElement>(null);
-  useEffect(() => { if (editing && ref.current) { ref.current.focus(); document.getSelection()?.selectAllChildren(ref.current); } }, [editing]);
-  const commit = (id: string) => { const v = ref.current?.textContent?.trim(); if (v) onRename(id, v); setEditing(null); };
+  const [draft, setDraft] = useState("");
+  const input = useRef<HTMLInputElement>(null);
+  const triggers = useRef(new Map<string, HTMLButtonElement>());
+  const finished = useRef(false);
+  useEffect(() => { if (editing) { input.current?.focus(); input.current?.select(); } }, [editing]);
+  const start = (id: string, name: string) => { finished.current = false; onSelect(id); setDraft(name); setEditing(id); };
+  const finish = (id: string, save: boolean, restoreFocus: boolean) => {
+    if (finished.current) return;
+    finished.current = true;
+    if (save && draft.trim()) onRename(id, draft.trim());
+    setEditing(null);
+    if (restoreFocus) requestAnimationFrame(() => triggers.current.get(id)?.focus());
+  };
   return (
-    <div className="flex items-center gap-1 min-w-0">
+    <div className="flex items-center gap-1 min-w-0" aria-label="Your indices">
       <span className="text-grey text-[13px] mr-1">Index:</span>
       {indices.map((i) => {
         const on = i.id === activeId;
         return (
           <span key={i.id} className={`group flex items-center gap-1 px-2 py-0.5 rounded-sm ${on ? "text-ink" : "text-grey hover:text-ink-2"}`}>
-            <span ref={editing === i.id ? ref : undefined} role="button" tabIndex={0}
-              contentEditable={editing === i.id} suppressContentEditableWarning spellCheck={false}
-              onClick={() => onSelect(i.id)} onDoubleClick={() => { onSelect(i.id); setEditing(i.id); }}
-              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); commit(i.id); } if (e.key === "Escape") setEditing(null); }}
-              onBlur={() => editing === i.id && commit(i.id)}
-              className="serif text-[17px] whitespace-nowrap px-0.5 border-b-[1.5px] border-transparent" title="Double-click to rename">{i.name}</span>
-            {indices.length > 1 && on && <button type="button" onClick={() => onRemove(i.id)} className="cap opacity-0 group-hover:opacity-100 hover:text-ink" aria-label="Remove index">×</button>}
+            {editing === i.id ? <input ref={input} aria-label="Index name" value={draft} size={Math.max(3, Math.min(draft.length, 28))}
+              onChange={(e) => setDraft(e.target.value)} onBlur={() => finish(i.id, true, false)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") { e.preventDefault(); finish(i.id, true, true); }
+                if (e.key === "Escape") { e.preventDefault(); finish(i.id, false, true); }
+              }}
+              className="serif text-[17px] bg-transparent min-w-0 max-w-[220px] px-0.5 border-b border-indigo" /> :
+              <button ref={(el) => { if (el) triggers.current.set(i.id, el); else triggers.current.delete(i.id); }} type="button" aria-pressed={on}
+                onClick={() => onSelect(i.id)} onDoubleClick={() => start(i.id, i.name)}
+                onKeyDown={(e) => { if (e.key === "F2") { e.preventDefault(); start(i.id, i.name); } }}
+                className="serif text-[17px] whitespace-nowrap px-0.5 border-b-[1.5px] border-transparent" title="Double-click or press F2 to rename">{i.name}</button>}
+            {indices.length > 1 && on && <button type="button" onClick={() => { const next = indices.find((x) => x.id !== i.id); onRemove(i.id); if (next) requestAnimationFrame(() => triggers.current.get(next.id)?.focus()); }} className="cap opacity-70 sm:opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 hover:text-ink p-1" aria-label="Remove index">×</button>}
           </span>
         );
       })}

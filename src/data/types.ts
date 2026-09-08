@@ -4,8 +4,8 @@
  * label strings they saw; normalization into canonical models/variants happens centrally.
  */
 
-export type Effort = "low" | "medium" | "high" | "xhigh" | "max" | "default";
-export const EFFORT_ORDER: Effort[] = ["low", "medium", "high", "xhigh", "max"];
+export type Effort = "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "default";
+export const EFFORT_ORDER: Effort[] = ["none", "minimal", "low", "medium", "high", "xhigh", "max"];
 
 export interface Lab {
   id: string; // "anthropic"
@@ -28,6 +28,8 @@ export interface Variant {
   id: string; // `${modelId}@${effort}`
   modelId: string;
   effort: Effort;
+  configuration?: string;
+  sourceModel?: { id: string; slug: string; name: string; url: string; metadata?: Record<string, unknown> };
 }
 
 export type BenchmarkUnit = "percent" | "score" | "elo" | "usd" | "seconds" | "count";
@@ -42,6 +44,8 @@ export interface Benchmark {
   sourceId: string; // scraper that produced it
   url: string; // canonical public page
   description: string; // one or two sentences, what it measures
+  /** Fixed source-defined scale; independent of which models the user filters. */
+  normalization?: { kind: "linear"; min: number; max: number };
   unit: BenchmarkUnit;
   higherIsBetter: boolean;
   category: BenchmarkCategory;
@@ -72,6 +76,8 @@ export interface Observation {
   harness?: string; // e.g. "claude-code", "codex-cli", AA's harness name
   observedAt: string; // ISO datetime when scraped
   sourceUrl: string;
+  sourceModelId?: string;
+  details?: Record<string, unknown>;
   rank?: number; // as shown by the source, if any
   note?: string;
 }
@@ -117,6 +123,11 @@ export interface Snapshot {
 /** A single scraped row before normalization. The scraper never guesses canonical ids. */
 export interface RawRow {
   benchmarkId: string;
+  /** Authoritative structured source identity, bypassing heuristic label matching. */
+  identity?: { modelId: string; modelName: string; labId: string; effort: Effort; variantId: string; configuration?: string; sourceModelId: string; sourceSlug: string };
+  modelMetadata?: Record<string, unknown>;
+  sourceModelId?: string;
+  details?: Record<string, unknown>;
   /** Exactly the model label the source shows, including any effort/thinking suffix. */
   modelLabel: string;
   /** Effort if the source shows it separately (e.g. DeepSWE's "[xhigh]"). Leave undefined if unknown. */
@@ -153,7 +164,7 @@ export interface ScrapeResult {
   rows: RawRow[];
   series?: RawSeries[];
   /** Any extra per-model metadata the source exposes (AA: speed, price, release dates). */
-  modelMeta?: { modelLabel: string; labHint?: string; releaseDateHint?: string; kind?: Model["kind"] }[];
+  modelMeta?: { modelLabel: string; labHint?: string; releaseDateHint?: string; kind?: Model["kind"]; identity?: RawRow["identity"]; modelMetadata?: Record<string, unknown> }[];
   /** Raw artifacts to persist for audit (filename -> content). */
   raw: Record<string, string>;
   /** Free-form notes for the run log. */

@@ -29,7 +29,7 @@ export const LABS: Lab[] = [
 ];
 
 export const EFFORT_WORDS: Record<string, Effort> = {
-  low: "low", minimal: "low", min: "low", none: "low",
+  low: "low", minimal: "minimal", min: "minimal", none: "none",
   medium: "medium", med: "medium", mid: "medium", default: "medium",
   high: "high", hi: "high",
   xhigh: "xhigh", "x-high": "xhigh", "extra high": "xhigh", "extra-high": "xhigh", "very high": "xhigh",
@@ -49,7 +49,7 @@ const FAMILIES: { re: RegExp; id: (m: RegExpMatchArray) => string; name: (m: Reg
   { re: /\bgpt[\s-]*oss[\s-]*(\d+)b?\b/, id: (m) => `gpt-oss-${m[1]}b`, name: (m) => `gpt-oss-${m[1]}b`, lab: "openai", reasoning: true },
   { re: /\bgpt[\s-]*4o[\s-]*(mini)?\b/, id: (m) => `gpt-4o${m[1] ? "-mini" : ""}`, name: (m) => `GPT-4o${m[1] ? " mini" : ""}`, lab: "openai" },
   // codenamed variants (Sol/Luna/Terra/Astra...) and tiers are distinct models
-  { re: /\bgpt[\s-]*(\d+(?:\.\d+)?)[\s-]*(mini|nano|pro|codex|sol|luna|terra|astra|chat)(?:[\s-]+(mini|nano|pro|codex))?\b/, id: (m) => `gpt-${m[1]}-${m[2]}${m[3] ? "-" + m[3] : ""}`, name: (m) => `GPT-${m[1]} ${cap(m[2])}${m[3] ? " " + cap(m[3]) : ""}`, lab: "openai", reasoning: true },
+  { re: /\bgpt[\s-]*(\d+(?:\.\d+)?)[\s-]*(mini|nano|pro|codex|sol|luna|terra|astra|chat|instant)(?:[\s-]+(mini|nano|pro|codex))?\b/, id: (m) => `gpt-${m[1]}-${m[2]}${m[3] ? "-" + m[3] : ""}`, name: (m) => `GPT-${m[1]} ${cap(m[2])}${m[3] ? " " + cap(m[3]) : ""}`, lab: "openai", reasoning: true },
   { re: /\bgpt[\s-]*(\d+(?:\.\d+)?)\b/, id: (m) => `gpt-${m[1]}`, name: (m) => `GPT-${m[1]}`, lab: "openai", reasoning: true },
   { re: /\bo(\d)[\s-]*(mini|pro)?\b/, id: (m) => `o${m[1]}${m[2] ? "-" + m[2] : ""}`, name: (m) => `o${m[1]}${m[2] ? " " + m[2] : ""}`, lab: "openai", reasoning: true },
   // Google
@@ -59,9 +59,11 @@ const FAMILIES: { re: RegExp; id: (m: RegExpMatchArray) => string; name: (m: Reg
   { re: /\bgrok[\s-]*build[\s-]*(\d+(?:\.\d+)?)?\b/, id: (m) => `grok-build${m[1] ? "-" + m[1] : ""}`, name: (m) => `Grok Build${m[1] ? " " + m[1] : ""}`, lab: "xai", reasoning: true },
   { re: /\bgrok[\s-]*(\d+(?:\.\d+)?)[\s-]*(mini|fast|heavy)?\b/, id: (m) => `grok-${m[1]}${m[2] ? "-" + m[2] : ""}`, name: (m) => `Grok ${m[1]}${m[2] ? " " + m[2][0].toUpperCase() + m[2].slice(1) : ""}`, lab: "xai", reasoning: true },
   // DeepSeek
+  { re: /\bdeepseek[\s-]*v(\d+(?:\.\d+)?)[\s-]*(pro|flash|lite)[\s-]+(\d{4})\b/, id: (m) => `deepseek-v${m[1]}-${m[2]}-${m[3]}`, name: (m) => `DeepSeek V${m[1]} ${cap(m[2])} ${m[3]}`, lab: "deepseek", reasoning: true },
   { re: /\bdeepseek[\s-]*(?:v)?(\d+(?:\.\d+)?)[\s-]*(pro|lite|flash|chat)?\b/, id: (m) => `deepseek-v${m[1]}${m[2] ? "-" + m[2] : ""}`, name: (m) => `DeepSeek V${m[1]}${m[2] ? " " + m[2][0].toUpperCase() + m[2].slice(1) : ""}`, lab: "deepseek", reasoning: true },
   { re: /\bdeepseek[\s-]*r(\d+(?:\.\d+)?)\b/, id: (m) => `deepseek-r${m[1]}`, name: (m) => `DeepSeek R${m[1]}`, lab: "deepseek", reasoning: true },
   // Alibaba
+  { re: /\bqwen[\s-]*(\d+(?:\.\d+)?)[\s-]+(\d+(?:\.\d+)?)([bt])(?:[\s-]*a(\d+)([bt]))?\b/, id: (m) => `qwen-${m[1]}-${m[2]}${m[3]}${m[4] ? `-a${m[4]}${m[5]}` : ""}`, name: (m) => `Qwen ${m[1]} ${m[2]}${m[3].toUpperCase()}${m[4] ? `-A${m[4]}${m[5].toUpperCase()}` : ""}`, lab: "alibaba" },
   { re: /\bqwen[\s-]*(\d+(?:\.\d+)?)[\s-]*(max|plus|turbo|coder|flash)?\b/, id: (m) => `qwen-${m[1]}${m[2] ? "-" + m[2] : ""}`, name: (m) => `Qwen ${m[1]}${m[2] ? " " + m[2][0].toUpperCase() + m[2].slice(1) : ""}`, lab: "alibaba" },
   // Moonshot
   { re: /\bkimi[\s-]*k(\d+(?:\.\d+)?)[\s-]*(code|thinking|instruct)?\b/, id: (m) => `kimi-k${m[1]}${m[2] === "code" ? "-code" : ""}`, name: (m) => `Kimi K${m[1]}${m[2] === "code" ? " Code" : ""}`, lab: "moonshot", reasoning: true },
@@ -201,7 +203,7 @@ export function normalizeLabel(label: string, effortHint?: string): Normalized |
     if (m) {
       // if the family pattern consumed the effort word (e.g. "Qwen 3.7 Max"), it's a tier, not an effort
       const consumedEffort = effortRe.test(m[0]);
-      return { ok: true, modelId: f.id(m), modelName: f.name(m), labId: f.lab, effort: consumedEffort ? undefined : effort, reasoningFamily: !!f.reasoning, cleaned };
+      return { ok: true, modelId: f.id(m), modelName: f.name(m), labId: f.lab, effort: consumedEffort ? (effortHint ? extractEffort(effortHint) : extractEffort(target.slice((m.index ?? 0) + m[0].length))) : effort, reasoningFamily: !!f.reasoning, cleaned };
     }
   }
   return { ok: false, cleaned };

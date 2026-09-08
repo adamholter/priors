@@ -8,9 +8,14 @@ import { DEFAULT_CUTOFF, type IndexConfig } from "../engine";
 export function encodeIndex(c: IndexConfig): string {
   const parts = [encodeURIComponent(c.name), Object.entries(c.weights).filter(([, w]) => w > 0).map(([k, w]) => `${k}:${round(w)}`).join(",")];
   if (c.required.length) parts.push(`req=${c.required.join(",")}`);
+  if (c.optional?.length) parts.push(`opt=${c.optional.join(",")}`);
+  if (c.strictness != null) parts.push(`strict=${round(c.strictness)}`);
+  if (c.rankingVariants) parts.push(`bars=${c.rankingVariants}`);
+  if (c.paretoVariants) parts.push(`pareto=${c.paretoVariants}`);
   if (c.cutoff !== DEFAULT_CUTOFF) parts.push(`cut=${round(c.cutoff)}`);
   if (!c.estimateMissing) parts.push("est=0");
   if (c.variants !== "all") parts.push(`var=${c.variants}`);
+  if (c.effortMatching) parts.push(`effort=${c.effortMatching}`);
   if (c.labs?.length) parts.push(`labs=${c.labs.join(",")}`);
   if (c.excludeModels?.length) parts.push(`ex=${c.excludeModels.join(",")}`);
   if (c.releasedAfter) parts.push(`after=${c.releasedAfter}`);
@@ -26,9 +31,14 @@ export function decodeIndex(s: string, id: string): IndexConfig | null {
   for (const r of rest) {
     const [k, v = ""] = r.split("=");
     if (k === "req") c.required = v.split(",").filter(Boolean);
+    else if (k === "opt") c.optional = v.split(",").filter(Boolean);
+    else if (k === "strict" && Number.isFinite(Number(v))) c.strictness = Math.max(0, Math.min(100, Number(v)));
+    else if (k === "bars" && (v === "all" || v === "best")) c.rankingVariants = v;
+    else if (k === "pareto" && (v === "all" || v === "best")) c.paretoVariants = v;
     else if (k === "cut") { const n = parseFloat(v); if (Number.isFinite(n)) c.cutoff = n; }
     else if (k === "est") c.estimateMissing = v !== "0";
     else if (k === "var" && (v === "all" || v === "best")) c.variants = v;
+    else if (k === "effort" && (v === "calibrated" || v === "nearest" || v === "strict")) c.effortMatching = v;
     else if (k === "labs") c.labs = v.split(",").filter(Boolean);
     else if (k === "ex") c.excludeModels = v.split(",").filter(Boolean);
     else if (k === "after") c.releasedAfter = v;

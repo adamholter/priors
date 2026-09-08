@@ -37,6 +37,21 @@ const cases: [string, string, string | undefined][] = [
 ];
 
 describe("normalizeLabel", () => {
+  it("keeps Epoch's no-reasoning, sized models, Instant and dated releases distinct", () => {
+    expect(normalizeLabel("GPT-6 Astra (none)")).toMatchObject({ effort: "none" });
+    expect(normalizeLabel("GPT-6 Astra (low)")).toMatchObject({ effort: "low" });
+    expect(normalizeLabel("GPT-5 (minimal)")).toMatchObject({ effort: "minimal" });
+    expect(normalizeLabel("Qwen3.6 35B-A3B")).toMatchObject({ modelId: "qwen-3.6-35b-a3b" });
+    expect(normalizeLabel("Qwen3.6 27B")).toMatchObject({ modelId: "qwen-3.6-27b" });
+    expect(normalizeLabel("GPT-5.5 Instant")).toMatchObject({ modelId: "gpt-5.5-instant" });
+    expect(normalizeLabel("DeepSeek V4 Pro 0813")).toMatchObject({ modelId: "deepseek-v4-pro-0813" });
+    expect(normalizeLabel("DeepSeek V4 Pro")).toMatchObject({ modelId: "deepseek-v4-pro" });
+  });
+  it("preserves a separate effort on Max and Medium model tiers", () => {
+    expect(normalizeLabel("Qwen 3.7 Max", "high")).toMatchObject({ modelId: "qwen-3.7-max", effort: "high" });
+    expect(normalizeLabel("Qwen 3.7 Max (low)")).toMatchObject({ modelId: "qwen-3.7-max", effort: "low" });
+    expect(normalizeLabel("Mistral Medium 3.5", "high")).toMatchObject({ modelId: "mistral-medium-3.5", effort: "high" });
+  });
   for (const [label, id, effort] of cases) {
     it(label, () => {
       const r = normalizeLabel(label);

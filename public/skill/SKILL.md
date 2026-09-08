@@ -74,7 +74,18 @@ If you cannot reach the source or the leaderboard is behind a login, say so and 
 
 ## Task B — change index weights or rules
 
-`IndexConfig` fields: `id`, `name`, `weights` (benchmarkId → weight, any positive scale), `required` (benchmark ids a model must have), `cutoff` (percent share above which a benchmark is implicitly required; default 5), `estimateMissing` (true = estimate small gaps from similar models, false = renormalize), `variants` (`all` = rank every reasoning effort, `best` = one per model). Send the **full array** with action `indices`.
+Start from `whoami.indices`, preserve fields you are not changing, and send the **full array** with action `indices`.
+
+- `weights`: benchmarkId → weight, any positive scale.
+- `strictness`: 0–100. Higher values tighten automatic requirements and evidence needed for estimates; 100 disables estimates.
+- `required` and `optional`: benchmark-id arrays overriding automatic requirements. To change one, remove its id from the other array. Empty both arrays to restore automatic decisions.
+- `rankingVariants`: `best` (default, one row per model) or `all`.
+- `paretoVariants`: `all` (default) or `best`. Independent of rankingVariants.
+- `effortMatching`: `calibrated` (default, estimate missing effort scores from the same model's measured performance ratios on other benchmarks) or `strict` (exact effort only). Insufficient evidence stays missing; no unchanged maximum-score copies for lower efforts.
+- `estimateMissing`: whether to estimate optional missing benchmarks from similar models; otherwise renormalize measured weights.
+- Keep legacy `cutoff` and `variants` fields from the existing configuration. New controls use strictness and the independent chart modes instead.
+
+Calculation details and estimate provenance belong in Calculation settings, not in main-chart labels. After writing, call `whoami` again and verify the requested fields persisted.
 
 Benchmark ids available on the site are listed at `https://priors.so/api/benchmarks`.
 

@@ -17,6 +17,11 @@ export interface IndexConfig {
   estimateMissing: boolean;
   /** Rank every reasoning-effort variant, or only each model's best variant. */
   variants: "all" | "best";
+  effortMatching?: "calibrated" | "nearest" | "strict";
+  strictness?: number;
+  optional?: string[];
+  rankingVariants?: "all" | "best";
+  paretoVariants?: "all" | "best";
   /** Optional filters */
   labs?: string[]; // include only these labIds
   excludeModels?: string[]; // modelIds
@@ -25,12 +30,34 @@ export interface IndexConfig {
 
 export const DEFAULT_CUTOFF = 5;
 
-/** Preferred starter mix, applied only where coverage of the current frontier is high. */
-const STARTER: Record<string, number> = {
-  "aa-terminalbench-v2-1": 15, "deepswe-1.1": 15, "arena-agent": 15, "aa-gdpval-aa": 15,
-  "aa-tau3-banking": 10, "aa-humanitys-last-exam": 10, "aa-briefcase": 10, "simplebench": 10,
-  "terminalbench-4": 15, "frontierswe-v2": 15, "arc-agi-2": 10, "bsbench-v2": 10,
-};
+export function strictnessOf(config: IndexConfig): number {
+  return Math.min(100, Math.max(0, config.strictness ?? (config.cutoff <= 0 ? 100 : 50 * Math.log10(50 / config.cutoff))));
+}
+
+export function cutoffOf(config: IndexConfig): number {
+  if (config.strictness == null) return config.cutoff;
+  const s = strictnessOf(config);
+  return s === 100 ? 0 : 50 * Math.pow(0.1, s / 50);
+}
+
+export function isBenchmarkRequired(config: IndexConfig, id: string, share: number): boolean {
+  return config.required.includes(id) || (!config.optional?.includes(id) && share > cutoffOf(config));
+}
+
+export function chartVariantMode(config: IndexConfig, chart: "ranking" | "pareto"): "all" | "best" {
+  return chart === "ranking" ? config.rankingVariants ?? "best" : config.paretoVariants ?? "all";
+}
+
+export function selectVariants(ranked: RankedVariant[], mode: "all" | "best"): RankedVariant[] {
+  const seen = new Set<string>();
+  const out = ranked.filter((r) => {
+    if (mode === "best" && seen.has(r.model.id)) return false;
+    seen.add(r.model.id);
+    return true;
+  }).map((r, i) => ({ ...r, rank: i + 1, onFrontier: false }));
+  markFrontier(out);
+  return out;
+}
 
 /** Models that matter right now: the top of the newest AA intelligence index (fallback: most-observed models). */
 export function frontierModels(snapshot: Snapshot, n = 30): Set<string> {
@@ -45,23 +72,14 @@ export function frontierModels(snapshot: Snapshot, n = 30): Set<string> {
   return new Set([...count.entries()].sort((a, b) => b[1] - a[1]).slice(0, n).map(([m]) => m));
 }
 
-/**
- * Default index: benchmarks that cover almost all currently relevant models, so the default
- * page ranks the frontier rather than the intersection of small leaderboards. Users add the
- * narrower benchmarks themselves (and control the cutoff).
- */
-export function defaultConfig(snapshot: Snapshot, id = "general", name = "General frontier", minCoverage = 0.75, max = 7): IndexConfig {
-  const relevant = frontierModels(snapshot);
-  const cands = snapshot.benchmarks
-    .filter((b) => b.eligibleForDefault && !b.proxy && b.category !== "speed" && b.category !== "cost")
-    .map((b) => ({ b, cov: coverageOf(snapshot, b.id, relevant), w: STARTER[b.id] ?? b.defaultWeight ?? 5 }))
-    .filter((x) => x.cov >= minCoverage)
-    .sort((a, b) => b.w - a.w || b.cov - a.cov)
-    .slice(0, max);
-  const weights: Record<string, number> = {};
-  for (const c of cands) weights[c.b.id] = c.w;
-  if (!Object.keys(weights).length) for (const b of snapshot.benchmarks) if (b.eligibleForDefault && b.defaultWeight) weights[b.id] = b.defaultWeight;
-  return { id, name, weights, required: [], cutoff: DEFAULT_CUTOFF, estimateMissing: true, variants: "all" };
+/** First-visit mix, matching the shared General frontier configuration. */
+export function defaultConfig(_snapshot: Snapshot, id = "general", name = "General frontier"): IndexConfig {
+  return {
+    id, name,
+    weights: { "deepswe-1.1": 43, "terminalbench-4": 54, "arc-agi-3": 9, "simplebench": 38, "bsbench-v2": 12, "aa-humanitys-last-exam": 37, "aa-omniscience": 24, "frontiermath-tier-4-v2": 42 },
+    required: [], optional: ["deepswe-1.1"], strictness: 20, cutoff: 20,
+    estimateMissing: true, variants: "best",
+  };
 }
 
 /* ------------------------------------------------------------------ */
@@ -76,6 +94,11 @@ export interface BenchValue {
   estimated: boolean;
   /** which concrete benchmark supplied it (fallback versions) */
   from?: string;
+  sourceVariantId?: string;
+  sourceUrl?: string;
+  substituted?: boolean;
+  effortFactor?: number;
+  evidence?: string[];
 }
 
 export interface RankedVariant {
@@ -85,6 +108,7 @@ export interface RankedVariant {
   /** share of total weight backed by observed (not estimated) values */
   coverage: number;
   values: BenchValue[];
+  mixedEfforts?: boolean;
   /** measured cost per task, when known */
   costUsd?: number;
   costSource?: string;
@@ -129,8 +153,65 @@ function lookup(idx: ObsIndex, benches: Map<string, Benchmark>, benchmarkId: str
   return undefined;
 }
 
+function lookupEffort(idx: ObsIndex, benches: Map<string, Benchmark>, benchmarkId: string, variant: Variant, strict: boolean) {
+  const exact = lookup(idx, benches, benchmarkId, variant.id);
+  if (exact || strict) return exact;
+  const order = ["none", "minimal", "low", "medium", "high", "xhigh", "max", "default"];
+  const target = order.indexOf(variant.effort);
+  const visited = new Set<string>();
+  let id: string | undefined = benchmarkId;
+  while (id && !visited.has(id)) {
+    visited.add(id);
+    const candidates = [...(idx.get(id)?.values() ?? [])].filter((o) => o.variantId.startsWith(`${variant.modelId}@`) && o.variantId.split("~")[1] === variant.id.split("~")[1]);
+    candidates.sort((a, b) => {
+      const ai = order.indexOf(a.variantId.split("@")[1].split("~")[0]), bi = order.indexOf(b.variantId.split("@")[1].split("~")[0]);
+      return Math.abs(ai - target) - Math.abs(bi - target) || ai - bi || a.variantId.localeCompare(b.variantId);
+    });
+    if (candidates.length) return { obs: candidates[0], from: id };
+    const policy: Benchmark["versionPolicy"] = benches.get(id)?.versionPolicy;
+    id = policy?.kind === "fallback" ? policy.fallbackTo : undefined;
+  }
+  return undefined;
+}
+
+function effortAdjustment(idx: ObsIndex, benches: Map<string, Benchmark>, normalize: Map<string, (v: number) => number>, targetBenchmark: string, target: Variant, source: Observation, strictness: number) {
+  const order = ["none", "minimal", "low", "medium", "high", "xhigh", "max"];
+  const from = order.indexOf(source.variantId.split("@")[1].split("~")[0]), to = order.indexOf(target.effort);
+  if (from < 0 || to < 0 || strictness === 100 || (strictness >= 85 && Math.abs(from - to) > 1)) return undefined;
+  const related = new Set([targetBenchmark, source.benchmarkId]);
+  for (let changed = true; changed;) {
+    changed = false;
+    for (const b of benches.values()) {
+      const link = b.versionPolicy?.kind === "fallback" ? b.versionPolicy.fallbackTo : b.versionPolicy?.supersedes;
+      if (link && (related.has(b.id) || related.has(link)) && (!related.has(b.id) || !related.has(link))) {
+        related.add(b.id); related.add(link); changed = true;
+      }
+    }
+  }
+  const comparisons: { id: string; ratio: number; weight: number }[] = [];
+  for (const b of benches.values()) {
+    if (related.has(b.id) || b.proxy || ["cost", "speed", "composite"].includes(b.category)) continue;
+    const a = idx.get(b.id)?.get(target.id), donor = idx.get(b.id)?.get(source.variantId);
+    if (!a || !donor || a.harness !== donor.harness || /estimated/i.test(`${a.note ?? ""} ${donor.note ?? ""}`)) continue;
+    const denominator = normalize.get(b.id)!(donor.value), numerator = normalize.get(b.id)!(a.value);
+    if (!Number.isFinite(numerator) || !Number.isFinite(denominator) || denominator < 5) continue;
+    comparisons.push({ id: b.id, ratio: Math.min(4, Math.max(0, numerator / denominator)), weight: b.category === benches.get(targetBenchmark)?.category ? 2 : 1 });
+  }
+  const minimum = strictness >= 95 ? 3 : strictness >= 75 ? 2 : 1;
+  if (comparisons.length < minimum) return undefined;
+  comparisons.sort((a, b) => a.ratio - b.ratio || a.id.localeCompare(b.id));
+  const trim = comparisons.length >= 5 ? Math.floor(comparisons.length * 0.2) : 0;
+  const central = comparisons.slice(trim, comparisons.length - trim);
+  const factor = central.reduce((sum, c) => sum + c.ratio * c.weight, 0) / central.reduce((sum, c) => sum + c.weight, 0);
+  return { effortFactor: to < from ? Math.min(1, factor) : Math.max(1, factor), evidence: central.map((c) => c.id) };
+}
+
 /** Percent benchmarks are used raw; everything else is min-max scaled over the pool of values present. */
 function makeNormalizer(b: Benchmark, values: number[]): (v: number) => number {
+  if (b.normalization?.kind === "linear") {
+    const { min, max } = b.normalization;
+    return (v) => clamp((b.higherIsBetter ? (v - min) : (max - v)) / (max - min) * 100, 0, 100);
+  }
   if (b.unit === "percent" && b.higherIsBetter) return (v) => clamp(v, 0, 100);
   if (b.unit === "percent" && !b.higherIsBetter) return (v) => clamp(100 - v, 0, 100);
   const finite = values.filter(Number.isFinite);
@@ -156,7 +237,9 @@ export function computeIndex(snapshot: Snapshot, config: IndexConfig): IndexResu
   const used = Object.entries(config.weights).filter(([id, w]) => w > 0 && benches.has(id));
   const total = used.reduce((a, [, w]) => a + w, 0);
   if (!used.length || total <= 0) return { config, benchmarks: [], ranked: [], excluded: [] };
-  const shares = used.map(([id, w]) => ({ benchmark: benches.get(id)!, share: (w / total) * 100, required: config.required.includes(id) || (w / total) * 100 > config.cutoff }));
+  const strictness = strictnessOf(config);
+  const shares = used.map(([id, w]) => ({ benchmark: benches.get(id)!, share: (w / total) * 100, required: isBenchmarkRequired(config, id, (w / total) * 100) }));
+  const normalizeMeasured = new Map(snapshot.benchmarks.map((b) => [b.id, makeNormalizer(b, [...(idx.get(b.id)?.values() ?? [])].map((o) => o.value))]));
 
   // pool: llm variants with at least one used benchmark value, passing filters
   const pool = snapshot.variants.filter((v) => {
@@ -169,14 +252,23 @@ export function computeIndex(snapshot: Snapshot, config: IndexConfig): IndexResu
   });
 
   // raw values per benchmark over the pool -> normalizers
-  const rawByBench = new Map<string, Map<string, { raw: number; from: string }>>();
+  type Resolved = { raw: number; from: string; sourceVariantId: string; sourceUrl: string; substituted: boolean; effortFactor?: number; evidence?: string[] };
+  const rawByBench = new Map<string, Map<string, Resolved>>();
   for (const s of shares) {
-    const m = new Map<string, { raw: number; from: string }>();
-    for (const v of pool) { const r = lookup(idx, benches, s.benchmark.id, v.id); if (r) m.set(v.id, { raw: r.obs.value, from: r.from }); }
+    const m = new Map<string, Resolved>();
+    for (const v of pool) {
+      const r = lookupEffort(idx, benches, s.benchmark.id, v, config.effortMatching === "strict" || strictness === 100 || s.benchmark.proxy === true || ["cost", "speed"].includes(s.benchmark.category));
+      if (!r) continue;
+      const substituted = r.obs.variantId !== v.id;
+      const adjustment = substituted ? effortAdjustment(idx, benches, normalizeMeasured, s.benchmark.id, v, r.obs, strictness) : undefined;
+      if (substituted && !adjustment) continue;
+      m.set(v.id, { raw: r.obs.value, from: r.from, sourceVariantId: r.obs.variantId, sourceUrl: r.obs.sourceUrl, substituted, ...adjustment });
+    }
     rawByBench.set(s.benchmark.id, m);
   }
   const norm = new Map(shares.map((s) => [s.benchmark.id, makeNormalizer(s.benchmark, [...rawByBench.get(s.benchmark.id)!.values()].map((x) => x.raw))]));
-  const normValue = (bid: string, vid: string) => { const r = rawByBench.get(bid)!.get(vid); return r ? { value: norm.get(bid)!(r.raw), raw: r.raw, from: r.from } : undefined; };
+  const normValue = (bid: string, vid: string) => { const r = rawByBench.get(bid)!.get(vid); return r ? { ...r, value: clamp(norm.get(bid)!(r.raw) * (r.effortFactor ?? 1), 0, 100) } : undefined; };
+  const observedValue = (bid: string, vid: string) => { const v = normValue(bid, vid); return v?.substituted ? undefined : v; };
 
   // eligibility
   const ranked: RankedVariant[] = [];
@@ -190,15 +282,15 @@ export function computeIndex(snapshot: Snapshot, config: IndexConfig): IndexResu
     let num = 0, den = 0, covered = 0;
     for (const s of shares) {
       const nv = normValue(s.benchmark.id, v.id);
-      if (nv) { values.push({ benchmarkId: s.benchmark.id, value: nv.value, raw: nv.raw, estimated: false, from: nv.from }); num += nv.value * s.share; den += s.share; covered += s.share; continue; }
-      if (!config.estimateMissing) continue; // renormalize: just skip
-      const est = estimate(v, s.benchmark.id, pool, shares.map((x) => x.benchmark.id), normValue, models);
+      if (nv) { values.push({ benchmarkId: s.benchmark.id, ...nv, estimated: nv.substituted }); num += nv.value * s.share; den += s.share; if (!nv.substituted) covered += s.share; continue; }
+      if (!config.estimateMissing || strictness === 100) continue; // renormalize: just skip
+      const est = estimate(v, s.benchmark.id, pool, shares.map((x) => x.benchmark.id), observedValue, models, 5, strictness);
       if (est != null) { values.push({ benchmarkId: s.benchmark.id, value: est, estimated: true }); num += est * s.share; den += s.share; }
     }
     if (den <= 0) continue;
-    const cost = costFor(snapshot, idx, v.id, shares.map((s) => s.benchmark.id));
+    const cost = costFor(snapshot, idx, v.id, shares.map((s) => ({ id: s.benchmark.id, share: s.share })));
     const speedObs = idx.get(SPEED_BENCHMARK)?.get(v.id);
-    ranked.push({ variant: v, model, score: num / den, coverage: Math.min(1, Math.round(covered * 1e4) / 1e6), values, costUsd: cost?.usd, costSource: cost?.source, speed: speedObs && speedObs.value > 0 ? speedObs.value : undefined, onFrontier: false, rank: 0 });
+    ranked.push({ variant: v, model, score: num / den, coverage: Math.min(1, Math.round(covered * 1e4) / 1e6), values, mixedEfforts: values.some((v) => v.substituted), costUsd: cost?.usd, costSource: cost?.source, speed: speedObs && speedObs.value > 0 ? speedObs.value : undefined, onFrontier: false, rank: 0 });
   }
 
   let out = ranked;
@@ -220,7 +312,7 @@ export function computeIndex(snapshot: Snapshot, config: IndexConfig): IndexResu
  */
 function estimate(
   target: Variant, benchmarkId: string, pool: Variant[], benchIds: string[],
-  normValue: (bid: string, vid: string) => { value: number } | undefined, models: Map<string, Model>, k = 5,
+  normValue: (bid: string, vid: string) => { value: number } | undefined, models: Map<string, Model>, k = 5, strictness = 50,
 ): number | undefined {
   const tm = models.get(target.modelId);
   const tVals = new Map(benchIds.filter((b) => b !== benchmarkId).map((b) => [b, normValue(b, target.id)?.value]).filter((x): x is [string, number] => x[1] != null));
@@ -230,11 +322,11 @@ function estimate(
     if (p.modelId === target.modelId) continue; // don't lean on sibling efforts; they share the gap
     const pv = normValue(benchmarkId, p.id); if (!pv) continue;
     const pm = models.get(p.modelId);
-    if (tm?.releaseDate && pm?.releaseDate && Math.abs(daysBetween(tm.releaseDate, pm.releaseDate)) > 270) continue;
+    if (tm?.releaseDate && pm?.releaseDate && Math.abs(daysBetween(tm.releaseDate, pm.releaseDate)) > 365 - strictness * 2.75) continue;
     if (tm?.priceTier && pm?.priceTier && tm.priceTier !== pm.priceTier) continue;
     let d = 0, n = 0, off = 0;
     for (const [b, tv] of tVals) { const x = normValue(b, p.id)?.value; if (x == null) continue; d += Math.abs(tv - x); off += tv - x; n++; }
-    if (n < 1) continue;
+    if (n < (strictness >= 75 ? 2 : 1)) continue;
     cands.push({ dist: d / n + (n < 2 ? 10 : 0), adj: pv.value + off / n });
   }
   if (!cands.length) return undefined;
@@ -246,7 +338,12 @@ function estimate(
 
 function daysBetween(a: string, b: string) { return (new Date(a).getTime() - new Date(b).getTime()) / 86_400_000; }
 
-function costFor(snapshot: Snapshot, idx: ObsIndex, variantId: string, benchIds: string[]): { usd: number; source: string } | undefined {
+function costFor(snapshot: Snapshot, idx: ObsIndex, variantId: string, benchWeights: { id: string; share: number }[]): { usd: number; source: string } | undefined {
+  const perTask = benchWeights.map((b) => ({ ...b, obs: idx.get(b.id)?.get(variantId) }));
+  if (perTask.length && perTask.every((b) => b.obs?.sourceModelId && b.obs.costUsd != null && b.obs.costUsd >= 0)) {
+    return { usd: perTask.reduce((sum, b) => sum + b.obs!.costUsd! * b.share / 100, 0), source: "AA measured task costs, weighted by this mix" };
+  }
+  const benchIds = benchWeights.map((b) => b.id);
   for (const b of COST_BENCHMARK_PREFERENCE) { const o = idx.get(b)?.get(variantId); if (o && o.value > 0) return { usd: o.value, source: b }; }
   const costs: number[] = [];
   for (const b of benchIds) { const o = idx.get(b)?.get(variantId); if (o?.costUsd && o.costUsd > 0) costs.push(o.costUsd); }

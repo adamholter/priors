@@ -1,3 +1,6 @@
+import { ConvexHttpClient } from "convex/browser";
+import { api } from "../../../convex/_generated/api";
+import { mergeImports } from "@/lib/import";
 import { loadSnapshot } from "@/data/load";
 import { decodeIndices } from "@/lib/url";
 import { renderShareCard } from "@/lib/og";
@@ -10,7 +13,10 @@ export async function GET(req: Request) {
   const u = new URL(req.url);
   const snap = await loadSnapshot(u.searchParams.get("date") ?? undefined);
   if (!snap) return new Response("no data", { status: 503 });
+  const handle = u.searchParams.get("handle");
+  const profile = handle && process.env.NEXT_PUBLIC_CONVEX_URL ? await new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL).query(api.profiles.byHandle, { handle }) : null;
+  const snapshot = profile ? mergeImports(snap, profile.imports).snapshot : snap;
   const list = decodeIndices(u.searchParams);
-  const index = list[0] ?? defaultConfig(snap);
-  return renderShareCard(snap, index, { name: u.searchParams.get("name") ?? "Someone’s priors" });
+  const index = list[0] ?? defaultConfig(snapshot);
+  return renderShareCard(snapshot, index, profile ? { name: profile.displayName, handle: profile.handle, avatarUrl: profile.avatarUrl } : { name: u.searchParams.get("name") ?? "" }, { design: u.searchParams.get("design") ?? undefined });
 }

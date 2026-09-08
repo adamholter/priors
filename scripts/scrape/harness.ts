@@ -12,7 +12,7 @@ export function makeContext(sourceId: string, log = (m: string) => console.log(`
     let last: unknown;
     for (let i = 0; i < tries; i++) {
       try {
-        const res = await fetch(url, { ...init, headers: { "user-agent": UA, accept: "*/*", ...(init?.headers ?? {}) } });
+        const res = await fetch(url, { ...init, cache: "no-store", signal: init?.signal ?? AbortSignal.timeout(60_000), headers: { "user-agent": UA, accept: "*/*", "cache-control": "no-cache", ...(init?.headers ?? {}) } });
         if (res.ok) return res;
         if (res.status === 429 || res.status >= 500) { last = new Error(`${res.status} ${url}`); await sleep(800 * (i + 1)); continue; }
         throw new Error(`${res.status} ${url}`);
