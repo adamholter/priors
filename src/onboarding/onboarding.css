@@ -9,3 +9,10 @@
 .tactile-list{user-select:none}.grip{touch-action:none;min-width:20px;height:40px;align-items:center;justify-content:center}@media(pointer:coarse){.stage-order .model-grab{touch-action:pan-y}.stage-order .grip{min-width:24px}.nudge{opacity:1}}
 .quality-entry details{font-size:10px;color:#838779;margin:8px 0 13px}.quality-entry summary{cursor:pointer}.quality-entry details p{margin-bottom:0}
 .is-running .mix-panel{min-height:280px}
+/* New best fits settle before the next visual update. Search trials stay in the log. */
+.stage-fit .tactile-row{transition:transform 520ms cubic-bezier(.22,1,.36,1),background .2s,border-color .2s;}
+.stage-fit .belief-bar{transition:width 520ms cubic-bezier(.22,1,.36,1);}
+.terminal-log>div{animation:none}
+.mix-row{animation:none}
+.mix-weight-track i{transition:width 520ms cubic-bezier(.22,1,.36,1)}
+@media(prefers-reduced-motion:reduce){.stage-fit .tactile-row,.stage-fit .belief-bar,.mix-weight-track i{transition:none}}
