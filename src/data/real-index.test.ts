@@ -6,11 +6,12 @@ import resolved from "../../data/real-index-handoff-2026-09-08/resolved-benchmar
 describe("Real Index supplement", () => {
   it("imports only recorded observations and preserves raw provenance", () => {
     const data = realIndexSupplement();
-    expect(data.models).toHaveLength(20);
-    expect(data.variants).toHaveLength(57);
-    expect(data.benchmarks).toHaveLength(31);
-    expect(data.observations.filter((o) => o.benchmarkId.startsWith("real-index:"))).toHaveLength(773);
-    expect(data.estimates).toHaveLength(357);
+    expect(data.models).toHaveLength(18);
+    expect(data.variants).toHaveLength(53);
+    expect(data.benchmarks).toHaveLength(34);
+    expect(data.observations.filter((o) => o.benchmarkId.startsWith("real-index:"))).toHaveLength(895);
+    expect(data.estimates).toHaveLength(414);
+    expect(data.estimates?.filter((e) => e.estimateKind === "performance")).toHaveLength(65);
     expect(data.estimates?.every((e) => e.evidence.length > 0 && e.benchmarkId.startsWith("real-index:"))).toBe(true);
     const row = data.observations.find((o) => o.benchmarkId.startsWith("real-index:"))!;
     expect(row.details?.realIndex).toMatchObject({ evidenceKind: "recorded-observation" });
@@ -21,7 +22,7 @@ describe("Real Index supplement", () => {
   it("matches every exported measured normalized value", () => {
     const observations = new Map(realIndexSupplement().observations.filter((o) => o.benchmarkId.startsWith("real-index:")).map((o) => [`${o.variantId}:${o.benchmarkId}`, o.value]));
     const measured = resolved.filter((r) => r.state === "measured");
-    expect(measured.length).toBeGreaterThan(700);
+    expect(measured).toHaveLength(895);
     for (const row of measured) {
       expect(observations.get(`real-index:${row.modelId}:real-index:${row.metricId}`), `${row.modelId} ${row.metricId}`).toBeCloseTo(row.normalizedValue, 10);
     }
@@ -38,8 +39,10 @@ describe("Real Index supplement", () => {
   it("adds calibrated raw fallback routes and appends at most once", () => {
     const data = realIndexSupplement();
     const route = data.benchmarks.find((b) => b.id === "real-index:terminal-bench-v4")?.estimationRoutes?.[0];
-    expect(route).toMatchObject({ sourceId: "real-index:terminal-bench-2-1", method: "paired-average", pairedCount: 8 });
+    expect(route).toMatchObject({ sourceId: "real-index:terminal-bench-2-1", method: "paired-average", pairedCount: 17 });
     expect(route!.factor).toBeGreaterThan(0);
+    expect(route!.variantFactors?.["real-index:gpt-5-6-sol-max--low"]).toBe(route!.variantFactors?.["real-index:gpt-5-6-sol-max"]);
+    expect(route!.variantFactors?.["real-index:gpt-5-6-sol-max"]).toBeCloseTo(39.8989898989899 / 76.02996254681639, 12);
     const empty: Snapshot = { version: 1, date: "2026-09-08", generatedAt: "", labs: [], models: [], variants: [], benchmarks: [], observations: [], series: [], sources: [] };
     const once = appendRealIndex(empty);
     expect(appendRealIndex(once)).toBe(once);
@@ -74,5 +77,8 @@ describe("Real Index supplement", () => {
     expect(merged.observations.some((o) => o.variantId === configured && o.benchmarkId === "real-index:terminal-bench-v4")).toBe(true);
     expect(merged.observations.some((o) => o.variantId === "claude-fable-5.1@max")).toBe(false);
     expect(merged.estimates?.some((o) => o.variantId === configured)).toBe(true);
+    const route = merged.benchmarks.find((b) => b.id === "real-index:terminal-bench-v4")?.estimationRoutes?.[0];
+    expect(route?.variantFactors?.[configured]).toBeCloseTo(57.879999999999995 / 82.78, 12);
+    expect(route?.variantFactors?.["real-index:claude-fable-5-1-max"]).toBeUndefined();
   });
 });

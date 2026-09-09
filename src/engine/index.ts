@@ -92,7 +92,7 @@ export interface BenchValue {
   value: number;
   raw?: number;
   estimated: boolean;
-  estimateKind?: "effort" | "calibrated-fallback" | "peer";
+  estimateKind?: "effort" | "calibrated-fallback" | "performance" | "peer";
   /** which concrete benchmark supplied it (fallback versions) */
   from?: string;
   sourceVariantId?: string;
@@ -162,7 +162,7 @@ function lookup(idx: ObsIndex, benches: Map<string, Benchmark>, benchmarkId: str
   const o = idx.get(benchmarkId)?.get(variantId);
   const explicitEstimate = o?.details?.priorsEstimate as { sourceBenchmarkId?: string; estimateKind?: string; evidence?: string[] } | undefined;
   const assumedTop = (o?.details?.realIndex as { effortAttribution?: string } | undefined)?.effortAttribution === "assumed-top";
-  if (o && (!(explicitEstimate || assumedTop) || allowEstimated) && (allowCrossEffort || explicitEstimate?.estimateKind !== "cross-effort")) return {
+  if (o && (!(explicitEstimate || assumedTop) || allowEstimated) && (allowCrossEffort || !["cross-effort", "performance"].includes(explicitEstimate?.estimateKind ?? ""))) return {
     obs: o, from: explicitEstimate?.sourceBenchmarkId ?? benchmarkId,
     estimated: Boolean(explicitEstimate || assumedTop), evidence: explicitEstimate?.evidence ?? (assumedTop ? ["Real Index Top-effort assumption; native effort not published"] : undefined),
   };
@@ -174,10 +174,11 @@ function lookup(idx: ObsIndex, benches: Map<string, Benchmark>, benchmarkId: str
   if (allowEstimated && depth < 4) {
     for (const route of b?.estimationRoutes ?? []) {
       const source = idx.get(route.sourceId)?.get(variantId);
-      if (!source || inferredObservation(source) || !Number.isFinite(route.factor) || route.factor < 0) continue;
+      const factor = route.variantFactors?.[variantId] ?? route.factor;
+      if (!source || inferredObservation(source) || !Number.isFinite(factor) || factor < 0) continue;
       return {
-        obs: source, from: route.sourceId, value: clamp(source.value * route.factor, 0, 100), estimated: true,
-        evidence: [route.evidenceId, ...(route.pairedCount == null ? [] : [`${route.pairedCount} paired configurations`])],
+        obs: source, from: route.sourceId, value: clamp(source.value * factor, 0, 100), estimated: true,
+        evidence: [route.evidenceId, ...(route.variantFactors?.[variantId] == null ? [] : ["Release-specific paired calibration"]), ...(route.pairedCount == null ? [] : [`${route.pairedCount} paired configurations`])],
       };
     }
   }
@@ -293,7 +294,7 @@ export function computeIndex(snapshot: Snapshot, config: IndexConfig): IndexResu
       const adjustment = substituted ? effortAdjustment(idx, benches, normalizeMeasured, s.benchmark.id, v, r.obs, strictness) : undefined;
       if (substituted && !adjustment) continue;
       const shippedKind = (r.obs.details?.priorsEstimate as { estimateKind?: string } | undefined)?.estimateKind;
-      m.set(v.id, { normalizedEstimate: Boolean(r.obs.details?.priorsEstimate), raw: r.value ?? r.obs.value, from: r.from, sourceVariantId: (r.obs.details?.priorsEstimate as { sourceVariantId?: string } | undefined)?.sourceVariantId ?? r.obs.variantId, sourceUrl: r.obs.sourceUrl, substituted: substituted || r.estimated === true, estimateKind: r.estimated ? (shippedKind === "cross-effort" ? "effort" : "calibrated-fallback") : substituted ? "effort" : undefined, ...adjustment, evidence: [...(r.evidence ?? []), ...(adjustment?.evidence ?? [])] });
+      m.set(v.id, { normalizedEstimate: Boolean(r.obs.details?.priorsEstimate), raw: r.value ?? r.obs.value, from: r.from, sourceVariantId: (r.obs.details?.priorsEstimate as { sourceVariantId?: string } | undefined)?.sourceVariantId ?? r.obs.variantId, sourceUrl: r.obs.sourceUrl, substituted: substituted || r.estimated === true, estimateKind: r.estimated ? (shippedKind === "cross-effort" ? "effort" : shippedKind === "performance" ? "performance" : "calibrated-fallback") : substituted ? "effort" : undefined, ...adjustment, evidence: [...(r.evidence ?? []), ...(adjustment?.evidence ?? [])] });
     }
     rawByBench.set(s.benchmark.id, m);
   }

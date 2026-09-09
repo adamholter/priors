@@ -25,10 +25,10 @@ console.log(resolved.filter(row => row.state === 'estimated').slice(0, 2));
 
 | File | Contents |
 | --- | --- |
-| `dataset.json` | Model releases/configurations, all original release records, configuration-assigned records, best eligible observations, separate calibration references, endpoint token rates and reasoning profiles. |
+| `dataset.json` | All model configurations, enabled roster IDs, disabled IDs, original and assigned records, best observations, calibration references, token rates, reasoning profiles, performance estimates and fixed-task-basket evidence. |
 | `formulas.json` | All effective benchmark scales, composite weights and versions, published index dates, ordered fallback routes, saved calibrations and policy identifiers. |
 | `resolved-benchmarks.json` | One result per roster configuration/raw benchmark, including missing results; full inputs, conversions, sources and evidence states. Values use Real Index normalized points. |
-| `composite-scores.json` | Every composite/configuration, including unpublished fallback-only formulas, provisional results, eligibility, coverage, allowance and complete leaf breakdowns. |
+| `composite-scores.json` | Every composite for the current enabled roster, including unpublished fallback-only formulas, provisional results, eligibility, coverage, allowance and complete leaf breakdowns. All configurations remain available in the dataset and raw benchmark resolutions. |
 | `calibration-evidence.json` | Recomputed calibration factors and their direct matched evidence; the saved factors actually used for scoring are in `formulas.json`. |
 | `engine.mjs` | Readable bundle of the actual current engine and data, with named exports; no external dependencies. |
 | `source-files.json` | Original source text keyed by relative filename, including original TypeScript interfaces in `src/types/index.ts`. Kept as JSON so Priors does not compile it. |
@@ -38,9 +38,9 @@ console.log(resolved.filter(row => row.state === 'estimated').slice(0, 2));
 
 `releaseObservations` preserves records before configuration assignment, including records the current selector does not use. `observations` preserves assigned candidates. `bestObservations` uses Real Index's shared selector: maximum for higher-is-better, minimum for lower-is-better, within the release and setting. This selection can prefer different harnesses on different benchmarks; source/harness details remain available so you can impose a stricter policy. Calibration-only models do not enter the roster.
 
-Raw units belong to observations; `normalizedValue` is always 0–100 points. `rawValue: null` means no raw target measurement. Never replace it with an estimated point score. All observation notes are retained, including source-derived quantities and token-price proxies; an engine `measured` label means a recorded input selected by our engine, not a guarantee of an independently verified experimental measurement.
+Raw units belong to observations; `normalizedValue` is always 0–100 points. `rawValue: null` means no raw target value. Performance estimates can have a numeric estimated `rawValue`; check `state` and `estimateKind` rather than treating a non-null value as measured. Never replace a missing raw value with an estimated point score. All observation notes are retained, including source-derived quantities and token-price proxies; an engine `measured` label means a recorded input selected by our engine, not a guarantee of an independently verified experimental measurement.
 
-Resolution labels are `measured`, `estimated`, `unsupported`, and `missing`. An estimate's `estimateKind` is `scaled` (benchmark fallback) or `cross-effort`. Composite fallback ingredients further distinguish `measured`, `cross-effort`, and `unsupported`. Source observations, native effort attribution, harness, conversion ID, paired evidence and effective weights remain attached. `unsupported` is a modality policy zero, not a measured failure. A missing leaf has zero contribution under our formula, not an observed zero.
+Resolution labels are `measured`, `estimated`, `unsupported`, and `missing`. An estimate's `estimateKind` is `scaled` (benchmark fallback), `cross-effort`, or `performance`. Performance leaves retain component fits and donor evidence in `performanceEstimate`; benchmark conversions retain any release-specific `modelCalibration`. Composite fallback ingredients further distinguish `measured`, `cross-effort`, and `unsupported`. Source observations, native effort attribution, harness, conversion ID, paired evidence and effective weights remain attached. `unsupported` is a modality policy zero, not a measured failure. A missing leaf has zero contribution under our formula, not an observed zero.
 
 Composite scores remain synthetic even when all ingredients are measured. `fallbackOnly` composites are included for inspection, not published indices. Their ordinary composite score can be partial; actual use as a fallback requires all positive-weight inputs under the resolver's rules. Consult the target leaf's `sourceComponents` for what was actually used. `perfectVisionScore` is a counterfactual display extension. `uncertainty.margin` is an editorial allowance, not a confidence interval. `estimatedPercent` includes the cross-effort portion; do not add `crossEffortEstimatedPercent` again.
 
@@ -50,7 +50,7 @@ Composite scores remain synthetic even when all ingredients are measured. `fallb
 import * as ri from './engine.mjs';
 const metrics = ri.buildMetricMap();
 const root = ri.publishedIndices[0].rootMetricId;
-const baseline = ri.calculateIndexScores(root, ri.models, metrics, ri.observations, ri.calibrations);
+const baseline = ri.calculateIndexScores(root, ri.enabledModels, metrics, ri.observations, ri.calibrations, ri.models);
 // Work on a clone; choose your own existing metric IDs and weights.
 const custom = structuredClone(metrics);
 custom.set('my-index', {
@@ -58,11 +58,13 @@ custom.set('my-index', {
   name: 'My index', description: 'My chosen weights',
   components: [{ metricId: root, weight: 1 }],
 });
-const customized = ri.calculateIndexScores('my-index', ri.models, custom, ri.observations, ri.calibrations);
+const customized = ri.calculateIndexScores('my-index', ri.enabledModels, custom, ri.observations, ri.calibrations, ri.models);
 console.log(baseline[0].score, customized[0].score);
 ```
 
 Keep all evidence models when filtering the displayed roster: pass the full roster as the sixth `evidenceModels` argument so Top donors remain available. If you change raw scales, fallback composite weights or routes, recompute calibration with `generateFallbackCalibrations(models, metrics, observations, manualCalibrations, calibrationReferences)` and pass its `calibrations` explicitly. Signature changes can leave routes pending. Priors may instead use its own math on the records; the bundled engine intentionally reproduces Real Index policy, not Priors strictness.
+
+Use `enabledModels` (or `dataset.enabledModelIds`) to match current published ranks. Using all `models` deliberately includes disabled configurations and can change ranks. The adapter includes all evidence configurations for customization; apply the enabled roster explicitly if matching Real Index. Current performance snapshots are frozen inside the bundled engine: editing the JSON copy alone does not refit them. The original generators and task/component research inputs are preserved in `source-files.json` for rebuilding those fits. Current task cost/time uses a fixed basket with its own weighting and coverage rules, documented in `methodology.md`.
 
 ## Using this in Priors
 

@@ -80,7 +80,30 @@ export async function fitPriors(snapshot:Snapshot,target:string[],onUpdate:(u:Fi
 // Yield between exact candidates so the UI can animate measured states without inventing progress.
 const show=async(u:FitUpdate)=>{onUpdate(u);if(frameDelay&&u.phase!=="preparing"&&u.phase!=="complete"&&!u.log.startsWith("Read "))await new Promise<void>(r=>setTimeout(r,frameDelay));};
 const wanted=[...new Set(target)];if(wanted.length!==target.length||wanted.some(id=>!snapshot.models.some(m=>m.id===id&&m.kind==="llm")))throw new Error("Every preferred model must be a distinct known LLM in this snapshot.");if(wanted.length<2)throw new Error("Choose at least two models to fit.");const ids=snapshot.benchmarks.map(b=>b.id).filter(id=>eligible(snapshot,id,new Set(wanted)));if(!ids.length)throw new Error("No benchmark covers enough selected models.");ids.sort((a,b)=>Number(PREFERRED.includes(b as typeof PREFERRED[number]))-Number(PREFERRED.includes(a as typeof PREFERRED[number]))||a.localeCompare(b));const verifiedStarts:Exact[]=[];let tested=0,iteration=0,lastEmit=0;let best=exact(snapshot,wanted,{[ids[0]]:100},SETTINGS[0],quality,"preparing",iteration,tested,`Preparing ${ids.length} benchmarks.`,priorities);onUpdate(best.update);
-for(let si=0;si<SETTINGS.length;si++){const s=SETTINGS[si],columns:Column[]=[];for(const id of ids){const one=exact(snapshot,wanted,{[id]:100},s,quality,"preparing",iteration,++tested,`Preparing ${id}`,priorities),map=new Map(one.update.ranking.map(r=>[r.modelId,r.score]));columns.push({id,score:wanted.map(m=>map.get(m)??0),present:wanted.map(m=>map.has(m))});if(performance.now()-lastEmit>100){await show({...best.update,phase:si===0?"preparing":"searching",iteration,tested,log:`Read ${columns.length}/${ids.length} tests, strictness ${s.strictness}.`});lastEmit=performance.now()}await yieldUi()}const finalists:Approx[]=[];for(let seed=1;seed<=4;seed++)finalists.push(search(wanted,columns,quality,si*101+seed,()=>tested++,priorities));finalists.sort((a,b)=>compare(a.loss,b.loss));for(const candidate of finalists.slice(0,3)){const verified=exact(snapshot,wanted,candidate.weights,s,quality,"searching",++iteration,++tested,`Check ${si+1}/${SETTINGS.length}: ${s.effortMatching}, strictness ${s.strictness}`,priorities);verifiedStarts.push(verified);if(compare(verified.loss,best.loss)<0)best=verified;await show({...best.update,phase:"searching",iteration,tested,log:verified.update.log});await yieldUi()}}
+for(let si=0;si<SETTINGS.length;si++){const s=SETTINGS[si],columns:Column[]=[];for(const id of ids){const one=exact(snapshot,wanted,{[id]:100},s,quality,"preparing",iteration,++tested,`Preparing ${id}`,priorities),map=new Map(one.update.ranking.map(r=>[r.modelId,r.score]));columns.push({id,score:wanted.map(m=>map.get(m)??0),present:wanted.map(m=>map.has(m))});if(performance.now()-lastEmit>100){await show({...best.update,phase:si===0?"preparing":"searching",iteration,tested,log:`Read ${columns.length}/${ids.length} tests, strictness ${s.strictness}.`});lastEmit=performance.now()}await yieldUi()}const finalists:Approx[]=[];for(let seed=1;seed<=4;seed++)finalists.push(search(wanted,columns,quality,si*101+seed,()=>tested++,priorities));
+// Keep independent pools so new supplemental metrics cannot displace every useful starting mix.
+for(const pool of [columns.filter(c=>!c.id.startsWith("real-index:")),columns.filter(c=>c.present.every(Boolean))]){
+ if(pool.length&&pool.length<columns.length)finalists.push(search(wanted,pool,quality,si*101+41,()=>tested++,priorities));
+}
+finalists.sort((a,b)=>compare(a.loss,b.loss));for(const candidate of finalists){const verified=exact(snapshot,wanted,candidate.weights,s,quality,"searching",++iteration,++tested,`Check ${si+1}/${SETTINGS.length}: ${s.effortMatching}, strictness ${s.strictness}`,priorities);verifiedStarts.push(verified);if(compare(verified.loss,best.loss)<0)best=verified;await show({...best.update,phase:"searching",iteration,tested,log:verified.update.log});await yieldUi()}}
+// Refine each setting's strongest verified start before selecting a basin.
+// Single-benchmark approximations can hide changes in the winning reasoning effort.
+for(const settings of SETTINGS){
+ const starts=verifiedStarts.filter(x=>x.update.config.strictness===settings.strictness&&x.update.config.estimateMissing===settings.estimateMissing&&x.update.config.effortMatching===settings.effortMatching).sort((a,b)=>compare(a.loss,b.loss));
+ let local=starts[0];if(!local)continue;
+ for(const id of ids){
+  const current=local.update.weights[id]??0;
+  for(const level of current?[0,current*.5,current*.8,current*1.25,current*2]:[5,20,60]){
+   const weights={...local.update.weights};if(level)weights[id]=level;else delete weights[id];
+   if(!Object.keys(weights).length||Object.keys(weights).length>12)continue;
+   const candidate=exact(snapshot,wanted,weights,settings,quality,"searching",++iteration,++tested,"Refining another starting mix",priorities);
+   if(compare(candidate.loss,local.loss)<0)local=candidate;
+   if(compare(candidate.loss,best.loss)<0){best=candidate;await show(best.update)}
+  }
+  await yieldUi();
+ }
+ verifiedStarts.push(local);
+}
 // Refine against the full engine, because a model's best effort can change with the mix.
 for(let pass=0;pass<3;pass++){
  const refineIds=[...new Set([...Object.keys(best.update.weights),...ids])];

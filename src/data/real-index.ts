@@ -2,6 +2,7 @@ import type { Benchmark, Effort, Lab, Model, Observation, Snapshot, Variant } fr
 import dataset from "../../data/real-index-handoff-2026-09-08/dataset.json";
 import formulas from "../../data/real-index-handoff-2026-09-08/formulas.json";
 import resolved from "../../data/real-index-handoff-2026-09-08/resolved-benchmarks.json";
+import manifest from "../../data/real-index-handoff-2026-09-08/manifest.json";
 
 const ns = (id: string) => `real-index:${id}`;
 const efforts = new Set<Effort>(["none", "minimal", "low", "medium", "high", "xhigh", "max"]);
@@ -47,7 +48,7 @@ function category(metric: Metric): Benchmark["category"] {
   return "other";
 }
 
-/** Recorded Real Index evidence only. Exported estimates and composites remain audit artifacts. */
+/** Import recorded evidence and separately labeled estimates from the verified Real Index export. */
 export function realIndexSupplement(): Pick<Snapshot, "labs" | "models" | "variants" | "benchmarks" | "observations" | "estimates" | "sources"> {
   const rawMetrics = formulas.metrics.filter((m) => m.kind === "raw");
   const rawIds = new Set(rawMetrics.map((m) => m.id));
@@ -73,7 +74,25 @@ export function realIndexSupplement(): Pick<Snapshot, "labs" | "models" | "varia
       const c = calibrations.get(`${m.id}:${sourceId}`);
       if (!c || !rawIds.has(sourceId)) return [];
       const factor = c.scale.targetAnchor / c.scale.sourceAnchor;
-      return [{ sourceId: ns(sourceId), factor, method: c.method === "manual" ? "manual" as const : "paired-average" as const, pairedCount: c.pairedCount, evidenceId: c.id }];
+      const variantFactors = Object.fromEntries(c.modelScales.flatMap((modelScale) => {
+        const sourceAnchor = modelScale.scale.sourceAnchor;
+        if (!(sourceAnchor > 0)) return [];
+        const releaseConfigurations = dataset.models.filter((configuration) =>
+          configuration.reasoningConfiguration.releaseId === modelScale.releaseId &&
+          modelScale.reasoningMode === (configuration.isReasoningModel ? "reasoning" : "non-reasoning")
+        );
+        const configurationIds = releaseConfigurations.length
+          ? releaseConfigurations.map((configuration) => configuration.id)
+          : [modelScale.referenceModelId];
+        const releaseFactor = modelScale.scale.targetAnchor / sourceAnchor;
+        return configurationIds.map((configurationId) => [ns(configurationId), releaseFactor] as const);
+      }));
+      return [{
+        sourceId: ns(sourceId), factor,
+        variantFactors: Object.keys(variantFactors).length ? variantFactors : undefined,
+        method: c.method === "manual" ? "manual" as const : "paired-average" as const,
+        pairedCount: c.pairedCount, evidenceId: c.id,
+      }];
     }),
   }));
   const metricMap = new Map(rawMetrics.map((m) => [m.id, m]));
@@ -94,14 +113,14 @@ export function realIndexSupplement(): Pick<Snapshot, "labs" | "models" | "varia
   });
   const estimates: NonNullable<Snapshot["estimates"]> = resolved.filter((r) => r.state === "estimated").map((r) => ({
     benchmarkId: ns(r.metricId), variantId: ns(r.modelId), value: r.normalizedValue,
-    estimateKind: r.estimateKind as "scaled" | "cross-effort",
+    estimateKind: r.estimateKind as "scaled" | "cross-effort" | "performance",
     sourceBenchmarkId: r.sourceMetric?.id ? ns(r.sourceMetric.id) : undefined,
     sourceVariantId: r.sourceObservation?.modelId ? ns(r.sourceObservation.modelId) : undefined,
     sourceUrl: r.sourceObservation?.sourceUrl,
     evidence: [r.explanation],
   }));
   return { labs, models, variants, benchmarks, observations, estimates, sources: [{
-    sourceId: "real-index", status: "ok", fetchedAt: "2026-09-08T18:33:45.750Z",
+    sourceId: "real-index", status: "ok", fetchedAt: manifest.generatedAt,
     rowCount: dataset.bestObservations.length, unknownLabels: [], rawPath: "data/real-index-handoff-2026-09-08/dataset.json",
   }] };
 }
@@ -143,10 +162,20 @@ export function appendRealIndex(snapshot: Snapshot): Snapshot {
     const sourceVariantId = o.sourceVariantId ? variantCrosswalk.get(o.sourceVariantId) ?? o.sourceVariantId : undefined;
     return [{ ...o, variantId, sourceVariantId }];
   });
+  const benchmarks = supplement.benchmarks.map((benchmark) => ({
+    ...benchmark,
+    estimationRoutes: benchmark.estimationRoutes?.map((route) => ({
+      ...route,
+      variantFactors: route.variantFactors ? Object.fromEntries(Object.entries(route.variantFactors).map(([variantId, factor]) => [
+        variantCrosswalk.get(variantId) ?? variantId,
+        factor,
+      ])) : undefined,
+    })),
+  }));
   return {
     ...snapshot,
     labs: [...snapshot.labs, ...supplement.labs], models: [...snapshot.models, ...addedModels],
-    variants: [...snapshot.variants, ...addedVariants], benchmarks: [...snapshot.benchmarks, ...supplement.benchmarks],
+    variants: [...snapshot.variants, ...addedVariants], benchmarks: [...snapshot.benchmarks, ...benchmarks],
     observations: [...snapshot.observations, ...observations], estimates: [...(snapshot.estimates ?? []), ...(estimates ?? [])], sources: [...snapshot.sources, ...supplement.sources],
   };
 }

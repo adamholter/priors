@@ -58,6 +58,8 @@ export interface Benchmark {
   estimationRoutes?: {
     sourceId: string;
     factor: number;
+    /** Frozen release-specific ratios, keyed by canonical variant identity. */
+    variantFactors?: Record<string, number>;
     method: "paired-average" | "manual";
     pairedCount?: number;
     evidenceId: string;
@@ -126,7 +128,7 @@ export interface Snapshot {
     benchmarkId: string;
     variantId: string;
     value: number;
-    estimateKind: "scaled" | "cross-effort";
+    estimateKind: "scaled" | "cross-effort" | "performance";
     sourceBenchmarkId?: string;
     sourceVariantId?: string;
     sourceUrl?: string;

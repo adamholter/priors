@@ -32,4 +32,19 @@ describe('imported fallback evidence boundaries',()=>{
   const row=computeIndex(s,{...config,effortMatching:'strict'}).ranked[0];
   expect(row.values[0].sourceVariantId).toBe('a@max');expect(row.mixedEfforts).toBe(false);
  });
+ it('uses a frozen release-specific ratio before the pooled fallback ratio',()=>{
+  const s=fixture();s.benchmarks[0].estimationRoutes=[{sourceId:'support',factor:.5,variantFactors:{'a@low':.25},method:'paired-average',evidenceId:'route'}];
+  s.observations=s.variants.map(v=>({benchmarkId:'support',variantId:v.id,value:80,observedAt:'',sourceUrl:''}));
+  const rows=computeIndex(s,config).ranked;
+  expect(rows.find(r=>r.variant.id==='a@low')?.score).toBe(20);
+  expect(rows.find(r=>r.variant.id==='a@max')?.score).toBe(40);
+  expect(rows.find(r=>r.variant.id==='a@low')?.values[0].evidence).toContain('Release-specific paired calibration');
+ });
+ it('retains performance estimates as estimates and respects exact-effort and strictness controls',()=>{
+  const s=fixture();s.estimates=[{benchmarkId:'target',variantId:'a@low',value:50,estimateKind:'performance',evidence:['Fixed task basket component fit']}];
+  expect(computeIndex(s,config).ranked[0]?.values[0]).toMatchObject({estimated:true,estimateKind:'performance'});
+  expect(computeIndex(s,config).ranked[0]?.values[0].raw).toBeUndefined();
+  expect(computeIndex(s,{...config,effortMatching:'strict'}).ranked).toEqual([]);
+  expect(computeIndex(s,{...config,strictness:100}).ranked).toEqual([]);
+ });
 });

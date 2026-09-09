@@ -15,6 +15,10 @@ const dataset = await read('dataset.json');
 const formulas = await read('formulas.json');
 const map = new Map(formulas.metrics.map(metric => [metric.id, metric]));
 const json = value => JSON.parse(JSON.stringify(value));
+const enabledModels = dataset.models.filter(model => dataset.enabledModelIds.includes(model.id));
+assert.deepEqual(json(engine.enabledModels), enabledModels);
+assert.deepEqual(json(engine.performanceEstimates), dataset.performanceEstimates);
+assert.deepEqual(json(engine.taskPerformance), dataset.taskPerformance);
 // Node/V8 and Bun/JSC can differ in the final bits of Math.log results.
 function equivalent(actual, expected, path = 'result') {
   if (typeof expected === 'number') {
@@ -31,7 +35,7 @@ assert.deepEqual(json(engine.observations), dataset.observations);
 assert.deepEqual(json([...engine.selectBestObservations(dataset.models, map, dataset.observations).values()]), dataset.bestObservations);
 let count = 0;
 for (const group of await read('composite-scores.json')) {
-  const scores = engine.calculateIndexScores(group.metricId, dataset.models, map, dataset.observations, formulas.calibrations)
+  const scores = engine.calculateIndexScores(group.metricId, enabledModels, map, dataset.observations, formulas.calibrations, dataset.models)
     .map(({ model, ...result }) => ({ modelId: model.id, ...result }));
   equivalent(json(scores), group.scores, group.metricId);
   for (const score of scores) {
