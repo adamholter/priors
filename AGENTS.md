@@ -10,7 +10,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 # Priors
 
-Personal benchmark index builder. Anyone weights AI-model benchmarks, sees rankings + Pareto charts change live, shares by URL, and (signed in) publishes `priors.so/<handle>` with an editable page. One agent skill (`public/skill/SKILL.md`) lets a user's own agent add benchmarks and edit the page through `/api/agent`.
+Personal benchmark index builder. Anyone weights AI-model benchmarks, sees rankings + Pareto charts change live, shares by URL, and (signed in) publishes `mypriors.com/<handle>` with an editable page. One agent skill (`public/skill/SKILL.md`) lets a user's own agent add benchmarks and edit the page through `/api/agent`.
 
 ## Layout
 

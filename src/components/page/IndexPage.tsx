@@ -56,7 +56,7 @@ export function IndexPage({ profile, snapshot, dates, edit }: { profile: Profile
           <div className="grid gap-1.5">
             <h1 className="text-[34px] leading-tight">{p.displayName}</h1>
             <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-[13px] text-ink-2">
-              <span className="mono text-grey">priors.so/{p.handle}</span>
+              <span className="mono text-grey">mypriors.com/{p.handle}</span>
               {p.socials?.map((s) => <a key={s.url} href={s.url} target="_blank" rel="noreferrer" className="hover:text-ink" style={{ color: accent }}>{s.label}</a>)}
             </div>
             {p.bio && <p className="text-[15px] text-ink-2 max-w-[62ch] mt-1">{p.bio}</p>}

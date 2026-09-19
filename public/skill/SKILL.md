@@ -1,23 +1,23 @@
 ---
 name: priors
-description: Work on a person's Priors page (priors.so) — research and add a benchmark to their index data, adjust their index weights, or customize the text, links, sections, and styling of their public index page. Use when the user mentions Priors, their index page, or asks to add a benchmark to their model ranking.
+description: Work on a person's Priors page (mypriors.com) — research and add a benchmark to their index data, adjust their index weights, or customize the text, links, sections, and styling of their public index page. Use when the user mentions Priors, their index page, or asks to add a benchmark to their model ranking.
 ---
 
 # Priors
 
-Priors is a site where a person builds a weighted index of AI-model benchmarks and publishes a page at `https://priors.so/<handle>`. You act on their behalf through a small HTTP API. Everything you change is visible on their page immediately.
+Priors is a site where a person builds a weighted index of AI-model benchmarks and publishes a page at `https://mypriors.com/<handle>`. You act on their behalf through a small HTTP API. Everything you change is visible on their page immediately.
 
 ## Setup (once)
 
-1. Ask the user for their Priors agent token (`pri_...`). They mint it on their page → **Settings → Agent access**. If they don't have a page yet, tell them to sign in at https://priors.so and claim a handle first.
+1. Ask the user for their Priors agent token (`pri_...`). They mint it on their page → **Settings → Agent access**. If they don't have a page yet, tell them to sign in at https://mypriors.com and claim a handle first.
 2. Confirm access:
    ```bash
-   curl -s https://priors.so/api/agent -H "Authorization: Bearer $PRIORS_TOKEN" \
+   curl -s https://mypriors.com/api/agent -H "Authorization: Bearer $PRIORS_TOKEN" \
      -H 'Content-Type: application/json' -d '{"action":"whoami"}'
    ```
    The response lists their handle, indices (weights), sections, socials, bio, and theme. Read it before changing anything.
 
-If you have browser or computer-use tools, you may instead upload JSON at `https://priors.so/import` and edit the page at `https://priors.so/<handle>?edit=1` on the user's behalf; the API is the preferred route.
+If you have browser or computer-use tools, you may instead upload JSON at `https://mypriors.com/import` and edit the page at `https://mypriors.com/<handle>?edit=1` on the user's behalf; the API is the preferred route.
 
 ## Task A — add a benchmark
 
@@ -58,14 +58,14 @@ Goal: produce a complete, honest dataset for one benchmark and import it.
    - `id`: lowercase slug, stable across re-imports (re-importing the same id replaces the old data).
 6. **Import**:
    ```bash
-   curl -s https://priors.so/api/agent -H "Authorization: Bearer $PRIORS_TOKEN" \
+   curl -s https://mypriors.com/api/agent -H "Authorization: Bearer $PRIORS_TOKEN" \
      -H 'Content-Type: application/json' \
      -d "{\"action\":\"import\",\"payload\":$(cat mybench.json)}"
    ```
    The response includes how many rows were accepted. Rows whose model could not be recognized are ignored — report those labels to the user.
 7. **Add it to an index** (optional, if the user asked): read `indices` from `whoami`, add `"my-bench-v2": <weight>` to the chosen index's `weights`, then:
    ```bash
-   curl -s https://priors.so/api/agent -H "Authorization: Bearer $PRIORS_TOKEN" \
+   curl -s https://mypriors.com/api/agent -H "Authorization: Bearer $PRIORS_TOKEN" \
      -H 'Content-Type: application/json' -d '{"action":"indices","payload":[ ...full updated IndexConfig array... ]}'
    ```
 8. Tell the user: benchmark name, rows imported, models missing, and the link to their page.
@@ -87,7 +87,7 @@ Start from `whoami.indices`, preserve fields you are not changing, and send the 
 
 Calculation details and estimate provenance belong in Calculation settings, not in main-chart labels. After writing, call `whoami` again and verify the requested fields persisted.
 
-Benchmark ids available on the site are listed at `https://priors.so/api/benchmarks`.
+Benchmark ids available on the site are listed at `https://mypriors.com/api/benchmarks`.
 
 ## Task C — customize the page
 
@@ -106,7 +106,7 @@ Always start from the current `sections` (from `whoami`), modify, and send the w
 
 ## Reporting
 
-Finish with: what changed, the numbers (rows imported / weights set), what could not be found, and `https://priors.so/<handle>`.
+Finish with: what changed, the numbers (rows imported / weights set), what could not be found, and `https://mypriors.com/<handle>`.
 
 ---
 
