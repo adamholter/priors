@@ -1,7 +1,7 @@
 "use client";
 import { ChartExport } from "./ChartExport";
 import type { EChartsOption } from "echarts";
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Lab } from "@/data/types";
 import type { RankedVariant } from "@/engine";
 import { INK, MARK_LABEL, useEChart } from "./echarts";
@@ -16,6 +16,15 @@ export function variantLabel(r: RankedVariant) {
  * model joined by a thin line, Pareto frontier traced in ink. Labels collide-avoid via labelLayout.
  */
 export function ParetoChart({ ranked, labs, height = 460, yLabel = "Index score" }: { ranked: RankedVariant[]; labs: Lab[]; height?: number; yLabel?: string }) {
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const [narrow, setNarrow] = useState(false);
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([e]) => setNarrow(e.contentRect.width < 560));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
   const option = useMemo<EChartsOption>(() => {
     const color = new Map(labs.map((l) => [l.id, l.color]));
     const pts = ranked.filter((r) => r.costUsd != null && r.costUsd > 0);
@@ -32,7 +41,9 @@ export function ParetoChart({ ranked, labs, height = 460, yLabel = "Index score"
         type: "scatter", id: "marks", z: 3,
         data: pts.map((p) => ({ name: chartLabel(p), value: [p.costUsd, p.score], id: p.variant.id, itemStyle: { color: color.get(p.model.labId), borderColor: p.onFrontier ? INK : "#FBFBF9", borderWidth: 1.5 }, extra: p })),
         symbolSize: 10,
-        label: MARK_LABEL,
+        label: narrow
+          ? { ...MARK_LABEL, fontSize: 10.5, formatter: (p: { name?: unknown; data?: unknown }) => { const d = p.data as { extra?: RankedVariant } | null | undefined; return d?.extra?.onFrontier ? String(p.name ?? "") : ""; } }
+          : MARK_LABEL,
         labelLayout: { hideOverlap: true, moveOverlap: "shiftY" },
         emphasis: { scale: 1.4, label: { fontWeight: 600 } },
         clip: true, universalTransition: { enabled: false },
@@ -41,9 +52,9 @@ export function ParetoChart({ ranked, labs, height = 460, yLabel = "Index score"
     ];
     return {
       animation: true,
-      grid: { left: 48, right: 130, top: 24, bottom: 44 },
-      xAxis: { type: "log", name: "Cost per task ($, log)", nameLocation: "end", nameGap: 8, nameTextStyle: { color: "#8A8A80", fontSize: 11, align: "right", verticalAlign: "top", padding: [26, 0, 0, 0] }, axisLabel: { formatter: (v: number) => `$${v >= 10 ? Math.round(v) : v >= 1 ? v.toFixed(1).replace(/\.0$/, "") : v.toFixed(2).replace(/0$/, "")}` }, min: (e: { min: number }) => e.min / 1.5, max: (e: { max: number }) => e.max * 1.8 },
-      yAxis: { type: "value", name: yLabel, nameTextStyle: { color: "#8A8A80", fontSize: 11, align: "left", padding: [0, 0, 0, -30] }, min: yMin, max: yMax },
+      grid: narrow ? { left: 38, right: 12, top: 24, bottom: 40 } : { left: 48, right: 130, top: 24, bottom: 44 },
+      xAxis: { type: "log", name: narrow ? "$ / task (log)" : "Cost per task ($, log)", nameLocation: "end", nameGap: 8, nameTextStyle: { color: "#8A8A80", fontSize: 11, align: "right", verticalAlign: "top", padding: [26, 0, 0, 0] }, axisLabel: { formatter: (v: number) => `$${v >= 10 ? Math.round(v) : v >= 1 ? v.toFixed(1).replace(/\.0$/, "") : v.toFixed(2).replace(/0$/, "")}` }, min: (e: { min: number }) => e.min / 1.5, max: (e: { max: number }) => e.max * 1.8 },
+      yAxis: { type: "value", name: yLabel, nameTextStyle: { color: "#8A8A80", fontSize: 11, align: "left", padding: [0, 0, 0, narrow ? -22 : -30] }, min: yMin, max: yMax },
       tooltip: {
         trigger: "item", confine: true, formatter: (p: unknown) => {
           const d = (p as { data?: { extra?: RankedVariant } }).data?.extra; if (!d) return "";
@@ -52,9 +63,9 @@ export function ParetoChart({ ranked, labs, height = 460, yLabel = "Index score"
       },
       series,
     };
-  }, [ranked, labs, yLabel]);
+  }, [ranked, labs, yLabel, narrow]);
   const { ref, chart } = useEChart(option, [option]);
-  return <div><ChartExport name="Pareto frontier" getSvg={() => chart.current?.renderToSVGString()} /><div ref={ref} role="img" aria-label="Index score versus cost per task" style={{ width: "100%", height, overflow: "hidden", position: "relative", isolation: "isolate" }} /></div>;
+  return <div ref={wrapRef} className="max-sm:-mx-4"><ChartExport name="Pareto frontier" getSvg={() => chart.current?.renderToSVGString()} /><div ref={ref} role="img" aria-label="Index score versus cost per task" style={{ width: "100%", height, overflow: "hidden", position: "relative", isolation: "isolate" }} /></div>;
 }
 
 function escapeHtml(s: string) { return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!)); }
