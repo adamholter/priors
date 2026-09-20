@@ -26,7 +26,7 @@ function searchMessage(u: FitUpdate, snapshot: Snapshot) {
 }
 function Trace({ values }: { values: number[] }) {
   const path = values.map((v, i) => `${i ? "L" : "M"}${i / Math.max(1, values.length - 1) * 300},${68 - v * .6}`).join(" ");
-  return <svg className="fit-trace" viewBox="0 0 300 76" role="img" aria-label="Models in their requested positions during the search"><path d="M0 68H300M0 38H300M0 8H300" stroke="#DDDBD4" strokeWidth=".5" /><path d={path} fill="none" stroke="#2F4FB0" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />{values.length > 0 && <circle cx="300" cy={68 - values[values.length - 1] * .6} r="3" fill="#2F4FB0" />}</svg>;
+  return <svg className="fit-trace" viewBox="0 0 300 76" role="img" aria-label="How closely the search matches your requested order"><path d="M0 68H300M0 38H300M0 8H300" stroke="#DDDBD4" strokeWidth=".5" /><path d={path} fill="none" stroke="#2F4FB0" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />{values.length > 0 && <circle cx="300" cy={68 - values[values.length - 1] * .6} r="3" fill="#2F4FB0" />}</svg>;
 }
 
 export function Onboarding({ snapshot }: { snapshot: Snapshot }) {
@@ -108,7 +108,7 @@ export function Onboarding({ snapshot }: { snapshot: Snapshot }) {
         const text = searchMessage(u, snapshot);
         const entry = { id: ++logId, text };
         setLogs(l => l.at(-1)?.text === text ? l : [...l.slice(-2), entry]);
-        setHistory(h => [...h.slice(-23), u.matchedPositions / order.length * 100]);
+        setHistory(h => [...h.slice(-23), u.closeness]);
         if (u.phase === "complete") setAnnouncement(`Search complete. ${u.exactMatch ? "Your full order matches." : "No matching configuration found."} ${u.matchedPositions} of ${order.length} models are in their requested positions.`);
       };
       w.onmessage = (e: MessageEvent<FitUpdate | { error: string }>) => {
@@ -177,7 +177,7 @@ export function Onboarding({ snapshot }: { snapshot: Snapshot }) {
               <div className="monitor-top"><span><i className={running ? "pulse" : ""} />{error ? "SEARCH STOPPED" : complete ? "SEARCH COMPLETE" : "SEARCH IN PROGRESS"}</span><span>{elapsed.toFixed(1)}s</span></div>
               <div className="agreement"><strong>{update?.matchedPositions ?? 0}<span>/{order.length}</span></strong><span>in place within your lineup<br /><small>{update?.priorityTotal ? update.priorityMatched === update.priorityTotal ? "Your edits are preserved" : "Some of your edits remain unresolved" : "Only your selected lineup counts"}</small></span></div>
               <Trace values={history} />
-              <div className="monitor-metrics"><span>{(update?.tested ?? 0).toLocaleString()} <small>combinations</small></span><span>{update?.benchmarkCount ?? "—"} <small>benchmarks</small></span></div>
+              <div className="monitor-metrics"><span>{(update?.closeness ?? 0).toFixed(0)}% <small>match closeness</small></span><span>{(update?.tested ?? 0).toLocaleString()} <small>combinations</small></span><span>{update?.benchmarkCount ?? "—"} <small>benchmarks</small></span></div>
               <div className="terminal-log" aria-hidden="true">{logs.length ? logs.map(log => <div key={log.id}><span aria-hidden="true">·</span>{log.text}</div>) : <div><span aria-hidden="true">·</span>Reading the benchmark evidence.</div>}</div>
             </div>
             {error && <div className="fit-error" role="alert"><p>{error}</p><button className="text-control" onClick={start}>Try again <Arrow /></button></div>}

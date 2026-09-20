@@ -45,6 +45,7 @@ const FAMILIES: { re: RegExp; id: (m: RegExpMatchArray) => string; name: (m: Reg
   { re: /\b(?:claude[\s-]*)?opus[\s-]*(\d+(?:\.\d+)?)\b/, id: (m) => `claude-opus-${m[1]}`, name: (m) => `Opus ${m[1]}`, lab: "anthropic", reasoning: true },
   { re: /\b(?:claude[\s-]*)?sonnet[\s-]*(\d+(?:\.\d+)?)\b/, id: (m) => `claude-sonnet-${m[1]}`, name: (m) => `Sonnet ${m[1]}`, lab: "anthropic", reasoning: true },
   { re: /\b(?:claude[\s-]*)?haiku[\s-]*(\d+(?:\.\d+)?)\b/, id: (m) => `claude-haiku-${m[1]}`, name: (m) => `Haiku ${m[1]}`, lab: "anthropic", reasoning: true },
+  { re: /\b(?:claude[\s-]*)?mythos[\s-]*(preview)?\b/, id: () => "claude-mythos-preview", name: () => "Mythos Preview", lab: "anthropic", reasoning: true },
   // OpenAI
   { re: /\bgpt[\s-]*oss[\s-]*(\d+)b?\b/, id: (m) => `gpt-oss-${m[1]}b`, name: (m) => `gpt-oss-${m[1]}b`, lab: "openai", reasoning: true },
   { re: /\bgpt[\s-]*4o[\s-]*(mini)?\b/, id: (m) => `gpt-4o${m[1] ? "-mini" : ""}`, name: (m) => `GPT-4o${m[1] ? " mini" : ""}`, lab: "openai" },

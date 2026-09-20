@@ -27,7 +27,7 @@ export function Rankings({ ranked, labs, limit = 30, onSelect, selected, showEff
       {rows.map((r, index) => (
         <button type="button" key={showEffort ? r.variant.id : r.model.id} title={r.variant.sourceModel?.name ?? variantLabel(r)} aria-label={`${r.variant.sourceModel?.name ?? variantLabel(r)}, ${r.score.toFixed(1)}`} data-k={r.variant.id} data-mixed={r.mixedEfforts || undefined} onClick={() => onSelect?.(selected === r.variant.id ? null : r)}
           style={{ transform: `translateY(${index * 30}px)` }}
-          className={`row-move absolute top-0 left-0 w-full grid grid-cols-[28px_minmax(120px,210px)_minmax(0,1fr)_48px] items-center gap-2.5 h-[26px] text-left text-[12.5px] rounded-sm px-1 focus-visible:outline-offset-[-2px] ${selected === r.variant.id ? "bg-white" : "hover:bg-white/60"}`}>
+          className={`row-move absolute top-0 left-0 w-full grid grid-cols-[28px_minmax(0,140px)_minmax(0,1fr)_48px] sm:grid-cols-[28px_minmax(120px,210px)_minmax(0,1fr)_48px] items-center gap-2.5 h-[26px] text-left text-[12.5px] rounded-sm px-1 focus-visible:outline-offset-[-2px] ${selected === r.variant.id ? "bg-white" : "hover:bg-white/60"}`}>
           <span className="cap text-right">{r.rank}</span>
           <span className="truncate">{r.model.name}{showEffort && r.variant.effort !== "default" && <em className="not-italic cap ml-1.5">{r.variant.effort}</em>}</span>
           <span className="h-[12px] rounded-[2px] bg-hair-2 overflow-hidden"><i className="bar-fill block h-full rounded-[2px]" style={{ width: `${(r.score / max) * 100}%`, background: color.get(r.model.labId) ?? "#A3A39B" }} /></span>
