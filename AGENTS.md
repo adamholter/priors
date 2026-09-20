@@ -51,7 +51,9 @@ Personal benchmark index builder. Anyone weights AI-model benchmarks, sees ranki
 
 Bone `#FBFBF9`, ink `#1A1A1A`, one indigo `#2F4FB0` (the i in the wordmark), warm grey, hairlines. Newsreader (display/serif) + Inter + JetBrains Mono for numbers. Lab colors live in `LABS` in normalize.ts (same lab, same color everywhere). No taglines, no pills/chips, no gradients. Charts: ECharts with the `priors` theme in `src/components/chart/echarts.ts`; rankings are keyed DOM rows transitioning between list-local absolute positions, inside a paint-contained/clipped list. Avoid reintroducing viewport-coordinate FLIP measurements: they compound in-flight transforms during slider drags and scrolling. Brand boards: `~/priors-brand/index.html`.
 
-## Not yet configured
+## Production
 
-- Clerk keys (`NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`) and Convex `CLERK_JWT_ISSUER_DOMAIN`. Until set, the site is anonymous-only and sign-in/claim pages show a notice.
-- `NEXT_PUBLIC_SITE_URL` for absolute OG URLs in production.
+- Live at `mypriors.com` (Vercel project `priors`, domain registered at Porkbun). `www` redirects to apex. Deploys on push to `main`; `npx vercel --prod` works too.
+- Convex prod deployment `small-eel-326` (`npx convex deploy`); dev stays on `canny-ferret-545`. `CLERK_JWT_ISSUER_DOMAIN=clerk.mypriors.com` set on prod.
+- Clerk production instance with custom domain `clerk.mypriors.com` (CNAMEs at Porkbun). Local `.env.local` still uses the dev instance (`pk_test`/`sk_test`, issuer `trusty-escargot-8963.clerk.accounts.dev`).
+- `NEXT_PUBLIC_SITE_URL=https://mypriors.com` set in Vercel production for absolute OG URLs.
