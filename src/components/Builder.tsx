@@ -55,7 +55,7 @@ export function Builder({ snapshot: base, dates, initialIndices }: { snapshot: S
   return (
     <div className="min-h-screen">
       <header className="flex flex-wrap lg:flex-nowrap items-center gap-x-4 gap-y-2 px-4 sm:px-8 py-3 lg:py-0 lg:h-14 border-b hairline sticky top-0 bg-bone/90 backdrop-blur z-10">
-        <div className="shrink-0"><Wordmark /></div>
+        <div className="shrink-0"><Wordmark transitionTypes={["nav-back"]} /></div>
         <div className="min-w-0 flex-1 overflow-x-auto">
           <IndexTabs indices={indices} activeId={active.id} onSelect={setActiveId} onRename={(id, name) => update({ ...indices.find((i) => i.id === id)!, name })} onAdd={add} onRemove={remove} />
         </div>
@@ -79,7 +79,7 @@ export function Builder({ snapshot: base, dates, initialIndices }: { snapshot: S
           <section aria-label="Import a benchmark" className="shrink-0 border-t hairline pt-5">
             <h3 className="text-[16px] mb-1">Missing a benchmark?</h3>
             <p className="text-[12.5px] text-ink-2 mb-2">Hand your agent the Priors skill. It researches the benchmark, produces the JSON, and uploads it here.</p>
-            <div className="flex gap-2"><Link className="btn-quiet" href="/skill">Get the skill</Link><Link className="btn-quiet" href="/import">Import JSON</Link></div>
+            <div className="flex gap-2"><Link className="btn-quiet" href="/skill" transitionTypes={["nav-forward"]}>Get the skill</Link><Link className="btn-quiet" href="/import" transitionTypes={["nav-forward"]}>Import JSON</Link></div>
           </section>
         </aside>
 

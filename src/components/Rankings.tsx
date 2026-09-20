@@ -15,7 +15,7 @@ export function Rankings({ ranked, labs, limit = 30, onSelect, selected, showEff
   if (!rows.length) return <p className="cap py-6">No model has every required benchmark. Loosen a requirement or lower a weight.</p>;
   return (
     <>
-    <ChartExport name="Rankings" getSvg={() => {
+    <ChartExport name="Rankings" getRows={() => ranked.map((r) => ({ rank: r.rank, model: r.model.name, effort: showEffort ? r.variant.effort : "best", score: +r.score.toFixed(2), lab: r.model.labId, cost_per_task_usd: r.costUsd ?? null, speed_toks: r.speed ?? null, coverage: r.coverage }))} getSvg={() => {
       const h = 88 + rows.length * 38;
       return `<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="${h}" viewBox="0 0 1600 ${h}"><rect width="1600" height="${h}" fill="#FBFBF9"/><g font-family="Inter,Arial,sans-serif" fill="#1A1A1A"><text x="30" y="36" font-size="24">Rankings</text>${rows.map((r, i) => {
         const y = 76 + i * 38;

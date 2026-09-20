@@ -7,11 +7,12 @@ import { api } from "../../../convex/_generated/api";
 import { Wordmark } from "@/components/Wordmark";
 import { decodeIndices } from "@/lib/url";
 import { authEnabled } from "@/app/providers";
+import { PageTransition } from "@/components/PageTransition";
 
 /** After sign-in: pick a handle. Seeds the page with the indices from the URL the user came from. */
 export default function ClaimPage() {
   if (!authEnabled) return <main className="p-10 grid gap-4"><Wordmark /><p className="text-ink-2">Sign-in isn’t configured yet.</p></main>;
-  return <Claim />;
+  return <PageTransition><Claim /></PageTransition>;
 }
 
 function Claim() {

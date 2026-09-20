@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { loadSnapshot } from "@/data/load";
 import { Onboarding } from "@/onboarding/Onboarding";
+import { PageTransition } from "@/components/PageTransition";
 export const dynamic = "force-dynamic";
 export default async function Home({ searchParams }: PageProps<"/">) {
   const sp = await searchParams;
@@ -13,5 +14,5 @@ export default async function Home({ searchParams }: PageProps<"/">) {
   }
   const snapshot = await loadSnapshot();
   if (!snapshot) return <main className="p-10">No benchmark snapshot available.</main>;
-  return <Onboarding snapshot={snapshot} />;
+  return <PageTransition><Onboarding snapshot={snapshot} /></PageTransition>;
 }

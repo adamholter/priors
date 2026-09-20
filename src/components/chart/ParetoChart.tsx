@@ -65,7 +65,7 @@ export function ParetoChart({ ranked, labs, height = 460, yLabel = "Index score"
     };
   }, [ranked, labs, yLabel, narrow]);
   const { ref, chart } = useEChart(option, [option]);
-  return <div ref={wrapRef} className="max-sm:-mx-4"><ChartExport name="Pareto frontier" getSvg={() => chart.current?.renderToSVGString()} /><div ref={ref} role="img" aria-label="Index score versus cost per task" style={{ width: "100%", height, overflow: "hidden", position: "relative", isolation: "isolate" }} /></div>;
+  return <div ref={wrapRef} className="max-sm:-mx-4"><ChartExport name="Pareto frontier" getSvg={() => chart.current?.renderToSVGString()} getRows={() => ranked.filter((r) => r.costUsd != null && r.costUsd > 0).map((p) => ({ rank: p.rank, model: p.model.name, effort: p.variant.effort, score: +p.score.toFixed(2), lab: p.model.labId, cost_per_task_usd: p.costUsd, speed_toks: p.speed ?? null, on_frontier: p.onFrontier, coverage: p.coverage }))} /><div ref={ref} role="img" aria-label="Index score versus cost per task" style={{ width: "100%", height, overflow: "hidden", position: "relative", isolation: "isolate" }} /></div>;
 }
 
 function escapeHtml(s: string) { return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!)); }

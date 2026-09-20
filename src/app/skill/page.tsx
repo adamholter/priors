@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import Link from "next/link";
 import { Wordmark } from "@/components/Wordmark";
+import { PageTransition } from "@/components/PageTransition";
 import { CopySkill } from "./CopySkill";
 
 export const metadata = { title: "Agent skill" };
@@ -9,8 +10,8 @@ export const metadata = { title: "Agent skill" };
 export default async function SkillPage() {
   const md = await readFile(path.join(process.cwd(), "public/skill/SKILL.md"), "utf8");
   return (
-    <main className="min-h-screen">
-      <header className="flex items-center gap-6 px-8 h-14 border-b hairline"><Wordmark /><Link href="/" className="text-grey text-[13px] hover:text-ink">Builder</Link></header>
+    <PageTransition><main className="min-h-screen">
+      <header className="flex items-center gap-6 px-8 h-14 border-b hairline"><Wordmark transitionTypes={["nav-back"]} /><Link href="/builder" transitionTypes={["nav-back"]} className="text-grey text-[13px] hover:text-ink">Builder</Link></header>
       <div className="max-w-[820px] mx-auto px-8 py-12 grid gap-8">
         <div>
           <h1 className="text-[36px] mb-3">One skill for your agent</h1>
@@ -24,6 +25,6 @@ export default async function SkillPage() {
         </div>
         <details className="border-t hairline pt-6"><summary className="cursor-pointer text-[14px] text-ink-2">Read the skill</summary><pre className="mt-4 text-[12.5px] leading-relaxed whitespace-pre-wrap bg-white border hairline rounded-md p-5 mono">{md}</pre></details>
       </div>
-    </main>
+    </main></PageTransition>
   );
 }

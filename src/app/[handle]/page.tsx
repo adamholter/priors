@@ -5,6 +5,7 @@ import { api } from "../../../convex/_generated/api";
 import { listSnapshotDates, loadSnapshot } from "@/data/load";
 import { mergeImports } from "@/lib/import";
 import { IndexPage, type Profile } from "@/components/page/IndexPage";
+import { PageTransition } from "@/components/PageTransition";
 
 export const dynamic = "force-dynamic";
 
@@ -32,5 +33,5 @@ export default async function Page({ params, searchParams }: PageProps<"/[handle
   const [snap, dates] = await Promise.all([loadSnapshot(date), listSnapshotDates()]);
   if (!snap) notFound();
   const { snapshot } = mergeImports(snap, p.imports ?? []);
-  return <IndexPage profile={p} snapshot={snapshot} dates={dates} edit={sp.edit === "1"} />;
+  return <PageTransition><IndexPage profile={p} snapshot={snapshot} dates={dates} edit={sp.edit === "1"} /></PageTransition>;
 }

@@ -22,5 +22,5 @@ export function SpeedChart({ ranked, labs, height = 400 }: { ranked: RankedVaria
     };
   }, [ranked, labs]);
   const { ref, chart } = useEChart(option, [option]);
-  return <div><ChartExport name="Speed chart" getSvg={() => chart.current?.renderToSVGString()} /><div ref={ref} role="img" aria-label="Index score versus output speed" style={{ width: "100%", height, overflow: "hidden", position: "relative", isolation: "isolate" }} /></div>;
+  return <div><ChartExport name="Speed chart" getSvg={() => chart.current?.renderToSVGString()} getRows={() => ranked.filter((r) => r.speed && r.speed > 0).map((p) => ({ rank: p.rank, model: p.model.name, effort: p.variant.effort, score: +p.score.toFixed(2), lab: p.model.labId, speed_toks: p.speed, cost_per_task_usd: p.costUsd ?? null, coverage: p.coverage }))} /><div ref={ref} role="img" aria-label="Index score versus output speed" style={{ width: "100%", height, overflow: "hidden", position: "relative", isolation: "isolate" }} /></div>;
 }

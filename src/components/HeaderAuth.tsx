@@ -23,13 +23,13 @@ function Inner({ indices }: { indices: IndexConfig[] }) {
   const [error, setError] = useState("");
   const stash = () => sessionStorage.setItem("priors:pending", encodeIndices(indices).toString());
   if (!isLoaded) return <span className="text-xs text-grey">Loading account…</span>;
-  if (!isSignedIn) return <Link href="/sign-in" onClick={stash} className="btn"><span className="sm:hidden">Sign in</span><span className="hidden sm:inline">Sign in to get your page</span></Link>;
+  if (!isSignedIn) return <Link href="/sign-in" onClick={stash} transitionTypes={["nav-forward"]} className="btn"><span className="sm:hidden">Sign in</span><span className="hidden sm:inline">Sign in to get your page</span></Link>;
   if (mine === undefined) return null;
-  if (!mine) return <Link href="/claim" onClick={stash} className="btn">Claim your page</Link>;
+  if (!mine) return <Link href="/claim" onClick={stash} transitionTypes={["nav-forward"]} className="btn">Claim your page</Link>;
   return (
     <div className="flex items-center gap-2">
       <button type="button" className="btn" disabled={saving} onClick={async () => { setSaving(true); setError(""); try { await update({ patch: { indices } }); setSaved(true); setTimeout(() => setSaved(false), 1400); } catch { setError("Save failed. Please try again."); } finally { setSaving(false); } }}>{saving ? "Saving…" : saved ? "Saved" : "Save to my page"}</button>
-      <Link href={`/${mine.handle}`} className="flex items-center gap-2 btn-quiet">{user?.imageUrl && <img src={user.imageUrl} alt="" className="w-5 h-5 rounded-full" />}<span>@{mine.handle}</span></Link>
+      <Link href={`/${mine.handle}`} transitionTypes={["nav-forward"]} className="flex items-center gap-2 btn-quiet">{user?.imageUrl && <img src={user.imageUrl} alt="" className="w-5 h-5 rounded-full" />}<span>@{mine.handle}</span></Link>
       {error && <span role="alert" className="text-xs">{error}</span>}
       <SignOutButton><button type="button" className="cap hover:text-ink">sign out</button></SignOutButton>
     </div>
