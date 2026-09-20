@@ -12,7 +12,7 @@ echarts.use([LineChart, ScatterChart, BarChart, GridComponent, TooltipComponent,
 export const INK = "#1A1A1A", GREY = "#8A8A80", HAIR = "#ECEAE3", BONE = "#FBFBF9", INDIGO = "#2F4FB0";
 const SANS = "var(--font-inter), Inter, system-ui, sans-serif";
 const MONO = "var(--font-jetbrains), 'JetBrains Mono', Menlo, monospace";
-export const MARK_LABEL = { show: true, position: "right" as const, formatter: "{b}", fontSize: 11.5, color: INK, opacity: 1, distance: 7, backgroundColor: BONE, padding: [2, 3], borderRadius: 2, textBorderColor: BONE, textBorderWidth: 2 };
+export const MARK_LABEL = { show: true, position: "right" as const, formatter: "{b}", fontSize: 11.5, color: INK, opacity: 1, distance: 7, backgroundColor: "rgba(251,251,249,.72)", padding: [2, 3], borderRadius: 2, textBorderColor: "rgba(251,251,249,.85)", textBorderWidth: 2 };
 
 echarts.registerTheme("priors", {
   backgroundColor: "transparent",

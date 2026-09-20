@@ -75,7 +75,7 @@ function ShareCardsContent({ indices, active, date, profile }: ShareProps) {
     return !!r && (x < r.left || x > r.right || y < r.top || y > r.bottom);
   };
   return <>
-    <button type="button" className="btn-quiet" onClick={copy}>{message === "Link copied" && !open ? "Link copied" : "Copy link"}</button>
+    <button type="button" className="btn-quiet inline-flex items-center gap-1.5" onClick={copy} title="Copy link" aria-label="Copy link">{message === "Link copied" && !open ? "Link copied" : <><CopyIcon /><span className="hidden sm:inline">Copy link</span></>}</button>
     {!open && message.startsWith("Copy failed") && <span role="alert" className="text-xs">Copy failed. Open Card for the link.</span>}
     <button type="button" className="btn-quiet" onClick={() => { const saved = new URLSearchParams(window.location.search).get("design"); if (!openedBefore.current && SHARE_DESIGNS.some((d) => d.id === saved)) setDesign(saved!); openedBefore.current = true; setOrigin(window.location.origin); setMessage(""); dialog.current?.showModal(); setOpen(true); }}>Card</button>
     <dialog ref={dialog} aria-labelledby={heading} onClose={() => setOpen(false)}

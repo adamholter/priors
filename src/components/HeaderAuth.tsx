@@ -23,7 +23,7 @@ function Inner({ indices }: { indices: IndexConfig[] }) {
   const [error, setError] = useState("");
   const stash = () => sessionStorage.setItem("priors:pending", encodeIndices(indices).toString());
   if (!isLoaded) return <span className="text-xs text-grey">Loading account…</span>;
-  if (!isSignedIn) return <Link href="/sign-in" onClick={stash} className="btn">Sign in to get your page</Link>;
+  if (!isSignedIn) return <Link href="/sign-in" onClick={stash} className="btn"><span className="sm:hidden">Sign in</span><span className="hidden sm:inline">Sign in to get your page</span></Link>;
   if (mine === undefined) return null;
   if (!mine) return <Link href="/claim" onClick={stash} className="btn">Claim your page</Link>;
   return (
