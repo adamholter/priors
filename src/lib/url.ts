@@ -3,7 +3,7 @@ import { DEFAULT_CUTOFF, type IndexConfig } from "../engine";
 /**
  * URL state for anonymous builds. One index per `i` param so multiple indices share a link:
  *   ?i=General%20frontier|frontierswe-v2:25,terminalbench-4:25,deepswe-1.1:10|req=deepswe-1.1|cut=5|est=1|var=all
- * Fields after the weights are optional. Names are URL-encoded; ids are safe slugs.
+ * Fields after the weights are optional. Names are URL-encoded; benchmark IDs may include a source namespace separated by a colon.
  */
 export function encodeIndex(c: IndexConfig): string {
   const parts = [encodeURIComponent(c.name), Object.entries(c.weights).filter(([, w]) => w > 0).map(([k, w]) => `${k}:${round(w)}`).join(",")];
@@ -26,7 +26,7 @@ export function decodeIndex(s: string, id: string): IndexConfig | null {
   const [name, weightsStr, ...rest] = s.split("|");
   if (name == null || weightsStr == null) return null;
   const weights: Record<string, number> = {};
-  for (const kv of weightsStr.split(",")) { const [k, v] = kv.split(":"); const w = parseFloat(v); if (k && Number.isFinite(w) && w > 0) weights[k] = w; }
+  for (const kv of weightsStr.split(",")) { const split = kv.lastIndexOf(":"); const k = kv.slice(0, split), v = kv.slice(split + 1); const w = Number(v); if (split > 0 && k && Number.isFinite(w) && w > 0) weights[k] = w; }
   const c: IndexConfig = { id, name: decodeURIComponent(name) || "Untitled", weights, required: [], cutoff: DEFAULT_CUTOFF, estimateMissing: true, variants: "all" };
   for (const r of rest) {
     const [k, v = ""] = r.split("=");

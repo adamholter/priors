@@ -1,0 +1,23 @@
+# Priors onboarding experiment
+
+Run this checkout with `npm run dev -- -p 48741`. The main Priors checkout and port 48740 are separate. No Clerk credentials or profile writes are needed here.
+
+The home page lets someone reorder models with pointer dragging, arrow controls, or keyboard arrows. On touch screens, drag the grip; the rest of each row remains scrollable. Choose models changes the lineup. Escape cancels a drag or dismisses a dialog.
+
+A worker searches benchmark weights and calculation settings, reports candidate progress, and simplifies the best fit. Stop & reorder terminates the worker and preserves the preferred order. The result links to `/builder` in this prototype with the fitted configuration encoded in the URL.
+
+Only the selected lineup enters the fitting objective. The initial lineup is a baseline, so reversing an existing comparison or adding a model creates explicit priorities. The optimizer first minimizes missing models, then violations of explicit priorities from the top down, then top-weighted disagreements across the rest of the selected lineup. Comparisons use inverse squared rank weighting, so a mistake near the top costs more than one near the bottom. Benchmark count, preferred tests, estimation share, and evidence quality break ties after ranking fit. Unselected models cannot offset a selected-model disagreement.
+
+The primary UI metric counts models in their requested positions. Internal pair comparisons are not a model count. Missing models and ties never count as successful ordered comparisons. A perfect fit requires every selected comparison to match. An incomplete search explicitly reports "No matching configuration found" and shows the disagreements. This is a bounded heuristic search, not a proof that no possible mix exists.
+
+Regression checks include `scripts/reproduce-priors-fit.ts` and `scripts/verify-priors-edits.mjs`: swap Sol above Opus 5 and add Muse Spark 1.3 at position 11, check the top five positions and nearby Muse placement, require an explicit incomplete-fit message for disagreements, and verify the exported builder configuration reproduces the displayed result.
+
+Benchmark quality combines 30% release recency, 40% headroom and score spread, and 30% assigned grading objectivity. Unknown release dates receive neutral recency. The scorer uses benchmark release dates, never scrape dates, and deduplicates model effort variants. Verified dates link to publisher sources in `src/onboarding/quality.ts`.
+
+Preferred benchmarks: DeepSWE 1.1, Terminal-Bench 4.0, ARC-AGI-3, SimpleBench, BullshitBench v2, Humanity's Last Exam, AA-Omniscience, and FrontierMath Tier 4 v2.
+
+The experiment imports Timothy’s `share/real-index-dataset-2026-09-08` handoff through `src/data/real-index.ts`. Recorded inputs and fixed calibrated estimates stay separate. Reviewed release identities and native efforts merge into existing variants, including configured Fable variants. Measurements from the existing snapshot take precedence. Original raw values and provenance remain attached. Imported estimates cover composite benchmark fallbacks and cross-effort routes; they never become new calibration evidence. Maximum strictness excludes inferred inputs, and exact-effort matching excludes cross-effort estimates. Historical snapshots before the handoff date stay unchanged.
+
+Run `node data/real-index-handoff-2026-09-08/verify.mjs` to reproduce the source handoff. Namespaced benchmark IDs round-trip through shared builder URLs.
+
+Search exploration uses simulated annealing in both the approximate screening and full-engine stages. It can accept temporary setbacks, cools and reheats in independent rounds, and starts exact searches from different verified mixes and settings. The displayed incumbent remains the best verified fit throughout. A final fine-weight pass uses 0.1 precision, matching URL serialization. The search is still bounded; an incomplete result does not prove that no matching configuration exists.

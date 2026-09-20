@@ -1,0 +1,6 @@
+import { loadSnapshot } from '../src/data/load';
+import { fitPriors } from '../src/onboarding/optimizer';
+import { benchmarkQuality } from '../src/onboarding/quality';
+const baseline=['gpt-6-astra','claude-fable-5.1','claude-fable-5','claude-opus-5','gpt-5.6-sol','gemini-3.8-flash','claude-opus-4.8','glm-5.3','gpt-5.6-terra','grok-4.6','gemini-3.7-flash','gpt-5.6-luna','grok-4.5','claude-sonnet-5'];
+async function main(){const snapshot=(await loadSnapshot())!;const muse=snapshot.models.find(m=>/muse.*spark.*1\.3/i.test(m.name));if(!muse)throw Error('Muse missing');const target=[...baseline];[target[3],target[4]]=[target[4],target[3]];target.splice(10,0,muse.id);const start=performance.now();const result=await fitPriors(snapshot,target,()=>{},Object.fromEntries(benchmarkQuality(snapshot).map(q=>[q.id,q.score])),0,{baseline});console.log(JSON.stringify({seconds:(performance.now()-start)/1000,target,ranking:result.ranking.map(r=>r.modelId),weights:result.weights,priority:[result.priorityMatched,result.priorityTotal],positions:result.matchedPositions,pairs:[result.matchedPairs,result.totalPairs],exact:result.exactMatch,settings:{strictness:result.config.strictness,estimateMissing:result.config.estimateMissing}},null,2));}
+main();

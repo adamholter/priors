@@ -1,0 +1,37 @@
+import { chromium } from 'playwright';
+import assert from 'node:assert/strict';
+import { createRequire } from 'node:module';
+import 'tsx/cjs';
+const require=createRequire(import.meta.url);
+const {loadSnapshot}=require('../src/data/load.ts');
+const {computeIndex}=require('../src/engine/index.ts');
+const {decodeIndices}=require('../src/lib/url.ts');
+const browser=await chromium.launch({headless:true});
+try{
+ const page=await browser.newPage({viewport:{width:1440,height:1100}});const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.goto('http://localhost:48741',{waitUntil:'networkidle'});
+ await page.getByRole('button',{name:'Move GPT-5.6 Sol up',exact:true}).click();
+ await page.getByRole('button',{name:'Choose models',exact:false}).click();
+ await page.getByRole('searchbox',{name:'Find a model',exact:true}).fill('Muse Spark 1.3');
+ await page.getByRole('checkbox',{name:'Muse Spark 1.3',exact:true}).check();
+ await page.getByRole('button',{name:'Use this lineup',exact:true}).click();
+ for(let i=0;i<4;i++)await page.getByRole('button',{name:'Move Muse Spark 1.3 up',exact:true}).click();
+ const target=await page.locator('[data-model]').evaluateAll(es=>es.map(e=>e.dataset.model));
+ assert.equal(target[3],'gpt-5.6-sol');assert.equal(target[4],'claude-opus-5');assert.equal(target[10],'muse-spark-1.3');
+ await page.getByRole('button',{name:'Find my index',exact:true}).click();
+ await page.getByRole('status',{name:'Search complete',exact:true}).waitFor({timeout:120000});await page.waitForTimeout(650);
+ const ranked=await page.locator('[data-model]').evaluateAll(es=>es.map(e=>e.dataset.model));
+ assert.equal(ranked.length,15);assert(ranked.indexOf('gpt-5.6-sol')<ranked.indexOf('claude-opus-5'));assert.deepEqual(ranked.slice(0,5),target.slice(0,5));assert(Math.abs(ranked.indexOf('muse-spark-1.3')-10)<=1);
+ assert.equal(await page.locator('[data-model="muse-spark-1.3"] .wanted-rank').getAttribute('title'),'You put Muse Spark 1.3 at 11');
+ assert(!await page.locator('.agreement').innerText().then(t=>t.includes('105')));
+ const positions=target.filter((id,i)=>ranked[i]===id).length;
+ assert.equal((await page.locator('.agreement strong').innerText()).replace(/\s/g,''),`${positions}/15`);
+ if(positions<15)assert(await page.getByText('No matching configuration found for your priors.',{exact:false}).isVisible());
+ const href=await page.getByRole('link',{name:'Explore this index',exact:true}).getAttribute('href');
+ const config=decodeIndices(new URL(href,'http://localhost:48741').searchParams)[0];
+ const calculated=computeIndex(await loadSnapshot(),config);assert.deepEqual(ranked,calculated.ranked.map(r=>r.model.id));
+ await page.screenshot({path:'/tmp/priors-edited-result.png',fullPage:true});
+ await page.getByRole('link',{name:'Explore this index',exact:true}).click();await page.getByRole('heading',{name:'My priors',exact:true}).waitFor();
+ assert.deepEqual(await page.locator('.ranking-list [data-k]').evaluateAll(es=>es.map(e=>e.dataset.k)),calculated.ranked.slice(0,30).map(r=>r.variant.id));
+ assert.deepEqual(errors,[]);console.log(JSON.stringify({target,ranked,positions,benchmarks:Object.keys(config.weights).length,errors}));
+}finally{await browser.close();}
