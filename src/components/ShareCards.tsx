@@ -44,6 +44,7 @@ function ShareCardsContent({ indices, active, date, profile }: ShareProps) {
   const [loaded, setLoaded] = useState("");
   const [failed, setFailed] = useState("");
   const [retry, setRetry] = useState(0);
+  const [primed, setPrimed] = useState(false);
   const backdrop = useRef(false);
   const openedBefore = useRef(false);
   useEffect(() => {
@@ -52,6 +53,13 @@ function ShareCardsContent({ indices, active, date, profile }: ShareProps) {
     document.body.style.overflow = "hidden";
     return () => { document.body.style.overflow = previous; };
   }, [open]);
+  // Thumbnails mount only after the selected card renders once — the 12 OG
+  // renders otherwise compete with the one card the user is looking at.
+  useEffect(() => {
+    if (!open || primed) return;
+    const t = setTimeout(() => setPrimed(true), 2500);
+    return () => clearTimeout(t);
+  }, [open, primed]);
   const params = encodeIndices([active, ...indices.filter((i) => i.id !== active.id)]);
   params.set("date", date);
   params.set("design", design);
@@ -91,7 +99,7 @@ function ShareCardsContent({ indices, active, date, profile }: ShareProps) {
         <div className="relative aspect-[1200/630] overflow-hidden border hairline bg-white" aria-busy={loaded !== selectedUrl && failed !== selectedUrl}>
           {loaded !== selectedUrl && <div className="absolute inset-0 flex items-center justify-center text-sm text-ink-2" role="status">{failed === selectedUrl ? "Card could not load." : "Rendering card…"}{failed === selectedUrl && <button type="button" className="btn-quiet ml-3" onClick={() => setRetry((n) => n + 1)}>Retry</button>}</div>}
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img key={selectedUrl} src={selectedUrl} alt={`${selected.name} share card for ${active.name}`} width={1200} height={630} onLoad={() => setLoaded(selectedUrl)} onError={() => setFailed(selectedUrl)} className={`relative h-full w-full object-contain ${loaded === selectedUrl ? "opacity-100" : "opacity-0"}`} />
+          <img key={selectedUrl} src={selectedUrl} alt={`${selected.name} share card for ${active.name}`} width={1200} height={630} fetchPriority="high" onLoad={() => { setLoaded(selectedUrl); setPrimed(true); }} onError={() => { setFailed(selectedUrl); setPrimed(true); }} className={`relative h-full w-full object-contain ${loaded === selectedUrl ? "opacity-100" : "opacity-0"}`} />
         </div>
         <div className="my-4 flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm">{String(SHARE_DESIGNS.findIndex((d) => d.id === design) + 1).padStart(2, "0")} / {selected.name}</p>
@@ -107,7 +115,7 @@ function ShareCardsContent({ indices, active, date, profile }: ShareProps) {
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-5 lg:grid-cols-2" aria-label="Card designs">
           {SHARE_DESIGNS.map((item, n) => <button type="button" key={item.id} aria-pressed={design === item.id} aria-label={`Design ${n + 1}: ${item.name}`} onClick={() => { setDesign(item.id); setMessage(""); }} className={`overflow-hidden border text-left ${design === item.id ? "border-ink ring-1 ring-ink" : "border-hairline hover:border-grey"}`}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={imageUrl(item.id)} alt="" width={1200} height={630} loading="lazy" className="aspect-[1200/630] w-full bg-white object-contain" />
+            {primed ? <img src={imageUrl(item.id)} alt="" width={1200} height={630} loading="lazy" className="aspect-[1200/630] w-full bg-white object-contain" /> : <span className="block aspect-[1200/630] w-full bg-white" aria-hidden="true" />}
             <span className="block px-2 py-2 text-xs">{String(n + 1).padStart(2, "0")} · {item.name}</span>
           </button>)}
         </div>

@@ -14,10 +14,18 @@ export async function listSnapshotDates(): Promise<string[]> {
   } catch { return []; }
 }
 
-/** Load a snapshot by date, or the latest. */
-export async function loadSnapshot(date?: string): Promise<Snapshot | null> {
-  try {
-    const file = date ? `${date}.json.gz` : "latest.json.gz";
-    return appendRealIndex(JSON.parse(gunzipSync(await readFile(path.join(SNAP_DIR, file))).toString("utf8")) as Snapshot);
-  } catch { return null; }
+/** Load a snapshot by date, or the latest. Memoized: the gzip+JSON.parse is
+ *  significant and /og renders a dozen card designs per open. */
+const snapshots = new Map<string, Promise<Snapshot | null>>();
+export function loadSnapshot(date?: string): Promise<Snapshot | null> {
+  const file = date ? `${date}.json.gz` : "latest.json.gz";
+  let p = snapshots.get(file);
+  if (!p) {
+    p = (async () => {
+      try { return appendRealIndex(JSON.parse(gunzipSync(await readFile(path.join(SNAP_DIR, file))).toString("utf8")) as Snapshot); }
+      catch { return null; }
+    })();
+    snapshots.set(file, p);
+  }
+  return p;
 }
