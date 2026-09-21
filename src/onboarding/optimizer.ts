@@ -16,21 +16,28 @@ function normalize(raw:Record<string,number>){const e=Object.entries(raw).filter
 function config(snapshot:Snapshot,target:string[],raw:Record<string,number>,s:Settings):IndexConfig{const weights=normalize(raw),keep=new Set(target);return{id:"fit",name:"My fit",weights,required:[],optional:Object.keys(weights),cutoff:5,estimateMissing:s.estimateMissing,variants:"best",rankingVariants:"best",effortMatching:s.effortMatching,strictness:s.strictness,excludeModels:snapshot.models.filter(m=>!keep.has(m.id)).map(m=>m.id)}}
 function eligible(snapshot:Snapshot,id:string,target:Set<string>){const b=snapshot.benchmarks.find(x=>x.id===id);if(!b||b.proxy||["cost","speed","composite"].includes(b.category)||/arena|image|subjective|price|cost|speed/i.test(`${b.id} ${b.name} ${b.description}`))return false;const modelByVariant=new Map(snapshot.variants.map(v=>[v.id,v.modelId]));const seen=new Set(snapshot.observations.filter(o=>o.benchmarkId===id).map(o=>modelByVariant.get(o.variantId)));let n=0;for(const m of target)if(seen.has(m))n++;return n>=Math.min(2,target.size)&&n/target.size>=.45}
 export function selectedPairAgreement(target:string[],scores:Map<string,number>,priorities:FitPriorities={}){
- let matched=0,missing=0,weightedErrors=0,weightedTotal=0,priorityMatched=0,priorityTotal=0;
+ // A correctly ordered pair earns full credit only when separated by MARGIN index points —
+ // enough of a gap that small benchmark changes won't flip it. Thin margins give partial
+ // credit, so the score keeps climbing while the search widens gaps after the order is right.
+ const MARGIN=3;
+ let matched=0,missing=0,weightedErrors=0,weightedTotal=0,priorityMatched=0,priorityTotal=0,closenessNum=0;
  const mismatches:Array<{above:string;below:string}>=[], priorityErrors=target.map(()=>0), rankErrors=target.map(()=>0);
  const baseline=new Map((priorities.baseline??target).map((id,i)=>[id,i]));
  for(const id of target)if(!scores.has(id))missing++;
  for(let i=0;i<target.length;i++)for(let j=i+1;j<target.length;j++){
   const above=target[i],below=target[j],a=scores.get(above),b=scores.get(below);
-  const ok=a!=null&&b!=null&&Number.isFinite(a)&&Number.isFinite(b)&&a>b+1e-7;
+  const finite=a!=null&&b!=null&&Number.isFinite(a)&&Number.isFinite(b);
+  const ok=finite&&a!-b!>1e-7;
   const explicit=!baseline.has(above)||!baseline.has(below)||baseline.get(above)!>baseline.get(below)!;
   const weight=1/((i+1)*(i+1));weightedTotal+=weight;
   if(explicit){priorityTotal++;if(ok)priorityMatched++;else priorityErrors[i]++;}
   if(ok)matched++;else{weightedErrors+=weight;rankErrors[i]++;mismatches.push({above,below});}
+  const gap=finite?a!-b!:NaN;
+  closenessNum+=weight*(Number.isFinite(gap)?(gap>=0?Math.min(1,gap/MARGIN):Math.max(-.5,gap/MARGIN)):0);
  }
  const ranked=target.filter(id=>scores.has(id)).sort((a,b)=>scores.get(b)!-scores.get(a)!);
  const matchedPositions=target.filter((id,i)=>ranked[i]===id&& !mismatches.some(p=>(p.above===id||p.below===id)&&scores.get(p.above)===scores.get(p.below))).length;
- return{matched,missing,mismatches,total:target.length*(target.length-1)/2,priorityErrors,rankErrors,priorityMatched,priorityTotal,weightedErrors,weightedTotal,matchedPositions};
+ return{matched,missing,mismatches,total:target.length*(target.length-1)/2,priorityErrors,rankErrors,priorityMatched,priorityTotal,weightedErrors,weightedTotal,matchedPositions,closeness:weightedTotal?Math.max(0,100*closenessNum/weightedTotal):100};
 }
 function rankingLoss(p:ReturnType<typeof selectedPairAgreement>){return[p.missing,...p.priorityErrors,p.weightedErrors,p.total-p.matched]}
 const rankingLossLength=(n:number)=>n+3;
@@ -38,7 +45,7 @@ const rankingLossLength=(n:number)=>n+3;
 
 function preference(raw:Record<string,number>,quality:Record<string,number>){const e=Object.entries(raw).filter(([,w])=>w>0),sum=e.reduce((n,[,w])=>n+w,0)||1;return{quality:e.reduce((n,[id,w])=>n+(Number.isFinite(quality[id])?quality[id]:50)*w,0)/sum,penalty:e.reduce((n,[id,w])=>n+(PREFERRED.includes(id as typeof PREFERRED[number])?0:w),0)/sum}}
 function approximate(target:string[],columns:Column[],raw:Record<string,number>,quality:Record<string,number>,priorities:FitPriorities={}):Approx{const active=Object.entries(raw).filter(([,w])=>w>0),byId=new Map(columns.map(c=>[c.id,c])),scores=new Map<string,number>();for(let m=0;m<target.length;m++){let num=0,den=0;for(const[id,w]of active){const c=byId.get(id);if(c?.present[m]){num+=c.score[m]*w;den+=w}}if(den)scores.set(target[m],num/den)}const p=selectedPairAgreement(target,scores,priorities),pref=preference(raw,quality);return{weights:raw,loss:[...rankingLoss(p),active.length,pref.penalty,-pref.quality]}}
-function exact(snapshot:Snapshot,target:string[],raw:Record<string,number>,s:Settings,quality:Record<string,number>,phase:FitUpdate["phase"],iteration:number,tested:number,log:string,priorities:FitPriorities={}):Exact{const cfg=config(snapshot,target,raw,s),result=computeIndex(snapshot,cfg),keep=new Set(target),rows=result.ranked.filter(r=>keep.has(r.model.id)),ranking=rows.map(r=>({modelId:r.model.id,score:r.score,variantId:r.variant.id,coverage:r.coverage})),p=selectedPairAgreement(target,new Map(ranking.map(r=>[r.modelId,r.score])),priorities),pref=preference(cfg.weights,quality);let estimated=0,total=0;for(const row of rows)for(const v of row.values){const w=cfg.weights[v.benchmarkId]??0;total+=w;if(v.estimated)estimated+=w}const estimatedShare=total?estimated/total:0,loss=[...rankingLoss(p),Object.keys(cfg.weights).length,pref.penalty,estimatedShare,-pref.quality];return{loss,update:{exactMatch:p.matched===p.total,matchedPositions:p.matchedPositions,priorityMatched:p.priorityMatched,priorityTotal:p.priorityTotal,phase,iteration,tested,agreement:p.total?p.matched/p.total*100:p.missing?0:100,matchedPairs:p.matched,totalPairs:p.total,closeness:p.weightedTotal?100*(1-p.weightedErrors/p.weightedTotal):100,weights:cfg.weights,ranking,config:cfg,benchmarkCount:Object.keys(cfg.weights).length,quality:pref.quality,mismatches:p.mismatches,log,estimatedShare}}}
+function exact(snapshot:Snapshot,target:string[],raw:Record<string,number>,s:Settings,quality:Record<string,number>,phase:FitUpdate["phase"],iteration:number,tested:number,log:string,priorities:FitPriorities={}):Exact{const cfg=config(snapshot,target,raw,s),result=computeIndex(snapshot,cfg),keep=new Set(target),rows=result.ranked.filter(r=>keep.has(r.model.id)),ranking=rows.map(r=>({modelId:r.model.id,score:r.score,variantId:r.variant.id,coverage:r.coverage})),p=selectedPairAgreement(target,new Map(ranking.map(r=>[r.modelId,r.score])),priorities),pref=preference(cfg.weights,quality);let estimated=0,total=0;for(const row of rows)for(const v of row.values){const w=cfg.weights[v.benchmarkId]??0;total+=w;if(v.estimated)estimated+=w}const estimatedShare=total?estimated/total:0,loss=[...rankingLoss(p),Object.keys(cfg.weights).length,pref.penalty,estimatedShare,-pref.quality];return{loss,update:{exactMatch:p.matched===p.total,matchedPositions:p.matchedPositions,priorityMatched:p.priorityMatched,priorityTotal:p.priorityTotal,phase,iteration,tested,agreement:p.total?p.matched/p.total*100:p.missing?0:100,matchedPairs:p.matched,totalPairs:p.total,closeness:p.closeness,weights:cfg.weights,ranking,config:cfg,benchmarkCount:Object.keys(cfg.weights).length,quality:pref.quality,mismatches:p.mismatches,log,estimatedShare}}}
 function search(target:string[],columns:Column[],quality:Record<string,number>,seed:number,test:()=>void,priorities:FitPriorities={}){
  const random=rng(seed),walkRandom=rng(seed*7919+17);let best:Approx|undefined;
  const margin=(weights:Record<string,number>)=>{const active=Object.entries(weights).filter(([,w])=>w>0),byId=new Map(columns.map(c=>[c.id,c])),scores:number[]=[];for(let m=0;m<target.length;m++){let num=0,den=0;for(const[id,w]of active){const c=byId.get(id);if(c?.present[m]){num+=c.score[m]*w;den+=w}}scores[m]=den?num/den:NaN}let loss=0;for(let i=0;i<scores.length;i++)for(let j=i+1;j<scores.length;j++){const gap=scores[i]-scores[j];if(Number.isFinite(gap)&&gap<=1e-7)loss+=(1/(i+1))*(1e-4-gap)}return loss};
