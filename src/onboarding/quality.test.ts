@@ -29,10 +29,10 @@ describe("benchmarkQuality", () => {
   });
 
   it("uses verified dates while holding unknown dates at neutral recency", () => {
-    const result = benchmarkQuality(snapshot([benchmark("arc-agi-3"), benchmark("aa-humanitys-last-exam"), benchmark("simplebench")], []));
+    const result = benchmarkQuality(snapshot([benchmark("arc-agi-3"), benchmark("aa-humanitys-last-exam"), benchmark("arena-text")], []));
     expect(result.find((x) => x.id === "arc-agi-3")).toMatchObject({ releaseDate: "2026-03-25", dateConfidence: "verified" });
     expect(result.find((x) => x.id === "aa-humanitys-last-exam")!.recency).toBeLessThan(result.find((x) => x.id === "arc-agi-3")!.recency);
-    expect(result.find((x) => x.id === "simplebench")).toMatchObject({ recency: 50, dateConfidence: "unknown" });
+    expect(result.find((x) => x.id === "arena-text")).toMatchObject({ recency: 50, dateConfidence: "unknown" });
   });
 
   it("penalizes a saturated ceiling and a non-discriminative floor", () => {
