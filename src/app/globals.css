@@ -99,3 +99,4 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 
 /* Metric gallery */
 details.gallery-panel > summary::-webkit-details-marker { display: none; }
+.handle-input:focus-visible { outline: none; }

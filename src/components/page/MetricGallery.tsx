@@ -17,7 +17,7 @@ export function MetricGallery({ ranked, snapshot, labs }: { ranked: RankedVarian
   const at = (benchId: string, pick: (o: Observation) => number | undefined = (o) => o.value): MetricPoint[] =>
     ranked.flatMap((r) => { const o = obs.get(benchId)?.get(r.variant.id); const x = o && pick(o); return x != null && Number.isFinite(x) && x > 0 ? [{ x, r }] : []; });
 
-  const panels: { id: string; title: string; desc: string; node: React.ReactNode }[] = [];
+  const panels: { id: string; title: string; desc: string; open?: boolean; node: React.ReactNode }[] = [];
   const ttft = at("aa-ttft");
   const decode = at("aa-intelligence-index-v4.3", (o) => (o.details?.estimatedDecodeSecondsPerTask as number | undefined) ?? undefined);
   const tokens = at("aa-intelligence-index-v4.3", (o) => (o.details?.outputTokensPerTask as number | undefined) ?? o.outputTokens ?? undefined);
@@ -29,7 +29,7 @@ export function MetricGallery({ ranked, snapshot, labs }: { ranked: RankedVarian
   const fmtDate = (x: number) => new Date(x).toISOString().slice(0, 10);
   const MIN_PTS = 3;
 
-  if (ranked.some((r) => r.speed)) panels.push({ id: "speed", title: "Output speed", desc: "tokens per second", node: <SpeedChart ranked={ranked} labs={labs} /> });
+  if (ranked.some((r) => r.speed)) panels.push({ id: "speed", title: "Output speed", desc: "tokens per second", open: true, node: <SpeedChart ranked={ranked} labs={labs} /> });
   if (ttft.length >= MIN_PTS) panels.push({ id: "latency", title: "Latency", desc: "seconds to first token", node: <MetricScatter pts={ttft} labs={labs} xLabel="s" xName="Time to first token (s)" scale="log" formatX={fmt("s")} aria="Index score versus time to first token" /> });
   if (decode.length >= MIN_PTS) panels.push({ id: "tpt", title: "Time per task", desc: "estimated decode time on the index suite", node: <MetricScatter pts={decode} labs={labs} xLabel="s/task" xName="Time per task (s)" scale="log" formatX={fmt("s")} aria="Index score versus estimated time per task" /> });
   if (tokens.length >= MIN_PTS) panels.push({ id: "tokens", title: "Output tokens", desc: "tokens generated per task", node: <MetricScatter pts={tokens} labs={labs} xLabel="tok" xName="Output tokens per task" scale="log" formatX={(x) => x >= 1000 ? `${(x / 1000).toFixed(0)}k` : `${x.toFixed(0)}`} aria="Index score versus output tokens per task" /> });
@@ -40,14 +40,14 @@ export function MetricGallery({ ranked, snapshot, labs }: { ranked: RankedVarian
   if (!panels.length) return null;
   return (
     <div className="border-t hairline">
-      {panels.map((p) => <Panel key={p.id} title={p.title} desc={p.desc}>{p.node}</Panel>)}
+      {panels.map((p) => <Panel key={p.id} title={p.title} desc={p.desc} defaultOpen={p.open}>{p.node}</Panel>)}
     </div>
   );
 }
 
-function Panel({ title, desc, children }: { title: string; desc: string; children: React.ReactNode }) {
-  const [open, setOpen] = useState(false);
-  const [mounted, setMounted] = useState(false);
+function Panel({ title, desc, defaultOpen, children }: { title: string; desc: string; defaultOpen?: boolean; children: React.ReactNode }) {
+  const [open, setOpen] = useState(!!defaultOpen);
+  const [mounted, setMounted] = useState(!!defaultOpen);
   return (
     <details className="gallery-panel border-b hairline" open={open} onToggle={(e) => { const o = e.currentTarget.open; setOpen(o); if (o) setMounted(true); }}>
       <summary className="flex items-baseline gap-4 py-3.5 cursor-pointer select-none list-none">

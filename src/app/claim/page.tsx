@@ -69,7 +69,7 @@ function Claim() {
         <h1 className="text-[28px]">Pick your handle</h1>
         <label className="grid gap-1.5 text-[13px]">
           <span className="text-ink-2">Your page will live at</span>
-          <span className="flex items-center gap-0 border hairline rounded-sm bg-white px-3 h-10"><span className="text-grey mono">mypriors.com/</span><input autoFocus value={handle} onChange={(e) => setHandle(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "").slice(0, 30))} aria-label="Your handle" className="min-w-0 flex-1 bg-transparent outline-none mono" placeholder="adam" /></span>
+          <span className="flex items-center gap-0 border hairline rounded-sm bg-white px-3 h-10 focus-within:border-ink"><span className="text-grey mono">mypriors.com/</span><input autoFocus value={handle} onChange={(e) => setHandle(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "").slice(0, 30))} aria-label="Your handle" className="handle-input min-w-0 flex-1 bg-transparent outline-none mono" placeholder="adam" /></span>
           <span className="cap h-4">{handle.length >= 2 && available === false ? "taken or not allowed" : handle.length >= 2 && available ? "available" : ""}</span>
         </label>
         {pending.length > 0 && <p className="text-[12.5px] text-ink-2">Your {pending.length === 1 ? "index" : `${pending.length} indices`} ({pending.map((p) => p.name).join(", ")}) will be saved to the page.</p>}
