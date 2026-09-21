@@ -112,6 +112,7 @@ curl -s https://mypriors.com/api/agent -H "Authorization: Bearer $PRIORS_TOKEN" 
 - `speed` — score vs output speed for `indexId`
 - `benchmark` — one benchmark's leaderboard (`benchmarkId`)
 - `history` — how the frontier for `indexId` moved over time
+- `gallery` — collapsed expandable charts for `indexId` (speed, latency, time per task, output tokens, release date, OpenRouter uptime). Every page gets one automatically if absent — add `{kind:"gallery", hidden:true}` only if the user asks to remove it.
 - `text` — a paragraph (`body`)
 - `links` — a list of links (`links`)
 

@@ -51,6 +51,7 @@ export const claim = mutation({
     const sections = list.flatMap((i: { id: string }) => [
       { id: `rank-${i.id}`, kind: "rankings" as const, indexId: i.id },
       { id: `pareto-${i.id}`, kind: "pareto" as const, indexId: i.id },
+      { id: `gallery-${i.id}`, kind: "gallery" as const, indexId: i.id },
     ]);
     return ctx.db.insert("profiles", { clerkId: m.identity.subject, handle: h, displayName, avatarUrl, indices: list, sections, updatedAt: Date.now() });
   },

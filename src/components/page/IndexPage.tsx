@@ -11,12 +11,13 @@ import { ParetoChart } from "../chart/ParetoChart";
 import { SpeedChart } from "../chart/SpeedChart";
 import { BenchmarkTable } from "./BenchmarkTable";
 import { DatePicker } from "../DatePicker";
+import { MetricGallery } from "./MetricGallery";
 import { authEnabled } from "@/app/providers";
 import { PageEditor } from "./PageEditor";
 import { ChartSettings } from "../chart/ChartSettings";
 
 export interface Section {
-  id: string; kind: "rankings" | "pareto" | "speed" | "benchmark" | "text" | "links" | "history";
+  id: string; kind: "rankings" | "pareto" | "speed" | "benchmark" | "text" | "links" | "history" | "gallery";
   title?: string; indexId?: string; benchmarkId?: string; body?: string; links?: { label: string; url: string }[]; hidden?: boolean;
 }
 export interface Profile {
@@ -71,8 +72,8 @@ export function IndexPage({ profile, snapshot, dates, edit }: { profile: Profile
           </div>
         </section>
 
-        {p.sections.filter((s) => !s.hidden).map((s) => {
-          const idx = s.indexId ? p.indices.find((i) => i.id === s.indexId) : undefined;
+        {(p.sections.some((s) => s.kind === "gallery") ? p.sections : [...p.sections, { id: "gallery-auto", kind: "gallery" as const, indexId: p.indices[0]?.id }]).filter((s) => !s.hidden).map((s) => {
+          const idx = (s.indexId ? p.indices.find((i) => i.id === s.indexId) : undefined) ?? (s.kind === "gallery" ? p.indices[0] : undefined);
           const r = idx ? results.get(idx.id) : undefined;
           const title = s.title ?? defaultTitle(s, idx?.name);
           if (s.kind === "text") return <section key={s.id} className="max-w-[68ch]">{s.title && <h2 className="text-[24px] mb-3">{s.title}</h2>}<p className="text-[15.5px] leading-[1.7] text-ink-2 whitespace-pre-wrap">{s.body}</p></section>;
@@ -80,6 +81,7 @@ export function IndexPage({ profile, snapshot, dates, edit }: { profile: Profile
           if (s.kind === "benchmark" && s.benchmarkId) return <section key={s.id}><h2 className="text-[24px] mb-3">{title}</h2><BenchmarkTable snapshot={snapshot} benchmarkId={s.benchmarkId} /></section>;
           if (!idx || !r) return null;
           const rankingMode = chartVariantMode(idx, "ranking"), paretoMode = chartVariantMode(idx, "pareto");
+          if (s.kind === "gallery") return <section key={s.id}><h2 className="text-[24px] mb-1">{title}</h2><p className="cap mb-3">More metrics · expand a row</p><MetricGallery ranked={selectVariants(r.ranked, paretoMode)} snapshot={snapshot} labs={snapshot.labs} /></section>;
           const updateIndex = (patch: Partial<IndexConfig>) => setP({ ...p, indices: p.indices.map((i) => i.id === idx.id ? { ...i, ...patch } : i) });
           if (s.kind === "rankings") return (
             <section key={s.id}>
@@ -113,6 +115,7 @@ function defaultTitle(s: Section, indexName?: string) {
     case "pareto": return `${indexName ?? "Score"} vs cost per task`;
     case "speed": return `${indexName ?? "Score"} vs speed`;
     case "history": return `${indexName ?? "Frontier"} over time`;
+    case "gallery": return "More metrics";
     case "benchmark": return "Benchmark";
     case "links": return "Links";
     default: return "";

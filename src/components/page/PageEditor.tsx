@@ -31,7 +31,7 @@ export function PageEditor({ profile, onChange, snapshot, editing }: { profile: 
   const setSections = (sections: Section[]) => set({ sections });
   const move = (i: number, d: number) => { const s = [...profile.sections]; const j = i + d; if (j < 0 || j >= s.length) return; [s[i], s[j]] = [s[j], s[i]]; setSections(s); };
   const patchSection = (i: number, p: Partial<Section>) => setSections(profile.sections.map((s, k) => (k === i ? { ...s, ...p } : s)));
-  const addSection = (kind: Section["kind"]) => setSections([...profile.sections, { id: `${kind}-${(counter.current++).toString(36)}-${profile.sections.length}`, kind, indexId: kind === "rankings" || kind === "pareto" || kind === "speed" || kind === "history" ? profile.indices[0]?.id : undefined, benchmarkId: kind === "benchmark" ? snapshot.benchmarks[0]?.id : undefined, body: kind === "text" ? "" : undefined, links: kind === "links" ? [] : undefined }]);
+  const addSection = (kind: Section["kind"]) => setSections([...profile.sections, { id: `${kind}-${(counter.current++).toString(36)}-${profile.sections.length}`, kind, indexId: kind === "rankings" || kind === "pareto" || kind === "speed" || kind === "history" || kind === "gallery" ? profile.indices[0]?.id : undefined, benchmarkId: kind === "benchmark" ? snapshot.benchmarks[0]?.id : undefined, body: kind === "text" ? "" : undefined, links: kind === "links" ? [] : undefined }]);
   const save = async () => {
     setSaving(true);
     const { displayName, bio, socials, indices, sections, theme, avatarUrl } = profile;
@@ -88,7 +88,7 @@ export function PageEditor({ profile, onChange, snapshot, editing }: { profile: 
                     <button type="button" className="cap" onClick={() => patchSection(i, { hidden: !s.hidden })} title={s.hidden ? "Show" : "Hide"}>{s.hidden ? "show" : "hide"}</button>
                     <button type="button" className="cap" onClick={() => setSections(profile.sections.filter((_, k) => k !== i))} aria-label="Remove">×</button>
                   </div>
-                  {(s.kind === "rankings" || s.kind === "pareto" || s.kind === "speed" || s.kind === "history") && (
+                  {(s.kind === "rankings" || s.kind === "pareto" || s.kind === "speed" || s.kind === "history" || s.kind === "gallery") && (
                     <select value={s.indexId} onChange={(e) => patchSection(i, { indexId: e.target.value })} className="inp">{profile.indices.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select>
                   )}
                   {s.kind === "benchmark" && <select value={s.benchmarkId} onChange={(e) => patchSection(i, { benchmarkId: e.target.value })} className="inp">{snapshot.benchmarks.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</select>}
@@ -96,7 +96,7 @@ export function PageEditor({ profile, onChange, snapshot, editing }: { profile: 
                   {s.kind === "links" && <textarea value={(s.links ?? []).map((l) => `${l.label} ${l.url}`).join("\n")} rows={3} onChange={(e) => patchSection(i, { links: e.target.value.split("\n").filter(Boolean).map((line) => { const [label, ...rest] = line.trim().split(/\s+/); return { label: rest.length ? label : line.trim(), url: rest.length ? rest.join(" ") : line.trim() }; }) })} className="inp mono" placeholder={"Label https://…\none per line"} />}
                 </div>
               ))}
-              <div className="flex flex-wrap gap-1.5">{(["rankings", "pareto", "speed", "benchmark", "text", "links"] as const).map((k) => <button key={k} type="button" className="btn-quiet" onClick={() => addSection(k)}>+ {k}</button>)}</div>
+              <div className="flex flex-wrap gap-1.5">{(["rankings", "pareto", "speed", "benchmark", "text", "links", "gallery"] as const).map((k) => <button key={k} type="button" className="btn-quiet" onClick={() => addSection(k)}>+ {k}</button>)}</div>
             </div>
           </Field>
 

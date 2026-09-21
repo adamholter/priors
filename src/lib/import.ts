@@ -12,7 +12,7 @@ export const importSchema = z.object({
     description: z.string().min(10).max(600),
     unit: z.enum(["percent", "score", "elo", "usd", "seconds", "count"]),
     higherIsBetter: z.boolean(),
-    category: z.enum(["coding", "agentic", "reasoning", "knowledge", "math", "long-context", "instruction", "creative", "safety", "economics", "composite", "speed", "cost", "other"]),
+    category: z.enum(["coding", "agentic", "reasoning", "knowledge", "math", "long-context", "instruction", "creative", "safety", "economics", "composite", "speed", "cost", "reliability", "other"]),
   }),
   rows: z.array(z.object({
     modelLabel: z.string().min(1),

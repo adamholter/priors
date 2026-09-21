@@ -35,7 +35,7 @@ export interface Variant {
 export type BenchmarkUnit = "percent" | "score" | "elo" | "usd" | "seconds" | "count";
 export type BenchmarkCategory =
   | "coding" | "agentic" | "reasoning" | "knowledge" | "math" | "long-context"
-  | "instruction" | "creative" | "safety" | "economics" | "composite" | "speed" | "cost" | "other";
+  | "instruction" | "creative" | "safety" | "economics" | "composite" | "speed" | "cost" | "reliability" | "other";
 
 export interface Benchmark {
   id: string; // "frontierswe-v2"

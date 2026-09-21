@@ -85,6 +85,14 @@ async function main() {
   // ---- resolve variants. Unspecified effort -> max effort seen for that model, else "default".
   const effortsSeen = new Map<string, Set<Effort>>();
   pending.forEach((p) => { if (p.effort) (effortsSeen.get(p.modelId) ?? effortsSeen.set(p.modelId, new Set()).get(p.modelId)!).add(p.effort); });
+  // Partial (--only) runs never see the skipped sources' rows, so seed effort
+  // knowledge from the previous snapshot's variants before resolving.
+  if (only) {
+    try {
+      const prev: Snapshot = JSON.parse(gunzipSync(await readFile(path.join(SNAP_DIR, "latest.json.gz"))).toString("utf8"));
+      for (const v of prev.variants) if (v.effort !== "default") (effortsSeen.get(v.modelId) ?? effortsSeen.set(v.modelId, new Set()).get(v.modelId)!).add(v.effort);
+    } catch { /* no previous snapshot */ }
+  }
   const ORDER: Effort[] = ["none", "minimal", "low", "medium", "high", "xhigh", "max"];
   const resolveEffort = (modelId: string, e?: Effort): Effort => {
     if (e) return e;

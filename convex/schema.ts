@@ -24,7 +24,7 @@ const section = v.object({
   id: v.string(),
   kind: v.union(
     v.literal("rankings"), v.literal("pareto"), v.literal("speed"), v.literal("benchmark"),
-    v.literal("text"), v.literal("links"), v.literal("history"),
+    v.literal("text"), v.literal("links"), v.literal("history"), v.literal("gallery"),
   ),
   title: v.optional(v.string()),
   indexId: v.optional(v.string()), // rankings/pareto/speed/history
