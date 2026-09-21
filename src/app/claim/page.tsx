@@ -1,5 +1,7 @@
 "use client";
 import { useUser } from "@clerk/nextjs";
+import Link from "next/link";
+import type { Route } from "next";
 import { useMutation, useQuery, useConvexAuth } from "convex/react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -27,17 +29,40 @@ function Claim() {
   const setHandle = setHandleInput;
   const available = useQuery(api.profiles.handleAvailable, handle.length >= 2 ? { handle } : "skip");
   const claim = useMutation(api.profiles.claim);
-  const pending = useMemo(() => { if (typeof window === "undefined") return []; const stored = sessionStorage.getItem("priors:pending"); return stored ? decodeIndices(new URLSearchParams(stored)) : []; }, []);
+  const pending = useMemo(() => { if (typeof window === "undefined") return []; const stored = localStorage.getItem("priors:pending") ?? sessionStorage.getItem("priors:pending"); return stored ? decodeIndices(new URLSearchParams(stored)) : []; }, []);
+  const [stuck, setStuck] = useState(false);
+  useEffect(() => { const t = setTimeout(() => setStuck(true), 12000); return () => clearTimeout(t); }, []);
 
-  useEffect(() => { if (isLoaded && !user) router.replace("/sign-in"); else if (mine) router.replace(`/${mine.handle}`); }, [mine, router, isLoaded, user]);
+  useEffect(() => {
+    if (isLoaded && !user) router.replace("/sign-in");
+    else if (mine) {
+      localStorage.setItem("priors:handle", mine.handle);
+      const ret = localStorage.getItem("priors:return");
+      router.replace(ret && ret.startsWith("/") && !ret.startsWith("//") && !ret.startsWith("/claim") && !ret.startsWith("/sign-in") ? ret as Route : `/${mine.handle}`);
+    }
+  }, [mine, router, isLoaded, user]);
 
-  if (!isLoaded || !user || authLoading || mine === undefined) return <main className="p-8 text-sm text-ink-2" role="status">Loading your account…</main>;
+  if (!isLoaded || !user || authLoading || mine === undefined) return (
+    <main className="min-h-screen grid place-items-center p-8" role="status">
+      <div className="grid gap-6 justify-items-center w-full max-w-[320px]">
+        <Wordmark size={30} />
+        {stuck ? <>
+          <p className="text-[13px] text-ink-2 text-center">Couldn’t reach your account.</p>
+          <button type="button" className="btn" onClick={() => { setStuck(false); window.location.reload(); }}>Try again</button>
+          <Link href="/" className="cap hover:text-ink">back to explorer</Link>
+        </> : <>
+          <p className="cap">loading your account</p>
+          <span className="claim-load-bar" aria-hidden="true" />
+        </>}
+      </div>
+    </main>
+  );
 
   return (
     <main className="min-h-screen grid place-items-center p-8">
       <form className="grid gap-5 w-full max-w-[380px]" onSubmit={async (e) => {
         e.preventDefault(); setBusy(true); setErr(null);
-        try { await claim({ handle, displayName: user.fullName ?? user.username ?? "Someone", avatarUrl: user.imageUrl, indices: pending }); sessionStorage.removeItem("priors:pending"); router.replace(`/${handle}?edit=1`); }
+        try { await claim({ handle, displayName: user.fullName ?? user.username ?? "Someone", avatarUrl: user.imageUrl, indices: pending }); localStorage.removeItem("priors:pending"); sessionStorage.removeItem("priors:pending"); localStorage.setItem("priors:handle", handle); router.replace(`/${handle}?edit=1`); }
         catch (x) { setErr((x as Error).message.replace(/^[\s\S]*Uncaught Error:\s*/, "").split("\n")[0]); setBusy(false); }
       }}>
         <Wordmark size={30} />

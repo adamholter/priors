@@ -90,3 +90,9 @@ button, [role="button"] { cursor: pointer; }
 
 button:disabled { cursor: not-allowed; opacity: .5; }
 :where(button, a, summary, select, input):focus-visible { outline: 2px solid var(--indigo); outline-offset: 3px; }
+
+/* Claim page loading hairline */
+.claim-load-bar { position: relative; width: 200px; height: 1px; background: var(--hair); overflow: hidden; }
+.claim-load-bar::after { content: ""; position: absolute; top: 0; bottom: 0; width: 60px; background: var(--indigo); animation: claim-slide 1.15s cubic-bezier(.45,.05,.55,.95) infinite; }
+@keyframes claim-slide { from { transform: translateX(-70px); } to { transform: translateX(210px); } }
+@media (prefers-reduced-motion: reduce) { .claim-load-bar::after { animation: none; width: 200px; } }

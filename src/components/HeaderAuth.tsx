@@ -2,7 +2,7 @@
 import { useUser, SignOutButton } from "@clerk/nextjs";
 import { useMutation, useQuery, useConvexAuth } from "convex/react";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "../../convex/_generated/api";
 import type { IndexConfig } from "@/engine";
 import { encodeIndices } from "@/lib/url";
@@ -21,9 +21,13 @@ function Inner({ indices }: { indices: IndexConfig[] }) {
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const stash = () => sessionStorage.setItem("priors:pending", encodeIndices(indices).toString());
+  const [knownHandle, setKnownHandle] = useState("");
+  useEffect(() => { const id = requestAnimationFrame(() => setKnownHandle(localStorage.getItem("priors:handle") ?? "")); return () => cancelAnimationFrame(id); }, []);
+  useEffect(() => { if (mine?.handle) localStorage.setItem("priors:handle", mine.handle); }, [mine?.handle]);
+  // localStorage, not sessionStorage: OAuth sign-in hops through another origin and drops session state.
+  const stash = () => { try { localStorage.setItem("priors:pending", encodeIndices(indices).toString()); localStorage.setItem("priors:return", window.location.pathname + window.location.search); } catch { /* private mode */ } };
   if (!isLoaded) return <span className="text-xs text-grey">Loading account…</span>;
-  if (!isSignedIn) return <Link href="/sign-in" onClick={stash} transitionTypes={["nav-forward"]} className="btn"><span className="sm:hidden">Sign in</span><span className="hidden sm:inline">Sign in to get your page</span></Link>;
+  if (!isSignedIn) return <div className="flex items-center gap-2">{knownHandle && <Link href={`/${knownHandle}`} transitionTypes={["nav-forward"]} className="btn-quiet">@{knownHandle}</Link>}<Link href="/sign-in" onClick={stash} transitionTypes={["nav-forward"]} className="btn"><span className="sm:hidden">Sign in</span><span className="hidden sm:inline">Sign in to get your page</span></Link></div>;
   if (mine === undefined) return null;
   if (!mine) return <Link href="/claim" onClick={stash} transitionTypes={["nav-forward"]} className="btn">Claim your page</Link>;
   return (
