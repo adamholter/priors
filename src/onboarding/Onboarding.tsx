@@ -176,9 +176,9 @@ export function Onboarding({ snapshot }: { snapshot: Snapshot }) {
             <div className="solver-monitor" role="region" aria-label="Optimization monitor">
               <span className="sr-only" role="status" aria-label={error ? "Search error" : complete ? "Search complete" : "Search running"}>{error ? "Search stopped" : complete ? "Search complete" : "Searching benchmark combinations"}</span>
               <div className="monitor-top"><span><i className={running ? "pulse" : ""} />{error ? "SEARCH STOPPED" : complete ? "SEARCH COMPLETE" : "SEARCH IN PROGRESS"}</span><span>{elapsed.toFixed(1)}s</span></div>
-              <div className="agreement"><strong>{update?.matchedPositions ?? 0}<span>/{order.length}</span></strong><span>in place within your lineup<br /><small>{update?.priorityTotal ? update.priorityMatched === update.priorityTotal ? "Your edits are preserved" : "Some of your edits remain unresolved" : "Only your selected lineup counts"}</small></span></div>
+              <div className="agreement"><strong>{(update?.closeness ?? 0).toFixed(0)}<span>%</span></strong><span>fit to your lineup<br /><small>{update?.matchedPositions ?? 0}/{order.length} in place{update?.priorityTotal ? update.priorityMatched === update.priorityTotal ? " · your edits are preserved" : " · some edits unresolved" : ""}</small></span></div>
               <Trace values={history} />
-              <div className="monitor-metrics"><span>{(update?.closeness ?? 0).toFixed(0)}% <small>match closeness</small></span><span>{(update?.tested ?? 0).toLocaleString()} <small>combinations</small></span><span>{update?.benchmarkCount ?? "—"} <small>benchmarks</small></span></div>
+              <div className="monitor-metrics"><span>{(update?.tested ?? 0).toLocaleString()} <small>combinations</small></span><span>{update?.benchmarkCount ?? "—"} <small>benchmarks</small></span></div>
               <div className="terminal-log" aria-hidden="true">{logs.length ? logs.map(log => <div key={log.id}><span aria-hidden="true">·</span>{log.text}</div>) : <div><span aria-hidden="true">·</span>Reading the benchmark evidence.</div>}</div>
             </div>
             {error && <div className="fit-error" role="alert"><p>{error}</p><button className="text-control" onClick={start}>Try again <Arrow /></button></div>}
