@@ -83,7 +83,7 @@ function ShareCardsContent({ indices, active, date, profile }: ShareProps) {
       onClick={(e) => { if (backdrop.current && e.target === e.currentTarget && outside(e.clientX, e.clientY)) dialog.current?.close(); backdrop.current = false; }}
       className="m-auto w-[min(1160px,calc(100vw-24px))] max-h-[92dvh] overflow-y-auto rounded-md border hairline bg-bone p-4 sm:p-6 text-ink backdrop:bg-black/35">
       <div className="mb-4 flex items-center justify-between gap-4">
-        <div><h2 id={heading} className="text-2xl">Share card</h2><p className="text-sm text-ink-2">{active.name} · 10 designs</p></div>
+        <div><h2 id={heading} className="text-2xl">Share card</h2><p className="text-sm text-ink-2">{active.name} · {SHARE_DESIGNS.length} designs</p></div>
         <button type="button" className="btn-quiet inline-flex items-center justify-center p-2" aria-label="Close share card" onClick={() => dialog.current?.close()}><CloseIcon /></button>
       </div>
       {open && <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_270px]">

@@ -9,6 +9,7 @@ export const SHARE_DESIGNS = [
   { id: "race", name: "Finish line" },
   { id: "ledger", name: "Index ledger" },
   { id: "spotlight", name: "Winner spotlight" },
+  { id: "board", name: "Leaderboard" },
 ] as const;
 
 export type ShareDesign = (typeof SHARE_DESIGNS)[number]["id"];
