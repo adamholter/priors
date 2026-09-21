@@ -42,7 +42,7 @@ export function Onboarding({ snapshot }: { snapshot: Snapshot }) {
   useEffect(() => { orderRef.current = order; }, [order]);
   const [stage, setStage] = useState<"order" | "fit">("order");
   const [drag, setDrag] = useState<{ id: string; y: number } | null>(null);
-  const dragInfo = useRef<{ id: string; startY: number; top: number; scroll: number; original: string[] } | null>(null);
+  const dragInfo = useRef<{ id: string; startY: number; top: number; scroll: number; original: string[]; pointerId: number; cleanup: () => void } | null>(null);
   const [announcement, setAnnouncement] = useState("");
   const [update, setUpdate] = useState<FitUpdate | null>(null);
   const [logs, setLogs] = useState<{ id: number; text: string }[]>([]);
@@ -66,7 +66,7 @@ export function Onboarding({ snapshot }: { snapshot: Snapshot }) {
     return () => clearInterval(timer);
   }, [running]);
   useEffect(() => {
-    const cancel = (e: KeyboardEvent) => { if (e.key === "Escape" && dragInfo.current) { setOrder(dragInfo.current.original); dragInfo.current = null; setDrag(null); setAnnouncement("Move cancelled."); } };
+    const cancel = (e: KeyboardEvent) => { if (e.key === "Escape" && dragInfo.current) { release(true); setAnnouncement("Move cancelled."); } };
     window.addEventListener("keydown", cancel); return () => window.removeEventListener("keydown", cancel);
   }, []);
   function move(id: string, to: number) {
@@ -75,25 +75,46 @@ export function Onboarding({ snapshot }: { snapshot: Snapshot }) {
     orderRef.current = next; setOrder(next); setAnnouncement(`${models.get(id)?.name} moved to ${next.indexOf(id) + 1} of ${next.length}.`);
   }
   function grab(e: PointerEvent<HTMLButtonElement>, id: string) {
-    if (e.button !== 0 || stage !== "order") return;
+    if (e.button !== 0 || stage !== "order" || dragInfo.current) return;
     if (e.pointerType === "touch" && !(e.target as HTMLElement).closest(".grip")) return;
-    e.currentTarget.setPointerCapture(e.pointerId);
+    e.preventDefault();
     const top = order.indexOf(id) * ROW;
-    dragInfo.current = { id, top, startY: e.clientY, scroll: window.scrollY, original: [...order] };
+    const info = { id, top, startY: e.clientY, scroll: window.scrollY, original: [...order], pointerId: e.pointerId, cleanup: () => {} };
+    // Window listeners are the real delivery path. Pointer capture is only a cursor nicety:
+    // reordering the row mid-drag releases it (lostpointercapture), which must not end the drag.
+    const move = (ev: globalThis.PointerEvent) => { if (ev.pointerId === info.pointerId) pullAt(ev.clientY); };
+    const end = (ev: globalThis.PointerEvent) => { if (ev.pointerId === info.pointerId) release(); };
+    const bail = () => release(true);
+    info.cleanup = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", end);
+      window.removeEventListener("pointercancel", bail);
+      window.removeEventListener("blur", bail);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", end);
+    window.addEventListener("pointercancel", bail);
+    window.addEventListener("blur", bail);
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* some touch browsers throw here */ }
+    dragInfo.current = info;
     setDrag({ id, y: top });
   }
-  function pull(e: PointerEvent<HTMLButtonElement>) {
+  function pullAt(clientY: number) {
     const d = dragInfo.current; if (!d) return;
-    if (e.clientY < 80) window.scrollBy(0, -10); else if (e.clientY > innerHeight - 80) window.scrollBy(0, 10);
-    const y = Math.max(-8, Math.min((order.length - 1) * ROW + 8, d.top + e.clientY - d.startY + window.scrollY - d.scroll));
+    if (clientY < 80) window.scrollBy(0, -10); else if (clientY > innerHeight - 80) window.scrollBy(0, 10);
+    const y = Math.max(-8, Math.min((order.length - 1) * ROW + 8, d.top + clientY - d.startY + window.scrollY - d.scroll));
     setDrag({ id: d.id, y }); const to = Math.max(0, Math.min(order.length - 1, Math.round(y / ROW)));
     if (orderRef.current.indexOf(d.id) !== to) move(d.id, to);
   }
   function release(cancel = false) {
-    if (cancel && dragInfo.current) setOrder(dragInfo.current.original);
-    dragInfo.current = null; setDrag(null);
+    const d = dragInfo.current; if (!d) return;
+    d.cleanup();
+    dragInfo.current = null;
+    if (cancel) { orderRef.current = d.original; setOrder(d.original); }
+    setDrag(null);
   }
   function start() {
+    release();
     worker.current?.terminate(); if (displayTimer.current) clearTimeout(displayTimer.current); displayTimer.current = null; setError(""); setCopied(false); setUpdate(null); latest.current = null; setLogs([]); setHistory([]); setElapsed(0); startTime.current = performance.now(); setStage("fit");
     window.scrollTo({ top: 0, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth" });
     try {
@@ -126,7 +147,7 @@ export function Onboarding({ snapshot }: { snapshot: Snapshot }) {
       w.postMessage({ snapshot, target: order, priorities: { baseline: original }, reducedMotion: window.matchMedia("(prefers-reduced-motion: reduce)").matches, quality: Object.fromEntries(quality.map(q => [q.id, q.score])) });
     } catch { setError("Could not start the search. Please try again."); }
   }
-  function edit() { worker.current?.terminate(); worker.current = null; if (displayTimer.current) clearTimeout(displayTimer.current); displayTimer.current = null; latest.current = null; setStage("order"); setUpdate(null); setError(""); }
+  function edit() { release(); worker.current?.terminate(); worker.current = null; if (displayTimer.current) clearTimeout(displayTimer.current); displayTimer.current = null; latest.current = null; setStage("order"); setUpdate(null); setError(""); }
   function openDialog(kind: "models" | "quality") { setModal(kind); setQuery(""); dialog.current?.showModal(); }
   const liveOrder = stage === "order" || !update?.ranking.length ? order : [...update.ranking.map(r => r.modelId).filter(id => order.includes(id)), ...order.filter(id => !update.ranking.some(r => r.modelId === id))];
   const liveScores = new Map(update?.ranking.map(r => [r.modelId, r]) ?? []);
@@ -153,7 +174,7 @@ export function Onboarding({ snapshot }: { snapshot: Snapshot }) {
               const model = models.get(id)!; const index = liveOrder.indexOf(id); const wanted = order.indexOf(id); const result = liveScores.get(id); const picked = drag?.id === id;
               return <div key={id} role="listitem" data-model={id} className={`tactile-row ${picked ? "picked" : ""}`} style={{ "--lab": colors.get(model.labId) ?? "#8A8A80", transform: `translateY(${picked ? drag.y : index * ROW}px)`, zIndex: picked ? 20 : 1 } as CSSProperties}>
                 <span className="rank-number">{String(index + 1).padStart(2, "0")}</span>
-                <button className="model-grab" aria-label={stage === "order" ? `Move ${model.name}, rank ${wanted + 1}` : `${model.name}, rank ${index + 1}, score ${result ? result.score.toFixed(1) : "unavailable"}`} aria-describedby={stage === "order" ? "drag-help" : undefined} onPointerDown={e => grab(e, id)} onPointerMove={pull} onPointerUp={() => release()} onPointerCancel={() => release(true)} onKeyDown={e => { if (stage !== "order") return; if (e.key === "ArrowUp" || e.key === "ArrowDown") { e.preventDefault(); move(id, wanted + (e.key === "ArrowUp" ? -1 : 1)); } }}>
+                <button className="model-grab" aria-label={stage === "order" ? `Move ${model.name}, rank ${wanted + 1}` : `${model.name}, rank ${index + 1}, score ${result ? result.score.toFixed(1) : "unavailable"}`} aria-describedby={stage === "order" ? "drag-help" : undefined} onPointerDown={e => grab(e, id)} onKeyDown={e => { if (stage !== "order") return; if (e.key === "ArrowUp" || e.key === "ArrowDown") { e.preventDefault(); move(id, wanted + (e.key === "ArrowUp" ? -1 : 1)); } }}>
                   <span className="model-name">{model.name}</span><span className="belief-track"><span className="belief-bar" style={{ width: stage === "order" || !update ? "100%" : `${result ? Math.max(2, result.score / maxScore * 100) : 0}%` }} /></span>
                   {stage === "order" ? <span className="grip"><Grip /></span> : <span className="live-score">{result ? result.score.toFixed(1) : "—"}</span>}
                 </button>
