@@ -18,6 +18,6 @@ export async function GET(req: Request) {
   const snapshot = profile ? mergeImports(snap, profile.imports).snapshot : snap;
   const list = decodeIndices(u.searchParams);
   const index = list[0] ?? defaultConfig(snapshot);
-  const res = await renderShareCard(snapshot, index, profile ? { name: profile.displayName, handle: profile.handle, avatarUrl: profile.avatarUrl } : { name: u.searchParams.get("name") ?? "" }, { design: u.searchParams.get("design") ?? undefined });
+  const res = await renderShareCard(snapshot, index, profile ? { name: profile.displayName, handle: profile.handle, avatarUrl: profile.avatarUrl } : { name: u.searchParams.get("name") ?? "" }, { design: u.searchParams.get("design") ?? undefined, accent: profile?.theme?.accent, surface: profile?.theme?.surface === "white" ? "#FFFFFF" : undefined });
   return new Response(res.body, { status: res.status, headers: { "content-type": res.headers.get("content-type") ?? "image/png", "cache-control": "public, max-age=600, s-maxage=86400, stale-while-revalidate=86400" } });
 }

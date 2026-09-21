@@ -45,7 +45,7 @@ export default defineSchema({
     socials: v.optional(v.array(v.object({ label: v.string(), url: v.string() }))),
     indices: v.array(indexConfig),
     sections: v.array(section),
-    theme: v.optional(v.object({ accent: v.optional(v.string()), surface: v.optional(v.union(v.literal("bone"), v.literal("white"))), serif: v.optional(v.string()) })),
+    theme: v.optional(v.object({ accent: v.optional(v.string()), surface: v.optional(v.union(v.literal("bone"), v.literal("white"))), serif: v.optional(v.string()), mono: v.optional(v.string()), css: v.optional(v.string()) })),
     /** API token hash for agent writes (skill). */
     agentTokenHash: v.optional(v.string()),
     updatedAt: v.number(),

@@ -62,7 +62,7 @@ export const update = mutation({
       displayName: v.optional(v.string()), bio: v.optional(v.string()), avatarUrl: v.optional(v.string()), avatarStorageId: v.optional(v.id("_storage")),
       socials: v.optional(v.array(v.object({ label: v.string(), url: v.string() }))),
       indices: v.optional(v.any()), sections: v.optional(v.any()),
-      theme: v.optional(v.object({ accent: v.optional(v.string()), surface: v.optional(v.union(v.literal("bone"), v.literal("white"))), serif: v.optional(v.string()) })),
+      theme: v.optional(v.object({ accent: v.optional(v.string()), surface: v.optional(v.union(v.literal("bone"), v.literal("white"))), serif: v.optional(v.string()), mono: v.optional(v.string()), css: v.optional(v.string()) })),
     }),
   },
   handler: async (ctx, { patch }) => {

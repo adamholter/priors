@@ -22,7 +22,7 @@ export interface Section {
 export interface Profile {
   _id: string; handle: string; displayName: string; avatarUrl?: string; bio?: string;
   socials?: { label: string; url: string }[]; indices: IndexConfig[]; sections: Section[];
-  theme?: { accent?: string; surface?: "bone" | "white"; serif?: string };
+  theme?: { accent?: string; surface?: "bone" | "white"; serif?: string; mono?: string; css?: string };
   imports?: { benchmark: Snapshot["benchmarks"][0]; rows: import("@/data/types").RawRow[] }[];
 }
 
@@ -36,9 +36,17 @@ export function IndexPage({ profile, snapshot, dates, edit }: { profile: Profile
   const surface = p.theme?.surface === "white" ? "#FFFFFF" : "#FBFBF9";
   const builderHref = `/?${encodeIndices(p.indices).toString()}`;
   const [selected, setSelected] = useState<string | null>(null);
+  // Owner-controlled theme: preset fields become scoped rules, `css` is a raw
+  // stylesheet for their page. .page-root scopes everything to this page.
+  const customCss = useMemo(() => sanitizeCss([
+    p.theme?.serif ? `.page-root h1, .page-root h2, .page-root h3, .page-root .serif { font-family: ${p.theme.serif}, Newsreader, Georgia, serif; }` : "",
+    p.theme?.mono ? `.page-root .mono, .page-root .num, .page-root code { font-family: ${p.theme.mono}, "JetBrains Mono", Menlo, monospace; }` : "",
+    p.theme?.css ?? "",
+  ].filter(Boolean).join("\n")), [p.theme?.serif, p.theme?.mono, p.theme?.css]);
 
   return (
-    <div className="min-h-screen" style={{ ["--indigo" as string]: accent, background: surface }}>
+    <div className="page-root min-h-screen" style={{ ["--indigo" as string]: accent, background: surface }}>
+      {customCss && <style>{customCss}</style>}
       <header className="flex flex-wrap items-center gap-x-6 gap-y-2 px-4 sm:px-8 min-h-14 py-2 border-b hairline sticky top-0 z-10" style={{ background: surface + "E6", backdropFilter: "blur(8px)" }}>
         <Wordmark />
         <span className="text-grey text-[13px]">/ {p.handle}</span>
@@ -92,6 +100,11 @@ export function IndexPage({ profile, snapshot, dates, edit }: { profile: Profile
       </main>
     </div>
   );
+}
+
+/** Owner CSS: their page, their rules — but block style-tag breakout and JS URLs. */
+function sanitizeCss(css: string) {
+  return css.replace(/<\//g, "<\\/").replace(/expression\s*\(|javascript\s*:/gi, "blocked").slice(0, 10_000);
 }
 
 function defaultTitle(s: Section, indexName?: string) {
