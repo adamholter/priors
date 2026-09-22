@@ -130,7 +130,7 @@ export function Onboarding({ snapshot }: { snapshot: Snapshot }) {
         const text = searchMessage(u, snapshot);
         const entry = { id: ++logId, text };
         setLogs(l => l.at(-1)?.text === text ? l : [...l.slice(-2), entry]);
-        setHistory(h => [...h.slice(-23), u.closeness]);
+        setHistory(h => [...h.slice(-23), u.matchedPositions / Math.max(1, order.length) * 100]);
         if (u.phase === "complete") setAnnouncement(`Search complete. ${u.exactMatch ? "Your full order matches." : "No matching configuration found."} ${u.matchedPositions} of ${order.length} models are in their requested positions.`);
       };
       w.onmessage = (e: MessageEvent<FitUpdate | { error: string }>) => {
@@ -197,7 +197,7 @@ export function Onboarding({ snapshot }: { snapshot: Snapshot }) {
             <div className="solver-monitor" role="region" aria-label="Optimization monitor">
               <span className="sr-only" role="status" aria-label={error ? "Search error" : complete ? "Search complete" : "Search running"}>{error ? "Search stopped" : complete ? "Search complete" : "Searching benchmark combinations"}</span>
               <div className="monitor-top"><span><i className={running ? "pulse" : ""} />{error ? "SEARCH STOPPED" : complete ? "SEARCH COMPLETE" : "SEARCH IN PROGRESS"}</span><span>{elapsed.toFixed(1)}s</span></div>
-              <div className="agreement"><strong>{(update?.closeness ?? 0).toFixed(0)}<span>%</span></strong><span>fit to your lineup<br /><small>{update?.matchedPositions ?? 0}/{order.length} in place{update?.priorityTotal ? update.priorityMatched === update.priorityTotal ? " · your edits are preserved" : " · some edits unresolved" : ""}</small></span></div>
+              <div className="agreement"><strong>{Math.round((update?.matchedPositions ?? 0) / Math.max(1, order.length) * 100)}<span>%</span></strong><span>fit to your lineup<br /><small>{update?.matchedPositions ?? 0}/{order.length} in place{update?.priorityTotal ? update.priorityMatched === update.priorityTotal ? " · your edits are preserved" : " · some edits unresolved" : ""}</small></span></div>
               <Trace values={history} />
               <div className="monitor-metrics"><span>{(update?.tested ?? 0).toLocaleString()} <small>combinations</small></span><span>{update?.benchmarkCount ?? "—"} <small>benchmarks</small></span></div>
               <div className="terminal-log" aria-hidden="true">{logs.length ? logs.map(log => <div key={log.id}><span aria-hidden="true">·</span>{log.text}</div>) : <div><span aria-hidden="true">·</span>Reading the benchmark evidence.</div>}</div>
