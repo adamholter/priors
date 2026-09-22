@@ -4,7 +4,7 @@ import Link from "next/link";
 import type { Snapshot } from "@/data/types";
 import { chartVariantMode, computeIndex, defaultConfig, selectVariants, type IndexConfig } from "@/engine";
 import { ShareCards } from "./ShareCards";
-import { encodeIndices } from "@/lib/url";
+import { encodeIndices, decodeIndices } from "@/lib/url";
 import { WeightsPanel } from "./WeightsPanel";
 import { Rankings } from "./Rankings";
 import { ParetoChart } from "./chart/ParetoChart";
@@ -29,6 +29,16 @@ export function Builder({ snapshot: base, dates, initialIndices }: { snapshot: S
   const snapshot = useMemo(() => mergeImports(sourceSnapshot, local).snapshot, [sourceSnapshot, local]);
   // URL is the source of truth for anonymous builds; multiple `i` params = multiple indices.
   const [indices, setIndices] = useState<IndexConfig[]>(() => (initialIndices.length ? initialIndices : [defaultConfig(base)]));
+  // Restore the last edited indices when the URL carries none, and persist
+  // edits so returning to /builder picks up where you left off.
+  useEffect(() => {
+    if (initialIndices.length) return;
+    const id = requestAnimationFrame(() => {
+      try { const saved = localStorage.getItem("priors:indices"); if (saved) { const list = decodeIndices(JSON.parse(saved) as string[]); if (list.length) setIndices(list); } } catch { /* ignore */ }
+    });
+    return () => cancelAnimationFrame(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [activeId, setActiveId] = useState(indices[0].id);
   const active = indices.find((i) => i.id === activeId) ?? indices[0];
   const result = useMemo(() => computeIndex(snapshot, { ...active, variants: "all" }), [snapshot, active]);
@@ -60,6 +70,9 @@ export function Builder({ snapshot: base, dates, initialIndices }: { snapshot: S
     if (s.has(id)) s.delete(id); else s.add(id);
     return { ...i, excludeModels: s.size ? [...s] : [] };
   })), [activeId]);
+  const setExcluded = useCallback((ids: string[]) => setIndices((list) => list.map((i) => i.id === activeId ? { ...i, excludeModels: ids } : i)), [activeId]);
+  const modelPicker = { models: pickerModels, excluded: excludedIds, onToggleModel: toggleModel, onShowAllModels: () => setExcluded([]), onHideAllModels: () => setExcluded(pickerModels.map((m) => m.id)) };
+  const releaseProps = { releasedAfter: active.releasedAfter, onChangeReleased: (v: string) => update({ ...active, releasedAfter: v }) };
 
   // write URL (debounced) when indices change
   const t = useRef<number | null>(null);
@@ -70,6 +83,7 @@ export function Builder({ snapshot: base, dates, initialIndices }: { snapshot: S
       url.searchParams.delete("i");
       p.getAll("i").forEach((value) => url.searchParams.append("i", value));
       window.history.replaceState(null, "", url.toString());
+      try { localStorage.setItem("priors:indices", JSON.stringify(p.getAll("i"))); } catch { /* ignore */ }
     }, 150);
     return () => { if (t.current) window.clearTimeout(t.current); };
   }, [indices]);
@@ -113,14 +127,14 @@ export function Builder({ snapshot: base, dates, initialIndices }: { snapshot: S
           <div>
             <div className="flex flex-wrap gap-x-4 gap-y-1 items-baseline justify-between mb-3">
               <h2 className="text-[26px]">{active.name}</h2>
-              <ChartSettings label="Ranking" mode={rankingMode} onChange={(rankingVariants) => update({ ...active, rankingVariants })} models={pickerModels} excluded={excludedIds} onToggleModel={toggleModel} />
+              <ChartSettings label="Ranking" mode={rankingMode} onChange={(rankingVariants) => update({ ...active, rankingVariants })} {...releaseProps} {...modelPicker} />
             </div>
             <Rankings onSelect={(r) => { if (r) calculations.current?.inspect(r.variant.id); }} ranked={rankingRows} hidden={hiddenRows} hiddenCount={active.excludeModels?.length} onShowHidden={() => setWantHidden(true)} onIncludeAll={active.excludeModels?.length ? () => { update({ ...active, excludeModels: [] }); setWantHidden(false); } : undefined} hiddenNote="hidden by this index" labs={snapshot.labs} showEffort={rankingMode === "all"} />
           </div>
           <div>
             <div className="flex flex-wrap gap-x-4 gap-y-1 items-baseline justify-between mb-1">
               <h2 className="text-[22px]">Score vs cost per task</h2>
-              <ChartSettings label="Pareto" mode={paretoMode} onChange={(paretoVariants) => update({ ...active, paretoVariants })} models={pickerModels} excluded={excludedIds} onToggleModel={toggleModel} />
+              <ChartSettings label="Pareto" mode={paretoMode} onChange={(paretoVariants) => update({ ...active, paretoVariants })} {...releaseProps} {...modelPicker} />
             </div>
             <ParetoChart ranked={paretoRows} labs={snapshot.labs} />
           </div>

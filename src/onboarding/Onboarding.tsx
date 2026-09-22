@@ -40,6 +40,19 @@ export function Onboarding({ snapshot }: { snapshot: Snapshot }) {
   const [order, setOrder] = useState(original);
   const orderRef = useRef(order);
   useEffect(() => { orderRef.current = order; }, [order]);
+  // Remember the lineup across visits to the base URL.
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => {
+      try {
+        const saved = JSON.parse(localStorage.getItem("priors:lineup") ?? "[]") as string[];
+        const kept = saved.filter((id) => models.has(id));
+        if (kept.length >= 2) { setOrder(kept); orderRef.current = kept; }
+      } catch { /* ignore */ }
+    });
+    return () => cancelAnimationFrame(raf);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => { try { localStorage.setItem("priors:lineup", JSON.stringify(order)); } catch { /* ignore */ } }, [order]);
   const [stage, setStage] = useState<"order" | "fit">("order");
   const [drag, setDrag] = useState<{ id: string; y: number } | null>(null);
   const dragInfo = useRef<{ id: string; startY: number; top: number; scroll: number; original: string[]; pointerId: number; cleanup: () => void } | null>(null);

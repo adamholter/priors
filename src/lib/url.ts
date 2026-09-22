@@ -1,4 +1,4 @@
-import { DEFAULT_CUTOFF, type IndexConfig } from "../engine";
+import { DEFAULT_CUTOFF, defaultReleasedAfter, type IndexConfig } from "../engine";
 
 /**
  * URL state for anonymous builds. One index per `i` param so multiple indices share a link:
@@ -18,7 +18,7 @@ export function encodeIndex(c: IndexConfig): string {
   if (c.effortMatching) parts.push(`effort=${c.effortMatching}`);
   if (c.labs?.length) parts.push(`labs=${c.labs.join(",")}`);
   if (c.excludeModels?.length) parts.push(`ex=${c.excludeModels.join(",")}`);
-  if (c.releasedAfter) parts.push(`after=${c.releasedAfter}`);
+  if (c.releasedAfter !== undefined) parts.push(`after=${c.releasedAfter}`);
   return parts.join("|");
 }
 
@@ -28,6 +28,11 @@ export function decodeIndex(s: string, id: string): IndexConfig | null {
   const weights: Record<string, number> = {};
   for (const kv of weightsStr.split(",")) { const split = kv.lastIndexOf(":"); const k = kv.slice(0, split), v = kv.slice(split + 1); const w = Number(v); if (split > 0 && k && Number.isFinite(w) && w > 0) weights[k] = w; }
   const c: IndexConfig = { id, name: decodeURIComponent(name) || "Untitled", weights, required: [], cutoff: DEFAULT_CUTOFF, estimateMissing: true, variants: "all" };
+  // Defaults: strictness 50 and a one-year model-age cap. Explicit `strict=`,
+  // `cut=` (legacy) or `after=` params override — `after=` with no value means
+  // "all time" (no age filter).
+  if (!rest.some((r) => r.startsWith("strict=") || r.startsWith("cut="))) c.strictness = 50;
+  if (!rest.some((r) => r.startsWith("after="))) c.releasedAfter = defaultReleasedAfter();
   for (const r of rest) {
     const [k, v = ""] = r.split("=");
     if (k === "req") c.required = v.split(",").filter(Boolean);

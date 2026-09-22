@@ -77,12 +77,19 @@ export function frontierModels(snapshot: Snapshot, n = 30): Set<string> {
 }
 
 /** First-visit mix, matching the shared General frontier configuration. */
-export function defaultConfig(_snapshot: Snapshot, id = "general", name = "General frontier"): IndexConfig {
+/** One year before the given (or current) date — the default model-age cutoff. */
+export function defaultReleasedAfter(from?: string): string {
+  const d = from ? new Date(from) : new Date();
+  d.setFullYear(d.getFullYear() - 1);
+  return d.toISOString().slice(0, 10);
+}
+
+export function defaultConfig(snapshot: Snapshot, id = "general", name = "General frontier"): IndexConfig {
   return {
     id, name,
     weights: { "deepswe-1.1": 43, "terminalbench-4": 54, "arc-agi-3": 9, "simplebench": 38, "bsbench-v2": 12, "aa-humanitys-last-exam": 37, "aa-omniscience": 24, "frontiermath-tier-4-v2": 42 },
-    required: [], optional: ["deepswe-1.1"], strictness: 20, cutoff: 20,
-    estimateMissing: true, variants: "best",
+    required: [], optional: ["deepswe-1.1"], strictness: 50, cutoff: DEFAULT_CUTOFF,
+    estimateMissing: true, variants: "best", releasedAfter: defaultReleasedAfter(snapshot.date),
   };
 }
 
@@ -366,7 +373,9 @@ function estimate(
 ): number | undefined {
   const tm = models.get(target.modelId);
   const tVals = new Map(benchIds.filter((b) => b !== benchmarkId).map((b) => [b, normValue(b, target.id)?.value]).filter((x): x is [string, number] => x[1] != null));
-  if (tVals.size < 1) return undefined;
+  // Above moderate strictness a target needs real measured evidence of its own —
+  // a single strong benchmark must not seed estimates across the whole mix.
+  if (tVals.size < (strictness >= 50 ? 2 : 1)) return undefined;
   const cands: { dist: number; adj: number }[] = [];
   for (const p of pool) {
     if (p.modelId === target.modelId) continue; // don't lean on sibling efforts; they share the gap
@@ -376,8 +385,10 @@ function estimate(
     if (tm?.priceTier && pm?.priceTier && tm.priceTier !== pm.priceTier) continue;
     let d = 0, n = 0, off = 0;
     for (const [b, tv] of tVals) { const x = normValue(b, p.id)?.value; if (x == null) continue; d += Math.abs(tv - x); off += tv - x; n++; }
-    if (n < (strictness >= 75 ? 2 : 1)) continue;
-    cands.push({ dist: d / n + (n < 2 ? 10 : 0), adj: pv.value + off / n });
+    if (n < (strictness >= 75 ? 3 : strictness >= 50 ? 2 : 1)) continue;
+    // Shrink the peer offset by evidence: off/(n+1) applies half the gap on
+    // one shared benchmark, converging to the full offset as evidence grows.
+    cands.push({ dist: d / n + (n < 2 ? 10 : 0), adj: pv.value + off / (n + 1) });
   }
   if (!cands.length) return undefined;
   cands.sort((a, b) => a.dist - b.dist);

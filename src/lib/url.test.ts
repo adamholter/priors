@@ -18,7 +18,7 @@ describe("effort matching URL state", () => {
 });
 
 it("starts with the exact shared General frontier configuration", () => {
-  const shared = decodeIndex("General%20frontier|deepswe-1.1:43,terminalbench-4:54,arc-agi-3:9,simplebench:38,bsbench-v2:12,aa-humanitys-last-exam:37,aa-omniscience:24,frontiermath-tier-4-v2:42|opt=deepswe-1.1|strict=20|cut=20|var=best", "general");
+  const shared = decodeIndex("General%20frontier|deepswe-1.1:43,terminalbench-4:54,arc-agi-3:9,simplebench:38,bsbench-v2:12,aa-humanitys-last-exam:37,aa-omniscience:24,frontiermath-tier-4-v2:42|opt=deepswe-1.1|strict=50|var=best", "general");
   expect(defaultConfig({} as Snapshot)).toEqual(shared);
 });
 

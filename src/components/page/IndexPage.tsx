@@ -98,7 +98,7 @@ export function IndexPage({ profile, snapshot, dates, edit }: { profile: Profile
             return [...seen.values()];
           })();
           const toggleModel = (id: string) => { const s = new Set(idx.excludeModels ?? []); if (s.has(id)) s.delete(id); else s.add(id); updateIndex({ excludeModels: s.size ? [...s] : [] }); };
-          const settings = (label: string, mode: "all" | "best", key: "rankingVariants" | "paretoVariants") => <ChartSettings label={label} mode={mode} onChange={(v) => updateIndex({ [key]: v })} models={pickerModels} excluded={excludedIds} onToggleModel={toggleModel} />;
+          const settings = (label: string, mode: "all" | "best", key: "rankingVariants" | "paretoVariants") => <ChartSettings label={label} mode={mode} onChange={(v) => updateIndex({ [key]: v })} releasedAfter={idx.releasedAfter} onChangeReleased={(v) => updateIndex({ releasedAfter: v })} models={pickerModels} excluded={excludedIds} onToggleModel={toggleModel} onShowAllModels={() => updateIndex({ excludeModels: [] })} onHideAllModels={() => updateIndex({ excludeModels: pickerModels.map((m) => m.id) })} />;
           if (s.kind === "rankings") return (
             <section key={s.id}>
               <div className="flex items-baseline justify-between mb-3"><h2 className="text-[24px]">{title}</h2>{settings("Ranking", rankingMode, "rankingVariants")}</div>
