@@ -61,7 +61,7 @@ export function CalculationSettings({ ref, config, result, snapshot, onChange, c
           </section>
           <section className="grid gap-2 border-t hairline pt-5">
             <h3 className="text-lg text-ink">Strictness and requirements</h3>
-            <p>Strictness is {Math.round(strictness)}. Benchmarks above {cutoffOf(config).toFixed(1)}% weight are automatically required unless you override their checkbox. Higher strictness also demands more effort comparisons, limits how far apart the source and target efforts can be, and narrows peer comparisons. At 100, estimates are disabled.</p>
+            <p>Strictness is {Math.round(strictness)}. A benchmark is automatically required when its weight × model coverage clears {cutoffOf(config).toFixed(1)}% — niche benchmarks need more weight or strictness to gate the ranking. Override with the Required checkboxes. Higher strictness also demands more effort comparisons, limits how far apart the source and target efforts can be, and narrows peer comparisons. At 100, estimates are disabled.</p>
             <p>Effort estimates require {strictness >= 95 ? 3 : strictness >= 75 ? 2 : 1} paired benchmark comparisons{strictness >= 85 ? " and adjacent effort levels" : ""}. Manual Required and Optional choices persist when strictness changes.</p>
             <button className="btn-quiet justify-self-start" onClick={() => onChange({ ...config, required: [], optional: [] })}>Reset requirement overrides</button>
           </section>

@@ -45,7 +45,7 @@ Personal benchmark index builder. Anyone weights AI-model benchmarks, sees ranki
 - Cost means measured cost per task (`aa-cost-per-task-index`, benchmark `costUsd`), never token price. `aa-price-blended` is `proxy: true`.
 - Logical benchmarks: `versionPolicy.fallback` (DeepSWE 1.1 → 1) or `fresh` (AA index versions).
 - Percent scores are used raw; elo/score/usd are min-max normalized over the eligible pool.
-- Any benchmark above the cutoff share (default 5%) is required; below it, missing values are estimated from peers (release window / price tier) and marked, or renormalized when estimation is off.
+- A benchmark is required when `share × model coverage` clears the strictness cutoff (strictness 0 → 50, 50 → 5, 100 → 0): niche benchmarks need real weight or high strictness to gate the ranking. Below the cutoff, missing values are estimated from peers (release window / price tier) and marked, or renormalized when estimation is off.
 
 ## Design
 

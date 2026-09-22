@@ -40,8 +40,12 @@ export function cutoffOf(config: IndexConfig): number {
   return s === 100 ? 0 : 50 * Math.pow(0.1, s / 50);
 }
 
-export function isBenchmarkRequired(config: IndexConfig, id: string, share: number): boolean {
-  return config.required.includes(id) || (!config.optional?.includes(id) && share > cutoffOf(config));
+export function isBenchmarkRequired(config: IndexConfig, id: string, share: number, coverage = 1): boolean {
+  // Automatic requirement scales with both weight and reach: share * model
+  // coverage must clear the strictness cutoff, so niche benchmarks need far
+  // more weight (or strictness) to gate the ranking than broadly-run ones.
+  const cutoff = cutoffOf(config);
+  return config.required.includes(id) || (!config.optional?.includes(id) && (cutoff === 0 ? share > 0 : share * coverage > cutoff));
 }
 
 export function chartVariantMode(config: IndexConfig, chart: "ranking" | "pareto"): "all" | "best" {
@@ -269,7 +273,17 @@ export function computeIndex(snapshot: Snapshot, config: IndexConfig): IndexResu
   const total = used.reduce((a, [, w]) => a + w, 0);
   if (!used.length || total <= 0) return { config, benchmarks: [], ranked: [], excluded: [] };
   const strictness = strictnessOf(config);
-  const shares = used.map(([id, w]) => ({ benchmark: benches.get(id)!, share: (w / total) * 100, required: isBenchmarkRequired(config, id, (w / total) * 100) }));
+  // Model coverage per benchmark: share of llm models with any observation.
+  const varModel = new Map(snapshot.variants.map((v) => [v.id, v.modelId]));
+  const llmIds = new Set(snapshot.variants.filter((v) => models.get(v.modelId)?.kind === "llm").map((v) => v.modelId));
+  const coverageOf = (bid: string) => {
+    const obs = idx.get(bid);
+    if (!obs || !llmIds.size) return 0;
+    const seen = new Set<string>();
+    for (const vid of obs.keys()) { const m = varModel.get(vid); if (m && llmIds.has(m)) seen.add(m); }
+    return seen.size / llmIds.size;
+  };
+  const shares = used.map(([id, w]) => ({ benchmark: benches.get(id)!, share: (w / total) * 100, required: isBenchmarkRequired(config, id, (w / total) * 100, coverageOf(id)) }));
   const normalizeMeasured = new Map(snapshot.benchmarks.map((b) => [b.id, makeNormalizer(b, [...(idx.get(b.id)?.values() ?? [])].map((o) => o.value))]));
 
   // pool: llm variants with at least one used benchmark value, passing filters

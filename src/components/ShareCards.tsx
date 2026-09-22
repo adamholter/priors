@@ -64,7 +64,7 @@ function ShareCardsContent({ indices, active, date, profile }: ShareProps) {
   params.set("date", date);
   params.set("design", design);
   if (profile) params.set("handle", profile.handle);
-  const shareUrl = `${origin}/?${params}`;
+  const shareUrl = `${origin}/builder?${params}`;
   const imageParams = encodeIndices([active]);
   imageParams.set("date", date);
   if (profile) imageParams.set("handle", profile.handle);
@@ -75,7 +75,7 @@ function ShareCardsContent({ indices, active, date, profile }: ShareProps) {
   const xParams = new URLSearchParams({ text: `${active.name} on Priors` });
   if (!local) xParams.set("url", shareUrl);
   const copy = async () => {
-    try { await navigator.clipboard.writeText(`${window.location.origin}/?${params}`); setMessage("Link copied"); }
+    try { await navigator.clipboard.writeText(`${window.location.origin}/builder?${params}`); setMessage("Link copied"); }
     catch { setMessage("Copy failed. Select the link below to copy it manually."); }
   };
   const outside = (x: number, y: number) => {

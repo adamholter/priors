@@ -23,7 +23,16 @@ export function WeightsPanel({ snapshot, config, onChange }: { snapshot: Snapsho
   const active = Object.entries(config.weights).filter(([, w]) => w > 0).map(([id]) => benches.get(id)).filter((b): b is Benchmark => !!b);
   const total = active.reduce((a, b) => a + config.weights[b.id], 0) || 1;
   const shareOf = (id: string) => (config.weights[id] / total) * 100;
-  const isRequired = (id: string) => isBenchmarkRequired(config, id, shareOf(id));
+  const llmCount = useMemo(() => snapshot.models.filter((m) => m.kind === "llm").length || 1, [snapshot]);
+  const coverageFrac = (id: string) => coverage(id) / llmCount;
+  const isRequired = (id: string) => isBenchmarkRequired(config, id, shareOf(id), coverageFrac(id));
+  /** Slider position is the benchmark's share of the index — a fixed 0–70%
+   *  range that behaves identically regardless of the raw weight scale. */
+  const setShare = (id: string, s: number) => {
+    const others = total - config.weights[id];
+    const w = s <= 0 ? 0 : others > 0 ? +(s / (100 - s) * others).toFixed(1) : 10;
+    setW(id, w);
+  };
   const set = (patch: Partial<IndexConfig>) => onChange({ ...config, ...patch });
   const setW = (id: string, w: number) => set({ weights: { ...config.weights, [id]: w } });
   const toggleReq = (id: string, checked: boolean) => set({
@@ -52,7 +61,7 @@ export function WeightsPanel({ snapshot, config, onChange }: { snapshot: Snapsho
                 </label>
               </div>
               <span className="num text-right text-[12.5px]">{share.toFixed(0)}%</span>
-              <input type="range" min={0} max={60} step={1} value={config.weights[b.id]} onChange={(e) => setW(b.id, +e.target.value)} className="w-full h-[3px]" aria-label={`${b.name} weight`} />
+              <input type="range" min={0} max={Math.max(70, Math.ceil(share))} step={1} value={Math.round(share)} onChange={(e) => setShare(b.id, +e.target.value)} className="w-full h-[3px]" aria-label={`${b.name} weight`} />
               <button type="button" onClick={() => setW(b.id, 0)} className="cap text-right hover:text-ink" aria-label={`Remove ${b.name}`}>×</button>
             </div>
           );
