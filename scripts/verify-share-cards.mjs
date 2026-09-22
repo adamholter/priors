@@ -5,7 +5,7 @@ const out = '/tmp/priors-share-cards';
 await mkdir(out, { recursive: true });
 const browser = await chromium.launch({ headless: true });
 try {
-  const page = await browser.newPage({ viewport: { width: 1440, height: 1100 } });
+  const page = await browser.newPage({ viewport: { width: 1440, height: 1100 } });await page.addInitScript(()=>localStorage.setItem('priors:intro-seen','1'));
   const errors = []; page.on('pageerror', e => errors.push(e.message));
   await page.addInitScript(() => { Object.defineProperty(navigator, 'clipboard', { value: { writeText: async value => { window.__copied = value; } } }); });
   await page.goto('http://localhost:48740', { waitUntil: 'networkidle' });

@@ -11,6 +11,7 @@ import type { MixLibrary } from "./library";
 import { useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { convexEnabled } from "@/app/providers";
+import { Intro, INTRO_KEY } from "./Intro";
 import "./onboarding.css";
 
 const INITIAL = ["claude-opus-5.5", "gpt-6-astra", "claude-fable-5.1", "claude-fable-5", "gpt-6-sol", "claude-opus-5", "grok-4.7", "gpt-6-luna", "gemini-3.8-flash", "glm-5.3", "gpt-5.6-terra", "grok-4.6", "gemini-3.7-flash", "claude-sonnet-5"];
@@ -97,6 +98,10 @@ export function Onboarding({ snapshot }: { snapshot: Snapshot }) {
   const [modal, setModal] = useState<"models" | "quality">("quality");
   const [query, setQuery] = useState("");
   const dialog = useRef<HTMLDialogElement>(null);
+  const intro = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    try { if (!localStorage.getItem(INTRO_KEY)) intro.current?.showModal(); } catch { /* ignore */ }
+  }, []);
   const worker = useRef<Worker | null>(null);
   const latest = useRef<FitUpdate | null>(null);
   const displayTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -208,7 +213,7 @@ export function Onboarding({ snapshot }: { snapshot: Snapshot }) {
 
   return <div className={`onboarding stage-${stage} ${running ? "is-running" : ""}`}>
     {convexEnabled && <LineupRecorder onRegister={(fn) => { recordLineup.current = fn; }} />}
-    <header className="onboard-header"><Wordmark size={32} href={null} /><span className="experiment-label">The priors experiment</span><button className="text-control" onClick={() => openDialog("quality")}>About the evidence <span aria-hidden="true">↗</span></button></header>
+    <header className="onboard-header"><Wordmark size={32} href={null} /><span className="experiment-label">The priors experiment</span><div className="header-links"><button className="text-control" onClick={() => intro.current?.showModal()}>How it works</button><button className="text-control" onClick={() => openDialog("quality")}>About the evidence <span aria-hidden="true">↗</span></button></div></header>
     <main className="onboard-main">
       <div className="step-line"><span className={stage === "order" ? "current" : "passed"}>01 <span>Your intuition</span></span><i /><span className={stage === "fit" ? "current" : ""}>02 <span>The evidence</span></span></div>
       <div className="onboard-intro" key={stage}>
@@ -268,6 +273,7 @@ export function Onboarding({ snapshot }: { snapshot: Snapshot }) {
       </div>
     </main>
     <span className="sr-only" aria-live="polite">{announcement}</span>
+    <Intro snapshot={snapshot} lineup={order} dialogRef={intro} onClose={() => { try { localStorage.setItem(INTRO_KEY, "1"); } catch { /* ignore */ } }} />
     <dialog ref={dialog} className="evidence-dialog" aria-labelledby="dialog-heading" onClick={e => { if (e.target === e.currentTarget) { const r = e.currentTarget.getBoundingClientRect(); if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) dialog.current?.close(); } }}>
       <div className="dialog-heading"><div><h2 id="dialog-heading">{modal === "models" ? "Who’s in your lineup?" : "Better evidence, fewer benchmarks."}</h2><p>{modal === "models" ? `Choose 3 to 18 models. ${order.length} selected.` : "Your preferences guide the search. Quality helps break close calls."}</p></div><button aria-label="Close dialog" className="icon-close" onClick={() => dialog.current?.close()}><Cross /></button></div>
       {modal === "models" ? <><input className="model-search" type="search" placeholder="Find a model…" aria-label="Find a model" value={query} onChange={e => setQuery(e.target.value)} /><div className="model-options">{modelOptions.map(m => <label key={m.id}><input type="checkbox" checked={order.includes(m.id)} disabled={order.includes(m.id) ? order.length <= 3 : order.length >= 18} onChange={() => setOrder(o => o.includes(m.id) ? o.filter(id => id !== m.id) : [...o, m.id])} /><i style={{ background: colors.get(m.labId) ?? "#8A8A80" }} /><span>{m.name}</span></label>)}{!modelOptions.length && <p>No models found.</p>}</div><button className="primary-action" onClick={() => dialog.current?.close()}>Use this lineup <Arrow /></button></> : <>

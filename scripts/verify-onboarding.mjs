@@ -11,7 +11,7 @@ const snapshot=await loadSnapshot();
 const out='/tmp/priors-onboarding-qa';await mkdir(out,{recursive:true});
 const browser=await chromium.launch({headless:true});
 try {
- const page=await browser.newPage({viewport:{width:1440,height:1100}});const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ const page=await browser.newPage({viewport:{width:1440,height:1100}});await page.addInitScript(()=>localStorage.setItem('priors:intro-seen','1'));const errors=[];page.on('pageerror',e=>errors.push(e.message));
  await page.addInitScript(()=>{Object.defineProperty(navigator,'clipboard',{value:{writeText:async s=>{window.__copied=s;}}});});
  await page.goto('http://localhost:48741',{waitUntil:'networkidle'});await page.waitForTimeout(500);
  const bars=await page.locator('.belief-bar').evaluateAll(es=>es.map(e=>e.getBoundingClientRect().width));assert(bars.every(w=>Math.abs(w-bars[0])<1));
