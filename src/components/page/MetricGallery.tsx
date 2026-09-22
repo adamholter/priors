@@ -29,9 +29,9 @@ export function MetricGallery({ ranked, snapshot, labs }: { ranked: RankedVarian
   const fmtDate = (x: number) => new Date(x).toISOString().slice(0, 10);
   const MIN_PTS = 3;
 
-  if (ranked.some((r) => r.speed)) panels.push({ id: "speed", title: "Output speed", desc: "tokens per second", open: true, node: <SpeedChart ranked={ranked} labs={labs} /> });
+  if (decode.length >= MIN_PTS) panels.push({ id: "tpt", title: "Time per task", desc: "estimated decode time on the index suite", open: true, node: <MetricScatter pts={decode} labs={labs} xLabel="s/task" xName="Time per task (s)" scale="log" formatX={fmt("s")} aria="Index score versus estimated time per task" /> });
+  if (ranked.some((r) => r.speed)) panels.push({ id: "speed", title: "Output speed", desc: "tokens per second", open: decode.length < MIN_PTS, node: <SpeedChart ranked={ranked} labs={labs} /> });
   if (ttft.length >= MIN_PTS) panels.push({ id: "latency", title: "Latency", desc: "seconds to first token", node: <MetricScatter pts={ttft} labs={labs} xLabel="s" xName="Time to first token (s)" scale="log" formatX={fmt("s")} aria="Index score versus time to first token" /> });
-  if (decode.length >= MIN_PTS) panels.push({ id: "tpt", title: "Time per task", desc: "estimated decode time on the index suite", node: <MetricScatter pts={decode} labs={labs} xLabel="s/task" xName="Time per task (s)" scale="log" formatX={fmt("s")} aria="Index score versus estimated time per task" /> });
   if (tokens.length >= MIN_PTS) panels.push({ id: "tokens", title: "Output tokens", desc: "tokens generated per task", node: <MetricScatter pts={tokens} labs={labs} xLabel="tok" xName="Output tokens per task" scale="log" formatX={(x) => x >= 1000 ? `${(x / 1000).toFixed(0)}k` : `${x.toFixed(0)}`} aria="Index score versus output tokens per task" /> });
   if (dates.length >= MIN_PTS) panels.push({ id: "date", title: "Release date", desc: "when each model shipped", node: <MetricScatter pts={dates} labs={labs} xLabel="" xName="Release date" scale="time" formatX={fmtDate} aria="Index score versus model release date" /> });
   if (uptime.length >= MIN_PTS) panels.push({ id: "uptime", title: "Uptime", desc: "OpenRouter provider uptime, trailing 7 days", node: <MetricScatter pts={uptime} labs={labs} xLabel="%" xName="Uptime (%)" formatX={fmt("%")} aria="Index score versus OpenRouter uptime" /> });
