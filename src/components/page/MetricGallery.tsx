@@ -10,7 +10,14 @@ import { SpeedChart } from "../chart/SpeedChart";
 export function MetricGallery({ ranked, snapshot, labs }: { ranked: RankedVariant[]; snapshot: Snapshot; labs: Lab[] }) {
   const obs = useMemo(() => {
     const m = new Map<string, Map<string, Observation>>();
-    for (const o of snapshot.observations) (m.get(o.benchmarkId) ?? m.set(o.benchmarkId, new Map()).get(o.benchmarkId)!).set(o.variantId, o);
+    for (const o of snapshot.observations) {
+      const b = m.get(o.benchmarkId) ?? m.set(o.benchmarkId, new Map()).get(o.benchmarkId)!;
+      b.set(o.variantId, o);
+      // Source-qualified variants (`id@effort~source-conf`) back their base
+      // effort variant's metrics, the same way the engine substitutes them.
+      const base = o.variantId.split("~")[0];
+      if (!b.has(base)) b.set(base, o);
+    }
     return m;
   }, [snapshot]);
 
@@ -33,7 +40,11 @@ export function MetricGallery({ ranked, snapshot, labs }: { ranked: RankedVarian
   if (ttft.length >= MIN_PTS) panels.push({ id: "latency", title: "Latency", desc: "seconds to first token", node: <MetricScatter pts={ttft} labs={labs} xLabel="s" xName="Time to first token (s)" scale="log" formatX={fmt("s")} aria="Index score versus time to first token" /> });
   if (tokens.length >= MIN_PTS) panels.push({ id: "tokens", title: "Output tokens", desc: "tokens generated per task", node: <MetricScatter pts={tokens} labs={labs} xLabel="tok" xName="Output tokens per task" scale="log" formatX={(x) => x >= 1000 ? `${(x / 1000).toFixed(0)}k` : `${x.toFixed(0)}`} aria="Index score versus output tokens per task" /> });
   if (dates.length >= MIN_PTS) panels.push({ id: "date", title: "Release date", desc: "when each model shipped", node: <MetricScatter pts={dates} labs={labs} xLabel="" xName="Release date" scale="time" formatX={fmtDate} aria="Index score versus model release date" /> });
-  if (uptime.length >= MIN_PTS) panels.push({ id: "uptime", title: "Uptime", desc: "OpenRouter provider uptime, trailing 7 days", node: <MetricScatter pts={uptime} labs={labs} xLabel="%" xName="Uptime (%)" formatX={fmt("%")} aria="Index score versus OpenRouter uptime" /> });
+  if (uptime.length >= MIN_PTS) {
+    // "Nines" axis: plot -log10(downtime) so 90%, 99%, 99.9% get equal spacing.
+    const nines = uptime.map((p) => ({ r: p.r, raw: p.x, x: -Math.log10(Math.max(0.01, 100 - p.x)) }));
+    panels.push({ id: "uptime", title: "Uptime", desc: "OpenRouter provider uptime, trailing 7 days", node: <MetricScatter pts={nines} labs={labs} xLabel="%" xName="Uptime (%)" formatX={(t) => `${parseFloat((100 - 10 ** -t).toFixed(3))}%`} formatValue={fmt("%")} aria="Index score versus OpenRouter uptime" /> });
+  }
 
   if (!panels.length) return null;
   return (
