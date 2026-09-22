@@ -151,15 +151,15 @@ const libRanked=(library?.mixes?.[focus.id]??[]).map(m=>({weights:m.weights,loss
 const otherStarters=FOCUSES.filter(f=>f.id!==focus.id).map(f=>Object.fromEntries(Object.entries(f.starter).filter(([id])=>wantedSet.has(id))));
 const seedMixes=[starter,...otherStarters,...libRanked.slice(0,3).map(m=>m.weights)].filter(m=>Object.keys(m).length>0);
 if(seedMixes.length<4){const preferredMix=Object.fromEntries(ids.filter(id=>(PREFERRED as readonly string[]).includes(id)).map(id=>[id,30]));if(Object.keys(preferredMix).length)seedMixes.push(preferredMix);}
-let lastVerifiedFit=-1,lastProvEmit=0;
+let lastProvEmit=0;
 // Memoized exact(): identical normalized weights under identical settings produce identical
 // results; the search revisits the same mixes many times across passes and restarts.
 const exactCache=new Map<string,Exact>();
 const run=(raw:Record<string,number>,s:Settings,phase:FitUpdate["phase"],it:number,tst:number,log:string):Exact=>{
  const key=JSON.stringify([s.strictness,s.estimateMissing,s.effortMatching,normalize(raw)]);
  const hit=exactCache.get(key);
- if(hit){lastVerifiedFit=hit.update.fitScore;return{loss:hit.loss,update:{...hit.update,phase,iteration:it,tested:tst,log}};}
- const r=exact(snapshot,wanted,raw,s,quality,aff,phase,it,tst,log,priorities);lastVerifiedFit=r.update.fitScore;exactCache.set(key,r);return r;
+ if(hit){return{loss:hit.loss,update:{...hit.update,phase,iteration:it,tested:tst,log}};}
+ const r=exact(snapshot,wanted,raw,s,quality,aff,phase,it,tst,log,priorities);exactCache.set(key,r);return r;
 };
 let best=run({[ids[0]]:100},SETTINGS[0],"preparing",iteration,tested,`Preparing ${ids.length} benchmarks.`);onUpdate(best.update);
 for(let si=0;si<SETTINGS.length&&softOpen();si++){const s=SETTINGS[si],floor=(s.strictness??50)/100,columns:Column[]=[];
@@ -168,7 +168,7 @@ for(const id of ids){
  const libCol=useLibrary?library.columns[id]:undefined;
  if(libCol){columns.push({id,score:wanted.map(m=>libCol[m]??0),present:wanted.map(m=>m in libCol)});continue}
  const one=run({[id]:100},s,"preparing",iteration,++tested,`Preparing ${id}`),map=new Map(one.update.ranking.map(r=>[r.modelId,r.score]));columns.push({id,score:wanted.map(m=>map.get(m)??0),present:wanted.map(m=>map.has(m))});if(performance.now()-lastEmit>100){await show({...best.update,phase:si===0?"preparing":"searching",iteration,tested,log:`Read ${columns.length}/${ids.length} tests, strictness ${s.strictness}.`});lastEmit=performance.now()}await yieldUi()}
-const provisional=(weights:Record<string,number>)=>{const now=performance.now();if(now-lastProvEmit<120)return;lastProvEmit=now;const display=fitScore(wanted,approxScoresFor(wanted,columns,weights,floor),Object.keys(weights).length);if(display<lastVerifiedFit)return;onUpdate({...best.update,provisional:true,fitScore:display,weights})};
+const provisional=(weights:Record<string,number>)=>{const now=performance.now();if(now-lastProvEmit<120)return;lastProvEmit=now;const display=fitScore(wanted,approxScoresFor(wanted,columns,weights,floor),Object.keys(weights).length);if(display<=best.update.fitScore)return;onUpdate({...best.update,provisional:true,fitScore:display,weights})};
 const finalists:Approx[]=[];for(let seed=1;seed<=4&&softOpen();seed++)finalists.push(...search(wanted,columns,quality,aff,floor,seedMixes,si*101+seed,()=>tested++,priorities,softOpen,provisional));
 // Keep independent pools so new supplemental metrics cannot displace every useful starting mix.
 for(const pool of [columns.filter(c=>!c.id.startsWith("real-index:")),columns.filter(c=>c.present.every(Boolean))]){

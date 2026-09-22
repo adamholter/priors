@@ -38,7 +38,7 @@ Personal benchmark index builder. Anyone weights AI-model benchmarks, sees ranki
 - With the local server running: `node scripts/verify-builder.mjs` checks sidebar, effort diagnostics, and snapshot updates; `node scripts/verify-effort-matching.mjs` checks the six-benchmark mix, calibrated/strict matching, independent chart modes, manual requirement overrides, advanced provenance, URL reload, and share cards. `TEST_REFRESH=1 node scripts/verify-builder.mjs` also runs a full live scrape through the browser button.
 - `npm run scrape -- --date YYYY-MM-DD [--only aa,deepswe]` — full run takes ~2–3 min (terminalbench uses headless Chromium)
 - `npx convex dev --once` — push schema/functions (deployment `canny-ferret-545`)
-- Scrape: launchd `com.adam.priors-scrape` every 6 hours (00:30/06:30/12:30/18:30) → `scripts/ops/daily-scrape.sh` → `build.ts` + `npm run library` → commits + pushes `data/snapshots` (main auto-deploys) and raises a macOS notification on scrape/source/library failures. Log: `logs/scrape.log`.
+- Scrape: launchd `com.adam.priors-scrape` every 2 hours (xx:30) → `scripts/ops/daily-scrape.sh` → `build.ts` + `npm run library` → commits + pushes `data/snapshots` (main auto-deploys) and raises a macOS notification on scrape/source/library failures. Log: `logs/scrape.log`.
 
 ## Rules of the data
 
