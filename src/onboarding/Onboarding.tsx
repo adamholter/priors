@@ -266,7 +266,6 @@ export function Onboarding({ snapshot }: { snapshot: Snapshot }) {
           </>}
         </aside>
       </div>
-      <footer className="onboard-footer"><span>Intuition is a starting point. Benchmarks are evidence, not a verdict.</span><span>Snapshot {snapshot.date}</span></footer>
     </main>
     <span className="sr-only" aria-live="polite">{announcement}</span>
     <dialog ref={dialog} className="evidence-dialog" aria-labelledby="dialog-heading" onClick={e => { if (e.target === e.currentTarget) { const r = e.currentTarget.getBoundingClientRect(); if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) dialog.current?.close(); } }}>
