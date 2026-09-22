@@ -59,7 +59,7 @@ export function ChartSettings({ label, mode, onChange, releasedAfter, onChangeRe
           <label htmlFor={`${id}-rel`} className="block text-[12px] text-ink-2 mt-3 mb-2">Models released</label>
           <select id={`${id}-rel`} aria-label={`${label} release window`} value={releasedValue}
             onChange={(e) => { const v = e.target.value; onChangeReleased(v === "all" ? "" : windowDate(Number(v))); }} className="inp">
-            {RELEASE_WINDOWS.map((w) => <option key={w.months} value={w.months}>{w.label}{w.months === 12 ? " (default)" : ""}</option>)}
+            {RELEASE_WINDOWS.map((w) => <option key={w.months} value={w.months}>{w.label}{w.months === 6 ? " (default)" : ""}</option>)}
             <option value="all">All time</option>
             {releasedValue === "custom" && <option value="custom" disabled>Custom ({releasedAfter})</option>}
           </select>

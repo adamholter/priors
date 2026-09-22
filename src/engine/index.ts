@@ -77,10 +77,10 @@ export function frontierModels(snapshot: Snapshot, n = 30): Set<string> {
 }
 
 /** First-visit mix, matching the shared General frontier configuration. */
-/** One year before the given (or current) date — the default model-age cutoff. */
+/** Six months before the given (or current) date — the default model-age cutoff. */
 export function defaultReleasedAfter(from?: string): string {
   const d = from ? new Date(from) : new Date();
-  d.setFullYear(d.getFullYear() - 1);
+  d.setMonth(d.getMonth() - 6);
   return d.toISOString().slice(0, 10);
 }
 
@@ -280,17 +280,7 @@ export function computeIndex(snapshot: Snapshot, config: IndexConfig): IndexResu
   const total = used.reduce((a, [, w]) => a + w, 0);
   if (!used.length || total <= 0) return { config, benchmarks: [], ranked: [], excluded: [] };
   const strictness = strictnessOf(config);
-  // Model coverage per benchmark: share of llm models with any observation.
-  const varModel = new Map(snapshot.variants.map((v) => [v.id, v.modelId]));
-  const llmIds = new Set(snapshot.variants.filter((v) => models.get(v.modelId)?.kind === "llm").map((v) => v.modelId));
-  const coverageOf = (bid: string) => {
-    const obs = idx.get(bid);
-    if (!obs || !llmIds.size) return 0;
-    const seen = new Set<string>();
-    for (const vid of obs.keys()) { const m = varModel.get(vid); if (m && llmIds.has(m)) seen.add(m); }
-    return seen.size / llmIds.size;
-  };
-  const shares = used.map(([id, w]) => ({ benchmark: benches.get(id)!, share: (w / total) * 100, required: isBenchmarkRequired(config, id, (w / total) * 100, coverageOf(id)) }));
+  const shareBase = used.map(([id, w]) => ({ benchmark: benches.get(id)!, share: (w / total) * 100 }));
   const normalizeMeasured = new Map(snapshot.benchmarks.map((b) => [b.id, makeNormalizer(b, [...(idx.get(b.id)?.values() ?? [])].map((o) => o.value))]));
 
   // pool: llm variants with at least one used benchmark value, passing filters
@@ -300,8 +290,22 @@ export function computeIndex(snapshot: Snapshot, config: IndexConfig): IndexResu
     if (config.labs?.length && !config.labs.includes(m.labId)) return false;
     if (config.excludeModels?.includes(m.id)) return false;
     if (config.releasedAfter && m.releaseDate && m.releaseDate < config.releasedAfter) return false;
-    return shares.some((s) => lookup(idx, benches, s.benchmark.id, v.id));
+    return shareBase.some((s) => lookup(idx, benches, s.benchmark.id, v.id));
   });
+
+  // Model coverage per benchmark — measured against the eligible pool, not
+  // every catalog model: a test covering 60 of 100 rankable models is broad,
+  // not 12% of a 500-model catalog.
+  const varModel = new Map(snapshot.variants.map((v) => [v.id, v.modelId]));
+  const poolModels = new Set(pool.map((v) => v.modelId));
+  const coverageOf = (bid: string) => {
+    const obs = idx.get(bid);
+    if (!obs || !poolModels.size) return 0;
+    const seen = new Set<string>();
+    for (const vid of obs.keys()) { const m = varModel.get(vid); if (m && poolModels.has(m)) seen.add(m); }
+    return seen.size / poolModels.size;
+  };
+  const shares = shareBase.map((s) => ({ ...s, required: isBenchmarkRequired(config, s.benchmark.id, s.share, coverageOf(s.benchmark.id)) }));
 
   // raw values per benchmark over the pool -> normalizers
   type Resolved = { normalizedEstimate: boolean; raw: number; from: string; sourceVariantId: string; sourceUrl: string; substituted: boolean; estimateKind?: BenchValue["estimateKind"]; effortFactor?: number; evidence?: string[] };

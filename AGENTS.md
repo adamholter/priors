@@ -49,7 +49,8 @@ Personal benchmark index builder. Anyone weights AI-model benchmarks, sees ranki
 - Cost means measured cost per task (`aa-cost-per-task-index`, benchmark `costUsd`), never token price. `aa-price-blended` is `proxy: true`.
 - Logical benchmarks: `versionPolicy.fallback` (DeepSWE 1.1 → 1) or `fresh` (AA index versions).
 - Percent scores are used raw; elo/score/usd are min-max normalized over the eligible pool.
-- A benchmark is required when `share × model coverage` clears the strictness cutoff (strictness 0 → 50, 50 → 5, 100 → 0): niche benchmarks need real weight or high strictness to gate the ranking. Below the cutoff, missing values are estimated from peers (release window / price tier) and marked, or renormalized when estimation is off.
+- A benchmark is required when `share × model coverage` clears the strictness cutoff (strictness 0 → 50, 50 → 5, 100 → 0) — coverage is measured over the eligible pool, not the whole catalog. Niche benchmarks need real weight or high strictness to gate the ranking. Below the cutoff, missing values are estimated from peers (release window / price tier) and marked, or renormalized when estimation is off. At strictness ≥50 a model needs ≥2 measured benchmarks to seed estimates and peers need ≥2 shared benchmarks; the peer offset shrinks as `off/(n+1)`.
+- Defaults: strictness 50, and `releasedAfter` = six months before the snapshot date — models older than ~6 months are hidden unless the chart-settings gear's "Models released" select says otherwise (`after=` URL param, empty = all time). Models with unknown release dates are never age-filtered.
 
 ## Product decisions
 
