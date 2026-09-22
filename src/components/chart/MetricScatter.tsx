@@ -20,7 +20,7 @@ export function MetricScatter({ pts, labs, xLabel, xName, scale = "linear", form
     return {
       grid: { left: 48, right: 130, top: 24, bottom: 44 },
       xAxis: {
-        type: scale, name: xName, nameLocation: "end", nameGap: 8,
+        type: scale === "linear" ? "value" : scale, name: xName, nameLocation: "end", nameGap: 8,
         nameTextStyle: { color: "#8A8A80", fontSize: 11, align: "right", verticalAlign: "top", padding: [26, 0, 0, 0] },
         axisLabel: scale === "time" ? undefined : { formatter: (v: number) => formatX(v) },
       } as EChartsOption["xAxis"],

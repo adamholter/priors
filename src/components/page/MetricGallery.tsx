@@ -22,7 +22,6 @@ export function MetricGallery({ ranked, snapshot, labs }: { ranked: RankedVarian
   const decode = at("aa-intelligence-index-v4.3", (o) => (o.details?.estimatedDecodeSecondsPerTask as number | undefined) ?? undefined);
   const tokens = at("aa-intelligence-index-v4.3", (o) => (o.details?.outputTokensPerTask as number | undefined) ?? o.outputTokens ?? undefined);
   const uptime = at("openrouter-uptime");
-  const toolErr = at("openrouter-tool-errors");
   const dates = ranked.flatMap((r) => r.model.releaseDate ? [{ x: Date.parse(r.model.releaseDate), r }] : []);
 
   const fmt = (u: string) => (x: number) => `${x.toLocaleString(undefined, { maximumFractionDigits: 2 })}${u}`;
@@ -35,7 +34,6 @@ export function MetricGallery({ ranked, snapshot, labs }: { ranked: RankedVarian
   if (tokens.length >= MIN_PTS) panels.push({ id: "tokens", title: "Output tokens", desc: "tokens generated per task", node: <MetricScatter pts={tokens} labs={labs} xLabel="tok" xName="Output tokens per task" scale="log" formatX={(x) => x >= 1000 ? `${(x / 1000).toFixed(0)}k` : `${x.toFixed(0)}`} aria="Index score versus output tokens per task" /> });
   if (dates.length >= MIN_PTS) panels.push({ id: "date", title: "Release date", desc: "when each model shipped", node: <MetricScatter pts={dates} labs={labs} xLabel="" xName="Release date" scale="time" formatX={fmtDate} aria="Index score versus model release date" /> });
   if (uptime.length >= MIN_PTS) panels.push({ id: "uptime", title: "Uptime", desc: "OpenRouter provider uptime, trailing 7 days", node: <MetricScatter pts={uptime} labs={labs} xLabel="%" xName="Uptime (%)" formatX={fmt("%")} aria="Index score versus OpenRouter uptime" /> });
-  if (toolErr.length >= MIN_PTS) panels.push({ id: "errors", title: "Tool-call errors", desc: "OpenRouter error rate, trailing 3 days", node: <MetricScatter pts={toolErr} labs={labs} xLabel="%" xName="Error rate (%)" formatX={fmt("%")} aria="Index score versus tool-call error rate" /> });
 
   if (!panels.length) return null;
   return (
