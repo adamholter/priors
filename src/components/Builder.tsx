@@ -16,6 +16,7 @@ import { HeaderAuth } from "./HeaderAuth";
 import { DatePicker } from "./DatePicker";
 import { mergeImports, type ImportPayload } from "@/lib/import";
 import { SourceStatus } from "./SourceStatus";
+import { MetricGallery } from "./page/MetricGallery";
 
 export function Builder({ snapshot: base, dates, initialIndices }: { snapshot: Snapshot; dates: string[]; initialIndices: IndexConfig[] }) {
   // Benchmarks imported in this browser (via /import without an account) are merged client-side.
@@ -122,6 +123,10 @@ export function Builder({ snapshot: base, dates, initialIndices }: { snapshot: S
               <ChartSettings label="Pareto" mode={paretoMode} onChange={(paretoVariants) => update({ ...active, paretoVariants })} models={pickerModels} excluded={excludedIds} onToggleModel={toggleModel} />
             </div>
             <ParetoChart ranked={paretoRows} labs={snapshot.labs} />
+          </div>
+          <div>
+            <h2 className="text-[22px] mb-1">More metrics</h2>
+            <MetricGallery ranked={paretoRows} snapshot={snapshot} labs={snapshot.labs} />
           </div>
         </section>
       </main>
