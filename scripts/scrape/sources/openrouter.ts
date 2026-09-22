@@ -129,7 +129,7 @@ const source: Source = {
     return {
       benchmarks: [
         BENCH("openrouter-uptime", "Uptime (7d)", "percent", true, "reliability", "Mean provider uptime over the trailing week on OpenRouter — share of time endpoints can serve the model."),
-        BENCH("openrouter-providers", "Provider count", "count", true, "reliability", "Number of OpenRouter providers serving the model — a redundancy measure."),
+        { ...BENCH("openrouter-providers", "Provider count", "count", true, "reliability", "Number of OpenRouter providers serving the model — a redundancy measure."), proxy: true },
         BENCH("openrouter-tps", "Provider throughput", "count", true, "speed", "Median provider output throughput in tokens per second across OpenRouter endpoints (3d)."),
         BENCH("openrouter-latency", "Provider latency", "seconds", false, "speed", "Median provider latency across OpenRouter endpoints, in seconds (3d)."),
         BENCH("openrouter-tool-errors", "Tool-call error rate", "percent", false, "reliability", "Volume-weighted mean tool-call error rate across OpenRouter providers (3d)."),
