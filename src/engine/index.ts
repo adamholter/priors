@@ -128,7 +128,7 @@ export interface IndexResult {
   /** benchmarks actually used (weight > 0), with resolved shares */
   benchmarks: { benchmark: Benchmark; share: number; required: boolean }[];
   ranked: RankedVariant[];
-  /** variants excluded and why */
+  /** variants dropped for missing required benchmarks, with what's missing (distinct from config.excludeModels display-filtering) */
   excluded: { variant: Variant; model: Model; missing: string[] }[];
 }
 

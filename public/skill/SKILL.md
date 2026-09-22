@@ -89,7 +89,7 @@ Every IndexConfig field:
 | `effortMatching` | `calibrated` (default — infer missing effort scores from the model's measured ratios elsewhere), `strict` (exact effort only), `nearest` (legacy alias) |
 | `rankingVariants` | `best` (one row per model) or `all` (every effort/configuration) |
 | `paretoVariants` | `all` (default) or `best` — independent of `rankingVariants` |
-| `excludeModels` | model-id array — hard-removes models from this index's ranking |
+| `excludeModels` | model-id array — hides models from this index's leaderboard (they still score, under a "hidden" expander; the model-picker gear toggles them) |
 | `variants`, `cutoff` | legacy fields — preserve as-is; new behavior lives in the fields above |
 
 Benchmark ids: `https://mypriors.com/api/benchmarks`. Model ids: the page's own models, visible in `whoami.indices` context or the builder URL.
@@ -112,7 +112,7 @@ curl -s https://mypriors.com/api/agent -H "Authorization: Bearer $PRIORS_TOKEN" 
 - `speed` — score vs output speed for `indexId`
 - `benchmark` — one benchmark's leaderboard (`benchmarkId`)
 - `history` — how the frontier for `indexId` moved over time
-- `gallery` — collapsed expandable charts for `indexId` (speed, latency, time per task, output tokens, release date, OpenRouter uptime). Every page gets one automatically if absent — add `{kind:"gallery", hidden:true}` only if the user asks to remove it.
+- `gallery` — collapsed expandable charts for `indexId` (time per task — open by default — plus output speed, latency, release date, OpenRouter uptime). Every page gets one automatically if absent — add `{kind:"gallery", hidden:true}` only if the user asks to remove it.
 - `text` — a paragraph (`body`)
 - `links` — a list of links (`links`)
 

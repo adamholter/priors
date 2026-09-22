@@ -16,14 +16,18 @@ Personal benchmark index builder. Anyone weights AI-model benchmarks, sees ranki
 
 - `src/data/types.ts` — the data contract (Snapshot, Model, Variant, Benchmark, Observation, RawRow, Source). Read first.
 - `src/data/normalize.ts` — model label → canonical id/effort. Regex families + exact `ALIASES`. Unknown labels are excluded, never guessed. Tests in `normalize.test.ts`.
-- `src/engine/index.ts` — index math: shares, implicit required via cutoff, peer estimation for small gaps, min-max for non-percent units (log for usd), Pareto frontier, `defaultConfig` (coverage-derived). Tests in `index.test.ts`.
-- `src/lib/url.ts` — URL codec for anonymous indices (`?i=name|bench:w,...|req=|cut=|est=|var=`).
+- `src/engine/index.ts` — index math: shares, required via `share × model coverage` vs strictness cutoff, peer estimation for small gaps, min-max for non-percent units (log for usd), Pareto frontier, `defaultConfig` (coverage-derived). Tests in `index.test.ts`.
+- `src/lib/url.ts` — URL codec for anonymous indices: `?i=name|bench:w,...|req=|opt=|strict=|bars=|pareto=|cut=|est=|var=|effort=|labs=|ex=|after=` (multiple `i` params = multiple indices).
 - `src/lib/import.ts` — zod schema for agent/user JSON imports + merge into a snapshot.
-- `scripts/scrape/` — local scraper pipeline. `build.ts` runs every `sources/*.ts`, normalizes, writes `data/snapshots/<date>.json.gz` + `latest.json.gz`. Raw payloads in `data/raw/` (gitignored). Sources: aa (Artificial Analysis, encrypted RSC payloads), deepswe, frontierswe, terminalbench, bsbench, arena, simplebench, arcagi, frontiermath.
+- `src/lib/og.tsx` — all 13 share-card designs (`SHARE_DESIGNS` in `share-designs.ts`; "Leaderboard" is the default, "qr" embeds a QR via the `qrcode` package). Every card footer reads `mypriors.com · <date>`.
+- `src/components/page/MetricGallery.tsx` — collapsed extra-metric panels (Time per task open by default; Output speed, Latency, Release date, Uptime collapsed). Looks up per-variant detail fields on the index observation; source-qualified variant ids (`@effort~source-conf`) resolve to their base effort id, same as engine substitution. Uptime plots `-log10(downtime)` so 90/99/99.9% spread evenly; tooltips/export show raw %.
+- `src/components/chart/ChartSettings.tsx` — per-chart gear menu: effort mode (best/all) + model-visibility checkboxes that toggle `excludeModels`.
+- `src/onboarding/optimizer.ts` — fits benchmark weights from a user-ranked lineup. Search-time exclusions are internal only; the returned config never carries lineup-derived `excludeModels` — the lineup picks weights, not membership.
+- `scripts/scrape/` — local scraper pipeline. `build.ts` runs every `sources/*.ts`, normalizes, writes `data/snapshots/<date>.json.gz` + `latest.json.gz`. Raw payloads in `data/raw/` (gitignored). Sources: aa (Artificial Analysis, encrypted RSC payloads), openrouter (operational metrics — uptime, providers, throughput, latency, tool-call errors; `defaultWeight: 0`), deepswe, frontierswe, terminalbench, bsbench, arena, simplebench, simpleqa, arcagi, frontiermath, andonlabs, exploitbench, posttrainbench, weirdml. Partial `--only` runs seed effort attribution from the prior snapshot.
 - FrontierMath reads Epoch AI's live `https://epoch.ai/data/benchmarks.csv`: private Tiers 1–3 (v2), Tier 4 (v2), and Erdős. Public sample questions and obsolete v1 sets are excluded; raw CSV is retained. CSV standard errors are preserved as notes, not mislabeled as confidence intervals. Billable token totals are not treated as per-task usage/cost. `node scripts/verify-frontiermath.mjs` verifies search, adding, scores, responsive charts, and the 28px header wordmark.
 - Preserve `none`, `minimal`, and `low` as distinct efforts. Explicit model sizes (e.g. Qwen 27B versus 35B-A3B), Instant variants, and dated DeepSeek revisions also remain distinct.
 - `convex/` — profiles (handle, indices, sections, theme, agent token hash) + imports. Clerk JWT via `CLERK_JWT_ISSUER_DOMAIN` env in Convex.
-- `src/app/` — `/` builder, `/[handle]` public page (+ `opengraph-image`), `/og` anonymous share card, `/skill`, `/import`, `/claim`, `/sign-in`, `/api/agent`, `/api/benchmarks`.
+- `src/app/` — `/` onboarding→builder redirect, `/builder` explorer (generateMetadata emits the og card per URL), `/[handle]` public page (+ `opengraph-image`), `/og` anonymous share card, `/skill`, `/import`, `/claim`, `/sign-in`, `/api/agent`, `/api/benchmarks`.
 
 ## Commands
 
@@ -46,6 +50,14 @@ Personal benchmark index builder. Anyone weights AI-model benchmarks, sees ranki
 - Logical benchmarks: `versionPolicy.fallback` (DeepSWE 1.1 → 1) or `fresh` (AA index versions).
 - Percent scores are used raw; elo/score/usd are min-max normalized over the eligible pool.
 - A benchmark is required when `share × model coverage` clears the strictness cutoff (strictness 0 → 50, 50 → 5, 100 → 0): niche benchmarks need real weight or high strictness to gate the ranking. Below the cutoff, missing values are estimated from peers (release window / price tier) and marked, or renormalized when estimation is off.
+
+## Product decisions
+
+- Lineup fit only determines benchmark weights — it must never silently exclude non-lineup models from exploration. Explicit `excludeModels` is a user choice: excluded models are still scored and render under a "Show N hidden" expander below the leaderboard, and can be re-checked in the chart-settings model picker.
+- Leaderboard shows top 30 (25 on profile pages) with a single "Show all" toggle — a staged 15→35→all expansion was tried and rejected; keep it simple.
+- Weight sliders control benchmark *share* (0–70%), not raw weight, so the range is identical for every benchmark regardless of fitted weights.
+- Share links point at `/builder?i=...` directly; `/builder` sets og/twitter meta to `/og?...` so X link unfurls show the card. X web intent cannot attach an image — Download the PNG for that.
+- Metric gallery exists on both `/builder` and profile pages; Time per task is the default-open panel.
 
 ## Design
 

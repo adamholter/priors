@@ -13,7 +13,7 @@ try {
   const modal = page.getByRole('dialog', { name: 'Share card', exact: true });
   await modal.waitFor();
   const designs = modal.getByRole('button', { name: /^Design \d/ });
-  assert.equal(await designs.count(), 10);
+  assert.equal(await designs.count(), 13);
   const images = [];
   for (let i = 0; i < 10; i++) {
     await designs.nth(i).click();
@@ -57,5 +57,5 @@ try {
   const html = await metadata.text(); assert(html.includes('summary_large_image')); assert(html.includes('og:image'));
   assert.deepEqual(errors, []);
   await writeFile(`${out}/results.json`, JSON.stringify(images, null, 2));
-  console.log('PASS: all 10 PNGs, modal, selected design link, X draft, download, Escape/backdrop/focus return, mobile.');
+  console.log('PASS: all 13 PNGs, modal, selected design link, X draft, download, Escape/backdrop/focus return, mobile.');
 } finally { await browser.close(); }

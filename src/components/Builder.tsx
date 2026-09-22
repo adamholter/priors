@@ -34,8 +34,8 @@ export function Builder({ snapshot: base, dates, initialIndices }: { snapshot: S
   const result = useMemo(() => computeIndex(snapshot, { ...active, variants: "all" }), [snapshot, active]);
   const rankingMode = chartVariantMode(active, "ranking"), paretoMode = chartVariantMode(active, "pareto");
   const rankingRows = useMemo(() => selectVariants(result.ranked, rankingMode), [result, rankingMode]);
-  // Models excluded by the lineup fit are scored on demand (cleared exclusions) so
-  // new releases stay discoverable under the ranking's "hidden" expander.
+  // Excluded models are still scored on demand (cleared exclusions) so they
+  // stay discoverable under the ranking's "hidden" expander / model picker.
   const [wantHidden, setWantHidden] = useState(false);
   const hiddenRows = useMemo(() => {
     if (!wantHidden || !active.excludeModels?.length) return undefined;

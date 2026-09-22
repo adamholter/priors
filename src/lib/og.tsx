@@ -5,7 +5,7 @@ import { chartVariantMode, computeIndex, selectVariants, type IndexConfig, type 
 import { isShareDesign, type ShareDesign } from "@/lib/share-designs";
 import QRCode from "qrcode";
 
-type Ctx = { index: IndexConfig; who: { name: string; handle?: string; avatarUrl?: string }; top: RankedVariant[]; board: RankedVariant[]; pts: RankedVariant[]; colors: Map<string,string>; accent: string; bg: string; efforts: boolean; date: string; qr: string };
+type Ctx = { index: IndexConfig; who: { name: string; handle?: string; avatarUrl?: string }; top: RankedVariant[]; board: RankedVariant[]; pts: RankedVariant[]; colors: Map<string,string>; accent: string; bg: string; date: string; qr: string };
 const ink="#1A1A1A", muted="#7B7B73", line="#DDDBD4", pale="#ECEAE3";
 const color=(c:Ctx,x:RankedVariant)=>c.colors.get(x.model.labId)??"#A3A39B";
 const effort=(_c:Ctx,x:RankedVariant)=>[x.variant.effort!=="default"?x.variant.effort:"", /without.fallback|no.fallback/i.test(x.variant.sourceModel?.name??"")?"no fallback":/fallback/i.test(x.variant.sourceModel?.name??"")?"with fallback":""].filter(Boolean).join(" · ");
@@ -15,7 +15,7 @@ function ctxFor(snapshot:Snapshot,index:IndexConfig,who:Ctx["who"],opts?:{accent
  // The index computation is design-independent — share it across all card variants of a config.
  const key=`${snapshot.date}|${who.name}|${who.handle??""}|${opts?.accent??""}|${opts?.surface??""}|${JSON.stringify(index)}`;
  let p=ctxCache.get(key);
- if(!p){p=(async()=>{const r=computeIndex(snapshot,{...index,variants:"all"}),mode=chartVariantMode(index,"ranking"),list=selectVariants(r.ranked,mode),link=`https://mypriors.com${who.handle?`/${who.handle}`:""}`;return{index,who,top:list.slice(0,5),board:list.slice(0,10),pts:selectVariants(r.ranked,chartVariantMode(index,"pareto")).filter(x=>!!x.costUsd&&x.costUsd>0),colors:new Map(snapshot.labs.map(l=>[l.id,l.color])),accent:opts?.accent??"#2F4FB0",bg:opts?.surface??"#FBFBF9",efforts:true,date:snapshot.date,qr:await QRCode.toDataURL(link,{margin:0,width:300,color:{dark:"#1A1A1A",light:"#00000000"}})}})();ctxCache.set(key,p);if(ctxCache.size>24)ctxCache.delete(ctxCache.keys().next().value!);}
+ if(!p){p=(async()=>{const r=computeIndex(snapshot,{...index,variants:"all"}),mode=chartVariantMode(index,"ranking"),list=selectVariants(r.ranked,mode),link=`https://mypriors.com${who.handle?`/${who.handle}`:""}`;return{index,who,top:list.slice(0,5),board:list.slice(0,10),pts:selectVariants(r.ranked,chartVariantMode(index,"pareto")).filter(x=>!!x.costUsd&&x.costUsd>0),colors:new Map(snapshot.labs.map(l=>[l.id,l.color])),accent:opts?.accent??"#2F4FB0",bg:opts?.surface??"#FBFBF9",date:snapshot.date,qr:await QRCode.toDataURL(link,{margin:0,width:300,color:{dark:"#1A1A1A",light:"#00000000"}})}})();ctxCache.set(key,p);if(ctxCache.size>24)ctxCache.delete(ctxCache.keys().next().value!);}
  return p;
 }
 export async function renderShareCard(snapshot: Snapshot,index:IndexConfig,who:{name:string;handle?:string;avatarUrl?:string},opts?:{accent?:string;surface?:string;design?:string}) {
