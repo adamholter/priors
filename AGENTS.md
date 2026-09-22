@@ -70,3 +70,7 @@ Bone `#FBFBF9`, ink `#1A1A1A`, one indigo `#2F4FB0` (the i in the wordmark), war
 - Convex prod deployment `small-eel-326` (`npx convex deploy`); dev stays on `canny-ferret-545`. `CLERK_JWT_ISSUER_DOMAIN=clerk.mypriors.com` set on prod.
 - Clerk production instance with custom domain `clerk.mypriors.com` (CNAMEs at Porkbun). Local `.env.local` still uses the dev instance (`pk_test`/`sk_test`, issuer `trusty-escargot-8963.clerk.accounts.dev`).
 - `NEXT_PUBLIC_SITE_URL=https://mypriors.com` set in Vercel production for absolute OG URLs.
+
+## Ranking logic diagram
+
+`docs/ranking-logic.svg` — the eligibility/scoring flow (age filter → exclusions → measured share → Required gate → coverage floor → estimation → score). Regenerate when the engine's gates change.
