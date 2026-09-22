@@ -34,6 +34,7 @@ const RELEASES: Record<string, { date: string; url: string }> = {
   "frontiermath-tiers-1-3-v2": { date: "2026-06-12", url: "https://epoch.ai/benchmarks/frontiermath-tiers-1-3-v2" },
   "frontierswe-v1": { date: "2026-04-01", url: "https://www.proximal.ai/blog/frontierswe/" },
   "frontierswe-v2": { date: "2026-08-01", url: "https://www.frontierswe.com/blog/v2" },
+  "frontiercode-1.1-main": { date: "2026-07-07", url: "https://cognition.com/blog/frontier-code-1.1" },
   "posttrainbench-v1.1": { date: "2026-07-28", url: "https://posttrainbench.com/" },
   "simplebench": { date: "2024-11-25", url: "https://simple-bench.com/" },
   "simpleqa-verified": { date: "2025-09-09", url: "https://arxiv.org/abs/2509.07968" },

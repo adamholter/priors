@@ -81,6 +81,8 @@ const FAMILIES: { re: RegExp; id: (m: RegExpMatchArray) => string; name: (m: Reg
   { re: /\binkling(?:[\s-]*(small))?\b/, id: (m) => `inkling${m[1] ? "-small" : ""}`, name: (m) => `Inkling${m[1] ? " Small" : ""}`, lab: "thinking-machines", reasoning: true },
   { re: /\bhy[\s-]*(\d+(?:\.\d+)?)\b/, id: (m) => `hy-${m[1]}`, name: (m) => `Hy${m[1]}`, lab: "tencent", reasoning: true },
   { re: /\bcomposer[\s-]*(\d+(?:\.\d+)?)\b/, id: (m) => `composer-${m[1]}`, name: (m) => `Composer ${m[1]}`, lab: "cursor" },
+  // Cognition's own SWE models (FrontierCode / FrontierSWE leaderboards)
+  { re: /\bswe[\s-]*(\d+(?:\.\d+)?)\b/, id: (m) => `swe-${m[1]}`, name: (m) => `SWE ${m[1]}`, lab: "cognition", reasoning: true },
   { re: /\bllama[\s-]*(\d+(?:\.\d+)?)[\s-]*(maverick|scout|behemoth|\d+b)?\b/, id: (m) => `llama-${m[1]}${m[2] ? "-" + m[2] : ""}`, name: (m) => `Llama ${m[1]}${m[2] ? " " + m[2][0].toUpperCase() + m[2].slice(1) : ""}`, lab: "meta" },
 ];
 
