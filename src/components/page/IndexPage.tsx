@@ -89,13 +89,23 @@ export function IndexPage({ profile, snapshot, dates, edit }: { profile: Profile
           const rankingMode = chartVariantMode(idx, "ranking"), paretoMode = chartVariantMode(idx, "pareto");
           if (s.kind === "gallery") return <section key={s.id}><h2 className="text-[24px] mb-1">{title}</h2><p className="cap mb-3">More metrics · expand a row</p><MetricGallery ranked={selectVariants(r.ranked, paretoMode)} snapshot={snapshot} labs={snapshot.labs} /></section>;
           const updateIndex = (patch: Partial<IndexConfig>) => setP({ ...p, indices: p.indices.map((i) => i.id === idx.id ? { ...i, ...patch } : i) });
+          const excludedIds = new Set(idx.excludeModels ?? []);
+          const pickerModels = (() => {
+            const col = new Map(snapshot.labs.map((l) => [l.id, l.color]));
+            const seen = new Map<string, { id: string; name: string; color?: string }>();
+            for (const v of r.ranked) if (!seen.has(v.model.id)) seen.set(v.model.id, { id: v.model.id, name: v.model.name, color: col.get(v.model.labId) });
+            for (const id of idx.excludeModels ?? []) if (!seen.has(id)) { const m = snapshot.models.find((x) => x.id === id); if (m) seen.set(id, { id, name: m.name, color: col.get(m.labId) }); }
+            return [...seen.values()];
+          })();
+          const toggleModel = (id: string) => { const s = new Set(idx.excludeModels ?? []); if (s.has(id)) s.delete(id); else s.add(id); updateIndex({ excludeModels: s.size ? [...s] : [] }); };
+          const settings = (label: string, mode: "all" | "best", key: "rankingVariants" | "paretoVariants") => <ChartSettings label={label} mode={mode} onChange={(v) => updateIndex({ [key]: v })} models={pickerModels} excluded={excludedIds} onToggleModel={toggleModel} />;
           if (s.kind === "rankings") return (
             <section key={s.id}>
-              <div className="flex items-baseline justify-between mb-3"><h2 className="text-[24px]">{title}</h2><ChartSettings label="Ranking" mode={rankingMode} onChange={(rankingVariants) => updateIndex({ rankingVariants })} /></div>
+              <div className="flex items-baseline justify-between mb-3"><h2 className="text-[24px]">{title}</h2>{settings("Ranking", rankingMode, "rankingVariants")}</div>
               <Rankings ranked={selectVariants(r.ranked, rankingMode)} hidden={selectVariants(hidden.get(idx.id) ?? [], rankingMode)} hiddenCount={hidden.get(idx.id)?.length} hiddenNote="not in this index" showEffort={rankingMode === "all"} labs={snapshot.labs} limit={25} selected={selected} onSelect={(x) => setSelected(x?.variant.id ?? null)} />
             </section>
           );
-          if (s.kind === "pareto") return <section key={s.id}><div className="flex items-baseline justify-between mb-1"><h2 className="text-[24px]">{title}</h2><ChartSettings label="Pareto" mode={paretoMode} onChange={(paretoVariants) => updateIndex({ paretoVariants })} /></div><ParetoChart ranked={selectVariants(r.ranked, paretoMode)} labs={snapshot.labs} height={440} /></section>;
+          if (s.kind === "pareto") return <section key={s.id}><div className="flex items-baseline justify-between mb-1"><h2 className="text-[24px]">{title}</h2>{settings("Pareto", paretoMode, "paretoVariants")}</div><ParetoChart ranked={selectVariants(r.ranked, paretoMode)} labs={snapshot.labs} height={440} /></section>;
           if (s.kind === "speed") return <section key={s.id}><div className="flex items-baseline justify-between mb-1"><h2 className="text-[24px]">{title}</h2><span className="cap">output tokens per second</span></div><SpeedChart ranked={r.ranked} labs={snapshot.labs} /></section>;
           if (s.kind === "history") return <section key={s.id}><h2 className="text-[24px] mb-2">{title}</h2><p className="cap">Use the date picker above to view this page as of any earlier snapshot.</p></section>;
           return null;

@@ -43,6 +43,22 @@ export function Builder({ snapshot: base, dates, initialIndices }: { snapshot: S
     return selectVariants(r.ranked, rankingMode).filter((x) => hid.has(x.model.id));
   }, [wantHidden, active, snapshot, rankingMode]);
   const paretoRows = useMemo(() => selectVariants(result.ranked, paretoMode), [result, paretoMode]);
+  // Settings-gear model picker: ranked models first (rank order), then any
+  // excluded ids resolved from the catalog so they can be re-checked.
+  const pickerModels = useMemo(() => {
+    const col = new Map(snapshot.labs.map((l) => [l.id, l.color]));
+    const seen = new Map<string, { id: string; name: string; color?: string }>();
+    for (const r of result.ranked) if (!seen.has(r.model.id)) seen.set(r.model.id, { id: r.model.id, name: r.model.name, color: col.get(r.model.labId) });
+    for (const id of active.excludeModels ?? []) if (!seen.has(id)) { const m = snapshot.models.find((x) => x.id === id); if (m) seen.set(id, { id, name: m.name, color: col.get(m.labId) }); }
+    return [...seen.values()];
+  }, [result, active.excludeModels, snapshot]);
+  const excludedIds = useMemo(() => new Set(active.excludeModels ?? []), [active.excludeModels]);
+  const toggleModel = useCallback((id: string) => setIndices((list) => list.map((i) => {
+    if (i.id !== activeId) return i;
+    const s = new Set(i.excludeModels ?? []);
+    if (s.has(id)) s.delete(id); else s.add(id);
+    return { ...i, excludeModels: s.size ? [...s] : [] };
+  })), [activeId]);
 
   // write URL (debounced) when indices change
   const t = useRef<number | null>(null);
@@ -96,14 +112,14 @@ export function Builder({ snapshot: base, dates, initialIndices }: { snapshot: S
           <div>
             <div className="flex flex-wrap gap-x-4 gap-y-1 items-baseline justify-between mb-3">
               <h2 className="text-[26px]">{active.name}</h2>
-              <ChartSettings label="Ranking" mode={rankingMode} onChange={(rankingVariants) => update({ ...active, rankingVariants })} />
+              <ChartSettings label="Ranking" mode={rankingMode} onChange={(rankingVariants) => update({ ...active, rankingVariants })} models={pickerModels} excluded={excludedIds} onToggleModel={toggleModel} />
             </div>
             <Rankings onSelect={(r) => { if (r) calculations.current?.inspect(r.variant.id); }} ranked={rankingRows} hidden={hiddenRows} hiddenCount={active.excludeModels?.length} onShowHidden={() => setWantHidden(true)} onIncludeAll={active.excludeModels?.length ? () => { update({ ...active, excludeModels: [] }); setWantHidden(false); } : undefined} hiddenNote="hidden by this index" labs={snapshot.labs} showEffort={rankingMode === "all"} />
           </div>
           <div>
             <div className="flex flex-wrap gap-x-4 gap-y-1 items-baseline justify-between mb-1">
               <h2 className="text-[22px]">Score vs cost per task</h2>
-              <ChartSettings label="Pareto" mode={paretoMode} onChange={(paretoVariants) => update({ ...active, paretoVariants })} />
+              <ChartSettings label="Pareto" mode={paretoMode} onChange={(paretoVariants) => update({ ...active, paretoVariants })} models={pickerModels} excluded={excludedIds} onToggleModel={toggleModel} />
             </div>
             <ParetoChart ranked={paretoRows} labs={snapshot.labs} />
           </div>
