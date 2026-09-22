@@ -6,14 +6,13 @@ import type { RankedVariant } from "@/engine";
 import { variantLabel } from "./chart/ParetoChart";
 
 /** Dense horizontal bars, color by lab, rows slide to their new position when the order changes. */
-export function Rankings({ ranked, hidden, hiddenCount, onShowHidden, onIncludeAll, hiddenNote, labs, limit = 30, onSelect, selected, showEffort = true }: { ranked: RankedVariant[]; hidden?: RankedVariant[]; hiddenCount?: number; onShowHidden?: () => void; onIncludeAll?: () => void; hiddenNote?: string; labs: Lab[]; limit?: number; showEffort?: boolean; onSelect?: (r: RankedVariant | null) => void; selected?: string | null }) {
+export function Rankings({ ranked, labs, limit = 30, onSelect, selected, showEffort = true }: { ranked: RankedVariant[]; labs: Lab[]; limit?: number; showEffort?: boolean; onSelect?: (r: RankedVariant | null) => void; selected?: string | null }) {
   const color = new Map(labs.map((l) => [l.id, l.color]));
   const [expanded, setExpanded] = useState(false);
-  const [showHidden, setShowHidden] = useState(false);
   const rows = expanded ? ranked : ranked.slice(0, limit);
-  const max = Math.max(...rows.map((r) => r.score), ...(hidden ?? []).map((r) => r.score), 1);
+  const max = Math.max(...rows.map((r) => r.score), 1);
 
-  if (!rows.length && !(hiddenCount ?? 0)) return <p className="cap py-6">No model has every required benchmark. Loosen a requirement or lower a weight.</p>;
+  if (!rows.length) return <p className="cap py-6">No model has enough measured data for this index. Loosen a requirement, lower a weight, or reduce strictness.</p>;
   return (
     <>
     <ChartExport name="Rankings" getRows={() => ranked.map((r) => ({ rank: r.rank, model: r.model.name, effort: showEffort ? r.variant.effort : "best", score: +r.score.toFixed(2), lab: r.model.labId, cost_per_task_usd: r.costUsd ?? null, speed_toks: r.speed ?? null, coverage: r.coverage }))} getSvg={() => {
@@ -38,27 +37,6 @@ export function Rankings({ ranked, hidden, hiddenCount, onShowHidden, onIncludeA
       {rows[0] && <span className="sr-only">{variantLabel(rows[0])}</span>}
     </div>
     {ranked.length > limit && <button className="cap mt-3 hover:text-ink" onClick={() => setExpanded(!expanded)}>{expanded ? "Show fewer" : `Show all ${ranked.length} ${showEffort ? "variants" : "models"}`}</button>}
-    {(hiddenCount ?? 0) > 0 && (
-      <div className="mt-4 border-t hairline pt-3">
-        <button type="button" className="cap hover:text-ink" onClick={() => { setShowHidden(!showHidden); onShowHidden?.(); }}>
-          {showHidden ? "Hide" : "Show"} {hiddenCount} {hiddenNote ?? `hidden ${showEffort ? "variants" : "models"}`}
-        </button>
-        {showHidden && hidden && <>
-          <div className="mt-2 grid gap-0.5">
-            {hidden.map((r) => (
-              <div key={r.variant.id} className="grid grid-cols-[28px_minmax(0,140px)_minmax(0,1fr)_48px] sm:grid-cols-[28px_minmax(120px,210px)_minmax(0,1fr)_48px] items-center gap-2.5 h-[26px] text-[12.5px] px-1 opacity-55" title={`${variantLabel(r)} — hidden from this index`}>
-                <span className="cap text-right">—</span>
-                <span className="truncate text-ink-2">{r.model.name}{showEffort && r.variant.effort !== "default" && <em className="not-italic cap ml-1.5">{r.variant.effort}</em>}</span>
-                <span className="h-[12px] rounded-[2px] bg-hair-2 overflow-hidden"><i className="block h-full rounded-[2px]" style={{ width: `${(r.score / max) * 100}%`, background: color.get(r.model.labId) ?? "#A3A39B" }} /></span>
-                <span className="num text-right text-ink-2">{r.score.toFixed(1)}</span>
-              </div>
-            ))}
-          </div>
-          {onIncludeAll && <button type="button" className="cap mt-2 hover:text-ink" onClick={onIncludeAll}>Include all in this index</button>}
-        </>}
-        {showHidden && !hidden && <p className="cap mt-2">Computing scores…</p>}
-      </div>
-    )}
     </>
   );
 }

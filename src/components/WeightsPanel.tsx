@@ -1,7 +1,7 @@
 "use client";
 import { useId, useMemo, useState, useRef, useCallback } from "react";
 import type { Benchmark, Snapshot } from "@/data/types";
-import { isBenchmarkRequired, strictnessOf, type IndexConfig, type IndexResult } from "@/engine";
+import { strictnessOf, type IndexConfig, type IndexResult } from "@/engine";
 
 import { useLightDismiss } from "@/hooks/useLightDismiss";
 
@@ -23,9 +23,7 @@ export function WeightsPanel({ snapshot, config, onChange }: { snapshot: Snapsho
   const active = Object.entries(config.weights).filter(([, w]) => w > 0).map(([id]) => benches.get(id)).filter((b): b is Benchmark => !!b);
   const total = active.reduce((a, b) => a + config.weights[b.id], 0) || 1;
   const shareOf = (id: string) => (config.weights[id] / total) * 100;
-  const llmCount = useMemo(() => snapshot.models.filter((m) => m.kind === "llm").length || 1, [snapshot]);
-  const coverageFrac = (id: string) => coverage(id) / llmCount;
-  const isRequired = (id: string) => isBenchmarkRequired(config, id, shareOf(id), coverageFrac(id));
+  const isRequired = (id: string) => config.required.includes(id);
   /** Slider position is the benchmark's share of the index — a fixed 0–70%
    *  range that behaves identically regardless of the raw weight scale. */
   const setShare = (id: string, s: number) => {

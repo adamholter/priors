@@ -83,13 +83,13 @@ Every IndexConfig field:
 |---|---|
 | `id`, `name` | stable id + display name — rename indices freely, keep `id` stable |
 | `weights` | `benchmarkId → weight`, any positive scale |
-| `required` / `optional` | benchmark-id arrays overriding automatic requirements; empty both to restore automatic |
-| `strictness` | 0–100. Tightens automatic requirements and estimate evidence; 100 disables estimation |
+| `required` / `optional` | `required` = benchmark-id array of hard per-benchmark gates; `optional` is legacy and no longer affects ranking |
+| `strictness` | 0–100. Tightens estimate evidence and the minimum share of index weight a model must have measured data for; 100 disables estimation |
 | `estimateMissing` | estimate optional missing benchmarks from similar models (true) or renormalize measured weights (false) |
 | `effortMatching` | `calibrated` (default — infer missing effort scores from the model's measured ratios elsewhere), `strict` (exact effort only), `nearest` (legacy alias) |
 | `rankingVariants` | `best` (one row per model) or `all` (every effort/configuration) |
 | `paretoVariants` | `all` (default) or `best` — independent of `rankingVariants` |
-| `excludeModels` | model-id array — hides models from this index's leaderboard (they still score, under a "hidden" expander; the model-picker gear toggles them) |
+| `excludeModels` | model-id array — hides models from this index's leaderboard (the model-picker gear toggles them) |
 | `variants`, `cutoff` | legacy fields — preserve as-is; new behavior lives in the fields above |
 
 Benchmark ids: `https://mypriors.com/api/benchmarks`. Model ids: the page's own models, visible in `whoami.indices` context or the builder URL.

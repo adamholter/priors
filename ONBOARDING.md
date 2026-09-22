@@ -2,7 +2,7 @@
 
 The home page (`/`) is the lineup-first onboarding: reorder models with pointer dragging, arrow controls, or keyboard arrows. On touch screens, drag the grip; the rest of each row remains scrollable. Choose models changes the lineup. Escape cancels a drag or dismisses a dialog.
 
-A web worker (`fit.worker.ts`) searches benchmark weights and calculation settings, reports candidate progress, and simplifies the best fit. Stop & reorder terminates the worker and preserves the preferred order. The result opens `/builder` with the fitted configuration encoded in the URL — the lineup only determines weights; it never becomes an `excludeModels` filter on the index.
+A web worker (`fit.worker.ts`) searches benchmark weights and calculation settings, reports candidate progress, and simplifies the best fit. Stop & reorder terminates the worker and preserves the preferred order. The result opens `/builder` with the fitted configuration encoded in the URL — the lineup only determines weights; it never becomes an `excludeModels` filter on the index. Published fits no longer mark benchmarks optional (`optional` is a legacy no-op for ranking).
 
 Only the selected lineup enters the fitting objective. The initial lineup is a baseline, so reversing an existing comparison or adding a model creates explicit priorities. The optimizer first minimizes missing models, then violations of explicit priorities from the top down, then top-weighted disagreements across the rest of the selected lineup. Comparisons use inverse squared rank weighting, so a mistake near the top costs more than one near the bottom. Benchmark count, preferred tests, estimation share, and evidence quality break ties after ranking fit. Unselected models cannot offset a selected-model disagreement.
 

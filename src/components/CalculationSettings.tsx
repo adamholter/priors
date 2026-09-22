@@ -1,7 +1,7 @@
 "use client";
 import { useId, useRef, useState, useEffect, useImperativeHandle, type Ref, type ReactNode } from "react";
 import type { Snapshot } from "@/data/types";
-import { cutoffOf, strictnessOf, type IndexConfig, type IndexResult } from "@/engine";
+import { strictnessOf, type IndexConfig, type IndexResult } from "@/engine";
 import { AA_METHODOLOGY_URL } from "@/data/aa-index";
 import { ModelDetail } from "./ModelDetail";
 
@@ -61,7 +61,7 @@ export function CalculationSettings({ ref, config, result, snapshot, onChange, c
           </section>
           <section className="grid gap-2 border-t hairline pt-5">
             <h3 className="text-lg text-ink">Strictness and requirements</h3>
-            <p>Strictness is {Math.round(strictness)}. A benchmark is automatically required when its weight × model coverage clears {cutoffOf(config).toFixed(1)}% — niche benchmarks need more weight or strictness to gate the ranking. Override with the Required checkboxes. Higher strictness also demands more effort comparisons, limits how far apart the source and target efforts can be, and narrows peer comparisons. At 100, estimates are disabled.</p>
+            <p>Strictness is {Math.round(strictness)}. A model is ranked only when measured scores cover at least {Math.round(strictness)}% of this index&apos;s weight — a model with one benchmark cannot ride that benchmark alone. Required checkboxes add hard per-benchmark gates. Higher strictness also demands more effort comparisons, limits how far apart the source and target efforts can be, and narrows peer comparisons. At 100, estimates are disabled.</p>
             <p>Effort estimates require {strictness >= 95 ? 3 : strictness >= 75 ? 2 : 1} paired benchmark comparisons{strictness >= 85 ? " and adjacent effort levels" : ""}. Manual Required and Optional choices persist when strictness changes.</p>
             <button className="btn-quiet justify-self-start" onClick={() => onChange({ ...config, required: [], optional: [] })}>Reset requirement overrides</button>
           </section>
@@ -74,7 +74,7 @@ export function CalculationSettings({ ref, config, result, snapshot, onChange, c
               <ModelDetail r={row} snapshot={snapshot} result={result} />
             </> : <p>No models qualify under the current settings.</p>}
             <details><summary className="cursor-pointer">Excluded variants ({result.excluded.length})</summary>
-              <ul className="mt-3 max-h-60 overflow-y-auto grid gap-2">{result.excluded.map((r) => <li key={r.variant.id}>{r.model.name} · {r.variant.effort}<span className="block text-grey">Missing usable data for {r.missing.map((id) => snapshot.benchmarks.find((b) => b.id === id)?.name ?? id).join(", ")}</span></li>)}</ul>
+              <ul className="mt-3 max-h-60 overflow-y-auto grid gap-2">{result.excluded.map((r) => <li key={r.variant.id}>{r.model.name} · {r.variant.effort}<span className="block text-grey">{r.reason === "coverage" ? `Measured data covers ${Math.round(r.measuredShare * 100)}% of the index (needs ${Math.round(strictness)}%)` : `Missing usable data for ${r.missing.map((id) => snapshot.benchmarks.find((b) => b.id === id)?.name ?? id).join(", ")}`}</span></li>)}</ul>
             </details>
           </section>
           {children}

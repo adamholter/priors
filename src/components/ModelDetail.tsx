@@ -36,7 +36,7 @@ export function ModelDetail({ r, snapshot, result, onClose }: { r: RankedVariant
         </div>
         <div className="grid gap-1 content-start">
           <div className="flex justify-between"><span className="text-grey">Index score</span><span className="num">{r.score.toFixed(1)}</span></div>
-          <div className="flex justify-between"><span className="text-grey">Measured share of weight</span><span className="num">{Math.round(r.coverage * 100)}%</span></div>
+          <div className="flex justify-between"><span className="text-grey">Measured share of weight</span><span className="num">{Math.round(r.measuredShare * 100)}%</span></div>
           {r.costUsd != null && <div className="flex justify-between"><span className="text-grey">Cost per task</span><span className="num">${r.costUsd.toFixed(2)} <span className="cap">{r.costSource === "aa-cost-to-run-index" ? "AA" : ""}</span></span></div>}
           {r.speed && <div className="flex justify-between"><span className="text-grey">Output speed</span><span className="num">{Math.round(r.speed)} tok/s</span></div>}
           <div className="flex justify-between"><span className="text-grey">Pareto frontier</span><span>{r.onFrontier ? "yes" : "no"}</span></div>

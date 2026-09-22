@@ -44,15 +44,6 @@ export function Builder({ snapshot: base, dates, initialIndices }: { snapshot: S
   const result = useMemo(() => computeIndex(snapshot, { ...active, variants: "all" }), [snapshot, active]);
   const rankingMode = chartVariantMode(active, "ranking"), paretoMode = chartVariantMode(active, "pareto");
   const rankingRows = useMemo(() => selectVariants(result.ranked, rankingMode), [result, rankingMode]);
-  // Excluded models are still scored on demand (cleared exclusions) so they
-  // stay discoverable under the ranking's "hidden" expander / model picker.
-  const [wantHidden, setWantHidden] = useState(false);
-  const hiddenRows = useMemo(() => {
-    if (!wantHidden || !active.excludeModels?.length) return undefined;
-    const hid = new Set(active.excludeModels);
-    const r = computeIndex(snapshot, { ...active, variants: "all", excludeModels: [] });
-    return selectVariants(r.ranked, rankingMode).filter((x) => hid.has(x.model.id));
-  }, [wantHidden, active, snapshot, rankingMode]);
   const paretoRows = useMemo(() => selectVariants(result.ranked, paretoMode), [result, paretoMode]);
   // Settings-gear model picker: ranked models first (rank order), then any
   // excluded ids resolved from the catalog so they can be re-checked.
@@ -129,7 +120,7 @@ export function Builder({ snapshot: base, dates, initialIndices }: { snapshot: S
               <h2 className="text-[26px]">{active.name}</h2>
               <ChartSettings label="Ranking" mode={rankingMode} onChange={(rankingVariants) => update({ ...active, rankingVariants })} {...releaseProps} {...modelPicker} />
             </div>
-            <Rankings onSelect={(r) => { if (r) calculations.current?.inspect(r.variant.id); }} ranked={rankingRows} hidden={hiddenRows} hiddenCount={active.excludeModels?.length} onShowHidden={() => setWantHidden(true)} onIncludeAll={active.excludeModels?.length ? () => { update({ ...active, excludeModels: [] }); setWantHidden(false); } : undefined} hiddenNote="hidden by this index" labs={snapshot.labs} showEffort={rankingMode === "all"} />
+            <Rankings onSelect={(r) => { if (r) calculations.current?.inspect(r.variant.id); }} ranked={rankingRows} labs={snapshot.labs} showEffort={rankingMode === "all"} />
           </div>
           <div>
             <div className="flex flex-wrap gap-x-4 gap-y-1 items-baseline justify-between mb-1">

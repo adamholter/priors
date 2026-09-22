@@ -35,6 +35,7 @@ describe("fitPriors", () => {
     expect(result.quality).toBe(88);
     expect(result.estimatedShare).toBe(0);
     expect(result.config.excludeModels ?? []).toEqual([]);
+    expect(result.config.optional).toEqual([]);
     expect(computeIndex(snapshot(), result.config).ranked.map((r) => r.model.id)).toEqual(result.ranking.map((r) => r.modelId));
     expect(updates.some((u) => u.phase === "searching")).toBe(true);
   });

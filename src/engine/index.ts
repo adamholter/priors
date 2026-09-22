@@ -11,7 +11,7 @@ export interface IndexConfig {
   weights: Record<string, number>;
   /** Explicitly required benchmarks: a variant without a value here is excluded. */
   required: string[];
-  /** Any benchmark whose share of total weight exceeds this percent is implicitly required. Default 5. */
+  /** Legacy field: `cut=` URLs derive strictness from it via strictnessOf. Default 5. */
   cutoff: number;
   /** For missing non-required benchmarks: estimate from peers (true) or renormalize weights (false). */
   estimateMissing: boolean;
@@ -40,12 +40,13 @@ export function cutoffOf(config: IndexConfig): number {
   return s === 100 ? 0 : 50 * Math.pow(0.1, s / 50);
 }
 
-export function isBenchmarkRequired(config: IndexConfig, id: string, share: number, coverage = 1): boolean {
-  // Automatic requirement scales with both weight and reach: share * model
-  // coverage must clear the strictness cutoff, so niche benchmarks need far
-  // more weight (or strictness) to gate the ranking than broadly-run ones.
-  const cutoff = cutoffOf(config);
-  return config.required.includes(id) || (!config.optional?.includes(id) && (cutoff === 0 ? share > 0 : share * coverage > cutoff));
+export function isBenchmarkRequired(config: IndexConfig, id: string): boolean {
+  return config.required.includes(id);
+}
+
+/** Minimum share of index weight a variant must have measured data for: strictness percent as a fraction. */
+export function minMeasuredShare(config: IndexConfig): number {
+  return strictnessOf(config) / 100;
 }
 
 export function chartVariantMode(config: IndexConfig, chart: "ranking" | "pareto"): "all" | "best" {
@@ -84,12 +85,12 @@ export function defaultReleasedAfter(from?: string): string {
   return d.toISOString().slice(0, 10);
 }
 
-export function defaultConfig(snapshot: Snapshot, id = "general", name = "General frontier"): IndexConfig {
+export function defaultConfig(_snapshot: Snapshot, id = "general", name = "General frontier"): IndexConfig {
   return {
     id, name,
     weights: { "deepswe-1.1": 43, "terminalbench-4": 54, "arc-agi-3": 9, "simplebench": 38, "bsbench-v2": 12, "aa-humanitys-last-exam": 37, "aa-omniscience": 24, "frontiermath-tier-4-v2": 42 },
     required: [], optional: ["deepswe-1.1"], strictness: 50, cutoff: DEFAULT_CUTOFF,
-    estimateMissing: true, variants: "best", releasedAfter: defaultReleasedAfter(snapshot.date),
+    estimateMissing: true, variants: "best",
   };
 }
 
@@ -119,6 +120,8 @@ export interface RankedVariant {
   score: number;
   /** share of total weight backed by observed (not estimated) values */
   coverage: number;
+  /** share of total weight backed by measured values (observed or effort-substituted) */
+  measuredShare: number;
   values: BenchValue[];
   mixedEfforts?: boolean;
   /** measured cost per task, when known */
@@ -135,8 +138,8 @@ export interface IndexResult {
   /** benchmarks actually used (weight > 0), with resolved shares */
   benchmarks: { benchmark: Benchmark; share: number; required: boolean }[];
   ranked: RankedVariant[];
-  /** variants dropped for missing required benchmarks, with what's missing (distinct from config.excludeModels display-filtering) */
-  excluded: { variant: Variant; model: Model; missing: string[] }[];
+  /** variants dropped for missing required benchmarks or insufficient measured coverage (distinct from config.excludeModels display-filtering) */
+  excluded: { variant: Variant; model: Model; missing: string[]; reason: "required" | "coverage"; measuredShare: number }[];
 }
 
 /* ------------------------------------------------------------------ */
@@ -280,32 +283,19 @@ export function computeIndex(snapshot: Snapshot, config: IndexConfig): IndexResu
   const total = used.reduce((a, [, w]) => a + w, 0);
   if (!used.length || total <= 0) return { config, benchmarks: [], ranked: [], excluded: [] };
   const strictness = strictnessOf(config);
-  const shareBase = used.map(([id, w]) => ({ benchmark: benches.get(id)!, share: (w / total) * 100 }));
+  const shares = used.map(([id, w]) => ({ benchmark: benches.get(id)!, share: (w / total) * 100, required: isBenchmarkRequired(config, id) }));
   const normalizeMeasured = new Map(snapshot.benchmarks.map((b) => [b.id, makeNormalizer(b, [...(idx.get(b.id)?.values() ?? [])].map((o) => o.value))]));
 
   // pool: llm variants with at least one used benchmark value, passing filters
+  const after = config.releasedAfter === undefined ? defaultReleasedAfter(snapshot.date) : config.releasedAfter;
   const pool = snapshot.variants.filter((v) => {
     const m = models.get(v.modelId);
     if (!m || m.kind !== "llm") return false;
     if (config.labs?.length && !config.labs.includes(m.labId)) return false;
     if (config.excludeModels?.includes(m.id)) return false;
-    if (config.releasedAfter && m.releaseDate && m.releaseDate < config.releasedAfter) return false;
-    return shareBase.some((s) => lookup(idx, benches, s.benchmark.id, v.id));
+    if (after && m.releaseDate && m.releaseDate < after) return false;
+    return shares.some((s) => lookup(idx, benches, s.benchmark.id, v.id));
   });
-
-  // Model coverage per benchmark — measured against the eligible pool, not
-  // every catalog model: a test covering 60 of 100 rankable models is broad,
-  // not 12% of a 500-model catalog.
-  const varModel = new Map(snapshot.variants.map((v) => [v.id, v.modelId]));
-  const poolModels = new Set(pool.map((v) => v.modelId));
-  const coverageOf = (bid: string) => {
-    const obs = idx.get(bid);
-    if (!obs || !poolModels.size) return 0;
-    const seen = new Set<string>();
-    for (const vid of obs.keys()) { const m = varModel.get(vid); if (m && poolModels.has(m)) seen.add(m); }
-    return seen.size / poolModels.size;
-  };
-  const shares = shareBase.map((s) => ({ ...s, required: isBenchmarkRequired(config, s.benchmark.id, s.share, coverageOf(s.benchmark.id)) }));
 
   // raw values per benchmark over the pool -> normalizers
   type Resolved = { normalizedEstimate: boolean; raw: number; from: string; sourceVariantId: string; sourceUrl: string; substituted: boolean; estimateKind?: BenchValue["estimateKind"]; effortFactor?: number; evidence?: string[] };
@@ -327,13 +317,25 @@ export function computeIndex(snapshot: Snapshot, config: IndexConfig): IndexResu
   const normValue = (bid: string, vid: string) => { const r = rawByBench.get(bid)!.get(vid); return r ? { ...r, value: clamp(norm.get(bid)!(r.raw) * (r.effortFactor ?? 1), 0, 100) } : undefined; };
   const observedValue = (bid: string, vid: string) => { const v = normValue(bid, vid); return v?.substituted ? undefined : v; };
 
-  // eligibility
+  // eligibility: explicit required gates first, then the measured-coverage floor —
+  // a variant is ranked only when observed or effort-substituted values cover at
+  // least strictness% of the index's weight. Peer-estimated values do not count.
   const ranked: RankedVariant[] = [];
   const excluded: IndexResult["excluded"] = [];
+  const floor = minMeasuredShare(config);
   for (const v of pool) {
     const model = models.get(v.modelId)!;
+    let measured = 0;
+    const unmeasured: string[] = [];
+    for (const s of shares) {
+      const nv = normValue(s.benchmark.id, v.id);
+      if (nv && (!nv.substituted || nv.estimateKind === "effort")) measured += s.share;
+      else unmeasured.push(s.benchmark.id);
+    }
+    const measuredShare = measured / 100;
     const missingRequired = shares.filter((s) => s.required && !rawByBench.get(s.benchmark.id)!.has(v.id)).map((s) => s.benchmark.id);
-    if (missingRequired.length) { excluded.push({ variant: v, model, missing: missingRequired }); continue; }
+    if (missingRequired.length) { excluded.push({ variant: v, model, missing: missingRequired, reason: "required", measuredShare }); continue; }
+    if (measuredShare < floor - 1e-9) { excluded.push({ variant: v, model, missing: unmeasured, reason: "coverage", measuredShare }); continue; }
 
     const values: BenchValue[] = [];
     let num = 0, den = 0, covered = 0;
@@ -351,7 +353,7 @@ export function computeIndex(snapshot: Snapshot, config: IndexConfig): IndexResu
     if (den <= 0) continue;
     const cost = costFor(snapshot, idx, v.id, shares.map((s) => ({ id: s.benchmark.id, share: s.share })));
     const speedObs = idx.get(SPEED_BENCHMARK)?.get(v.id);
-    ranked.push({ variant: v, model, score: num / den, coverage: Math.min(1, Math.round(covered * 1e4) / 1e6), values, mixedEfforts: values.some((value) => value.estimateKind === "effort"), costUsd: cost?.usd, costSource: cost?.source, speed: speedObs && speedObs.value > 0 ? speedObs.value : undefined, onFrontier: false, rank: 0 });
+    ranked.push({ variant: v, model, score: num / den, coverage: Math.min(1, Math.round(covered * 1e4) / 1e6), measuredShare, values, mixedEfforts: values.some((value) => value.estimateKind === "effort"), costUsd: cost?.usd, costSource: cost?.source, speed: speedObs && speedObs.value > 0 ? speedObs.value : undefined, onFrontier: false, rank: 0 });
   }
 
   let out = ranked;
@@ -413,7 +415,6 @@ function costFor(snapshot: Snapshot, idx: ObsIndex, variantId: string, benchWeig
   const costs: number[] = [];
   for (const b of benchIds) { const o = idx.get(b)?.get(variantId); if (o?.costUsd && o.costUsd > 0) costs.push(o.costUsd); }
   if (costs.length) return { usd: costs.reduce((a, c) => a + c, 0) / costs.length, source: "mean of benchmark run costs" };
-  void snapshot;
   return undefined;
 }
 

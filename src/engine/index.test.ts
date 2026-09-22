@@ -59,16 +59,15 @@ describe("computeIndex", () => {
   it("does not copy a maximum score when no paired effort evidence exists", () => {
     const s = snap();
     s.observations = s.observations.filter((o) => !(o.variantId === "a@high" && o.benchmarkId !== "swe") && !(o.variantId === "a@max" && o.benchmarkId === "swe"));
-    const r = computeIndex(s, { ...base, weights: { swe: 50, term: 50 }, effortMatching: "calibrated" });
+    // term cannot be fabricated for a@high; with only 40% measured it falls below the floor.
+    const r = computeIndex(s, { ...base, weights: { swe: 40, term: 60 }, effortMatching: "calibrated" });
     expect(r.ranked.some((r) => r.variant.id === "a@high")).toBe(false);
   });
-  it("strictness controls automatic requirements while manual choices win", () => {
-    expect(isBenchmarkRequired({ ...base, strictness: 0 }, "term", 20)).toBe(false);
-    expect(isBenchmarkRequired({ ...base, strictness: 80 }, "term", 20)).toBe(true);
-    expect(isBenchmarkRequired({ ...base, strictness: 100, optional: ["term"] }, "term", 20)).toBe(false);
-    expect(isBenchmarkRequired({ ...base, strictness: 0, required: ["term"] }, "term", 1)).toBe(true);
-    const r = computeIndex(snap(), { ...base, strictness: 100, optional: ["term"] });
-    expect(r.ranked.some((r) => r.model.id === "d")).toBe(true);
+  it("required is explicit only — strictness and optional no longer gate benchmarks", () => {
+    expect(isBenchmarkRequired({ ...base, strictness: 0 }, "term")).toBe(false);
+    expect(isBenchmarkRequired({ ...base, strictness: 80 }, "term")).toBe(false);
+    expect(isBenchmarkRequired({ ...base, strictness: 100, optional: ["term"] }, "term")).toBe(false);
+    expect(isBenchmarkRequired({ ...base, strictness: 0, required: ["term"] }, "term")).toBe(true);
   });
   it("higher strictness requires more effort evidence and maximum disables estimates", () => {
     const s = snap();
@@ -97,7 +96,8 @@ describe("computeIndex", () => {
     expect(a.values.find((v) => v.benchmarkId === "term")).toMatchObject({ raw: 60, estimated: true, substituted: true, sourceVariantId: "a@high", evidence: ["swe"] });
     expect(a.costUsd).toBe(12);
     expect(a.mixedEfforts).toBe(true);
-    expect(r.excluded.find((x) => x.model.id === "d")?.missing).toContain("term");
+    // d has only swe measured (50% >= 50% floor): ranked on swe alone, term left out.
+    expect(r.ranked.find((x) => x.model.id === "d")?.values.map((v) => v.benchmarkId)).toEqual(["swe"]);
   });
   it("prefers exact effort and picks nearest effort deterministically, not the highest score", () => {
     const s = snap();
@@ -119,18 +119,17 @@ describe("computeIndex", () => {
   it("does not combine a high-effort score with a max-effort score to pass requirements", () => {
     const s = snap();
     s.observations = s.observations.filter((o) => !(o.benchmarkId === "term" && o.variantId === "a@max"));
-    const config = { ...base, weights: { swe: 50, term: 50 }, variants: "best" as const };
+    const config = { ...base, weights: { swe: 50, term: 50 }, variants: "best" as const, required: ["term"] };
     const r = computeIndex(s, config);
     expect(r.ranked.find((x) => x.model.id === "a")?.variant.id).toBe("a@high");
     expect(r.excluded.find((x) => x.variant.id === "a@max")?.missing).toEqual(["term"]);
   });
-  it("ranks variants, excludes non-LLMs, implicit required via cutoff", () => {
+  it("ranks variants, excludes non-LLMs, and applies the coverage floor", () => {
     const r = computeIndex(snap(), base);
     expect(r.ranked.map((x) => x.variant.id)).not.toContain("img@default");
-    // term has 40% share > 5% cutoff -> required; d lacks term -> excluded
-    expect(r.excluded.map((x) => x.variant.id)).toContain("d@default");
     expect(r.ranked[0].variant.id).toBe("a@max"); // 80.8 vs b 77.9
-    expect(r.excluded.map((x) => x.variant.id)).toContain("a@high"); // missing elo (20% share)
+    expect(r.ranked.map((x) => x.variant.id)).toContain("d@default"); // swe+elo = 60% measured
+    expect(r.ranked.map((x) => x.variant.id)).toContain("a@high"); // swe+term = 80% measured
     expect(r.ranked[0].rank).toBe(1);
   });
   it("elo is min-max normalized to 0-100", () => {
@@ -180,8 +179,8 @@ describe("computeIndex", () => {
   it("marks pareto frontier by measured cost", () => {
     const r = computeIndex(snap(), base);
     const f = r.ranked.filter((x) => x.onFrontier).map((x) => x.variant.id).sort();
-    // costs: c 5 (52.7), b 7 (77.9), a@max 12 (80.8): each cheaper point scores lower -> all on frontier
-    expect(f).toEqual(["a@max", "b@xhigh", "c@default"]);
+    // costs: d 2 (26.7), a@high 4 (65), c 5 (52.7, dominated by a@high), b 7 (77.9), a@max 12 (80.8)
+    expect(f).toEqual(["a@high", "a@max", "b@xhigh", "d@default"]);
     const r2 = computeIndex(snap(), { ...base, weights: { swe: 100 } }); // a@high (4, 70) now eligible; c (5, 60) dominated
     expect(r2.ranked.find((x) => x.variant.id === "c@default")!.onFrontier).toBe(false);
     expect(r2.ranked.find((x) => x.variant.id === "a@high")!.onFrontier).toBe(true);
@@ -189,5 +188,39 @@ describe("computeIndex", () => {
   it("best-variant mode collapses efforts", () => {
     const r = computeIndex(snap(), { ...base, variants: "best" });
     expect(r.ranked.filter((x) => x.model.id === "a").length).toBe(1);
+  });
+  it("excludes variants below the strictness coverage floor", () => {
+    const s = snap();
+    // c keeps only swe (40% of weight): below the 50% floor; d keeps swe+elo (60%).
+    s.observations = s.observations.filter((o) => o.variantId !== "c@default" || o.benchmarkId === "swe");
+    const r = computeIndex(s, base);
+    const c = r.excluded.find((x) => x.variant.id === "c@default");
+    expect(c?.reason).toBe("coverage");
+    expect(c?.measuredShare).toBeCloseTo(0.4);
+    expect(r.ranked.map((x) => x.variant.id)).toContain("d@default");
+    expect(r.ranked.find((x) => x.variant.id === "d@default")?.measuredShare).toBeCloseTo(0.6);
+  });
+  it("strictness 0 ranks a variant with a single measured benchmark", () => {
+    const s = snap();
+    s.observations = s.observations.filter((o) => o.variantId !== "c@default" || o.benchmarkId === "swe");
+    const r = computeIndex(s, { ...base, strictness: 0 });
+    expect(r.ranked.map((x) => x.variant.id)).toContain("c@default");
+  });
+  it("required still excludes even when coverage passes", () => {
+    const r = computeIndex(snap(), { ...base, required: ["term"] });
+    const d = r.excluded.find((x) => x.variant.id === "d@default");
+    expect(d?.reason).toBe("required");
+    expect(d?.missing).toEqual(["term"]);
+    expect(d?.measuredShare).toBeCloseTo(0.6);
+  });
+  it("defaults the release filter to six months before the snapshot date", () => {
+    const s = snap();
+    s.models.find((m) => m.id === "b")!.releaseDate = "2026-02-01"; // ~7 months before the 2026-09-05 snapshot
+    s.models.find((m) => m.id === "d")!.releaseDate = "2026-04-10"; // ~5 months before
+    const r = computeIndex(s, base);
+    expect(r.ranked.map((x) => x.model.id)).not.toContain("b");
+    expect(r.ranked.map((x) => x.model.id)).toContain("d");
+    const all = computeIndex(s, { ...base, releasedAfter: "" });
+    expect(all.ranked.map((x) => x.model.id)).toContain("b");
   });
 });

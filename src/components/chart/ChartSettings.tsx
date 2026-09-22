@@ -36,7 +36,7 @@ export function ChartSettings({ label, mode, onChange, releasedAfter, onChangeRe
   // Map a stored cutoff date to the nearest named window (±45 days) so
   // URL-decoded dates still show as "Last year" rather than "Custom".
   const releasedValue = releasedAfter === "" ? "all"
-    : releasedAfter === undefined ? "12"
+    : releasedAfter === undefined ? "6"
     : (RELEASE_WINDOWS.find((w) => daysBetween(releasedAfter, windowDate(w.months)) <= 45)?.months.toString() ?? "custom");
   const filtered = useMemo(() => {
     if (!models) return models;
