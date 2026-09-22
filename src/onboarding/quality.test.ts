@@ -48,4 +48,30 @@ describe("benchmarkQuality", () => {
     arena.description = "Pairwise human judge preference";
     expect(benchmarkQuality(snapshot([arena], []))[0].objectivity).toBe(40);
   });
+
+  it("scores Terminal-Bench 4 above its superseded 2.1 version", () => {
+    const result = benchmarkQuality(snapshot([benchmark("terminalbench-4"), benchmark("aa-terminalbench-v2-1")], []));
+    expect(result.find((x) => x.id === "terminalbench-4")!.score).toBeGreaterThan(result.find((x) => x.id === "aa-terminalbench-v2-1")!.score);
+  });
+
+  it("adds the +15 preferred-benchmark contribution", () => {
+    const q = benchmarkQuality(snapshot([benchmark("deepswe-1.1")], [["deepswe-1.1", "a@low", 40], ["deepswe-1.1", "b@low", 60]]))[0];
+    expect(q.preferred).toBe(true);
+    const base = Math.round(0.25 * q.coverage + 0.25 * q.recency + 0.3 * q.saturation + 0.2 * q.objectivity);
+    expect(q.score).toBe(Math.min(100, base + 15));
+  });
+
+  it("scores broader measured coverage higher with other inputs held equal", () => {
+    const narrow = benchmark("narrow"), broad = benchmark("broad");
+    const flat = (benchmarkId: string, n: number): Array<[string, string, number]> =>
+      Array.from({ length: n }, (_, i): [string, string, number] => [benchmarkId, `m${i}@low`, 50]);
+    const result = benchmarkQuality(snapshot([narrow, broad], [...flat("narrow", 10), ...flat("broad", 60)]));
+    const qNarrow = result.find((x) => x.id === "narrow")!, qBroad = result.find((x) => x.id === "broad")!;
+    expect(qNarrow.coverage).toBe(25);
+    expect(qBroad.coverage).toBe(100);
+    expect(qNarrow.recency).toBe(qBroad.recency);
+    expect(qNarrow.saturation).toBe(qBroad.saturation);
+    expect(qNarrow.objectivity).toBe(qBroad.objectivity);
+    expect(qNarrow.score).toBeLessThan(qBroad.score);
+  });
 });

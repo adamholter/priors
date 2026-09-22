@@ -1,4 +1,5 @@
 import { DEFAULT_CUTOFF, type IndexConfig } from "../engine";
+import { FOCUS_IDS, type FocusId } from "../data/types";
 
 /**
  * URL state for anonymous builds. One index per `i` param so multiple indices share a link:
@@ -19,6 +20,7 @@ export function encodeIndex(c: IndexConfig): string {
   if (c.labs?.length) parts.push(`labs=${c.labs.join(",")}`);
   if (c.excludeModels?.length) parts.push(`ex=${c.excludeModels.join(",")}`);
   if (c.releasedAfter !== undefined) parts.push(`after=${c.releasedAfter}`);
+  if (c.focus) parts.push(`focus=${c.focus}`);
   return parts.join("|");
 }
 
@@ -46,6 +48,7 @@ export function decodeIndex(s: string, id: string): IndexConfig | null {
     else if (k === "labs") c.labs = v.split(",").filter(Boolean);
     else if (k === "ex") c.excludeModels = v.split(",").filter(Boolean);
     else if (k === "after") c.releasedAfter = v;
+    else if (k === "focus" && FOCUS_IDS.includes(v as FocusId)) c.focus = v as FocusId;
   }
   return c;
 }

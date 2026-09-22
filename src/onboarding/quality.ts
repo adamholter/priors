@@ -1,4 +1,9 @@
 import type { Benchmark, Snapshot } from "../data/types";
+import { focusMultiplier, type Focus } from "./focus";
+
+export const PREFERRED = ["deepswe-1.1", "terminalbench-4", "arc-agi-3", "simplebench", "bsbench-v2", "aa-humanitys-last-exam", "aa-omniscience", "frontiermath-tier-4-v2"] as const;
+
+export const SUPERSEDED = new Set(["aa-terminalbench-v2-1", "arc-agi-1", "arc-agi-2", "deepswe-1", "aa-math-500"]);
 
 export interface BenchmarkQuality {
   id: string;
@@ -14,17 +19,6 @@ export interface BenchmarkQuality {
   sourceUrl: string;
   coverage: number;
 }
-
-const PREFERRED = new Set([
-  "deepswe-1.1",
-  "terminalbench-4",
-  "arc-agi-3",
-  "simplebench",
-  "bsbench-v2",
-  "aa-humanitys-last-exam",
-  "aa-omniscience",
-  "frontiermath-tier-4-v2",
-]);
 
 /** Dates here are benchmark releases verified from the linked publisher, not scrape/update dates. */
 const RELEASES: Record<string, { date: string; url: string }> = {
@@ -159,16 +153,20 @@ function objectivityScore(benchmark: Benchmark): number {
   return benchmark.unit === "percent" ? 80 : 65;
 }
 
-function coverageScore(snapshot: Snapshot, benchmarkId: string): number {
+function modelsMeasured(snapshot: Snapshot, benchmarkId: string): number {
   const llms = new Set(snapshot.models.filter((m) => m.kind === "llm").map((m) => m.id));
-  if (!llms.size) return 0;
   const covered = new Set<string>();
   for (const observation of snapshot.observations) {
     if (observation.benchmarkId !== benchmarkId) continue;
     const modelId = snapshot.variants.find((v) => v.id === observation.variantId)?.modelId ?? observation.variantId.split("@")[0];
     if (llms.has(modelId)) covered.add(modelId);
   }
-  return rounded((covered.size / llms.size) * 100);
+  return covered.size;
+}
+
+/** How strongly a benchmark fits the chosen focus: quality scaled by the category multiplier. */
+export function affinity(q: BenchmarkQuality, focus: Focus, benchmark: Benchmark): number {
+  return Math.max(0, Math.min(1, (q.score / 100) * focusMultiplier(focus, benchmark.category)));
 }
 
 export function benchmarkQuality(snapshot: Snapshot): BenchmarkQuality[] {
@@ -177,9 +175,13 @@ export function benchmarkQuality(snapshot: Snapshot): BenchmarkQuality[] {
     const recency = recencyScore(snapshot.date, release?.date);
     const saturation = saturationScore(snapshot, benchmark);
     const objectivity = objectivityScore(benchmark);
-    const score = rounded(recency * 0.3 + saturation * 0.4 + objectivity * 0.3);
+    const measured = modelsMeasured(snapshot, benchmark.id);
+    const coverage = rounded(100 * Math.min(1, measured / 40));
+    const preferred = (PREFERRED as readonly string[]).includes(benchmark.id);
+    const superseded = SUPERSEDED.has(benchmark.id);
+    const score = rounded(coverage * 0.25 + recency * 0.25 + saturation * 0.3 + objectivity * 0.2 + (preferred ? 15 : 0) - (superseded ? 25 : 0));
     const dateConfidence = release ? "verified" as const : "unknown" as const;
-    const reason = `${dateConfidence === "verified" ? `Released ${release.date}` : "Release date unverified; recency held neutral"}. Headroom and score-spread quality ${saturation}/100 after collapsing effort/config variants by model. Objectivity ${objectivity}/100 is an assigned judgment score based on grading method. Quality is a 30% recency, 40% headroom-and-spread, 30% objectivity heuristic, not proof of validity or freedom from training contamination.`;
+    const reason = `${dateConfidence === "verified" ? `Released ${release.date}` : "Release date unverified; recency held neutral"}. Headroom and score-spread quality ${saturation}/100 after collapsing effort/config variants by model. Objectivity ${objectivity}/100 is an assigned judgment score based on grading method. Coverage ${coverage}/100 from ${measured} measured models. Quality is a 25% coverage, 25% recency, 30% headroom-and-spread, 20% objectivity heuristic${preferred ? " plus a preferred-benchmark bonus" : ""}${superseded ? ", minus a superseded-version penalty" : ""} — not proof of validity or freedom from training contamination.`;
     return {
       id: benchmark.id,
       name: benchmark.name,
@@ -187,12 +189,12 @@ export function benchmarkQuality(snapshot: Snapshot): BenchmarkQuality[] {
       recency,
       saturation,
       objectivity,
-      preferred: PREFERRED.has(benchmark.id),
+      preferred,
       ...(release ? { releaseDate: release.date } : {}),
       dateConfidence,
       reason,
       sourceUrl: release?.url ?? SOURCE_URLS[benchmark.id] ?? benchmark.url,
-      coverage: coverageScore(snapshot, benchmark.id),
+      coverage,
     };
   });
 }

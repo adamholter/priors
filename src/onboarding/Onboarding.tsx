@@ -4,11 +4,16 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerE
 import type { Snapshot } from "@/data/types";
 import { Wordmark } from "@/components/Wordmark";
 import { encodeIndices } from "@/lib/url";
-import { benchmarkQuality } from "./quality";
-import { PREFERRED, type FitUpdate } from "./optimizer";
+import { benchmarkQuality, PREFERRED } from "./quality";
+import type { FitUpdate } from "./optimizer";
+import { DEFAULT_FOCUS, FOCUSES, FOCUS_IDS, type FocusId } from "./focus";
+import type { MixLibrary } from "./library";
+import { useMutation } from "convex/react";
+import { api } from "../../convex/_generated/api";
+import { convexEnabled } from "@/app/providers";
 import "./onboarding.css";
 
-const INITIAL = ["gpt-6-astra", "claude-fable-5.1", "claude-fable-5", "claude-opus-5", "gpt-5.6-sol", "gemini-3.8-flash", "claude-opus-4.8", "glm-5.3", "gpt-5.6-terra", "grok-4.6", "gemini-3.7-flash", "gpt-5.6-luna", "grok-4.5", "claude-sonnet-5"];
+const INITIAL = ["claude-opus-5.5", "gpt-6-astra", "claude-fable-5.1", "claude-fable-5", "claude-opus-5", "gpt-5.6-sol", "gemini-3.8-flash", "glm-5.3", "gpt-5.6-terra", "grok-4.6", "gemini-3.7-flash", "gpt-5.6-luna", "grok-4.7", "claude-sonnet-5"];
 const ROW = 46;
 const phaseNames = { preparing: "Reading the evidence", searching: "Searching the combinations", simplifying: "Keeping what matters", complete: "Your index, found" };
 function Arrow({ direction = "right" }: { direction?: "right" | "up" | "down" }) { return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true" style={{ transform: direction === "up" ? "rotate(-90deg)" : direction === "down" ? "rotate(90deg)" : undefined }}><path d="M4 12h15m-6-6 6 6-6 6" /></svg>; }
@@ -24,6 +29,16 @@ function searchMessage(u: FitUpdate, snapshot: Snapshot) {
   if (u.phase === "preparing" || u.log.startsWith("Read ")) return "Checking evidence for your selected models.";
   if (u.log.startsWith("Check ")) return "Comparing weights and reasoning settings.";
   return "Refining the remaining disagreements.";
+}
+type LineupArgs = { focus: string; lineup: string[]; weights: Record<string, number>; strictness: number; fitScore: number; exact: boolean; snapshotDate: string };
+/** Registers the Convex mutation on a stable ref; mounted only when Convex is configured. */
+function LineupRecorder({ onRegister }: { onRegister: (fn: ((a: LineupArgs) => void) | null) => void }) {
+  const record = useMutation(api.lineups.record);
+  useEffect(() => {
+    onRegister((a) => { void record(a).catch(() => {}); });
+    return () => onRegister(null);
+  }, [record, onRegister]);
+  return null;
 }
 function Trace({ values }: { values: number[] }) {
   const path = values.map((v, i) => `${i ? "L" : "M"}${i / Math.max(1, values.length - 1) * 300},${68 - v * .6}`).join(" ");
@@ -54,6 +69,23 @@ export function Onboarding({ snapshot }: { snapshot: Snapshot }) {
   }, []);
   useEffect(() => { try { localStorage.setItem("priors:lineup", JSON.stringify(order)); } catch { /* ignore */ } }, [order]);
   const [stage, setStage] = useState<"order" | "fit">("order");
+  const [focus, setFocus] = useState<FocusId>(DEFAULT_FOCUS);
+  const [library, setLibrary] = useState<MixLibrary | null>(null);
+  const recordLineup = useRef<((a: LineupArgs) => void) | null>(null);
+  // Restore the last focus after mount (localStorage is client-only).
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => {
+      try { const saved = localStorage.getItem("priors:focus"); if (FOCUS_IDS.includes(saved as FocusId)) setFocus(saved as FocusId); } catch { /* ignore */ }
+    });
+    return () => cancelAnimationFrame(raf);
+  }, []);
+  useEffect(() => { try { localStorage.setItem("priors:focus", focus); } catch { /* ignore */ } }, [focus]);
+  // Precomputed mix library seeds the search; absent or stale, the worker computes live.
+  useEffect(() => {
+    let live = true;
+    fetch("/api/library").then((r) => (r.ok ? r.json() : null)).then((l) => { if (live && l && l.date === snapshot.date) setLibrary(l); }).catch(() => {});
+    return () => { live = false; };
+  }, [snapshot.date]);
   const [drag, setDrag] = useState<{ id: string; y: number } | null>(null);
   const dragInfo = useRef<{ id: string; startY: number; top: number; scroll: number; original: string[]; pointerId: number; cleanup: () => void } | null>(null);
   const [announcement, setAnnouncement] = useState("");
@@ -144,7 +176,10 @@ export function Onboarding({ snapshot }: { snapshot: Snapshot }) {
         const entry = { id: ++logId, text };
         setLogs(l => l.at(-1)?.text === text ? l : [...l.slice(-2), entry]);
         setHistory(h => [...h.slice(-23), u.fitScore]);
-        if (u.phase === "complete") setAnnouncement(`Search complete. ${u.exactMatch ? "Your full order matches." : "No matching configuration found."} ${u.matchedPositions} of ${order.length} models are in their requested positions.`);
+        if (u.phase === "complete") {
+          setAnnouncement(`Search complete. ${u.exactMatch ? "Your full order matches." : "No matching configuration found."} ${u.matchedPositions} of ${order.length} models are in their requested positions.`);
+          recordLineup.current?.({ focus, lineup: order, weights: u.weights, strictness: u.config.strictness ?? 50, fitScore: u.fitScore, exact: u.exactMatch, snapshotDate: snapshot.date });
+        }
       };
       w.onmessage = (e: MessageEvent<FitUpdate | { error: string }>) => {
         if (worker.current !== w) return;
@@ -157,7 +192,7 @@ export function Onboarding({ snapshot }: { snapshot: Snapshot }) {
         if (e.data.phase === "complete") w.terminate();
       };
       w.onerror = () => { setError("The search stopped unexpectedly. Your order is still here."); w.terminate(); };
-      w.postMessage({ snapshot, target: order, priorities: { baseline: original }, reducedMotion: window.matchMedia("(prefers-reduced-motion: reduce)").matches, quality: Object.fromEntries(quality.map(q => [q.id, q.score])) });
+      w.postMessage({ snapshot, target: order, priorities: { baseline: original }, reducedMotion: window.matchMedia("(prefers-reduced-motion: reduce)").matches, quality: Object.fromEntries(quality.map(q => [q.id, q.score])), focus, library });
     } catch { setError("Could not start the search. Please try again."); }
   }
   function edit() { release(); worker.current?.terminate(); worker.current = null; if (displayTimer.current) clearTimeout(displayTimer.current); displayTimer.current = null; latest.current = null; setStage("order"); setUpdate(null); setError(""); }
@@ -167,11 +202,12 @@ export function Onboarding({ snapshot }: { snapshot: Snapshot }) {
   const maxScore = Math.max(1, ...[...liveScores.values()].map(r => r.score));
   const activeWeights = Object.entries(update?.weights ?? {}).filter(([, w]) => w > 0).sort((a, b) => { const ai = PREFERRED.indexOf(a[0] as typeof PREFERRED[number]), bi = PREFERRED.indexOf(b[0] as typeof PREFERRED[number]); return (ai < 0 ? 100 : ai) - (bi < 0 ? 100 : bi) || a[0].localeCompare(b[0]); });
   const totalWeight = activeWeights.reduce((sum, [, w]) => sum + w, 0) || 1;
-  const resultUrl = update ? `/builder?${encodeIndices([{ ...update.config, name: "My priors" }])}` : "";
+  const resultUrl = update ? `/builder?${encodeIndices([{ ...update.config, name: "My priors", focus }])}` : "";
   async function copy() { try { await navigator.clipboard.writeText(`${location.origin}${resultUrl}`); setCopied(true); } catch { setError("Couldn't copy. Use Explore this index, then copy its address."); } }
   const modelOptions = snapshot.models.filter(m => m.kind === "llm" && m.name.toLowerCase().includes(query.toLowerCase()) && observedModels.has(m.id)).sort((a, b) => Number(order.includes(b.id)) - Number(order.includes(a.id)) || a.name.localeCompare(b.name));
 
   return <div className={`onboarding stage-${stage} ${running ? "is-running" : ""}`}>
+    {convexEnabled && <LineupRecorder onRegister={(fn) => { recordLineup.current = fn; }} />}
     <header className="onboard-header"><Wordmark size={32} href={null} /><span className="experiment-label">The priors experiment</span><button className="text-control" onClick={() => openDialog("quality")}>About the evidence <span aria-hidden="true">↗</span></button></header>
     <main className="onboard-main">
       <div className="step-line"><span className={stage === "order" ? "current" : "passed"}>01 <span>Your intuition</span></span><i /><span className={stage === "fit" ? "current" : ""}>02 <span>The evidence</span></span></div>
@@ -182,6 +218,12 @@ export function Onboarding({ snapshot }: { snapshot: Snapshot }) {
       <div className="experiment-grid">
         <section className="order-board" aria-label={stage === "order" ? "Your model preferences" : "Fitted model ranking"}>
           <div className="board-heading"><span>{stage === "order" ? "YOUR ORDER" : "BEST FIT · YOUR SELECTED MODELS"}</span><span>{stage === "order" ? "BEST FIRST" : "SCORE / YOUR ORDER"}</span></div>
+          {stage === "order" && <div className="focus-picker">
+            <span className="focus-label">Focus</span>
+            <div className="focus-row" role="radiogroup" aria-label="Benchmark focus">
+              {FOCUSES.map((f) => <button key={f.id} role="radio" aria-checked={focus === f.id} className={`focus-option ${focus === f.id ? "selected" : ""}`} onClick={() => setFocus(f.id)}><span className="focus-name">{f.name}</span><span className="focus-blurb">{f.blurb}</span></button>)}
+            </div>
+          </div>}
           <div className="tactile-list" role="list" aria-label="Model ranking" style={{ height: order.length * ROW }}>
             {liveOrder.map(id => {
               const model = models.get(id)!; const index = liveOrder.indexOf(id); const wanted = order.indexOf(id); const result = liveScores.get(id); const picked = drag?.id === id;
@@ -202,7 +244,7 @@ export function Onboarding({ snapshot }: { snapshot: Snapshot }) {
             <div className="equal-bars" aria-hidden="true">{["#282828", "#CE7155", "#CE7155", "#397ACC", "#24A38B"].map((c, i) => <i key={i} style={{ background: c, animationDelay: `${i * 65}ms` }} />)}</div>
             <h2>Intuition first.<br />Evidence next.</h2>
             <p>Your top choices lead the search. Changes you make and models you add get extra priority.</p>
-            <div className="preference-note"><span className="tiny-star" aria-hidden="true">✳</span><p>Your eight favorites get first consideration. Newer, less saturated, more objective tests get more weight when choosing between similar fits.</p></div>
+            <div className="preference-note"><span className="tiny-star" aria-hidden="true">✳</span><p>Your focus biases the search toward high-quality benchmarks in that area. Newer, less saturated, more objective tests get more weight when choosing between similar fits.</p></div>
             <button className="primary-action" onClick={start} disabled={order.length < 3}>Find my index <Arrow /></button>
             <span className="action-note">{order.length} models · up to 12 benchmarks</span>
             <button className="text-control evidence-link" onClick={() => openDialog("quality")}>See benchmark preferences <Arrow /></button>
@@ -210,17 +252,17 @@ export function Onboarding({ snapshot }: { snapshot: Snapshot }) {
             <div className="solver-monitor" role="region" aria-label="Optimization monitor">
               <span className="sr-only" role="status" aria-label={error ? "Search error" : complete ? "Search complete" : "Search running"}>{error ? "Search stopped" : complete ? "Search complete" : "Searching benchmark combinations"}</span>
               <div className="monitor-top"><span><i className={running ? "pulse" : ""} />{error ? "SEARCH STOPPED" : complete ? "SEARCH COMPLETE" : "SEARCH IN PROGRESS"}</span><span>{elapsed.toFixed(1)}s</span></div>
-              <div className="agreement"><strong>{Math.round(update?.fitScore ?? 0)}<span>%</span></strong><span>fit to your lineup<br /><small>{update?.matchedPositions ?? 0}/{order.length} in place{update?.priorityTotal ? update.priorityMatched === update.priorityTotal ? " · your edits are preserved" : " · some edits unresolved" : ""}</small></span></div>
+              <div className="agreement"><strong>{Math.round(update?.fitScore ?? 0)}<span>%</span></strong><span>fit to your lineup<br /><small>{update?.matchedPositions ?? 0}/{order.length} in place{update?.priorityTotal ? update.priorityMatched === update.priorityTotal ? " · your edits are preserved" : " · some edits unresolved" : ""}</small>{update?.provisional && !complete && <small className="checking">checking…</small>}</span></div>
               <Trace values={history} />
               <div className="monitor-metrics"><span>{(update?.tested ?? 0).toLocaleString()} <small>combinations</small></span><span>{update?.benchmarkCount ?? "—"} <small>benchmarks</small></span></div>
               <div className="terminal-log" aria-hidden="true">{logs.length ? logs.map(log => <div key={log.id}><span aria-hidden="true">·</span>{log.text}</div>) : <div><span aria-hidden="true">·</span>Reading the benchmark evidence.</div>}</div>
             </div>
             {error && <div className="fit-error" role="alert"><p>{error}</p><button className="text-control" onClick={start}>Try again <Arrow /></button></div>}
-            <div className="mix-panel"><div className="mix-heading"><h2>{complete ? "Your benchmark mix" : update ? phaseNames[update.phase] : "Reading the evidence"}</h2><span className="phase-mark">{complete ? update?.exactMatch ? "✓" : "≈" : "⋯"}</span></div>
+            <div className="mix-panel"><div className="mix-heading"><h2>{complete ? `${FOCUSES.find(f => f.id === focus)?.name ?? ""} fit · ${update?.benchmarkCount ?? 0} benchmarks` : update ? phaseNames[update.phase] : "Reading the evidence"}</h2><span className="phase-mark">{complete ? update?.exactMatch ? "✓" : "≈" : "⋯"}</span></div>
               {activeWeights.length ? <div className="mix-rows">{activeWeights.map(([id, w]) => { const q = qMap.get(id); return <button key={id} className="mix-row" onClick={() => openDialog("quality")} title={q?.reason}><span className="mix-name">{q?.preferred && <span className="preferred-star" aria-label="Preferred benchmark">✳</span>}{q?.name ?? snapshot.benchmarks.find(b => b.id === id)?.name ?? id}</span><span className="mix-percent">{(w / totalWeight * 100).toFixed(1)}%</span><span className="mix-weight-track"><i style={{ width: `${w / totalWeight * 100}%` }} /></span></button>; })}</div> : <div className="mix-empty">Checking coverage across your models<span className="cursor">_</span></div>}
               {update && <div className="mix-quality"><button className="text-control" onClick={() => openDialog("quality")}>Evidence quality <span>{Math.round(update.quality)}/100</span></button><span>✳ Your preferred benchmarks</span></div>}
             </div>
-            {complete && <div className="result-actions"><p className="fit-disclosure">{update!.exactMatch ? "Every model matches your requested order." : "No matching configuration found. This is an approximate fit, not your requested ranking."} {update!.estimatedShare > 0 && `${Math.round(update!.estimatedShare * 100)}% of weighted evidence is estimated.`}</p>{update!.mismatches.length > 0 && <details className="fit-details"><summary>See the disagreements</summary><ul>{update!.mismatches.map((pair, i) => <li key={i}>You placed <strong>{models.get(pair.above)?.name}</strong> above <strong>{models.get(pair.below)?.name}</strong>.</li>)}</ul></details>}<details className="fit-details"><summary>How this fit was calculated</summary><p>Strictness {update!.config.strictness ?? 20}/100. {update!.config.effortMatching === "strict" ? "Exact reasoning efforts only." : "Calibrated reasoning-effort estimates allowed."} {update!.config.estimateMissing ? "Peer estimates may fill remaining gaps." : "Remaining gaps are left out and available weights are renormalized."} Calibrated benchmark fallbacks are allowed below maximum strictness. Only the relative order of your selected models is optimized. An unselected model appearing between them adds no penalty. Displayed positions are within your lineup. Your reversals and the placements of added models take priority, starting at the top. Remaining comparisons favor higher ranks. A comparison checks whether one selected model ranks above another; it is not an extra model. Unselected models cannot compensate for a mistake in that lineup. Best effort per model. Candidates are screened, then checked with the builder’s scoring engine. We search nonnegative weights and prune benchmarks. This is a best fit found, not a guarantee of the global minimum.</p></details><Link className="primary-action" href={resultUrl as "/builder"} transitionTypes={["nav-forward"]}>Explore this index <Arrow /></Link><button className="text-control copy-result" onClick={copy}>{copied ? "Link copied ✓" : "Copy index link"}</button></div>}
+            {complete && <div className="result-actions"><p className="fit-disclosure">{update!.exactMatch ? "Every model matches your requested order." : "No matching configuration found. This is an approximate fit, not your requested ranking."} {update!.estimatedShare > 0 && `${Math.round(update!.estimatedShare * 100)}% of weighted evidence is estimated.`}</p>{update!.mismatches.length > 0 && <details className="fit-details"><summary>See the disagreements</summary><ul>{update!.mismatches.map((pair, i) => <li key={i}>You placed <strong>{models.get(pair.above)?.name}</strong> above <strong>{models.get(pair.below)?.name}</strong>.</li>)}</ul></details>}<details className="fit-details"><summary>How this fit was calculated</summary><p>Strictness {update!.config.strictness ?? 20}/100. {update!.config.effortMatching === "strict" ? "Exact reasoning efforts only." : "Calibrated reasoning-effort estimates allowed."} {update!.config.estimateMissing ? "Peer estimates may fill remaining gaps." : "Remaining gaps are left out and available weights are renormalized."} Calibrated benchmark fallbacks are allowed below maximum strictness. Only the relative order of your selected models is optimized. An unselected model appearing between them adds no penalty. Displayed positions are within your lineup. Your reversals and the placements of added models take priority, starting at the top. Remaining comparisons favor higher ranks. A comparison checks whether one selected model ranks above another; it is not an extra model. Unselected models cannot compensate for a mistake in that lineup. Best effort per model. The search starts from benchmark mixes precomputed for your focus and favors tests with more coverage, fresher releases, more headroom, and more objective grading. The displayed fit is rank-weighted: mistakes near the top of your lineup cost the most, thin margins and extra benchmarks cost a little. Candidates are screened against a surrogate, then checked with the builder’s scoring engine under a time budget (about 30 seconds typical, 60 seconds at most). This is a best fit found, not a guarantee of the global minimum.</p></details><Link className="primary-action" href={resultUrl as "/builder"} transitionTypes={["nav-forward"]}>Explore this index <Arrow /></Link><button className="text-control copy-result" onClick={copy}>{copied ? "Link copied ✓" : "Copy index link"}</button></div>}
           </>}
         </aside>
       </div>
@@ -230,8 +272,8 @@ export function Onboarding({ snapshot }: { snapshot: Snapshot }) {
     <dialog ref={dialog} className="evidence-dialog" aria-labelledby="dialog-heading" onClick={e => { if (e.target === e.currentTarget) { const r = e.currentTarget.getBoundingClientRect(); if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) dialog.current?.close(); } }}>
       <div className="dialog-heading"><div><h2 id="dialog-heading">{modal === "models" ? "Who’s in your lineup?" : "Better evidence, fewer benchmarks."}</h2><p>{modal === "models" ? `Choose 3 to 18 models. ${order.length} selected.` : "Your preferences guide the search. Quality helps break close calls."}</p></div><button aria-label="Close dialog" className="icon-close" onClick={() => dialog.current?.close()}><Cross /></button></div>
       {modal === "models" ? <><input className="model-search" type="search" placeholder="Find a model…" aria-label="Find a model" value={query} onChange={e => setQuery(e.target.value)} /><div className="model-options">{modelOptions.map(m => <label key={m.id}><input type="checkbox" checked={order.includes(m.id)} disabled={order.includes(m.id) ? order.length <= 3 : order.length >= 18} onChange={() => setOrder(o => o.includes(m.id) ? o.filter(id => id !== m.id) : [...o, m.id])} /><i style={{ background: colors.get(m.labId) ?? "#8A8A80" }} /><span>{m.name}</span></label>)}{!modelOptions.length && <p>No models found.</p>}</div><button className="primary-action" onClick={() => dialog.current?.close()}>Use this lineup <Arrow /></button></> : <>
-        <div className="quality-explainer"><p><strong>Recency</strong> rewards recent test releases. An unknown release date gets a neutral score. A fresh scrape is not a fresh benchmark.</p><p><strong>Headroom</strong> measures saturation and score spread. Tests that separate models beat tests everyone passes.</p><p><strong>Objectivity</strong> favors verifiable outcomes over preferences and subjective judging.</p></div>
-        <p className="quality-caveat">Quality combines 30% recency, 40% headroom, and 30% objectivity. Objectivity is an assigned judgment score. This heuristic does not measure contamination or scientific validity.</p>
+        <div className="quality-explainer"><p><strong>Coverage</strong> counts how many models have measured results — a test most models took beats a niche one.</p><p><strong>Recency</strong> rewards recent test releases. An unknown release date gets a neutral score. A fresh scrape is not a fresh benchmark.</p><p><strong>Headroom</strong> measures saturation and score spread. Tests that separate models beat tests everyone passes.</p><p><strong>Objectivity</strong> favors verifiable outcomes over preferences and subjective judging.</p></div>
+        <p className="quality-caveat">Quality combines 25% coverage, 25% recency, 30% headroom, and 20% objectivity — plus a bonus for preferred benchmarks, minus a penalty for superseded versions. Objectivity is an assigned judgment score. This heuristic does not measure contamination or scientific validity.</p>
         <div className="quality-table"><div className="quality-table-head"><span>Benchmark</span><span>Recent</span><span>Headroom</span><span>Objective</span><span>Quality</span></div>{quality.filter(q => q.preferred || activeWeights.some(([id]) => id === q.id)).sort((a, b) => Number(b.preferred) - Number(a.preferred) || b.score - a.score).map(q => <div className="quality-entry" key={q.id}><div className="quality-table-row"><span>{q.preferred && <span className="preferred-star">✳ </span>}{q.name}</span><span>{q.dateConfidence === "unknown" ? "?" : Math.round(q.recency)}</span><span>{Math.round(q.saturation)}</span><span>{Math.round(q.objectivity)}</span><strong>{Math.round(q.score)}</strong></div><details><summary>{q.releaseDate ? `Released ${q.releaseDate}` : "Release date unverified"} · Why this score</summary><p>{q.reason} <a href={q.sourceUrl} target="_blank" rel="noreferrer">Source ↗</a></p></details></div>)}</div>
       </>}
     </dialog>

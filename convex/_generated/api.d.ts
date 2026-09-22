@@ -9,6 +9,7 @@
  */
 
 import type * as dev from "../dev.js";
+import type * as lineups from "../lineups.js";
 import type * as profiles from "../profiles.js";
 
 import type {
@@ -19,6 +20,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   dev: typeof dev;
+  lineups: typeof lineups;
   profiles: typeof profiles;
 }>;
 

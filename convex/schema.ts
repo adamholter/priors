@@ -58,4 +58,17 @@ export default defineSchema({
     rows: v.any(), // RawRow[] (normalized at read time)
     createdAt: v.number(),
   }).index("by_profile", ["profileId"]),
+
+  /** Completed onboarding lineups — anonymous, feeds the precomputed mix library. */
+  lineups: defineTable({
+    focus: v.string(),
+    lineup: v.array(v.string()), // model ids in the user's requested order
+    key: v.string(), // focus + "|" + lineup.join(",")
+    weights: v.any(), // fitted benchmark weights
+    strictness: v.number(),
+    fitScore: v.number(),
+    exact: v.boolean(),
+    snapshotDate: v.string(),
+    createdAt: v.number(),
+  }).index("by_key", ["key"]),
 });

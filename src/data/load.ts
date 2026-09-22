@@ -2,6 +2,7 @@ import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { gunzipSync } from "node:zlib";
 import type { Snapshot } from "./types";
+import type { MixLibrary } from "../onboarding/library";
 import { appendRealIndex } from "./real-index";
 
 const SNAP_DIR = path.resolve(process.cwd(), "data/snapshots");
@@ -28,4 +29,11 @@ export function loadSnapshot(date?: string): Promise<Snapshot | null> {
     snapshots.set(file, p);
   }
   return p;
+}
+
+/** Load the precomputed mix library for a snapshot date, or null when absent. */
+export async function loadMixLibrary(date?: string): Promise<MixLibrary | null> {
+  const file = date ? `${date}.library.json.gz` : "latest.library.json.gz";
+  try { return JSON.parse(gunzipSync(await readFile(path.join(SNAP_DIR, file))).toString("utf8")) as MixLibrary; }
+  catch { return null; }
 }

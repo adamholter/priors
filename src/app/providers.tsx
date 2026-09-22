@@ -7,6 +7,7 @@ import { useMemo, type ReactNode } from "react";
 
 export const authEnabled = !!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
 const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
+export const convexEnabled = !!convexUrl;
 
 export function Providers({ children }: { children: ReactNode }) {
   const convex = useMemo(() => (convexUrl ? new ConvexReactClient(convexUrl) : null), []);

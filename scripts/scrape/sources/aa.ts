@@ -191,9 +191,9 @@ const source: Source = {
     if (!tableModels) notes.push("/models table payload missing; no speed/price/cost");
 
     // Intelligence Index version + component list from page text
-    const verM = (modelsHtml + iiHtml).match(/Intelligence Index v(\d+(?:\.\d+)?)/);
+    const verM = (modelsHtml + iiHtml).match(/Intelligence Index v(\d+(?:\.\d+)*)/);
     const iiVersion = verM?.[1];
-    if (iiVersion !== "4.3") throw new Error(`AA index version ${iiVersion ?? "unknown"} needs a reviewed component/normalization map; preserving the previous snapshot`);
+    if (!/^4\.3(?:\.\d+)?$/.test(iiVersion ?? "")) throw new Error(`AA index version ${iiVersion ?? "unknown"} needs a reviewed component/normalization map; preserving the previous snapshot`);
     // e.g. "Intelligence Index v4.2 incorporates 10 evaluations: AA-Briefcase, GDPval-AA v2, ..., AA-LCR v1.1</span>"
     const compM = decode(modelsHtml + iiHtml).match(/Intelligence Index v[\d.]+ (?:incorporates|includes)[^:<]*:\s*([^<·]+?)(?:\.\s|<|·|$)/);
     const components = compM ? compM[1].split(/,\s*/).map((s) => s.trim().replace(/\.$/, "")).filter(Boolean) : [];
@@ -334,7 +334,7 @@ const source: Source = {
     });
 
     const missingComponents = Object.keys(AA_V43_WEIGHTS).filter((id) => !have(id));
-    if (iiVersion === "4.3" && missingComponents.length) throw new Error(`AA v4.3 components missing: ${missingComponents.join(", ")}`);
+    if (iiVersion?.startsWith("4.3") && missingComponents.length) throw new Error(`AA v${iiVersion} components missing: ${missingComponents.join(", ")}`);
     const identities = modelMeta.map((m) => m.identity!);
     const seenVariants = new Map<string, string>();
     for (const identity of identities) {

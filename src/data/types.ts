@@ -32,6 +32,10 @@ export interface Variant {
   sourceModel?: { id: string; slug: string; name: string; url: string; metadata?: Record<string, unknown> };
 }
 
+/** Onboarding lineup-fit focus preset. Stored on IndexConfig; ranking ignores it. */
+export type FocusId = "capabilities" | "knowledge" | "problem-solving" | "general";
+export const FOCUS_IDS: FocusId[] = ["capabilities", "knowledge", "problem-solving", "general"];
+
 export type BenchmarkUnit = "percent" | "score" | "elo" | "usd" | "seconds" | "count";
 export type BenchmarkCategory =
   | "coding" | "agentic" | "reasoning" | "knowledge" | "math" | "long-context"

@@ -25,9 +25,10 @@ export function MetricGallery({ ranked, snapshot, labs }: { ranked: RankedVarian
     ranked.flatMap((r) => { const o = obs.get(benchId)?.get(r.variant.id); const x = o && pick(o); return x != null && Number.isFinite(x) && x > 0 ? [{ x, r }] : []; });
 
   const panels: { id: string; title: string; desc: string; open?: boolean; node: React.ReactNode }[] = [];
+  const iiId = snapshot.benchmarks.filter((b) => b.id.startsWith("aa-intelligence-index")).sort((a, b) => b.id.localeCompare(a.id))[0]?.id;
   const ttft = at("aa-ttft");
-  const decode = at("aa-intelligence-index-v4.3", (o) => (o.details?.estimatedDecodeSecondsPerTask as number | undefined) ?? undefined);
-  const tokens = at("aa-intelligence-index-v4.3", (o) => (o.details?.outputTokensPerTask as number | undefined) ?? o.outputTokens ?? undefined);
+  const decode = iiId ? at(iiId, (o) => (o.details?.estimatedDecodeSecondsPerTask as number | undefined) ?? undefined) : [];
+  const tokens = iiId ? at(iiId, (o) => (o.details?.outputTokensPerTask as number | undefined) ?? o.outputTokens ?? undefined) : [];
   const uptime = at("openrouter-uptime");
   const dates = ranked.flatMap((r) => r.model.releaseDate ? [{ x: Date.parse(r.model.releaseDate), r }] : []);
 

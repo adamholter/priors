@@ -1,4 +1,4 @@
-import type { Benchmark, Model, Observation, Snapshot, Variant } from "../data/types";
+import type { Benchmark, FocusId, Model, Observation, Snapshot, Variant } from "../data/types";
 
 /* ------------------------------------------------------------------ */
 /* Config                                                              */
@@ -26,6 +26,8 @@ export interface IndexConfig {
   labs?: string[]; // include only these labIds
   excludeModels?: string[]; // modelIds
   releasedAfter?: string; // ISO date
+  /** Onboarding focus preset that produced this index; ranking ignores it. */
+  focus?: FocusId;
 }
 
 export const DEFAULT_CUTOFF = 5;

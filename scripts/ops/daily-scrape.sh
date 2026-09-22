@@ -1,5 +1,5 @@
 #!/bin/bash
-# Daily: scrape all sources -> data/snapshots/<date>.json.gz, commit and push (main deploys on push).
+# Every 6h: scrape all sources -> data/snapshots/<date>.json.gz + mix library, commit and push (main deploys on push).
 set -uo pipefail
 cd "$(dirname "$0")/../.."
 export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
@@ -10,6 +10,11 @@ notify() { osascript -e "display notification \"$1\" with title \"Priors\"" 2>/d
 if ! npx tsx scripts/scrape/build.ts --date "$DATE" 2>&1 | tee "$LOG"; then
   notify "Priors scrape failed for $DATE — see logs/scrape.log"
   exit 1
+fi
+# build.ts already regenerates the mix library inline; re-run explicitly so the
+# library is refreshed even if the inline step is ever skipped.
+if ! npm run library -- --date "$DATE" >>"$LOG" 2>&1; then
+  notify "Priors library build failed for $DATE — see logs/scrape.log"
 fi
 if grep -qE '^[[:space:]]*failed[[:space:]]' "$LOG"; then
   notify "Priors scrape $DATE finished with source failures — see logs/scrape.log"

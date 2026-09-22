@@ -15,7 +15,7 @@ it('escapes the earlier Sol/Opus/Muse fit and only publishes improving selected-
     const loss=[p.missing,...p.priorityErrors,p.weightedErrors,p.total-p.matched];
     if(previous){const index=loss.findIndex((n,i)=>n!==previous![i]);if(index>=0)expect(loss[index]).toBeLessThan(previous[index]);}
     previous=loss;
-  },Object.fromEntries(benchmarkQuality(snapshot).map(q=>[q.id,q.score])),0,{baseline});
+  },Object.fromEntries(benchmarkQuality(snapshot).map(q=>[q.id,q.score])),0,{baseline},{budgetMs:{soft:34000,hard:40000}});
   const ranked=result.ranking.map(r=>r.modelId);
   expect(ranked.slice(0,5)).toEqual(target.slice(0,5));
   expect(ranked[10]).toBe('muse-spark-1.3');
@@ -26,4 +26,4 @@ it('escapes the earlier Sol/Opus/Muse fit and only publishes improving selected-
   // The published index ranks everyone — the lineup's relative order must survive.
   const inLineup=new Set(target);
   expect(computeIndex(snapshot,decoded).ranked.filter(r=>inLineup.has(r.model.id)).map(r=>r.model.id)).toEqual(result.ranking.map(r=>r.modelId));
-},30000);
+},55000);

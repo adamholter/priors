@@ -22,6 +22,13 @@ it("starts with the exact shared General frontier configuration", () => {
   expect(defaultConfig({} as Snapshot)).toEqual(shared);
 });
 
+it("round trips the onboarding focus", () => {
+  const c = { ...decodeIndex("General|swe:50,term:50", "a")!, focus: "knowledge" as const };
+  expect(decodeIndex(encodeIndex(c), "a")).toEqual(c);
+  expect(encodeIndex(c)).toContain("focus=knowledge");
+  expect(decodeIndex("General|swe:50|focus=bogus", "a")?.focus).toBeUndefined();
+});
+
 it("preserves namespaced benchmark weights in shared results", () => {
   const config = { ...decodeIndex("Custom|swe:20", "a")!, weights: { "real-index:terminal-bench-2-1": 23, "deepswe-1.1": 29 }, optional: ["real-index:terminal-bench-2-1"] };
   expect(decodeIndex(encodeIndex(config), "a")).toEqual(config);

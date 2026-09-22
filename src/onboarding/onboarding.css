@@ -16,3 +16,15 @@
 .mix-row{animation:none}
 .mix-weight-track i{transition:width 520ms cubic-bezier(.22,1,.36,1)}
 @media(prefers-reduced-motion:reduce){.stage-fit .tactile-row,.stage-fit .belief-bar,.mix-weight-track i{transition:none}}
+.focus-picker{display:flex;align-items:flex-start;gap:18px;padding:0 7px 16px;border-bottom:1px solid #DDDBD4;margin-bottom:10px}
+.focus-label{font:10px var(--font-mono);letter-spacing:.045em;color:#75786C;padding-top:9px}
+.focus-row{flex:1;display:grid;grid-template-columns:repeat(4,1fr);border:1px solid #DDDBD4}
+.focus-option{display:flex;flex-direction:column;gap:5px;padding:10px 12px;background:none;border:0;border-left:1px solid #DDDBD4;text-align:left;cursor:pointer;transition:background .18s}
+.focus-option:first-child{border-left:0}
+.focus-option:hover{background:#fff}
+.focus-option.selected{background:#fff;box-shadow:inset 0 -2px 0 #2F4FB0}
+.focus-name{font-size:12px;color:#1A1A1A}
+.focus-option.selected .focus-name{color:#2F4FB0}
+.focus-blurb{font-size:10px;line-height:1.45;color:#8A8A80}
+.agreement .checking{display:block;font:10px var(--font-mono);color:#75786C;margin-top:4px}
+@media(max-width:740px){.focus-picker{flex-direction:column;gap:8px}.focus-row{grid-template-columns:1fr 1fr}.focus-option:nth-child(3){border-left:0}.focus-option:nth-child(n+3){border-top:1px solid #DDDBD4}.focus-blurb{display:none}}

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Snapshot } from "../data/types";
 import { computeIndex } from "../engine";
-import { fitPriors, PREFERRED, selectedPairAgreement } from "./optimizer";
+import { fitPriors, fitScore, PREFERRED, selectedPairAgreement } from "./optimizer";
 
 function snapshot(): Snapshot {
   const models = ["a", "b", "c", "d"].map((id) => ({ id, name: id.toUpperCase(), labId: "lab", kind: "llm" as const, reasoning: false, aliases: [] }));
@@ -115,5 +115,40 @@ describe("fitPriors", () => {
   it("exports the preferred benchmark order", () => {
     expect(PREFERRED[0]).toBe("deepswe-1.1");
     expect(PREFERRED).toHaveLength(8);
+  });
+});
+
+describe("fitScore", () => {
+  const target = Array.from({ length: 14 }, (_, i) => `m${i}`);
+  const perfect = (gap = 3) => new Map(target.map((id, i) => [id, 100 - i * gap]));
+  const swap = (scores: Map<string, number>, i: number, j: number) => {
+    const s = new Map(scores);
+    s.set(target[i], scores.get(target[j])!); s.set(target[j], scores.get(target[i])!);
+    return s;
+  };
+
+  it("scores a perfect well-separated ranking 100", () => {
+    expect(fitScore(target, perfect(), 4)).toBe(100);
+  });
+  it("charges ~25 for a swapped top pair", () => {
+    expect(fitScore(target, swap(perfect(), 0, 1), 4)).toBeCloseTo(75, 0);
+  });
+  it("charges ~10 for a swap at ranks 7-8", () => {
+    expect(Math.abs(fitScore(target, swap(perfect(), 6, 7), 4) - 90)).toBeLessThanOrEqual(1);
+  });
+  it("charges ~7 for a swap at the bottom", () => {
+    expect(fitScore(target, swap(perfect(), 12, 13), 4)).toBeCloseTo(93, 0);
+  });
+  it("charges 5 for a 12-benchmark mix", () => {
+    expect(fitScore(target, perfect(), 12)).toBe(95);
+  });
+  it("charges ~2.5 when every margin is thin", () => {
+    expect(fitScore(target, perfect(1.5), 4)).toBeCloseTo(97.5, 0);
+  });
+  it("counts a missing model as wrong against every other model", () => {
+    const s = perfect(); s.delete("m0");
+    expect(fitScore(target, s, 4)).toBe(0);
+    const bottom = perfect(); bottom.delete("m13");
+    expect(fitScore(target, bottom, 4)).toBe(0);
   });
 });
