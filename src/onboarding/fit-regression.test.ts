@@ -23,5 +23,7 @@ it('escapes the earlier Sol/Opus/Muse fit and only publishes improving selected-
   expect(result.matchedPairs).toBeGreaterThanOrEqual(100); // Previous implementation reached 95.
   expect(result.benchmarkCount).toBeLessThanOrEqual(12);
   const decoded=decodeIndex(encodeIndex(result.config),'fit')!;
-  expect(computeIndex(snapshot,decoded).ranked.map(r=>[r.model.id,r.score])).toEqual(result.ranking.map(r=>[r.modelId,r.score]));
+  // The published index ranks everyone — the lineup's relative order must survive.
+  const inLineup=new Set(target);
+  expect(computeIndex(snapshot,decoded).ranked.filter(r=>inLineup.has(r.model.id)).map(r=>r.model.id)).toEqual(result.ranking.map(r=>r.modelId));
 },30000);

@@ -34,7 +34,7 @@ describe("fitPriors", () => {
     expect(result.weights).not.toHaveProperty("aa-cost-per-task-index");
     expect(result.quality).toBe(88);
     expect(result.estimatedShare).toBe(0);
-    expect(result.config.excludeModels).toEqual([]);
+    expect(result.config.excludeModels ?? []).toEqual([]);
     expect(computeIndex(snapshot(), result.config).ranked.map((r) => r.model.id)).toEqual(result.ranking.map((r) => r.modelId));
     expect(updates.some((u) => u.phase === "searching")).toBe(true);
   });
@@ -73,7 +73,7 @@ describe("fitPriors", () => {
     const small = await fitPriors(snapshot(), ["a", "b"], () => {});
     expect(small.totalPairs).toBe(1);
     expect(small.ranking.map(r => r.modelId)).toEqual(["a", "b"]);
-    expect(small.config.excludeModels).toEqual(["c", "d"]);
+    expect(small.config.excludeModels ?? []).toEqual([]);
     const updates: number[] = [];
     const added = await fitPriors(snapshot(), ["a", "b", "c"], u => { updates.push(u.agreement); });
     expect(added.totalPairs).toBe(3);

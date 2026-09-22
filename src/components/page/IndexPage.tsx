@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import type { Snapshot } from "@/data/types";
-import { chartVariantMode, computeIndex, selectVariants, type IndexConfig } from "@/engine";
+import { chartVariantMode, computeIndex, selectVariants, type IndexConfig, type RankedVariant } from "@/engine";
 import { encodeIndices } from "@/lib/url";
 import { ShareCards } from "../ShareCards";
 import { Wordmark } from "../Wordmark";
@@ -33,6 +33,12 @@ export function IndexPage({ profile, snapshot, dates, edit }: { profile: Profile
   if (profile !== prevProfile) { setPrevProfile(profile); setPState(profile); }
   const setP = setPState;
   const results = useMemo(() => new Map(p.indices.map((i) => [i.id, computeIndex(snapshot, { ...i, variants: "all" })])), [snapshot, p.indices]);
+  // Hidden-by-lineup models get real scores too, computed once alongside the main result.
+  const hidden = useMemo(() => new Map(p.indices.map((i) => {
+    if (!i.excludeModels?.length) return [i.id, [] as RankedVariant[]];
+    const hid = new Set(i.excludeModels);
+    return [i.id, computeIndex(snapshot, { ...i, variants: "all", excludeModels: [] }).ranked.filter((r) => hid.has(r.model.id))];
+  })), [snapshot, p.indices]);
   const accent = p.theme?.accent ?? "#2F4FB0";
   const surface = p.theme?.surface === "white" ? "#FFFFFF" : "#FBFBF9";
   const builderHref = `/?${encodeIndices(p.indices).toString()}`;
@@ -86,7 +92,7 @@ export function IndexPage({ profile, snapshot, dates, edit }: { profile: Profile
           if (s.kind === "rankings") return (
             <section key={s.id}>
               <div className="flex items-baseline justify-between mb-3"><h2 className="text-[24px]">{title}</h2><ChartSettings label="Ranking" mode={rankingMode} onChange={(rankingVariants) => updateIndex({ rankingVariants })} /></div>
-              <Rankings ranked={selectVariants(r.ranked, rankingMode)} showEffort={rankingMode === "all"} labs={snapshot.labs} limit={25} selected={selected} onSelect={(x) => setSelected(x?.variant.id ?? null)} />
+              <Rankings ranked={selectVariants(r.ranked, rankingMode)} hidden={selectVariants(hidden.get(idx.id) ?? [], rankingMode)} hiddenCount={hidden.get(idx.id)?.length} hiddenNote="not in this index" showEffort={rankingMode === "all"} labs={snapshot.labs} limit={25} selected={selected} onSelect={(x) => setSelected(x?.variant.id ?? null)} />
             </section>
           );
           if (s.kind === "pareto") return <section key={s.id}><div className="flex items-baseline justify-between mb-1"><h2 className="text-[24px]">{title}</h2><ChartSettings label="Pareto" mode={paretoMode} onChange={(paretoVariants) => updateIndex({ paretoVariants })} /></div><ParetoChart ranked={selectVariants(r.ranked, paretoMode)} labs={snapshot.labs} height={440} /></section>;

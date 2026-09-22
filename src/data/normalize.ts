@@ -20,7 +20,7 @@ export const LABS: Lab[] = [
   { id: "mistral", name: "Mistral", color: "#E0742A" },
   { id: "zhipu", name: "Zhipu", color: "#8A8A80" },
   { id: "minimax", name: "MiniMax", color: "#D9A441" },
-  { id: "xiaomi", name: "Xiaomi", color: "#C24E3A" },
+  { id: "xiaomi", name: "Xiaomi", color: "#8B5A33" },
   { id: "cognition", name: "Cognition", color: "#3A6B5E" },
   { id: "thinking-machines", name: "Thinking Machines", color: "#6B5B95" },
   { id: "tencent", name: "Tencent", color: "#2E7D9A" },
