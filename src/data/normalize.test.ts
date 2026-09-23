@@ -72,6 +72,15 @@ describe("normalizeLabel", () => {
       }
     });
   }
+  it("maps MineBench's legacy Anthropic ordering and Gemini x.0 labels", () => {
+    expect(normalizeLabel("Claude 4.8 Opus")).toMatchObject({ modelId: "claude-opus-4.8" });
+    expect(normalizeLabel("Claude 4.7 Opus")).toMatchObject({ modelId: "claude-opus-4.7" });
+    expect(normalizeLabel("Claude 4.6 Sonnet")).toMatchObject({ modelId: "claude-sonnet-4.6" });
+    expect(normalizeLabel("Claude 4.5 Opus")).toMatchObject({ modelId: "claude-opus-4.5" });
+    expect(normalizeLabel("Gemini 3.0 Pro")).toMatchObject({ modelId: "gemini-3-pro" });
+    expect(normalizeLabel("Gemini 3.0 Flash")).toMatchObject({ modelId: "gemini-3-flash" });
+    expect(normalizeLabel("GPT 6 Astra Pro")).toMatchObject({ modelId: "gpt-6-astra-pro" });
+  });
   it("distinct models are not merged", () => {
     const a = normalizeLabel("GPT-5.5"), b = normalizeLabel("GPT-5.5 mini"), c = normalizeLabel("GPT-5.4"), d = normalizeLabel("GPT-5.6 Sol"), e = normalizeLabel("GPT-5.6 Terra");
     expect(new Set([a, b, c, d, e].map((x) => (x.ok ? x.modelId : "?"))).size).toBe(5);
