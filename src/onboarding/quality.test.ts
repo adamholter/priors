@@ -57,8 +57,35 @@ describe("benchmarkQuality", () => {
   it("adds the +15 preferred-benchmark contribution", () => {
     const q = benchmarkQuality(snapshot([benchmark("deepswe-1.1")], [["deepswe-1.1", "a@low", 40], ["deepswe-1.1", "b@low", 60]]))[0];
     expect(q.preferred).toBe(true);
-    const base = Math.round(0.25 * q.coverage + 0.25 * q.recency + 0.3 * q.saturation + 0.2 * q.objectivity);
+    const base = Math.round(0.15 * q.coverage + 0.15 * q.frontierCoverage + 0.2 * q.recency + 0.3 * q.saturation + 0.2 * q.objectivity);
     expect(q.score).toBe(Math.min(100, base + 15));
+  });
+
+  it("downweights publisher results that predate the September 22 frontier releases", () => {
+    const fresh = { ...benchmark("fresh"), lastUpdated: "2026-09-22" };
+    const stale = { ...benchmark("stale"), lastUpdated: "2026-09-21" };
+    const values: Array<[string, string, number]> = [
+      ["fresh", "claude-opus-5.5@max", 20], ["fresh", "gpt-6-sol@max", 30],
+      ["stale", "claude-opus-5.5@max", 20], ["stale", "gpt-6-sol@max", 30],
+    ];
+    const result = benchmarkQuality(snapshot([fresh, stale], values, "2026-09-23"));
+    expect(result.find((q) => q.id === "fresh")?.staleFrontier).toBe(false);
+    expect(result.find((q) => q.id === "stale")?.staleFrontier).toBe(true);
+    expect(result.find((q) => q.id === "fresh")!.score - result.find((q) => q.id === "stale")!.score).toBe(20);
+  });
+
+  it("rewards measured top models rather than only the total row count", () => {
+    const full = benchmark("full"), gaps = benchmark("gaps");
+    const values: Array<[string, string, number]> = [
+      ["full", "claude-opus-5.5@max", 20], ["full", "gpt-6-sol@max", 40], ["full", "gpt-6-luna@max", 60],
+      ["gaps", "claude-opus-5.5@max", 20], ["gaps", "other-a@max", 40], ["gaps", "other-b@max", 60],
+    ];
+    const result = benchmarkQuality(snapshot([full, gaps], values, "2026-09-23"));
+    const a = result.find((q) => q.id === "full")!, b = result.find((q) => q.id === "gaps")!;
+    expect(a.coverage).toBe(b.coverage);
+    expect(a.frontierMeasured).toBe(3);
+    expect(b.frontierMeasured).toBe(1);
+    expect(a.score).toBeGreaterThan(b.score);
   });
 
   it("scores broader measured coverage higher with other inputs held equal", () => {

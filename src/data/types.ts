@@ -48,6 +48,8 @@ export interface Benchmark {
   sourceId: string; // scraper that produced it
   url: string; // canonical public page
   description: string; // one or two sentences, what it measures
+  /** Date the publisher last updated this benchmark's results, when published. */
+  lastUpdated?: string; // YYYY-MM-DD; distinct from benchmark release and scrape dates
   /** Fixed source-defined scale; independent of which models the user filters. */
   normalization?: { kind: "linear"; min: number; max: number };
   unit: BenchmarkUnit;

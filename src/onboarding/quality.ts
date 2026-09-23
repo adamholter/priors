@@ -1,7 +1,12 @@
 import type { Benchmark, Snapshot } from "../data/types";
 import { focusMultiplier, type Focus } from "./focus";
+import { DEFAULT_LINEUP } from "./defaults";
 
-export const PREFERRED = ["deepswe-1.1", "terminalbench-4", "arc-agi-3", "simplebench", "bsbench-v2", "aa-humanitys-last-exam", "aa-omniscience", "frontiermath-tier-4-v2"] as const;
+export const PREFERRED = ["deepswe-1.1", "terminalbench-4", "arc-agi-3", "simplebench", "bsbench-v2", "aa-humanitys-last-exam", "aa-omniscience", "frontiermath-tier-4-v2", "vals-programbench"] as const;
+
+/** Current top-lineup models plus Luna, which launched with Opus 5.5 and Sol. */
+const FRONTIER_COHORT = [...new Set([...DEFAULT_LINEUP.slice(0, 10), "gpt-6-luna"])];
+const FRONTIER_RELEASE_DATE = "2026-09-22";
 
 export const SUPERSEDED = new Set(["aa-terminalbench-v2-1", "arc-agi-1", "arc-agi-2", "deepswe-1", "aa-math-500"]);
 
@@ -18,6 +23,11 @@ export interface BenchmarkQuality {
   reason: string;
   sourceUrl: string;
   coverage: number;
+  frontierCoverage: number;
+  frontierMeasured: number;
+  frontierTotal: number;
+  lastUpdated?: string;
+  staleFrontier: boolean;
 }
 
 /** Dates here are benchmark releases verified from the linked publisher, not scrape/update dates. */
@@ -91,6 +101,7 @@ const OBJECTIVITY: Record<string, number> = {
   "aa-humanitys-last-exam": 88,
   "aa-omniscience": 85,
   "frontiermath-tier-4-v2": 96,
+  "vals-programbench": 98,
   "vendingbench-2": 82,
   "vendingbench-arena": 72,
   "blueprintbench-2": 78,
@@ -165,6 +176,18 @@ function modelsMeasured(snapshot: Snapshot, benchmarkId: string): number {
   return covered.size;
 }
 
+function frontierCoverage(snapshot: Snapshot, benchmarkId: string): { measured: number; total: number; score: number } {
+  const available = new Set(snapshot.models.filter((m) => m.kind === "llm").map((m) => m.id));
+  const cohort = FRONTIER_COHORT.filter((id) => available.has(id));
+  const measured = new Set<string>();
+  for (const observation of snapshot.observations) {
+    if (observation.benchmarkId !== benchmarkId) continue;
+    const modelId = snapshot.variants.find((v) => v.id === observation.variantId)?.modelId ?? observation.variantId.split("@")[0];
+    if (cohort.includes(modelId)) measured.add(modelId);
+  }
+  return { measured: measured.size, total: cohort.length, score: cohort.length ? rounded(100 * measured.size / cohort.length) : 0 };
+}
+
 /** How strongly a benchmark fits the chosen focus: quality scaled by the category multiplier. */
 export function affinity(q: BenchmarkQuality, focus: Focus, benchmark: Benchmark): number {
   return Math.max(0, Math.min(1, (q.score / 100) * focusMultiplier(focus, benchmark.category)));
@@ -178,11 +201,14 @@ export function benchmarkQuality(snapshot: Snapshot): BenchmarkQuality[] {
     const objectivity = objectivityScore(benchmark);
     const measured = modelsMeasured(snapshot, benchmark.id);
     const coverage = rounded(100 * Math.min(1, measured / 40));
+    const frontier = frontierCoverage(snapshot, benchmark.id);
+    const frontierScore = frontier.total ? frontier.score : coverage;
     const preferred = (PREFERRED as readonly string[]).includes(benchmark.id);
     const superseded = SUPERSEDED.has(benchmark.id);
-    const score = rounded(coverage * 0.25 + recency * 0.25 + saturation * 0.3 + objectivity * 0.2 + (preferred ? 15 : 0) - (superseded ? 25 : 0));
+    const staleFrontier = snapshot.date >= FRONTIER_RELEASE_DATE && !!benchmark.lastUpdated && benchmark.lastUpdated < FRONTIER_RELEASE_DATE;
+    const score = rounded(coverage * 0.15 + frontierScore * 0.15 + recency * 0.2 + saturation * 0.3 + objectivity * 0.2 + (preferred ? 15 : 0) - (superseded ? 25 : 0) - (staleFrontier ? 20 : 0));
     const dateConfidence = release ? "verified" as const : "unknown" as const;
-    const reason = `${dateConfidence === "verified" ? `Released ${release.date}` : "Release date unverified; recency held neutral"}. Headroom and score-spread quality ${saturation}/100 after collapsing effort/config variants by model. Objectivity ${objectivity}/100 is an assigned judgment score based on grading method. Coverage ${coverage}/100 from ${measured} measured models. Quality is a 25% coverage, 25% recency, 30% headroom-and-spread, 20% objectivity heuristic${preferred ? " plus a preferred-benchmark bonus" : ""}${superseded ? ", minus a superseded-version penalty" : ""} — not proof of validity or freedom from training contamination.`;
+    const reason = `${dateConfidence === "verified" ? `Released ${release.date}` : "Release date unverified; recency held neutral"}. Headroom and score-spread quality ${saturation}/100 after collapsing effort/config variants by model. Objectivity ${objectivity}/100 is an assigned judgment score based on grading method. Breadth ${coverage}/100 from ${measured} measured models; frontier coverage ${frontierScore}/100 from ${frontier.measured}/${frontier.total} current top-lineup models${frontier.total ? "" : " (no cohort models in this snapshot; breadth used instead)"}. ${benchmark.lastUpdated ? `Publisher results updated ${benchmark.lastUpdated}. ` : "Publisher update date unknown. "}${staleFrontier ? `Results predate the ${FRONTIER_RELEASE_DATE} frontier releases, so quality loses 20 points. ` : ""}Quality combines 15% breadth, 15% frontier coverage, 20% benchmark recency, 30% headroom and spread, and 20% objectivity${preferred ? ", plus a preferred-benchmark bonus" : ""}${superseded ? ", minus a superseded-version penalty" : ""}. It does not prove validity or freedom from training contamination.`;
     return {
       id: benchmark.id,
       name: benchmark.name,
@@ -196,6 +222,11 @@ export function benchmarkQuality(snapshot: Snapshot): BenchmarkQuality[] {
       reason,
       sourceUrl: release?.url ?? SOURCE_URLS[benchmark.id] ?? benchmark.url,
       coverage,
+      frontierCoverage: frontierScore,
+      frontierMeasured: frontier.measured,
+      frontierTotal: frontier.total,
+      ...(benchmark.lastUpdated ? { lastUpdated: benchmark.lastUpdated } : {}),
+      staleFrontier,
     };
   });
 }
