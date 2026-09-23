@@ -42,18 +42,27 @@ async function main() {
   await Promise.all(sources.map(async (src) => {
     const ctx = makeContext(src.id);
     const started = new Date().toISOString();
+    let rawPath = "";
     try {
       const r = await src.scrape(ctx);
-      const rawPath = await saveRaw(src.id, date, r.raw);
+      rawPath = await saveRaw(src.id, date, r.raw);
+      const ids = new Set(r.benchmarks.map((b) => b.id));
+      if (!ids.size || !r.rows.length) throw new Error("source returned no benchmarks or rows");
+      for (const b of r.benchmarks) {
+        if (!r.rows.some((row) => row.benchmarkId === b.id)) throw new Error(`benchmark ${b.id} returned no rows`);
+      }
+      for (const row of r.rows) {
+        if (!ids.has(row.benchmarkId) || !Number.isFinite(row.value)) throw new Error(`invalid row for ${row.benchmarkId}`);
+      }
       r.benchmarks.forEach((b) => benchmarks.set(b.id, { ...b, sourceId: src.id }));
       r.rows.forEach((row) => rows.push({ ...row, sourceId: src.id }));
       r.series?.forEach((s) => rawSeries.push({ ...s, sourceId: src.id }));
       r.modelMeta?.forEach((m) => meta.set(m.modelLabel.toLowerCase(), m));
-      runs.push({ sourceId: src.id, status: r.rows.length ? "ok" : "partial", fetchedAt: started, rowCount: r.rows.length, unknownLabels: [], rawPath });
+      runs.push({ sourceId: src.id, status: "ok", fetchedAt: started, rowCount: r.rows.length, unknownLabels: [], rawPath });
       ctx.log(`${r.rows.length} rows, ${r.benchmarks.length} benchmarks${r.notes?.length ? " — " + r.notes.join("; ") : ""}`);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      runs.push({ sourceId: src.id, status: "failed", fetchedAt: started, rowCount: 0, unknownLabels: [], rawPath: "", error: msg });
+      runs.push({ sourceId: src.id, status: "failed", fetchedAt: started, rowCount: 0, unknownLabels: [], rawPath, error: msg });
       ctx.log(`FAILED: ${msg}`);
     }
   }));
