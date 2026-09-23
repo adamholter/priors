@@ -2,7 +2,7 @@ import type { Benchmark, Snapshot } from "../data/types";
 import { focusMultiplier, type Focus } from "./focus";
 import { DEFAULT_LINEUP } from "./defaults";
 
-export const PREFERRED = ["deepswe-1.1", "terminalbench-4", "arc-agi-3", "simplebench", "bsbench-v2", "aa-humanitys-last-exam", "aa-omniscience", "frontiermath-tier-4-v2", "vals-programbench"] as const;
+export const PREFERRED = ["deepswe-1.1", "terminalbench-4", "arc-agi-3", "simplebench", "bsbench-v2", "aa-humanitys-last-exam", "aa-omniscience", "frontiermath-tier-4-v2", "vals-programbench-v1"] as const;
 
 /** Current top-lineup models plus Luna, which launched with Opus 5.5 and Sol. */
 const FRONTIER_COHORT = [...new Set([...DEFAULT_LINEUP.slice(0, 10), "gpt-6-luna"])];
@@ -101,7 +101,7 @@ const OBJECTIVITY: Record<string, number> = {
   "aa-humanitys-last-exam": 88,
   "aa-omniscience": 85,
   "frontiermath-tier-4-v2": 96,
-  "vals-programbench": 98,
+  "vals-programbench-v1": 98,
   "vendingbench-2": 82,
   "vendingbench-arena": 72,
   "blueprintbench-2": 78,
