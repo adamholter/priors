@@ -6,6 +6,7 @@ import type { Lab } from "@/data/types";
 import type { RankedVariant } from "@/engine";
 import { markColor, markLabel, useChartPalette, useEChart } from "./echarts";
 import { scatterHtml, unitOf } from "./embed";
+import { ChartLink } from "./ChartLink";
 
 export interface ScatterPoint { x: number; r: RankedVariant; /** untransformed value for tooltips/export when x is transformed */ raw?: number }
 export interface ScatterView { density: number; frontier: boolean; links: boolean; kind?: "scatter" | "bars" }
@@ -68,11 +69,11 @@ function escapeHtml(s: string) { return s.replace(/[&<>"']/g, (c) => ({ "&": "&a
  * Index score vs one metric. Lab-colored marks, reasoning efforts of one model joined by a thin line,
  * Pareto frontier traced in ink, labels thinned by density. Title, settings and export share one row.
  */
-export function ScoreScatter({ pts, labs, better, xName, xShort, xUnit = "", scale = "linear", formatX, formatValue, height = 420, aria, title, actions, view, exportName, extraRows, tooltipExtra }: {
+export function ScoreScatter({ pts, labs, better, xName, xShort, xUnit = "", scale = "linear", formatX, formatValue, height = 420, aria, title, actions, view, exportName, extraRows, tooltipExtra, anchor }: {
   pts: ScatterPoint[]; labs: Lab[]; better: "lower" | "higher"; xName: string; xShort?: string; xUnit?: string;
   scale?: "linear" | "log" | "time"; formatX: (x: number) => string; formatValue?: (x: number) => string;
   height?: number; aria: string; title?: ReactNode; actions?: ReactNode; view: ScatterView; exportName: string;
-  extraRows?: (p: ScatterPoint) => ExportRow; tooltipExtra?: (p: ScatterPoint) => string;
+  extraRows?: (p: ScatterPoint) => ExportRow; tooltipExtra?: (p: ScatterPoint) => string; anchor?: string;
 }) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const [narrow, setNarrow] = useState(false);
@@ -148,12 +149,13 @@ export function ScoreScatter({ pts, labs, better, xName, xShort, xUnit = "", sca
     });
   };
   return (
-    <div ref={wrapRef} className="max-sm:-mx-4">
+    <div ref={wrapRef} id={anchor} className="max-sm:-mx-4 scroll-mt-20">
       {/* Untitled charts (gallery panels) float their controls over the plot's empty top margin. */}
       <div className={`flex flex-wrap items-center justify-between gap-x-4 gap-y-1 max-sm:px-4 min-h-8 ${title ? "mb-1" : "-mb-8 relative z-10 pointer-events-none"}`}>
         <div className="min-w-0">{title}</div>
         <div className="flex items-center gap-1 ml-auto pointer-events-auto">
           {actions}
+          {anchor && <ChartLink id={anchor} name={exportName} />}
           <ChartExport name={exportName} frame getHtml={getHtml} getSvg={() => chart.current?.renderToSVGString()} getRows={() => pts.map((p) => ({ rank: p.r.rank, model: p.r.model.name, effort: p.r.variant.effort, score: +p.r.score.toFixed(2), lab: p.r.model.labId, [xName]: +(p.raw ?? p.x).toFixed(4), on_frontier: onFrontierIds.has(p.r.variant.id), ...extraRows?.(p) }))} />
         </div>
       </div>

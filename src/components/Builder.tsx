@@ -118,10 +118,10 @@ export function Builder({ snapshot: base, dates, initialIndices }: { snapshot: S
 
         <section className="grid gap-10 min-w-0 content-start [&>div]:min-w-0">
           <div>
-            <Rankings title={<h2 className="text-[26px]">{active.name}</h2>} actions={<ChartSettings label="Ranking" mode={rankingMode} onChange={(rankingVariants) => update({ ...active, rankingVariants })} {...releaseProps} {...modelPicker} />} onSelect={(r) => { if (r) calculations.current?.inspect(r.variant.id); }} ranked={rankingRows} labs={snapshot.labs} showEffort={rankingMode === "all"} />
+            <Rankings anchor="rankings" title={<h2 className="text-[26px]">{active.name}</h2>} actions={<ChartSettings label="Ranking" mode={rankingMode} onChange={(rankingVariants) => update({ ...active, rankingVariants })} {...releaseProps} {...modelPicker} />} onSelect={(r) => { if (r) calculations.current?.inspect(r.variant.id); }} ranked={rankingRows} labs={snapshot.labs} showEffort={rankingMode === "all"} />
           </div>
           <div>
-            <ParetoChart ranked={paretoRows} labs={snapshot.labs} view={paretoView} title={<h2 className="text-[22px]">Score vs cost per task</h2>}
+            <ParetoChart anchor="cost" ranked={paretoRows} labs={snapshot.labs} view={paretoView} title={<h2 className="text-[22px]">Score vs cost per task</h2>}
               actions={<ChartSettings label="Pareto" mode={paretoMode} onChange={(paretoVariants) => update({ ...active, paretoVariants })} view={paretoView} onView={setParetoView} {...releaseProps} {...modelPicker} />} />
           </div>
           <div>

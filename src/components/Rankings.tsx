@@ -5,16 +5,17 @@ import type { Lab } from "@/data/types";
 import type { RankedVariant } from "@/engine";
 import { variantLabel } from "./chart/ParetoChart";
 import { markColor, useChartPalette } from "./chart/echarts";
+import { ChartLink } from "./chart/ChartLink";
 
 /** Dense horizontal bars, color by lab, rows slide to their new position when the order changes. */
-export function Rankings({ ranked, labs, limit = 30, onSelect, selected, showEffort = true, title, actions }: { ranked: RankedVariant[]; labs: Lab[]; limit?: number; showEffort?: boolean; onSelect?: (r: RankedVariant | null) => void; selected?: string | null; title?: ReactNode; actions?: ReactNode }) {
+export function Rankings({ ranked, labs, limit = 30, onSelect, selected, showEffort = true, title, actions, anchor }: { ranked: RankedVariant[]; labs: Lab[]; limit?: number; showEffort?: boolean; onSelect?: (r: RankedVariant | null) => void; selected?: string | null; title?: ReactNode; actions?: ReactNode; anchor?: string }) {
   const pal = useChartPalette();
   const color = new Map(labs.map((l) => [l.id, markColor(l.color, pal)]));
   const [expanded, setExpanded] = useState(false);
   const rows = expanded ? ranked : ranked.slice(0, limit);
   const max = Math.max(...rows.map((r) => r.score), 1);
 
-  const head = (exp: ReactNode) => <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 mb-3 min-h-8"><div className="min-w-0">{title}</div><div className="flex items-center gap-1 ml-auto">{actions}{exp}</div></div>;
+  const head = (exp: ReactNode) => <div id={anchor} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 mb-3 min-h-8 scroll-mt-20"><div className="min-w-0">{title}</div><div className="flex items-center gap-1 ml-auto">{actions}{anchor && <ChartLink id={anchor} name="Rankings" />}{exp}</div></div>;
   if (!rows.length) return <>{head(null)}<p className="cap py-6">No model has enough measured data for this index. Loosen a requirement, lower a weight, or reduce strictness.</p></>;
   return (
     <>

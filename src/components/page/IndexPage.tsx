@@ -17,6 +17,7 @@ import { authEnabled } from "@/app/providers";
 import { PageEditor } from "./PageEditor";
 import { ChartSettings } from "../chart/ChartSettings";
 import { presetOf, presetStyle } from "@/lib/page-presets";
+import { anchorOf } from "../chart/ChartLink";
 import { ChartPaletteContext, LIGHT_PALETTE, type ChartPalette } from "../chart/echarts";
 
 export interface Section {
@@ -116,11 +117,11 @@ export function IndexPage({ profile, snapshot, dates, edit }: { profile: Profile
           const settings = (label: string, mode: "all" | "best", key: "rankingVariants" | "paretoVariants") => <ChartSettings label={label} mode={mode} onChange={(v) => updateIndex({ [key]: v })} releasedAfter={idx.releasedAfter} onChangeReleased={(v) => updateIndex({ releasedAfter: v })} models={pickerModels} excluded={excludedIds} onToggleModel={toggleModel} onShowAllModels={() => updateIndex({ excludeModels: [] })} onHideAllModels={() => updateIndex({ excludeModels: pickerModels.map((m) => m.id) })} />;
           if (s.kind === "rankings") return (
             <section key={s.id} className="chart-panel">
-              <Rankings title={<h2 className="text-[21px] sm:text-[24px]">{title}</h2>} actions={settings("Ranking", rankingMode, "rankingVariants")} ranked={selectVariants(r.ranked, rankingMode)} showEffort={rankingMode === "all"} labs={snapshot.labs} limit={25} selected={selected} onSelect={(x) => setSelected(x?.variant.id ?? null)} />
+              <Rankings anchor={anchorOf(title)} title={<h2 className="text-[21px] sm:text-[24px]">{title}</h2>} actions={settings("Ranking", rankingMode, "rankingVariants")} ranked={selectVariants(r.ranked, rankingMode)} showEffort={rankingMode === "all"} labs={snapshot.labs} limit={25} selected={selected} onSelect={(x) => setSelected(x?.variant.id ?? null)} />
             </section>
           );
-          if (s.kind === "pareto") return <section key={s.id} className="chart-panel"><ParetoChart ranked={selectVariants(r.ranked, paretoMode)} labs={snapshot.labs} height={440} view={paretoView} title={<h2 className="text-[21px] sm:text-[24px]">{title}</h2>} actions={<ChartSettings label="Pareto" mode={paretoMode} onChange={(v) => updateIndex({ paretoVariants: v })} view={paretoView} onView={setParetoView} releasedAfter={idx.releasedAfter} onChangeReleased={(v) => updateIndex({ releasedAfter: v })} models={pickerModels} excluded={excludedIds} onToggleModel={toggleModel} onShowAllModels={() => updateIndex({ excludeModels: [] })} onHideAllModels={() => updateIndex({ excludeModels: pickerModels.map((m) => m.id) })} />} /></section>;
-          if (s.kind === "speed") return <section key={s.id} className="chart-panel"><SpeedChart ranked={selectVariants(r.ranked, paretoMode)} labs={snapshot.labs} view={speedView} title={<h2 className="text-[21px] sm:text-[24px]">{title}</h2>} actions={<ChartSettings label="Speed" mode={paretoMode} onChange={(v) => updateIndex({ paretoVariants: v })} view={speedView} onView={setSpeedView} />} /></section>;
+          if (s.kind === "pareto") return <section key={s.id} className="chart-panel"><ParetoChart anchor={anchorOf(title)} ranked={selectVariants(r.ranked, paretoMode)} labs={snapshot.labs} height={440} view={paretoView} title={<h2 className="text-[21px] sm:text-[24px]">{title}</h2>} actions={<ChartSettings label="Pareto" mode={paretoMode} onChange={(v) => updateIndex({ paretoVariants: v })} view={paretoView} onView={setParetoView} releasedAfter={idx.releasedAfter} onChangeReleased={(v) => updateIndex({ releasedAfter: v })} models={pickerModels} excluded={excludedIds} onToggleModel={toggleModel} onShowAllModels={() => updateIndex({ excludeModels: [] })} onHideAllModels={() => updateIndex({ excludeModels: pickerModels.map((m) => m.id) })} />} /></section>;
+          if (s.kind === "speed") return <section key={s.id} className="chart-panel"><SpeedChart anchor={anchorOf(title)} ranked={selectVariants(r.ranked, paretoMode)} labs={snapshot.labs} view={speedView} title={<h2 className="text-[21px] sm:text-[24px]">{title}</h2>} actions={<ChartSettings label="Speed" mode={paretoMode} onChange={(v) => updateIndex({ paretoVariants: v })} view={speedView} onView={setSpeedView} />} /></section>;
           if (s.kind === "history") return <section key={s.id}><h2 className="text-[21px] sm:text-[24px] mb-2">{title}</h2><p className="cap">Use the date picker above to view this page as of any earlier snapshot.</p></section>;
           return null;
         })}
