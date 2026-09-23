@@ -8,7 +8,8 @@
  * Adam with minibatched pairs and early gradient noise keeps it stochastic across restarts.
  */
 
-export type SgdColumn = { id: string; score: number[]; present: boolean[] };
+/** `present`: the cell has a value; `measured`: it counts toward the coverage floor (defaults to present). */
+export type SgdColumn = { id: string; score: number[]; present: boolean[]; measured?: boolean[] };
 export type SgdOptions = { floor: number; bonus?: number[]; offsets?: number[]; inits?: Record<string, number>[]; seed?: number; steps?: number; restarts?: number; margin?: number };
 
 const rng = (seed: number) => () => ((seed = Math.imul(seed ^ (seed >>> 15), 1 | seed)), ((seed + Math.imul(seed ^ (seed >>> 7), 61 | seed)) ^ seed) >>> 0) / 4294967296;
@@ -29,14 +30,14 @@ function descend(cols: SgdColumn[], n: number, theta: Float64Array, o: Required<
   const pairs: [number, number, number][] = [];
   for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) pairs.push([i, j, (j === i + 1 ? 2 : 1) / (i + 1)]);
   const pairTotal = pairs.reduce((s, p) => s + p[2], 0);
-  const s = new Float64Array(n), D = new Float64Array(n), ds = new Float64Array(n), g = new Float64Array(B);
+  const s = new Float64Array(n), D = new Float64Array(n), M = new Float64Array(n), ds = new Float64Array(n), g = new Float64Array(B);
   for (let step = 0; step < o.steps; step++) {
     const t = step / o.steps, tau = 6 * Math.pow(0.05, t), lr = 0.35 * (1 - 0.8 * t);
     const w = softmax(theta);
     for (let m = 0; m < n; m++) {
-      let num = 0, den = 0;
-      for (let b = 0; b < B; b++) if (cols[b].present[m]) { num += w[b] * cols[b].score[m]; den += w[b]; }
-      D[m] = den; s[m] = den > 1e-12 ? num / den : 0;
+      let num = 0, den = 0, meas = 0;
+      for (let b = 0; b < B; b++) { if (cols[b].present[m]) { num += w[b] * cols[b].score[m]; den += w[b]; } if ((cols[b].measured ?? cols[b].present)[m]) meas += w[b]; }
+      D[m] = den; M[m] = meas; s[m] = den > 1e-12 ? num / den : 0;
     }
     ds.fill(0); g.fill(0);
     for (const [i, j, c] of pairs) {
@@ -49,7 +50,7 @@ function descend(cols: SgdColumn[], n: number, theta: Float64Array, o: Required<
       let acc = 0;
       for (let m = 0; m < n; m++) if (cols[b].present[m] && D[m] > 1e-12) acc += ds[m] * (cols[b].score[m] - s[m]) / D[m];
       // Coverage floor: each model's measured share must reach the floor.
-      for (let m = 0; m < n; m++) if (D[m] < o.floor && cols[b].present[m]) acc -= 0.5;
+      for (let m = 0; m < n; m++) if (M[m] < o.floor && (cols[b].measured ?? cols[b].present)[m]) acc -= 0.5;
       g[b] = acc + 0.004 / Math.sqrt(w[b] + 1e-4) - (o.bonus[b] ?? 0) * 1e-4;
     }
     let mean = 0; for (let b = 0; b < B; b++) mean += w[b] * g[b];

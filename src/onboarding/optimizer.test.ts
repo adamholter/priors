@@ -130,14 +130,19 @@ describe("fitScore", () => {
   it("scores a perfect well-separated ranking 100", () => {
     expect(fitScore(target, perfect(), 4)).toBe(100);
   });
-  it("charges ~25 for a swapped top pair", () => {
-    expect(fitScore(target, swap(perfect(), 0, 1), 4)).toBeCloseTo(75, 0);
+  it("charges more for swaps near the top than near the bottom", () => {
+    const top = fitScore(target, swap(perfect(), 0, 1), 4), mid = fitScore(target, swap(perfect(), 6, 7), 4), bottom = fitScore(target, swap(perfect(), 12, 13), 4);
+    expect(top).toBeLessThan(mid);
+    expect(mid).toBeLessThan(bottom);
+    expect(bottom).toBeLessThan(100);
+    expect(top).toBeGreaterThan(70);
   });
-  it("charges ~10 for a swap at ranks 7-8", () => {
-    expect(Math.abs(fitScore(target, swap(perfect(), 6, 7), 4) - 90)).toBeLessThanOrEqual(1);
-  });
-  it("charges ~7 for a swap at the bottom", () => {
-    expect(fitScore(target, swap(perfect(), 12, 13), 4)).toBeCloseTo(93, 0);
+  it("gives partial credit, not zero, when half the lineup is out of place", () => {
+    const s = new Map(perfect()); for (let i = 7; i < 14; i += 2) { const a = s.get(target[i])!; s.set(target[i], s.get(target[i - 1])!); s.set(target[i - 1], a); }
+    for (const i of [1, 3]) { const a = s.get(target[i])!; s.set(target[i], s.get(target[i - 1])!); s.set(target[i - 1], a); }
+    const score = fitScore(target, s, 4);
+    expect(score).toBeGreaterThan(20);
+    expect(score).toBeLessThan(90);
   });
   it("charges 5 for a 12-benchmark mix", () => {
     expect(fitScore(target, perfect(), 12)).toBe(95);
@@ -147,8 +152,8 @@ describe("fitScore", () => {
   });
   it("counts a missing model as wrong against every other model", () => {
     const s = perfect(); s.delete("m0");
-    expect(fitScore(target, s, 4)).toBe(0);
     const bottom = perfect(); bottom.delete("m13");
-    expect(fitScore(target, bottom, 4)).toBe(0);
+    expect(fitScore(target, s, 4)).toBeLessThan(fitScore(target, bottom, 4));
+    expect(fitScore(target, s, 4)).toBeLessThan(60);
   });
 });

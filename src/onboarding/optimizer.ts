@@ -56,12 +56,14 @@ const rankingLossLength=(n:number)=>n+3;
  *  margins and extra benchmarks. A model missing from the ranking counts as wrong
  *  against every other model. */
 export function fitScore(target:string[],scores:Map<string,number>,benchCount:number){
- let wrong=0,thin=0,wSum=0;
+ // Rank-weighted pair agreement mapped like Kendall's tau (a random order ≈ 0, perfect = 1), then
+ // curved so getting most pairs right reads as partial credit rather than near-perfect.
+ let right=0,total=0,thin=0,wSum=0;
  for(let i=0;i<target.length;i++)for(let j=i+1;j<target.length;j++){
-  const a=scores.get(target[i]),b=scores.get(target[j]);
-  const correct=a!=null&&b!=null&&Number.isFinite(a)&&Number.isFinite(b)&&a-b>1e-7;
-  if(!correct)wrong+=25/Math.sqrt(i+1);
+  const a=scores.get(target[i]),b=scores.get(target[j]),w=1/Math.pow(i+1,.7);total+=w;
+  if(a!=null&&b!=null&&Number.isFinite(a)&&Number.isFinite(b)&&a-b>1e-7)right+=w;
  }
+ const tau=total?Math.max(0,2*right/total-1):1,wrong=100*(1-Math.pow(tau,2.5));
  // Thin margins between neighboring ranks cost a little; deep gaps are free.
  for(let i=0;i+1<target.length;i++){
   const a=scores.get(target[i]),b=scores.get(target[i+1]);
@@ -143,7 +145,7 @@ const show=async(u:FitUpdate)=>{onUpdate(u);if(frameDelay&&u.phase!=="preparing"
 const wanted=[...new Set(target)];if(wanted.length!==target.length||wanted.some(id=>!snapshot.models.some(m=>m.id===id&&m.kind==="llm")))throw new Error("Every preferred model must be a distinct known LLM in this snapshot.");if(wanted.length<2)throw new Error("Choose at least two models to fit.");const ids=snapshot.benchmarks.map(b=>b.id).filter(id=>eligible(snapshot,id,new Set(wanted)));if(!ids.length)throw new Error("No benchmark covers enough selected models.");ids.sort((a,b)=>Number(PREFERRED.includes(b as typeof PREFERRED[number]))-Number(PREFERRED.includes(a as typeof PREFERRED[number]))||a.localeCompare(b));const verifiedStarts:Exact[]=[];let tested=0,iteration=0,lastEmit=0;
 const focus=FOCUSES.find(f=>f.id===options.focus)??FOCUSES.find(f=>f.id===DEFAULT_FOCUS)!;
 const library=options.library;
-const budget={...(options.budgetMs??{soft:12_000,hard:20_000})};
+const budget={...(options.budgetMs??{soft:10_000,hard:25_000})};
 const t0=performance.now();
 const softOpen=()=>performance.now()-t0<budget.soft,hardOpen=()=>performance.now()-t0<budget.hard;
 const benches=new Map(snapshot.benchmarks.map(b=>[b.id,b]));
@@ -214,6 +216,42 @@ const toVerify=finalists.slice(0,40);
 for(const candidate of toVerify){if(!hardOpen())break;const verified=run(candidate.weights,s,"searching",++iteration,++tested,`Check ${si+1}/${SETTINGS.length}: ${s.effortMatching}, strictness ${s.strictness}`);verifiedStarts.push(verified);if(compare(verified.loss,best.loss)<0)best=verified;await show({...best.update,phase:"searching",iteration,tested,log:verified.update.log});await yieldUi()}}
 await show({...best.update,phase:"searching",iteration,tested,log:best.update.exactMatch?"Refining the match.":"Refining the remaining disagreements"});
 // A matched order only needs a short polish (wider margins, fewer benchmarks), not the full budget.
+if(best.update.exactMatch)budget.hard=Math.min(budget.hard,performance.now()-t0+2500);
+// Linearized descent on the exact engine: with every candidate benchmark at a sliver of weight, each
+// model's exact score is a weighted mean of its per-benchmark values under the current mix (chosen
+// effort, pool normalization and peer estimates included). Descend on that local model, verify, and
+// re-linearize at the new point. Keeps going while it improves; stops after it stalls.
+// Moves are judged by the same smooth objective the descent minimizes (rank-weighted pair hinge on
+// exact scores, intruders heavily penalized); the best result is still chosen lexicographically.
+const smooth=(x:Exact)=>{const sc=new Map(x.update.ranking.map(r=>[r.modelId,r.score]));let h=(x.update.intruders?.length??0)*50;for(let i=0;i<wanted.length;i++)for(let j=i+1;j<wanted.length;j++){const a=sc.get(wanted[i]),b=sc.get(wanted[j]);const gap=a!=null&&b!=null?a-b:-20;h+=((j===i+1?2:1)/(i+1))*Math.max(0,1.5-gap)}return h};
+{let warm=best,stall=0;
+for(let round=0;round<200&&hardOpen()&&!best.update.exactMatch;round++){
+ const s=warm.update.config,floor=(s.strictness??50)/100,max=Math.max(1,...Object.values(warm.update.weights)),probe:Record<string,number>={};
+ for(const id of ids)probe[id]=warm.update.weights[id]??max*.005;
+ const lin=computeIndex(snapshot,config(snapshot,wanted,probe,s)),seen=new Set<string>(),rows=new Map<string,typeof lin.ranked[number]>();
+ for(const r of lin.ranked)if(!seen.has(r.model.id)){seen.add(r.model.id);if(wanted.includes(r.model.id))rows.set(r.model.id,r)}
+ const local=ids.map(id=>{const cells=wanted.map(m=>rows.get(m)?.values.find(v=>v.benchmarkId===id));return{id,score:cells.map(c=>c?.value??0),present:cells.map(c=>!!c),measured:cells.map(c=>!!c&&c.estimateKind!=="peer")}});
+ let roundBest:Exact|undefined;
+ // The local model is only trustworthy near the probe: line-search each proposal toward the warm point.
+ const unit=(w:Record<string,number>)=>{const t=Object.values(w).reduce((a,b)=>a+b,0)||1;return Object.fromEntries(Object.entries(w).map(([k,v])=>[k,v/t]))};
+ const from=unit(warm.update.weights),trials:Record<string,number>[]=[];
+ const lpLocal=maxMarginMix(local,wanted.length,floor,ids.map(id=>aff[id]??0));
+ for(const cand of [...(lpLocal?[lpLocal.weights]:[]),...sgdCandidates(local,wanted.length,{floor,bonus:ids.map(id=>aff[id]??0),inits:[warm.update.weights],restarts:3,steps:220,seed:round+7}).slice(0,3)]){const to=unit(cand);for(const a of [1,.6,.35,.15]){const mix:Record<string,number>={};for(const k of new Set([...Object.keys(from),...Object.keys(to)])){const v=(1-a)*(from[k]??0)+a*(to[k]??0);if(v>.004)mix[k]=v}if(Object.keys(mix).length<=12)trials.push(mix)}}
+ for(const weights of trials){
+  if(!hardOpen())break;
+  const v=run(weights,s,"searching",++iteration,++tested,"Following the gradient on the full engine.");verifiedStarts.push(v);
+  if(!roundBest||smooth(v)<smooth(roundBest))roundBest=v;
+  if(compare(v.loss,best.loss)<0){best=v;await show(best.update)}
+  if(best.update.exactMatch)break;
+ }
+ if(!roundBest)break;
+ if(smooth(roundBest)<smooth(warm)-1e-6){warm=roundBest;stall=0}
+ else if(++stall>=3){
+  // Stalled: jump to another strong verified basin instead of giving up while time remains.
+  const pool=[...verifiedStarts].sort((a,b)=>compare(a.loss,b.loss)).slice(0,12);warm=pool[(round*5)%pool.length]??best;stall=0;
+ }
+ await show({...best.update,phase:"searching",iteration,tested});await yieldUi();
+}}
 if(best.update.exactMatch)budget.hard=Math.min(budget.hard,performance.now()-t0+2500);
 // Search the full scoring engine too: the best reasoning effort can switch between mixes.
 // Anneal first — the heavyweight refines below run inside the remaining hard budget.
