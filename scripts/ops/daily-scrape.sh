@@ -28,7 +28,9 @@ fi
 git add data/snapshots public/intro
 if ! git diff --cached --quiet; then
   git commit -q -m "data: snapshot $DATE"
-  if ! { git pull --rebase origin main && git push -q origin main; }; then
+  # A dirty working tree is normal while Adam or another agent edits the app.
+  # Push the snapshot commit directly; rebase here would fail or disturb those edits.
+  if ! git push -q origin main; then
     notify "Priors snapshot $DATE committed locally but push failed"
   fi
 fi
