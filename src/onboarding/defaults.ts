@@ -1,0 +1,2 @@
+/** The onboarding's starting lineup: Artificial Analysis Intelligence Index order (top models, max 18). The library build pre-fits it every scrape. */
+export const DEFAULT_LINEUP = ["claude-opus-5.5", "claude-fable-5.1", "gpt-6-astra", "claude-opus-5", "claude-fable-5", "muse-spark-1.3", "gpt-6-sol", "grok-4.7", "mimo-v2.6-pro", "qwen-3.8-max", "glm-5.3", "grok-4.6", "kimi-k3", "gpt-5.6-terra", "glm-5.3-flash", "gemini-3.8-flash", "deepseek-v4.1-flash", "claude-sonnet-5"];

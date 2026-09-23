@@ -18,3 +18,6 @@ export type ShareDesign = (typeof SHARE_DESIGNS)[number]["id"];
 export function isShareDesign(value: string | undefined): value is ShareDesign {
   return SHARE_DESIGNS.some((design) => design.id === value);
 }
+
+/** Designs shown in the first-visit intro; pre-rendered to public/intro/<design>.png by the scrape. */
+export const INTRO_CARDS = ["podium", "board", "spotlight"] as const satisfies readonly ShareDesign[];

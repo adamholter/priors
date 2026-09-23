@@ -2,11 +2,10 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { Snapshot } from "@/data/types";
 import { defaultConfig } from "@/engine";
-import { encodeIndices } from "@/lib/url";
+import { INTRO_CARDS } from "@/lib/share-designs";
 
 export const INTRO_KEY = "priors:intro-seen";
 const STEP_MS = [3200, 3400, 5200];
-const CARDS = ["podium", "board", "spotlight"] as const;
 const STEPS = [
   { n: "01", title: "Rank a few models", body: "Put them in the order your own experience says." },
   { n: "02", title: "We find the evidence", body: "Priors searches thousands of benchmark mixes for the one that reproduces your order." },
@@ -29,7 +28,6 @@ export function Intro({ snapshot, lineup, dialogRef, onClose }: { snapshot: Snap
     const total = w.reduce((s, [, v]) => s + v, 0);
     return w.map(([id, v]) => ({ name: snapshot.benchmarks.find(b => b.id === id)?.shortName ?? snapshot.benchmarks.find(b => b.id === id)?.name ?? id, share: v / total }));
   }, [snapshot]);
-  const cardQuery = useMemo(() => encodeIndices([{ ...defaultConfig(snapshot), name: "My priors" }]).toString(), [snapshot]);
 
   useEffect(() => {
     const el = dialogRef.current; if (!el) return;
@@ -62,7 +60,7 @@ export function Intro({ snapshot, lineup, dialogRef, onClose }: { snapshot: Snap
         </div>
         <div className="intro-scene scene-cards">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          {CARDS.map((d, i) => <img key={d} className={`share-card card-${i}`} src={`/og?${cardQuery}&design=${d}`} alt="" width={1200} height={630} loading="eager" />)}
+          {INTRO_CARDS.map((d, i) => <img key={d} className={`share-card card-${i}`} src={`/intro/${d}.png`} alt="" width={1200} height={630} loading="eager" fetchPriority="high" decoding="async" />)}
         </div>
       </div>
       <div className="intro-copy">

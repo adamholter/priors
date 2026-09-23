@@ -4,11 +4,12 @@ import { computeIndex, type IndexConfig } from "../engine";
 import { PREFERRED, affinity, type BenchmarkQuality } from "./quality";
 import { DEFAULT_FOCUS, FOCUSES, type FocusId } from "./focus";
 import type { MixLibrary } from "./library";
+import { maxMarginMix, sparseMixes } from "./lp";
 
 export { PREFERRED };
 export type FitPriorities = { baseline?: string[] };
-export type FitOptions = { focus?: FocusId; library?: MixLibrary; budgetMs?: { soft: number; hard: number } };
-export type FitUpdate = { exactMatch:boolean; matchedPositions:number; priorityMatched:number; priorityTotal:number; phase:"preparing"|"searching"|"simplifying"|"complete"; iteration:number; tested:number; agreement:number; matchedPairs:number; totalPairs:number; closeness:number; fitScore:number; provisional:boolean; weights:Record<string,number>; ranking:Array<{modelId:string;score:number;variantId:string;coverage:number}>; config:IndexConfig; benchmarkCount:number; quality:number; mismatches:Array<{above:string;below:string}>; log:string; estimatedShare:number };
+export type FitOptions = { focus?: FocusId; library?: MixLibrary; budgetMs?: { soft: number; hard: number }; extraFits?: MixLibrary["fits"] };
+export type FitUpdate = { exactMatch:boolean; matchedPositions:number; priorityMatched:number; priorityTotal:number; phase:"preparing"|"searching"|"simplifying"|"complete"; iteration:number; tested:number; agreement:number; matchedPairs:number; totalPairs:number; closeness:number; fitScore:number; provisional:boolean; weights:Record<string,number>; ranking:Array<{modelId:string;score:number;variantId:string;coverage:number}>; config:IndexConfig; benchmarkCount:number; quality:number; mismatches:Array<{above:string;below:string}>; log:string; estimatedShare:number; intruders?:string[] };
 type Settings=Pick<IndexConfig,"strictness"|"estimateMissing"|"effortMatching">;
 type Column={id:string;score:number[];present:boolean[]}; type Approx={loss:number[];weights:Record<string,number>}; type Exact={loss:number[];update:FitUpdate};
 export const SETTINGS:Settings[]=[{strictness:20,estimateMissing:true,effortMatching:"calibrated"},{strictness:20,estimateMissing:false,effortMatching:"calibrated"},{strictness:50,estimateMissing:true,effortMatching:"calibrated"},{strictness:50,estimateMissing:false,effortMatching:"strict"},{strictness:100,estimateMissing:false,effortMatching:"strict"}];
@@ -74,9 +75,13 @@ function preference(raw:Record<string,number>,quality:Record<string,number>,aff:
 /** Surrogate score map for the target lineup: models below the measured-share floor count as missing. */
 function approxScoresFor(target:string[],columns:Column[],weights:Record<string,number>,floor:number){const active=Object.entries(weights).filter(([,w])=>w>0),byId=new Map(columns.map(c=>[c.id,c])),sum=active.reduce((n,[,w])=>n+w,0)||1,scores=new Map<string,number>();for(let m=0;m<target.length;m++){let num=0,den=0;for(const[id,w]of active){const c=byId.get(id);if(c?.present[m]){num+=c.score[m]*w;den+=w}}if(den&&den/sum>=floor-1e-9)scores.set(target[m],num/den)}return scores}
 function approximate(target:string[],columns:Column[],raw:Record<string,number>,quality:Record<string,number>,aff:Record<string,number>,floor:number,priorities:FitPriorities={}):Approx{const active=Object.entries(raw).filter(([,w])=>w>0),scores=approxScoresFor(target,columns,raw,floor);const p=selectedPairAgreement(target,scores,priorities),pref=preference(raw,quality,aff);return{weights:raw,loss:[...rankingLoss(p),active.length,pref.penalty,-pref.quality]}}
-function exact(snapshot:Snapshot,target:string[],raw:Record<string,number>,s:Settings,quality:Record<string,number>,aff:Record<string,number>,phase:FitUpdate["phase"],iteration:number,tested:number,log:string,priorities:FitPriorities={}):Exact{const cfg=config(snapshot,target,raw,s),result=computeIndex(snapshot,cfg),keep=new Set(target),rows=result.ranked.filter(r=>keep.has(r.model.id)),ranking=rows.map(r=>({modelId:r.model.id,score:r.score,variantId:r.variant.id,coverage:r.coverage})),p=selectedPairAgreement(target,new Map(ranking.map(r=>[r.modelId,r.score])),priorities),pref=preference(cfg.weights,quality,aff);let estimated=0,total=0;for(const row of rows)for(const v of row.values){const w=cfg.weights[v.benchmarkId]??0;total+=w;if(v.estimated)estimated+=w}const estimatedShare=total?estimated/total:0,loss=[...rankingLoss(p),Object.keys(cfg.weights).length,pref.penalty,estimatedShare,-pref.quality];
- const display=fitScore(target,new Map(ranking.map(r=>[r.modelId,r.score])),Object.keys(cfg.weights).length);
- return{loss,update:{exactMatch:p.matched===p.total,matchedPositions:p.matchedPositions,fitScore:display,provisional:false,priorityMatched:p.priorityMatched,priorityTotal:p.priorityTotal,phase,iteration,tested,agreement:p.total?p.matched/p.total*100:p.missing?0:100,matchedPairs:p.matched,totalPairs:p.total,closeness:p.closeness,weights:cfg.weights,ranking,config:publishable(cfg),benchmarkCount:Object.keys(cfg.weights).length,quality:pref.quality,mismatches:p.mismatches,log,estimatedShare}}}
+/** Models outside the lineup that land in the overall top places (top 5, or the lineup size if smaller). */
+export const TOP_GUARD=5;
+function intrudersIn(ranked:{model:{id:string}}[],keep:Set<string>){const top:string[]=[],seen=new Set<string>(),k=Math.min(TOP_GUARD,keep.size);for(const r of ranked){if(seen.has(r.model.id))continue;seen.add(r.model.id);top.push(r.model.id);if(top.length>=k)break}return top.filter(id=>!keep.has(id))}
+function exact(snapshot:Snapshot,target:string[],raw:Record<string,number>,s:Settings,quality:Record<string,number>,aff:Record<string,number>,phase:FitUpdate["phase"],iteration:number,tested:number,log:string,priorities:FitPriorities={}):Exact{const cfg=config(snapshot,target,raw,s),result=computeIndex(snapshot,cfg),keep=new Set(target),intruders=intrudersIn(result.ranked,keep),rows=result.ranked.filter(r=>keep.has(r.model.id)),ranking=rows.map(r=>({modelId:r.model.id,score:r.score,variantId:r.variant.id,coverage:r.coverage})),p=selectedPairAgreement(target,new Map(ranking.map(r=>[r.modelId,r.score])),priorities),pref=preference(cfg.weights,quality,aff);let estimated=0,total=0;for(const row of rows)for(const v of row.values){const w=cfg.weights[v.benchmarkId]??0;total+=w;if(v.estimated)estimated+=w}const estimatedShare=total?estimated/total:0,loss=[intruders.length,...rankingLoss(p),Object.keys(cfg.weights).length,pref.penalty,estimatedShare,-pref.quality];
+ // An unlisted model in the top places is a failure the user sees first: it outranks any order error.
+ const display=Math.max(0,fitScore(target,new Map(ranking.map(r=>[r.modelId,r.score])),Object.keys(cfg.weights).length)-15*intruders.length);
+ return{loss,update:{exactMatch:p.matched===p.total&&!intruders.length,intruders,matchedPositions:p.matchedPositions,fitScore:display,provisional:false,priorityMatched:p.priorityMatched,priorityTotal:p.priorityTotal,phase,iteration,tested,agreement:p.total?p.matched/p.total*100:p.missing?0:100,matchedPairs:p.matched,totalPairs:p.total,closeness:p.closeness,weights:cfg.weights,ranking,config:publishable(cfg),benchmarkCount:Object.keys(cfg.weights).length,quality:pref.quality,mismatches:p.mismatches,log,estimatedShare}}}
 function search(target:string[],columns:Column[],quality:Record<string,number>,aff:Record<string,number>,floor:number,seedMixes:Record<string,number>[],seed:number,test:()=>void,priorities:FitPriorities,softOpen:()=>boolean,onProvisional?:(w:Record<string,number>)=>void){
  const random=rng(seed),walkRandom=rng(seed*7919+17);let best:Approx|undefined;
  const byId=new Map(columns.map(c=>[c.id,c]));
@@ -136,7 +141,7 @@ const show=async(u:FitUpdate)=>{onUpdate(u);if(frameDelay&&u.phase!=="preparing"
 const wanted=[...new Set(target)];if(wanted.length!==target.length||wanted.some(id=>!snapshot.models.some(m=>m.id===id&&m.kind==="llm")))throw new Error("Every preferred model must be a distinct known LLM in this snapshot.");if(wanted.length<2)throw new Error("Choose at least two models to fit.");const ids=snapshot.benchmarks.map(b=>b.id).filter(id=>eligible(snapshot,id,new Set(wanted)));if(!ids.length)throw new Error("No benchmark covers enough selected models.");ids.sort((a,b)=>Number(PREFERRED.includes(b as typeof PREFERRED[number]))-Number(PREFERRED.includes(a as typeof PREFERRED[number]))||a.localeCompare(b));const verifiedStarts:Exact[]=[];let tested=0,iteration=0,lastEmit=0;
 const focus=FOCUSES.find(f=>f.id===options.focus)??FOCUSES.find(f=>f.id===DEFAULT_FOCUS)!;
 const library=options.library;
-const budget=options.budgetMs??{soft:30_000,hard:60_000};
+const budget=options.budgetMs??{soft:12_000,hard:20_000};
 const t0=performance.now();
 const softOpen=()=>performance.now()-t0<budget.soft,hardOpen=()=>performance.now()-t0<budget.hard;
 const benches=new Map(snapshot.benchmarks.map(b=>[b.id,b]));
@@ -162,22 +167,34 @@ const run=(raw:Record<string,number>,s:Settings,phase:FitUpdate["phase"],it:numb
  const r=exact(snapshot,wanted,raw,s,quality,aff,phase,it,tst,log,priorities);exactCache.set(key,r);return r;
 };
 let best=run({[ids[0]]:100},SETTINGS[0],"preparing",iteration,tested,`Preparing ${ids.length} benchmarks.`);onUpdate(best.update);
-for(let si=0;si<SETTINGS.length&&softOpen();si++){const s=SETTINGS[si],floor=(s.strictness??50)/100,columns:Column[]=[];
+// Offline fits for this exact lineup (the default, popular lineups) are verified first under their own settings.
+const sameLineup=(l:string[])=>l.length===wanted.length&&l.every((id,i)=>id===wanted[i]);
+const storedFits=[...(library?.fits??[]),...(options.extraFits??[])].filter(f=>sameLineup(f.lineup)).sort((a,b)=>Number(b.focus===focus.id)-Number(a.focus===focus.id)||Number(b.exact)-Number(a.exact)||b.fitScore-a.fitScore);
+for(const f of storedFits.slice(0,6)){const known=SETTINGS.find(x=>settingsKey(x)===settingsKey(f.settings))??SETTINGS[0];const v=run(f.weights,known,"searching",++iteration,++tested,"Checking a known fit for this lineup.");verifiedStarts.push(v);if(compare(v.loss,best.loss)<0)best=v;}
+if(storedFits.length)await show({...best.update,phase:"searching",iteration,tested});
+for(let si=0;si<SETTINGS.length&&softOpen()&&!best.update.exactMatch;si++){const s=SETTINGS[si],floor=(s.strictness??50)/100,columns:Column[]=[];
 const useLibrary=library&&library.settingsKey===settingsKey(s);
 for(const id of ids){
  const libCol=useLibrary?library.columns[id]:undefined;
  if(libCol){columns.push({id,score:wanted.map(m=>libCol[m]??0),present:wanted.map(m=>m in libCol)});continue}
  const one=run({[id]:100},s,"preparing",iteration,++tested,`Preparing ${id}`),map=new Map(one.update.ranking.map(r=>[r.modelId,r.score]));columns.push({id,score:wanted.map(m=>map.get(m)??0),present:wanted.map(m=>map.has(m))});if(performance.now()-lastEmit>100){await show({...best.update,phase:si===0?"preparing":"searching",iteration,tested,log:`Read ${columns.length}/${ids.length} tests, strictness ${s.strictness}.`});lastEmit=performance.now()}await yieldUi()}
 const provisional=(weights:Record<string,number>)=>{const now=performance.now();if(now-lastProvEmit<120)return;lastProvEmit=now;const display=fitScore(wanted,approxScoresFor(wanted,columns,weights,floor),Object.keys(weights).length);if(display<=best.update.fitScore)return;onUpdate({...best.update,provisional:true,fitScore:display,weights})};
+// Max-margin LP over the surrogate columns: cheap, deterministic starts that widen every neighbouring gap.
+const bonus=columns.map(c=>aff[c.id]??0),lpStarts=[...sparseMixes(columns,wanted.length,floor,bonus),...[maxMarginMix(columns,wanted.length,floor,bonus)].filter(x=>!!x)].map(x=>x!.weights);
+// Seed mixes (focus starter + library picks) and LP starts are designed candidates — verify them directly.
+const designed=[...lpStarts,...seedMixes];
+for(const weights of designed){if(!hardOpen()||best.update.exactMatch)break;const verified=run(weights,s,"searching",++iteration,++tested,`Check ${si+1}/${SETTINGS.length}: ${s.effortMatching}, strictness ${s.strictness}`);verifiedStarts.push(verified);if(compare(verified.loss,best.loss)<0)best=verified;await show({...best.update,phase:"searching",iteration,tested,log:verified.update.log});await yieldUi()}
+// Once the order is matched, the refinement passes below polish it; skip the broad search.
+if(best.update.exactMatch)break;
 const finalists:Approx[]=[];for(let seed=1;seed<=4&&softOpen();seed++)finalists.push(...search(wanted,columns,quality,aff,floor,seedMixes,si*101+seed,()=>tested++,priorities,softOpen,provisional));
 // Keep independent pools so new supplemental metrics cannot displace every useful starting mix.
 for(const pool of [columns.filter(c=>!c.id.startsWith("real-index:")),columns.filter(c=>c.present.every(Boolean))]){
  if(pool.length&&pool.length<columns.length&&softOpen())finalists.push(...search(wanted,pool,quality,aff,floor,seedMixes,si*101+41,()=>tested++,priorities,softOpen,provisional));
 }
 finalists.sort((a,b)=>compare(a.loss,b.loss));
-// Seed mixes (focus starter + library picks) are designed candidates — verify them directly.
-const toVerify=[...seedMixes.map(m=>({weights:m,loss:[] as number[]})),...finalists.slice(0,40)];
+const toVerify=finalists.slice(0,40);
 for(const candidate of toVerify){if(!hardOpen())break;const verified=run(candidate.weights,s,"searching",++iteration,++tested,`Check ${si+1}/${SETTINGS.length}: ${s.effortMatching}, strictness ${s.strictness}`);verifiedStarts.push(verified);if(compare(verified.loss,best.loss)<0)best=verified;await show({...best.update,phase:"searching",iteration,tested,log:verified.update.log});await yieldUi()}}
+await show({...best.update,phase:"searching",iteration,tested,log:best.update.exactMatch?"Refining the match.":"Refining the remaining disagreements"});
 // Search the full scoring engine too: the best reasoning effort can switch between mixes.
 // Anneal first — the heavyweight refines below run inside the remaining hard budget.
 let converged=false;
@@ -195,7 +212,7 @@ const exactGuide=(candidate:Exact)=>{
   const gap=(scores.get(wanted[i])??-100)-(scores.get(wanted[j])??100);
   if(gap<=1e-7)priorityMargins[i]+=1e-4-gap;
  }
- const prefix=1+wanted.length,n=rankingLossLength(wanted.length);
+ const prefix=2+wanted.length,n=1+rankingLossLength(wanted.length);
  return[...candidate.loss.slice(0,prefix),...priorityMargins,...candidate.loss.slice(prefix,n),margin,...candidate.loss.slice(n)];
 };
 const idsAff=ids.map(id=>Math.max(1e-3,aff[id]??0)),idsAffTotal=idsAff.reduce((a,b)=>a+b,0);

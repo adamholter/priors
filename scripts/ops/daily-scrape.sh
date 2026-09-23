@@ -16,10 +16,16 @@ fi
 if ! npm run library -- --date "$DATE" >>"$LOG" 2>&1; then
   notify "Priors library build failed for $DATE — see logs/scrape.log"
 fi
+if grep -q "DEFAULT_FIT_MISSING" "$LOG"; then
+  notify "Priors: the default lineup has no exact fit on today's data — see logs/scrape.log"
+fi
+if ! npx tsx scripts/scrape/intro-cards.ts >>"$LOG" 2>&1; then
+  notify "Priors intro cards failed for $DATE — see logs/scrape.log"
+fi
 if grep -qE '^[[:space:]]*failed[[:space:]]' "$LOG"; then
   notify "Priors scrape $DATE finished with source failures — see logs/scrape.log"
 fi
-git add data/snapshots
+git add data/snapshots public/intro
 if ! git diff --cached --quiet; then
   git commit -q -m "data: snapshot $DATE"
   if ! { git pull --rebase origin main && git push -q origin main; }; then

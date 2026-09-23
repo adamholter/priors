@@ -10,7 +10,9 @@ import type { Benchmark, FocusId, Snapshot } from "../../src/data/types";
 import { computeIndex, selectVariants, type IndexConfig } from "../../src/engine";
 import { benchmarkQuality, affinity } from "../../src/onboarding/quality";
 import { FOCUSES } from "../../src/onboarding/focus";
-import type { MixLibrary } from "../../src/onboarding/library";
+import type { LibraryFit, MixLibrary } from "../../src/onboarding/library";
+import { DEFAULT_LINEUP } from "../../src/onboarding/defaults";
+import { appendRealIndex } from "../../src/data/real-index";
 import { fitPriors, settingsKey, LEVELS } from "../../src/onboarding/optimizer";
 
 const args = process.argv.slice(2);
@@ -76,8 +78,40 @@ async function topLineups(focus: FocusId): Promise<string[][]> {
   }
 }
 
+/** Previous library fits (plus an optional --seed file) carry forward as starting points for the next build. */
+async function priorFits(): Promise<LibraryFit[]> {
+  const out: LibraryFit[] = [];
+  try { out.push(...((JSON.parse(gunzipSync(await readFile(path.join(SNAP_DIR, "latest.library.json.gz"))).toString("utf8")) as MixLibrary).fits ?? [])); } catch { /* first build */ }
+  const seed = opt("seed");
+  if (seed) out.push(...(JSON.parse(await readFile(path.resolve(seed), "utf8")) as LibraryFit[]));
+  return out;
+}
+
+/** Exact-verified fits for the default lineup (every focus) and popular lineups, so those resolve instantly. */
+async function buildFits(snapshot: Snapshot, library: MixLibrary, quality: Record<string, number>, llmIds: Set<string>): Promise<LibraryFit[]> {
+  const known = await priorFits();
+  const fits: LibraryFit[] = [];
+  const targets: { lineup: string[]; focus: FocusId; budget: number }[] = FOCUSES.map((f) => ({ lineup: DEFAULT_LINEUP.filter((id) => llmIds.has(id)), focus: f.id, budget: 45_000 }));
+  for (const f of FOCUSES) for (const lineup of await topLineups(f.id)) targets.push({ lineup: lineup.filter((id) => llmIds.has(id)), focus: f.id, budget: 20_000 });
+  const seen = new Set<string>();
+  for (const t of targets) {
+    const key = `${t.focus}|${t.lineup.join(",")}`;
+    if (t.lineup.length < 2 || seen.has(key)) continue;
+    seen.add(key);
+    try {
+      const done = await fitPriors(snapshot, t.lineup, () => {}, quality, 0, { baseline: t.lineup }, { focus: t.focus, library, extraFits: [...known, ...fits], budgetMs: { soft: t.budget, hard: t.budget + 10_000 } });
+      const c = done.config;
+      fits.push({ lineup: t.lineup, focus: t.focus, weights: done.weights, settings: { strictness: c.strictness ?? 50, estimateMissing: c.estimateMissing, effortMatching: c.effortMatching ?? "calibrated" }, exact: done.exactMatch, fitScore: done.fitScore });
+      console.log(`fit ${key.slice(0, 60)}…: ${done.exactMatch ? "exact" : "approx"} ${Math.round(done.fitScore)}%`);
+    } catch { /* skip failed fits */ }
+  }
+  if (!fits.some((f) => f.exact && f.lineup.join(",") === DEFAULT_LINEUP.filter((id) => llmIds.has(id)).join(","))) console.log("DEFAULT_FIT_MISSING: no exact fit for the default lineup");
+  return fits;
+}
+
 export async function buildLibrary(date?: string): Promise<void> {
-  const snapshot: Snapshot = JSON.parse(gunzipSync(await readFile(path.join(SNAP_DIR, date ? `${date}.json.gz` : "latest.json.gz"))).toString("utf8"));
+  // Same snapshot the app serves (supplemental Real Index metrics included), so columns and fits match the client.
+  const snapshot: Snapshot = appendRealIndex(JSON.parse(gunzipSync(await readFile(path.join(SNAP_DIR, date ? `${date}.json.gz` : "latest.json.gz"))).toString("utf8")));
   const quality = benchmarkQuality(snapshot);
   const qMap = new Map(quality.map((q) => [q.id, q]));
   const benchmarks = snapshot.benchmarks.filter(eligible);
@@ -121,19 +155,13 @@ export async function buildLibrary(date?: string): Promise<void> {
     }
     mixes[focus.id] = selected.map(({ weights, ranking }) => ({ weights, ranking }));
 
-    // Common user lineups (when the dev deployment is reachable) get fitted and added.
-    for (const lineup of await topLineups(focus.id)) {
-      const target = lineup.filter((id) => llmIds.has(id));
-      if (target.length < 2) continue;
-      try {
-        const done = await fitPriors(snapshot, target, () => {}, Object.fromEntries(quality.map((q) => [q.id, q.score])), 0, {}, { focus: focus.id, budgetMs: { soft: 20_000, hard: 25_000 } });
-        mixes[focus.id].push({ weights: done.weights, ranking: Object.fromEntries(done.ranking.map((r) => [r.modelId, r.score])) });
-      } catch { /* skip failed fits */ }
-    }
     console.log(`library ${focus.id}: ${selected.length} mixes (${candidates.length} sampled)`);
   }
 
-  const library: MixLibrary = { date: snapshot.date, settingsKey: settingsKey(LIBRARY_SETTINGS), columns, mixes };
+  const fits = await buildFits(snapshot, { date: snapshot.date, settingsKey: settingsKey(LIBRARY_SETTINGS), columns, mixes }, Object.fromEntries(quality.map((q) => [q.id, q.score])), llmIds);
+  // Fitted lineups double as seed mixes for everyone else in that focus.
+  for (const f of fits) if (!DEFAULT_LINEUP.every((id, i) => f.lineup[i] === id)) mixes[f.focus].push({ weights: f.weights, ranking: rankMap(snapshot, f.weights) });
+  const library: MixLibrary = { date: snapshot.date, settingsKey: settingsKey(LIBRARY_SETTINGS), columns, mixes, fits };
   const gz = gzipSync(JSON.stringify(library));
   await mkdir(SNAP_DIR, { recursive: true });
   for (const name of [`${snapshot.date}.library.json.gz`, "latest.library.json.gz"]) {
