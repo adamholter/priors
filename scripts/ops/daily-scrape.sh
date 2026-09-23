@@ -1,5 +1,5 @@
 #!/bin/bash
-# Every 6h: scrape all sources -> data/snapshots/<date>.json.gz + mix library, commit and push (main deploys on push).
+# Every 2h: scrape all sources -> data/snapshots/<date>.json.gz + mix library, commit and push (main deploys on push).
 set -uo pipefail
 cd "$(dirname "$0")/../.."
 export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
