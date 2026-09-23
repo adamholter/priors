@@ -132,11 +132,12 @@ describe("computeIndex", () => {
     expect(r.ranked.map((x) => x.variant.id)).toContain("a@high"); // swe+term = 80% measured
     expect(r.ranked[0].rank).toBe(1);
   });
-  it("elo is min-max normalized to 0-100", () => {
+  it("elo becomes a win rate against the median model, so the leader is not pinned at 100", () => {
     const r = computeIndex(snap(), base);
-    const a = r.ranked.find((x) => x.variant.id === "a@max")!.values.find((v) => v.benchmarkId === "elo")!;
-    expect(a.value).toBe(100);
-    expect(r.ranked.find((x) => x.variant.id === "c@default")!.values.find((v) => v.benchmarkId === "elo")!.value).toBeCloseTo(33.3, 0);
+    const elo = (id: string) => r.ranked.find((x) => x.variant.id === id)!.values.find((v) => v.benchmarkId === "elo")!.value;
+    expect(elo("a@max")).toBeGreaterThan(50);
+    expect(elo("a@max")).toBeLessThan(100);
+    expect(elo("a@max")).toBeGreaterThan(elo("c@default"));
   });
   it("estimates a small-share missing benchmark instead of excluding", () => {
     const cfg = { ...base, weights: { swe: 60, elo: 36, term: 4 } }; // term share 4% < cutoff

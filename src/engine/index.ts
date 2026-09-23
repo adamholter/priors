@@ -253,10 +253,19 @@ function effortAdjustment(idx: ObsIndex, benches: Map<string, Benchmark>, normal
   return { effortFactor: factor, evidence: comparisons.map((c) => c.id) };
 }
 
-/** Percent benchmarks are used raw; everything else is min-max scaled over the pool of values present. */
+/** Published fixed scales for benchmarks whose snapshots predate a `normalization` field. */
+const FIXED_SCALES: Record<string, { min: number; max: number }> = { "aa-omniscience": { min: -100, max: 100 } };
+
+/**
+ * Percent and fixed-scale benchmarks are used as published. Other units are never stretched so the
+ * best model reads 100: Elo becomes the expected win rate against the pool's median model, and other
+ * open-ended units map through a logistic around the pool median (spread-scaled), so leaders sit well
+ * below 100 unless they are far ahead.
+ */
 function makeNormalizer(b: Benchmark, values: number[]): (v: number) => number {
-  if (b.normalization?.kind === "linear") {
-    const { min, max } = b.normalization;
+  const fixed = b.normalization?.kind === "linear" ? b.normalization : FIXED_SCALES[b.id];
+  if (fixed) {
+    const { min, max } = fixed;
     return (v) => clamp((b.higherIsBetter ? (v - min) : (max - v)) / (max - min) * 100, 0, 100);
   }
   if (b.unit === "percent" && b.higherIsBetter) return (v) => clamp(v, 0, 100);
@@ -265,10 +274,14 @@ function makeNormalizer(b: Benchmark, values: number[]): (v: number) => number {
   if (finite.length < 2) return () => 50;
   // log scale for cost-like units so a 10x cheaper model isn't crushed into the corner
   const tf = b.unit === "usd" ? (x: number) => Math.log10(Math.max(x, 1e-6)) : (x: number) => x;
-  const t = finite.map(tf);
-  const lo = Math.min(...t), hi = Math.max(...t);
-  if (hi - lo < 1e-9) return () => 50;
-  return (v) => { const s = ((tf(v) - lo) / (hi - lo)) * 100; return b.higherIsBetter ? s : 100 - s; };
+  const t = finite.map(tf).sort((x, y) => x - y);
+  const median = t.length % 2 ? t[(t.length - 1) / 2] : (t[t.length / 2 - 1] + t[t.length / 2]) / 2;
+  const sign = b.higherIsBetter ? 1 : -1;
+  if (b.unit === "elo") return (v) => 100 / (1 + 10 ** (sign * (median - v) / 400));
+  const mad = t.map((x) => Math.abs(x - median)).sort((x, y) => x - y)[Math.floor(t.length / 2)];
+  const spread = Math.max(1.4826 * mad, (t[t.length - 1] - t[0]) / 6, 1e-9);
+  if (t[t.length - 1] - t[0] < 1e-9) return () => 50;
+  return (v) => 100 / (1 + Math.exp(-sign * (tf(v) - median) / spread));
 }
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));

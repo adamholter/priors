@@ -48,7 +48,7 @@ Personal benchmark index builder. Anyone weights AI-model benchmarks, sees ranki
 - Chart modes are independent: `rankingVariants` defaults to `best`, `paretoVariants` to `all`. Always compute the full variant set for the UI, then call `selectVariants` per chart. Calculation controls live in the advanced dialog; chart effort toggles live in each chart's settings icon.
 - Cost means measured cost per task (`aa-cost-per-task-index`, benchmark `costUsd`), never token price. `aa-price-blended` is `proxy: true`.
 - Logical benchmarks: `versionPolicy.fallback` (DeepSWE 1.1 → 1) or `fresh` (AA index versions).
-- Percent scores are used raw; elo/score/usd are min-max normalized over the eligible pool.
+- Percent and fixed-scale scores are used as published (`FIXED_SCALES` in the engine covers snapshots without `normalization`). Nothing is min-max stretched so the leader reads 100: Elo becomes win rate vs the pool's median model; other open-ended units use a logistic around the pool median scaled by spread (usd in log space).
 - Missing values beyond the floor are estimated from peers (release window / price tier) and marked, or renormalized when estimation is off. At strictness ≥50 a model needs ≥2 measured benchmarks to seed estimates and peers need ≥2 shared benchmarks; the peer offset shrinks as `off/(n+1)`.
 - Defaults: strictness 50, and `releasedAfter` undefined → the engine filters to models released in the six months before the snapshot date — `""` (empty `after=` URL param) means all time, and models with unknown release dates are never age-filtered. The chart-settings gear's "Models released" select controls it.
 
