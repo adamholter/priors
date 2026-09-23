@@ -5,9 +5,10 @@
  */
 import { mkdir, readdir, writeFile, readFile, rename } from "node:fs/promises";
 import path from "node:path";
+import { createHash } from "node:crypto";
 import { gzipSync, gunzipSync } from "node:zlib";
 import type { Benchmark, Effort, Model, Observation, RawRow, RawSeries, Series, Snapshot, Source, SourceRun, ScrapeResult, Variant } from "../../src/data/types";
-import { LABS, normalizeLabel, variantId } from "../../src/data/normalize";
+import { EFFORT_WORDS, LABS, normalizeLabel, variantId } from "../../src/data/normalize";
 import { makeContext, saveRaw } from "./harness";
 import { buildLibrary } from "./library";
 
@@ -86,9 +87,23 @@ async function main() {
     models.set(m.id, m);
   };
   for (const row of rows) {
-    const n = row.identity ? { ok: true as const, ...row.identity, reasoningFamily: row.identity.effort !== "none", cleaned: row.modelLabel } : normalizeLabel(row.modelLabel, row.effort);
-    if (!n.ok) { (unknownBySource.get(row.sourceId) ?? unknownBySource.set(row.sourceId, new Set()).get(row.sourceId)!).add(row.modelLabel); continue; }
-    touch(n, row.modelLabel, meta.get(row.modelLabel.toLowerCase()) ?? { releaseDateHint: row.releaseDateHint });
+    let n = row.identity ? { ok: true as const, ...row.identity, reasoningFamily: row.identity.effort !== "none", cleaned: row.modelLabel } : normalizeLabel(row.modelLabel, row.effort);
+    if (!n.ok) {
+      (unknownBySource.get(row.sourceId) ?? unknownBySource.set(row.sourceId, new Set()).get(row.sourceId)!).add(row.modelLabel);
+      // VALS publishes stable model keys. Keep unmatched scores under source-qualified
+      // identities so a new name cannot silently delete a score or merge with a different model.
+      if ((row.sourceId.startsWith("vals") || row.sourceId === "programbench") && row.sourceModelId) {
+        const suffix = createHash("sha256").update(row.sourceModelId).digest("hex").slice(0, 12);
+        const labId = row.labHint?.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "other";
+        n = { ok: true, modelId: `vals-model-${suffix}`, modelName: row.modelLabel, labId,
+          effort: row.effort ? EFFORT_WORDS[row.effort.toLowerCase().trim()] : undefined,
+          reasoningFamily: false, cleaned: row.modelLabel };
+      } else continue;
+    }
+    touch(n, row.modelLabel, meta.get(row.modelLabel.toLowerCase()) ?? {
+      releaseDateHint: row.releaseDateHint,
+      ...(row.sourceId === "vals-voice-code-bench" ? { kind: "audio" as const } : {}),
+    });
     pending.push({ row, modelId: n.modelId, effort: n.effort });
   }
   for (const [label, hint] of meta) {
