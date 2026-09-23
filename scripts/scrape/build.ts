@@ -80,6 +80,7 @@ async function main() {
   const touch = (n: ReturnType<typeof normalizeLabel>, label: string, hint?: { labHint?: string; releaseDateHint?: string; kind?: Model["kind"] }) => {
     if (!n.ok) return;
     const m = models.get(n.modelId) ?? { id: n.modelId, name: n.modelName, labId: n.labId, kind: "llm", reasoning: n.reasoningFamily, aliases: [] };
+    if (m.labId === "other" && n.labId !== "other") m.labId = n.labId;
     if (!m.aliases.includes(label.toLowerCase())) m.aliases.push(label.toLowerCase());
     if (hint?.releaseDateHint && !m.releaseDate) m.releaseDate = hint.releaseDateHint;
     if (hint?.kind && hint.kind !== "llm") m.kind = hint.kind;

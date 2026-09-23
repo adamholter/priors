@@ -49,10 +49,10 @@ describe("normalizeLabel", () => {
   });
   it("normalizes exact VALS catalog labels for current frontier models", () => {
     expect(normalizeLabel("Gemma 4 31B IT")).toMatchObject({ modelId: "gemma-4-31b-it", labId: "google" });
-    expect(normalizeLabel("Ling 3.0 Flash")).toMatchObject({ modelId: "ling-3.0-flash", labId: "ant-group" });
-    expect(normalizeLabel("Ling 3.0 Flash Fin")).toMatchObject({ modelId: "ling-3.0-flash-fin", labId: "ant-group" });
-    expect(normalizeLabel("Nemotron 3 Ultra")).toMatchObject({ modelId: "nemotron-3-ultra", labId: "nvidia" });
-    expect(normalizeLabel("Nemotron 3.5 Lightning")).toMatchObject({ modelId: "nemotron-3.5-lightning", labId: "nvidia" });
+    expect(normalizeLabel("Ling 3.0 Flash")).toMatchObject({ modelId: "aa-ling-3-0-flash", labId: "ant-group" });
+    expect(normalizeLabel("Ling 3.0 Flash Fin")).toMatchObject({ modelId: "aa-ling-3-0-flash-fin", labId: "ant-group" });
+    expect(normalizeLabel("Nemotron 3 Ultra")).toMatchObject({ modelId: "aa-nvidia-nemotron-3-ultra-550b-a55b", labId: "nvidia" });
+    expect(normalizeLabel("Nemotron 3.5 Lightning")).toMatchObject({ modelId: "aa-nemotron-3-5-lightning", labId: "nvidia" });
     expect(normalizeLabel("Mercury 2.5")).toMatchObject({ modelId: "mercury-2.5", labId: "inception" });
     expect(normalizeLabel("Laguna M.1")).toMatchObject({ modelId: "laguna-m-1", labId: "poolside" });
     expect(normalizeLabel("Laguna XS.2")).toMatchObject({ modelId: "laguna-xs-2", labId: "poolside" });
@@ -83,8 +83,8 @@ describe("normalizeLabel", () => {
       ["Nemotron 3 Ultra", "aa-nvidia-nemotron-3-ultra-550b-a55b"],
       ["Nemotron 3.5 Lightning", "aa-nemotron-3-5-lightning"],
       ["Mercury 2.5", "mercury-2.5"],
-      ["Laguna M.1", "laguna-m.1"],
-      ["Laguna XS.2", "laguna-xs.2"],
+      ["Laguna M.1", "laguna-m-1"],
+      ["Laguna XS.2", "laguna-xs-2"],
       ["Muse Spark", "aa-muse-spark"],
       ["Claude 3.7 Sonnet (Nonthinking)", "claude-sonnet-3.7"],
       ["Claude 3.5 Haiku Latest", "claude-haiku-3.5"],
