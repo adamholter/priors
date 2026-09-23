@@ -113,4 +113,4 @@ describe("VALS archived benchmark parsing", () => {
     expect(found.size).toBe(17);
     expect(ARCHIVED_BENCHMARK_SLUGS.filter((slug) => !found.has(slug))).toEqual([]);
   });
-});\n
+});

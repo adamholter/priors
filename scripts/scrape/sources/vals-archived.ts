@@ -287,4 +287,4 @@ const source: Source = {
   },
 };
 
-export default source;\n
+export default source;
