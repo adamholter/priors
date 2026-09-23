@@ -17,6 +17,7 @@ import "./onboarding.css";
 
 const INITIAL = DEFAULT_LINEUP;
 const LEGACY_DEFAULTS = [
+  ["claude-opus-5.5", "claude-fable-5.1", "gpt-6-astra", "claude-opus-5", "claude-fable-5", "muse-spark-1.3", "gpt-6-sol", "grok-4.7", "mimo-v2.6-pro", "qwen-3.8-max", "glm-5.3", "grok-4.6", "kimi-k3", "gpt-5.6-terra", "glm-5.3-flash", "gemini-3.8-flash", "deepseek-v4.1-flash", "claude-sonnet-5"],
   ["claude-opus-5.5", "gpt-6-astra", "claude-fable-5.1", "claude-fable-5", "gpt-6-sol", "claude-opus-5", "grok-4.7", "gpt-6-luna", "gemini-3.8-flash", "glm-5.3", "gpt-5.6-terra", "grok-4.6", "gemini-3.7-flash", "claude-sonnet-5"],
   ["claude-opus-5.5", "gpt-6-astra", "claude-fable-5.1", "gpt-6-sol", "claude-fable-5", "claude-opus-5", "gpt-6-luna", "grok-4.7", "gemini-3.8-flash", "glm-5.3", "gpt-5.6-terra", "grok-4.6", "gemini-3.7-flash", "claude-sonnet-5"],
   ["claude-opus-5.5", "gpt-6-astra", "claude-fable-5.1", "claude-fable-5", "gpt-6-sol", "claude-opus-5", "grok-4.7", "gpt-6-luna", "glm-5.3", "gpt-5.6-terra", "gemini-3.8-flash", "grok-4.6", "gemini-3.7-flash", "claude-sonnet-5"],
