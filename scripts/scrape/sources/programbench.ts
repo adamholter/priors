@@ -61,7 +61,7 @@ function attr(tag: string, name: string): string | undefined {
   return match ? decodeEntities(match[1]) : undefined;
 }
 function islands(html: string): string[] {
-  return [...html.matchAll(/<astro-island\b[^>]*>/gs)].map((m) => m[0]);
+  return [...html.matchAll(/<astro-island\b[^>]*>/g)].map((m) => m[0]);
 }
 
 export function parseProgramBenchHtml(html: string): View {
