@@ -31,6 +31,8 @@ export function PageEditor({ profile, onChange, snapshot, editing }: { profile: 
   const { user } = useUser();
   const [mounted, setMounted] = useState(false);
   useEffect(() => { const id = requestAnimationFrame(() => setMounted(true)); return () => cancelAnimationFrame(id); }, []);
+  // Profiles claimed before names came from Google read "Someone": offer the real name.
+  const googleName = user ? (user.fullName || [user.firstName, user.lastName].filter(Boolean).join(" ")) : "";
   const googlePhoto = user?.externalAccounts.find((a) => /google/.test(a.provider))?.imageUrl || (user?.hasImage ? user.imageUrl : undefined);
   const counter = useRef(1);
   const isOwner = !!mine && mine.handle === profile.handle;
@@ -65,7 +67,7 @@ export function PageEditor({ profile, onChange, snapshot, editing }: { profile: 
           <Group title="Profile">
             <Field label="Photo"><div className="flex flex-wrap items-center gap-2">{profile.avatarUrl && <img src={profile.avatarUrl} alt="" className="w-10 h-10 rounded-full object-cover" />}{googlePhoto && googlePhoto !== profile.avatarUrl && <button type="button" className="btn-quiet" onClick={useGooglePhoto}>Use Google photo</button>}<button type="button" className="btn-quiet" onClick={() => fileRef.current?.click()}>Upload</button><input ref={fileRef} type="file" accept="image/*" hidden onChange={(e) => e.target.files?.[0] && upload(e.target.files[0])} /></div></Field>
             <Field label="Banner"><div className="flex flex-wrap items-center gap-2">{profile.bannerUrl && <img src={profile.bannerUrl} alt="" className="h-10 w-28 rounded-sm object-cover" />}<button type="button" className="btn-quiet" onClick={() => bannerRef.current?.click()}>{profile.bannerUrl ? "Replace" : "Upload"}</button>{profile.bannerUrl && <button type="button" className="btn-quiet" onClick={async () => { await update({ patch: { bannerStorageId: null } }); router.refresh(); }}>Remove</button>}<input ref={bannerRef} type="file" accept="image/*" hidden onChange={(e) => e.target.files?.[0] && upload(e.target.files[0], "bannerStorageId")} /></div><span className="cap">Wide image, about 4:1.</span></Field>
-            <Field label="Name"><input value={profile.displayName} onChange={(e) => set({ displayName: e.target.value })} className="inp" /></Field>
+            <Field label="Name"><input value={profile.displayName} onChange={(e) => set({ displayName: e.target.value })} className="inp" />{googleName && googleName !== profile.displayName && <button type="button" className="cap text-left hover:text-ink" onClick={() => set({ displayName: googleName })}>Use {googleName}</button>}</Field>
             <Field label="Bio"><textarea value={profile.bio ?? ""} onChange={(e) => set({ bio: e.target.value })} rows={3} className="inp" placeholder="A sentence or two about how you pick models." /></Field>
             <Field label="Links">
               <div className="grid gap-1.5">

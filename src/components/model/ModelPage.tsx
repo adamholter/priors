@@ -36,9 +36,13 @@ export function ModelPage({ snapshot, modelId }: { snapshot: Snapshot; modelId: 
   const mix = useCachedMix(snapshot);
   const result = useMemo(() => computeIndex(snapshot, { ...mix, variants: "all" }), [snapshot, mix]);
   // Cost per task is measured per variant; the full-pool "all time" index supplies it for every variant.
-  const costs = useMemo(() => { const r = computeIndex(snapshot, { ...defaultConfig(snapshot), variants: "all", releasedAfter: "", strictness: 0 }); return new Map(r.ranked.filter((x) => x.costUsd).map((x) => [x.variant.id, x.costUsd!])); }, [snapshot]);
-  const mine = result.ranked.filter((r) => r.model.id === modelId);
-  const bestRows = useMemo(() => { const seen = new Set<string>(); return result.ranked.filter((r) => !seen.has(r.model.id) && !!seen.add(r.model.id)); }, [result]);
+  const costs = useMemo(() => { const r = computeIndex(snapshot, { ...defaultConfig(snapshot), variants: "all", releasedAfter: "", strictness: 0 }); const m = new Map<string, number>(); for (const x of r.ranked) if (x.costUsd) { m.set(x.variant.id, x.costUsd); const base = x.variant.id.split("~")[0]; if (!m.has(base)) m.set(base, x.costUsd); } return m; }, [snapshot]);
+  // Not enough measured data at the mix's strictness: fall back to estimates rather than showing nothing.
+  const strictMine = result.ranked.filter((r) => r.model.id === modelId);
+  const loose = useMemo(() => strictMine.length ? null : computeIndex(snapshot, { ...mix, variants: "all", strictness: 0 }), [snapshot, mix, strictMine.length]);
+  const shown = loose ?? result;
+  const mine = shown.ranked.filter((r) => r.model.id === modelId);
+  const bestRows = useMemo(() => { const seen = new Set<string>(); return shown.ranked.filter((r) => !seen.has(r.model.id) && !!seen.add(r.model.id)); }, [shown]);
   const place = bestRows.findIndex((r) => r.model.id === modelId);
   const variants = new Map(snapshot.variants.map((v) => [v.id, v]));
   const perBench = useMemo(() => {
@@ -72,14 +76,14 @@ export function ModelPage({ snapshot, modelId }: { snapshot: Snapshot; modelId: 
           </div>
           <div className="sm:text-right">
             <p className="cap">{mix.name}</p>
-            {top ? <><p className="num text-[52px] leading-none mt-1" style={{ color: "var(--indigo)" }}>{top.score.toFixed(1)}</p><p className="text-[13px] text-ink-2 mt-1">#{place + 1} of {bestRows.length} models{top.variant.effort !== "default" ? ` · best at ${top.variant.effort}` : ""}</p></>
+            {top ? <><p className="num text-[52px] leading-none mt-1" style={{ color: "var(--indigo)" }}>{top.score.toFixed(1)}</p><p className="text-[13px] text-ink-2 mt-1">#{place + 1} of {bestRows.length} models{top.variant.effort !== "default" ? ` · best at ${top.variant.effort}` : ""}</p>{loose && <p className="cap mt-1 max-w-[30ch] sm:ml-auto">includes estimates: {Math.round(top.measuredShare * 100)}% of the mix is measured for this model</p>}</>
               : <p className="text-[13px] text-ink-2 mt-2 max-w-[28ch]">Not ranked in this mix — too little measured data for its benchmarks.</p>}
           </div>
         </section>
 
         {mine.length > 1 && <section className="border-t-2 border-ink pt-3">
           <h2 className="text-[20px] mb-2">Reasoning efforts in your mix</h2>
-          <div className="grid gap-[5px]">{mine.map((r) => <EffortRow key={r.variant.id} r={r} rank={result.ranked.indexOf(r) + 1} total={result.ranked.length} max={mine[0].score} color={lab?.color} />)}</div>
+          <div className="grid gap-[5px]">{mine.map((r) => <EffortRow key={r.variant.id} r={r} rank={shown.ranked.indexOf(r) + 1} total={shown.ranked.length} max={mine[0].score} color={lab?.color} />)}</div>
         </section>}
 
         <section className="grid gap-4">
