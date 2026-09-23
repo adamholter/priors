@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { Snapshot } from "@/data/types";
 import { defaultConfig } from "@/engine";
@@ -69,7 +70,7 @@ export function Intro({ snapshot, lineup, dialogRef, onClose }: { snapshot: Snap
           {STEPS.map((s, i) => <li key={s.n}><button className={i === shown ? "active" : ""} aria-current={i === shown ? "step" : undefined} onClick={() => setStep(i)}><span className="intro-n">{s.n}</span><span><strong>{s.title}</strong><span>{s.body}</span></span></button></li>)}
         </ol>
         <button className="primary-action" onClick={() => dialogRef.current?.close()}>Start ranking <Arrow /></button>
-        <span className="intro-note">About a minute. No sign-in.</span>
+        <span className="intro-note">About a minute. No sign-in. · <Link href="/privacy" className="hover:text-ink">Privacy</Link></span>
       </div>
     </div>
   </dialog>;

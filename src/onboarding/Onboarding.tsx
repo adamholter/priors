@@ -221,7 +221,7 @@ export function Onboarding({ snapshot }: { snapshot: Snapshot }) {
 
   return <div className={`onboarding stage-${stage} ${running ? "is-running" : ""}`}>
     {convexEnabled && <LineupRecorder onRegister={(fn) => { recordLineup.current = fn; }} />}
-    <header className="onboard-header"><Wordmark size={32} href={null} /><span className="experiment-label">The priors experiment</span><div className="header-links"><button className="text-control" onClick={() => intro.current?.showModal()}>How it works</button><button className="text-control" onClick={() => openDialog("quality")}>About the evidence <span aria-hidden="true">↗</span></button></div></header>
+    <header className="onboard-header"><Wordmark size={32} href={null} /><span className="experiment-label">The priors experiment</span><div className="header-links"><button className="text-control" onClick={() => intro.current?.showModal()}>How it works</button><Link className="text-control" href="/privacy">Privacy</Link><button className="text-control" onClick={() => openDialog("quality")}>About the evidence <span aria-hidden="true">↗</span></button></div></header>
     <main className="onboard-main">
       <div className="step-line"><span className={stage === "order" ? "current" : "passed"}>01 <span>Your intuition</span></span><i /><span className={stage === "fit" ? "current" : ""}>02 <span>The evidence</span></span></div>
       <div className="onboard-intro" key={stage}>

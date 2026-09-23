@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { SignIn } from "@clerk/nextjs";
 import { Wordmark } from "@/components/Wordmark";
 import { PageTransition } from "@/components/PageTransition";
@@ -11,6 +12,7 @@ export default function Page() {
       <div className="grid gap-6 justify-items-center">
         <Wordmark size={30} />
         <SignIn forceRedirectUrl="/claim" signUpForceRedirectUrl="/claim" />
+        <Link href="/privacy" className="cap hover:text-ink">Privacy</Link>
       </div>
     </main></PageTransition>
   );
