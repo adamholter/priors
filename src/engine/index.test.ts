@@ -226,6 +226,19 @@ describe("computeIndex", () => {
   });
 });
 
+it("log-normalizes seconds benchmarks so fast latencies separate", () => {
+  const s = snap();
+  s.benchmarks.push({ id: "ttft", name: "TTFT", sourceId: "s", url: "", description: "", unit: "seconds", higherIsBetter: false, category: "speed" });
+  const vals: [string, number][] = [["a@max", 0.3], ["b@xhigh", 1], ["c@default", 3], ["d@default", 10], ["a@high", 100]];
+  for (const [v, x] of vals) s.observations.push({ benchmarkId: "ttft", variantId: v, value: x, observedAt: "", sourceUrl: "" });
+  const r = computeIndex(s, { ...base, weights: { ttft: 100 }, strictness: 100, estimateMissing: false, releasedAfter: "" });
+  const score = (v: string) => r.ranked.find((x) => x.variant.id === v)!.values.find((x) => x.benchmarkId === "ttft")!.value;
+  const scores = vals.map(([v]) => score(v));
+  expect([...scores].sort((a, b) => b - a)).toEqual(scores);
+  expect(scores[0]).toBeGreaterThan(70);
+  expect(scores[0] - scores[2]).toBeGreaterThan(10);
+});
+
 it("onlyModels allowlist ranks only those models but keeps the candidate pool", () => {
   const r = computeIndex(snap(), { ...base, onlyModels: ["a"] });
   expect(new Set(r.ranked.map((x) => x.model.id))).toEqual(new Set(["a"]));

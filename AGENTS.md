@@ -16,7 +16,7 @@ Personal benchmark index builder. Anyone weights AI-model benchmarks, sees ranki
 
 - `src/data/types.ts` — the data contract (Snapshot, Model, Variant, Benchmark, Observation, RawRow, Source). Read first.
 - `src/data/normalize.ts` — model label → canonical id/effort. Regex families + exact `ALIASES`. Unknown labels are excluded, never guessed. Tests in `normalize.test.ts`.
-- `src/engine/index.ts` — index math: shares, coverage floor (measured share vs strictness), peer estimation for small gaps, min-max for non-percent units (log for usd), Pareto frontier, `defaultConfig`. Tests in `index.test.ts`.
+- `src/engine/index.ts` — index math: shares, coverage floor (measured share vs strictness), peer estimation for small gaps, min-max for non-percent units (log for usd and seconds), Pareto frontier, `defaultConfig`. Tests in `index.test.ts`.
 - `src/lib/url.ts` — URL codec for anonymous indices: `?i=name|bench:w,...|req=|opt=|strict=|bars=|pareto=|cut=|est=|var=|effort=|labs=|ex=|only=|after=` (multiple `i` params = multiple indices).
 - `src/lib/import.ts` — zod schema for agent/user JSON imports + merge into a snapshot.
 - `src/lib/og.tsx` — all 13 share-card designs (`SHARE_DESIGNS` in `share-designs.ts`; "Leaderboard" is the default, "qr" embeds a QR via the `qrcode` package). Every card footer reads `mypriors.com · <date>`.

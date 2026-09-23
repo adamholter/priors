@@ -276,8 +276,8 @@ function makeNormalizer(b: Benchmark, values: number[]): (v: number) => number {
   if (b.unit === "percent" && !b.higherIsBetter) return (v) => clamp(100 - v, 0, 100);
   const finite = values.filter(Number.isFinite);
   if (finite.length < 2) return () => 50;
-  // log scale for cost-like units so a 10x cheaper model isn't crushed into the corner
-  const tf = b.unit === "usd" ? (x: number) => Math.log10(Math.max(x, 1e-6)) : (x: number) => x;
+  // log scale for cost- and time-like units so a 10x cheaper model isn't crushed into the corner
+  const tf = b.unit === "usd" || b.unit === "seconds" ? (x: number) => Math.log10(Math.max(x, 1e-6)) : (x: number) => x;
   const t = finite.map(tf).sort((x, y) => x - y);
   const median = t.length % 2 ? t[(t.length - 1) / 2] : (t[t.length / 2 - 1] + t[t.length / 2]) / 2;
   const sign = b.higherIsBetter ? 1 : -1;
