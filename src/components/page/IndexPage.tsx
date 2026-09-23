@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Snapshot } from "@/data/types";
 import { chartVariantMode, computeIndex, selectVariants, type IndexConfig } from "@/engine";
 import { encodeIndices } from "@/lib/url";
@@ -16,15 +16,16 @@ import { MetricGallery } from "./MetricGallery";
 import { authEnabled } from "@/app/providers";
 import { PageEditor } from "./PageEditor";
 import { ChartSettings } from "../chart/ChartSettings";
+import { presetOf, presetStyle } from "@/lib/page-presets";
 
 export interface Section {
   id: string; kind: "rankings" | "pareto" | "speed" | "benchmark" | "text" | "links" | "history" | "gallery";
   title?: string; indexId?: string; benchmarkId?: string; body?: string; links?: { label: string; url: string }[]; hidden?: boolean;
 }
 export interface Profile {
-  _id: string; handle: string; displayName: string; avatarUrl?: string; bio?: string;
+  _id: string; handle: string; displayName: string; avatarUrl?: string; bannerUrl?: string; bio?: string;
   socials?: { label: string; url: string }[]; indices: IndexConfig[]; sections: Section[];
-  theme?: { accent?: string; surface?: "bone" | "white"; serif?: string; mono?: string; css?: string };
+  theme?: { accent?: string; surface?: "bone" | "white"; preset?: string; cardDesign?: string; serif?: string; mono?: string; css?: string };
   imports?: { benchmark: Snapshot["benchmarks"][0]; rows: import("@/data/types").RawRow[] }[];
 }
 
@@ -34,8 +35,11 @@ export function IndexPage({ profile, snapshot, dates, edit }: { profile: Profile
   if (profile !== prevProfile) { setPrevProfile(profile); setPState(profile); }
   const setP = setPState;
   const results = useMemo(() => new Map(p.indices.map((i) => [i.id, computeIndex(snapshot, { ...i, variants: "all" })])), [snapshot, p.indices]);
-  const accent = p.theme?.accent ?? "#2F4FB0";
-  const surface = p.theme?.surface === "white" ? "#FFFFFF" : "#FBFBF9";
+  const preset = presetOf(p.theme);
+  const accent = p.theme?.accent ?? preset.accent;
+  const surface = preset.bg;
+  const [origin, setOrigin] = useState("");
+  useEffect(() => { const id = requestAnimationFrame(() => setOrigin(window.location.origin)); return () => cancelAnimationFrame(id); }, []);
   const builderHref = `/?${encodeIndices(p.indices).toString()}`;
   const [selected, setSelected] = useState<string | null>(null);
   const [paretoView, setParetoView] = useScatterView("page-pareto");
@@ -49,23 +53,24 @@ export function IndexPage({ profile, snapshot, dates, edit }: { profile: Profile
   ].filter(Boolean).join("\n")), [p.theme?.serif, p.theme?.mono, p.theme?.css]);
 
   return (
-    <div className="page-root min-h-screen" style={{ ["--indigo" as string]: accent, background: surface }}>
+    <div className="page-root min-h-screen" data-dark={preset.dark || undefined} style={presetStyle(preset, accent) as React.CSSProperties}>
       {customCss && <style>{customCss}</style>}
       <header className="flex flex-wrap items-center gap-x-6 gap-y-2 px-4 sm:px-8 min-h-14 py-2 border-b hairline sticky top-0 z-10" style={{ background: surface + "E6", backdropFilter: "blur(8px)" }}>
         <Wordmark />
         <span className="text-grey text-[13px]">/ {p.handle}</span>
         <div className="ml-auto flex flex-wrap items-center justify-end gap-3">
           <DatePicker current={snapshot.date} dates={dates} />
-          {p.indices[0] && <ShareCards indices={p.indices} active={p.indices[0]} date={snapshot.date} profile={p} />}
+          {p.indices[0] && <ShareCards indices={p.indices} active={p.indices[0]} date={snapshot.date} profile={p} pageUrl={`${origin || "https://mypriors.com"}/${p.handle}`} defaultDesign={p.theme?.cardDesign} />}
           <Link href={builderHref as "/"} className="btn-quiet">Open in builder</Link>
           {authEnabled && <PageEditor profile={p} onChange={setP} snapshot={snapshot} editing={edit} />}
         </div>
       </header>
 
-      <main className="max-w-[1100px] mx-auto px-8 py-12 grid gap-14">
-        <section className="flex items-start gap-5">
-          {p.avatarUrl ? <img src={p.avatarUrl} alt="" className="w-16 h-16 rounded-full border hairline object-cover" /> : <div className="w-16 h-16 rounded-full bg-hair-2 grid place-items-center serif text-2xl text-ink-2">{p.displayName[0]}</div>}
-          <div className="grid gap-1.5">
+      {p.bannerUrl && <img src={p.bannerUrl} alt="" className="page-banner" />}
+      <main className={`max-w-[1100px] mx-auto px-5 sm:px-8 grid gap-14 ${p.bannerUrl ? "pb-12" : "py-12"}`}>
+        <section className={`flex items-start gap-5 ${p.bannerUrl ? "-mt-10" : ""}`}>
+          {p.avatarUrl ? <img src={p.avatarUrl} alt="" className="w-20 h-20 rounded-full object-cover shrink-0" style={{ boxShadow: `0 0 0 4px ${surface}` }} /> : <div className="w-20 h-20 rounded-full bg-hair-2 grid place-items-center serif text-3xl text-ink-2 shrink-0" style={{ boxShadow: `0 0 0 4px ${surface}` }}>{p.displayName[0]}</div>}
+          <div className={`grid gap-1.5 min-w-0 ${p.bannerUrl ? "pt-11" : ""}`}>
             <h1 className="text-[34px] leading-tight">{p.displayName}</h1>
             <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-[13px] text-ink-2">
               <span className="mono text-grey">mypriors.com/{p.handle}</span>
@@ -81,10 +86,10 @@ export function IndexPage({ profile, snapshot, dates, edit }: { profile: Profile
           const title = s.title ?? defaultTitle(s, idx?.name);
           if (s.kind === "text") return <section key={s.id} className="max-w-[68ch]">{s.title && <h2 className="text-[24px] mb-3">{s.title}</h2>}<p className="text-[15.5px] leading-[1.7] text-ink-2 whitespace-pre-wrap">{s.body}</p></section>;
           if (s.kind === "links") return <section key={s.id}>{title && <h2 className="text-[24px] mb-3">{title}</h2>}<ul className="grid gap-1.5 text-[14px]">{s.links?.map((l) => <li key={l.url}><a href={l.url} target="_blank" rel="noreferrer" style={{ color: accent }}>{l.label}</a></li>)}</ul></section>;
-          if (s.kind === "benchmark" && s.benchmarkId) return <section key={s.id}><h2 className="text-[24px] mb-3">{title}</h2><BenchmarkTable snapshot={snapshot} benchmarkId={s.benchmarkId} /></section>;
+          if (s.kind === "benchmark" && s.benchmarkId) return <section key={s.id} className="chart-panel"><h2 className="text-[24px] mb-3">{title}</h2><BenchmarkTable snapshot={snapshot} benchmarkId={s.benchmarkId} /></section>;
           if (!idx || !r) return null;
           const rankingMode = chartVariantMode(idx, "ranking"), paretoMode = chartVariantMode(idx, "pareto");
-          if (s.kind === "gallery") return <section key={s.id}><h2 className="text-[24px] mb-1">{title}</h2><p className="cap mb-3">More metrics · expand a row</p><MetricGallery ranked={r.ranked} mode={paretoMode} snapshot={snapshot} labs={snapshot.labs} /></section>;
+          if (s.kind === "gallery") return <section key={s.id} className="chart-panel"><h2 className="text-[24px] mb-1">{title}</h2><p className="cap mb-3">More metrics · expand a row</p><MetricGallery ranked={r.ranked} mode={paretoMode} snapshot={snapshot} labs={snapshot.labs} /></section>;
           const updateIndex = (patch: Partial<IndexConfig>) => setP({ ...p, indices: p.indices.map((i) => i.id === idx.id ? { ...i, ...patch } : i) });
           const excludedIds = new Set(idx.excludeModels ?? []);
           const pickerModels = (() => {
@@ -97,12 +102,12 @@ export function IndexPage({ profile, snapshot, dates, edit }: { profile: Profile
           const toggleModel = (id: string) => { const s = new Set(idx.excludeModels ?? []); if (s.has(id)) s.delete(id); else s.add(id); updateIndex({ excludeModels: s.size ? [...s] : [] }); };
           const settings = (label: string, mode: "all" | "best", key: "rankingVariants" | "paretoVariants") => <ChartSettings label={label} mode={mode} onChange={(v) => updateIndex({ [key]: v })} releasedAfter={idx.releasedAfter} onChangeReleased={(v) => updateIndex({ releasedAfter: v })} models={pickerModels} excluded={excludedIds} onToggleModel={toggleModel} onShowAllModels={() => updateIndex({ excludeModels: [] })} onHideAllModels={() => updateIndex({ excludeModels: pickerModels.map((m) => m.id) })} />;
           if (s.kind === "rankings") return (
-            <section key={s.id}>
+            <section key={s.id} className="chart-panel">
               <Rankings title={<h2 className="text-[24px]">{title}</h2>} actions={settings("Ranking", rankingMode, "rankingVariants")} ranked={selectVariants(r.ranked, rankingMode)} showEffort={rankingMode === "all"} labs={snapshot.labs} limit={25} selected={selected} onSelect={(x) => setSelected(x?.variant.id ?? null)} />
             </section>
           );
-          if (s.kind === "pareto") return <section key={s.id}><ParetoChart ranked={selectVariants(r.ranked, paretoMode)} labs={snapshot.labs} height={440} view={paretoView} title={<h2 className="text-[24px]">{title}</h2>} actions={<ChartSettings label="Pareto" mode={paretoMode} onChange={(v) => updateIndex({ paretoVariants: v })} view={paretoView} onView={setParetoView} releasedAfter={idx.releasedAfter} onChangeReleased={(v) => updateIndex({ releasedAfter: v })} models={pickerModels} excluded={excludedIds} onToggleModel={toggleModel} onShowAllModels={() => updateIndex({ excludeModels: [] })} onHideAllModels={() => updateIndex({ excludeModels: pickerModels.map((m) => m.id) })} />} /></section>;
-          if (s.kind === "speed") return <section key={s.id}><SpeedChart ranked={selectVariants(r.ranked, paretoMode)} labs={snapshot.labs} view={speedView} title={<h2 className="text-[24px]">{title}</h2>} actions={<ChartSettings label="Speed" mode={paretoMode} onChange={(v) => updateIndex({ paretoVariants: v })} view={speedView} onView={setSpeedView} />} /></section>;
+          if (s.kind === "pareto") return <section key={s.id} className="chart-panel"><ParetoChart ranked={selectVariants(r.ranked, paretoMode)} labs={snapshot.labs} height={440} view={paretoView} title={<h2 className="text-[24px]">{title}</h2>} actions={<ChartSettings label="Pareto" mode={paretoMode} onChange={(v) => updateIndex({ paretoVariants: v })} view={paretoView} onView={setParetoView} releasedAfter={idx.releasedAfter} onChangeReleased={(v) => updateIndex({ releasedAfter: v })} models={pickerModels} excluded={excludedIds} onToggleModel={toggleModel} onShowAllModels={() => updateIndex({ excludeModels: [] })} onHideAllModels={() => updateIndex({ excludeModels: pickerModels.map((m) => m.id) })} />} /></section>;
+          if (s.kind === "speed") return <section key={s.id} className="chart-panel"><SpeedChart ranked={selectVariants(r.ranked, paretoMode)} labs={snapshot.labs} view={speedView} title={<h2 className="text-[24px]">{title}</h2>} actions={<ChartSettings label="Speed" mode={paretoMode} onChange={(v) => updateIndex({ paretoVariants: v })} view={speedView} onView={setSpeedView} />} /></section>;
           if (s.kind === "history") return <section key={s.id}><h2 className="text-[24px] mb-2">{title}</h2><p className="cap">Use the date picker above to view this page as of any earlier snapshot.</p></section>;
           return null;
         })}

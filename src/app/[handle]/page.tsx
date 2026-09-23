@@ -21,7 +21,8 @@ export async function generateMetadata({ params }: PageProps<"/[handle]">): Prom
   if (!p) return {};
   const title = `${p.displayName}’s priors`;
   const description = p.bio || `${p.indices.map((i) => i.name).join(", ")} — a personal index of AI models.`;
-  return { title, description, openGraph: { title, description, type: "profile", images: [`/${handle}/opengraph-image`] }, twitter: { card: "summary_large_image", title, description } };
+  const image = { url: `/${handle}/opengraph-image?v=${Math.round((p as { updatedAt?: number }).updatedAt ?? 0)}`, width: 1200, height: 630, alt: title };
+  return { title, description, alternates: { canonical: `/${handle}` }, openGraph: { title, description, type: "profile", url: `/${handle}`, images: [image] }, twitter: { card: "summary_large_image", title, description, images: [image.url] } };
 }
 
 export default async function Page({ params, searchParams }: PageProps<"/[handle]">) {

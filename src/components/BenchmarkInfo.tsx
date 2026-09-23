@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { useEffect, useMemo, useRef } from "react";
 import type { Benchmark, Snapshot } from "@/data/types";
 
@@ -35,7 +36,7 @@ export function BenchmarkInfo({ snapshot, benchmarkId, inMix, onAdd, onClose }: 
       const cur = best.get(mid);
       if (!cur || (b.higherIsBetter ? o.value > cur.value : o.value < cur.value)) best.set(mid, { value: o.value, effort: v?.effort ?? "default" });
     }
-    const rows = [...best].map(([mid, x]) => ({ name: models.get(mid)?.name ?? mid, color: color.get(models.get(mid)?.labId ?? "") ?? "#A3A39B", ...x }))
+    const rows = [...best].map(([mid, x]) => ({ id: mid, name: models.get(mid)?.name ?? mid, color: color.get(models.get(mid)?.labId ?? "") ?? "#A3A39B", ...x }))
       .sort((p, q) => b.higherIsBetter ? q.value - p.value : p.value - q.value);
     const top = rows.slice(0, 10), values = rows.map((r) => r.value);
     const lo = b.unit === "percent" ? 0 : Math.min(...values), hi = b.unit === "percent" ? 100 : Math.max(...values);
@@ -63,7 +64,7 @@ export function BenchmarkInfo({ snapshot, benchmarkId, inMix, onAdd, onClose }: 
         {data.top.length ? <ol className="grid gap-[5px]">
           {data.top.map((r, i) => <li key={r.name} className="grid grid-cols-[20px_minmax(0,1.15fr)_minmax(56px,1fr)_60px] items-center gap-2.5 h-[24px] text-[12.5px]">
             <span className="cap text-right">{i + 1}</span>
-            <span className="truncate">{r.name}{r.effort !== "default" && <em className="not-italic cap ml-1.5">{r.effort}</em>}</span>
+            <Link href={`/models/${r.id}` as "/"} className="truncate hover:text-indigo">{r.name}{r.effort !== "default" && <em className="not-italic cap ml-1.5">{r.effort}</em>}</Link>
             <span className="h-[9px] bg-hair-2 rounded-[2px] overflow-hidden"><i className="block h-full rounded-[2px]" style={{ width: `${data.width(r.value)}%`, background: r.color }} /></span>
             <span className="num text-right">{format(b, r.value)}</span>
           </li>)}

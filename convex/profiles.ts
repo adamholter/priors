@@ -2,7 +2,7 @@ import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/s
 import { v } from "convex/values";
 
 const HANDLE = /^[a-z0-9][a-z0-9-]{1,29}$/;
-const RESERVED = new Set(["sign-in", "sign-up", "api", "skill", "import", "me", "og", "about", "admin", "priors", "u", "settings", "privacy", "terms", "builder", "claim"]);
+const RESERVED = new Set(["sign-in", "sign-up", "api", "skill", "import", "me", "og", "about", "admin", "priors", "u", "settings", "privacy", "terms", "builder", "claim", "models"]);
 
 async function me(ctx: QueryCtx | MutationCtx) {
   const identity = await ctx.auth.getUserIdentity();
@@ -23,8 +23,9 @@ export const byHandle = query({
     if (!p) return null;
     const imports = await ctx.db.query("imports").withIndex("by_profile", (q) => q.eq("profileId", p._id)).collect();
     const avatarUrl = p.avatarStorageId ? await ctx.storage.getUrl(p.avatarStorageId) : p.avatarUrl;
+    const bannerUrl = p.bannerStorageId ? await ctx.storage.getUrl(p.bannerStorageId) : null;
     const { agentTokenHash: _h, ...rest } = p; void _h;
-    return { ...rest, avatarUrl: avatarUrl ?? undefined, imports: imports.map((i) => ({ benchmark: i.benchmark, rows: i.rows })) };
+    return { ...rest, avatarUrl: avatarUrl ?? undefined, bannerUrl: bannerUrl ?? undefined, imports: imports.map((i) => ({ benchmark: i.benchmark, rows: i.rows })) };
   },
 });
 
@@ -60,16 +61,18 @@ export const claim = mutation({
 export const update = mutation({
   args: {
     patch: v.object({
-      displayName: v.optional(v.string()), bio: v.optional(v.string()), avatarUrl: v.optional(v.string()), avatarStorageId: v.optional(v.id("_storage")),
+      displayName: v.optional(v.string()), bio: v.optional(v.string()), avatarUrl: v.optional(v.string()), avatarStorageId: v.optional(v.id("_storage")), bannerStorageId: v.optional(v.union(v.id("_storage"), v.null())),
       socials: v.optional(v.array(v.object({ label: v.string(), url: v.string() }))),
       indices: v.optional(v.any()), sections: v.optional(v.any()),
-      theme: v.optional(v.object({ accent: v.optional(v.string()), surface: v.optional(v.union(v.literal("bone"), v.literal("white"))), serif: v.optional(v.string()), mono: v.optional(v.string()), css: v.optional(v.string()) })),
+      theme: v.optional(v.object({ accent: v.optional(v.string()), surface: v.optional(v.union(v.literal("bone"), v.literal("white"))), preset: v.optional(v.string()), cardDesign: v.optional(v.string()), serif: v.optional(v.string()), mono: v.optional(v.string()), css: v.optional(v.string()) })),
     }),
   },
   handler: async (ctx, { patch }) => {
     const m = await me(ctx);
     if (!m?.profile) throw new Error("No profile");
-    await ctx.db.patch(m.profile._id, { ...patch, updatedAt: Date.now() });
+    // A new avatar URL (e.g. "use my Google photo") replaces an uploaded one; null clears the banner.
+    const { bannerStorageId, ...rest } = patch;
+    await ctx.db.patch(m.profile._id, { ...rest, ...(rest.avatarUrl ? { avatarStorageId: undefined } : {}), ...(bannerStorageId !== undefined ? { bannerStorageId: bannerStorageId ?? undefined } : {}), updatedAt: Date.now() });
   },
 });
 

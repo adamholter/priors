@@ -107,6 +107,7 @@ export function Onboarding({ snapshot }: { snapshot: Snapshot }) {
   const [query, setQuery] = useState("");
   const dialog = useRef<HTMLDialogElement>(null);
   const intro = useRef<HTMLDialogElement>(null);
+  const done = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     try { if (!localStorage.getItem(INTRO_KEY)) intro.current?.showModal(); } catch { /* ignore */ }
   }, []);
@@ -215,6 +216,7 @@ export function Onboarding({ snapshot }: { snapshot: Snapshot }) {
   const maxScore = Math.max(1, ...[...liveScores.values()].map(r => r.score));
   const activeWeights = Object.entries(update?.weights ?? {}).filter(([, w]) => w > 0).sort((a, b) => { const ai = PREFERRED.indexOf(a[0] as typeof PREFERRED[number]), bi = PREFERRED.indexOf(b[0] as typeof PREFERRED[number]); return (ai < 0 ? 100 : ai) - (bi < 0 ? 100 : bi) || a[0].localeCompare(b[0]); });
   const totalWeight = activeWeights.reduce((sum, [, w]) => sum + w, 0) || 1;
+  useEffect(() => { if (complete && stage === "fit" && !done.current?.open) { const t = setTimeout(() => done.current?.showModal(), 450); return () => clearTimeout(t); } }, [complete, stage]);
   const resultUrl = update ? `/builder?${encodeIndices([{ ...update.config, name: "My priors", focus }])}` : "";
   async function copy() { try { await navigator.clipboard.writeText(`${location.origin}${resultUrl}`); setCopied(true); } catch { setError("Couldn't copy. Use Explore this index, then copy its address."); } }
   const modelOptions = snapshot.models.filter(m => m.kind === "llm" && m.name.toLowerCase().includes(query.toLowerCase()) && observedModels.has(m.id)).sort((a, b) => Number(order.includes(b.id)) - Number(order.includes(a.id)) || a.name.localeCompare(b.name));
@@ -281,6 +283,17 @@ export function Onboarding({ snapshot }: { snapshot: Snapshot }) {
       </div>
     </main>
     <span className="sr-only" aria-live="polite">{announcement}</span>
+    <dialog ref={done} className="done-dialog" aria-labelledby="done-heading" onClick={e => { if (e.target === e.currentTarget) done.current?.close(); }}>
+      {complete && update && <div className="done-body">
+        <div className="done-check" aria-hidden="true"><svg viewBox="0 0 52 52"><circle cx="26" cy="26" r="24" /><path d="M15 27l7 7 15-16" /></svg></div>
+        <p className="done-cap">{update.exactMatch ? "Search complete · every model in place" : `Search complete · ${update.matchedPositions}/${order.length} in place`}</p>
+        <h2 id="done-heading">{update.exactMatch ? <>Your index <em>is ready.</em></> : <>The closest index <em>we found.</em></>}</h2>
+        <div className="done-stats"><strong>{Math.round(update.fitScore)}<span>%</span></strong><span>fit to your lineup<br /><small>{update.benchmarkCount} benchmarks · {(update.tested ?? 0).toLocaleString()} combinations tested</small></span></div>
+        <div className="done-mix">{activeWeights.slice(0, 4).map(([id, w], i) => <div key={id} style={{ "--d": `${200 + i * 110}ms`, "--w": `${w / totalWeight * 100}%` } as CSSProperties}><span>{qMap.get(id)?.name ?? snapshot.benchmarks.find(b => b.id === id)?.name ?? id}</span><em>{(w / totalWeight * 100).toFixed(0)}%</em><b><i /></b></div>)}</div>
+        <Link className="primary-action done-cta" href={resultUrl as "/builder"} transitionTypes={["nav-forward"]}>Explore your index <Arrow /></Link>
+        <button className="text-control done-later" onClick={() => done.current?.close()}>Review the fit first</button>
+      </div>}
+    </dialog>
     <Intro snapshot={snapshot} lineup={order} dialogRef={intro} onClose={() => { try { localStorage.setItem(INTRO_KEY, "1"); } catch { /* ignore */ } }} />
     <dialog ref={dialog} className="evidence-dialog" aria-labelledby="dialog-heading" onClick={e => { if (e.target === e.currentTarget) { const r = e.currentTarget.getBoundingClientRect(); if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) dialog.current?.close(); } }}>
       <div className="dialog-heading"><div><h2 id="dialog-heading">{modal === "models" ? "Who’s in your lineup?" : "Better evidence, fewer benchmarks."}</h2><p>{modal === "models" ? `Choose 3 to 18 models. ${order.length} selected.` : "Your preferences guide the search. Quality helps break close calls."}</p></div><button aria-label="Close dialog" className="icon-close" onClick={() => dialog.current?.close()}><Cross /></button></div>

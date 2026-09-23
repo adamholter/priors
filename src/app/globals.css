@@ -110,3 +110,19 @@ details.gallery-panel > summary::-webkit-details-marker { display: none; }
 .bench-dialog[open] { animation: bench-in .2s cubic-bezier(.16,1,.3,1) both; }
 @keyframes bench-in { from { opacity: 0; transform: translateY(8px) scale(.99); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .bench-dialog[open] { animation: none; } }
+.bench-row:hover { background: var(--hair-2); }
+.bench-row button[role="checkbox"]:focus-visible { outline: 2px solid var(--indigo); outline-offset: -2px; }
+.bench-check { width: 14px; height: 14px; flex: none; display: grid; place-items: center; border: 1px solid #C9C8BF; border-radius: 3px; color: white; transition: background .15s, border-color .15s; }
+.bench-check.on { background: var(--indigo); border-color: var(--indigo); }
+.bench-fresh { animation: bench-flash 1.2s ease-out; }
+@keyframes bench-flash { 0% { background: #2F4FB022; } 100% { background: transparent; } }
+/* Dark personal-page schemes: charts render on light panels (ECharts colors are light-theme). */
+.page-root[data-dark] .chart-panel { --bone: #FBFBF9; --white: #FFFFFF; --ink: #1A1A1A; --ink-2: #4A4A46; --grey: #8A8A80; --hair: #DDDBD4; --hair-2: #ECEAE3; --indigo: var(--panel-accent); background: #FBFBF9; color: #1A1A1A; border-radius: 12px; padding: 22px 26px 26px; }
+.page-root[data-dark] .chart-panel h2 { color: #1A1A1A; }
+.page-banner { width: 100%; aspect-ratio: 4 / 1; max-height: 260px; object-fit: cover; display: block; }
+.bench-sheet { position: fixed; z-index: 40; top: 72px; bottom: 16px; left: 408px; width: min(460px, calc(100vw - 424px)); display: flex; flex-direction: column; background: #FFFFFF; border: 1px solid var(--hair); border-radius: 8px; box-shadow: 0 24px 70px -24px #1a1a1a40; animation: sheet-in .22s cubic-bezier(.16,1,.3,1) both; }
+.bench-sheet-head { padding: 14px 16px 12px; border-bottom: 1px solid var(--hair); }
+.bench-sheet-body { overflow-y: auto; overscroll-behavior: contain; padding: 12px 12px 18px; }
+@keyframes sheet-in { from { opacity: 0; transform: translateX(-8px); } to { opacity: 1; transform: none; } }
+@media (max-width: 1023px) { .bench-sheet { inset: 0; width: auto; border-radius: 0; border: 0; } }
+@media (prefers-reduced-motion: reduce) { .bench-sheet { animation: none; } }

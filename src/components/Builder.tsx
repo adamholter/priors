@@ -100,8 +100,8 @@ export function Builder({ snapshot: base, dates, initialIndices }: { snapshot: S
       </header>
 
       <main className="grid grid-cols-1 lg:grid-cols-[360px_minmax(0,1fr)] gap-10 px-4 sm:px-8 py-8 max-w-[1500px] items-start">
-        <aside aria-label="Index controls" className="flex flex-col gap-5 min-h-0 lg:sticky lg:top-[88px] lg:h-[calc(100dvh-120px)]">
-          <section aria-label="Benchmarks and eligibility" className="min-h-0 lg:flex-1 lg:overflow-y-auto overscroll-contain pr-2 pb-2">
+        <aside aria-label="Index controls" className="relative z-30 flex flex-col gap-5 min-h-0 lg:sticky lg:top-[88px] lg:h-[calc(100dvh-120px)]">
+          <section aria-label="Benchmarks and eligibility" className="min-h-0 min-w-0 lg:flex-1 lg:overflow-y-auto overflow-x-hidden overscroll-contain pr-2 pb-2">
             <h2 className="text-[22px] mb-1">Your mix</h2>
             <p className="cap mb-4">{result.benchmarks.length} benchmarks · {new Set(result.ranked.map((r) => r.model.id)).size} models</p>
             <WeightsPanel snapshot={snapshot} config={active} result={result} onChange={update} />

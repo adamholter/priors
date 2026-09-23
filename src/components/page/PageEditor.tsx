@@ -2,7 +2,11 @@
 import { useMutation, useQuery } from "convex/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { useUser } from "@clerk/nextjs";
+import { ACCENTS, PAGE_PRESETS, presetOf } from "@/lib/page-presets";
+import { SHARE_DESIGNS } from "@/lib/share-designs";
 import { api } from "../../../convex/_generated/api";
 import type { Snapshot } from "@/data/types";
 import type { Profile, Section } from "./IndexPage";
@@ -23,6 +27,11 @@ export function PageEditor({ profile, onChange, snapshot, editing }: { profile: 
   const [saving, setSaving] = useState(false);
   const [token, setToken] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const bannerRef = useRef<HTMLInputElement>(null);
+  const { user } = useUser();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { const id = requestAnimationFrame(() => setMounted(true)); return () => cancelAnimationFrame(id); }, []);
+  const googlePhoto = user?.externalAccounts.find((a) => /google/.test(a.provider))?.imageUrl || (user?.hasImage ? user.imageUrl : undefined);
   const counter = useRef(1);
   const isOwner = !!mine && mine.handle === profile.handle;
   if (!isOwner) return null;
@@ -34,48 +43,58 @@ export function PageEditor({ profile, onChange, snapshot, editing }: { profile: 
   const addSection = (kind: Section["kind"]) => setSections([...profile.sections, { id: `${kind}-${(counter.current++).toString(36)}-${profile.sections.length}`, kind, indexId: kind === "rankings" || kind === "pareto" || kind === "speed" || kind === "history" || kind === "gallery" ? profile.indices[0]?.id : undefined, benchmarkId: kind === "benchmark" ? snapshot.benchmarks[0]?.id : undefined, body: kind === "text" ? "" : undefined, links: kind === "links" ? [] : undefined }]);
   const save = async () => {
     setSaving(true);
-    const { displayName, bio, socials, indices, sections, theme, avatarUrl } = profile;
-    await update({ patch: { displayName, bio, socials, indices, sections, theme, avatarUrl } });
+    const { displayName, bio, socials, indices, sections, theme } = profile;
+    await update({ patch: { displayName, bio, socials: socials?.filter((x) => x.url && !["https://", "https://x.com/", "https://github.com/", "https://linkedin.com/in/"].includes(x.url.trim())), indices, sections, theme } });
     setSaving(false); setDirty(false); router.refresh();
   };
-  const upload = async (file: File) => {
+  const upload = async (file: File, field: "avatarStorageId" | "bannerStorageId" = "avatarStorageId") => {
     const url = await uploadUrl(); const res = await fetch(url, { method: "POST", headers: { "Content-Type": file.type }, body: file });
-    const { storageId } = await res.json(); await update({ patch: { avatarStorageId: storageId } }); router.refresh();
+    const { storageId } = await res.json(); await update({ patch: { [field]: storageId } }); router.refresh();
   };
+  const useGooglePhoto = async () => { if (!googlePhoto) return; set({ avatarUrl: googlePhoto }); await update({ patch: { avatarUrl: googlePhoto } }); router.refresh(); };
+  const preset = presetOf(profile.theme);
+  const cardQuery = profile.indices[0] ? `${encodeIndices([profile.indices[0]]).toString()}&handle=${profile.handle}` : `handle=${profile.handle}`;
 
   return (
     <>
       <button type="button" className="btn" onClick={() => setOpen(!open)}>{open ? "Close editor" : "Edit page"}</button>
-      {open && (
-        <aside className="fixed top-14 right-0 bottom-0 w-[380px] bg-white border-l hairline overflow-auto p-5 grid gap-6 content-start text-[13px] z-20">
-          <div className="flex items-center justify-between"><h2 className="text-[20px]">Edit page</h2><button type="button" className="btn" disabled={!dirty || saving} onClick={save}>{saving ? "Saving…" : dirty ? "Save" : "Saved"}</button></div>
+      {open && mounted && createPortal(
+        <aside className="page-editor fixed top-0 right-0 bottom-0 w-[400px] max-w-full bg-white border-l hairline overflow-auto p-5 grid gap-7 content-start text-[13px] z-50 shadow-[-24px_0_60px_-30px_#1a1a1a40]" aria-label="Edit page">
+          <div className="flex items-center justify-between gap-3 sticky -top-5 -mx-5 -mt-5 px-5 py-4 bg-white border-b hairline z-10"><h2 className="text-[22px]">Edit page</h2><div className="flex gap-2"><button type="button" className="btn" disabled={!dirty || saving} onClick={save}>{saving ? "Saving…" : dirty ? "Save" : "Saved"}</button><button type="button" className="btn-quiet" onClick={() => setOpen(false)} aria-label="Close editor">Close</button></div></div>
 
-          <Field label="Name"><input value={profile.displayName} onChange={(e) => set({ displayName: e.target.value })} className="inp" /></Field>
-          <Field label="Bio"><textarea value={profile.bio ?? ""} onChange={(e) => set({ bio: e.target.value })} rows={3} className="inp" placeholder="A sentence or two." /></Field>
-          <Field label="Photo"><div className="flex items-center gap-3">{profile.avatarUrl && <img src={profile.avatarUrl} alt="" className="w-9 h-9 rounded-full object-cover" />}<button type="button" className="btn-quiet" onClick={() => fileRef.current?.click()}>Upload</button><input ref={fileRef} type="file" accept="image/*" hidden onChange={(e) => e.target.files?.[0] && upload(e.target.files[0])} /></div></Field>
+          <Group title="Profile">
+            <Field label="Photo"><div className="flex flex-wrap items-center gap-2">{profile.avatarUrl && <img src={profile.avatarUrl} alt="" className="w-10 h-10 rounded-full object-cover" />}{googlePhoto && googlePhoto !== profile.avatarUrl && <button type="button" className="btn-quiet" onClick={useGooglePhoto}>Use Google photo</button>}<button type="button" className="btn-quiet" onClick={() => fileRef.current?.click()}>Upload</button><input ref={fileRef} type="file" accept="image/*" hidden onChange={(e) => e.target.files?.[0] && upload(e.target.files[0])} /></div></Field>
+            <Field label="Banner"><div className="flex flex-wrap items-center gap-2">{profile.bannerUrl && <img src={profile.bannerUrl} alt="" className="h-10 w-28 rounded-sm object-cover" />}<button type="button" className="btn-quiet" onClick={() => bannerRef.current?.click()}>{profile.bannerUrl ? "Replace" : "Upload"}</button>{profile.bannerUrl && <button type="button" className="btn-quiet" onClick={async () => { await update({ patch: { bannerStorageId: null } }); router.refresh(); }}>Remove</button>}<input ref={bannerRef} type="file" accept="image/*" hidden onChange={(e) => e.target.files?.[0] && upload(e.target.files[0], "bannerStorageId")} /></div><span className="cap">Wide image, about 4:1.</span></Field>
+            <Field label="Name"><input value={profile.displayName} onChange={(e) => set({ displayName: e.target.value })} className="inp" /></Field>
+            <Field label="Bio"><textarea value={profile.bio ?? ""} onChange={(e) => set({ bio: e.target.value })} rows={3} className="inp" placeholder="A sentence or two about how you pick models." /></Field>
+            <Field label="Links">
+              <div className="grid gap-1.5">
+                {(profile.socials ?? []).map((s, i) => (
+                  <div key={i} className="grid grid-cols-[1fr_1.6fr_20px] gap-1.5">
+                    <input value={s.label} placeholder="Label" onChange={(e) => set({ socials: profile.socials!.map((x, k) => (k === i ? { ...x, label: e.target.value } : x)) })} className="inp" />
+                    <input value={s.url} placeholder="https://" onChange={(e) => set({ socials: profile.socials!.map((x, k) => (k === i ? { ...x, url: e.target.value } : x)) })} className="inp" />
+                    <button type="button" className="cap" aria-label="Remove link" onClick={() => set({ socials: profile.socials!.filter((_, k) => k !== i) })}>×</button>
+                  </div>
+                ))}
+                <div className="flex flex-wrap gap-1.5">{[["X", "https://x.com/"], ["GitHub", "https://github.com/"], ["LinkedIn", "https://linkedin.com/in/"], ["Website", "https://"]].filter(([l]) => !(profile.socials ?? []).some((x) => x.label === l)).map(([label, url]) => <button key={label} type="button" className="btn-quiet" onClick={() => set({ socials: [...(profile.socials ?? []), { label, url }] })}>+ {label}</button>)}</div>
+              </div>
+            </Field>
+          </Group>
 
-          <Field label="Links">
-            <div className="grid gap-1.5">
-              {(profile.socials ?? []).map((s, i) => (
-                <div key={i} className="grid grid-cols-[1fr_1.6fr_20px] gap-1.5">
-                  <input value={s.label} placeholder="X" onChange={(e) => set({ socials: profile.socials!.map((x, k) => (k === i ? { ...x, label: e.target.value } : x)) })} className="inp" />
-                  <input value={s.url} placeholder="https://x.com/you" onChange={(e) => set({ socials: profile.socials!.map((x, k) => (k === i ? { ...x, url: e.target.value } : x)) })} className="inp" />
-                  <button type="button" className="cap" onClick={() => set({ socials: profile.socials!.filter((_, k) => k !== i) })}>×</button>
-                </div>
-              ))}
-              <button type="button" className="btn-quiet justify-self-start" onClick={() => set({ socials: [...(profile.socials ?? []), { label: "", url: "" }] })}>Add link</button>
-            </div>
-          </Field>
+          <Group title="Look">
+            <Field label="Color scheme">
+              <div className="grid grid-cols-3 gap-2">{PAGE_PRESETS.map((pr) => <button key={pr.id} type="button" aria-pressed={preset.id === pr.id} onClick={() => set({ theme: { ...profile.theme, preset: pr.id, surface: undefined, accent: pr.accent } })} className={`rounded-md border p-2 text-left ${preset.id === pr.id ? "border-ink ring-1 ring-ink" : "hairline hover:border-grey"}`} style={{ background: pr.bg, color: pr.ink }}>
+                <span className="flex gap-1 mb-2"><i className="h-2 w-6 rounded-sm" style={{ background: pr.accent }} /><i className="h-2 w-3 rounded-sm" style={{ background: pr.hair }} /></span><span className="text-[12px]">{pr.name}</span></button>)}</div>
+            </Field>
+            <Field label="Accent"><div className="flex flex-wrap items-center gap-1.5">{[preset.accent, ...ACCENTS.filter((a) => a !== preset.accent)].slice(0, 7).map((a) => <button key={a} type="button" aria-label={`Accent ${a}`} aria-pressed={(profile.theme?.accent ?? preset.accent) === a} onClick={() => set({ theme: { ...profile.theme, accent: a } })} className={`w-6 h-6 rounded-full ${(profile.theme?.accent ?? preset.accent) === a ? "ring-2 ring-offset-2 ring-ink" : ""}`} style={{ background: a }} />)}<label className="cap flex items-center gap-1.5 ml-1">custom <input type="color" value={profile.theme?.accent ?? preset.accent} onChange={(e) => set({ theme: { ...profile.theme, accent: e.target.value } })} /></label></div></Field>
+          </Group>
 
-          <Field label="Style">
-            <div className="flex items-center gap-3">
-              <label className="flex items-center gap-2">Accent <input type="color" value={profile.theme?.accent ?? "#2F4FB0"} onChange={(e) => set({ theme: { ...profile.theme, accent: e.target.value } })} /></label>
-              <label className="flex items-center gap-2">Surface
-                <select value={profile.theme?.surface ?? "bone"} onChange={(e) => set({ theme: { ...profile.theme, surface: e.target.value as "bone" | "white" } })} className="inp"><option value="bone">bone</option><option value="white">white</option></select>
-              </label>
-            </div>
-          </Field>
+          <Group title="Share card">
+            <p className="text-ink-2">Used when your page link is shared and as the default in the Card dialog.</p>
+            <div className="grid grid-cols-2 gap-2">{SHARE_DESIGNS.map((d) => { const on = (profile.theme?.cardDesign ?? "board") === d.id; return <button key={d.id} type="button" aria-pressed={on} onClick={() => set({ theme: { ...profile.theme, cardDesign: d.id } })} className={`overflow-hidden rounded-sm border text-left ${on ? "border-ink ring-1 ring-ink" : "hairline hover:border-grey"}`}><img src={`/og?${cardQuery}&design=${d.id}`} alt="" loading="lazy" className="block w-full aspect-[1200/630] object-cover bg-bone" /><span className="block px-2 py-1 text-[11.5px]">{d.name}</span></button>; })}</div>
+          </Group>
 
+          <Group title="Page sections">
           <Field label="Sections">
             <div className="grid gap-2">
               {profile.sections.map((s, i) => (
@@ -100,8 +119,10 @@ export function PageEditor({ profile, onChange, snapshot, editing }: { profile: 
             </div>
           </Field>
 
+          </Group>
+          <Group title="Indices">
           <Field label="Indices">
-            <p className="text-ink-2">Weights and rules are edited in the builder, then saved back here.</p>
+            <p className="text-ink-2">Weights and benchmarks are edited in the builder; saving there updates this page.</p>
             <a className="btn-quiet inline-block mt-1" href={`/?${encodeIndices(profile.indices).toString()}`}>Open in builder</a>
           </Field>
 
@@ -110,10 +131,14 @@ export function PageEditor({ profile, onChange, snapshot, editing }: { profile: 
             {token ? <code className="mono block break-all bg-bone border hairline rounded-sm p-2 text-[11.5px]">{token}</code> : <button type="button" className="btn-quiet" onClick={async () => setToken(await mint())}>Mint token</button>}
             {token && <p className="cap mt-1">Shown once. Minting again revokes the old token.</p>}
           </Field>
-        </aside>
-      )}
+          </Group>
+        </aside>, document.body)}
     </>
   );
+}
+
+function Group({ title, children }: { title: string; children: React.ReactNode }) {
+  return <section className="grid gap-3.5 pt-1"><h3 className="text-[16px] border-b hairline pb-1.5">{title}</h3>{children}</section>;
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {

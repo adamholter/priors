@@ -1,6 +1,7 @@
 "use client";
 import type { Snapshot } from "@/data/types";
 import type { IndexResult, RankedVariant } from "@/engine";
+import Link from "next/link";
 import { variantLabel } from "./chart/ParetoChart";
 
 /** Per-benchmark breakdown for one ranked variant. */
@@ -16,7 +17,7 @@ export function ModelDetail({ r, snapshot, result, onClose }: { r: RankedVariant
           <h3 className="text-[20px]">{variantLabel(r)}</h3>
           <span className="cap">{lab?.name}{r.model.releaseDate && ` · ${r.model.releaseDate}`}</span>
         </div>
-        {onClose && <button type="button" onClick={onClose} className="cap hover:text-ink">close</button>}
+        <div className="flex items-baseline gap-4"><Link href={`/models/${r.model.id}` as "/"} className="cap text-indigo hover:underline">Model page →</Link>{onClose && <button type="button" onClick={onClose} className="cap hover:text-ink">close</button>}</div>
       </div>
       {r.variant.sourceModel && <p className="text-[12px] text-ink-2 mb-3"><a href={r.variant.sourceModel.url} target="_blank" rel="noreferrer" className="text-indigo underline">{r.variant.sourceModel.name}</a></p>}
       {r.mixedEfforts && <p className="text-[12px] text-indigo mb-3">This score includes effort-adjusted estimates. Cost and speed remain measured at {r.variant.effort}.</p>}

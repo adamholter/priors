@@ -25,7 +25,7 @@ function CloseIcon() {
   return <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="m6 6 12 12M18 6 6 18" /></svg>;
 }
 
-type ShareProps = { indices: IndexConfig[]; active: IndexConfig; date: string; profile?: { handle: string; displayName: string } };
+type ShareProps = { indices: IndexConfig[]; active: IndexConfig; date: string; profile?: { handle: string; displayName: string }; /** Personal pages share their own URL, not a mix deep link. */ pageUrl?: string; defaultDesign?: string };
 export function ShareCards(props: ShareProps) {
   return authEnabled && !props.profile ? <SignedShareCards {...props} /> : <ShareCardsContent {...props} />;
 }
@@ -34,11 +34,11 @@ function SignedShareCards(props: ShareProps) {
   const mine = useQuery(api.profiles.mine, isAuthenticated ? {} : "skip");
   return <ShareCardsContent {...props} profile={mine ?? undefined} />;
 }
-function ShareCardsContent({ indices, active, date, profile }: ShareProps) {
+function ShareCardsContent({ indices, active, date, profile, pageUrl, defaultDesign }: ShareProps) {
   const dialog = useRef<HTMLDialogElement>(null);
   const heading = useId();
   const [open, setOpen] = useState(false);
-  const [design, setDesign] = useState<string>(SHARE_DESIGNS[0].id);
+  const [design, setDesign] = useState<string>(SHARE_DESIGNS.some((d) => d.id === defaultDesign) ? defaultDesign! : SHARE_DESIGNS[0].id);
   const [message, setMessage] = useState("");
   const [origin, setOrigin] = useState("");
   const [loaded, setLoaded] = useState("");
@@ -64,7 +64,7 @@ function ShareCardsContent({ indices, active, date, profile }: ShareProps) {
   params.set("date", date);
   params.set("design", design);
   if (profile) params.set("handle", profile.handle);
-  const shareUrl = `${origin}/builder?${params}`;
+  const shareUrl = pageUrl ?? `${origin}/builder?${params}`;
   const imageParams = encodeIndices([active]);
   imageParams.set("date", date);
   if (profile) imageParams.set("handle", profile.handle);
@@ -75,7 +75,7 @@ function ShareCardsContent({ indices, active, date, profile }: ShareProps) {
   const xParams = new URLSearchParams({ text: `${active.name} on Priors` });
   if (!local) xParams.set("url", shareUrl);
   const copy = async () => {
-    try { await navigator.clipboard.writeText(`${window.location.origin}/builder?${params}`); setMessage("Link copied"); }
+    try { await navigator.clipboard.writeText(pageUrl ?? `${window.location.origin}/builder?${params}`); setMessage("Link copied"); }
     catch { setMessage("Copy failed. Select the link below to copy it manually."); }
   };
   const outside = (x: number, y: number) => {

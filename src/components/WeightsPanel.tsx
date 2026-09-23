@@ -39,13 +39,24 @@ export function WeightsPanel({ snapshot, config, onChange }: { snapshot: Snapsho
     required: [...config.required.filter((x) => x !== id), ...(checked ? [id] : [])],
     optional: [...(config.optional ?? []).filter((x) => x !== id), ...(checked ? [] : [id])],
   });
-  const coverage = (id: string) => { const n = new Set(snapshot.observations.filter((o) => o.benchmarkId === id).map((o) => o.variantId.split("@")[0])).size; return n; };
-  const inactive = snapshot.benchmarks.filter((b) => !(config.weights[b.id] > 0) && !b.proxy && b.category !== "speed").sort((a, b) => a.category.localeCompare(b.category) || a.name.localeCompare(b.name));
+  const counts = useMemo(() => { const m = new Map<string, Set<string>>(); for (const o of snapshot.observations) (m.get(o.benchmarkId) ?? m.set(o.benchmarkId, new Set()).get(o.benchmarkId)!).add(o.variantId.split("@")[0]); return m; }, [snapshot]);
+  const coverage = (id: string) => counts.get(id)?.size ?? 0;
+  const [recent, setRecent] = useState<string | null>(null);
+  const listable = useMemo(() => snapshot.benchmarks.filter((b) => !b.proxy && b.category !== "speed").sort((a, b) => a.category.localeCompare(b.category) || a.name.localeCompare(b.name)), [snapshot]);
+  // Rows hold still while the list is open: what was in the mix when it opened stays pinned on top,
+  // and anything added while browsing is checked in place instead of jumping away.
+  const [pinnedIds, setPinnedIds] = useState<Set<string>>(new Set());
+  const openList = () => { if (!open) setPinnedIds(new Set(active.map((b) => b.id))); setOpen(true); };
+  const inactive = listable.filter((b) => !pinnedIds.has(b.id));
   const normalize = (value: string) => value.toLowerCase().replace(/[\s._-]+/g, "");
   const terms = query.trim().split(/\s+/).filter(Boolean).map(normalize);
-  const matches = inactive.filter((b) => terms.every((term) => normalize([b.name, b.shortName, b.id, b.sourceId, CATS[b.category]].join(" ")).includes(term)));
+  const hit = (b: Benchmark) => terms.every((term) => normalize([b.name, b.shortName, b.id, b.sourceId, CATS[b.category]].join(" ")).includes(term));
+  const matches = inactive.filter(hit);
+  const pinned = listable.filter((b) => pinnedIds.has(b.id) && hit(b));
   const groups = matches.reduce<Record<string, Benchmark[]>>((acc, b) => ((acc[b.category] ??= []).push(b), acc), {});
-  const addBenchmark = (id: string) => { setW(id, 10); setQuery(""); setOpen(false); search.current?.focus(); };
+  // Adding keeps the list open and the query intact: people often add several while browsing.
+  const toggle = (id: string) => { const on = config.weights[id] > 0; setW(id, on ? 0 : 10); setRecent(on ? null : id); };
+  const addBenchmark = (id: string) => { setW(id, 10); setRecent(id); };
 
   return (
     <div className="grid gap-5">
@@ -71,31 +82,35 @@ export function WeightsPanel({ snapshot, config, onChange }: { snapshot: Snapsho
       <div ref={picker}>
         <div className="flex items-center gap-2 border hairline rounded-sm px-2.5 py-1.5 focus-within:border-indigo">
           <input ref={search} type="search" aria-label="Add a benchmark" aria-controls={resultsId} autoComplete="off" placeholder="Add a benchmark" value={query}
-            onFocus={(e) => { if (!picker.current?.contains(e.relatedTarget as Node | null)) setOpen(true); }} onClick={() => setOpen(true)}
-            onChange={(e) => { setQuery(e.target.value); setOpen(true); }}
+            onFocus={(e) => { if (!picker.current?.contains(e.relatedTarget as Node | null)) openList(); }} onClick={openList}
+            onChange={(e) => { setQuery(e.target.value); openList(); }}
             onKeyDown={(e) => {
               if (e.key === "Escape") { e.preventDefault(); setQuery(""); setOpen(false); }
               if (e.key === "Enter" && open && terms.length && matches.length) { e.preventDefault(); addBenchmark(matches[0].id); }
             }}
             className="min-w-0 flex-1 bg-transparent text-[12.5px] text-ink-2 outline-none placeholder:text-ink-2" />
-          <button type="button" aria-label={open ? "Hide benchmarks" : "Show benchmarks"} aria-expanded={open} aria-controls={resultsId} onClick={() => setOpen(!open)} className="cap shrink-0 hover:text-ink">{matches.length}</button>
+          <button type="button" aria-label={open ? "Hide benchmarks" : "Browse all benchmarks"} aria-expanded={open} aria-controls={resultsId} onClick={() => open ? setOpen(false) : openList()} className="cap shrink-0 hover:text-ink">{open ? "Close" : `Browse ${listable.length}`}</button>
         </div>
         {open && (
-          <div id={resultsId} aria-label="Available benchmarks" className="mt-2 grid gap-3 max-h-[360px] overflow-auto pr-1">
-            {!matches.length && <p className="cap py-2" role="status">No matching benchmarks.</p>}
-            {Object.entries(groups).map(([cat, list]) => (
-              <div key={cat}>
-                <div className="cap mb-1">{CATS[cat] ?? cat}</div>
-                {list.map((b) => (
-                  <div key={b.id} className="flex items-center gap-1">
-                    <button type="button" onClick={() => addBenchmark(b.id)} className="min-w-0 flex-1 text-left flex items-baseline justify-between gap-2 py-[3px] text-[12.5px] hover:text-indigo" title={b.description}>
-                      <span className="truncate">{b.name}</span><span className="cap shrink-0">{coverage(b.id)} models</span>
-                    </button>
-                    <InfoIcon name={b.name} onClick={() => setInfo(b.id)} />
-                  </div>
-                ))}
+          // A sheet beside the sidebar (full screen on phones): one scroll area, room to browse,
+          // and the sliders stay visible while benchmarks are toggled.
+          <div id={resultsId} aria-label="Benchmarks" className="bench-sheet">
+            <div className="bench-sheet-head">
+              <div className="flex items-center gap-2 border hairline rounded-sm px-2.5 py-1.5 focus-within:border-indigo bg-white">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="text-grey shrink-0" aria-hidden="true"><circle cx="11" cy="11" r="6.5" /><path d="m20 20-4.2-4.2" /></svg>
+                <input autoFocus type="search" aria-label="Search benchmarks" placeholder="Search by name, lab, or category" value={query} onChange={(e) => setQuery(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Escape") { e.preventDefault(); setOpen(false); setQuery(""); search.current?.focus(); } if (e.key === "Enter" && terms.length && matches.length) { e.preventDefault(); addBenchmark(matches[0].id); } }}
+                  className="min-w-0 flex-1 bg-transparent text-[13px] outline-none" />
               </div>
-            ))}
+              <div className="flex items-center justify-between mt-2.5"><span className="cap">{terms.length ? `${pinned.length + matches.length} matching` : `${active.length} in your mix · ${listable.length - active.length} more`}</span><button type="button" className="btn-quiet !py-1" onClick={() => { setOpen(false); setQuery(""); }}>Done</button></div>
+            </div>
+            <div className="bench-sheet-body grid gap-4">
+              {pinned.length > 0 && <BenchGroup label="In your mix">{pinned.map((b) => <BenchRow key={b.id} b={b} on={config.weights[b.id] > 0} models={coverage(b.id)} fresh={recent === b.id} onToggle={() => toggle(b.id)} onInfo={() => setInfo(b.id)} />)}</BenchGroup>}
+              {!matches.length && !pinned.length && <p className="cap py-2" role="status">No matching benchmarks.</p>}
+              {Object.entries(groups).map(([cat, list]) => (
+                <BenchGroup key={cat} label={CATS[cat] ?? cat}>{list.map((b) => <BenchRow key={b.id} b={b} on={config.weights[b.id] > 0} models={coverage(b.id)} fresh={recent === b.id} onToggle={() => toggle(b.id)} onInfo={() => setInfo(b.id)} />)}</BenchGroup>
+              ))}
+            </div>
           </div>
         )}
       </div>
@@ -106,6 +121,24 @@ export function WeightsPanel({ snapshot, config, onChange }: { snapshot: Snapsho
         <input type="range" aria-label="Strictness" min={0} max={100} value={strictness} onChange={(e) => set({ strictness: Number(e.target.value) })} className="h-[3px] w-full" />
         <span className="flex justify-between text-[11px] text-grey"><span>Flexible</span><span>Strict</span></span>
       </label>
+    </div>
+  );
+}
+
+function BenchGroup({ label, children }: { label: string; children: React.ReactNode }) {
+  return <div role="group" aria-label={label}><div className="cap mb-1">{label}</div><div className="grid">{children}</div></div>;
+}
+
+/** One benchmark: the whole row toggles it in or out of the mix; the info icon opens its leaderboard. */
+function BenchRow({ b, on, models, fresh, onToggle, onInfo }: { b: Benchmark; on: boolean; models: number; fresh: boolean; onToggle: () => void; onInfo: () => void }) {
+  return (
+    <div className={`bench-row flex items-center gap-1 min-w-0 rounded-sm ${fresh ? "bench-fresh" : ""}`}>
+      <button type="button" role="checkbox" aria-checked={on} onClick={onToggle} title={b.description} className="min-w-0 flex-1 flex items-center gap-2 py-[5px] px-1 text-left text-[12.5px]">
+        <span className={`bench-check ${on ? "on" : ""}`} aria-hidden="true">{on && <svg viewBox="0 0 12 12" width="10" height="10"><path d="M2.5 6.2 5 8.6l4.6-5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>}</span>
+        <span className="truncate flex-1">{b.name}</span>
+        <span className="cap shrink-0">{models} models</span>
+      </button>
+      <InfoIcon name={b.name} onClick={onInfo} />
     </div>
   );
 }
