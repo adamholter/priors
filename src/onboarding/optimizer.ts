@@ -5,6 +5,7 @@ import { PREFERRED, affinity, type BenchmarkQuality } from "./quality";
 import { DEFAULT_FOCUS, FOCUSES, type FocusId } from "./focus";
 import type { MixLibrary } from "./library";
 import { maxMarginMix, sparseMixes } from "./lp";
+import { sgdCandidates } from "./sgd";
 
 export { PREFERRED };
 export type FitPriorities = { baseline?: string[] };
@@ -12,7 +13,8 @@ export type FitOptions = { focus?: FocusId; library?: MixLibrary; budgetMs?: { s
 export type FitUpdate = { exactMatch:boolean; matchedPositions:number; priorityMatched:number; priorityTotal:number; phase:"preparing"|"searching"|"simplifying"|"complete"; iteration:number; tested:number; agreement:number; matchedPairs:number; totalPairs:number; closeness:number; fitScore:number; provisional:boolean; weights:Record<string,number>; ranking:Array<{modelId:string;score:number;variantId:string;coverage:number}>; config:IndexConfig; benchmarkCount:number; quality:number; mismatches:Array<{above:string;below:string}>; log:string; estimatedShare:number; intruders?:string[] };
 type Settings=Pick<IndexConfig,"strictness"|"estimateMissing"|"effortMatching">;
 type Column={id:string;score:number[];present:boolean[]}; type Approx={loss:number[];weights:Record<string,number>}; type Exact={loss:number[];update:FitUpdate};
-export const SETTINGS:Settings[]=[{strictness:20,estimateMissing:true,effortMatching:"calibrated"},{strictness:20,estimateMissing:false,effortMatching:"calibrated"},{strictness:50,estimateMissing:true,effortMatching:"calibrated"},{strictness:50,estimateMissing:false,effortMatching:"strict"},{strictness:100,estimateMissing:false,effortMatching:"strict"}];
+// The library's settings come first: its precomputed columns make the first pass nearly free.
+export const SETTINGS:Settings[]=[{strictness:50,estimateMissing:true,effortMatching:"calibrated"},{strictness:20,estimateMissing:true,effortMatching:"calibrated"},{strictness:20,estimateMissing:false,effortMatching:"calibrated"},{strictness:50,estimateMissing:false,effortMatching:"strict"},{strictness:100,estimateMissing:false,effortMatching:"strict"}];
 export const settingsKey=(s:Settings)=>`${s.strictness}|${s.estimateMissing?1:0}|${s.effortMatching}`;
 export const LEVELS=[1,5,15,30,60,100]; const yieldUi=()=>new Promise<void>(r=>setTimeout(r,0));
 const compare=(a:number[],b:number[])=>{for(let i=0;i<a.length;i++)if(a[i]!==b[i])return a[i]-b[i];return 0};
@@ -141,7 +143,7 @@ const show=async(u:FitUpdate)=>{onUpdate(u);if(frameDelay&&u.phase!=="preparing"
 const wanted=[...new Set(target)];if(wanted.length!==target.length||wanted.some(id=>!snapshot.models.some(m=>m.id===id&&m.kind==="llm")))throw new Error("Every preferred model must be a distinct known LLM in this snapshot.");if(wanted.length<2)throw new Error("Choose at least two models to fit.");const ids=snapshot.benchmarks.map(b=>b.id).filter(id=>eligible(snapshot,id,new Set(wanted)));if(!ids.length)throw new Error("No benchmark covers enough selected models.");ids.sort((a,b)=>Number(PREFERRED.includes(b as typeof PREFERRED[number]))-Number(PREFERRED.includes(a as typeof PREFERRED[number]))||a.localeCompare(b));const verifiedStarts:Exact[]=[];let tested=0,iteration=0,lastEmit=0;
 const focus=FOCUSES.find(f=>f.id===options.focus)??FOCUSES.find(f=>f.id===DEFAULT_FOCUS)!;
 const library=options.library;
-const budget=options.budgetMs??{soft:12_000,hard:20_000};
+const budget={...(options.budgetMs??{soft:12_000,hard:20_000})};
 const t0=performance.now();
 const softOpen=()=>performance.now()-t0<budget.soft,hardOpen=()=>performance.now()-t0<budget.hard;
 const benches=new Map(snapshot.benchmarks.map(b=>[b.id,b]));
@@ -186,15 +188,33 @@ const designed=[...lpStarts,...seedMixes];
 for(const weights of designed){if(!hardOpen()||best.update.exactMatch)break;const verified=run(weights,s,"searching",++iteration,++tested,`Check ${si+1}/${SETTINGS.length}: ${s.effortMatching}, strictness ${s.strictness}`);verifiedStarts.push(verified);if(compare(verified.loss,best.loss)<0)best=verified;await show({...best.update,phase:"searching",iteration,tested,log:verified.update.log});await yieldUi()}
 // Once the order is matched, the refinement passes below polish it; skip the broad search.
 if(best.update.exactMatch)break;
-const finalists:Approx[]=[];for(let seed=1;seed<=4&&softOpen();seed++)finalists.push(...search(wanted,columns,quality,aff,floor,seedMixes,si*101+seed,()=>tested++,priorities,softOpen,provisional));
+// Gradient rounds: annealed descent on the surrogate, verified by the exact engine, whose per-model
+// residuals correct the surrogate for the next round (effort choice and pool normalization shift scores).
+let sliceOpen=softOpen;
+{let offsets=wanted.map(()=>0),warm:Record<string,number>[]=[...lpStarts.slice(0,1),...seedMixes.slice(0,2)];
+// Each setting gets a fair slice of the soft budget so the later ones are still explored.
+sliceOpen=()=>softOpen()&&performance.now()-t0<budget.soft*(si+1)/SETTINGS.length;
+for(let round=0;round<6&&sliceOpen()&&!best.update.exactMatch;round++){
+ let roundBest:Exact|undefined;
+ for(const weights of sgdCandidates(columns,wanted.length,{floor,bonus,offsets,inits:warm,seed:si*31+round+1}).slice(0,8)){if(!hardOpen())break;const v=run(weights,s,"searching",++iteration,++tested,"Taking a gradient step across the benchmarks.");verifiedStarts.push(v);if(!roundBest||compare(v.loss,roundBest.loss)<0)roundBest=v;if(compare(v.loss,best.loss)<0){best=v;await show(best.update)}if(best.update.exactMatch)break}
+ if(!roundBest)break;
+ const sur=approxScoresFor(wanted,columns,roundBest.update.weights,floor),ex=new Map(roundBest.update.ranking.map(r=>[r.modelId,r.score]));
+ offsets=wanted.map((id,m)=>{const a=ex.get(id),b=sur.get(id);return a!=null&&b!=null?.3*offsets[m]+.7*(a-b):offsets[m]});
+ warm=[roundBest.update.weights];
+ await show({...best.update,phase:"searching",iteration,tested});await yieldUi();
+}}
+if(best.update.exactMatch)break;
+const finalists:Approx[]=[];for(let seed=1;seed<=4&&sliceOpen();seed++)finalists.push(...search(wanted,columns,quality,aff,floor,seedMixes,si*101+seed,()=>tested++,priorities,sliceOpen,provisional));
 // Keep independent pools so new supplemental metrics cannot displace every useful starting mix.
 for(const pool of [columns.filter(c=>!c.id.startsWith("real-index:")),columns.filter(c=>c.present.every(Boolean))]){
- if(pool.length&&pool.length<columns.length&&softOpen())finalists.push(...search(wanted,pool,quality,aff,floor,seedMixes,si*101+41,()=>tested++,priorities,softOpen,provisional));
+ if(pool.length&&pool.length<columns.length&&sliceOpen())finalists.push(...search(wanted,pool,quality,aff,floor,seedMixes,si*101+41,()=>tested++,priorities,sliceOpen,provisional));
 }
 finalists.sort((a,b)=>compare(a.loss,b.loss));
 const toVerify=finalists.slice(0,40);
 for(const candidate of toVerify){if(!hardOpen())break;const verified=run(candidate.weights,s,"searching",++iteration,++tested,`Check ${si+1}/${SETTINGS.length}: ${s.effortMatching}, strictness ${s.strictness}`);verifiedStarts.push(verified);if(compare(verified.loss,best.loss)<0)best=verified;await show({...best.update,phase:"searching",iteration,tested,log:verified.update.log});await yieldUi()}}
 await show({...best.update,phase:"searching",iteration,tested,log:best.update.exactMatch?"Refining the match.":"Refining the remaining disagreements"});
+// A matched order only needs a short polish (wider margins, fewer benchmarks), not the full budget.
+if(best.update.exactMatch)budget.hard=Math.min(budget.hard,performance.now()-t0+2500);
 // Search the full scoring engine too: the best reasoning effort can switch between mixes.
 // Anneal first — the heavyweight refines below run inside the remaining hard budget.
 let converged=false;
