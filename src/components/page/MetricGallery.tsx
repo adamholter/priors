@@ -6,6 +6,7 @@ import { MetricScatter, type MetricPoint } from "../chart/MetricScatter";
 import { SpeedChart } from "../chart/SpeedChart";
 import { ChartSettings } from "../chart/ChartSettings";
 import { useScatterView } from "../chart/ScoreScatter";
+import { MetricBars } from "../chart/MetricBars";
 
 type SharedSettings = Omit<React.ComponentProps<typeof ChartSettings>, "label" | "mode" | "onChange" | "view" | "onView">;
 
@@ -69,9 +70,16 @@ function GalleryChart({ id, title, chart, speed, ranked, defaultMode, labs, sett
   const [mode, setMode] = useState<"all" | "best">(defaultMode);
   const [view, setView] = useScatterView(`gallery-${id}`);
   const rows = useMemo(() => selectVariants(ranked, mode), [ranked, mode]);
-  const actions = <ChartSettings label={title} mode={mode} onChange={setMode} view={view} onView={setView} {...settings} />;
+  const bars = view.kind === "bars";
+  const toggle = <div className="seg" role="group" aria-label={`${title} chart type`}>
+    <button type="button" aria-pressed={!bars} title="Score vs metric" onClick={() => setView({ ...view, kind: "scatter" })}><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><circle cx="4" cy="11" r="1.6" /><circle cx="8" cy="6" r="1.6" /><circle cx="12.5" cy="4" r="1.6" /><circle cx="10" cy="10" r="1.6" /></svg></button>
+    <button type="button" aria-pressed={bars} title="Bar chart" onClick={() => setView({ ...view, kind: "bars" })}><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><rect x="2" y="3" width="3" height="11" /><rect x="6.5" y="6" width="3" height="8" /><rect x="11" y="9" width="3" height="5" /></svg></button>
+  </div>;
+  const actions = <>{chart?.scale !== "time" && toggle}<ChartSettings label={title} mode={mode} onChange={setMode} view={bars ? undefined : view} onView={setView} {...settings} /></>;
+  if (bars && speed) return <MetricBars pts={rows.filter((r) => r.speed && r.speed > 0).map((r) => ({ x: r.speed!, r }))} labs={labs} better="higher" xName="Output speed (tok/s)" formatValue={(v) => `${Math.round(v)}`} aria="Output speed by model" actions={actions} exportName="Output speed" />;
   if (speed) return <SpeedChart ranked={rows} labs={labs} view={view} actions={actions} />;
   if (!chart) return null;
+  if (bars && chart.scale !== "time") return <MetricBars pts={chart.points(rows)} labs={labs} better={chart.better} xName={chart.xName} formatValue={chart.formatValue ?? chart.formatX} aria={chart.aria.replace("Index score versus", "By model:")} actions={actions} exportName={chart.xName} />;
   return <MetricScatter pts={chart.points(rows)} labs={labs} better={chart.better} xLabel={chart.xLabel} xName={chart.xName} scale={chart.scale} formatX={chart.formatX} formatValue={chart.formatValue} aria={chart.aria} view={view} actions={actions} />;
 }
 

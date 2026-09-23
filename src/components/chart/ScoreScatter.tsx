@@ -7,8 +7,8 @@ import type { RankedVariant } from "@/engine";
 import { INK, MARK_LABEL, useEChart } from "./echarts";
 
 export interface ScatterPoint { x: number; r: RankedVariant; /** untransformed value for tooltips/export when x is transformed */ raw?: number }
-export interface ScatterView { density: number; frontier: boolean; links: boolean }
-export const DEFAULT_VIEW: ScatterView = { density: 0.45, frontier: true, links: true };
+export interface ScatterView { density: number; frontier: boolean; links: boolean; kind?: "scatter" | "bars" }
+export const DEFAULT_VIEW: ScatterView = { density: 0.45, frontier: true, links: true, kind: "scatter" };
 
 /** Per-chart display preferences (label density, frontier, effort lines), remembered in localStorage. */
 export function useScatterView(key: string): [ScatterView, (v: ScatterView) => void] {
