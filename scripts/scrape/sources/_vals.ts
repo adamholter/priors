@@ -1,0 +1,368 @@
+/** Shared readers for the public Vals AI Astro benchmark payloads. */
+import type { Benchmark, BenchmarkCategory, BenchmarkUnit, RawRow, ScrapeResult, Source } from "../../../src/data/types";
+
+export const VALS_ORIGIN = "https://www.vals.ai";
+
+export interface ValsSourceConfig {
+  sourceId: string;
+  slug: string;
+  benchmarkId: string;
+  name: string;
+  shortName?: string;
+  category: BenchmarkCategory;
+  unit?: BenchmarkUnit;
+  higherIsBetter?: boolean;
+  description: string;
+  eligibleForDefault?: boolean;
+  defaultWeight?: number;
+}
+
+interface ValsRecord extends Record<string, unknown> {
+  accuracy?: unknown;
+  latency?: unknown;
+  stderr?: unknown;
+  cost_per_test?: unknown;
+  reasoning_effort?: unknown;
+  compute_effort?: unknown;
+  provider?: unknown;
+  harness?: unknown;
+  model_key?: unknown;
+}
+
+export interface ValsModelCatalogEntry {
+  label?: unknown;
+  company?: unknown;
+  slug?: unknown;
+  supports?: unknown;
+}
+
+interface ValsView {
+  metadata?: Record<string, unknown>;
+  tasks?: Record<string, Record<string, ValsRecord>>;
+}
+
+type BenchmarkWithLastUpdated = Benchmark & { lastUpdated?: string };
+
+const isRecord = (value: unknown): value is Record<string, unknown> => !!value && typeof value === "object" && !Array.isArray(value);
+const isNum = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value);
+const catalogCache = new Map<string, Promise<{ entries: Record<string, ValsModelCatalogEntry>; source: string }>>();
+
+function decodeHtmlEntities(text: string): string {
+  return text.replace(/&(#x[\da-f]+|#\d+|amp|lt|gt|quot|apos);/gi, (whole, entity: string) => {
+    const lower = entity.toLowerCase();
+    if (lower === "amp") return "&";
+    if (lower === "lt") return "<";
+    if (lower === "gt") return ">";
+    if (lower === "quot") return '"';
+    if (lower === "apos") return "'";
+    const point = lower.startsWith("#x") ? parseInt(lower.slice(2), 16) : parseInt(lower.slice(1), 10);
+    try { return String.fromCodePoint(point); } catch { return whole; }
+  });
+}
+
+/** Decode Astro's public island serialization: [0, value] nodes and [1, children] arrays. */
+function decodeAstroValue(value: unknown): unknown {
+  if (Array.isArray(value) && value.length === 2 && (value[0] === 0 || value[0] === 1)) {
+    if (value[0] === 0) return decodeAstroValue(value[1]);
+    if (!Array.isArray(value[1])) throw new Error("Astro island array node is malformed");
+    return value[1].map(decodeAstroValue);
+  }
+  if (Array.isArray(value)) return value.map(decodeAstroValue);
+  if (isRecord(value)) return Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, decodeAstroValue(entry)]));
+  return value;
+}
+
+/** Extract the hydrated props for a named component from its server-rendered Astro island. */
+export function astroIslandProps(html: string, componentName: string): Record<string, unknown> {
+  for (const match of html.matchAll(/<astro-island\b[^>]*>/g)) {
+    const tag = match[0];
+    const componentUrl = tag.match(/(?:^|\s)component-url="([^"]*)"/)?.[1] ?? "";
+    if (!componentUrl.includes(componentName)) continue;
+    const rawProps = tag.match(/(?:^|\s)props="([^"]*)"/)?.[1];
+    if (!rawProps) throw new Error(`Vals AI: ${componentName} island has no props`);
+    let serialized: unknown;
+    try { serialized = JSON.parse(decodeHtmlEntities(rawProps)); }
+    catch (error) { throw new Error(`Vals AI: invalid ${componentName} island props: ${error instanceof Error ? error.message : String(error)}`); }
+    const props = decodeAstroValue(serialized);
+    if (!isRecord(props)) throw new Error(`Vals AI: ${componentName} island props are not an object`);
+    return props;
+  }
+  throw new Error(`Vals AI: ${componentName} island missing from page`);
+}
+
+function astroComponentUrl(html: string, componentName: string): string {
+  for (const match of html.matchAll(/<astro-island\b[^>]*>/g)) {
+    const tag = match[0];
+    const componentUrl = tag.match(/(?:^|\s)component-url="([^"]*)"/)?.[1] ?? "";
+    if (componentUrl.includes(componentName)) return decodeHtmlEntities(componentUrl);
+  }
+  throw new Error(`Vals AI: ${componentName} island missing from page`);
+}
+
+/** Parse the generated, data-only JavaScript object shipped as VALS' model catalog. */
+export function parseValsModelCatalog(source: string): Record<string, ValsModelCatalogEntry> {
+  const start = source.indexOf("const p=");
+  if (start < 0) throw new Error("Vals AI model catalog: const p object missing");
+  let i = start + "const p=".length;
+  const skip = () => { while (/\s/.test(source[i] ?? "")) i++; };
+  const parseString = (): string => {
+    const quote = source[i++];
+    let out = "";
+    while (i < source.length) {
+      const char = source[i++];
+      if (char === quote) return out;
+      if (char !== "\\") { out += char; continue; }
+      const escaped = source[i++];
+      if (escaped === "n") out += "\n";
+      else if (escaped === "r") out += "\r";
+      else if (escaped === "t") out += "\t";
+      else if (escaped === "b") out += "\b";
+      else if (escaped === "f") out += "\f";
+      else if (escaped === "v") out += "\v";
+      else if (escaped === "0") out += "\0";
+      else if (escaped === "x") {
+        const hex = source.slice(i, i + 2);
+        if (!/^[\da-f]{2}$/i.test(hex)) throw new Error("Vals AI model catalog: malformed hex escape");
+        out += String.fromCharCode(parseInt(hex, 16)); i += 2;
+      } else if (escaped === "u") {
+        if (source[i] === "{") {
+          const close = source.indexOf("}", i + 1);
+          const hex = close < 0 ? "" : source.slice(i + 1, close);
+          if (!/^[\da-f]+$/i.test(hex)) throw new Error("Vals AI model catalog: malformed unicode escape");
+          out += String.fromCodePoint(parseInt(hex, 16)); i = close + 1;
+        } else {
+          const hex = source.slice(i, i + 4);
+          if (!/^[\da-f]{4}$/i.test(hex)) throw new Error("Vals AI model catalog: malformed unicode escape");
+          out += String.fromCharCode(parseInt(hex, 16)); i += 4;
+        }
+      } else if (escaped === "\n") { /* escaped line continuation */ }
+      else out += escaped;
+    }
+    throw new Error("Vals AI model catalog: unterminated string");
+  };
+  const parseValue = (): unknown => {
+    skip();
+    const char = source[i];
+    if (char === "'" || char === '"') return parseString();
+    if (char === "{") {
+      i++;
+      const object: Record<string, unknown> = {};
+      skip();
+      while (source[i] !== "}") {
+        if (i >= source.length) throw new Error("Vals AI model catalog: unterminated object");
+        const key = source[i] === "'" || source[i] === '"' ? parseString() : (() => {
+          const match = source.slice(i).match(/^[A-Za-z_$][\w$]*/);
+          if (!match) throw new Error(`Vals AI model catalog: invalid object key at ${i}`);
+          i += match[0].length; return match[0];
+        })();
+        skip();
+        if (source[i++] !== ":") throw new Error(`Vals AI model catalog: missing colon after ${key}`);
+        object[key] = parseValue();
+        skip();
+        if (source[i] === ",") { i++; skip(); continue; }
+        if (source[i] !== "}") throw new Error("Vals AI model catalog: expected comma or object end");
+      }
+      i++;
+      return object;
+    }
+    if (char === "[") {
+      i++;
+      const array: unknown[] = [];
+      skip();
+      while (source[i] !== "]") {
+        if (i >= source.length) throw new Error("Vals AI model catalog: unterminated array");
+        array.push(parseValue());
+        skip();
+        if (source[i] === ",") { i++; skip(); continue; }
+        if (source[i] !== "]") throw new Error("Vals AI model catalog: expected comma or array end");
+      }
+      i++;
+      return array;
+    }
+    if (char === "!") {
+      i++;
+      const bit = source[i++];
+      if (bit === "0") return true;
+      if (bit === "1") return false;
+      throw new Error("Vals AI model catalog: unsupported negation literal");
+    }
+    const number = source.slice(i).match(/^-?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?/i)?.[0];
+    if (number) { i += number.length; return Number(number); }
+    const identifier = source.slice(i).match(/^[A-Za-z_$][\w$]*/)?.[0];
+    if (identifier) {
+      i += identifier.length;
+      if (identifier === "true") return true;
+      if (identifier === "false") return false;
+      if (identifier === "null") return null;
+      if (identifier === "undefined") return undefined;
+      throw new Error(`Vals AI model catalog: unsupported identifier ${identifier}`);
+    }
+    throw new Error(`Vals AI model catalog: unsupported value at ${i}`);
+  };
+  const parsed = parseValue();
+  if (!isRecord(parsed)) throw new Error("Vals AI model catalog: parsed value is not an object");
+  return parsed as Record<string, ValsModelCatalogEntry>;
+}
+
+/** Return the exact display label BenchmarkView shows for one catalog key. */
+export function parseValsModelCatalogEntry(source: string, modelKey: string): ValsModelCatalogEntry | undefined {
+  return parseValsModelCatalog(source)[modelKey];
+}
+
+/** Fetch VALS' page-linked model catalog as a compact model-key -> displayed-label map. */
+export async function fetchValsDisplayNames(html: string, fetchText: (url: string) => Promise<string>): Promise<Record<string, string>> {
+  const { entries } = await fetchValsModelCatalog(html, fetchText);
+  return Object.fromEntries(Object.entries(entries).flatMap(([key, entry]) =>
+    typeof entry.label === "string" && entry.label.trim() ? [[key, entry.label]] : []));
+}
+
+export function valsDisplayName(labels: Record<string, string>, modelKey: string): string {
+  return labels[modelKey] ?? modelKey;
+}
+
+async function fetchValsModelCatalog(html: string, fetchText: (url: string) => Promise<string>): Promise<{ url: string; entries: Record<string, ValsModelCatalogEntry>; source: string; componentUrl: string; componentSource: string }> {
+  const componentUrl = new URL(astroComponentUrl(html, "BenchmarkView"), VALS_ORIGIN).toString();
+  const componentSource = await fetchText(componentUrl);
+  const modulePath = componentSource.match(/from["']\.\/(constants\.[^"']+\.js)["']/)?.[1];
+  if (!modulePath) throw new Error("Vals AI BenchmarkView: model catalog import missing");
+  const url = new URL(`/_astro/${modulePath}`, VALS_ORIGIN).toString();
+  let pending = catalogCache.get(url);
+  if (!pending) {
+    pending = fetchText(url).then((source) => ({ entries: parseValsModelCatalog(source), source }));
+    catalogCache.set(url, pending);
+    pending.catch(() => catalogCache.delete(url));
+  }
+  const { entries, source } = await pending;
+  return { url, entries, source, componentUrl, componentSource };
+}
+
+export function parseValsBenchmarkView(html: string, expectedSlug: string): ValsView {
+  const props = astroIslandProps(html, "BenchmarkView");
+  const root = props.benchmarkView;
+  if (!isRecord(root)) throw new Error(`Vals AI ${expectedSlug}: benchmarkView missing`);
+  const view = isRecord(root.default) ? root.default : root;
+  if (!isRecord(view.metadata) || !isRecord(view.tasks)) throw new Error(`Vals AI ${expectedSlug}: benchmark metadata or tasks missing`);
+  const slug = view.metadata.slug;
+  if (slug !== expectedSlug) throw new Error(`Vals AI ${expectedSlug}: payload belongs to ${String(slug)}`);
+  return view as ValsView;
+}
+
+function slugify(value: string): string { return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""); }
+function stableHash(value: string): string {
+  let hash = 2166136261;
+  for (let i = 0; i < value.length; i++) { hash ^= value.charCodeAt(i); hash = Math.imul(hash, 16777619); }
+  return (hash >>> 0).toString(16).padStart(8, "0");
+}
+
+export function createValsSource(config: ValsSourceConfig): Source {
+  const url = `${VALS_ORIGIN}/benchmarks/${config.slug}`;
+  return {
+    id: config.sourceId,
+    name: config.name,
+    url,
+    async scrape(ctx): Promise<ScrapeResult> {
+      const html = await ctx.fetchText(url);
+      const view = parseValsBenchmarkView(html, config.slug);
+      const catalog = await fetchValsModelCatalog(html, (target) => ctx.fetchText(target));
+      const metadata = view.metadata!;
+      const task = view.tasks!.overall;
+      if (!isRecord(task) || !Object.keys(task).length) throw new Error(`Vals AI ${config.slug}: overall score table missing`);
+
+      const modelIds = metadata.models;
+      const expectedCount = isNum(metadata.total_models) ? metadata.total_models : Array.isArray(modelIds) ? modelIds.length : undefined;
+      const keys = Object.keys(task);
+      if (!expectedCount || keys.length !== expectedCount) {
+        throw new Error(`Vals AI ${config.slug}: expected ${String(expectedCount ?? "a model count")} overall rows, found ${keys.length}`);
+      }
+      if (Array.isArray(modelIds)) {
+        const expected = new Set(modelIds.filter((id): id is string => typeof id === "string"));
+        const actual = new Set(keys);
+        if (expected.size !== modelIds.length || expected.size !== actual.size || [...expected].some((id) => !actual.has(id))) {
+          throw new Error(`Vals AI ${config.slug}: score table does not match metadata.models`);
+        }
+      }
+
+      const updatedRaw = metadata.updated;
+      const updated = typeof updatedRaw === "string" ? updatedRaw.match(/^(\d{4}-\d{2}-\d{2})(?:T|$)/)?.[1] : undefined;
+      if (!updated || Number.isNaN(Date.parse(`${updated}T00:00:00Z`))) {
+        throw new Error(`Vals AI ${config.slug}: valid metadata.updated date missing`);
+      }
+
+      const rows: RawRow[] = [];
+      const modelMeta: NonNullable<ScrapeResult["modelMeta"]> = [];
+      for (const [modelKey, record] of Object.entries(task)) {
+        if (!isRecord(record)) throw new Error(`Vals AI ${config.slug}: invalid score for ${modelKey}`);
+        const row = record as ValsRecord;
+        const accuracy = row.accuracy;
+        if (!isNum(accuracy)) throw new Error(`Vals AI ${config.slug}: invalid score for ${modelKey}`);
+        const catalogKey = typeof row.model_key === "string" && row.model_key ? row.model_key : modelKey;
+        const model = catalog.entries[catalogKey];
+        const modelLabel = typeof model?.label === "string" && model.label.trim() ? model.label : catalogKey;
+        const effort = typeof row.reasoning_effort === "string" && row.reasoning_effort.trim()
+          ? row.reasoning_effort.trim()
+          : typeof row.compute_effort === "string" && row.compute_effort.trim() ? row.compute_effort.trim() : undefined;
+        const details: Record<string, unknown> = {};
+        if (isNum(row.stderr)) details.stderr = row.stderr; // Vals publishes standard errors, not confidence intervals.
+        if (typeof row.provider === "string") details.provider = row.provider;
+        if (typeof row.harness === "string") details.harness = row.harness;
+        let identity: RawRow["identity"];
+        let modelMetadata: RawRow["modelMetadata"];
+        if (config.sourceId === "vals-voice-code-bench" && isRecord(model?.supports) && model.supports.transcription === true) {
+          const modelId = `vals-audio-${slugify(catalogKey) || "model"}-${stableHash(catalogKey)}`;
+          const sourceSlug = typeof model.slug === "string" && model.slug ? model.slug : slugify(catalogKey);
+          const labId = slugify(typeof model.company === "string" ? model.company : typeof row.provider === "string" ? row.provider : "other") || "other";
+          identity = { modelId, modelName: modelLabel, labId, effort: "none", variantId: `${modelId}@none`, sourceModelId: catalogKey, sourceSlug };
+          modelMetadata = { kind: "audio", sourceModelUrl: `${VALS_ORIGIN}/models/${sourceSlug}`, valsCatalog: model };
+          details.modality = "speech-to-text";
+          modelMeta.push({ modelLabel, labHint: labId, kind: "audio", identity, modelMetadata });
+        }
+        rows.push({
+          benchmarkId: config.benchmarkId,
+          modelLabel,
+          sourceModelId: catalogKey,
+          identity,
+          modelMetadata,
+          effort: identity ? "none" : effort,
+          value: accuracy,
+          costUsd: isNum(row.cost_per_test) ? row.cost_per_test : undefined,
+          durationSec: isNum(row.latency) ? row.latency : undefined,
+          harness: typeof row.harness === "string" ? row.harness : undefined,
+          labHint: typeof row.provider === "string" ? row.provider : typeof model?.company === "string" ? model.company : undefined,
+          sourceUrl: url,
+          details: Object.keys(details).length ? details : undefined,
+          note: isNum(row.stderr) ? `published standard error ±${row.stderr}` : undefined,
+        });
+      }
+
+      const benchmark: BenchmarkWithLastUpdated = {
+        id: config.benchmarkId,
+        name: config.name,
+        shortName: config.shortName,
+        sourceId: config.sourceId,
+        url,
+        description: config.description,
+        unit: config.unit ?? "percent",
+        higherIsBetter: config.higherIsBetter ?? true,
+        category: config.category,
+        versionPolicy: { kind: "fresh" },
+        lastUpdated: updated,
+        eligibleForDefault: config.eligibleForDefault ?? false,
+        defaultWeight: config.defaultWeight ?? 0,
+      };
+      return {
+        benchmarks: [benchmark],
+        rows,
+        raw: {
+          "page.html": html,
+          "overall.json": JSON.stringify(task, null, 2),
+          "metadata.json": JSON.stringify(metadata, null, 2),
+          "benchmark-view.js": catalog.componentSource,
+          "model-catalog.js": catalog.source,
+          "model-catalog-keys.json": JSON.stringify(Object.fromEntries(Object.entries(catalog.entries).filter(([key]) => Object.keys(task).includes(key))), null, 2),
+        },
+        modelMeta,
+        notes: [`${rows.length} overall rows; Vals updated ${updated}`],
+      };
+    },
+  };
+}

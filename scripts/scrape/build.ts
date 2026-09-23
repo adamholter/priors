@@ -123,7 +123,7 @@ async function main() {
     const identity = p.row.identity;
     variants.set(vid, { ...variants.get(vid), id: vid, modelId: p.modelId, effort, ...(identity ? {
       configuration: identity.configuration,
-      sourceModel: { id: identity.sourceModelId, slug: identity.sourceSlug, name: p.row.modelLabel, url: `https://artificialanalysis.ai/models/${identity.sourceSlug}`, metadata: p.row.modelMetadata },
+      sourceModel: { id: identity.sourceModelId, slug: identity.sourceSlug, name: p.row.modelLabel, url: typeof p.row.modelMetadata?.sourceModelUrl === "string" ? p.row.modelMetadata.sourceModelUrl : `https://artificialanalysis.ai/models/${identity.sourceSlug}`, metadata: p.row.modelMetadata },
     } : {}) });
     const { modelLabel, identity: _identity, modelMetadata: _metadata, effort: _e, labHint: _l, releaseDateHint: _r, sourceId: _s, ...rest } = p.row;
     void _identity; void _metadata; void modelLabel; void _e; void _l; void _r; void _s;
@@ -137,7 +137,7 @@ async function main() {
     if (!i) continue;
     catalogModelIds.add(i.modelId);
     if (!variants.has(i.variantId)) variants.set(i.variantId, { id: i.variantId, modelId: i.modelId, effort: i.effort, configuration: i.configuration,
-      sourceModel: { id: i.sourceModelId, slug: i.sourceSlug, name: hint.modelLabel, url: `https://artificialanalysis.ai/models/${i.sourceSlug}`, metadata: hint.modelMetadata } });
+      sourceModel: { id: i.sourceModelId, slug: i.sourceSlug, name: hint.modelLabel, url: typeof hint.modelMetadata?.sourceModelUrl === "string" ? hint.modelMetadata.sourceModelUrl : `https://artificialanalysis.ai/models/${i.sourceSlug}`, metadata: hint.modelMetadata } });
   }
   const series: Series[] = [];
   for (const s of rawSeries) {
