@@ -5,6 +5,7 @@ import type { Snapshot } from "@/data/types";
 import { chartVariantMode, computeIndex, defaultConfig, selectVariants, type IndexConfig } from "@/engine";
 import { ShareCards } from "./ShareCards";
 import { encodeIndices, decodeIndices } from "@/lib/url";
+import { hiddenIds, compactVisibility, toggleVisibility, SHOW_ALL, HIDE_ALL, type Vis } from "@/lib/model-visibility";
 import { WeightsPanel } from "./WeightsPanel";
 import { Rankings } from "./Rankings";
 import { ParetoChart } from "./chart/ParetoChart";
@@ -46,24 +47,35 @@ export function Builder({ snapshot: base, dates, initialIndices }: { snapshot: S
   const rankingMode = chartVariantMode(active, "ranking"), paretoMode = chartVariantMode(active, "pareto");
   const rankingRows = useMemo(() => selectVariants(result.ranked, rankingMode), [result, rankingMode]);
   const paretoRows = useMemo(() => selectVariants(result.ranked, paretoMode), [result, paretoMode]);
-  // Settings-gear model picker: ranked models first (rank order), then any
-  // excluded ids resolved from the catalog so they can be re-checked.
+  // Settings-gear model picker: ranked models first (rank order), then the rest
+  // of the candidate pool, then any excluded ids resolved from the catalog so
+  // they can be re-checked.
   const pickerModels = useMemo(() => {
     const col = new Map(snapshot.labs.map((l) => [l.id, l.color]));
     const seen = new Map<string, { id: string; name: string; color?: string }>();
+    const add = (id: string) => { if (!seen.has(id)) { const m = snapshot.models.find((x) => x.id === id); if (m) seen.set(id, { id, name: m.name, color: col.get(m.labId) }); } };
     for (const r of result.ranked) if (!seen.has(r.model.id)) seen.set(r.model.id, { id: r.model.id, name: r.model.name, color: col.get(r.model.labId) });
-    for (const id of active.excludeModels ?? []) if (!seen.has(id)) { const m = snapshot.models.find((x) => x.id === id); if (m) seen.set(id, { id, name: m.name, color: col.get(m.labId) }); }
+    for (const id of result.candidateModelIds) add(id);
+    for (const id of active.excludeModels ?? []) add(id);
     return [...seen.values()];
   }, [result, active.excludeModels, snapshot]);
-  const excludedIds = useMemo(() => new Set(active.excludeModels ?? []), [active.excludeModels]);
+  const pickerIds = useMemo(() => pickerModels.map((m) => m.id), [pickerModels]);
+  const excludedIds = useMemo(() => hiddenIds(active, pickerIds), [active, pickerIds]);
+  const setVisibility = useCallback((vis: Vis) => setIndices((list) => list.map((i) => i.id === activeId ? { ...i, ...vis } : i)), [activeId]);
   const toggleModel = useCallback((id: string) => setIndices((list) => list.map((i) => {
     if (i.id !== activeId) return i;
-    const s = new Set(i.excludeModels ?? []);
-    if (s.has(id)) s.delete(id); else s.add(id);
-    return { ...i, excludeModels: s.size ? [...s] : [] };
-  })), [activeId]);
-  const setExcluded = useCallback((ids: string[]) => setIndices((list) => list.map((i) => i.id === activeId ? { ...i, excludeModels: ids } : i)), [activeId]);
-  const modelPicker = { models: pickerModels, excluded: excludedIds, onToggleModel: toggleModel, onShowAllModels: () => setExcluded([]), onHideAllModels: () => setExcluded(pickerModels.map((m) => m.id)) };
+    return { ...i, ...toggleVisibility(i, id, pickerIds) };
+  })), [activeId, pickerIds]);
+  // Compact legacy URLs: when exclusions hide more than half the picker, switch
+  // to the shorter allowlist once so the shared link shrinks.
+  useEffect(() => {
+    if (active.onlyModels !== undefined) return;
+    const vis = compactVisibility(new Set(active.excludeModels ?? []), pickerIds);
+    if (!vis.onlyModels) return;
+    const id = requestAnimationFrame(() => setIndices((list) => list.map((i) => i.id === activeId ? { ...i, ...vis } : i)));
+    return () => cancelAnimationFrame(id);
+  }, [active.onlyModels, active.excludeModels, pickerIds, activeId]);
+  const modelPicker = { models: pickerModels, excluded: excludedIds, onToggleModel: toggleModel, onShowAllModels: () => setVisibility(SHOW_ALL), onHideAllModels: () => setVisibility(HIDE_ALL) };
   const [paretoView, setParetoView] = useScatterView("pareto");
   const releaseProps = { releasedAfter: active.releasedAfter, onChangeReleased: (v: string) => update({ ...active, releasedAfter: v }) };
 

@@ -17,6 +17,7 @@ import { authEnabled } from "@/app/providers";
 import { PageEditor } from "./PageEditor";
 import { ChartSettings } from "../chart/ChartSettings";
 import { presetOf, presetStyle } from "@/lib/page-presets";
+import { hiddenIds, toggleVisibility, SHOW_ALL, HIDE_ALL } from "@/lib/model-visibility";
 import { anchorOf } from "../chart/ChartLink";
 import { ChartPaletteContext, LIGHT_PALETTE, type ChartPalette } from "../chart/echarts";
 
@@ -105,22 +106,25 @@ export function IndexPage({ profile, snapshot, dates, edit }: { profile: Profile
           const rankingMode = chartVariantMode(idx, "ranking"), paretoMode = chartVariantMode(idx, "pareto");
           if (s.kind === "gallery") return <section key={s.id} className="chart-panel"><h2 className="text-[21px] sm:text-[24px] mb-1">{title}</h2><p className="cap mb-3">More metrics · expand a row</p><MetricGallery ranked={r.ranked} mode={paretoMode} snapshot={snapshot} labs={snapshot.labs} /></section>;
           const updateIndex = (patch: Partial<IndexConfig>) => setP({ ...p, indices: p.indices.map((i) => i.id === idx.id ? { ...i, ...patch } : i) });
-          const excludedIds = new Set(idx.excludeModels ?? []);
           const pickerModels = (() => {
             const col = new Map(snapshot.labs.map((l) => [l.id, l.color]));
             const seen = new Map<string, { id: string; name: string; color?: string }>();
+            const add = (id: string) => { if (!seen.has(id)) { const m = snapshot.models.find((x) => x.id === id); if (m) seen.set(id, { id, name: m.name, color: col.get(m.labId) }); } };
             for (const v of r.ranked) if (!seen.has(v.model.id)) seen.set(v.model.id, { id: v.model.id, name: v.model.name, color: col.get(v.model.labId) });
-            for (const id of idx.excludeModels ?? []) if (!seen.has(id)) { const m = snapshot.models.find((x) => x.id === id); if (m) seen.set(id, { id, name: m.name, color: col.get(m.labId) }); }
+            for (const id of r.candidateModelIds) add(id);
+            for (const id of idx.excludeModels ?? []) add(id);
             return [...seen.values()];
           })();
-          const toggleModel = (id: string) => { const s = new Set(idx.excludeModels ?? []); if (s.has(id)) s.delete(id); else s.add(id); updateIndex({ excludeModels: s.size ? [...s] : [] }); };
-          const settings = (label: string, mode: "all" | "best", key: "rankingVariants" | "paretoVariants") => <ChartSettings label={label} mode={mode} onChange={(v) => updateIndex({ [key]: v })} releasedAfter={idx.releasedAfter} onChangeReleased={(v) => updateIndex({ releasedAfter: v })} models={pickerModels} excluded={excludedIds} onToggleModel={toggleModel} onShowAllModels={() => updateIndex({ excludeModels: [] })} onHideAllModels={() => updateIndex({ excludeModels: pickerModels.map((m) => m.id) })} />;
+          const pickerIds = pickerModels.map((m) => m.id);
+          const excludedIds = hiddenIds(idx, pickerIds);
+          const toggleModel = (id: string) => updateIndex(toggleVisibility(idx, id, pickerIds));
+          const settings = (label: string, mode: "all" | "best", key: "rankingVariants" | "paretoVariants") => <ChartSettings label={label} mode={mode} onChange={(v) => updateIndex({ [key]: v })} releasedAfter={idx.releasedAfter} onChangeReleased={(v) => updateIndex({ releasedAfter: v })} models={pickerModels} excluded={excludedIds} onToggleModel={toggleModel} onShowAllModels={() => updateIndex(SHOW_ALL)} onHideAllModels={() => updateIndex(HIDE_ALL)} />;
           if (s.kind === "rankings") return (
             <section key={s.id} className="chart-panel">
               <Rankings anchor={anchorOf(title)} title={<h2 className="text-[21px] sm:text-[24px]">{title}</h2>} actions={settings("Ranking", rankingMode, "rankingVariants")} ranked={selectVariants(r.ranked, rankingMode)} showEffort={rankingMode === "all"} labs={snapshot.labs} limit={25} selected={selected} onSelect={(x) => setSelected(x?.variant.id ?? null)} />
             </section>
           );
-          if (s.kind === "pareto") return <section key={s.id} className="chart-panel"><ParetoChart anchor={anchorOf(title)} ranked={selectVariants(r.ranked, paretoMode)} labs={snapshot.labs} height={440} view={paretoView} title={<h2 className="text-[21px] sm:text-[24px]">{title}</h2>} actions={<ChartSettings label="Pareto" mode={paretoMode} onChange={(v) => updateIndex({ paretoVariants: v })} view={paretoView} onView={setParetoView} releasedAfter={idx.releasedAfter} onChangeReleased={(v) => updateIndex({ releasedAfter: v })} models={pickerModels} excluded={excludedIds} onToggleModel={toggleModel} onShowAllModels={() => updateIndex({ excludeModels: [] })} onHideAllModels={() => updateIndex({ excludeModels: pickerModels.map((m) => m.id) })} />} /></section>;
+          if (s.kind === "pareto") return <section key={s.id} className="chart-panel"><ParetoChart anchor={anchorOf(title)} ranked={selectVariants(r.ranked, paretoMode)} labs={snapshot.labs} height={440} view={paretoView} title={<h2 className="text-[21px] sm:text-[24px]">{title}</h2>} actions={<ChartSettings label="Pareto" mode={paretoMode} onChange={(v) => updateIndex({ paretoVariants: v })} view={paretoView} onView={setParetoView} releasedAfter={idx.releasedAfter} onChangeReleased={(v) => updateIndex({ releasedAfter: v })} models={pickerModels} excluded={excludedIds} onToggleModel={toggleModel} onShowAllModels={() => updateIndex(SHOW_ALL)} onHideAllModels={() => updateIndex(HIDE_ALL)} />} /></section>;
           if (s.kind === "speed") return <section key={s.id} className="chart-panel"><SpeedChart anchor={anchorOf(title)} ranked={selectVariants(r.ranked, paretoMode)} labs={snapshot.labs} view={speedView} title={<h2 className="text-[21px] sm:text-[24px]">{title}</h2>} actions={<ChartSettings label="Speed" mode={paretoMode} onChange={(v) => updateIndex({ paretoVariants: v })} view={speedView} onView={setSpeedView} />} /></section>;
           if (s.kind === "history") return <section key={s.id}><h2 className="text-[21px] sm:text-[24px] mb-2">{title}</h2><p className="cap">Use the date picker above to view this page as of any earlier snapshot.</p></section>;
           return null;

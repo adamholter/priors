@@ -225,3 +225,9 @@ describe("computeIndex", () => {
     expect(all.ranked.map((x) => x.model.id)).toContain("b");
   });
 });
+
+it("onlyModels allowlist ranks only those models but keeps the candidate pool", () => {
+  const r = computeIndex(snap(), { ...base, onlyModels: ["a"] });
+  expect(new Set(r.ranked.map((x) => x.model.id))).toEqual(new Set(["a"]));
+  expect(r.candidateModelIds).toEqual(expect.arrayContaining(["a", "b", "c", "d"]));
+});

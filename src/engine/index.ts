@@ -25,6 +25,8 @@ export interface IndexConfig {
   /** Optional filters */
   labs?: string[]; // include only these labIds
   excludeModels?: string[]; // modelIds
+  /** Allowlist (modelIds); when set, only these rank. Used instead of `excludeModels` when most models are hidden. */
+  onlyModels?: string[];
   releasedAfter?: string; // ISO date
   /** Onboarding focus preset that produced this index; ranking ignores it. */
   focus?: FocusId;
@@ -142,6 +144,8 @@ export interface IndexResult {
   ranked: RankedVariant[];
   /** variants dropped for missing required benchmarks or insufficient measured coverage (distinct from config.excludeModels display-filtering) */
   excluded: { variant: Variant; model: Model; missing: string[]; reason: "required" | "coverage"; measuredShare: number }[];
+  /** modelIds that pass every filter except the user's model visibility picks (for the model picker) */
+  candidateModelIds: string[];
 }
 
 /* ------------------------------------------------------------------ */
@@ -296,21 +300,23 @@ export function computeIndex(snapshot: Snapshot, config: IndexConfig): IndexResu
 
   const used = Object.entries(config.weights).filter(([id, w]) => w > 0 && benches.has(id));
   const total = used.reduce((a, [, w]) => a + w, 0);
-  if (!used.length || total <= 0) return { config, benchmarks: [], ranked: [], excluded: [] };
+  if (!used.length || total <= 0) return { config, benchmarks: [], ranked: [], excluded: [], candidateModelIds: [] };
   const strictness = strictnessOf(config);
   const shares = used.map(([id, w]) => ({ benchmark: benches.get(id)!, share: (w / total) * 100, required: isBenchmarkRequired(config, id) }));
   const normalizeMeasured = new Map(snapshot.benchmarks.map((b) => [b.id, makeNormalizer(b, [...(idx.get(b.id)?.values() ?? [])].map((o) => o.value))]));
 
   // pool: llm variants with at least one used benchmark value, passing filters
   const after = config.releasedAfter === undefined ? defaultReleasedAfter(snapshot.date) : config.releasedAfter;
-  const pool = snapshot.variants.filter((v) => {
+  const candidates = snapshot.variants.filter((v) => {
     const m = models.get(v.modelId);
     if (!m || m.kind !== "llm") return false;
     if (config.labs?.length && !config.labs.includes(m.labId)) return false;
-    if (config.excludeModels?.includes(m.id)) return false;
     if (after && m.releaseDate && m.releaseDate < after) return false;
     return shares.some((s) => lookup(idx, benches, s.benchmark.id, v.id));
   });
+  const candidateModelIds = [...new Set(candidates.map((v) => v.modelId))];
+  const hidden = new Set(config.excludeModels ?? []), only = config.onlyModels && new Set(config.onlyModels);
+  const pool = candidates.filter((v) => !hidden.has(v.modelId) && (!only || only.has(v.modelId)));
 
   // raw values per benchmark over the pool -> normalizers
   type Resolved = { normalizedEstimate: boolean; raw: number; from: string; sourceVariantId: string; sourceUrl: string; substituted: boolean; estimateKind?: BenchValue["estimateKind"]; effortFactor?: number; evidence?: string[] };
@@ -380,7 +386,7 @@ export function computeIndex(snapshot: Snapshot, config: IndexConfig): IndexResu
   out.sort((a, b) => b.score - a.score);
   out.forEach((r, i) => (r.rank = i + 1));
   markFrontier(out);
-  return { config, benchmarks: shares, ranked: out, excluded };
+  return { config, benchmarks: shares, ranked: out, excluded, candidateModelIds };
 }
 
 /**

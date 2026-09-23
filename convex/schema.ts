@@ -16,6 +16,7 @@ const indexConfig = v.object({
   paretoVariants: v.optional(v.union(v.literal("all"), v.literal("best"))),
   labs: v.optional(v.array(v.string())),
   excludeModels: v.optional(v.array(v.string())),
+  onlyModels: v.optional(v.array(v.string())),
   releasedAfter: v.optional(v.string()),
 });
 

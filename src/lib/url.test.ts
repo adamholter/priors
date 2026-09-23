@@ -33,3 +33,21 @@ it("preserves namespaced benchmark weights in shared results", () => {
   const config = { ...decodeIndex("Custom|swe:20", "a")!, weights: { "real-index:terminal-bench-2-1": 23, "deepswe-1.1": 29 }, optional: ["real-index:terminal-bench-2-1"] };
   expect(decodeIndex(encodeIndex(config), "a")).toEqual(config);
 });
+
+describe("model visibility params", () => {
+  it("round trips an onlyModels allowlist", () => {
+    const c = { ...decodeIndex("General|swe:50", "a")!, onlyModels: ["a", "b"] };
+    const encoded = encodeIndex(c);
+    expect(encoded).toContain("only=a,b");
+    expect(decodeIndex(encoded, "a")).toEqual(c);
+  });
+  it("round trips an empty allowlist (hide all)", () => {
+    const c = { ...decodeIndex("General|swe:50", "a")!, onlyModels: [] as string[] };
+    const encoded = encodeIndex(c);
+    expect(encoded).toContain("only=");
+    expect(decodeIndex(encoded, "a")?.onlyModels).toEqual([]);
+  });
+  it("still decodes legacy excludeModels", () => {
+    expect(decodeIndex("General|swe:50|ex=a,b", "a")?.excludeModels).toEqual(["a", "b"]);
+  });
+});

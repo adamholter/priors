@@ -19,6 +19,7 @@ export function encodeIndex(c: IndexConfig): string {
   if (c.effortMatching) parts.push(`effort=${c.effortMatching}`);
   if (c.labs?.length) parts.push(`labs=${c.labs.join(",")}`);
   if (c.excludeModels?.length) parts.push(`ex=${c.excludeModels.join(",")}`);
+  if (c.onlyModels !== undefined) parts.push(`only=${c.onlyModels.join(",")}`);
   if (c.releasedAfter !== undefined) parts.push(`after=${c.releasedAfter}`);
   if (c.focus) parts.push(`focus=${c.focus}`);
   return parts.join("|");
@@ -47,6 +48,7 @@ export function decodeIndex(s: string, id: string): IndexConfig | null {
     else if (k === "effort" && (v === "calibrated" || v === "nearest" || v === "strict")) c.effortMatching = v;
     else if (k === "labs") c.labs = v.split(",").filter(Boolean);
     else if (k === "ex") c.excludeModels = v.split(",").filter(Boolean);
+    else if (k === "only") c.onlyModels = v.split(",").filter(Boolean);
     else if (k === "after") c.releasedAfter = v;
     else if (k === "focus" && FOCUS_IDS.includes(v as FocusId)) c.focus = v as FocusId;
   }
