@@ -4,10 +4,12 @@ import { useState, type ReactNode } from "react";
 import type { Lab } from "@/data/types";
 import type { RankedVariant } from "@/engine";
 import { variantLabel } from "./chart/ParetoChart";
+import { markColor, useChartPalette } from "./chart/echarts";
 
 /** Dense horizontal bars, color by lab, rows slide to their new position when the order changes. */
 export function Rankings({ ranked, labs, limit = 30, onSelect, selected, showEffort = true, title, actions }: { ranked: RankedVariant[]; labs: Lab[]; limit?: number; showEffort?: boolean; onSelect?: (r: RankedVariant | null) => void; selected?: string | null; title?: ReactNode; actions?: ReactNode }) {
-  const color = new Map(labs.map((l) => [l.id, l.color]));
+  const pal = useChartPalette();
+  const color = new Map(labs.map((l) => [l.id, markColor(l.color, pal)]));
   const [expanded, setExpanded] = useState(false);
   const rows = expanded ? ranked : ranked.slice(0, limit);
   const max = Math.max(...rows.map((r) => r.score), 1);

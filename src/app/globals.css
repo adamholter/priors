@@ -116,9 +116,9 @@ details.gallery-panel > summary::-webkit-details-marker { display: none; }
 .bench-check.on { background: var(--indigo); border-color: var(--indigo); }
 .bench-fresh { animation: bench-flash 1.2s ease-out; }
 @keyframes bench-flash { 0% { background: #2F4FB022; } 100% { background: transparent; } }
-/* Dark personal-page schemes: charts render on light panels (ECharts colors are light-theme). */
-.page-root[data-dark] .chart-panel { --bone: #FBFBF9; --white: #FFFFFF; --ink: #1A1A1A; --ink-2: #4A4A46; --grey: #8A8A80; --hair: #DDDBD4; --hair-2: #ECEAE3; --indigo: var(--panel-accent); background: #FBFBF9; color: #1A1A1A; border-radius: 12px; padding: 22px 26px 26px; }
-.page-root[data-dark] .chart-panel h2 { color: #1A1A1A; }
+/* Dark personal-page schemes: charts are themed from the page palette; sections sit on raised panels. */
+.page-root[data-dark] .chart-panel { background: var(--white); border-radius: 12px; padding: 22px 26px 26px; }
+@media (max-width: 639px) { .page-root[data-dark] .chart-panel { padding: 16px 14px 18px; margin: 0 -8px; } }
 .page-banner-frame { background: var(--hair-2); }
 /* Banners are always 4:1. Past 1440px wide the banner stops growing and centers, with side bars
    instead of cropping; on phones a small minimum height trims a little off the edges. */

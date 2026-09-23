@@ -17,6 +17,7 @@ import { authEnabled } from "@/app/providers";
 import { PageEditor } from "./PageEditor";
 import { ChartSettings } from "../chart/ChartSettings";
 import { presetOf, presetStyle } from "@/lib/page-presets";
+import { ChartPaletteContext, LIGHT_PALETTE, type ChartPalette } from "../chart/echarts";
 
 export interface Section {
   id: string; kind: "rankings" | "pareto" | "speed" | "benchmark" | "text" | "links" | "history" | "gallery";
@@ -38,6 +39,8 @@ export function IndexPage({ profile, snapshot, dates, edit }: { profile: Profile
   const preset = presetOf(p.theme);
   const accent = p.theme?.accent ?? preset.accent;
   const surface = preset.bg;
+  // Dark schemes theme every chart: text, grid, marks, tooltips and exports follow the page palette.
+  const palette = paletteFor(preset);
   const [origin, setOrigin] = useState("");
   useEffect(() => { const id = requestAnimationFrame(() => setOrigin(window.location.origin)); return () => cancelAnimationFrame(id); }, []);
   const builderHref = `/?${encodeIndices(p.indices).toString()}`;
@@ -53,6 +56,7 @@ export function IndexPage({ profile, snapshot, dates, edit }: { profile: Profile
   ].filter(Boolean).join("\n")), [p.theme?.serif, p.theme?.mono, p.theme?.css]);
 
   return (
+    <ChartPaletteContext.Provider value={palette}>
     <div className="page-root min-h-screen" data-dark={preset.dark || undefined} style={presetStyle(preset, accent) as React.CSSProperties}>
       {customCss && <style>{customCss}</style>}
       {/* Phones: one short row that scrolls away — logo, share, and a menu for the rest. */}
@@ -127,7 +131,15 @@ export function IndexPage({ profile, snapshot, dates, edit }: { profile: Profile
         </footer>
       </main>
     </div>
+    </ChartPaletteContext.Provider>
   );
+}
+
+const palettes = new Map<string, ChartPalette>();
+function paletteFor(preset: ReturnType<typeof presetOf>): ChartPalette {
+  let p = palettes.get(preset.id);
+  if (!p) { p = preset.dark ? { dark: true, ink: preset.ink, ink2: preset.ink2, grey: preset.grey, hair: preset.hair, bg: preset.hair2, tipBg: preset.bg, tipBorder: preset.hair } : { ...LIGHT_PALETTE, bg: preset.bg }; palettes.set(preset.id, p); }
+  return p;
 }
 
 /** Three-dots menu. Content stays mounted while closed so the editor keeps its state and drawer. */

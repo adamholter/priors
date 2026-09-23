@@ -4,7 +4,7 @@ import type { EChartsOption } from "echarts";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Lab } from "@/data/types";
 import type { RankedVariant } from "@/engine";
-import { INK, MARK_LABEL, useEChart } from "./echarts";
+import { markColor, markLabel, useChartPalette, useEChart } from "./echarts";
 import { scatterHtml, unitOf } from "./embed";
 
 export interface ScatterPoint { x: number; r: RankedVariant; /** untransformed value for tooltips/export when x is transformed */ raw?: number }
@@ -82,8 +82,9 @@ export function ScoreScatter({ pts, labs, better, xName, xShort, xUnit = "", sca
     ro.observe(el); return () => ro.disconnect();
   }, []);
   const frontier = useMemo(() => frontierOf(pts, better), [pts, better]);
+  const pal = useChartPalette();
   const option = useMemo<EChartsOption>(() => {
-    const color = new Map(labs.map((l) => [l.id, l.color]));
+    const color = new Map(labs.map((l) => [l.id, markColor(l.color, pal)]));
     const onFrontier = new Set(frontier.map((p) => p.r.variant.id));
     const labeled = pickLabels(pts, better, narrow ? view.density * 0.5 : view.density);
     const byModel = new Map<string, ScatterPoint[]>();
@@ -95,14 +96,14 @@ export function ScoreScatter({ pts, labs, better, xName, xShort, xUnit = "", sca
     const ordered = [...pts].sort((a, b) => Number(labeled.has(a.r.variant.id)) - Number(labeled.has(b.r.variant.id)) || Number(onFrontier.has(a.r.variant.id)) - Number(onFrontier.has(b.r.variant.id)));
     const series: EChartsOption["series"] = [
       ...links.map((v) => ({ type: "line" as const, id: `link-${v[0].r.model.id}`, data: v.map((p) => ({ id: p.r.variant.id, value: [p.x, p.r.score] })), showSymbol: false, lineStyle: { color: color.get(v[0].r.model.labId), width: 1, opacity: 0.35 }, silent: true, animationDuration: 500, z: 1 })),
-      ...(view.frontier && frontier.length > 1 ? [{ type: "line" as const, id: "frontier", data: frontier.map((p) => ({ id: p.r.variant.id, value: [p.x, p.r.score] })), showSymbol: false, lineStyle: { color: INK, width: 1.4 }, silent: true, animationDuration: 500, z: 2 }] : []),
+      ...(view.frontier && frontier.length > 1 ? [{ type: "line" as const, id: "frontier", data: frontier.map((p) => ({ id: p.r.variant.id, value: [p.x, p.r.score] })), showSymbol: false, lineStyle: { color: pal.ink, width: 1.4 }, silent: true, animationDuration: 500, z: 2 }] : []),
       {
         type: "scatter", id: "marks", z: 3,
         data: ordered.map((p) => {
           const front = view.frontier && onFrontier.has(p.r.variant.id), show = labeled.has(p.r.variant.id);
-          return { name: chartLabel(p.r), value: [p.x, p.r.score], id: p.r.variant.id, itemStyle: { color: color.get(p.r.model.labId), borderColor: front ? INK : "#FBFBF9", borderWidth: 1.5, opacity: show || front ? 1 : 0.8 }, symbolSize: front ? 11 : 9, label: { show }, extra: p };
+          return { name: chartLabel(p.r), value: [p.x, p.r.score], id: p.r.variant.id, itemStyle: { color: color.get(p.r.model.labId), borderColor: front ? pal.ink : pal.bg, borderWidth: 1.5, opacity: show || front ? 1 : 0.8 }, symbolSize: front ? 11 : 9, label: { show }, extra: p };
         }),
-        label: narrow ? { ...MARK_LABEL, fontSize: 10.5 } : MARK_LABEL,
+        label: narrow ? { ...markLabel(pal), fontSize: 10.5 } : markLabel(pal),
         labelLayout: { hideOverlap: true, moveOverlap: "shiftY" },
         emphasis: { scale: 1.4, label: { show: true, fontWeight: 600 } },
         clip: true, universalTransition: { enabled: false },
@@ -115,22 +116,22 @@ export function ScoreScatter({ pts, labs, better, xName, xShort, xUnit = "", sca
       grid: narrow ? { left: 38, right: 12, top: title ? 24 : 48, bottom: 40 } : { left: 48, right: 130, top: title ? 24 : 48, bottom: 44 },
       xAxis: {
         type: scale === "linear" ? "value" : scale, name, nameLocation: "end", nameGap: 8, scale: scale === "linear",
-        nameTextStyle: { color: "#8A8A80", fontSize: 11, align: "right", verticalAlign: "top", padding: [26, 0, 0, 0] },
+        nameTextStyle: { color: pal.grey, fontSize: 11, align: "right", verticalAlign: "top", padding: [26, 0, 0, 0] },
         // Log/time axes otherwise print odd extent values ($0.007, 12.78s) that collide with round ticks.
         axisLabel: scale === "time" ? { hideOverlap: true, showMinLabel: false, showMaxLabel: false } : { formatter: (v: number) => formatX(v), hideOverlap: true, showMinLabel: scale !== "log", showMaxLabel: scale !== "log" },
         ...(scale === "log" ? { min: (e: { min: number }) => e.min / 1.5, max: (e: { max: number }) => e.max * 1.8 } : {}),
       } as EChartsOption["xAxis"],
-      yAxis: { type: "value", name: "Index score", nameTextStyle: { color: "#8A8A80", fontSize: 11, align: "left", padding: [0, 0, 0, narrow ? -22 : -30] }, min: yMin, max: yMax },
+      yAxis: { type: "value", name: "Index score", nameTextStyle: { color: pal.grey, fontSize: 11, align: "left", padding: [0, 0, 0, narrow ? -22 : -30] }, min: yMin, max: yMax },
       tooltip: {
         trigger: "item", confine: true, formatter: (p: unknown) => {
           const d = (p as { data?: { extra?: ScatterPoint } }).data?.extra; if (!d) return "";
           const lab = labs.find((l) => l.id === d.r.model.labId)?.name ?? d.r.model.labId;
-          return `<div style="font-weight:600">${escapeHtml(d.r.variant.sourceModel?.name ?? chartLabel(d.r))}</div><div style="color:#8A8A80;font-size:11px">${escapeHtml(lab)}${onFrontier.has(d.r.variant.id) ? " · on the frontier" : ""}</div><div style="font-family:var(--font-jetbrains);margin-top:4px">${d.r.score.toFixed(1)} · ${escapeHtml((formatValue ?? formatX)(d.raw ?? d.x))}${xUnit ? ` ${xUnit}` : ""}${tooltipExtra ? escapeHtml(tooltipExtra(d)) : ""}</div>`;
+          return `<div style="font-weight:600">${escapeHtml(d.r.variant.sourceModel?.name ?? chartLabel(d.r))}</div><div style="color:${pal.grey};font-size:11px">${escapeHtml(lab)}${onFrontier.has(d.r.variant.id) ? " · on the frontier" : ""}</div><div style="font-family:var(--font-jetbrains);margin-top:4px">${d.r.score.toFixed(1)} · ${escapeHtml((formatValue ?? formatX)(d.raw ?? d.x))}${xUnit ? ` ${xUnit}` : ""}${tooltipExtra ? escapeHtml(tooltipExtra(d)) : ""}</div>`;
         },
       },
       series,
     };
-  }, [pts, labs, better, frontier, view, narrow, xName, xShort, xUnit, scale, formatX, formatValue, tooltipExtra, title]);
+  }, [pts, labs, better, frontier, view, narrow, xName, xShort, xUnit, scale, formatX, formatValue, tooltipExtra, title, pal]);
   const { ref, chart } = useEChart(option, [option]);
   const onFrontierIds = useMemo(() => new Set(frontier.map((p) => p.r.variant.id)), [frontier]);
   const getHtml = () => {

@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { useChartPalette } from "./echarts";
 
 export function escapeSvg(value: string) {
   return value.replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&apos;" }[c]!));
@@ -21,19 +22,20 @@ function toCsv(rows: ExportRow[]) {
  * site serif at top-left, and a quiet source line at bottom-left, so images never start flush at the
  * axis label.
  */
-export function frameSvg(raw: string, title: string, date?: string) {
+export function frameSvg(raw: string, title: string, date?: string, pal: { bg: string; ink: string; grey: string } = { bg: "#FBFBF9", ink: "#1A1A1A", grey: "#8A8A80" }) {
   const open = raw.match(/<svg[^>]*>/)?.[0] ?? "";
   const w = Number(open.match(/width="([\d.]+)/)?.[1] ?? 800), h = Number(open.match(/height="([\d.]+)/)?.[1] ?? 400);
   const pad = 32, foot = 34, W = Math.round(w + pad * 2), H = Math.round(h + pad + 22 + foot);
   const inner = raw.replace(/^<\?xml[^>]*>\s*/, "").replace(/<svg/, `<svg x="${pad}" y="${pad + 22}"`);
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}"><rect width="${W}" height="${H}" fill="#FBFBF9"/>`
-    + `<text x="${pad}" y="${pad + 14}" font-family="Newsreader, Georgia, serif" font-size="24" fill="#1A1A1A">${escapeSvg(title)}</text>`
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}"><rect width="${W}" height="${H}" fill="${pal.bg}"/>`
+    + `<text x="${pad}" y="${pad + 14}" font-family="Newsreader, Georgia, serif" font-size="24" fill="${pal.ink}">${escapeSvg(title)}</text>`
     + inner
-    + `<text x="${pad}" y="${H - 16}" font-family="JetBrains Mono, Menlo, monospace" font-size="11" fill="#8A8A80">mypriors.com${date ? ` · ${escapeSvg(date)}` : ""}</text></svg>`;
+    + `<text x="${pad}" y="${H - 16}" font-family="JetBrains Mono, Menlo, monospace" font-size="11" fill="${pal.grey}">mypriors.com${date ? ` · ${escapeSvg(date)}` : ""}</text></svg>`;
 }
 
 /** Export control: PNG is the primary button, a chevron opens the full format menu (PNG, SVG, CSV, JSON). */
 export function ChartExport({ name, getSvg, getRows, getHtml, frame, className = "" }: { name: string; getSvg: () => string | undefined; getRows?: () => ExportRow[]; getHtml?: () => string; frame?: boolean; className?: string }) {
+  const pal = useChartPalette();
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState(false);
   const [error, setError] = useState("");
@@ -58,7 +60,7 @@ export function ChartExport({ name, getSvg, getRows, getHtml, frame, className =
       if (!raw) throw new Error("Chart is still loading. Try again.");
       // Exports cannot inherit the page's CSS variables.
       const clean = raw.replace(/var\(--font-inter\),?\s*/g, "").replace(/var\(--font-jetbrains\),?\s*/g, "");
-      const svg = frame ? frameSvg(clean, name) : clean;
+      const svg = frame ? frameSvg(clean, name, undefined, pal) : clean;
       let blob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
       if (format === "png") {
         const source = URL.createObjectURL(blob);
@@ -70,7 +72,7 @@ export function ChartExport({ name, getSvg, getRows, getHtml, frame, className =
           canvas.width = Math.round(img.width * scale); canvas.height = Math.round(img.height * scale);
           const ctx = canvas.getContext("2d");
           if (!ctx) throw new Error("Image export is unavailable.");
-          ctx.fillStyle = "#FBFBF9"; ctx.fillRect(0, 0, canvas.width, canvas.height);
+          ctx.fillStyle = pal.bg; ctx.fillRect(0, 0, canvas.width, canvas.height);
           ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
           blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob(b => b ? resolve(b) : reject(new Error("Image export failed.")), "image/png"));
         } finally { URL.revokeObjectURL(source); }

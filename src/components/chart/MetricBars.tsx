@@ -3,7 +3,7 @@ import { ChartExport } from "./ChartExport";
 import type { EChartsOption } from "echarts";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Lab } from "@/data/types";
-import { useEChart } from "./echarts";
+import { markColor, useChartPalette, useEChart } from "./echarts";
 import { chartLabel, type ScatterPoint } from "./ScoreScatter";
 import { barsHtml, unitOf } from "./embed";
 
@@ -27,6 +27,7 @@ export function MetricBars({ pts, labs, better, xName, formatValue, height = 400
   const [narrow, setNarrow] = useState(false);
   useEffect(() => { const el = wrap.current; if (!el) return; const ro = new ResizeObserver(([e]) => setNarrow(e.contentRect.width < 560)); ro.observe(el); return () => ro.disconnect(); }, []);
   const cap = narrow ? Math.min(12, limit) : limit;
+  const pal = useChartPalette();
   const bars = useMemo(() => {
     const best = new Map<string, ScatterPoint>();
     for (const p of pts) { const cur = best.get(p.r.model.id); if (!cur || p.r.score > cur.r.score) best.set(p.r.model.id, p); }
@@ -37,17 +38,17 @@ export function MetricBars({ pts, labs, better, xName, formatValue, height = 400
     const color = new Map(labs.map((l) => [l.id, l.color]));
     return {
       grid: { left: 52, right: 16, top: 52, bottom: 96 },
-      xAxis: { type: "category", data: bars.map((p) => chartLabel(p.r)), axisLabel: { rotate: 45, interval: 0, fontSize: 10.5, color: "#595B53", fontFamily: "var(--font-inter), Inter, sans-serif", width: 110, overflow: "truncate" }, axisTick: { show: false } },
-      yAxis: { type: "value", name: xName, nameTextStyle: { color: "#8A8A80", fontSize: 11, align: "left", padding: [0, 0, 0, -30] }, axisLabel: { formatter: (v: number) => compact(formatValue)(v) } },
+      xAxis: { type: "category", data: bars.map((p) => chartLabel(p.r)), axisLabel: { rotate: 45, interval: 0, fontSize: 10.5, color: pal.ink2, fontFamily: "var(--font-inter), Inter, sans-serif", width: 110, overflow: "truncate" }, axisTick: { show: false } },
+      yAxis: { type: "value", name: xName, nameTextStyle: { color: pal.grey, fontSize: 11, align: "left", padding: [0, 0, 0, -30] }, axisLabel: { formatter: (v: number) => compact(formatValue)(v) } },
       tooltip: { trigger: "item", confine: true, formatter: (p: unknown) => { const d = bars[(p as { dataIndex: number }).dataIndex]; return d ? `<div style="font-weight:600">${chartLabel(d.r)}</div><div style="font-family:var(--font-jetbrains);margin-top:4px">${formatValue(value(d))} · index ${d.r.score.toFixed(1)}</div>` : ""; } },
       series: [{
         type: "bar", id: "bars", barMaxWidth: 28,
-        data: bars.map((p) => ({ value: value(p), itemStyle: { color: color.get(p.r.model.labId) ?? "#A3A39B", borderRadius: [2, 2, 0, 0] } })),
-        label: { show: true, position: "top", fontSize: narrow ? 9 : 10, color: "#1A1A1A", fontFamily: "var(--font-jetbrains), monospace", formatter: (p: { value?: unknown }) => compact(formatValue)(Number(p.value)) },
+        data: bars.map((p) => ({ value: value(p), itemStyle: { color: markColor(color.get(p.r.model.labId), pal), borderRadius: [2, 2, 0, 0] } })),
+        label: { show: true, position: "top", fontSize: narrow ? 9 : 10, color: pal.ink, fontFamily: "var(--font-jetbrains), monospace", formatter: (p: { value?: unknown }) => compact(formatValue)(Number(p.value)) },
         animationDurationUpdate: 350,
       }],
     };
-  }, [bars, labs, xName, formatValue, narrow]);
+  }, [bars, labs, xName, formatValue, narrow, pal]);
   const { ref, chart } = useEChart(option, [option]);
   return (
     <div ref={wrap} className="max-sm:-mx-4">
