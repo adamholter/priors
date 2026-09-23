@@ -16,6 +16,11 @@ import { DEFAULT_LINEUP } from "./defaults";
 import "./onboarding.css";
 
 const INITIAL = DEFAULT_LINEUP;
+const LEGACY_DEFAULTS = [
+  ["claude-opus-5.5", "gpt-6-astra", "claude-fable-5.1", "claude-fable-5", "gpt-6-sol", "claude-opus-5", "grok-4.7", "gpt-6-luna", "gemini-3.8-flash", "glm-5.3", "gpt-5.6-terra", "grok-4.6", "gemini-3.7-flash", "claude-sonnet-5"],
+  ["claude-opus-5.5", "gpt-6-astra", "claude-fable-5.1", "gpt-6-sol", "claude-fable-5", "claude-opus-5", "gpt-6-luna", "grok-4.7", "gemini-3.8-flash", "glm-5.3", "gpt-5.6-terra", "grok-4.6", "gemini-3.7-flash", "claude-sonnet-5"],
+  ["claude-opus-5.5", "gpt-6-astra", "claude-fable-5.1", "claude-fable-5", "gpt-6-sol", "claude-opus-5", "grok-4.7", "gpt-6-luna", "glm-5.3", "gpt-5.6-terra", "gemini-3.8-flash", "grok-4.6", "gemini-3.7-flash", "claude-sonnet-5"],
+];
 const ROW = 46;
 const phaseNames = { preparing: "Reading the evidence", searching: "Searching the combinations", simplifying: "Keeping what matters", complete: "Your index, found" };
 function Arrow({ direction = "right" }: { direction?: "right" | "up" | "down" }) { return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true" style={{ transform: direction === "up" ? "rotate(-90deg)" : direction === "down" ? "rotate(90deg)" : undefined }}><path d="M4 12h15m-6-6 6 6-6 6" /></svg>; }
@@ -63,6 +68,8 @@ export function Onboarding({ snapshot }: { snapshot: Snapshot }) {
       try {
         const saved = JSON.parse(localStorage.getItem("priors:lineup") ?? "[]") as string[];
         const kept = saved.filter((id) => models.has(id));
+        // An untouched earlier default is not a user choice: let the current default replace it.
+        if (LEGACY_DEFAULTS.some((d) => d.join(",") === saved.join(","))) return;
         if (kept.length >= 2) { setOrder(kept); orderRef.current = kept; }
       } catch { /* ignore */ }
     });
