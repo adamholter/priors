@@ -14,6 +14,6 @@ const money = (v: number) => `$${v >= 10 ? Math.round(v) : v >= 1 ? v.toFixed(1)
 /** Index score vs measured cost per task (log x), with the Pareto frontier traced in ink. */
 export function ParetoChart({ ranked, labs, height = 460, title, actions, view }: { ranked: RankedVariant[]; labs: Lab[]; height?: number; title?: ReactNode; actions?: ReactNode; view: ScatterView }) {
   const pts = ranked.filter((r) => r.costUsd != null && r.costUsd > 0).map((r) => ({ x: r.costUsd!, r }));
-  return <ScoreScatter pts={pts} labs={labs} better="lower" xName="Cost per task ($, log)" xShort="$ / task (log)" scale="log" formatX={money} formatValue={(v) => `$${v.toFixed(v < 0.1 ? 3 : 2)}/task`} height={height} aria="Index score versus cost per task" title={title} actions={actions} view={view} exportName="Pareto frontier"
+  return <ScoreScatter pts={pts} labs={labs} better="lower" xName="Cost per task ($, log)" xShort="$ / task (log)" scale="log" formatX={money} formatValue={(v) => `$${v.toFixed(v < 0.1 ? 3 : 2)}/task`} height={height} aria="Index score versus cost per task" title={title} actions={actions} view={view} exportName="Score vs cost per task"
     tooltipExtra={(p) => p.r.speed ? ` · ${Math.round(p.r.speed)} tok/s` : ""} extraRows={(p) => ({ speed_toks: p.r.speed ?? null, coverage: p.r.coverage })} />;
 }

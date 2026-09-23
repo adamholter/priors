@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Lab } from "@/data/types";
 import { useEChart } from "./echarts";
 import { chartLabel, type ScatterPoint } from "./ScoreScatter";
+import { barsHtml, unitOf } from "./embed";
 
 /**
  * Vertical bars of one metric (Artificial Analysis style), best first. One bar per model — its
@@ -35,7 +36,7 @@ export function MetricBars({ pts, labs, better, xName, formatValue, height = 400
   const option = useMemo<EChartsOption>(() => {
     const color = new Map(labs.map((l) => [l.id, l.color]));
     return {
-      grid: { left: 48, right: 16, top: 34, bottom: 96 },
+      grid: { left: 52, right: 16, top: 52, bottom: 96 },
       xAxis: { type: "category", data: bars.map((p) => chartLabel(p.r)), axisLabel: { rotate: 45, interval: 0, fontSize: 10.5, color: "#595B53", fontFamily: "var(--font-inter), Inter, sans-serif", width: 110, overflow: "truncate" }, axisTick: { show: false } },
       yAxis: { type: "value", name: xName, nameTextStyle: { color: "#8A8A80", fontSize: 11, align: "left", padding: [0, 0, 0, -30] }, axisLabel: { formatter: (v: number) => compact(formatValue)(v) } },
       tooltip: { trigger: "item", confine: true, formatter: (p: unknown) => { const d = bars[(p as { dataIndex: number }).dataIndex]; return d ? `<div style="font-weight:600">${chartLabel(d.r)}</div><div style="font-family:var(--font-jetbrains);margin-top:4px">${formatValue(value(d))} · index ${d.r.score.toFixed(1)}</div>` : ""; } },
@@ -50,7 +51,7 @@ export function MetricBars({ pts, labs, better, xName, formatValue, height = 400
   const { ref, chart } = useEChart(option, [option]);
   return (
     <div ref={wrap} className="max-sm:-mx-4">
-      <div className="flex items-center justify-end gap-1 max-sm:px-4 min-h-8 -mb-8 relative z-10 pointer-events-none"><div className="flex items-center gap-1 pointer-events-auto">{actions}<ChartExport name={exportName} getSvg={() => chart.current?.renderToSVGString()} getRows={() => bars.map((p, i) => ({ rank: i + 1, model: p.r.model.name, effort: p.r.variant.effort, [xName]: +value(p).toFixed(4), index_score: +p.r.score.toFixed(2) }))} /></div></div>
+      <div className="flex items-center justify-end gap-1 max-sm:px-4 min-h-8 -mb-8 relative z-10 pointer-events-none"><div className="flex items-center gap-1 pointer-events-auto">{actions}<ChartExport name={exportName} frame getHtml={() => barsHtml({ title: exportName, yName: xName, unit: unitOf(formatValue), bars: bars.map((p) => ({ n: chartLabel(p.r), v: value(p), c: labs.find((l) => l.id === p.r.model.labId)?.color ?? "#A3A39B", t: `<b>${chartLabel(p.r)}</b><div style="font-family:'JetBrains Mono',monospace;margin-top:4px">${compact(formatValue)(value(p))} · index ${p.r.score.toFixed(1)}</div>` })) })} getSvg={() => chart.current?.renderToSVGString()} getRows={() => bars.map((p, i) => ({ rank: i + 1, model: p.r.model.name, effort: p.r.variant.effort, [xName]: +value(p).toFixed(4), index_score: +p.r.score.toFixed(2) }))} /></div></div>
       <div ref={ref} role="img" aria-label={aria} style={{ width: "100%", height, overflow: "hidden", position: "relative", isolation: "isolate" }} />
     </div>
   );

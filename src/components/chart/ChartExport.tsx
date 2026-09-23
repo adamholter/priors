@@ -16,8 +16,24 @@ function toCsv(rows: ExportRow[]) {
   return [keys.join(","), ...rows.map((r) => keys.map((k) => cell(r[k])).join(","))].join("\n");
 }
 
+/**
+ * Frames a chart SVG for export: bone background, padding on every side, the chart title in the
+ * site serif at top-left, and a quiet source line at bottom-left, so images never start flush at the
+ * axis label.
+ */
+export function frameSvg(raw: string, title: string, date?: string) {
+  const open = raw.match(/<svg[^>]*>/)?.[0] ?? "";
+  const w = Number(open.match(/width="([\d.]+)/)?.[1] ?? 800), h = Number(open.match(/height="([\d.]+)/)?.[1] ?? 400);
+  const pad = 32, foot = 34, W = Math.round(w + pad * 2), H = Math.round(h + pad + 22 + foot);
+  const inner = raw.replace(/^<\?xml[^>]*>\s*/, "").replace(/<svg/, `<svg x="${pad}" y="${pad + 22}"`);
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}"><rect width="${W}" height="${H}" fill="#FBFBF9"/>`
+    + `<text x="${pad}" y="${pad + 14}" font-family="Newsreader, Georgia, serif" font-size="24" fill="#1A1A1A">${escapeSvg(title)}</text>`
+    + inner
+    + `<text x="${pad}" y="${H - 16}" font-family="JetBrains Mono, Menlo, monospace" font-size="11" fill="#8A8A80">mypriors.com${date ? ` · ${escapeSvg(date)}` : ""}</text></svg>`;
+}
+
 /** Export control: PNG is the primary button, a chevron opens the full format menu (PNG, SVG, CSV, JSON). */
-export function ChartExport({ name, getSvg, getRows, className = "" }: { name: string; getSvg: () => string | undefined; getRows?: () => ExportRow[]; className?: string }) {
+export function ChartExport({ name, getSvg, getRows, getHtml, frame, className = "" }: { name: string; getSvg: () => string | undefined; getRows?: () => ExportRow[]; getHtml?: () => string; frame?: boolean; className?: string }) {
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState(false);
   const [error, setError] = useState("");
@@ -27,9 +43,10 @@ export function ChartExport({ name, getSvg, getRows, className = "" }: { name: s
     a.download = `priors-${name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}.${ext}`;
     a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
-  async function download(format: "svg" | "png" | "csv" | "json") {
+  async function download(format: "svg" | "png" | "csv" | "json" | "html") {
     setOpen(false); setBusy(true); setError("");
     try {
+      if (format === "html") { const html = getHtml?.(); if (!html) throw new Error("Chart is still loading. Try again."); save(new Blob([html], { type: "text/html;charset=utf-8" }), "html"); return; }
       if (format === "csv" || format === "json") {
         const rows = getRows?.() ?? [];
         const text = format === "csv" ? toCsv(rows) : JSON.stringify({ name, rows }, null, 2);
@@ -40,7 +57,8 @@ export function ChartExport({ name, getSvg, getRows, className = "" }: { name: s
       const raw = getSvg();
       if (!raw) throw new Error("Chart is still loading. Try again.");
       // Exports cannot inherit the page's CSS variables.
-      const svg = raw.replace(/var\(--font-inter\),?\s*/g, "").replace(/var\(--font-jetbrains\),?\s*/g, "");
+      const clean = raw.replace(/var\(--font-inter\),?\s*/g, "").replace(/var\(--font-jetbrains\),?\s*/g, "");
+      const svg = frame ? frameSvg(clean, name) : clean;
       let blob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
       if (format === "png") {
         const source = URL.createObjectURL(blob);
@@ -61,7 +79,7 @@ export function ChartExport({ name, getSvg, getRows, className = "" }: { name: s
     } catch (e) { setError(e instanceof Error ? e.message : "Export failed. Try again."); }
     finally { setBusy(false); }
   }
-  const formats: ("png" | "svg" | "csv" | "json")[] = ["png", "svg", ...(getRows ? (["csv", "json"] as const) : [])];
+  const formats: ("png" | "svg" | "csv" | "json" | "html")[] = ["png", "svg", ...(getHtml ? (["html"] as const) : []), ...(getRows ? (["csv", "json"] as const) : [])];
   return <div className={`relative flex items-center gap-1.5 ${className}`} role="group" aria-label={`Export ${name}`} title={`Export ${name}`}>
     <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-grey"><path d="M12 3v12m-4-4 4 4 4-4M5 16v5h14v-5" /></svg>
     <div className="export-split">

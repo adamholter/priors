@@ -6,9 +6,9 @@ import { ScoreScatter, type ScatterPoint, type ScatterView } from "./ScoreScatte
 export type MetricPoint = ScatterPoint;
 
 /** Index-score-vs-metric scatter used by the metric gallery. */
-export function MetricScatter({ pts, labs, xLabel, xName, scale = "linear", better = "lower", formatX, formatValue, height = 400, aria, actions, view }: {
+export function MetricScatter({ pts, labs, xLabel, xName, scale = "linear", better = "lower", formatX, formatValue, height = 400, aria, actions, view, exportName }: {
   pts: MetricPoint[]; labs: Lab[]; xLabel: string; xName: string; scale?: "linear" | "log" | "time"; better?: "lower" | "higher";
-  formatX: (x: number) => string; formatValue?: (x: number) => string; height?: number; aria: string; actions?: ReactNode; view: ScatterView;
+  formatX: (x: number) => string; formatValue?: (x: number) => string; height?: number; aria: string; actions?: ReactNode; view: ScatterView; exportName?: string;
 }) {
-  return <ScoreScatter pts={pts} labs={labs} better={better} xName={xName} xUnit={xLabel} scale={scale} formatX={formatX} formatValue={formatValue} height={height} aria={aria} actions={actions} view={view} exportName={xName} />;
+  return <ScoreScatter pts={pts} labs={labs} better={better} xName={xName} xUnit={xLabel} scale={scale} formatX={formatX} formatValue={formatValue} height={height} aria={aria} actions={actions} view={view} exportName={exportName ?? xName} />;
 }

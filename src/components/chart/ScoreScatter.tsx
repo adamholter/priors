@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Lab } from "@/data/types";
 import type { RankedVariant } from "@/engine";
 import { INK, MARK_LABEL, useEChart } from "./echarts";
+import { scatterHtml, unitOf } from "./embed";
 
 export interface ScatterPoint { x: number; r: RankedVariant; /** untransformed value for tooltips/export when x is transformed */ raw?: number }
 export interface ScatterView { density: number; frontier: boolean; links: boolean; kind?: "scatter" | "bars" }
@@ -111,7 +112,7 @@ export function ScoreScatter({ pts, labs, better, xName, xShort, xUnit = "", sca
     const name = narrow && xShort ? xShort : xName;
     return {
       animation: true,
-      grid: narrow ? { left: 38, right: 12, top: 24, bottom: 40 } : { left: 48, right: 130, top: 24, bottom: 44 },
+      grid: narrow ? { left: 38, right: 12, top: title ? 24 : 48, bottom: 40 } : { left: 48, right: 130, top: title ? 24 : 48, bottom: 44 },
       xAxis: {
         type: scale === "linear" ? "value" : scale, name, nameLocation: "end", nameGap: 8, scale: scale === "linear",
         nameTextStyle: { color: "#8A8A80", fontSize: 11, align: "right", verticalAlign: "top", padding: [26, 0, 0, 0] },
@@ -129,9 +130,22 @@ export function ScoreScatter({ pts, labs, better, xName, xShort, xUnit = "", sca
       },
       series,
     };
-  }, [pts, labs, better, frontier, view, narrow, xName, xShort, xUnit, scale, formatX, formatValue, tooltipExtra]);
+  }, [pts, labs, better, frontier, view, narrow, xName, xShort, xUnit, scale, formatX, formatValue, tooltipExtra, title]);
   const { ref, chart } = useEChart(option, [option]);
   const onFrontierIds = useMemo(() => new Set(frontier.map((p) => p.r.variant.id)), [frontier]);
+  const getHtml = () => {
+    const color = new Map(labs.map((l) => [l.id, l.color])), labeled = pickLabels(pts, better, view.density), ys = pts.map((p) => p.r.score);
+    const byModel = new Map<string, ScatterPoint[]>();
+    for (const p of pts) (byModel.get(p.r.model.id) ?? byModel.set(p.r.model.id, []).get(p.r.model.id)!).push(p);
+    return scatterHtml({
+      title: exportName, xName, scale, unit: unitOf(formatX),
+      yMin: Math.max(0, Math.floor((Math.min(...ys, 100) - 6) / 5) * 5), yMax: Math.min(100, Math.ceil((Math.max(...ys, 0) + 4) / 5) * 5),
+      points: pts.map((p) => ({ v: [p.x, p.r.score], c: color.get(p.r.model.labId) ?? "#A3A39B", n: chartLabel(p.r), s: labeled.has(p.r.variant.id), f: view.frontier && onFrontierIds.has(p.r.variant.id),
+        t: `<b>${escapeHtml(p.r.variant.sourceModel?.name ?? chartLabel(p.r))}</b><div style="font-family:'JetBrains Mono',monospace;margin-top:4px">${p.r.score.toFixed(1)} · ${escapeHtml((formatValue ?? formatX)(p.raw ?? p.x))}${xUnit ? ` ${escapeHtml(xUnit)}` : ""}</div>` })),
+      frontier: view.frontier ? frontier.map((p) => [p.x, p.r.score]) : [],
+      links: view.links ? [...byModel.values()].filter((v) => v.length > 1).map((v) => ({ c: color.get(v[0].r.model.labId) ?? "#A3A39B", d: [...v].sort((a, b) => a.x - b.x).map((p) => [p.x, p.r.score] as [number, number]) })) : [],
+    });
+  };
   return (
     <div ref={wrapRef} className="max-sm:-mx-4">
       {/* Untitled charts (gallery panels) float their controls over the plot's empty top margin. */}
@@ -139,7 +153,7 @@ export function ScoreScatter({ pts, labs, better, xName, xShort, xUnit = "", sca
         <div className="min-w-0">{title}</div>
         <div className="flex items-center gap-1 ml-auto pointer-events-auto">
           {actions}
-          <ChartExport name={exportName} getSvg={() => chart.current?.renderToSVGString()} getRows={() => pts.map((p) => ({ rank: p.r.rank, model: p.r.model.name, effort: p.r.variant.effort, score: +p.r.score.toFixed(2), lab: p.r.model.labId, [xName]: +(p.raw ?? p.x).toFixed(4), on_frontier: onFrontierIds.has(p.r.variant.id), ...extraRows?.(p) }))} />
+          <ChartExport name={exportName} frame getHtml={getHtml} getSvg={() => chart.current?.renderToSVGString()} getRows={() => pts.map((p) => ({ rank: p.r.rank, model: p.r.model.name, effort: p.r.variant.effort, score: +p.r.score.toFixed(2), lab: p.r.model.labId, [xName]: +(p.raw ?? p.x).toFixed(4), on_frontier: onFrontierIds.has(p.r.variant.id), ...extraRows?.(p) }))} />
         </div>
       </div>
       <div className="relative">

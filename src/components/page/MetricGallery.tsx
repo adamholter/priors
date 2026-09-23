@@ -79,8 +79,8 @@ function GalleryChart({ id, title, chart, speed, ranked, defaultMode, labs, sett
   if (bars && speed) return <MetricBars pts={rows.filter((r) => r.speed && r.speed > 0).map((r) => ({ x: r.speed!, r }))} labs={labs} better="higher" xName="Output speed (tok/s)" formatValue={(v) => `${Math.round(v)}`} aria="Output speed by model" actions={actions} exportName="Output speed" />;
   if (speed) return <SpeedChart ranked={rows} labs={labs} view={view} actions={actions} />;
   if (!chart) return null;
-  if (bars && chart.scale !== "time") return <MetricBars pts={chart.points(rows)} labs={labs} better={chart.better} xName={chart.xName} formatValue={chart.formatValue ?? chart.formatX} aria={chart.aria.replace("Index score versus", "By model:")} actions={actions} exportName={chart.xName} />;
-  return <MetricScatter pts={chart.points(rows)} labs={labs} better={chart.better} xLabel={chart.xLabel} xName={chart.xName} scale={chart.scale} formatX={chart.formatX} formatValue={chart.formatValue} aria={chart.aria} view={view} actions={actions} />;
+  if (bars && chart.scale !== "time") return <MetricBars pts={chart.points(rows)} labs={labs} better={chart.better} xName={chart.xName} formatValue={chart.formatValue ?? chart.formatX} aria={chart.aria.replace("Index score versus", "By model:")} actions={actions} exportName={title} />;
+  return <MetricScatter pts={chart.points(rows)} labs={labs} better={chart.better} xLabel={chart.xLabel} xName={chart.xName} scale={chart.scale} formatX={chart.formatX} formatValue={chart.formatValue} aria={chart.aria} view={view} actions={actions} exportName={title} />;
 }
 
 function Panel({ title, desc, defaultOpen, children }: { title: string; desc: string; defaultOpen?: boolean; children: React.ReactNode }) {
