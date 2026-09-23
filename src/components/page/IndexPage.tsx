@@ -55,23 +55,32 @@ export function IndexPage({ profile, snapshot, dates, edit }: { profile: Profile
   return (
     <div className="page-root min-h-screen" data-dark={preset.dark || undefined} style={presetStyle(preset, accent) as React.CSSProperties}>
       {customCss && <style>{customCss}</style>}
-      <header className="flex flex-wrap items-center gap-x-6 gap-y-2 px-4 sm:px-8 min-h-14 py-2 border-b hairline sticky top-0 z-10" style={{ background: surface + "E6", backdropFilter: "blur(8px)" }}>
+      {/* Phones: one short row that scrolls away — logo, share, and a menu for the rest. */}
+      <header className="flex items-center gap-x-6 gap-y-2 px-4 sm:px-8 h-12 sm:h-auto sm:min-h-14 sm:py-2 border-b hairline sm:sticky top-0 z-10" style={{ background: surface + "E6", backdropFilter: "blur(8px)" }}>
         <Wordmark />
-        <span className="text-grey text-[13px]">/ {p.handle}</span>
-        <div className="ml-auto flex flex-wrap items-center justify-end gap-3">
+        <span className="text-grey text-[13px] max-sm:hidden">/ {p.handle}</span>
+        <div className="ml-auto hidden sm:flex flex-wrap items-center justify-end gap-3">
           <DatePicker current={snapshot.date} dates={dates} />
           {p.indices[0] && <ShareCards indices={p.indices} active={p.indices[0]} date={snapshot.date} profile={p} pageUrl={`${origin || "https://mypriors.com"}/${p.handle}`} defaultDesign={p.theme?.cardDesign} />}
           <Link href={builderHref as "/"} className="btn-quiet">Open in builder</Link>
           {authEnabled && <PageEditor profile={p} onChange={setP} snapshot={snapshot} editing={edit} />}
         </div>
+        <div className="ml-auto flex sm:hidden items-center gap-1">
+          {p.indices[0] && <ShareCards compact indices={p.indices} active={p.indices[0]} date={snapshot.date} profile={p} pageUrl={`${origin || "https://mypriors.com"}/${p.handle}`} defaultDesign={p.theme?.cardDesign} />}
+          <MobileMenu>
+            <DatePicker current={snapshot.date} dates={dates} />
+            <Link href={builderHref as "/"} className="btn-quiet text-center">Open in builder</Link>
+            {authEnabled && <PageEditor profile={p} onChange={setP} snapshot={snapshot} editing={false} />}
+          </MobileMenu>
+        </div>
       </header>
 
       {p.bannerUrl && <div className="page-banner-frame"><img src={p.bannerUrl} alt="" className="page-banner" /></div>}
-      <main className={`max-w-[1100px] mx-auto px-5 sm:px-8 grid gap-14 ${p.bannerUrl ? "pb-12" : "py-12"}`}>
-        <section className={`flex items-start gap-5 ${p.bannerUrl ? "-mt-10" : ""}`}>
-          {p.avatarUrl ? <img src={p.avatarUrl} alt="" className="w-20 h-20 rounded-full object-cover shrink-0" style={{ boxShadow: `0 0 0 4px ${surface}` }} /> : <div className="w-20 h-20 rounded-full bg-hair-2 grid place-items-center serif text-3xl text-ink-2 shrink-0" style={{ boxShadow: `0 0 0 4px ${surface}` }}>{p.displayName[0]}</div>}
-          <div className={`grid gap-1.5 min-w-0 ${p.bannerUrl ? "pt-11" : ""}`}>
-            <h1 className="text-[34px] leading-tight">{p.displayName}</h1>
+      <main className={`max-w-[1100px] mx-auto px-5 sm:px-8 grid gap-10 sm:gap-14 ${p.bannerUrl ? "pb-12" : "py-8 sm:py-12"}`}>
+        <section className={`flex items-start gap-4 sm:gap-5 ${p.bannerUrl ? "-mt-8 sm:-mt-10" : ""}`}>
+          {p.avatarUrl ? <img src={p.avatarUrl} alt="" className="w-16 h-16 sm:w-20 sm:h-20 rounded-full object-cover shrink-0" style={{ boxShadow: `0 0 0 4px ${surface}` }} /> : <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-hair-2 grid place-items-center serif text-3xl text-ink-2 shrink-0" style={{ boxShadow: `0 0 0 4px ${surface}` }}>{p.displayName[0]}</div>}
+          <div className={`grid gap-1 sm:gap-1.5 min-w-0 ${p.bannerUrl ? "pt-9 sm:pt-11" : ""}`}>
+            <h1 className="text-[28px] sm:text-[34px] leading-tight">{p.displayName}</h1>
             <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-[13px] text-ink-2">
               <span className="mono text-grey">mypriors.com/{p.handle}</span>
               {p.socials?.map((s) => <a key={s.url} href={s.url} target="_blank" rel="noreferrer" className="hover:text-ink" style={{ color: accent }}>{s.label}</a>)}
@@ -119,6 +128,21 @@ export function IndexPage({ profile, snapshot, dates, edit }: { profile: Profile
       </main>
     </div>
   );
+}
+
+/** Three-dots menu. Content stays mounted while closed so the editor keeps its state and drawer. */
+function MobileMenu({ children }: { children: React.ReactNode }) {
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: PointerEvent | KeyboardEvent) => { if (e instanceof KeyboardEvent ? e.key === "Escape" : !(e.target as HTMLElement).closest(".mobile-menu, .page-editor, dialog")) setOpen(false); };
+    addEventListener("pointerdown", close); addEventListener("keydown", close);
+    return () => { removeEventListener("pointerdown", close); removeEventListener("keydown", close); };
+  }, [open]);
+  return <div className="mobile-menu relative">
+    <button type="button" className="icon-btn" aria-label="More" aria-expanded={open} onClick={() => setOpen(!open)}><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.7" /><circle cx="12" cy="12" r="1.7" /><circle cx="19" cy="12" r="1.7" /></svg></button>
+    <div className={`${open ? "grid" : "hidden"} absolute right-0 top-full mt-1.5 w-56 gap-2 p-3 bg-white border hairline rounded-md shadow-[0_18px_40px_-18px_#1a1a1a55] z-30 [&>*]:w-full`} role="menu">{children}</div>
+  </div>;
 }
 
 /** Owner CSS: their page, their rules — but block style-tag breakout and JS URLs. */

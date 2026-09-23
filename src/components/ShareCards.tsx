@@ -25,7 +25,7 @@ function CloseIcon() {
   return <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="m6 6 12 12M18 6 6 18" /></svg>;
 }
 
-type ShareProps = { indices: IndexConfig[]; active: IndexConfig; date: string; profile?: { handle: string; displayName: string }; /** Personal pages share their own URL, not a mix deep link. */ pageUrl?: string; defaultDesign?: string };
+type ShareProps = { indices: IndexConfig[]; active: IndexConfig; date: string; profile?: { handle: string; displayName: string }; /** Personal pages share their own URL, not a mix deep link. */ pageUrl?: string; defaultDesign?: string; /** One share icon that opens the card dialog (mobile headers). */ compact?: boolean };
 export function ShareCards(props: ShareProps) {
   return authEnabled && !props.profile ? <SignedShareCards {...props} /> : <ShareCardsContent {...props} />;
 }
@@ -34,7 +34,7 @@ function SignedShareCards(props: ShareProps) {
   const mine = useQuery(api.profiles.mine, isAuthenticated ? {} : "skip");
   return <ShareCardsContent {...props} profile={mine ?? undefined} />;
 }
-function ShareCardsContent({ indices, active, date, profile, pageUrl, defaultDesign }: ShareProps) {
+function ShareCardsContent({ indices, active, date, profile, pageUrl, defaultDesign, compact }: ShareProps) {
   const dialog = useRef<HTMLDialogElement>(null);
   const heading = useId();
   const [open, setOpen] = useState(false);
@@ -82,10 +82,12 @@ function ShareCardsContent({ indices, active, date, profile, pageUrl, defaultDes
     const r = dialog.current?.getBoundingClientRect();
     return !!r && (x < r.left || x > r.right || y < r.top || y > r.bottom);
   };
+  const openCard = () => { const saved = new URLSearchParams(window.location.search).get("design"); if (!openedBefore.current && SHARE_DESIGNS.some((d) => d.id === saved)) setDesign(saved!); openedBefore.current = true; setOrigin(window.location.origin); setMessage(""); dialog.current?.showModal(); setOpen(true); };
   return <>
+    {compact ? <button type="button" className="icon-btn" onClick={openCard} aria-label="Share" title="Share"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v12M7.5 7.5 12 3l4.5 4.5M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7" /></svg></button> : <>
     <button type="button" className="btn-quiet inline-flex items-center gap-1.5" onClick={copy} title="Copy link" aria-label="Copy link">{message === "Link copied" && !open ? "Link copied" : <><CopyIcon /><span className="hidden sm:inline">Copy link</span></>}</button>
     {!open && message.startsWith("Copy failed") && <span role="alert" className="text-xs">Copy failed. Open Card for the link.</span>}
-    <button type="button" className="btn-quiet" onClick={() => { const saved = new URLSearchParams(window.location.search).get("design"); if (!openedBefore.current && SHARE_DESIGNS.some((d) => d.id === saved)) setDesign(saved!); openedBefore.current = true; setOrigin(window.location.origin); setMessage(""); dialog.current?.showModal(); setOpen(true); }}>Card</button>
+    <button type="button" className="btn-quiet" onClick={openCard}>Card</button></>}
     <dialog ref={dialog} aria-labelledby={heading} onClose={() => setOpen(false)}
       onPointerDown={(e) => { backdrop.current = e.target === e.currentTarget && outside(e.clientX, e.clientY); }}
       onClick={(e) => { if (backdrop.current && e.target === e.currentTarget && outside(e.clientX, e.clientY)) dialog.current?.close(); backdrop.current = false; }}
