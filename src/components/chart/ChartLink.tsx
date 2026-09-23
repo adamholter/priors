@@ -1,5 +1,8 @@
 "use client";
 import { useEffect, useState } from "react";
+import { anchorOf } from "@/lib/metrics";
+
+export { anchorOf };
 
 /** True once when the page loads (or the hash changes) pointing at `id`. */
 export function useHashTarget(id: string | undefined, onHit?: () => void) {
@@ -23,7 +26,7 @@ export function ChartLink({ id, name }: { id: string; name: string }) {
   const [copied, setCopied] = useState(false);
   useHashTarget(id);
   const copy = async () => {
-    const url = new URL(window.location.href); url.hash = id;
+    const url = new URL(window.location.href); url.searchParams.set("c", id); url.hash = id;
     window.history.replaceState(null, "", url.toString());
     try { await navigator.clipboard.writeText(url.toString()); setCopied(true); setTimeout(() => setCopied(false), 1600); } catch { /* the address bar still has the link */ }
   };
@@ -34,4 +37,4 @@ export function ChartLink({ id, name }: { id: string; name: string }) {
   </button>;
 }
 
-export const anchorOf = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+

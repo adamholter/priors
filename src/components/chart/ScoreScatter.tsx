@@ -7,6 +7,7 @@ import type { RankedVariant } from "@/engine";
 import { markColor, markLabel, useChartPalette, useEChart } from "./echarts";
 import { scatterHtml, unitOf } from "./embed";
 import { ChartLink } from "./ChartLink";
+import { chartLabel } from "@/lib/metrics";
 
 export interface ScatterPoint { x: number; r: RankedVariant; /** untransformed value for tooltips/export when x is transformed */ raw?: number }
 export interface ScatterView { density: number; frontier: boolean; links: boolean; kind?: "scatter" | "bars" }
@@ -22,13 +23,7 @@ export function useScatterView(key: string): [ScatterView, (v: ScatterView) => v
   return [view, (v) => { setView(v); try { localStorage.setItem(`priors:chart:${key}`, JSON.stringify(v)); } catch { /* ignore */ } }];
 }
 
-/** Compact mark label: model, effort, and fallback flag — never the full source configuration string. */
-export function chartLabel(r: RankedVariant) {
-  const named = new RegExp(`\\b${r.variant.effort}\\b`, "i").test(r.model.name);
-  const name = r.variant.effort === "default" || named ? r.model.name : `${r.model.name} ${r.variant.effort}`;
-  const source = r.variant.sourceModel?.name ?? "";
-  return /no fallback|without fallback/i.test(source) ? `${name}, no fallback` : /fallback/i.test(source) ? `${name}, fallback` : name;
-}
+export { chartLabel };
 
 /**
  * Chooses which marks get a label. Frontier marks come first, then marks closest below the frontier;

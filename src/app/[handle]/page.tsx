@@ -6,6 +6,9 @@ import { listSnapshotDates, loadSnapshot } from "@/data/load";
 import { mergeImports } from "@/lib/import";
 import { IndexPage, type Profile } from "@/components/page/IndexPage";
 import { PageTransition } from "@/components/PageTransition";
+import { encodeIndex } from "@/lib/url";
+import { chartTitle } from "@/lib/metrics";
+import { resolveProfileChart } from "../og/route";
 
 export const dynamic = "force-dynamic";
 
@@ -15,13 +18,19 @@ async function getProfile(handle: string): Promise<Profile | null> {
   return (await new ConvexHttpClient(url).query(api.profiles.byHandle, { handle })) as Profile | null;
 }
 
-export async function generateMetadata({ params }: PageProps<"/[handle]">): Promise<Metadata> {
+export async function generateMetadata({ params, searchParams }: PageProps<"/[handle]">): Promise<Metadata> {
   const { handle } = await params;
+  const sp = await searchParams;
   const p = await getProfile(handle);
   if (!p) return {};
-  const title = `${p.displayName}’s priors`;
+  const chart = resolveProfileChart(p, typeof sp.c === "string" ? sp.c : undefined);
+  const ct = chartTitle(chart);
+  const base = `${p.displayName}’s priors`;
+  const title = ct ? `${base} · ${ct}` : base;
   const description = p.bio || `${p.indices.map((i) => i.name).join(", ")} — a personal index of AI models.`;
-  const image = { url: `/${handle}/opengraph-image?v=${Math.round((p as { updatedAt?: number }).updatedAt ?? 0)}`, width: 1200, height: 630, alt: title };
+  const image = chart && p.indices[0]
+    ? { url: `/og?handle=${handle}&i=${encodeURIComponent(encodeIndex(p.indices[0]))}&c=${chart}`, width: 1200, height: 630, alt: title }
+    : { url: `/${handle}/opengraph-image?v=${Math.round((p as { updatedAt?: number }).updatedAt ?? 0)}`, width: 1200, height: 630, alt: title };
   return { title, description, alternates: { canonical: `/${handle}` }, openGraph: { title, description, type: "profile", url: `/${handle}`, images: [image] }, twitter: { card: "summary_large_image", title, description, images: [image.url] } };
 }
 

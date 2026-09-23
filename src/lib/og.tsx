@@ -3,9 +3,10 @@ import { ImageResponse } from "next/og";
 import type { Snapshot } from "@/data/types";
 import { chartVariantMode, computeIndex, selectVariants, type IndexConfig, type RankedVariant } from "@/engine";
 import { isShareDesign, type ShareDesign } from "@/lib/share-designs";
+import { chartKind, chartLabel, type MetricChart, type MetricPoint } from "@/lib/metrics";
 import QRCode from "qrcode";
 
-type Ctx = { index: IndexConfig; who: { name: string; handle?: string; avatarUrl?: string }; top: RankedVariant[]; board: RankedVariant[]; pts: RankedVariant[]; colors: Map<string,string>; accent: string; bg: string; date: string; qr: string };
+type Ctx = { index: IndexConfig; who: { name: string; handle?: string; avatarUrl?: string }; top: RankedVariant[]; board: RankedVariant[]; pts: RankedVariant[]; ranked: RankedVariant[]; pareto: RankedVariant[]; benches: { id: string; name: string; share: number }[]; colors: Map<string,string>; accent: string; bg: string; date: string; qr: string; snapshot: Snapshot };
 const ink="#1A1A1A", muted="#7B7B73", line="#DDDBD4", pale="#ECEAE3";
 const color=(c:Ctx,x:RankedVariant)=>c.colors.get(x.model.labId)??"#A3A39B";
 const effort=(_c:Ctx,x:RankedVariant)=>[x.variant.effort!=="default"?x.variant.effort:"", /without.fallback|no.fallback/i.test(x.variant.sourceModel?.name??"")?"no fallback":/fallback/i.test(x.variant.sourceModel?.name??"")?"with fallback":""].filter(Boolean).join(" · ");
@@ -15,13 +16,25 @@ function ctxFor(snapshot:Snapshot,index:IndexConfig,who:Ctx["who"],opts?:{accent
  // The index computation is design-independent — share it across all card variants of a config.
  const key=`${snapshot.date}|${who.name}|${who.handle??""}|${opts?.accent??""}|${opts?.surface??""}|${JSON.stringify(index)}`;
  let p=ctxCache.get(key);
- if(!p){p=(async()=>{const r=computeIndex(snapshot,{...index,variants:"all"}),mode=chartVariantMode(index,"ranking"),list=selectVariants(r.ranked,mode),link=`https://mypriors.com${who.handle?`/${who.handle}`:""}`;return{index,who,top:list.slice(0,5),board:list.slice(0,10),pts:selectVariants(r.ranked,chartVariantMode(index,"pareto")).filter(x=>!!x.costUsd&&x.costUsd>0),colors:new Map(snapshot.labs.map(l=>[l.id,l.color])),accent:opts?.accent??"#2F4FB0",bg:opts?.surface??"#FBFBF9",date:snapshot.date,qr:await QRCode.toDataURL(link,{margin:0,width:300,color:{dark:"#1A1A1A",light:"#00000000"}})}})();ctxCache.set(key,p);if(ctxCache.size>24)ctxCache.delete(ctxCache.keys().next().value!);}
+ if(!p){p=(async()=>{const r=computeIndex(snapshot,{...index,variants:"all"}),mode=chartVariantMode(index,"ranking"),list=selectVariants(r.ranked,mode),pareto=selectVariants(r.ranked,chartVariantMode(index,"pareto")),link=`https://mypriors.com${who.handle?`/${who.handle}`:""}`;return{index,who,top:list.slice(0,5),board:list.slice(0,10),pts:pareto.filter(x=>!!x.costUsd&&x.costUsd>0),ranked:r.ranked,pareto,benches:r.benchmarks.map(b=>({id:b.benchmark.id,name:b.benchmark.shortName??b.benchmark.name,share:b.share})),colors:new Map(snapshot.labs.map(l=>[l.id,l.color])),accent:opts?.accent??"#2F4FB0",bg:opts?.surface??"#FBFBF9",date:snapshot.date,qr:await QRCode.toDataURL(link,{margin:0,width:300,color:{dark:"#1A1A1A",light:"#00000000"}}),snapshot}})();ctxCache.set(key,p);if(ctxCache.size>24)ctxCache.delete(ctxCache.keys().next().value!);}
  return p;
 }
-export async function renderShareCard(snapshot: Snapshot,index:IndexConfig,who:{name:string;handle?:string;avatarUrl?:string},opts?:{accent?:string;surface?:string;design?:string}) {
- const design:ShareDesign=isShareDesign(opts?.design)?opts.design:"ranking";
+export async function renderShareCard(snapshot: Snapshot,index:IndexConfig,who:{name:string;handle?:string;avatarUrl?:string},opts?:{accent?:string;surface?:string;design?:string;chart?:string}) {
+ const design:ShareDesign|null=isShareDesign(opts?.design)?opts.design:null;
  const [c,serif,sans,mono]=await Promise.all([ctxFor(snapshot,index,who,opts),font("Newsreader","wght@400"),font("Inter","wght@400;500;600"),font("JetBrains+Mono","wght@400;500")]);
- return new ImageResponse(<Frame c={c}>{c.top.length?<Design c={c} design={design}/>:<Empty c={c}/>}</Frame>,{width:1200,height:630,fonts:[{name:"Newsreader",data:serif},{name:"Inter",data:sans},{name:"JetBrains Mono",data:mono}]});
+ // An explicit design wins; then the linked chart; then a head-to-head card for
+ // tiny fields (2-4 visible models); otherwise the default ranking bars.
+ let body:ReactNode;
+ if(!c.top.length)body=<Empty c={c}/>;
+ else if(design)body=<Design c={c} design={design}/>;
+ else{
+  const ck=chartKind(snapshot,c.ranked,opts?.chart);
+  if(ck?.kind==="cost"&&c.pts.length)body=<Constellation c={c}/>;
+  else if(ck?.kind==="metric"){const pts=ck.chart.points(c.pareto);body=pts.length?<MetricCard c={c} chart={ck.chart} pts={pts}/>:<Design c={c} design="ranking"/>;}
+  else if(c.top.length<=4)body=<Matchup c={c}/>;
+  else body=<Design c={c} design="ranking"/>;
+ }
+ return new ImageResponse(<Frame c={c}>{body}</Frame>,{width:1200,height:630,fonts:[{name:"Newsreader",data:serif},{name:"Inter",data:sans},{name:"JetBrains Mono",data:mono}]});
 }
 function Frame({c,children}:{c:Ctx;children:ReactNode}){return <div style={{width:1200,height:630,background:c.bg,color:ink,display:"flex",position:"relative",fontFamily:"Inter",overflow:"hidden"}}>{children}<div style={{position:"absolute",left:58,bottom:36,fontFamily:"JetBrains Mono",fontSize:15,color:muted,display:"flex"}}>{`mypriors.com · ${c.date}`}</div><div style={{position:"absolute",right:50,bottom:32,fontFamily:"Newsreader",fontSize:36,display:"flex"}}><span>pr</span><span style={{color:c.accent}}>i</span><span>ors</span></div></div>}
 function Identity({c}:{c:Ctx}){return <div style={{display:"flex",alignItems:"center",gap:11}}>{c.who.avatarUrl&&<img src={c.who.avatarUrl} width="42" height="42" style={{width:42,height:42,objectFit:"cover",flexShrink:0,borderRadius:21,border:`1px solid ${line}`}} alt=""/>}<div style={{display:"flex",flexDirection:"column"}}><span style={{fontSize:18,fontWeight:500}}>{c.who.name}</span>{c.who.handle&&<span style={{fontSize:12,color:muted,fontFamily:"JetBrains Mono"}}>{`mypriors.com/${c.who.handle}`}</span>}</div></div>}
@@ -79,7 +92,7 @@ function Constellation({c}:{c:Ctx}){
    </div>
    <div style={{width:330,height:H,marginLeft:14,paddingLeft:20,borderLeft:`1px solid ${line}`,display:"flex",flexDirection:"column"}}>
     <div style={{display:"flex",alignItems:"baseline",justifyContent:"space-between",marginBottom:5}}><span style={{fontFamily:"Newsreader",fontSize:24}}>Best tradeoffs</span><span style={{fontFamily:"JetBrains Mono",fontSize:12,color:muted}}>{frontier.length}</span></div>
-    <div style={{display:"flex",flexDirection:"column",justifyContent:"space-around",flex:1}}>{frontier.map((z,i)=><div key={z.variant.id} style={{display:"flex",alignItems:"center",minHeight:20}}><span style={{width:20,height:20,borderRadius:10,background:color(c,z),color:c.bg,border:`1.5px solid ${ink}`,fontFamily:"JetBrains Mono",fontSize:9,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{i+1}</span><span style={{fontSize:11,lineHeight:1.05,marginLeft:8}}>{fullLabel(z)}</span></div>)}</div>
+    <div style={{display:"flex",flexDirection:"column",justifyContent:"space-around",flex:1}}>{frontier.slice(0,8).map((z,i)=><div key={z.variant.id} style={{display:"flex",alignItems:"center",minHeight:26}}><span style={{width:24,height:24,borderRadius:12,background:color(c,z),color:c.bg,border:`1.5px solid ${ink}`,fontFamily:"JetBrains Mono",fontSize:11,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{i+1}</span><span style={{fontSize:15,lineHeight:1.15,marginLeft:10}}>{fullLabel(z)}</span></div>)}</div>
    </div>
   </div>
  </div>
@@ -87,3 +100,81 @@ function Constellation({c}:{c:Ctx}){
 function Empty({c}:{c:Ctx}){return <div style={{padding:68,width:"100%",display:"flex",flexDirection:"column",justifyContent:"space-between"}}><Identity c={c}/><div style={{display:"flex",flexDirection:"column"}}><div style={{fontFamily:"Newsreader",fontSize:64,display:"flex"}}>{c.index.name}</div><div style={{fontSize:21,color:muted,marginTop:15,display:"flex"}}>No models meet this index&apos;s current requirements.</div></div><div style={{width:550,borderTop:`1px solid ${line}`,display:"flex"}}/></div>}
 const cache=new Map<string,Promise<ArrayBuffer>>();
 function font(family:string,axis:string){const key=family+axis;if(!cache.has(key))cache.set(key,(async()=>{const css=await(await fetch(`https://fonts.googleapis.com/css2?family=${family}:${axis}&display=swap`,{headers:{"User-Agent":""}})).text();const url=css.match(/url\(([^)]+\.ttf)\)/)?.[1]??css.match(/src: url\(([^)]+)\) format\('(truetype|opentype)'\)/)?.[1];if(!url)throw new Error(`no font url for ${family}`);return(await fetch(url)).arrayBuffer()})());return cache.get(key)!}
+
+/** Generic metric scatter card (same frame as Constellation) for gallery chart links. */
+function MetricCard({c,chart,pts}:{c:Ctx;chart:MetricChart;pts:MetricPoint[]}){
+ const lower=chart.better==="lower";
+ const tx=(v:number)=>chart.scale==="log"?Math.log10(v):v;
+ const dominated=(z:MetricPoint)=>pts.some(q=>q!==z&&(lower?q.x<=z.x:q.x>=z.x)&&q.r.score>=z.r.score&&(q.x!==z.x||q.r.score>z.r.score));
+ const frontier=pts.filter(z=>!dominated(z)).sort((a,b)=>b.r.score-a.r.score||a.x-b.x);
+ const frontierLine=[...frontier].sort((a,b)=>a.x-b.x);
+ const fullLabel=(z:RankedVariant)=>z.variant.sourceModel?.name??chartLabel(z);
+ const xs=pts.map(z=>tx(z.x)),ys=pts.map(z=>z.r.score);
+ const rawX0=Math.min(...xs),rawX1=Math.max(...xs),rawY0=Math.min(...ys),rawY1=Math.max(...ys);
+ const xPad=Math.max((rawX1-rawX0)*.07,chart.scale==="log"?.08:rawX1===rawX0?1:0),yPad=Math.max(2,(rawY1-rawY0)*.1);
+ const x0=rawX0-xPad,x1=rawX1+xPad,y0=Math.max(0,rawY0-yPad),y1=Math.min(100,rawY1+yPad);
+ const W=740,H=360,L=72,R=18,T=14,B=58;
+ const X=(v:number)=>L+(tx(v)-x0)/(x1-x0||1)*(W-L-R),Y=(v:number)=>T+(y1-v)/(y1-y0||1)*(H-T-B);
+ const xTicks=Array.from({length:5},(_,i)=>x0+(x1-x0)*i/4),yTicks=Array.from({length:5},(_,i)=>y0+(y1-y0)*i/4);
+ const xTickLabel=(v:number)=>chart.formatX(chart.scale==="log"?Math.pow(10,v):v);
+ return <div style={{padding:"36px 58px",width:"100%",display:"flex",flexDirection:"column"}}>
+  <div style={{height:108,display:"flex",alignItems:"flex-start",justifyContent:"space-between"}}><Header c={c}/><div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",marginTop:8}}><span style={{fontFamily:"JetBrains Mono",fontSize:13,color:muted}}>{chart.xName.toUpperCase()}</span></div></div>
+  <div style={{display:"flex",width:"100%",height:382,borderTop:`1px solid ${line}`,paddingTop:16}}>
+   <div style={{width:W,height:H,position:"relative",display:"flex",flexShrink:0}}>
+    <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`}>
+     {yTicks.map((v,i)=><line key={`y${i}`} x1={L} y1={Y(v)} x2={W-R} y2={Y(v)} stroke={line}/>)}
+     {xTicks.map((v,i)=><line key={`x${i}`} x1={L+(v-x0)/(x1-x0||1)*(W-L-R)} y1={T} x2={L+(v-x0)/(x1-x0||1)*(W-L-R)} y2={H-B} stroke={line} strokeDasharray="3 5"/>)}
+     <line x1={L} y1={H-B} x2={W-R} y2={H-B} stroke={ink} strokeWidth="1.5"/><line x1={L} y1={T} x2={L} y2={H-B} stroke={ink} strokeWidth="1.5"/>
+     <polyline points={frontierLine.map(z=>`${X(z.x)},${Y(z.r.score)}`).join(" ")} fill="none" stroke={ink} strokeWidth="2.5" strokeLinejoin="round"/>
+     {pts.map(z=><circle key={z.r.variant.id} cx={X(z.x)} cy={Y(z.r.score)} r={frontier.includes(z)?8:4.5} fill={color(c,z.r)} stroke={frontier.includes(z)?ink:c.bg} strokeWidth={frontier.includes(z)?2.5:1.5}/>) }
+    </svg>
+    {yTicks.map((v,i)=><span key={`yl${i}`} style={{position:"absolute",left:0,top:Y(v)-8,width:L-12,textAlign:"right",fontFamily:"JetBrains Mono",fontSize:13,color:muted}}>{v.toFixed(0)}</span>)}
+    {xTicks.map((v,i)=><span key={`xl${i}`} style={{position:"absolute",left:L+(v-x0)/(x1-x0||1)*(W-L-R)-40,top:H-B+10,width:80,textAlign:"center",fontFamily:"JetBrains Mono",fontSize:12,color:muted}}>{xTickLabel(v)}</span>)}
+    {frontier.slice(0,8).map((z,i)=><span key={`label-${z.r.variant.id}`} style={{position:"absolute",left:X(z.x)-8,top:Y(z.r.score)-8,width:16,height:16,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"JetBrains Mono",fontSize:10,lineHeight:1,color:c.bg}}>{i+1}</span>)}
+    <span style={{position:"absolute",left:L,top:H-21,width:W-L-R,textAlign:"center",fontSize:14}}>{`${chart.xName}${chart.scale==="log"?" · log scale":""}`}</span>
+    <span style={{position:"absolute",left:-39,top:142,width:110,textAlign:"center",fontSize:14,transform:"rotate(-90deg)"}}>Score</span>
+   </div>
+   <div style={{width:330,height:H,marginLeft:14,paddingLeft:20,borderLeft:`1px solid ${line}`,display:"flex",flexDirection:"column"}}>
+    <div style={{display:"flex",alignItems:"baseline",justifyContent:"space-between",marginBottom:5}}><span style={{fontFamily:"Newsreader",fontSize:24}}>Best tradeoffs</span><span style={{fontFamily:"JetBrains Mono",fontSize:12,color:muted}}>{frontier.length}</span></div>
+    <div style={{display:"flex",flexDirection:"column",justifyContent:"space-around",flex:1}}>{frontier.slice(0,8).map((z,i)=><div key={z.r.variant.id} style={{display:"flex",alignItems:"center",minHeight:26}}><span style={{width:24,height:24,borderRadius:12,background:color(c,z.r),color:c.bg,border:`1.5px solid ${ink}`,fontFamily:"JetBrains Mono",fontSize:11,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{i+1}</span><span style={{fontSize:15,lineHeight:1.15,marginLeft:10}}>{fullLabel(z.r)}</span></div>)}</div>
+   </div>
+  </div>
+ </div>
+}
+
+/** Head-to-head card for indexes with only a few visible models. */
+function Matchup({c}:{c:Ctx}){
+ const models=c.top.slice(0,4);
+ const n=models.length,lead=models[0];
+ const gap=280; // left label column in the table
+ const colW=(1084-gap-(n-1)*16)/n;
+ const benches=[...c.benches].sort((a,b)=>b.share-a.share).slice(0,5);
+ const money=(v:number)=>v<.01?`$${v.toFixed(3)}`:v<1?`$${v.toFixed(2)}`:v<100?`$${v.toFixed(v<10?1:0)}`:`$${Math.round(v)}`;
+ const trunc=(s:string,m:number)=>s.length>m?`${s.slice(0,m-1)}…`:s;
+ const cell=(x:RankedVariant,txt:string,best:boolean,est?:boolean)=><div key={x.variant.id} style={{width:colW,marginRight:16,display:"flex",justifyContent:"center",fontFamily:"JetBrains Mono",fontSize:20,fontWeight:best?600:400,color:est?muted:ink}}>{txt}</div>;
+ const valOf=(x:RankedVariant,bid:string)=>x.values.find(v=>v.benchmarkId===bid);
+ const rows:{label:string;sub:string;vals:(x:RankedVariant)=>{txt:string;est?:boolean}}[]=[
+  ...benches.map(b=>({label:b.name,sub:`${Math.round(b.share)}%`,vals:(x:RankedVariant)=>{const v=valOf(x,b.id);return v?{txt:v.value.toFixed(1),est:v.estimated}:{txt:"–"};}})),
+ ];
+ if(models.some(x=>x.costUsd!=null))rows.push({label:"Cost per task",sub:"measured",vals:(x)=>x.costUsd!=null?{txt:money(x.costUsd)}:{txt:"–"}});
+ if(models.some(x=>x.speed!=null))rows.push({label:"Output speed",sub:"tok/s",vals:(x)=>x.speed!=null?{txt:`${Math.round(x.speed)}`}:{txt:"–"}});
+ return <div style={{padding:"42px 58px",width:"100%",display:"flex",flexDirection:"column"}}>
+  <Header c={c}/>
+  <div style={{display:"flex",marginTop:30,marginLeft:gap}}>
+   {models.map((x,i)=><div key={x.variant.id} style={{width:colW,marginRight:16,borderTop:`7px solid ${color(c,x)}`,paddingTop:14,display:"flex",flexDirection:"column"}}>
+    <span style={{fontFamily:"JetBrains Mono",fontSize:15,color:muted}}>#{x.rank}{i>0?`  −${(lead.score-x.score).toFixed(1)}`:""}</span>
+    <span style={{fontFamily:"Newsreader",fontSize:27,lineHeight:1.1,marginTop:6,height:60,overflow:"hidden"}}>{trunc(chartLabel(x),38)}</span>
+    <span style={{fontFamily:"JetBrains Mono",fontSize:44,marginTop:6}}>{x.score.toFixed(1)}</span>
+   </div>)}
+  </div>
+  <div style={{display:"flex",flexDirection:"column",marginTop:26,borderTop:`1px solid ${line}`}}>
+   {rows.map((row,i)=>{
+    const vs=models.map(row.vals),nums=vs.map(v=>v.txt==="–"?NaN:Number(v.txt)),best=Math.max(...nums);
+    return <div key={i} style={{display:"flex",alignItems:"center",height:44,borderBottom:`1px solid ${line}`}}>
+     <div style={{width:gap-20,display:"flex",alignItems:"baseline",gap:10,minWidth:0}}><span style={{fontSize:18,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{row.label}</span><span style={{fontFamily:"JetBrains Mono",fontSize:13,color:muted,flexShrink:0}}>{row.sub}</span></div>
+     {models.map((x,j)=>cell(x,vs[j].txt,nums[j]===best&&vs.length>1,vs[j].est))}
+    </div>;
+   })}
+  </div>
+ </div>
+}
