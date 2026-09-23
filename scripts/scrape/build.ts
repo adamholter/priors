@@ -19,7 +19,7 @@ const SNAP_DIR = path.resolve("data/snapshots");
 
 async function loadSources(): Promise<Source[]> {
   const dir = path.resolve(__dirname, "sources");
-  const files = (await readdir(dir)).filter((f) => /\.ts$/.test(f) && !f.startsWith("_"));
+  const files = (await readdir(dir)).filter((f) => /\.ts$/.test(f) && !f.startsWith("_") && !f.endsWith(".test.ts"));
   const out: Source[] = [];
   for (const f of files) {
     const mod = await import(path.join(dir, f));
