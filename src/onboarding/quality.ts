@@ -46,6 +46,7 @@ const RELEASES: Record<string, { date: string; url: string }> = {
   "frontierswe-v2": { date: "2026-08-01", url: "https://www.frontierswe.com/blog/v2" },
   "frontiercode-1.1-main": { date: "2026-07-07", url: "https://cognition.com/blog/frontier-code-1.1" },
   "posttrainbench-v1.1": { date: "2026-07-28", url: "https://posttrainbench.com/" },
+  "vals-programbench-v1": { date: "2026-05-05", url: "https://arxiv.org/abs/2605.03546" },
   "simplebench": { date: "2024-11-25", url: "https://simple-bench.com/" },
   "simpleqa-verified": { date: "2025-09-09", url: "https://arxiv.org/abs/2509.07968" },
   "terminalbench-2": { date: "2025-11-07", url: "https://github.com/laude-institute/terminal-bench-2" },
