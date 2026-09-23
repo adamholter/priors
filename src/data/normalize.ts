@@ -156,6 +156,32 @@ export const ALIASES: Record<string, string> = {
   "claude-sonnet-4-6-search": "claude sonnet 4.6",
 };
 
+/** Exact public VALS catalog labels whose provider IDs resolve to known or explicit model identities. */
+const VALS_PUBLISHED_MODELS: Record<string, { id: string; name: string; lab: string; reasoning: boolean }> = {
+  "ling 3.0 flash": { id: "aa-ling-3-0-flash", name: "Ling 3.0 Flash", lab: "other", reasoning: true },
+  "ling 3.0 flash fin": { id: "aa-ling-3-0-flash-fin", name: "Ling-3.0-flash-Fin", lab: "other", reasoning: true },
+  "nemotron 3 ultra": { id: "aa-nvidia-nemotron-3-ultra-550b-a55b", name: "Nemotron 3 Ultra 550B A55B (Reasoning)", lab: "other", reasoning: true },
+  "nemotron 3.5 lightning": { id: "aa-nemotron-3-5-lightning", name: "Nemotron 3.5 Lightning", lab: "other", reasoning: true },
+  "mercury 2.5": { id: "mercury-2.5", name: "Mercury 2.5", lab: "other", reasoning: true },
+  "laguna m.1": { id: "laguna-m.1", name: "Laguna M.1", lab: "other", reasoning: true },
+  "laguna xs.2": { id: "laguna-xs.2", name: "Laguna XS.2", lab: "other", reasoning: true },
+  "muse spark": { id: "aa-muse-spark", name: "Muse Spark", lab: "meta", reasoning: true },
+  "claude 3.7 sonnet nonthinking": { id: "claude-sonnet-3.7", name: "Sonnet 3.7", lab: "anthropic", reasoning: true },
+  "claude 3.5 haiku latest": { id: "claude-haiku-3.5", name: "Haiku 3.5", lab: "anthropic", reasoning: true },
+  "command a": { id: "aa-command-a", name: "Command A", lab: "other", reasoning: true },
+  "command r": { id: "aa-command-r-03-2024", name: "Command-R (Mar '24)", lab: "other", reasoning: true },
+  "command r+": { id: "aa-command-r-plus-04-2024", name: "Command-R+ (Apr '24)", lab: "other", reasoning: true },
+  "jamba 1.5 large": { id: "aa-jamba-1-5-large", name: "Jamba 1.5 Large", lab: "other", reasoning: true },
+  "jamba 1.5 mini": { id: "aa-jamba-1-5-mini", name: "Jamba 1.5 Mini", lab: "other", reasoning: true },
+  "jamba 1.6 large": { id: "aa-jamba-1-6-large", name: "Jamba 1.6 Large", lab: "other", reasoning: true },
+  "jamba 1.6 mini": { id: "aa-jamba-1-6-mini", name: "Jamba 1.6 Mini", lab: "other", reasoning: true },
+  "gemma 2 9b": { id: "gemma-2-9b", name: "Gemma 2 9B", lab: "google", reasoning: true },
+  "gemma 2 27b": { id: "gemma-2-27b", name: "Gemma 2 27B", lab: "google", reasoning: true },
+  "mixtral 8x7b": { id: "aa-mixtral-8x7b-instruct", name: "Mixtral 8x7B Instruct", lab: "mistral", reasoning: true },
+  "alephprover": { id: "alephprover", name: "AlephProver", lab: "other", reasoning: false },
+  "aristotle": { id: "aristotle", name: "Aristotle", lab: "other", reasoning: false },
+};
+
 export interface Normalized {
   ok: true;
   modelId: string;
@@ -196,6 +222,16 @@ export function extractEffort(label: string): Effort | undefined {
 export function normalizeLabel(label: string, effortHint?: string): Normalized | Unknown {
   const effort = (effortHint && EFFORT_WORDS[effortHint.toLowerCase().trim()]) || extractEffort(label);
   let cleaned = cleanLabel(label);
+  const valsModel = VALS_PUBLISHED_MODELS[label.toLowerCase().trim()] ?? VALS_PUBLISHED_MODELS[cleaned];
+  if (valsModel) return {
+    ok: true,
+    modelId: valsModel.id,
+    modelName: valsModel.name,
+    labId: valsModel.lab,
+    effort,
+    reasoningFamily: valsModel.reasoning,
+    cleaned,
+  };
   const alias = ALIASES[cleaned] ?? ALIASES[label.toLowerCase().trim()];
   const stripped = cleaned.replace(NOISE, " ").replace(/\s+/g, " ").trim();
   cleaned = stripped;

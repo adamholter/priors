@@ -66,6 +66,37 @@ describe("normalizeLabel", () => {
     const a = normalizeLabel("GPT-5.5"), b = normalizeLabel("GPT-5.5 mini"), c = normalizeLabel("GPT-5.4"), d = normalizeLabel("GPT-5.6 Sol"), e = normalizeLabel("GPT-5.6 Terra");
     expect(new Set([a, b, c, d, e].map((x) => (x.ok ? x.modelId : "?"))).size).toBe(5);
   });
+  it("recognizes exact VALS catalog labels and keeps their canonical identities", () => {
+    const cases: [string, string][] = [
+      ["Ling 3.0 Flash", "aa-ling-3-0-flash"],
+      ["Ling 3.0 Flash Fin", "aa-ling-3-0-flash-fin"],
+      ["Nemotron 3 Ultra", "aa-nvidia-nemotron-3-ultra-550b-a55b"],
+      ["Nemotron 3.5 Lightning", "aa-nemotron-3-5-lightning"],
+      ["Mercury 2.5", "mercury-2.5"],
+      ["Laguna M.1", "laguna-m.1"],
+      ["Laguna XS.2", "laguna-xs.2"],
+      ["Muse Spark", "aa-muse-spark"],
+      ["Claude 3.7 Sonnet (Nonthinking)", "claude-sonnet-3.7"],
+      ["Claude 3.5 Haiku Latest", "claude-haiku-3.5"],
+      ["Command A", "aa-command-a"],
+      ["Command R", "aa-command-r-03-2024"],
+      ["Command R+", "aa-command-r-plus-04-2024"],
+      ["Jamba 1.5 Large", "aa-jamba-1-5-large"],
+      ["Jamba 1.5 Mini", "aa-jamba-1-5-mini"],
+      ["Jamba 1.6 Large", "aa-jamba-1-6-large"],
+      ["Jamba 1.6 Mini", "aa-jamba-1-6-mini"],
+      ["Gemma 2 (9B)", "gemma-2-9b"],
+      ["Gemma 2 (27B)", "gemma-2-27b"],
+      ["Mixtral (8x7B)", "aa-mixtral-8x7b-instruct"],
+      ["AlephProver", "alephprover"],
+      ["Aristotle", "aristotle"],
+    ];
+    for (const [label, id] of cases) {
+      const result = normalizeLabel(label);
+      expect(result.ok, "unknown VALS label: " + label).toBe(true);
+      if (result.ok) expect(result.modelId).toBe(id);
+    }
+  });
   it("unknown label is flagged not guessed", () => {
     expect(normalizeLabel("Nova Micro 2").ok).toBe(false);
   });
