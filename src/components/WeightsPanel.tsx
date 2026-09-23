@@ -4,6 +4,7 @@ import type { Benchmark, Snapshot } from "@/data/types";
 import { strictnessOf, type IndexConfig, type IndexResult } from "@/engine";
 
 import { useLightDismiss } from "@/hooks/useLightDismiss";
+import { BenchmarkInfo, InfoIcon } from "./BenchmarkInfo";
 
 const CATS: Record<string, string> = { coding: "Coding", agentic: "Agentic", reasoning: "Reasoning", knowledge: "Knowledge", math: "Math", "long-context": "Long context", instruction: "Instruction following", creative: "Creative", safety: "Safety", economics: "Economics", composite: "Composite indices", speed: "Speed", cost: "Cost", other: "Other" };
 
@@ -17,6 +18,7 @@ export function WeightsPanel({ snapshot, config, onChange }: { snapshot: Snapsho
   }, []);
   useLightDismiss(picker, dismiss);
   const [query, setQuery] = useState("");
+  const [info, setInfo] = useState<string | null>(null);
   const resultsId = useId();
   const strictness = strictnessOf(config);
   const benches = useMemo(() => new Map(snapshot.benchmarks.map((b) => [b.id, b])), [snapshot]);
@@ -53,7 +55,7 @@ export function WeightsPanel({ snapshot, config, onChange }: { snapshot: Snapsho
           return (
             <div key={b.id} className="grid grid-cols-[1fr_44px] gap-x-3 gap-y-1 items-center">
               <div className="flex items-baseline justify-between gap-2 min-w-0">
-                <span className="truncate text-[13px]" title={b.description}>{b.name}</span>
+                <span className="flex items-center gap-1 min-w-0"><span className="truncate text-[13px]" title={b.description}>{b.name}</span><InfoIcon name={b.name} onClick={() => setInfo(b.id)} /></span>
                 <label className="flex items-center gap-1.5 text-[11px] text-grey shrink-0 cursor-pointer">
                   <input type="checkbox" aria-label={`${b.name} required`} checked={req} onChange={(e) => toggleReq(b.id, e.target.checked)} className="accent-indigo" />Required
                 </label>
@@ -85,9 +87,12 @@ export function WeightsPanel({ snapshot, config, onChange }: { snapshot: Snapsho
               <div key={cat}>
                 <div className="cap mb-1">{CATS[cat] ?? cat}</div>
                 {list.map((b) => (
-                  <button type="button" key={b.id} onClick={() => addBenchmark(b.id)} className="w-full text-left flex items-baseline justify-between gap-2 py-[3px] text-[12.5px] hover:text-indigo" title={b.description}>
-                    <span className="truncate">{b.name}</span><span className="cap shrink-0">{coverage(b.id)} models</span>
-                  </button>
+                  <div key={b.id} className="flex items-center gap-1">
+                    <button type="button" onClick={() => addBenchmark(b.id)} className="min-w-0 flex-1 text-left flex items-baseline justify-between gap-2 py-[3px] text-[12.5px] hover:text-indigo" title={b.description}>
+                      <span className="truncate">{b.name}</span><span className="cap shrink-0">{coverage(b.id)} models</span>
+                    </button>
+                    <InfoIcon name={b.name} onClick={() => setInfo(b.id)} />
+                  </div>
                 ))}
               </div>
             ))}
@@ -95,6 +100,7 @@ export function WeightsPanel({ snapshot, config, onChange }: { snapshot: Snapsho
         )}
       </div>
 
+      <BenchmarkInfo snapshot={snapshot} benchmarkId={info} inMix={!!info && config.weights[info] > 0} onAdd={(id) => setW(id, 10)} onClose={() => setInfo(null)} />
       <label className="grid gap-2 text-[13px] pt-2">
         <span className="flex justify-between"><span>Strictness</span><span className="cap">{Math.round(strictness)}</span></span>
         <input type="range" aria-label="Strictness" min={0} max={100} value={strictness} onChange={(e) => set({ strictness: Number(e.target.value) })} className="h-[3px] w-full" />
