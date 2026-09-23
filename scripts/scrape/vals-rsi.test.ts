@@ -28,4 +28,3 @@ describe("Vals RSI Index parser", () => {
     expect(parseRsiData(compact, catalogJs, pageHtml).rows).toHaveLength(4);
   });
 });
-

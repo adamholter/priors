@@ -394,4 +394,3 @@ const source: Source = {
 };
 
 export default source;
-
