@@ -33,7 +33,7 @@ function Inner({ indices }: { indices: IndexConfig[] }) {
   return (
     <div className="flex items-center gap-2">
       <button type="button" className="btn" disabled={saving} onClick={async () => { setSaving(true); setError(""); try { await update({ patch: { indices } }); setSaved(true); setTimeout(() => setSaved(false), 1400); } catch { setError("Save failed. Please try again."); } finally { setSaving(false); } }}>{saving ? "Saving…" : saved ? "Saved" : "Save to my page"}</button>
-      <Link href={`/${mine.handle}`} transitionTypes={["nav-forward"]} className="flex items-center gap-2 btn-quiet">{user?.imageUrl && <img src={user.imageUrl} alt="" className="w-5 h-5 rounded-full" />}<span>@{mine.handle}</span></Link>
+      <Link href={`/${mine.handle}`} transitionTypes={["nav-forward"]} className="flex items-center gap-2 btn-quiet">{(mine.avatarUrl ?? user?.imageUrl) && <img src={mine.avatarUrl ?? user?.imageUrl} alt="" className="w-5 h-5 rounded-full object-cover" />}<span>@{mine.handle}</span></Link>
       {error && <span role="alert" className="text-xs">{error}</span>}
       <SignOutButton><button type="button" className="cap hover:text-ink">sign out</button></SignOutButton>
     </div>

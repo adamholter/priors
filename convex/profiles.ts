@@ -13,7 +13,13 @@ async function me(ctx: QueryCtx | MutationCtx) {
 
 export const mine = query({
   args: {},
-  handler: async (ctx) => (await me(ctx))?.profile ?? null,
+  handler: async (ctx) => {
+    const p = (await me(ctx))?.profile;
+    if (!p) return null;
+    // Resolve an uploaded photo so every surface shows the page's avatar, not the sign-in default.
+    const avatarUrl = p.avatarStorageId ? await ctx.storage.getUrl(p.avatarStorageId) : p.avatarUrl;
+    return { ...p, avatarUrl: avatarUrl ?? undefined };
+  },
 });
 
 export const byHandle = query({
