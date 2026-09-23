@@ -134,11 +134,19 @@ async function main() {
   const observations: Observation[] = [];
   for (const p of pending) {
     const effort = resolveEffort(p.modelId, p.effort);
-    const vid = p.row.identity?.variantId ?? variantId(p.modelId, effort);
+    // VALS can publish separate Thinking and Nonthinking rows at the same reported
+    // effort. Preserve its stable model key as part of the evaluated configuration.
+    const valsConfig = (p.row.sourceId.startsWith("vals") || p.row.sourceId === "programbench") && p.row.sourceModelId
+      ? `vals-${createHash("sha256").update(p.row.sourceModelId).digest("hex").slice(0, 12)}` : undefined;
+    const vid = p.row.identity?.variantId ?? `${variantId(p.modelId, effort)}${valsConfig ? `~${valsConfig}` : ""}`;
     const identity = p.row.identity;
     variants.set(vid, { ...variants.get(vid), id: vid, modelId: p.modelId, effort, ...(identity ? {
       configuration: identity.configuration,
       sourceModel: { id: identity.sourceModelId, slug: identity.sourceSlug, name: p.row.modelLabel, url: typeof p.row.modelMetadata?.sourceModelUrl === "string" ? p.row.modelMetadata.sourceModelUrl : `https://artificialanalysis.ai/models/${identity.sourceSlug}`, metadata: p.row.modelMetadata },
+    } : valsConfig ? {
+      configuration: `VALS model key: ${p.row.sourceModelId}`,
+      sourceModel: { id: p.row.sourceModelId!, slug: p.row.sourceModelId!, name: p.row.modelLabel,
+        url: p.row.sourceUrl, metadata: p.row.modelMetadata },
     } : {}) });
     const { modelLabel, identity: _identity, modelMetadata: _metadata, effort: _e, labHint: _l, releaseDateHint: _r, sourceId: _s, ...rest } = p.row;
     void _identity; void _metadata; void modelLabel; void _e; void _l; void _r; void _s;

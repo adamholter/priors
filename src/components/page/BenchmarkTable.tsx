@@ -13,7 +13,7 @@ export function BenchmarkTable({ snapshot, benchmarkId, limit = 25 }: { snapshot
       <p className="text-[13px] text-ink-2 mb-3 max-w-[70ch]">{b.description} <a href={b.url} target="_blank" rel="noreferrer" className="text-indigo">Source</a></p>
       <div className="grid gap-[4px]">
         {rows.map((o, i) => {
-          const [mid, effort] = o.variantId.split("@"); const m = models.get(mid);
+          const [mid, effortKey] = o.variantId.split("@"); const effort = effortKey?.split("~")[0]; const m = models.get(mid);
           return (
             <div key={o.variantId} className="grid grid-cols-[28px_minmax(150px,220px)_1fr_64px_64px] items-center gap-2.5 h-[24px] text-[12.5px]">
               <span className="cap text-right">{i + 1}</span>
