@@ -3,7 +3,7 @@ import { ImageResponse } from "next/og";
 import type { Snapshot } from "@/data/types";
 import { chartVariantMode, computeIndex, selectVariants, type IndexConfig, type RankedVariant } from "@/engine";
 import { isShareDesign, type ShareDesign } from "@/lib/share-designs";
-import { chartKind, chartLabel, type MetricChart, type MetricPoint } from "@/lib/metrics";
+import { chartKind, chartLabel, chartTitle, type MetricChart, type MetricPoint } from "@/lib/metrics";
 import QRCode from "qrcode";
 
 type Ctx = { index: IndexConfig; who: { name: string; handle?: string; avatarUrl?: string }; top: RankedVariant[]; board: RankedVariant[]; pts: RankedVariant[]; ranked: RankedVariant[]; pareto: RankedVariant[]; benches: { id: string; name: string; share: number }[]; colors: Map<string,string>; accent: string; bg: string; date: string; qr: string; snapshot: Snapshot };
@@ -30,7 +30,7 @@ export async function renderShareCard(snapshot: Snapshot,index:IndexConfig,who:{
  else{
   const ck=chartKind(snapshot,c.ranked,opts?.chart);
   if(ck?.kind==="cost"&&c.pts.length)body=<Constellation c={c}/>;
-  else if(ck?.kind==="metric"){const pts=ck.chart.points(c.pareto);body=pts.length?<MetricCard c={c} chart={ck.chart} pts={pts}/>:<Design c={c} design="ranking"/>;}
+  else if(ck?.kind==="metric"){const pts=ck.chart.points(c.pareto);body=pts.length?<MetricCard c={c} chart={ck.chart} pts={pts} title={chartTitle(opts?.chart)??ck.chart.xName}/>:<Design c={c} design="ranking"/>;}
   else if(c.top.length<=4)body=<Matchup c={c}/>;
   else body=<Design c={c} design="ranking"/>;
  }
@@ -58,88 +58,94 @@ function Design({c,design}:{c:Ctx;design:ShareDesign}){
 function Base({c,children,center=false}:{c:Ctx;children:ReactNode;center?:boolean}){return <div style={{padding:"44px 58px",width:"100%",display:"flex",flexDirection:"column"}}><Header c={c} center={center}/><div style={{marginTop:27,display:"flex",flexDirection:"column"}}>{children}</div></div>}
 function Rows({c,style={},ledger=false,offset=0}:{c:Ctx;style?:Record<string,unknown>;ledger?:boolean;offset?:number}){return <div style={{display:"flex",flexDirection:"column",...style}}>{c.top.map((x,i)=><div key={x.variant.id} style={{height:ledger?72:83,display:"flex",alignItems:"center",borderBottom:`1px solid ${line}`}}><span style={{width:55,fontFamily:ledger?"JetBrains Mono":"Newsreader",fontSize:ledger?15:29,color:ledger?muted:ink}}>{ledger?`0${i+1+offset}`:i+1+offset}</span><div style={{flex:1,display:"flex"}}><Label c={c} x={x}/></div>{ledger&&<span style={{width:150,color:muted,fontSize:14}}>{x.model.labId}</span>}<span style={{fontFamily:"JetBrains Mono",fontSize:30,color:color(c,x)}}>{x.score.toFixed(1)}</span></div>)}</div>}
 function Bars({c}:{c:Ctx}){const m=c.top[0].score||1;return <div style={{display:"flex",flexDirection:"column",gap:9}}>{c.top.map((x,i)=><div key={x.variant.id} style={{display:"flex",alignItems:"center",gap:15,minHeight:64}}><span style={{fontFamily:"JetBrains Mono",width:25,color:muted}}>{i+1}</span><div style={{width:310,display:"flex"}}><Label c={c} x={x}/></div><div style={{width:530,height:22,background:pale,display:"flex"}}><div style={{width:`${Math.max(2,x.score/m*100)}%`,background:color(c,x)}}/></div><span style={{fontFamily:"JetBrains Mono",fontSize:28,width:70,textAlign:"right"}}>{x.score.toFixed(1)}</span></div>)}</div>}
-function Constellation({c}:{c:Ctx}){
- const p=c.pts;
- // Numbered best (highest score) to worst; the connecting line still draws in cost order.
- const frontier=p.filter(z=>!p.some(q=>q!==z&&q.costUsd!<=z.costUsd!&&q.score>=z.score&&(q.costUsd!<z.costUsd!||q.score>z.score))).sort((a,b)=>b.score-a.score||a.costUsd!-b.costUsd!);
- const frontierLine=[...frontier].sort((a,b)=>a.costUsd!-b.costUsd!);
- const fullLabel=(z:RankedVariant)=>z.variant.sourceModel?.name??[z.model.name,z.variant.effort!=="default"?z.variant.effort:"",z.variant.configuration??""].filter(Boolean).join(" · ");
- const money=(v:number)=>v<.01?`$${v.toFixed(3)}`:v<1?`$${v.toFixed(2)}`:v<100?`$${v.toFixed(v<10?1:0)}`:`$${Math.round(v)}`;
- if(!p.length)return <div style={{padding:"42px 58px",width:"100%",display:"flex",flexDirection:"column"}}><div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between"}}><Header c={c}/></div><div style={{height:360,marginTop:40,borderLeft:`1px solid ${line}`,borderBottom:`1px solid ${line}`,display:"flex",alignItems:"center",justifyContent:"center",color:muted,fontFamily:"JetBrains Mono",fontSize:17}}>Cost data unavailable</div></div>;
- const xs=p.map(z=>Math.log10(z.costUsd!)),ys=p.map(z=>z.score);
- const rawX0=Math.min(...xs),rawX1=Math.max(...xs),rawY0=Math.min(...ys),rawY1=Math.max(...ys);
- const xPad=Math.max(.08,(rawX1-rawX0)*.07),yPad=Math.max(2,(rawY1-rawY0)*.1);
- const x0=rawX0-xPad,x1=rawX1+xPad,y0=Math.max(0,rawY0-yPad),y1=Math.min(100,rawY1+yPad);
- const W=740,H=360,L=72,R=18,T=14,B=58;
- const X=(v:number)=>L+(Math.log10(v)-x0)/(x1-x0||1)*(W-L-R),Y=(v:number)=>T+(y1-v)/(y1-y0||1)*(H-T-B);
- const xTicks=Array.from({length:5},(_,i)=>x0+(x1-x0)*i/4),yTicks=Array.from({length:5},(_,i)=>y0+(y1-y0)*i/4);
- return <div style={{padding:"36px 58px",width:"100%",display:"flex",flexDirection:"column"}}>
-  <div style={{height:108,display:"flex",alignItems:"flex-start",justifyContent:"space-between"}}><Header c={c}/><div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",marginTop:8}}><span style={{fontFamily:"JetBrains Mono",fontSize:13,color:muted}}>PARETO FRONTIER</span></div></div>
-  <div style={{display:"flex",width:"100%",height:382,borderTop:`1px solid ${line}`,paddingTop:16}}>
-   <div style={{width:W,height:H,position:"relative",display:"flex",flexShrink:0}}>
-    <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`}>
-     {yTicks.map((v,i)=><line key={`y${i}`} x1={L} y1={Y(v)} x2={W-R} y2={Y(v)} stroke={line}/>)}
-     {xTicks.map((v,i)=><line key={`x${i}`} x1={X(Math.pow(10,v))} y1={T} x2={X(Math.pow(10,v))} y2={H-B} stroke={line} strokeDasharray="3 5"/>)}
-     <line x1={L} y1={H-B} x2={W-R} y2={H-B} stroke={ink} strokeWidth="1.5"/><line x1={L} y1={T} x2={L} y2={H-B} stroke={ink} strokeWidth="1.5"/>
-     <polyline points={frontierLine.map(z=>`${X(z.costUsd!)},${Y(z.score)}`).join(" ")} fill="none" stroke={ink} strokeWidth="2.5" strokeLinejoin="round"/>
-     {p.map(z=><circle key={z.variant.id} cx={X(z.costUsd!)} cy={Y(z.score)} r={frontier.includes(z)?8:4.5} fill={color(c,z)} stroke={frontier.includes(z)?ink:c.bg} strokeWidth={frontier.includes(z)?2.5:1.5}/>) }
-    </svg>
-    {yTicks.map((v,i)=><span key={`yl${i}`} style={{position:"absolute",left:0,top:Y(v)-8,width:L-12,textAlign:"right",fontFamily:"JetBrains Mono",fontSize:13,color:muted}}>{v.toFixed(0)}</span>)}
-    {xTicks.map((v,i)=><span key={`xl${i}`} style={{position:"absolute",left:X(Math.pow(10,v))-34,top:H-B+10,width:68,textAlign:"center",fontFamily:"JetBrains Mono",fontSize:12,color:muted}}>{money(Math.pow(10,v))}</span>)}
-    {frontier.map((z,i)=><span key={`label-${z.variant.id}`} style={{position:"absolute",left:X(z.costUsd!)-8,top:Y(z.score)-8,width:16,height:16,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"JetBrains Mono",fontSize:10,lineHeight:1,color:c.bg}}>{i+1}</span>)}
-    <span style={{position:"absolute",left:L,top:H-21,width:W-L-R,textAlign:"center",fontSize:14}}>Cost per task, USD · log scale</span>
-    <span style={{position:"absolute",left:-39,top:142,width:110,textAlign:"center",fontSize:14,transform:"rotate(-90deg)"}}>Score</span>
-   </div>
-   <div style={{width:330,height:H,marginLeft:14,paddingLeft:20,borderLeft:`1px solid ${line}`,display:"flex",flexDirection:"column"}}>
-    <div style={{display:"flex",alignItems:"baseline",justifyContent:"space-between",marginBottom:5}}><span style={{fontFamily:"Newsreader",fontSize:24}}>Best tradeoffs</span><span style={{fontFamily:"JetBrains Mono",fontSize:12,color:muted}}>{frontier.length}</span></div>
-    <div style={{display:"flex",flexDirection:"column",justifyContent:"space-around",flex:1}}>{frontier.slice(0,8).map((z,i)=><div key={z.variant.id} style={{display:"flex",alignItems:"center",minHeight:26}}><span style={{width:24,height:24,borderRadius:12,background:color(c,z),color:c.bg,border:`1.5px solid ${ink}`,fontFamily:"JetBrains Mono",fontSize:11,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{i+1}</span><span style={{fontSize:15,lineHeight:1.15,marginLeft:10}}>{fullLabel(z)}</span></div>)}</div>
-   </div>
-  </div>
- </div>
-}
-function Empty({c}:{c:Ctx}){return <div style={{padding:68,width:"100%",display:"flex",flexDirection:"column",justifyContent:"space-between"}}><Identity c={c}/><div style={{display:"flex",flexDirection:"column"}}><div style={{fontFamily:"Newsreader",fontSize:64,display:"flex"}}>{c.index.name}</div><div style={{fontSize:21,color:muted,marginTop:15,display:"flex"}}>No models meet this index&apos;s current requirements.</div></div><div style={{width:550,borderTop:`1px solid ${line}`,display:"flex"}}/></div>}
-const cache=new Map<string,Promise<ArrayBuffer>>();
-function font(family:string,axis:string){const key=family+axis;if(!cache.has(key))cache.set(key,(async()=>{const css=await(await fetch(`https://fonts.googleapis.com/css2?family=${family}:${axis}&display=swap`,{headers:{"User-Agent":""}})).text();const url=css.match(/url\(([^)]+\.ttf)\)/)?.[1]??css.match(/src: url\(([^)]+)\) format\('(truetype|opentype)'\)/)?.[1];if(!url)throw new Error(`no font url for ${family}`);return(await fetch(url)).arrayBuffer()})());return cache.get(key)!}
+/* ---------------- shared scatter card (constellation + metric charts) ---------------- */
 
-/** Generic metric scatter card (same frame as Constellation) for gallery chart links. */
-function MetricCard({c,chart,pts}:{c:Ctx;chart:MetricChart;pts:MetricPoint[]}){
- const lower=chart.better==="lower";
- const tx=(v:number)=>chart.scale==="log"?Math.log10(v):v;
+const niceLogTicks=(lo:number,hi:number)=>{const out:number[]=[];for(let e=Math.floor(Math.log10(lo));e<=Math.ceil(Math.log10(hi));e++)for(const m of[1,2,5]){const v=m*Math.pow(10,e);if(v>=lo&&v<=hi)out.push(v);}return out;};
+const niceStep=(span:number)=>{const p=Math.pow(10,Math.floor(Math.log10(span)));for(const m of[1,2,5,10])if(m*p>=span)return m*p;return 10*p;};
+const niceLinTicks=(lo:number,hi:number,n=5)=>{const step=niceStep((hi-lo)/(n-1)||1);const out:number[]=[];for(let v=Math.ceil(lo/step)*step;v<=hi+step*1e-6;v+=step)out.push(+v.toPrecision(10));return out;};
+const timeTicks=(lo:number,hi:number)=>{const spanDays=(hi-lo)/864e5,stepM=spanDays>540?12:spanDays>150?3:1,out:number[]=[];const d0=new Date(lo);for(let y=d0.getUTCFullYear(),m0=0;;y++){for(let m=m0;m<12;m+=stepM){const t=Date.UTC(y,m,1);if(t>hi)return out;if(t>=lo)out.push(t);}m0=0;}};
+const fmtSecs=(v:number)=>v<60?`${v%1?+v.toFixed(1):v}s`:`${(v/60)%1?+(v/60).toFixed(1):v/60} min`;
+const tickMoney=(v:number)=>v<1?`$${v.toFixed(2)}`:v<100?(v%1?`$${v.toFixed(1)}`:`$${v}`):`$${Math.round(v)}`;
+
+/** Compact header for chart cards: identity, index title 48, chart subtitle. */
+function ChartHead({c,subtitle,titleSize=48}:{c:Ctx;subtitle?:string;titleSize?:number}){
+ return <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between"}}>
+  <div style={{display:"flex",flexDirection:"column",minWidth:0}}>
+   <Identity c={c}/>
+   <div style={{fontFamily:"Newsreader",fontSize:titleSize,lineHeight:1.05,marginTop:14}}>{c.index.name}</div>
+   {subtitle&&<div style={{fontSize:22,color:muted,marginTop:8}}>{subtitle}</div>}
+  </div>
+ </div>;
+}
+
+function ScatterCard({c,subtitle,pts,better,scale,formatX,xTitle,secsAxis,moneyAxis}:{c:Ctx;subtitle:string;pts:MetricPoint[];better:"lower"|"higher";scale?:"linear"|"log"|"time";formatX:(v:number)=>string;xTitle:string;secsAxis?:boolean;moneyAxis?:boolean}){
+ const lower=better==="lower";
+ const tx=(v:number)=>scale==="log"?Math.log10(v):v;
  const dominated=(z:MetricPoint)=>pts.some(q=>q!==z&&(lower?q.x<=z.x:q.x>=z.x)&&q.r.score>=z.r.score&&(q.x!==z.x||q.r.score>z.r.score));
  const frontier=pts.filter(z=>!dominated(z)).sort((a,b)=>b.r.score-a.r.score||a.x-b.x);
  const frontierLine=[...frontier].sort((a,b)=>a.x-b.x);
- const fullLabel=(z:RankedVariant)=>z.variant.sourceModel?.name??chartLabel(z);
+ if(!pts.length)return <div style={{padding:"36px 58px",width:"100%",display:"flex",flexDirection:"column"}}><ChartHead c={c} subtitle={subtitle}/><div style={{height:360,marginTop:30,borderLeft:`1px solid ${line}`,borderBottom:`1px solid ${line}`,display:"flex",alignItems:"center",justifyContent:"center",color:muted,fontFamily:"JetBrains Mono",fontSize:17}}>Data unavailable</div></div>;
  const xs=pts.map(z=>tx(z.x)),ys=pts.map(z=>z.r.score);
  const rawX0=Math.min(...xs),rawX1=Math.max(...xs),rawY0=Math.min(...ys),rawY1=Math.max(...ys);
- const xPad=Math.max((rawX1-rawX0)*.07,chart.scale==="log"?.08:rawX1===rawX0?1:0),yPad=Math.max(2,(rawY1-rawY0)*.1);
+ const xPad=Math.max((rawX1-rawX0)*.07,scale==="log"?.08:rawX1===rawX0?1:0),yPad=Math.max(2,(rawY1-rawY0)*.1);
  const x0=rawX0-xPad,x1=rawX1+xPad,y0=Math.max(0,rawY0-yPad),y1=Math.min(100,rawY1+yPad);
- const W=740,H=360,L=72,R=18,T=14,B=58;
+ const W=740,H=372,L=72,R=18,T=14,B=56;
  const X=(v:number)=>L+(tx(v)-x0)/(x1-x0||1)*(W-L-R),Y=(v:number)=>T+(y1-v)/(y1-y0||1)*(H-T-B);
- const xTicks=Array.from({length:5},(_,i)=>x0+(x1-x0)*i/4),yTicks=Array.from({length:5},(_,i)=>y0+(y1-y0)*i/4);
- const xTickLabel=(v:number)=>chart.formatX(chart.scale==="log"?Math.pow(10,v):v);
+ const xTicksRaw=scale==="log"?niceLogTicks(Math.min(...pts.map(z=>z.x)),Math.max(...pts.map(z=>z.x))):scale==="time"?timeTicks(Math.min(...pts.map(z=>z.x)),Math.max(...pts.map(z=>z.x))):niceLinTicks(Math.min(...pts.map(z=>z.x)),Math.max(...pts.map(z=>z.x)));
+ const yTicks=niceLinTicks(rawY0,rawY1);
+ const tickLabel=(v:number)=>moneyAxis?tickMoney(v):secsAxis?fmtSecs(v):formatX(v);
+ // With only a few models, also name the best non-frontier point of each model.
+ const modelCount=new Set(pts.map(z=>z.r.model.id)).size;
+ const placed:{x0:number;y0:number;x1:number;y1:number}[]=[];
+ const named:MetricPoint[]=[];
+ if(modelCount<=4){
+  const best=new Map<string,MetricPoint>();
+  for(const z of pts)if(!frontier.includes(z)){const cur=best.get(z.r.model.id);if(!cur||z.r.score>cur.r.score)best.set(z.r.model.id,z);}
+  for(const z of best.values()){
+   const px=X(z.x),py=Y(z.r.score),w=chartLabel(z.r).length*7.6+10;
+   const box={x0:px+12,y0:py-9,x1:px+12+w,y1:py+10};
+   if(box.x1>W-R)continue;
+   if(placed.some(b=>b.x0<box.x1&&b.x1>box.x0&&b.y0<box.y1&&b.y1>box.y0))continue;
+   placed.push(box);named.push(z);
+  }
+ }
  return <div style={{padding:"36px 58px",width:"100%",display:"flex",flexDirection:"column"}}>
-  <div style={{height:108,display:"flex",alignItems:"flex-start",justifyContent:"space-between"}}><Header c={c}/><div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",marginTop:8}}><span style={{fontFamily:"JetBrains Mono",fontSize:13,color:muted}}>{chart.xName.toUpperCase()}</span></div></div>
-  <div style={{display:"flex",width:"100%",height:382,borderTop:`1px solid ${line}`,paddingTop:16}}>
+  <ChartHead c={c} subtitle={subtitle}/>
+  <div style={{display:"flex",width:"100%",height:392,borderTop:`1px solid ${line}`,paddingTop:16,marginTop:14}}>
    <div style={{width:W,height:H,position:"relative",display:"flex",flexShrink:0}}>
     <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`}>
      {yTicks.map((v,i)=><line key={`y${i}`} x1={L} y1={Y(v)} x2={W-R} y2={Y(v)} stroke={line}/>)}
-     {xTicks.map((v,i)=><line key={`x${i}`} x1={L+(v-x0)/(x1-x0||1)*(W-L-R)} y1={T} x2={L+(v-x0)/(x1-x0||1)*(W-L-R)} y2={H-B} stroke={line} strokeDasharray="3 5"/>)}
+     {xTicksRaw.map((v,i)=><line key={`x${i}`} x1={X(v)} y1={T} x2={X(v)} y2={H-B} stroke={line} strokeDasharray="3 5"/>)}
      <line x1={L} y1={H-B} x2={W-R} y2={H-B} stroke={ink} strokeWidth="1.5"/><line x1={L} y1={T} x2={L} y2={H-B} stroke={ink} strokeWidth="1.5"/>
      <polyline points={frontierLine.map(z=>`${X(z.x)},${Y(z.r.score)}`).join(" ")} fill="none" stroke={ink} strokeWidth="2.5" strokeLinejoin="round"/>
      {pts.map(z=><circle key={z.r.variant.id} cx={X(z.x)} cy={Y(z.r.score)} r={frontier.includes(z)?8:4.5} fill={color(c,z.r)} stroke={frontier.includes(z)?ink:c.bg} strokeWidth={frontier.includes(z)?2.5:1.5}/>) }
     </svg>
     {yTicks.map((v,i)=><span key={`yl${i}`} style={{position:"absolute",left:0,top:Y(v)-8,width:L-12,textAlign:"right",fontFamily:"JetBrains Mono",fontSize:13,color:muted}}>{v.toFixed(0)}</span>)}
-    {xTicks.map((v,i)=><span key={`xl${i}`} style={{position:"absolute",left:L+(v-x0)/(x1-x0||1)*(W-L-R)-40,top:H-B+10,width:80,textAlign:"center",fontFamily:"JetBrains Mono",fontSize:12,color:muted}}>{xTickLabel(v)}</span>)}
+    {xTicksRaw.map((v,i)=><span key={`xl${i}`} style={{position:"absolute",left:X(v)-40,top:H-B+10,width:80,textAlign:"center",fontFamily:"JetBrains Mono",fontSize:12,color:muted}}>{tickLabel(v)}</span>)}
     {frontier.slice(0,8).map((z,i)=><span key={`label-${z.r.variant.id}`} style={{position:"absolute",left:X(z.x)-8,top:Y(z.r.score)-8,width:16,height:16,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"JetBrains Mono",fontSize:10,lineHeight:1,color:c.bg}}>{i+1}</span>)}
-    <span style={{position:"absolute",left:L,top:H-21,width:W-L-R,textAlign:"center",fontSize:14}}>{`${chart.xName}${chart.scale==="log"?" · log scale":""}`}</span>
+    {named.map(z=><span key={`nl-${z.r.variant.id}`} style={{position:"absolute",left:X(z.x)+12,top:Y(z.r.score)-9,fontSize:13,color:ink,whiteSpace:"nowrap",display:"flex"}}>{chartLabel(z.r)}</span>)}
+    <span style={{position:"absolute",left:L,top:H-21,width:W-L-R,textAlign:"center",fontSize:14}}>{xTitle}</span>
     <span style={{position:"absolute",left:-39,top:142,width:110,textAlign:"center",fontSize:14,transform:"rotate(-90deg)"}}>Score</span>
    </div>
    <div style={{width:330,height:H,marginLeft:14,paddingLeft:20,borderLeft:`1px solid ${line}`,display:"flex",flexDirection:"column"}}>
-    <div style={{display:"flex",alignItems:"baseline",justifyContent:"space-between",marginBottom:5}}><span style={{fontFamily:"Newsreader",fontSize:24}}>Best tradeoffs</span><span style={{fontFamily:"JetBrains Mono",fontSize:12,color:muted}}>{frontier.length}</span></div>
-    <div style={{display:"flex",flexDirection:"column",justifyContent:"space-around",flex:1}}>{frontier.slice(0,8).map((z,i)=><div key={z.r.variant.id} style={{display:"flex",alignItems:"center",minHeight:26}}><span style={{width:24,height:24,borderRadius:12,background:color(c,z.r),color:c.bg,border:`1.5px solid ${ink}`,fontFamily:"JetBrains Mono",fontSize:11,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{i+1}</span><span style={{fontSize:15,lineHeight:1.15,marginLeft:10}}>{fullLabel(z.r)}</span></div>)}</div>
+    <div style={{display:"flex",alignItems:"baseline",gap:8,marginBottom:8}}><span style={{fontFamily:"Newsreader",fontSize:24}}>Best tradeoffs</span><span style={{fontFamily:"JetBrains Mono",fontSize:13,color:muted}}>· {frontier.length}</span></div>
+    <div style={{display:"flex",flexDirection:"column"}}>{frontier.slice(0,8).map((z,i)=><div key={z.r.variant.id} style={{display:"flex",alignItems:"center",height:40,flexShrink:0}}><span style={{width:24,height:24,borderRadius:12,background:color(c,z.r),color:c.bg,border:`1.5px solid ${ink}`,fontFamily:"JetBrains Mono",fontSize:11,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{i+1}</span><span style={{fontSize:15,lineHeight:1.15,marginLeft:10,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{chartLabel(z.r)}</span></div>)}</div>
    </div>
   </div>
  </div>
+}
+
+function Constellation({c}:{c:Ctx}){
+ const pts:MetricPoint[]=c.pts.map(r=>({x:r.costUsd!,r}));
+ return <ScatterCard c={c} subtitle="Score vs cost per task" pts={pts} better="lower" scale="log" formatX={tickMoney} xTitle="Cost per task, USD · log scale" moneyAxis/>;
+}
+function Empty({c}:{c:Ctx}){return <div style={{padding:68,width:"100%",display:"flex",flexDirection:"column",justifyContent:"space-between"}}><Identity c={c}/><div style={{display:"flex",flexDirection:"column"}}><div style={{fontFamily:"Newsreader",fontSize:64,display:"flex"}}>{c.index.name}</div><div style={{fontSize:21,color:muted,marginTop:15,display:"flex"}}>No models meet this index&apos;s current requirements.</div></div><div style={{width:550,borderTop:`1px solid ${line}`,display:"flex"}}/></div>}
+const cache=new Map<string,Promise<ArrayBuffer>>();
+function font(family:string,axis:string){const key=family+axis;if(!cache.has(key))cache.set(key,(async()=>{const css=await(await fetch(`https://fonts.googleapis.com/css2?family=${family}:${axis}&display=swap`,{headers:{"User-Agent":""}})).text();const url=css.match(/url\(([^)]+\.ttf)\)/)?.[1]??css.match(/src: url\(([^)]+)\) format\('(truetype|opentype)'\)/)?.[1];if(!url)throw new Error(`no font url for ${family}`);return(await fetch(url)).arrayBuffer()})());return cache.get(key)!}
+
+/** Generic metric scatter card for gallery chart links — same frame as Constellation. */
+function MetricCard({c,chart,pts,title}:{c:Ctx;chart:MetricChart;pts:MetricPoint[];title:string}){
+ return <ScatterCard c={c} subtitle={title} pts={pts} better={chart.better} scale={chart.scale} formatX={chart.formatX} xTitle={`${chart.xName}${chart.scale==="log"?" · log scale":""}`} secsAxis={chart.secs}/>;
 }
 
 /** Head-to-head card for indexes with only a few visible models. */
@@ -148,31 +154,34 @@ function Matchup({c}:{c:Ctx}){
  const n=models.length,lead=models[0];
  const gap=280; // left label column in the table
  const colW=(1084-gap-(n-1)*16)/n;
- const benches=[...c.benches].sort((a,b)=>b.share-a.share).slice(0,5);
+ const benches=[...c.benches].sort((a,b)=>b.share-a.share).slice(0,4);
  const money=(v:number)=>v<.01?`$${v.toFixed(3)}`:v<1?`$${v.toFixed(2)}`:v<100?`$${v.toFixed(v<10?1:0)}`:`$${Math.round(v)}`;
  const trunc=(s:string,m:number)=>s.length>m?`${s.slice(0,m-1)}…`:s;
  const cell=(x:RankedVariant,txt:string,best:boolean,est?:boolean)=><div key={x.variant.id} style={{width:colW,marginRight:16,display:"flex",justifyContent:"center",fontFamily:"JetBrains Mono",fontSize:20,fontWeight:best?600:400,color:est?muted:ink}}>{txt}</div>;
  const valOf=(x:RankedVariant,bid:string)=>x.values.find(v=>v.benchmarkId===bid);
- const rows:{label:string;sub:string;vals:(x:RankedVariant)=>{txt:string;est?:boolean}}[]=[
-  ...benches.map(b=>({label:b.name,sub:`${Math.round(b.share)}%`,vals:(x:RankedVariant)=>{const v=valOf(x,b.id);return v?{txt:v.value.toFixed(1),est:v.estimated}:{txt:"–"};}})),
+ const rows:{label:string;sub:string;lower?:boolean;vals:(x:RankedVariant)=>{txt:string;num?:number;est?:boolean}}[]=[
+  ...benches.map(b=>({label:b.name,sub:`${Math.round(b.share)}%`,vals:(x:RankedVariant)=>{const v=valOf(x,b.id);return v?{txt:v.value.toFixed(1),num:v.value,est:v.estimated}:{txt:"–"};}})),
  ];
- if(models.some(x=>x.costUsd!=null))rows.push({label:"Cost per task",sub:"measured",vals:(x)=>x.costUsd!=null?{txt:money(x.costUsd)}:{txt:"–"}});
- if(models.some(x=>x.speed!=null))rows.push({label:"Output speed",sub:"tok/s",vals:(x)=>x.speed!=null?{txt:`${Math.round(x.speed)}`}:{txt:"–"}});
- return <div style={{padding:"42px 58px",width:"100%",display:"flex",flexDirection:"column"}}>
-  <Header c={c}/>
-  <div style={{display:"flex",marginTop:30,marginLeft:gap}}>
-   {models.map((x,i)=><div key={x.variant.id} style={{width:colW,marginRight:16,borderTop:`7px solid ${color(c,x)}`,paddingTop:14,display:"flex",flexDirection:"column"}}>
+ if(models.some(x=>x.costUsd!=null))rows.push({label:"Cost per task",sub:"measured",lower:true,vals:(x)=>x.costUsd!=null?{txt:money(x.costUsd),num:x.costUsd}:{txt:"–"}});
+ if(models.some(x=>x.speed!=null))rows.push({label:"Output speed",sub:"tok/s",vals:(x)=>x.speed!=null?{txt:`${Math.round(x.speed)}`,num:x.speed}:{txt:"–"}});
+ return <div style={{padding:"38px 58px",width:"100%",display:"flex",flexDirection:"column"}}>
+  <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:30}}>
+   {c.who.name||c.who.handle?<Identity c={c}/>:null}
+   <div style={{fontFamily:"Newsreader",fontSize:44,lineHeight:1.05,maxWidth:c.who.name||c.who.handle?760:1084,textAlign:c.who.name||c.who.handle?"right":"left",display:"flex"}}>{c.index.name}</div>
+  </div>
+  <div style={{display:"flex",marginTop:22,marginLeft:gap}}>
+   {models.map((x,i)=><div key={x.variant.id} style={{width:colW,marginRight:16,borderTop:`7px solid ${color(c,x)}`,paddingTop:12,display:"flex",flexDirection:"column"}}>
     <span style={{fontFamily:"JetBrains Mono",fontSize:15,color:muted}}>#{x.rank}{i>0?`  −${(lead.score-x.score).toFixed(1)}`:""}</span>
-    <span style={{fontFamily:"Newsreader",fontSize:27,lineHeight:1.1,marginTop:6,height:60,overflow:"hidden"}}>{trunc(chartLabel(x),38)}</span>
-    <span style={{fontFamily:"JetBrains Mono",fontSize:44,marginTop:6}}>{x.score.toFixed(1)}</span>
+    <span style={{fontFamily:"Newsreader",fontSize:26,lineHeight:1.1,marginTop:5,height:57,overflow:"hidden"}}>{trunc(chartLabel(x),40)}</span>
+    <span style={{fontFamily:"JetBrains Mono",fontSize:48,marginTop:4}}>{x.score.toFixed(1)}</span>
    </div>)}
   </div>
-  <div style={{display:"flex",flexDirection:"column",marginTop:26,borderTop:`1px solid ${line}`}}>
+  <div style={{display:"flex",flexDirection:"column",marginTop:22,borderTop:`1px solid ${line}`}}>
    {rows.map((row,i)=>{
-    const vs=models.map(row.vals),nums=vs.map(v=>v.txt==="–"?NaN:Number(v.txt)),best=Math.max(...nums);
-    return <div key={i} style={{display:"flex",alignItems:"center",height:44,borderBottom:`1px solid ${line}`}}>
+    const vs=models.map(row.vals),nums=vs.map(v=>v.num).filter((v):v is number=>v!=null),best=row.lower?Math.min(...nums):Math.max(...nums);
+    return <div key={i} style={{display:"flex",alignItems:"center",height:36,borderBottom:`1px solid ${line}`}}>
      <div style={{width:gap-20,display:"flex",alignItems:"baseline",gap:10,minWidth:0}}><span style={{fontSize:18,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{row.label}</span><span style={{fontFamily:"JetBrains Mono",fontSize:13,color:muted,flexShrink:0}}>{row.sub}</span></div>
-     {models.map((x,j)=>cell(x,vs[j].txt,nums[j]===best&&vs.length>1,vs[j].est))}
+     {models.map((x,j)=>cell(x,vs[j].txt,vs[j].num===best&&vs.length>1,vs[j].est))}
     </div>;
    })}
   </div>
