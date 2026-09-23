@@ -66,7 +66,7 @@ export function IndexPage({ profile, snapshot, dates, edit }: { profile: Profile
         </div>
       </header>
 
-      {p.bannerUrl && <img src={p.bannerUrl} alt="" className="page-banner" />}
+      {p.bannerUrl && <div className="page-banner-frame"><img src={p.bannerUrl} alt="" className="page-banner" /></div>}
       <main className={`max-w-[1100px] mx-auto px-5 sm:px-8 grid gap-14 ${p.bannerUrl ? "pb-12" : "py-12"}`}>
         <section className={`flex items-start gap-5 ${p.bannerUrl ? "-mt-10" : ""}`}>
           {p.avatarUrl ? <img src={p.avatarUrl} alt="" className="w-20 h-20 rounded-full object-cover shrink-0" style={{ boxShadow: `0 0 0 4px ${surface}` }} /> : <div className="w-20 h-20 rounded-full bg-hair-2 grid place-items-center serif text-3xl text-ink-2 shrink-0" style={{ boxShadow: `0 0 0 4px ${surface}` }}>{p.displayName[0]}</div>}
