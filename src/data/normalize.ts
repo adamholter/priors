@@ -25,6 +25,10 @@ export const LABS: Lab[] = [
   { id: "thinking-machines", name: "Thinking Machines", color: "#6B5B95" },
   { id: "tencent", name: "Tencent", color: "#2E7D9A" },
   { id: "cursor", name: "Cursor", color: "#444444" },
+  { id: "ant-group", name: "Ant Group", color: "#A3A39B" },
+  { id: "nvidia", name: "NVIDIA", color: "#A3A39B" },
+  { id: "inception", name: "Inception", color: "#A3A39B" },
+  { id: "poolside", name: "Poolside", color: "#A3A39B" },
   { id: "other", name: "Other", color: "#A3A39B" },
 ];
 
@@ -54,6 +58,7 @@ const FAMILIES: { re: RegExp; id: (m: RegExpMatchArray) => string; name: (m: Reg
   { re: /\bgpt[\s-]*(\d+(?:\.\d+)?)\b/, id: (m) => `gpt-${m[1]}`, name: (m) => `GPT-${m[1]}`, lab: "openai", reasoning: true },
   { re: /\bo(\d)[\s-]*(mini|pro)?\b/, id: (m) => `o${m[1]}${m[2] ? "-" + m[2] : ""}`, name: (m) => `o${m[1]}${m[2] ? " " + m[2] : ""}`, lab: "openai", reasoning: true },
   // Google
+  { re: /\bgemma[\s-]*(\d+(?:\.\d+)?)[\s-]*(\d+(?:\.\d+)?)([bt])(?:[\s-]+(it|instruct))?\b/, id: (m) => `gemma-${m[1]}-${m[2]}${m[3]}${m[4] ? "-it" : ""}`, name: (m) => `Gemma ${m[1]} ${m[2]}${m[3].toUpperCase()}${m[4] ? " IT" : ""}`, lab: "google" },
   { re: /\bgemini[\s-]*(\d+(?:\.\d+)?)[\s-]*(pro|flash[\s-]*lite|flash|ultra)\b/, id: (m) => `gemini-${m[1]}-${m[2].replace(/\s+/g, "-")}`, name: (m) => `Gemini ${m[1]} ${m[2].replace(/\b\w/g, (c) => c.toUpperCase()).replace(/\s+/g, " ")}`, lab: "google", reasoning: true },
   { re: /\bgemini[\s-]*(\d+(?:\.\d+)?)\b/, id: (m) => `gemini-${m[1]}`, name: (m) => `Gemini ${m[1]}`, lab: "google", reasoning: true },
   // xAI
@@ -64,11 +69,14 @@ const FAMILIES: { re: RegExp; id: (m: RegExpMatchArray) => string; name: (m: Reg
   { re: /\bdeepseek[\s-]*(?:v)?(\d+(?:\.\d+)?)[\s-]*(pro|lite|flash|chat)?\b/, id: (m) => `deepseek-v${m[1]}${m[2] ? "-" + m[2] : ""}`, name: (m) => `DeepSeek V${m[1]}${m[2] ? " " + m[2][0].toUpperCase() + m[2].slice(1) : ""}`, lab: "deepseek", reasoning: true },
   { re: /\bdeepseek[\s-]*r(\d+(?:\.\d+)?)\b/, id: (m) => `deepseek-r${m[1]}`, name: (m) => `DeepSeek R${m[1]}`, lab: "deepseek", reasoning: true },
   // Alibaba
+  { re: /\bling[\s-]*(\d+(?:\.\d+)?)[\s-]*flash(?:[\s-]+(fin))?\b/, id: (m) => `ling-${m[1]}-flash${m[2] ? "-fin" : ""}`, name: (m) => `Ling ${m[1]} Flash${m[2] ? " Fin" : ""}`, lab: "ant-group" },
   { re: /\bqwen[\s-]*(\d+(?:\.\d+)?)[\s-]+(\d+(?:\.\d+)?)([bt])(?:[\s-]*a(\d+)([bt]))?\b/, id: (m) => `qwen-${m[1]}-${m[2]}${m[3]}${m[4] ? `-a${m[4]}${m[5]}` : ""}`, name: (m) => `Qwen ${m[1]} ${m[2]}${m[3].toUpperCase()}${m[4] ? `-A${m[4]}${m[5].toUpperCase()}` : ""}`, lab: "alibaba" },
   { re: /\bqwen[\s-]*(\d+(?:\.\d+)?)[\s-]*(max|plus|turbo|coder|flash)?\b/, id: (m) => `qwen-${m[1]}${m[2] ? "-" + m[2] : ""}`, name: (m) => `Qwen ${m[1]}${m[2] ? " " + m[2][0].toUpperCase() + m[2].slice(1) : ""}`, lab: "alibaba" },
   // Moonshot
   { re: /\bkimi[\s-]*k(\d+(?:\.\d+)?)[\s-]*(code|thinking|instruct)?\b/, id: (m) => `kimi-k${m[1]}${m[2] === "code" ? "-code" : ""}`, name: (m) => `Kimi K${m[1]}${m[2] === "code" ? " Code" : ""}`, lab: "moonshot", reasoning: true },
   // Mistral
+  { re: /\bmercury[\s-]*(\d+(?:\.\d+)?)\b/, id: (m) => `mercury-${m[1]}`, name: (m) => `Mercury ${m[1]}`, lab: "inception" },
+  { re: /\blaguna[\s-]*(m|xs)[\s.-]*(\d+(?:\.\d+)?)\b/, id: (m) => `laguna-${m[1]}-${m[2]}`, name: (m) => `Laguna ${m[1].toUpperCase()}.${m[2]}`, lab: "poolside" },
   { re: /\b(mistral|magistral|devstral|codestral)[\s-]*(large|medium|small)?[\s-]*(\d+(?:\.\d+)?)?\b/, id: (m) => `${m[1]}${m[2] ? "-" + m[2] : ""}${m[3] ? "-" + m[3] : ""}`, name: (m) => `${m[1][0].toUpperCase()}${m[1].slice(1)}${m[2] ? " " + m[2][0].toUpperCase() + m[2].slice(1) : ""}${m[3] ? " " + m[3] : ""}`, lab: "mistral" },
   // Zhipu
   { re: /\bglm[\s-]*(\d+(?:\.\d+)?)[\s-]*(air|flash|v)?\b/, id: (m) => `glm-${m[1]}${m[2] ? "-" + m[2] : ""}`, name: (m) => `GLM ${m[1]}${m[2] ? " " + m[2][0].toUpperCase() + m[2].slice(1) : ""}`, lab: "zhipu", reasoning: true },
@@ -77,6 +85,7 @@ const FAMILIES: { re: RegExp; id: (m: RegExpMatchArray) => string; name: (m: Reg
   // Xiaomi
   { re: /\bmimo[\s-]*(?:v)?(\d+(?:\.\d+)?)[\s-]*(pro|flash)?\b/, id: (m) => `mimo-v${m[1]}${m[2] ? "-" + m[2] : ""}`, name: (m) => `MiMo V${m[1]}${m[2] ? " " + m[2][0].toUpperCase() + m[2].slice(1) : ""}`, lab: "xiaomi", reasoning: true },
   // Meta
+  { re: /\bnemotron[\s-]*(\d+(?:\.\d+)?)[\s-]*(ultra|lightning)\b/, id: (m) => `nemotron-${m[1]}-${m[2]}`, name: (m) => `Nemotron ${m[1]} ${cap(m[2])}`, lab: "nvidia" },
   { re: /\bmuse[\s-]*spark[\s-]*(\d+(?:\.\d+)?)\b/, id: (m) => `muse-spark-${m[1]}`, name: (m) => `Muse Spark ${m[1]}`, lab: "meta", reasoning: true },
   { re: /\binkling(?:[\s-]*(small))?\b/, id: (m) => `inkling${m[1] ? "-small" : ""}`, name: (m) => `Inkling${m[1] ? " Small" : ""}`, lab: "thinking-machines", reasoning: true },
   { re: /\bhy[\s-]*(\d+(?:\.\d+)?)\b/, id: (m) => `hy-${m[1]}`, name: (m) => `Hy${m[1]}`, lab: "tencent", reasoning: true },

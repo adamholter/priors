@@ -6,6 +6,8 @@ export const VALS_ORIGIN = "https://www.vals.ai";
 export interface ValsSourceConfig {
   sourceId: string;
   slug: string;
+  /** Astro payload slug when VALS serves the page under a legacy route. */
+  payloadSlug?: string;
   benchmarkId: string;
   name: string;
   shortName?: string;
@@ -34,6 +36,7 @@ export interface ValsModelCatalogEntry {
   company?: unknown;
   slug?: unknown;
   supports?: unknown;
+  alternative_keys?: unknown;
 }
 
 interface ValsView {
@@ -206,14 +209,35 @@ export function parseValsModelCatalog(source: string): Record<string, ValsModelC
 
 /** Return the exact display label BenchmarkView shows for one catalog key. */
 export function parseValsModelCatalogEntry(source: string, modelKey: string): ValsModelCatalogEntry | undefined {
-  return parseValsModelCatalog(source)[modelKey];
+  return findValsModelCatalogEntry(parseValsModelCatalog(source), modelKey);
+}
+
+function findValsModelCatalogEntry(entries: Record<string, ValsModelCatalogEntry>, modelKey: string): ValsModelCatalogEntry | undefined {
+  return resolveValsModelCatalogKey(entries, modelKey)?.entry;
+}
+
+function resolveValsModelCatalogKey(entries: Record<string, ValsModelCatalogEntry>, modelKey: string): { key: string; entry: ValsModelCatalogEntry } | undefined {
+  const direct = entries[modelKey];
+  if (direct) return { key: modelKey, entry: direct };
+  const matches = Object.entries(entries).filter(([, entry]) => Array.isArray(entry.alternative_keys) && entry.alternative_keys.includes(modelKey));
+  if (matches.length > 1) throw new Error(`Vals AI model catalog: alternative key ${modelKey} maps to multiple models`);
+  return matches[0] ? { key: matches[0][0], entry: matches[0][1] } : undefined;
 }
 
 /** Fetch VALS' page-linked model catalog as a compact model-key -> displayed-label map. */
 export async function fetchValsDisplayNames(html: string, fetchText: (url: string) => Promise<string>): Promise<Record<string, string>> {
   const { entries } = await fetchValsModelCatalog(html, fetchText);
-  return Object.fromEntries(Object.entries(entries).flatMap(([key, entry]) =>
-    typeof entry.label === "string" && entry.label.trim() ? [[key, entry.label]] : []));
+  const labels: Record<string, string> = {};
+  for (const [key, entry] of Object.entries(entries)) {
+    if (typeof entry.label !== "string" || !entry.label.trim()) continue;
+    labels[key] = entry.label;
+    if (Array.isArray(entry.alternative_keys)) for (const alias of entry.alternative_keys) {
+      if (typeof alias !== "string") continue;
+      if (labels[alias] && labels[alias] !== entry.label) throw new Error(`Vals AI model catalog: alternative key ${alias} maps to conflicting labels`);
+      labels[alias] = entry.label;
+    }
+  }
+  return labels;
 }
 
 export function valsDisplayName(labels: Record<string, string>, modelKey: string): string {
@@ -262,7 +286,7 @@ export function createValsSource(config: ValsSourceConfig): Source {
     url,
     async scrape(ctx): Promise<ScrapeResult> {
       const html = await ctx.fetchText(url);
-      const view = parseValsBenchmarkView(html, config.slug);
+      const view = parseValsBenchmarkView(html, config.payloadSlug ?? config.slug);
       const catalog = await fetchValsModelCatalog(html, (target) => ctx.fetchText(target));
       const metadata = view.metadata!;
       const task = view.tasks!.overall;
@@ -271,14 +295,39 @@ export function createValsSource(config: ValsSourceConfig): Source {
       const modelIds = metadata.models;
       const expectedCount = isNum(metadata.total_models) ? metadata.total_models : Array.isArray(modelIds) ? modelIds.length : undefined;
       const keys = Object.keys(task);
+      let modelListNote: string | undefined;
       if (!expectedCount || keys.length !== expectedCount) {
         throw new Error(`Vals AI ${config.slug}: expected ${String(expectedCount ?? "a model count")} overall rows, found ${keys.length}`);
       }
       if (Array.isArray(modelIds)) {
-        const expected = new Set(modelIds.filter((id): id is string => typeof id === "string"));
-        const actual = new Set(keys);
-        if (expected.size !== modelIds.length || expected.size !== actual.size || [...expected].some((id) => !actual.has(id))) {
-          throw new Error(`Vals AI ${config.slug}: score table does not match metadata.models`);
+        if (modelIds.length !== expectedCount || new Set(modelIds).size !== modelIds.length) {
+          throw new Error(`Vals AI ${config.slug}: metadata.models count or uniqueness does not match total_models`);
+        }
+        const actual = keys.map((id) => {
+          const record = task[id];
+          const rowKey = isRecord(record) && typeof record.model_key === "string" && record.model_key ? record.model_key : id;
+          return resolveValsModelCatalogKey(catalog.entries, rowKey)?.key;
+        });
+        if (actual.some((id) => !id) || new Set(actual).size !== keys.length) {
+          const missingCatalogIds = keys.filter((id) => {
+            const record = task[id];
+            const rowKey = isRecord(record) && typeof record.model_key === "string" && record.model_key ? record.model_key : id;
+            return !resolveValsModelCatalogKey(catalog.entries, rowKey);
+          }).slice(0, 5);
+          throw new Error(`Vals AI ${config.slug}: overall rows lack unique catalog identities: ${missingCatalogIds.join(", ")}`);
+        }
+        const expected = modelIds.map((id) => typeof id === "string" ? resolveValsModelCatalogKey(catalog.entries, id)?.key : undefined);
+        const unresolvedMetadataIds = modelIds.filter((id, index) => typeof id !== "string" || !expected[index]);
+        if (unresolvedMetadataIds.length) {
+          modelListNote = `metadata.models includes ${unresolvedMetadataIds.length} stale IDs absent from the current catalog; total_models and uniquely labeled overall rows agree`;
+        } else {
+          const expectedSet = new Set(expected as string[]);
+          const actualSet = new Set(actual as string[]);
+          if (expectedSet.size !== modelIds.length || expectedSet.size !== actualSet.size || [...expectedSet].some((id) => !actualSet.has(id))) {
+            const missing = [...expectedSet].filter((id) => !actualSet.has(id)).slice(0, 5);
+            const extra = [...actualSet].filter((id) => !expectedSet.has(id)).slice(0, 5);
+            throw new Error(`Vals AI ${config.slug}: score table does not match metadata.models (metadata-only: ${missing.join(", ") || "none"}; table-only: ${extra.join(", ") || "none"})`);
+          }
         }
       }
 
@@ -290,14 +339,22 @@ export function createValsSource(config: ValsSourceConfig): Source {
 
       const rows: RawRow[] = [];
       const modelMeta: NonNullable<ScrapeResult["modelMeta"]> = [];
+      const usedCatalogKeys = new Set<string>();
       for (const [modelKey, record] of Object.entries(task)) {
         if (!isRecord(record)) throw new Error(`Vals AI ${config.slug}: invalid score for ${modelKey}`);
         const row = record as ValsRecord;
         const accuracy = row.accuracy;
         if (!isNum(accuracy)) throw new Error(`Vals AI ${config.slug}: invalid score for ${modelKey}`);
-        const catalogKey = typeof row.model_key === "string" && row.model_key ? row.model_key : modelKey;
-        const model = catalog.entries[catalogKey];
-        const modelLabel = typeof model?.label === "string" && model.label.trim() ? model.label : catalogKey;
+        const sourceCatalogKey = typeof row.model_key === "string" && row.model_key ? row.model_key : modelKey;
+        const resolvedCatalog = resolveValsModelCatalogKey(catalog.entries, sourceCatalogKey);
+        if (!resolvedCatalog) throw new Error(`Vals AI ${config.slug}: model catalog identity missing for ${sourceCatalogKey}`);
+        const catalogKey = resolvedCatalog.key;
+        const model = resolvedCatalog.entry;
+        if (typeof model.label !== "string" || !model.label.trim()) {
+          throw new Error(`Vals AI ${config.slug}: exact display label missing from model catalog for ${sourceCatalogKey}`);
+        }
+        usedCatalogKeys.add(catalogKey);
+        const modelLabel = model.label;
         const effort = typeof row.reasoning_effort === "string" && row.reasoning_effort.trim()
           ? row.reasoning_effort.trim()
           : typeof row.compute_effort === "string" && row.compute_effort.trim() ? row.compute_effort.trim() : undefined;
@@ -311,7 +368,7 @@ export function createValsSource(config: ValsSourceConfig): Source {
           const modelId = `vals-audio-${slugify(catalogKey) || "model"}-${stableHash(catalogKey)}`;
           const sourceSlug = typeof model.slug === "string" && model.slug ? model.slug : slugify(catalogKey);
           const labId = slugify(typeof model.company === "string" ? model.company : typeof row.provider === "string" ? row.provider : "other") || "other";
-          identity = { modelId, modelName: modelLabel, labId, effort: "none", variantId: `${modelId}@none`, sourceModelId: catalogKey, sourceSlug };
+          identity = { modelId, modelName: modelLabel, labId, effort: "none", variantId: `${modelId}@none`, sourceModelId: modelKey, sourceSlug };
           modelMetadata = { kind: "audio", sourceModelUrl: `${VALS_ORIGIN}/models/${sourceSlug}`, valsCatalog: model };
           details.modality = "speech-to-text";
           modelMeta.push({ modelLabel, labHint: labId, kind: "audio", identity, modelMetadata });
@@ -319,7 +376,7 @@ export function createValsSource(config: ValsSourceConfig): Source {
         rows.push({
           benchmarkId: config.benchmarkId,
           modelLabel,
-          sourceModelId: catalogKey,
+          sourceModelId: modelKey,
           identity,
           modelMetadata,
           effort: identity ? "none" : effort,
@@ -358,10 +415,10 @@ export function createValsSource(config: ValsSourceConfig): Source {
           "metadata.json": JSON.stringify(metadata, null, 2),
           "benchmark-view.js": catalog.componentSource,
           "model-catalog.js": catalog.source,
-          "model-catalog-keys.json": JSON.stringify(Object.fromEntries(Object.entries(catalog.entries).filter(([key]) => Object.keys(task).includes(key))), null, 2),
+          "model-catalog-keys.json": JSON.stringify(Object.fromEntries(Object.entries(catalog.entries).filter(([key]) => usedCatalogKeys.has(key))), null, 2),
         },
         modelMeta,
-        notes: [`${rows.length} overall rows; Vals updated ${updated}`],
+        notes: [`${rows.length} overall rows; Vals updated ${updated}`, ...(modelListNote ? [modelListNote] : [])],
       };
     },
   };

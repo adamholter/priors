@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { astroIslandProps, createValsSource, parseValsBenchmarkView, parseValsModelCatalog } from "./sources/_vals";
+import { astroIslandProps, createValsSource, parseValsBenchmarkView, parseValsModelCatalog, parseValsModelCatalogEntry } from "./sources/_vals";
 import type { ScrapeContext } from "../../src/data/types";
 
 const astroNode = (value: unknown): unknown => {
@@ -33,7 +33,7 @@ const pageFixture = () => {
 };
 
 const componentFixture = 'import{r as m}from"./constants.test.js";';
-const catalogFixture = 'const p={"openai/gpt-6-astra":{label:"GPT-6 Astra",company:"OpenAI",supports:{transcription:!1}},"anthropic/claude-opus-5-5":{label:"Claude Opus 5.5",company:"Anthropic",supports:{transcription:!1}}};';
+const catalogFixture = 'const p={"openai/gpt-6-astra":{label:"GPT-6 Astra",company:"OpenAI",supports:{transcription:!1},alternative_keys:["openai/gpt-6-astra-old"]},"anthropic/claude-opus-5-5":{label:"Claude Opus 5.5",company:"Anthropic",supports:{transcription:!1}}};';
 const fixtureFetch = (html: string) => async (url: string) => {
   if (url.endsWith("BenchmarkView.test.js")) return componentFixture;
   if (url.endsWith("constants.test.js")) return catalogFixture;
@@ -54,6 +54,7 @@ describe("Vals AI Astro benchmark payload", () => {
     expect(parseValsModelCatalog(catalogFixture)).toMatchObject({
       "openai/gpt-6-astra": { label: "GPT-6 Astra", company: "OpenAI", supports: { transcription: false } },
     });
+    expect(parseValsModelCatalogEntry(catalogFixture, "openai/gpt-6-astra-old")).toMatchObject({ label: "GPT-6 Astra" });
     expect(() => parseValsModelCatalog("export default {};")).toThrow(/const p object missing/);
   });
 

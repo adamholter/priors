@@ -47,6 +47,16 @@ describe("normalizeLabel", () => {
     expect(normalizeLabel("DeepSeek V4 Pro 0813")).toMatchObject({ modelId: "deepseek-v4-pro-0813" });
     expect(normalizeLabel("DeepSeek V4 Pro")).toMatchObject({ modelId: "deepseek-v4-pro" });
   });
+  it("normalizes exact VALS catalog labels for current frontier models", () => {
+    expect(normalizeLabel("Gemma 4 31B IT")).toMatchObject({ modelId: "gemma-4-31b-it", labId: "google" });
+    expect(normalizeLabel("Ling 3.0 Flash")).toMatchObject({ modelId: "ling-3.0-flash", labId: "ant-group" });
+    expect(normalizeLabel("Ling 3.0 Flash Fin")).toMatchObject({ modelId: "ling-3.0-flash-fin", labId: "ant-group" });
+    expect(normalizeLabel("Nemotron 3 Ultra")).toMatchObject({ modelId: "nemotron-3-ultra", labId: "nvidia" });
+    expect(normalizeLabel("Nemotron 3.5 Lightning")).toMatchObject({ modelId: "nemotron-3.5-lightning", labId: "nvidia" });
+    expect(normalizeLabel("Mercury 2.5")).toMatchObject({ modelId: "mercury-2.5", labId: "inception" });
+    expect(normalizeLabel("Laguna M.1")).toMatchObject({ modelId: "laguna-m-1", labId: "poolside" });
+    expect(normalizeLabel("Laguna XS.2")).toMatchObject({ modelId: "laguna-xs-2", labId: "poolside" });
+  });
   it("preserves a separate effort on Max and Medium model tiers", () => {
     expect(normalizeLabel("Qwen 3.7 Max", "high")).toMatchObject({ modelId: "qwen-3.7-max", effort: "high" });
     expect(normalizeLabel("Qwen 3.7 Max (low)")).toMatchObject({ modelId: "qwen-3.7-max", effort: "low" });
