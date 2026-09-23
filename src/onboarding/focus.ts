@@ -20,7 +20,7 @@ export const FOCUSES: Focus[] = [
     name: "Capabilities",
     blurb: "Coding and agentic work — what the model can actually do.",
     categories: { coding: 1, agentic: 1, reasoning: 0.5, math: 0.3, knowledge: 0.25, "long-context": 0.25 },
-    starter: { "deepswe-1.1": 30, "terminalbench-4": 30, "arc-agi-3": 15, "aa-tau3-banking": 10, "aa-humanitys-last-exam": 15 },
+    starter: { "vals-programbench-v1": 25, "deepswe-1.1": 25, "terminalbench-4": 25, "arc-agi-3": 10, "aa-tau3-banking": 5, "aa-humanitys-last-exam": 10 },
   },
   {
     id: "knowledge",
@@ -41,7 +41,7 @@ export const FOCUSES: Focus[] = [
     name: "General",
     blurb: "No bias — any benchmark that fits your order.",
     categories: { coding: 1, agentic: 1, reasoning: 1, knowledge: 1, math: 1, "long-context": 1, instruction: 1, creative: 1, safety: 1, economics: 1, composite: 1, speed: 1, cost: 1, reliability: 1, other: 1 },
-    starter: { "deepswe-1.1": 25, "terminalbench-4": 25, "arc-agi-3": 15, "aa-humanitys-last-exam": 15, "aa-omniscience": 10, "frontiermath-tier-4-v2": 10 },
+    starter: { "deepswe-1.1": 20, "terminalbench-4": 20, "vals-programbench-v1": 15, "arc-agi-3": 10, "aa-humanitys-last-exam": 15, "aa-omniscience": 10, "frontiermath-tier-4-v2": 10 },
   },
 ];
 
