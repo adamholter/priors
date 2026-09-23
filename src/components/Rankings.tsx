@@ -1,28 +1,29 @@
 "use client";
 import { ChartExport, escapeSvg } from "./chart/ChartExport";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import type { Lab } from "@/data/types";
 import type { RankedVariant } from "@/engine";
 import { variantLabel } from "./chart/ParetoChart";
 
 /** Dense horizontal bars, color by lab, rows slide to their new position when the order changes. */
-export function Rankings({ ranked, labs, limit = 30, onSelect, selected, showEffort = true }: { ranked: RankedVariant[]; labs: Lab[]; limit?: number; showEffort?: boolean; onSelect?: (r: RankedVariant | null) => void; selected?: string | null }) {
+export function Rankings({ ranked, labs, limit = 30, onSelect, selected, showEffort = true, title, actions }: { ranked: RankedVariant[]; labs: Lab[]; limit?: number; showEffort?: boolean; onSelect?: (r: RankedVariant | null) => void; selected?: string | null; title?: ReactNode; actions?: ReactNode }) {
   const color = new Map(labs.map((l) => [l.id, l.color]));
   const [expanded, setExpanded] = useState(false);
   const rows = expanded ? ranked : ranked.slice(0, limit);
   const max = Math.max(...rows.map((r) => r.score), 1);
 
-  if (!rows.length) return <p className="cap py-6">No model has enough measured data for this index. Loosen a requirement, lower a weight, or reduce strictness.</p>;
+  const head = (exp: ReactNode) => <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 mb-3 min-h-8"><div className="min-w-0">{title}</div><div className="flex items-center gap-1 ml-auto">{actions}{exp}</div></div>;
+  if (!rows.length) return <>{head(null)}<p className="cap py-6">No model has enough measured data for this index. Loosen a requirement, lower a weight, or reduce strictness.</p></>;
   return (
     <>
-    <ChartExport name="Rankings" getRows={() => ranked.map((r) => ({ rank: r.rank, model: r.model.name, effort: showEffort ? r.variant.effort : "best", score: +r.score.toFixed(2), lab: r.model.labId, cost_per_task_usd: r.costUsd ?? null, speed_toks: r.speed ?? null, coverage: r.coverage }))} getSvg={() => {
+    {head(<ChartExport name="Rankings" getRows={() => ranked.map((r) => ({ rank: r.rank, model: r.model.name, effort: showEffort ? r.variant.effort : "best", score: +r.score.toFixed(2), lab: r.model.labId, cost_per_task_usd: r.costUsd ?? null, speed_toks: r.speed ?? null, coverage: r.coverage }))} getSvg={() => {
       const h = 88 + rows.length * 38;
       return `<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="${h}" viewBox="0 0 1600 ${h}"><rect width="1600" height="${h}" fill="#FBFBF9"/><g font-family="Inter,Arial,sans-serif" fill="#1A1A1A"><text x="30" y="36" font-size="24">Rankings</text>${rows.map((r, i) => {
         const y = 76 + i * 38;
         const label = showEffort ? variantLabel(r) : r.model.name;
         return `<text x="30" y="${y}" font-size="14" fill="#8A8A80">${i + 1}</text><text x="70" y="${y}" font-size="15">${escapeSvg(label)}</text><rect x="330" y="${y - 13}" width="1120" height="14" fill="#ECEAE3"/><rect x="330" y="${y - 13}" width="${r.score / max * 1120}" height="14" fill="${escapeSvg(color.get(r.model.labId) ?? '#A3A39B')}"/><text x="1550" y="${y}" text-anchor="end" font-size="16">${r.score.toFixed(1)}</text>`;
       }).join('')}</g></svg>`;
-    }} />
+    }} />)}
     <div className="ranking-list relative overflow-hidden isolate" style={{ height: Math.max(0, rows.length * 30 - 4), contain: "layout paint" }}>
       {rows.map((r, index) => (
         <button type="button" key={showEffort ? r.variant.id : r.model.id} title={r.variant.sourceModel?.name ?? variantLabel(r)} aria-label={`${r.variant.sourceModel?.name ?? variantLabel(r)}, ${r.score.toFixed(1)}`} data-k={r.variant.id} data-mixed={r.mixedEfforts || undefined} onClick={() => onSelect?.(selected === r.variant.id ? null : r)}

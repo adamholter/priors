@@ -2,6 +2,7 @@
 import { useId, useMemo, useRef, useCallback, useState } from "react";
 
 import { useLightDismiss } from "@/hooks/useLightDismiss";
+import type { ScatterView } from "./ScoreScatter";
 
 const RELEASE_WINDOWS: { label: string; months: number }[] = [
   { label: "Last 6 months", months: 6 },
@@ -9,7 +10,7 @@ const RELEASE_WINDOWS: { label: string; months: number }[] = [
   { label: "Last 2 years", months: 24 },
 ];
 
-export function ChartSettings({ label, mode, onChange, releasedAfter, onChangeReleased, models, excluded, onToggleModel, onShowAllModels, onHideAllModels }: {
+export function ChartSettings({ label, mode, onChange, releasedAfter, onChangeReleased, models, excluded, onToggleModel, onShowAllModels, onHideAllModels, view, onView }: {
   label: string; mode: "all" | "best"; onChange: (mode: "all" | "best") => void;
   /** Model-age filter: ISO date cutoff; "" means all time. */
   releasedAfter?: string;
@@ -20,6 +21,9 @@ export function ChartSettings({ label, mode, onChange, releasedAfter, onChangeRe
   onToggleModel?: (id: string) => void;
   onShowAllModels?: () => void;
   onHideAllModels?: () => void;
+  /** Scatter display: label density, frontier line, reasoning-effort lines. */
+  view?: ScatterView;
+  onView?: (view: ScatterView) => void;
 }) {
   const id = useId();
   const root = useRef<HTMLDetailsElement>(null);
@@ -49,12 +53,20 @@ export function ChartSettings({ label, mode, onChange, releasedAfter, onChangeRe
       <summary ref={trigger} aria-label={`${label} settings`} title={`${label} settings`} className="list-none [&::-webkit-details-marker]:hidden cursor-pointer p-1.5 text-grey hover:text-ink rounded-sm focus-visible:outline-indigo">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="M4 6h4m4 0h8M4 12h10m4 0h2M4 18h2m4 0h10" /><circle cx="10" cy="6" r="2" /><circle cx="16" cy="12" r="2" /><circle cx="8" cy="18" r="2" /></svg>
       </summary>
-      <div className="absolute right-0 top-full mt-1 w-60 max-w-[85vw] border hairline rounded-sm bg-white p-3 z-20 shadow-sm">
+      <div className="absolute right-0 top-full mt-1 w-64 max-w-[85vw] max-h-[70dvh] overflow-y-auto overscroll-contain border hairline rounded-sm bg-white p-3 z-20 shadow-sm">
         <label htmlFor={id} className="block text-[12px] text-ink-2 mb-2">Reasoning efforts</label>
         <select id={id} aria-label={`${label} reasoning efforts`} value={mode} onChange={(e) => { onChange(e.target.value as "all" | "best"); dismiss("escape"); }} className="inp">
           <option value="best">Best effort per model</option>
           <option value="all">All reasoning efforts</option>
         </select>
+        {view && onView && <fieldset className="mt-3 pt-3 border-t hairline">
+          <legend className="sr-only">Display</legend>
+          <div className="flex items-baseline justify-between mb-1.5"><label htmlFor={`${id}-lab`} className="text-[12px] text-ink-2">Labels</label><span className="cap">{view.density >= 0.999 ? "all" : view.density <= 0.001 ? "frontier only" : `${Math.round(view.density * 100)}%`}</span></div>
+          <input id={`${id}-lab`} type="range" min={0} max={100} step={5} value={Math.round(view.density * 100)} onChange={(e) => onView({ ...view, density: Number(e.target.value) / 100 })} className="w-full h-[3px]" aria-label={`${label} label density`} />
+          <div className="flex justify-between cap mt-1"><span>Fewer</span><span>More</span></div>
+          <label className="flex items-center gap-2 mt-2.5 text-[12.5px] cursor-pointer"><input type="checkbox" className="accent-[#2F4FB0]" checked={view.frontier} onChange={(e) => onView({ ...view, frontier: e.target.checked })} />Pareto frontier</label>
+          <label className="flex items-center gap-2 mt-1.5 text-[12.5px] cursor-pointer"><input type="checkbox" className="accent-[#2F4FB0]" checked={view.links} onChange={(e) => onView({ ...view, links: e.target.checked })} />Connect a model&rsquo;s efforts</label>
+        </fieldset>}
         {onChangeReleased && <>
           <label htmlFor={`${id}-rel`} className="block text-[12px] text-ink-2 mt-3 mb-2">Models released</label>
           <select id={`${id}-rel`} aria-label={`${label} release window`} value={releasedValue}

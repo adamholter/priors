@@ -47,10 +47,10 @@ button, [role="button"] { cursor: pointer; }
 /* export split button */
 .export-split { display: inline-flex; align-items: stretch; border: 1px solid var(--hair); border-radius: 4px; }
 .export-split:hover { border-color: var(--ink); }
-.export-split > button { font-size: 12.5px; padding: 6px 10px; border: 0; background: transparent; color: var(--ink-2); cursor: pointer; }
+.export-split > button { font-size: 12px; padding: 4px 9px; border: 0; background: transparent; color: var(--ink-2); cursor: pointer; }
 .export-split > button:hover { color: var(--ink); }
 .export-split > button:disabled { cursor: not-allowed; opacity: .5; }
-.export-split .export-toggle { border-left: 1px solid var(--hair); padding: 6px 7px; display: inline-flex; align-items: center; }
+.export-split .export-toggle { border-left: 1px solid var(--hair); padding: 4px 6px; display: inline-flex; align-items: center; }
 .export-menu { position: absolute; right: 0; top: calc(100% + 5px); z-index: 30; min-width: 86px; background: var(--white); border: 1px solid var(--hair); border-radius: 4px; overflow: hidden; }
 .export-menu > button { display: block; width: 100%; padding: 7px 12px; border: 0; background: transparent; color: var(--ink-2); font-size: 12.5px; text-align: left; cursor: pointer; }
 .export-menu > button:hover { background: var(--bone); color: var(--ink); }

@@ -8,6 +8,7 @@ import { encodeIndices, decodeIndices } from "@/lib/url";
 import { WeightsPanel } from "./WeightsPanel";
 import { Rankings } from "./Rankings";
 import { ParetoChart } from "./chart/ParetoChart";
+import { useScatterView } from "./chart/ScoreScatter";
 import { Wordmark } from "./Wordmark";
 import { IndexTabs } from "./IndexTabs";
 import { CalculationSettings, type CalculationSettingsHandle } from "./CalculationSettings";
@@ -63,6 +64,7 @@ export function Builder({ snapshot: base, dates, initialIndices }: { snapshot: S
   })), [activeId]);
   const setExcluded = useCallback((ids: string[]) => setIndices((list) => list.map((i) => i.id === activeId ? { ...i, excludeModels: ids } : i)), [activeId]);
   const modelPicker = { models: pickerModels, excluded: excludedIds, onToggleModel: toggleModel, onShowAllModels: () => setExcluded([]), onHideAllModels: () => setExcluded(pickerModels.map((m) => m.id)) };
+  const [paretoView, setParetoView] = useScatterView("pareto");
   const releaseProps = { releasedAfter: active.releasedAfter, onChangeReleased: (v: string) => update({ ...active, releasedAfter: v }) };
 
   // write URL (debounced) when indices change
@@ -116,22 +118,15 @@ export function Builder({ snapshot: base, dates, initialIndices }: { snapshot: S
 
         <section className="grid gap-10 min-w-0 content-start [&>div]:min-w-0">
           <div>
-            <div className="flex flex-wrap gap-x-4 gap-y-1 items-baseline justify-between mb-3">
-              <h2 className="text-[26px]">{active.name}</h2>
-              <ChartSettings label="Ranking" mode={rankingMode} onChange={(rankingVariants) => update({ ...active, rankingVariants })} {...releaseProps} {...modelPicker} />
-            </div>
-            <Rankings onSelect={(r) => { if (r) calculations.current?.inspect(r.variant.id); }} ranked={rankingRows} labs={snapshot.labs} showEffort={rankingMode === "all"} />
+            <Rankings title={<h2 className="text-[26px]">{active.name}</h2>} actions={<ChartSettings label="Ranking" mode={rankingMode} onChange={(rankingVariants) => update({ ...active, rankingVariants })} {...releaseProps} {...modelPicker} />} onSelect={(r) => { if (r) calculations.current?.inspect(r.variant.id); }} ranked={rankingRows} labs={snapshot.labs} showEffort={rankingMode === "all"} />
           </div>
           <div>
-            <div className="flex flex-wrap gap-x-4 gap-y-1 items-baseline justify-between mb-1">
-              <h2 className="text-[22px]">Score vs cost per task</h2>
-              <ChartSettings label="Pareto" mode={paretoMode} onChange={(paretoVariants) => update({ ...active, paretoVariants })} {...releaseProps} {...modelPicker} />
-            </div>
-            <ParetoChart ranked={paretoRows} labs={snapshot.labs} />
+            <ParetoChart ranked={paretoRows} labs={snapshot.labs} view={paretoView} title={<h2 className="text-[22px]">Score vs cost per task</h2>}
+              actions={<ChartSettings label="Pareto" mode={paretoMode} onChange={(paretoVariants) => update({ ...active, paretoVariants })} view={paretoView} onView={setParetoView} {...releaseProps} {...modelPicker} />} />
           </div>
           <div>
             <h2 className="text-[22px] mb-1">More metrics</h2>
-            <MetricGallery ranked={paretoRows} snapshot={snapshot} labs={snapshot.labs} />
+            <MetricGallery ranked={result.ranked} mode={paretoMode} snapshot={snapshot} labs={snapshot.labs} settings={{ ...releaseProps, ...modelPicker }} />
           </div>
         </section>
       </main>

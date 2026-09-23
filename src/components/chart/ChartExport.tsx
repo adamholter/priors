@@ -17,7 +17,7 @@ function toCsv(rows: ExportRow[]) {
 }
 
 /** Export control: PNG is the primary button, a chevron opens the full format menu (PNG, SVG, CSV, JSON). */
-export function ChartExport({ name, getSvg, getRows }: { name: string; getSvg: () => string | undefined; getRows?: () => ExportRow[] }) {
+export function ChartExport({ name, getSvg, getRows, className = "" }: { name: string; getSvg: () => string | undefined; getRows?: () => ExportRow[]; className?: string }) {
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState(false);
   const [error, setError] = useState("");
@@ -62,9 +62,8 @@ export function ChartExport({ name, getSvg, getRows }: { name: string; getSvg: (
     finally { setBusy(false); }
   }
   const formats: ("png" | "svg" | "csv" | "json")[] = ["png", "svg", ...(getRows ? (["csv", "json"] as const) : [])];
-  return <div className="relative flex flex-wrap justify-end items-center gap-2 mb-2" role="group" aria-label={`Export ${name}`}>
-    <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M12 3v12m-4-4 4 4 4-4M5 16v5h14v-5" /></svg>
-    <span className="cap">Export</span>
+  return <div className={`relative flex items-center gap-1.5 ${className}`} role="group" aria-label={`Export ${name}`} title={`Export ${name}`}>
+    <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-grey"><path d="M12 3v12m-4-4 4 4 4-4M5 16v5h14v-5" /></svg>
     <div className="export-split">
       <button type="button" disabled={busy} aria-label={`Download ${name} as PNG`} onClick={() => download("png")}>PNG</button>
       <button type="button" className="export-toggle" aria-haspopup="menu" aria-expanded={open} aria-label={`More export formats for ${name}`} onClick={() => setOpen(o => !o)}>
@@ -77,6 +76,6 @@ export function ChartExport({ name, getSvg, getRows }: { name: string; getSvg: (
         {formats.map((format) => <button key={format} type="button" role="menuitem" disabled={busy} onClick={() => download(format)}>{format.toUpperCase()}</button>)}
       </div>
     </>}
-    {error && <span role="alert" className="text-sm text-red-700">{error}</span>}
+    {error && <span role="alert" className="absolute right-0 top-full mt-1 whitespace-nowrap text-[12px] text-red-700 bg-white px-1.5 z-20">{error}</span>}
   </div>;
 }
