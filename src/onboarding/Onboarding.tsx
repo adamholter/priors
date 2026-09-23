@@ -64,8 +64,10 @@ export function Onboarding({ snapshot }: { snapshot: Snapshot }) {
   const orderRef = useRef(order);
   useEffect(() => { orderRef.current = order; }, [order]);
   // Remember the lineup across visits to the base URL.
+  const restored = useRef(false);
   useEffect(() => {
     const raf = requestAnimationFrame(() => {
+      restored.current = true;
       try {
         const saved = JSON.parse(localStorage.getItem("priors:lineup") ?? "[]") as string[];
         const kept = saved.filter((id) => models.has(id));
@@ -77,7 +79,7 @@ export function Onboarding({ snapshot }: { snapshot: Snapshot }) {
     return () => cancelAnimationFrame(raf);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  useEffect(() => { try { localStorage.setItem("priors:lineup", JSON.stringify(order)); } catch { /* ignore */ } }, [order]);
+  useEffect(() => { if (!restored.current) return; try { localStorage.setItem("priors:lineup", JSON.stringify(order)); } catch { /* ignore */ } }, [order]);
   const [stage, setStage] = useState<"order" | "fit">("order");
   const [focus, setFocus] = useState<FocusId>(DEFAULT_FOCUS);
   const [library, setLibrary] = useState<MixLibrary | null>(null);
