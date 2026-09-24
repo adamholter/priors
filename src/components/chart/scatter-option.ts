@@ -1,8 +1,8 @@
 import type { EChartsOption } from "echarts";
-import type { Lab } from "@/data/types";
-import type { RankedVariant } from "@/engine";
+import type { Lab } from "../../data/types";
+import type { RankedVariant } from "../../engine";
 import { markColor, markLabel, type ChartPalette } from "./theme";
-import { chartLabel } from "@/lib/metrics";
+import { chartLabel } from "../../lib/metrics";
 
 export interface ScatterPoint { x: number; r: RankedVariant; /** untransformed value for tooltips/export when x is transformed */ raw?: number }
 export interface ScatterView { density: number; frontier: boolean; links: boolean; kind?: "scatter" | "bars" }
