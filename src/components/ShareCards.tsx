@@ -65,6 +65,12 @@ function ShareCardsContent({ indices, active, date, profile, pageUrl, defaultDes
   params.set("design", design);
   if (profile) params.set("handle", profile.handle);
   const shareUrl = pageUrl ?? `${origin}/builder?${params}`;
+  // The posted link carries only the active index (+ design, so the preview matches the chosen card).
+  const postParams = encodeIndices([active]);
+  postParams.set("date", date);
+  postParams.set("design", design);
+  if (profile) postParams.set("handle", profile.handle);
+  const postUrl = pageUrl ?? `${origin}/builder?${postParams}`;
   const imageParams = encodeIndices([active]);
   imageParams.set("date", date);
   if (profile) imageParams.set("handle", profile.handle);
@@ -72,8 +78,33 @@ function ShareCardsContent({ indices, active, date, profile, pageUrl, defaultDes
   const selectedUrl = `${imageUrl(design)}${retry ? `&retry=${retry}` : ""}`;
   const selected = SHARE_DESIGNS.find((d) => d.id === design) ?? SHARE_DESIGNS[0];
   const local = !origin || /^https?:\/\/(localhost|127\.|\[::1\])/.test(origin);
-  const xParams = new URLSearchParams({ text: `${active.name} on Priors` });
-  if (!local) xParams.set("url", shareUrl);
+  const postText = `${active.name} on Priors`;
+  const xParams = new URLSearchParams({ text: postText });
+  if (!local) xParams.set("url", postUrl);
+  const coarse = typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches;
+  const pasteKey = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform || "") ? "⌘V" : "Ctrl+V";
+  const shareToX = () => {
+    const intent = `https://x.com/intent/post?${xParams}`;
+    const card = fetch(selectedUrl).then((r) => r.blob());
+    if (coarse) {
+      // Mobile share sheet: attach the PNG when the target accepts files.
+      card.then((blob) => {
+        const file = new File([blob], `priors-${design}.png`, { type: "image/png" });
+        if (navigator.canShare?.({ files: [file] })) {
+          navigator.share({ files: [file], text: `${postText} ${postUrl}` }).catch((e) => { if ((e as Error).name !== "AbortError") setMessage("Couldn't share the card — use Download and attach it."); });
+        } else {
+          window.open(intent, "_blank", "noopener");
+          setMessage("This device can't attach the card — use Download and add it to the draft.");
+        }
+      }).catch(() => setMessage("Couldn't load the card image — use Download and attach it."));
+      return;
+    }
+    window.open(intent, "_blank", "noopener");
+    if (typeof ClipboardItem === "undefined" || !navigator.clipboard?.write) { setMessage("Couldn't copy the image — use Download and attach it."); return; }
+    navigator.clipboard.write([new ClipboardItem({ "image/png": card })])
+      .then(() => setMessage(`Card copied. Press ${pasteKey} in the X draft to attach it.`))
+      .catch(() => setMessage("Couldn't copy the image — use Download and attach it."));
+  };
   const copy = async () => {
     try { await navigator.clipboard.writeText(pageUrl ?? `${window.location.origin}/builder?${params}`); setMessage("Link copied"); }
     catch { setMessage("Copy failed. Select the link below to copy it manually."); }
@@ -106,12 +137,12 @@ function ShareCardsContent({ indices, active, date, profile, pageUrl, defaultDes
         <div className="my-4 flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm">{String(SHARE_DESIGNS.findIndex((d) => d.id === design) + 1).padStart(2, "0")} / {selected.name}</p>
           <div className="flex flex-wrap gap-2">
-            <a className="btn-quiet inline-flex items-center gap-1.5 !border-black !bg-black !text-white hover:opacity-85" href={`https://twitter.com/intent/tweet?${xParams}`} target="_blank" rel="noopener noreferrer"><XLogo />Share on X</a>
+            <button type="button" className="btn-quiet inline-flex items-center gap-1.5 !border-black !bg-black !text-white hover:opacity-85" onClick={shareToX}><XLogo />Share on X</button>
             <button type="button" className="btn-quiet inline-flex items-center gap-1.5" onClick={copy}><CopyIcon />Copy link</button>
             <a className="btn-quiet inline-flex items-center gap-1.5" href={selectedUrl} download={`priors-${design}.png`}><DownloadIcon />Download</a>
           </div>
         </div>
-        <p className="mb-4 text-xs text-ink-2">{local ? "Download the PNG to attach to your X draft. This local preview has no public link." : "X opens a draft with your index link. Download the PNG to attach the card."}</p>
+        <p className="mb-4 text-xs text-ink-2">{local ? "Download the PNG to attach to your X draft. This local preview has no public link." : coarse ? "Share on X opens your share sheet with the card attached." : "Share on X copies the card image and opens a draft — paste it in."}</p>
         {message && <div className="mb-4 text-sm" role="status">{message}{message.startsWith("Copy failed") && <input aria-label="Share link" className="inp mt-2 w-full" value={shareUrl} readOnly onFocus={(e) => e.currentTarget.select()} />}</div>}
         </section>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-5 lg:grid-cols-2" aria-label="Card designs">
