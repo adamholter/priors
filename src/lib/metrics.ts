@@ -80,6 +80,21 @@ export function metricPanels(snapshot: Snapshot, ranked: RankedVariant[]): Metri
   return panels;
 }
 
+export const money = (v: number) => `$${v >= 10 ? Math.round(v) : v >= 1 ? v.toFixed(1).replace(/\.0$/, "") : v >= 0.01 ? v.toFixed(2).replace(/0$/, "") : v.toPrecision(1)}`;
+
+/** Index score vs measured cost per task — same fields ParetoChart passes to ScoreScatter. */
+export const costChart: MetricChart & { xShort: string } = {
+  better: "lower",
+  points: (rows) => rows.flatMap((r) => (r.costUsd != null && r.costUsd > 0 ? [{ x: r.costUsd, r }] : [])),
+  xLabel: "",
+  xName: "Cost per task ($, log)",
+  xShort: "$ / task (log)",
+  scale: "log",
+  formatX: money,
+  formatValue: (v) => `$${v.toFixed(v < 0.1 ? 3 : 2)}/task`,
+  aria: "Index score versus cost per task",
+};
+
 /** Output speed as a metric chart (from RankedVariant.speed, not observations). */
 export const speedChart: MetricChart = {
   better: "higher",

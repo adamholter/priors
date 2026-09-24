@@ -19,7 +19,7 @@ import { ChartSettings } from "../chart/ChartSettings";
 import { presetOf, presetStyle } from "@/lib/page-presets";
 import { hiddenIds, toggleVisibility, SHOW_ALL, HIDE_ALL } from "@/lib/model-visibility";
 import { anchorOf } from "../chart/ChartLink";
-import { ChartPaletteContext, LIGHT_PALETTE, type ChartPalette } from "../chart/echarts";
+import { ChartPaletteContext, paletteFor } from "../chart/echarts";
 
 export interface Section {
   id: string; kind: "rankings" | "pareto" | "speed" | "benchmark" | "text" | "links" | "history" | "gallery";
@@ -138,13 +138,6 @@ export function IndexPage({ profile, snapshot, dates, edit }: { profile: Profile
     </div>
     </ChartPaletteContext.Provider>
   );
-}
-
-const palettes = new Map<string, ChartPalette>();
-function paletteFor(preset: ReturnType<typeof presetOf>): ChartPalette {
-  let p = palettes.get(preset.id);
-  if (!p) { p = preset.dark ? { dark: true, ink: preset.ink, ink2: preset.ink2, grey: preset.grey, hair: preset.hair, bg: preset.hair2, tipBg: preset.bg, tipBorder: preset.hair } : { ...LIGHT_PALETTE, bg: preset.bg }; palettes.set(preset.id, p); }
-  return p;
 }
 
 /** Three-dots menu. Content stays mounted while closed so the editor keeps its state and drawer. */

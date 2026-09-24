@@ -1,10 +1,9 @@
 "use client";
 import { useState } from "react";
 import { useChartPalette } from "./echarts";
+import { escapeSvg, frameSvg } from "./export-frame";
 
-export function escapeSvg(value: string) {
-  return value.replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&apos;" }[c]!));
-}
+export { escapeSvg, frameSvg };
 
 export type ExportRow = Record<string, string | number | boolean | null | undefined>;
 
@@ -15,22 +14,6 @@ function toCsv(rows: ExportRow[]) {
     return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
   return [keys.join(","), ...rows.map((r) => keys.map((k) => cell(r[k])).join(","))].join("\n");
-}
-
-/**
- * Frames a chart SVG for export: bone background, padding on every side, the chart title in the
- * site serif at top-left, and a quiet source line at bottom-left, so images never start flush at the
- * axis label.
- */
-export function frameSvg(raw: string, title: string, date?: string, pal: { bg: string; ink: string; grey: string } = { bg: "#FBFBF9", ink: "#1A1A1A", grey: "#8A8A80" }) {
-  const open = raw.match(/<svg[^>]*>/)?.[0] ?? "";
-  const w = Number(open.match(/width="([\d.]+)/)?.[1] ?? 800), h = Number(open.match(/height="([\d.]+)/)?.[1] ?? 400);
-  const pad = 32, foot = 34, W = Math.round(w + pad * 2), H = Math.round(h + pad + 22 + foot);
-  const inner = raw.replace(/^<\?xml[^>]*>\s*/, "").replace(/<svg/, `<svg x="${pad}" y="${pad + 22}"`);
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}"><rect width="${W}" height="${H}" fill="${pal.bg}"/>`
-    + `<text x="${pad}" y="${pad + 14}" font-family="Newsreader, Georgia, serif" font-size="24" fill="${pal.ink}">${escapeSvg(title)}</text>`
-    + inner
-    + `<text x="${pad}" y="${H - 16}" font-family="JetBrains Mono, Menlo, monospace" font-size="11" fill="${pal.grey}">mypriors.com${date ? ` · ${escapeSvg(date)}` : ""}</text></svg>`;
 }
 
 /** Export control: PNG is the primary button, a chevron opens the full format menu (PNG, SVG, CSV, JSON). */

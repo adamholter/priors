@@ -1,0 +1,104 @@
+import type { EChartsOption } from "echarts";
+import type { Lab } from "@/data/types";
+import type { RankedVariant } from "@/engine";
+import { markColor, markLabel, type ChartPalette } from "./theme";
+import { chartLabel } from "@/lib/metrics";
+
+export interface ScatterPoint { x: number; r: RankedVariant; /** untransformed value for tooltips/export when x is transformed */ raw?: number }
+export interface ScatterView { density: number; frontier: boolean; links: boolean; kind?: "scatter" | "bars" }
+export const DEFAULT_VIEW: ScatterView = { density: 0.45, frontier: true, links: true, kind: "scatter" };
+
+/**
+ * Chooses which marks get a label. Frontier marks come first, then marks closest below the frontier;
+ * density sets how many and how far from the frontier labels reach. Below high density each model is
+ * labeled once (its highest-priority effort), so one release doesn't repeat across every effort.
+ */
+export function pickLabels(pts: ScatterPoint[], better: "lower" | "higher", density: number): Set<string> {
+  if (!pts.length) return new Set();
+  const ys = pts.map((p) => p.r.score), range = Math.max(1, Math.max(...ys) - Math.min(...ys));
+  const sorted = [...pts].sort((a, b) => better === "lower" ? a.x - b.x : b.x - a.x);
+  let run = -Infinity; const level = new Map<string, number>();
+  for (const p of sorted) { run = Math.max(run, p.r.score); level.set(p.r.variant.id, run); }
+  const gap = (p: ScatterPoint) => (level.get(p.r.variant.id)! - p.r.score) / range;
+  const order = [...pts].sort((a, b) => gap(a) - gap(b) || b.r.score - a.r.score);
+  if (density >= 0.999) return new Set(order.map((p) => p.r.variant.id));
+  const budget = Math.round(3 + density * density * pts.length * 0.9), reach = 0.04 + density * 0.6, perModel = density >= 0.85;
+  const out = new Set<string>(), models = new Set<string>();
+  for (const p of order) {
+    if (out.size >= budget) break;
+    if (gap(p) > reach && out.size >= 3) continue;
+    if (!perModel && models.has(p.r.model.id)) continue;
+    out.add(p.r.variant.id); models.add(p.r.model.id);
+  }
+  return out;
+}
+
+/** Non-dominated marks: nothing is both better on x and higher on score. */
+export function frontierOf(pts: ScatterPoint[], better: "lower" | "higher") {
+  const sorted = [...pts].sort((a, b) => (better === "lower" ? a.x - b.x : b.x - a.x) || b.r.score - a.r.score);
+  const out: ScatterPoint[] = []; let best = -Infinity;
+  for (const p of sorted) if (p.r.score > best) { out.push(p); best = p.r.score; }
+  return out.sort((a, b) => a.x - b.x);
+}
+
+function escapeHtml(s: string) { return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!)); }
+
+/**
+ * The ECharts option behind ScoreScatter — shared verbatim by the browser chart and the
+ * server-side share-card rasterizer. `hasTitle` mirrors the page's title row (gallery
+ * panels are untitled and float their controls over the plot's empty top margin).
+ */
+export function scatterOption({ pts, labs, better, xName, xShort, xUnit = "", scale = "linear", formatX, formatValue, view, pal, narrow, hasTitle = false, tooltipExtra }: {
+  pts: ScatterPoint[]; labs: Lab[]; better: "lower" | "higher"; xName: string; xShort?: string; xUnit?: string;
+  scale?: "linear" | "log" | "time"; formatX: (x: number) => string; formatValue?: (x: number) => string;
+  view: ScatterView; pal: ChartPalette; narrow: boolean; hasTitle?: boolean; tooltipExtra?: (p: ScatterPoint) => string;
+}): EChartsOption {
+  const frontier = frontierOf(pts, better);
+  const color = new Map(labs.map((l) => [l.id, markColor(l.color, pal)]));
+  const onFrontier = new Set(frontier.map((p) => p.r.variant.id));
+  const labeled = pickLabels(pts, better, narrow ? view.density * 0.5 : view.density);
+  const byModel = new Map<string, ScatterPoint[]>();
+  for (const p of pts) (byModel.get(p.r.model.id) ?? byModel.set(p.r.model.id, []).get(p.r.model.id)!).push(p);
+  const links = view.links ? [...byModel.values()].filter((v) => v.length > 1).map((v) => [...v].sort((a, b) => a.x - b.x)) : [];
+  const ys = pts.map((p) => p.r.score);
+  const yMin = Math.max(0, Math.floor((Math.min(...ys, 100) - 6) / 5) * 5), yMax = Math.min(100, Math.ceil((Math.max(...ys, 0) + 4) / 5) * 5);
+  // Labeled marks draw last so their labels win overlap resolution.
+  const ordered = [...pts].sort((a, b) => Number(labeled.has(a.r.variant.id)) - Number(labeled.has(b.r.variant.id)) || Number(onFrontier.has(a.r.variant.id)) - Number(onFrontier.has(b.r.variant.id)));
+  const series: EChartsOption["series"] = [
+    ...links.map((v) => ({ type: "line" as const, id: `link-${v[0].r.model.id}`, data: v.map((p) => ({ id: p.r.variant.id, value: [p.x, p.r.score] })), showSymbol: false, lineStyle: { color: color.get(v[0].r.model.labId), width: 1, opacity: 0.35 }, silent: true, animationDuration: 500, z: 1 })),
+    ...(view.frontier && frontier.length > 1 ? [{ type: "line" as const, id: "frontier", data: frontier.map((p) => ({ id: p.r.variant.id, value: [p.x, p.r.score] })), showSymbol: false, lineStyle: { color: pal.ink, width: 1.4 }, silent: true, animationDuration: 500, z: 2 }] : []),
+    {
+      type: "scatter", id: "marks", z: 3,
+      data: ordered.map((p) => {
+        const front = view.frontier && onFrontier.has(p.r.variant.id), show = labeled.has(p.r.variant.id);
+        return { name: chartLabel(p.r), value: [p.x, p.r.score], id: p.r.variant.id, itemStyle: { color: color.get(p.r.model.labId), borderColor: front ? pal.ink : pal.bg, borderWidth: 1.5, opacity: show || front ? 1 : 0.8 }, symbolSize: front ? 11 : 9, label: { show }, extra: p };
+      }),
+      label: narrow ? { ...markLabel(pal), fontSize: 10.5 } : markLabel(pal),
+      labelLayout: { hideOverlap: true, moveOverlap: "shiftY" },
+      emphasis: { scale: 1.4, label: { show: true, fontWeight: 600 } },
+      clip: true, universalTransition: { enabled: false },
+      animationDurationUpdate: 350, animationEasingUpdate: "cubicOut",
+    },
+  ];
+  const name = narrow && xShort ? xShort : xName;
+  return {
+    animation: true,
+    grid: narrow ? { left: 38, right: 12, top: hasTitle ? 24 : 48, bottom: 40 } : { left: 48, right: 130, top: hasTitle ? 24 : 48, bottom: 44 },
+    xAxis: {
+      type: scale === "linear" ? "value" : scale, name, nameLocation: "end", nameGap: 8, scale: scale === "linear",
+      nameTextStyle: { color: pal.grey, fontSize: 11, align: "right", verticalAlign: "top", padding: [26, 0, 0, 0] },
+      // Log/time axes otherwise print odd extent values ($0.007, 12.78s) that collide with round ticks.
+      axisLabel: scale === "time" ? { hideOverlap: true, showMinLabel: false, showMaxLabel: false } : { formatter: (v: number) => formatX(v), hideOverlap: true, showMinLabel: scale !== "log", showMaxLabel: scale !== "log" },
+      ...(scale === "log" ? { min: (e: { min: number }) => e.min / 1.5, max: (e: { max: number }) => e.max * 1.8 } : {}),
+    } as EChartsOption["xAxis"],
+    yAxis: { type: "value", name: "Index score", nameTextStyle: { color: pal.grey, fontSize: 11, align: "left", padding: [0, 0, 0, narrow ? -22 : -30] }, min: yMin, max: yMax },
+    tooltip: {
+      trigger: "item", confine: true, formatter: (p: unknown) => {
+        const d = (p as { data?: { extra?: ScatterPoint } }).data?.extra; if (!d) return "";
+        const lab = labs.find((l) => l.id === d.r.model.labId)?.name ?? d.r.model.labId;
+        return `<div style="font-weight:600">${escapeHtml(d.r.variant.sourceModel?.name ?? chartLabel(d.r))}</div><div style="color:${pal.grey};font-size:11px">${escapeHtml(lab)}${onFrontier.has(d.r.variant.id) ? " · on the frontier" : ""}</div><div style="font-family:var(--font-jetbrains);margin-top:4px">${d.r.score.toFixed(1)} · ${escapeHtml((formatValue ?? formatX)(d.raw ?? d.x))}${xUnit ? ` ${xUnit}` : ""}${tooltipExtra ? escapeHtml(tooltipExtra(d)) : ""}</div>`;
+      },
+    },
+    series,
+  };
+}

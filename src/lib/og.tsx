@@ -5,7 +5,8 @@ import { ImageResponse } from "next/og";
 import type { Snapshot } from "@/data/types";
 import { chartVariantMode, computeIndex, selectVariants, type IndexConfig, type RankedVariant } from "@/engine";
 import { isShareDesign, type ShareDesign } from "@/lib/share-designs";
-import { chartKind, chartLabel, chartTitle, type MetricChart, type MetricPoint } from "@/lib/metrics";
+import { chartLabel, type MetricPoint } from "@/lib/metrics";
+import { cardPalette, renderChartPng, scatterSpec } from "@/lib/og-chart";
 import QRCode from "qrcode";
 
 type Ctx = { index: IndexConfig; who: { name: string; handle?: string; avatarUrl?: string }; top: RankedVariant[]; board: RankedVariant[]; pts: RankedVariant[]; ranked: RankedVariant[]; pareto: RankedVariant[]; benches: { id: string; name: string; share: number }[]; colors: Map<string,string>; accent: string; bg: string; date: string; qr: string; snapshot: Snapshot };
@@ -21,19 +22,21 @@ function ctxFor(snapshot:Snapshot,index:IndexConfig,who:Ctx["who"],opts?:{accent
  if(!p){p=(async()=>{const r=computeIndex(snapshot,{...index,variants:"all"}),mode=chartVariantMode(index,"ranking"),list=selectVariants(r.ranked,mode),pareto=selectVariants(r.ranked,chartVariantMode(index,"pareto")),link=`https://mypriors.com${who.handle?`/${who.handle}`:""}`;return{index,who,top:list.slice(0,5),board:list.slice(0,10),pts:pareto.filter(x=>!!x.costUsd&&x.costUsd>0),ranked:r.ranked,pareto,benches:r.benchmarks.map(b=>({id:b.benchmark.id,name:b.benchmark.shortName??b.benchmark.name,share:b.share})),colors:new Map(snapshot.labs.map(l=>[l.id,l.color])),accent:opts?.accent??"#2F4FB0",bg:opts?.surface??"#FBFBF9",date:snapshot.date,qr:await QRCode.toDataURL(link,{margin:0,width:300,color:{dark:"#1A1A1A",light:"#00000000"}}),snapshot}})();ctxCache.set(key,p);if(ctxCache.size>24)ctxCache.delete(ctxCache.keys().next().value!);}
  return p;
 }
-export async function renderShareCard(snapshot: Snapshot,index:IndexConfig,who:{name:string;handle?:string;avatarUrl?:string},opts?:{accent?:string;surface?:string;design?:string;chart?:string}) {
+export async function renderShareCard(snapshot: Snapshot,index:IndexConfig,who:{name:string;handle?:string;avatarUrl?:string},opts?:{accent?:string;surface?:string;design?:string;chart?:string;theme?:{preset?:string;surface?:"bone"|"white"}}) {
  const design:ShareDesign|null=isShareDesign(opts?.design)?opts.design:null;
  const [c,serif,s4,s5,s6,m4,m5]=await Promise.all([ctxFor(snapshot,index,who,opts),font("Newsreader-400.ttf"),font("Inter-400.ttf"),font("Inter-500.ttf"),font("Inter-600.ttf"),font("JetBrainsMono-400.ttf"),font("JetBrainsMono-500.ttf")]);
- // An explicit design wins; then the linked chart; then a head-to-head card for
- // tiny fields (2-4 visible models); otherwise the default ranking bars.
+ // An explicit design wins; then the linked chart (rendered like the site's own PNG export);
+ // then a head-to-head card for tiny fields; otherwise the default ranking bars.
  let body:ReactNode;
  if(!c.top.length)body=<Empty c={c}/>;
  else if(design)body=<Design c={c} design={design}/>;
  else{
-  const ck=chartKind(snapshot,c.ranked,opts?.chart);
-  if(ck?.kind==="cost"&&c.pts.length)body=<Constellation c={c}/>;
-  else if(ck?.kind==="metric"){const pts=ck.chart.points(c.pareto);body=pts.length?<MetricCard c={c} chart={ck.chart} pts={pts} title={chartTitle(opts?.chart)??ck.chart.xName}/>:<Design c={c} design="ranking"/>;}
-  else if(c.top.length<=4)body=<Matchup c={c}/>;
+  const spec=scatterSpec(snapshot,c.pareto,opts?.chart);
+  if(spec&&spec.pts.length){
+   const png=await renderChartPng(spec,snapshot.labs,cardPalette(opts?.theme));
+   return new Response(png as unknown as BodyInit,{headers:{"content-type":"image/png"}});
+  }
+  if(c.top.length<=4)body=<Matchup c={c}/>;
   else body=<Design c={c} design="ranking"/>;
  }
  return new ImageResponse(<Frame c={c}>{body}</Frame>,{width:1200,height:630,fonts:[{name:"Newsreader",data:serif,weight:400},{name:"Inter",data:s4,weight:400},{name:"Inter",data:s5,weight:500},{name:"Inter",data:s6,weight:600},{name:"JetBrains Mono",data:m4,weight:400},{name:"JetBrains Mono",data:m5,weight:500}]});
@@ -145,11 +148,6 @@ function Empty({c}:{c:Ctx}){return <div style={{padding:68,width:"100%",display:
 const cache=new Map<string,Promise<ArrayBuffer>>();
 /** OFL fonts vendored in src/lib/og-fonts — no runtime fetch (cold starts matter for link previews). */
 function font(file:string){if(!cache.has(file))cache.set(file,readFile(path.join(process.cwd(),"src/lib/og-fonts",file)).then(b=>b.buffer.slice(b.byteOffset,b.byteOffset+b.byteLength) as ArrayBuffer));return cache.get(file)!}
-
-/** Generic metric scatter card for gallery chart links — same frame as Constellation. */
-function MetricCard({c,chart,pts,title}:{c:Ctx;chart:MetricChart;pts:MetricPoint[];title:string}){
- return <ScatterCard c={c} subtitle={title} pts={pts} better={chart.better} scale={chart.scale} formatX={chart.formatX} xTitle={`${chart.xName}${chart.scale==="log"?" · log scale":""}`} secsAxis={chart.secs}/>;
-}
 
 /** Head-to-head card for indexes with only a few visible models. */
 function Matchup({c}:{c:Ctx}){

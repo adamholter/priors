@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@clerk/nextjs": "^7.9.1",
+    "@resvg/resvg-js": "^2.6.2",
     "convex": "^1.45.0",
     "csv-parse": "6.1.0",
     "echarts": "^6.1.0",
@@ -38,5 +39,8 @@
     "tsx": "^4.23.13",
     "typescript": "^5",
     "vitest": "^5.0.0"
+  },
+  "optionalDependencies": {
+    "@resvg/resvg-js-darwin-arm64": "^2.6.2"
   }
 }
