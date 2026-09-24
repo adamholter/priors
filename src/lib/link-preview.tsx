@@ -3,9 +3,13 @@ import { headers } from "next/headers";
 /** Link-preview crawlers that need a tiny HTML response (they cap page size). Search engines are excluded. */
 const BOT_RE = /twitterbot|facebookexternalhit|facebot|linkedinbot|slackbot|slack-imgproxy|discordbot|telegrambot|whatsapp|applebot|redditbot|embedly|skypeuripreview|iframely|bluesky|cardyb|mastodon|pinterest|vkshare/i;
 
+const SEARCH_RE = /googlebot|bingbot|duckduckbot|yandex|baiduspider/i;
+const BROWSER_RE = /applewebkit|gecko\/|chrome\/|safari\/|firefox\//i;
+
 export async function isPreviewBot(): Promise<boolean> {
-  const h = await headers();
-  return BOT_RE.test(h.get("user-agent") ?? "");
+  const ua = (await headers()).get("user-agent") ?? "";
+  // Named preview crawlers, plus anything that isn't a real browser (X also fetches with a bare "Mozilla/5.0").
+  return BOT_RE.test(ua) || (!SEARCH_RE.test(ua) && !BROWSER_RE.test(ua));
 }
 
 /** Minimal crawlable body — metadata in <head> is unchanged; this only avoids serializing the app. */
