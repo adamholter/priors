@@ -98,7 +98,7 @@ export function Builder({ snapshot: base, dates, initialIndices }: { snapshot: S
 
   return (
     <div className="min-h-screen">
-      <header className="flex flex-wrap lg:flex-nowrap items-center gap-x-4 gap-y-2 px-4 sm:px-8 py-3 lg:py-0 lg:h-14 border-b hairline sticky top-0 bg-bone/90 backdrop-blur z-10">
+      <header className="flex flex-wrap lg:flex-nowrap items-center gap-x-4 gap-y-2 px-4 sm:px-8 py-3 lg:py-0 lg:h-14 border-b hairline lg:sticky top-0 bg-bone lg:bg-bone/90 lg:backdrop-blur z-10">
         <div className="shrink-0"><Wordmark transitionTypes={["nav-back"]} /></div>
         <div className="min-w-0 flex-1 overflow-x-auto">
           <IndexTabs indices={indices} activeId={active.id} onSelect={setActiveId} onRename={(id, name) => update({ ...indices.find((i) => i.id === id)!, name })} onAdd={add} onRemove={remove} />
