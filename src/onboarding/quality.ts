@@ -1,11 +1,9 @@
 import type { Benchmark, Snapshot } from "../data/types";
 import { focusMultiplier, type Focus } from "./focus";
-import { DEFAULT_LINEUP } from "./defaults";
+import { defaultLineup } from "./defaults";
 
 export const PREFERRED = ["deepswe-1.1", "terminalbench-4", "arc-agi-3", "simplebench", "bsbench-v2", "aa-humanitys-last-exam", "aa-omniscience", "frontiermath-tier-4-v2", "vals-programbench-v1"] as const;
 
-/** Current top-lineup models plus Luna, which launched with Opus 5.5 and Sol. */
-const FRONTIER_COHORT = [...new Set([...DEFAULT_LINEUP.slice(0, 10), "gpt-6-luna"])];
 const FRONTIER_RELEASE_DATE = "2026-09-22";
 
 export const SUPERSEDED = new Set(["aa-terminalbench-v2-1", "arc-agi-1", "arc-agi-2", "deepswe-1", "aa-math-500"]);
@@ -177,9 +175,9 @@ function modelsMeasured(snapshot: Snapshot, benchmarkId: string): number {
   return covered.size;
 }
 
-function frontierCoverage(snapshot: Snapshot, benchmarkId: string): { measured: number; total: number; score: number } {
+function frontierCoverage(snapshot: Snapshot, benchmarkId: string, cohort: string[]): { measured: number; total: number; score: number } {
   const available = new Set(snapshot.models.filter((m) => m.kind === "llm").map((m) => m.id));
-  const cohort = FRONTIER_COHORT.filter((id) => available.has(id));
+  cohort = cohort.filter((id) => available.has(id));
   const measured = new Set<string>();
   for (const observation of snapshot.observations) {
     if (observation.benchmarkId !== benchmarkId) continue;
@@ -194,7 +192,7 @@ export function affinity(q: BenchmarkQuality, focus: Focus, benchmark: Benchmark
   return Math.max(0, Math.min(1, (q.score / 100) * focusMultiplier(focus, benchmark.category)));
 }
 
-export function benchmarkQuality(snapshot: Snapshot): BenchmarkQuality[] {
+export function benchmarkQuality(snapshot: Snapshot, cohort: string[] = defaultLineup(snapshot, 10)): BenchmarkQuality[] {
   return snapshot.benchmarks.map((benchmark) => {
     const release = RELEASES[benchmark.id];
     const recency = recencyScore(snapshot.date, release?.date);
@@ -202,7 +200,7 @@ export function benchmarkQuality(snapshot: Snapshot): BenchmarkQuality[] {
     const objectivity = objectivityScore(benchmark);
     const measured = modelsMeasured(snapshot, benchmark.id);
     const coverage = rounded(100 * Math.min(1, measured / 40));
-    const frontier = frontierCoverage(snapshot, benchmark.id);
+    const frontier = frontierCoverage(snapshot, benchmark.id, cohort);
     const frontierScore = frontier.total ? frontier.score : coverage;
     const preferred = (PREFERRED as readonly string[]).includes(benchmark.id);
     const superseded = SUPERSEDED.has(benchmark.id);

@@ -12,16 +12,8 @@ import { useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { convexEnabled } from "@/app/providers";
 import { Intro, INTRO_KEY } from "./Intro";
-import { DEFAULT_LINEUP } from "./defaults";
+import { defaultLineup, savedLineup } from "./defaults";
 import "./onboarding.css";
-
-const INITIAL = DEFAULT_LINEUP;
-const LEGACY_DEFAULTS = [
-  ["claude-opus-5.5", "claude-fable-5.1", "gpt-6-astra", "claude-opus-5", "claude-fable-5", "muse-spark-1.3", "gpt-6-sol", "grok-4.7", "mimo-v2.6-pro", "qwen-3.8-max", "glm-5.3", "grok-4.6", "kimi-k3", "gpt-5.6-terra", "glm-5.3-flash", "gemini-3.8-flash", "deepseek-v4.1-flash", "claude-sonnet-5"],
-  ["claude-opus-5.5", "gpt-6-astra", "claude-fable-5.1", "claude-fable-5", "gpt-6-sol", "claude-opus-5", "grok-4.7", "gpt-6-luna", "gemini-3.8-flash", "glm-5.3", "gpt-5.6-terra", "grok-4.6", "gemini-3.7-flash", "claude-sonnet-5"],
-  ["claude-opus-5.5", "gpt-6-astra", "claude-fable-5.1", "gpt-6-sol", "claude-fable-5", "claude-opus-5", "gpt-6-luna", "grok-4.7", "gemini-3.8-flash", "glm-5.3", "gpt-5.6-terra", "grok-4.6", "gemini-3.7-flash", "claude-sonnet-5"],
-  ["claude-opus-5.5", "gpt-6-astra", "claude-fable-5.1", "claude-fable-5", "gpt-6-sol", "claude-opus-5", "grok-4.7", "gpt-6-luna", "glm-5.3", "gpt-5.6-terra", "gemini-3.8-flash", "grok-4.6", "gemini-3.7-flash", "claude-sonnet-5"],
-];
 const ROW = 46;
 const phaseNames = { preparing: "Reading the evidence", searching: "Searching the combinations", simplifying: "Keeping what matters", complete: "Your index, found" };
 function Arrow({ direction = "right" }: { direction?: "right" | "up" | "down" }) { return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true" style={{ transform: direction === "up" ? "rotate(-90deg)" : direction === "down" ? "rotate(90deg)" : undefined }}><path d="M4 12h15m-6-6 6 6-6 6" /></svg>; }
@@ -59,27 +51,23 @@ export function Onboarding({ snapshot }: { snapshot: Snapshot }) {
   const quality = useMemo(() => benchmarkQuality(snapshot), [snapshot]);
   const qMap = useMemo(() => new Map(quality.map(q => [q.id, q])), [quality]);
   const observedModels = useMemo(() => { const variants = new Map(snapshot.variants.map(v => [v.id, v.modelId])); return new Set(snapshot.observations.map(o => variants.get(o.variantId))); }, [snapshot]);
-  const original = INITIAL.filter(id => models.has(id));
+  const original = useMemo(() => defaultLineup(snapshot).filter(id => models.has(id)), [snapshot, models]);
   const [order, setOrder] = useState(original);
   const orderRef = useRef(order);
   useEffect(() => { orderRef.current = order; }, [order]);
-  // Remember the lineup across visits to the base URL.
+  // Persist only user edits, so untouched visitors track the dynamic default as it changes.
   const restored = useRef(false);
+  const edited = useRef(false);
   useEffect(() => {
     const raf = requestAnimationFrame(() => {
       restored.current = true;
-      try {
-        const saved = JSON.parse(localStorage.getItem("priors:lineup") ?? "[]") as string[];
-        const kept = saved.filter((id) => models.has(id));
-        // An untouched earlier default is not a user choice: let the current default replace it.
-        if (LEGACY_DEFAULTS.some((d) => d.join(",") === saved.join(","))) return;
-        if (kept.length >= 2) { setOrder(kept); orderRef.current = kept; }
-      } catch { /* ignore */ }
+      const saved = savedLineup(localStorage.getItem("priors:lineup"), (id) => models.has(id));
+      if (saved) { setOrder(saved); orderRef.current = saved; edited.current = true; }
     });
     return () => cancelAnimationFrame(raf);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  useEffect(() => { if (!restored.current) return; try { localStorage.setItem("priors:lineup", JSON.stringify(order)); } catch { /* ignore */ } }, [order]);
+  useEffect(() => { if (!restored.current || !edited.current) return; try { localStorage.setItem("priors:lineup", JSON.stringify({ v: 2, lineup: order })); } catch { /* ignore */ } }, [order]);
   const [stage, setStage] = useState<"order" | "fit">("order");
   const [focus, setFocus] = useState<FocusId>(DEFAULT_FOCUS);
   const [library, setLibrary] = useState<MixLibrary | null>(null);
@@ -173,6 +161,7 @@ export function Onboarding({ snapshot }: { snapshot: Snapshot }) {
     d.cleanup();
     dragInfo.current = null;
     if (cancel) { orderRef.current = d.original; setOrder(d.original); }
+    else if (orderRef.current.join(",") !== d.original.join(",")) edited.current = true;
     setDrag(null);
   }
   function start() {
@@ -300,7 +289,7 @@ export function Onboarding({ snapshot }: { snapshot: Snapshot }) {
     <Intro snapshot={snapshot} lineup={order} dialogRef={intro} onClose={() => { try { localStorage.setItem(INTRO_KEY, "1"); } catch { /* ignore */ } }} />
     <dialog ref={dialog} className="evidence-dialog" aria-labelledby="dialog-heading" onClick={e => { if (e.target === e.currentTarget) { const r = e.currentTarget.getBoundingClientRect(); if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) dialog.current?.close(); } }}>
       <div className="dialog-heading"><div><h2 id="dialog-heading">{modal === "models" ? "Who’s in your lineup?" : "Better evidence, fewer benchmarks."}</h2><p>{modal === "models" ? `Choose 3 to 18 models. ${order.length} selected.` : "Your preferences guide the search. Quality helps break close calls."}</p></div><button aria-label="Close dialog" className="icon-close" onClick={() => dialog.current?.close()}><Cross /></button></div>
-      {modal === "models" ? <><input className="model-search" type="search" placeholder="Find a model…" aria-label="Find a model" value={query} onChange={e => setQuery(e.target.value)} /><div className="model-options">{modelOptions.map(m => <label key={m.id}><input type="checkbox" checked={order.includes(m.id)} disabled={order.includes(m.id) ? order.length <= 3 : order.length >= 18} onChange={() => setOrder(o => o.includes(m.id) ? o.filter(id => id !== m.id) : [...o, m.id])} /><i style={{ background: colors.get(m.labId) ?? "#8A8A80" }} /><span>{m.name}</span></label>)}{!modelOptions.length && <p>No models found.</p>}</div><button className="primary-action" onClick={() => dialog.current?.close()}>Use this lineup <Arrow /></button></> : <>
+      {modal === "models" ? <><input className="model-search" type="search" placeholder="Find a model…" aria-label="Find a model" value={query} onChange={e => setQuery(e.target.value)} /><div className="model-options">{modelOptions.map(m => <label key={m.id}><input type="checkbox" checked={order.includes(m.id)} disabled={order.includes(m.id) ? order.length <= 3 : order.length >= 18} onChange={() => { edited.current = true; setOrder(o => o.includes(m.id) ? o.filter(id => id !== m.id) : [...o, m.id]); }} /><i style={{ background: colors.get(m.labId) ?? "#8A8A80" }} /><span>{m.name}</span></label>)}{!modelOptions.length && <p>No models found.</p>}</div><button className="primary-action" onClick={() => dialog.current?.close()}>Use this lineup <Arrow /></button></> : <>
         <div className="quality-explainer"><p><strong>Coverage</strong> counts how many models have measured results — a test most models took beats a niche one.</p><p><strong>Recency</strong> rewards recent test releases. An unknown release date gets a neutral score. A fresh scrape is not a fresh benchmark.</p><p><strong>Headroom</strong> measures saturation and score spread. Tests that separate models beat tests everyone passes.</p><p><strong>Objectivity</strong> favors verifiable outcomes over preferences and subjective judging.</p></div>
         <p className="quality-caveat">Quality combines 25% coverage, 25% recency, 30% headroom, and 20% objectivity — plus a bonus for preferred benchmarks, minus a penalty for superseded versions. Objectivity is an assigned judgment score. This heuristic does not measure contamination or scientific validity.</p>
         <div className="quality-table"><div className="quality-table-head"><span>Benchmark</span><span>Recent</span><span>Headroom</span><span>Objective</span><span>Quality</span></div>{quality.filter(q => q.preferred || activeWeights.some(([id]) => id === q.id)).sort((a, b) => Number(b.preferred) - Number(a.preferred) || b.score - a.score).map(q => <div className="quality-entry" key={q.id}><div className="quality-table-row"><span>{q.preferred && <span className="preferred-star">✳ </span>}{q.name}</span><span>{q.dateConfidence === "unknown" ? "?" : Math.round(q.recency)}</span><span>{Math.round(q.saturation)}</span><span>{Math.round(q.objectivity)}</span><strong>{Math.round(q.score)}</strong></div><details><summary>{q.releaseDate ? `Released ${q.releaseDate}` : "Release date unverified"} · Why this score</summary><p>{q.reason} <a href={q.sourceUrl} target="_blank" rel="noreferrer">Source ↗</a></p></details></div>)}</div>

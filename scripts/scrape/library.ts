@@ -11,7 +11,7 @@ import { computeIndex, selectVariants, type IndexConfig } from "../../src/engine
 import { benchmarkQuality, affinity } from "../../src/onboarding/quality";
 import { FOCUSES } from "../../src/onboarding/focus";
 import type { LibraryFit, MixLibrary } from "../../src/onboarding/library";
-import { DEFAULT_LINEUP } from "../../src/onboarding/defaults";
+import { DEFAULT_PRIORS_MIX, defaultLineup } from "../../src/onboarding/defaults";
 import { appendRealIndex } from "../../src/data/real-index";
 import { fitPriors, settingsKey, LEVELS } from "../../src/onboarding/optimizer";
 
@@ -89,9 +89,13 @@ async function priorFits(): Promise<LibraryFit[]> {
 
 /** Exact-verified fits for the default lineup (every focus) and popular lineups, so those resolve instantly. */
 async function buildFits(snapshot: Snapshot, library: MixLibrary, quality: Record<string, number>, llmIds: Set<string>): Promise<LibraryFit[]> {
+  const lineup = defaultLineup(snapshot).filter((id) => llmIds.has(id));
   const known = await priorFits();
+  // The mix that defines the default lineup orders it exactly — seed it so the capabilities
+  // fit resolves immediately instead of depending on search luck.
+  known.push({ lineup, focus: "capabilities", weights: { ...DEFAULT_PRIORS_MIX.weights }, settings: { strictness: DEFAULT_PRIORS_MIX.strictness ?? 50, estimateMissing: DEFAULT_PRIORS_MIX.estimateMissing, effortMatching: DEFAULT_PRIORS_MIX.effortMatching ?? "calibrated" }, exact: true, fitScore: 100 });
   const fits: LibraryFit[] = [];
-  const targets: { lineup: string[]; focus: FocusId; budget: number }[] = FOCUSES.map((f) => ({ lineup: DEFAULT_LINEUP.filter((id) => llmIds.has(id)), focus: f.id, budget: 45_000 }));
+  const targets: { lineup: string[]; focus: FocusId; budget: number }[] = FOCUSES.map((f) => ({ lineup, focus: f.id, budget: 45_000 }));
   for (const f of FOCUSES) for (const lineup of await topLineups(f.id)) targets.push({ lineup: lineup.filter((id) => llmIds.has(id)), focus: f.id, budget: 20_000 });
   const seen = new Set<string>();
   for (const t of targets) {
@@ -105,7 +109,7 @@ async function buildFits(snapshot: Snapshot, library: MixLibrary, quality: Recor
       console.log(`fit ${key.slice(0, 60)}…: ${done.exactMatch ? "exact" : "approx"} ${Math.round(done.fitScore)}%`);
     } catch { /* skip failed fits */ }
   }
-  if (!fits.some((f) => f.exact && f.lineup.join(",") === DEFAULT_LINEUP.filter((id) => llmIds.has(id)).join(","))) console.log("DEFAULT_FIT_MISSING: no exact fit for the default lineup");
+  if (!fits.some((f) => f.exact && f.focus === "capabilities" && f.lineup.join(",") === lineup.join(","))) console.log("DEFAULT_FIT_MISSING: no exact fit for the default lineup");
   return fits;
 }
 
@@ -160,7 +164,7 @@ export async function buildLibrary(date?: string): Promise<void> {
 
   const fits = await buildFits(snapshot, { date: snapshot.date, settingsKey: settingsKey(LIBRARY_SETTINGS), columns, mixes }, Object.fromEntries(quality.map((q) => [q.id, q.score])), llmIds);
   // Fitted lineups double as seed mixes for everyone else in that focus.
-  for (const f of fits) if (!DEFAULT_LINEUP.every((id, i) => f.lineup[i] === id)) mixes[f.focus].push({ weights: f.weights, ranking: rankMap(snapshot, f.weights) });
+  for (const f of fits) if (!defaultLineup(snapshot).every((id, i) => f.lineup[i] === id)) mixes[f.focus].push({ weights: f.weights, ranking: rankMap(snapshot, f.weights) });
   const library: MixLibrary = { date: snapshot.date, settingsKey: settingsKey(LIBRARY_SETTINGS), columns, mixes, fits };
   const gz = gzipSync(JSON.stringify(library));
   await mkdir(SNAP_DIR, { recursive: true });

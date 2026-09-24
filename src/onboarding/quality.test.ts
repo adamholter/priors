@@ -80,7 +80,8 @@ describe("benchmarkQuality", () => {
       ["full", "claude-opus-5.5@max", 20], ["full", "gpt-6-sol@max", 40], ["full", "gpt-6-luna@max", 60],
       ["gaps", "claude-opus-5.5@max", 20], ["gaps", "other-a@max", 40], ["gaps", "other-b@max", 60],
     ];
-    const result = benchmarkQuality(snapshot([full, gaps], values, "2026-09-23"));
+    const cohort = ["claude-opus-5.5", "gpt-6-sol", "gpt-6-luna"];
+    const result = benchmarkQuality(snapshot([full, gaps], values, "2026-09-23"), cohort);
     const a = result.find((q) => q.id === "full")!, b = result.find((q) => q.id === "gaps")!;
     expect(a.coverage).toBe(b.coverage);
     expect(a.frontierMeasured).toBe(3);
