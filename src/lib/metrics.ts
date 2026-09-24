@@ -82,6 +82,19 @@ export function metricPanels(snapshot: Snapshot, ranked: RankedVariant[]): Metri
 
 export const money = (v: number) => `$${v >= 10 ? Math.round(v) : v >= 1 ? v.toFixed(1).replace(/\.0$/, "") : v >= 0.01 ? v.toFixed(2).replace(/0$/, "") : v.toPrecision(1)}`;
 
+/**
+ * Metric-chart points honoring the effort mode. `all` passes every measured effort through;
+ * `best` keeps, per model, the highest-index-score point *that has the metric* — so a model
+ * whose top-scoring effort lacks the metric still appears via its best measured effort.
+ */
+export function pickPoints(chart: MetricChart, ranked: RankedVariant[], mode: "all" | "best"): MetricPoint[] {
+  const pts = chart.points(ranked);
+  if (mode === "all") return pts;
+  const best = new Map<string, MetricPoint>();
+  for (const p of pts) { const cur = best.get(p.r.model.id); if (!cur || p.r.score > cur.r.score) best.set(p.r.model.id, p); }
+  return [...best.values()];
+}
+
 /** Index score vs measured cost per task — same fields ParetoChart passes to ScoreScatter. */
 export const costChart: MetricChart & { xShort: string } = {
   better: "lower",

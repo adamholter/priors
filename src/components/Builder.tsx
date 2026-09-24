@@ -46,7 +46,6 @@ export function Builder({ snapshot: base, dates, initialIndices }: { snapshot: S
   const result = useMemo(() => computeIndex(snapshot, { ...active, variants: "all" }), [snapshot, active]);
   const rankingMode = chartVariantMode(active, "ranking"), paretoMode = chartVariantMode(active, "pareto");
   const rankingRows = useMemo(() => selectVariants(result.ranked, rankingMode), [result, rankingMode]);
-  const paretoRows = useMemo(() => selectVariants(result.ranked, paretoMode), [result, paretoMode]);
   // Settings-gear model picker: ranked models first (rank order), then the rest
   // of the candidate pool, then any excluded ids resolved from the catalog so
   // they can be re-checked.
@@ -133,7 +132,7 @@ export function Builder({ snapshot: base, dates, initialIndices }: { snapshot: S
             <Rankings anchor="rankings" title={<h2 className="text-[26px]">{active.name}</h2>} actions={<ChartSettings label="Ranking" mode={rankingMode} onChange={(rankingVariants) => update({ ...active, rankingVariants })} {...releaseProps} {...modelPicker} />} onSelect={(r) => { if (r) calculations.current?.inspect(r.variant.id); }} ranked={rankingRows} labs={snapshot.labs} showEffort={rankingMode === "all"} />
           </div>
           <div>
-            <ParetoChart anchor="cost" ranked={paretoRows} labs={snapshot.labs} view={paretoView} title={<h2 className="text-[22px]">Score vs cost per task</h2>}
+            <ParetoChart anchor="cost" ranked={result.ranked} mode={paretoMode} labs={snapshot.labs} view={paretoView} title={<h2 className="text-[22px]">Score vs cost per task</h2>}
               actions={<ChartSettings label="Pareto" mode={paretoMode} onChange={(paretoVariants) => update({ ...active, paretoVariants })} view={paretoView} onView={setParetoView} {...releaseProps} {...modelPicker} />} />
           </div>
           <div>

@@ -5,7 +5,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Lab } from "@/data/types";
 import { useChartPalette, useEChart } from "./echarts";
 import { scatterHtml, unitOf } from "./embed";
-import { ChartLink } from "./ChartLink";
+import { ChartLink, type ChartLinkParams } from "./ChartLink";
 import { chartLabel } from "@/lib/metrics";
 import { scatterOption, frontierOf, pickLabels, DEFAULT_VIEW, type ScatterPoint, type ScatterView } from "./scatter-option";
 
@@ -13,13 +13,13 @@ export { chartLabel, pickLabels, frontierOf, DEFAULT_VIEW };
 export type { ScatterPoint, ScatterView };
 
 /** Per-chart display preferences (label density, frontier, effort lines), remembered in localStorage. */
-export function useScatterView(key: string): [ScatterView, (v: ScatterView) => void] {
+export function useScatterView(key: string): [ScatterView, (v: ScatterView, persist?: boolean) => void] {
   const [view, setView] = useState<ScatterView>(DEFAULT_VIEW);
   useEffect(() => {
     const raf = requestAnimationFrame(() => { try { const s = JSON.parse(localStorage.getItem(`priors:chart:${key}`) ?? "null"); if (s) setView({ ...DEFAULT_VIEW, ...s }); } catch { /* ignore */ } });
     return () => cancelAnimationFrame(raf);
   }, [key]);
-  return [view, (v) => { setView(v); try { localStorage.setItem(`priors:chart:${key}`, JSON.stringify(v)); } catch { /* ignore */ } }];
+  return [view, (v, persist = true) => { setView(v); if (persist) try { localStorage.setItem(`priors:chart:${key}`, JSON.stringify(v)); } catch { /* ignore */ } }];
 }
 
 function escapeHtml(s: string) { return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!)); }
@@ -28,11 +28,11 @@ function escapeHtml(s: string) { return s.replace(/[&<>"']/g, (c) => ({ "&": "&a
  * Index score vs one metric. Lab-colored marks, reasoning efforts of one model joined by a thin line,
  * Pareto frontier traced in ink, labels thinned by density. Title, settings and export share one row.
  */
-export function ScoreScatter({ pts, labs, better, xName, xShort, xUnit = "", scale = "linear", formatX, formatValue, height = 420, aria, title, actions, view, exportName, extraRows, tooltipExtra, anchor }: {
+export function ScoreScatter({ pts, labs, better, xName, xShort, xUnit = "", scale = "linear", formatX, formatValue, height = 420, aria, title, actions, view, exportName, extraRows, tooltipExtra, anchor, linkParams }: {
   pts: ScatterPoint[]; labs: Lab[]; better: "lower" | "higher"; xName: string; xShort?: string; xUnit?: string;
   scale?: "linear" | "log" | "time"; formatX: (x: number) => string; formatValue?: (x: number) => string;
   height?: number; aria: string; title?: ReactNode; actions?: ReactNode; view: ScatterView; exportName: string;
-  extraRows?: (p: ScatterPoint) => ExportRow; tooltipExtra?: (p: ScatterPoint) => string; anchor?: string;
+  extraRows?: (p: ScatterPoint) => ExportRow; tooltipExtra?: (p: ScatterPoint) => string; anchor?: string; linkParams?: ChartLinkParams;
 }) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const [narrow, setNarrow] = useState(false);
@@ -67,7 +67,7 @@ export function ScoreScatter({ pts, labs, better, xName, xShort, xUnit = "", sca
         <div className="min-w-0">{title}</div>
         <div className="flex items-center gap-1 ml-auto pointer-events-auto">
           {actions}
-          {anchor && <ChartLink id={anchor} name={exportName} />}
+          {anchor && <ChartLink id={anchor} name={exportName} params={linkParams} />}
           <ChartExport name={exportName} frame getHtml={getHtml} getSvg={() => chart.current?.renderToSVGString()} getRows={() => pts.map((p) => ({ rank: p.r.rank, model: p.r.model.name, effort: p.r.variant.effort, score: +p.r.score.toFixed(2), lab: p.r.model.labId, [xName]: +(p.raw ?? p.x).toFixed(4), on_frontier: onFrontierIds.has(p.r.variant.id), ...extraRows?.(p) }))} />
         </div>
       </div>

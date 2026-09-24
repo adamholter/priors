@@ -1,18 +1,38 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import { anchorOf } from "@/lib/metrics";
 
 export { anchorOf };
 
+/** Chart-view params carried by deep links: `cv=bars` for the bars view, `cm=` for effort mode. */
+export interface ChartLinkParams { cv?: "bars"; cm?: "best" | "all" }
+
+function applyParams(url: URL, id: string, params?: ChartLinkParams) {
+  url.searchParams.set("c", id);
+  url.hash = id;
+  if (params) {
+    if (params.cv) url.searchParams.set("cv", params.cv); else url.searchParams.delete("cv");
+    if (params.cm) url.searchParams.set("cm", params.cm); else url.searchParams.delete("cm");
+  }
+}
+
+/** Mirroring only sets — never deletes — so a linked panel's own init pass can still read cv/cm. */
+function mirrorParams(url: URL, id: string, params?: ChartLinkParams) {
+  url.searchParams.set("c", id);
+  url.hash = id;
+  if (params?.cv) url.searchParams.set("cv", params.cv);
+  if (params?.cm) url.searchParams.set("cm", params.cm);
+}
+
 /** True once when the page loads (or the hash changes) pointing at `id`. */
-export function useHashTarget(id: string | undefined, onHit?: () => void) {
+export function useHashTarget(id: string | undefined, onHit?: () => void, params?: RefObject<ChartLinkParams | undefined>) {
   useEffect(() => {
     if (!id) return;
     const check = () => {
       const url = new URL(window.location.href), hash = decodeURIComponent(url.hash.slice(1));
       if (hash ? hash !== id : url.searchParams.get("c") !== id) return;
       // Crawlers never see the #fragment; mirror it into ?c= so a copied address-bar link previews this chart.
-      if (url.searchParams.get("c") !== id || !hash) { url.searchParams.set("c", id); url.hash = id; window.history.replaceState(null, "", url.toString()); }
+      if (url.searchParams.get("c") !== id || !hash || params) { mirrorParams(url, id, params?.current); window.history.replaceState(null, "", url.toString()); }
       onHit?.();
       // Charts render after hydration and shift layout; scroll once they have settled.
       setTimeout(() => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" }), 450);
@@ -25,11 +45,13 @@ export function useHashTarget(id: string | undefined, onHit?: () => void) {
 }
 
 /** Copies a link to this chart (current URL, which carries the index, plus #anchor). */
-export function ChartLink({ id, name }: { id: string; name: string }) {
+export function ChartLink({ id, name, params }: { id: string; name: string; params?: ChartLinkParams }) {
   const [copied, setCopied] = useState(false);
-  useHashTarget(id);
+  const paramsRef = useRef(params);
+  useEffect(() => { paramsRef.current = params; });
+  useHashTarget(id, undefined, params ? paramsRef : undefined);
   const copy = async () => {
-    const url = new URL(window.location.href); url.searchParams.set("c", id); url.hash = id;
+    const url = new URL(window.location.href); applyParams(url, id, params);
     window.history.replaceState(null, "", url.toString());
     try { await navigator.clipboard.writeText(url.toString()); setCopied(true); setTimeout(() => setCopied(false), 1600); } catch { /* the address bar still has the link */ }
   };
@@ -39,5 +61,3 @@ export function ChartLink({ id, name }: { id: string; name: string }) {
     <span role="status" className="sr-only">{copied ? "Link copied" : ""}</span>
   </button>;
 }
-
-

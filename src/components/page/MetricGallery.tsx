@@ -1,8 +1,8 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Snapshot, Lab } from "@/data/types";
-import { selectVariants, type RankedVariant } from "@/engine";
-import { metricPanels, type MetricChart } from "@/lib/metrics";
+import type { RankedVariant } from "@/engine";
+import { metricPanels, pickPoints, speedChart, type MetricChart } from "@/lib/metrics";
 import { MetricScatter } from "../chart/MetricScatter";
 import { SpeedChart } from "../chart/SpeedChart";
 import { ChartSettings } from "../chart/ChartSettings";
@@ -30,18 +30,45 @@ export function MetricGallery({ ranked, mode = "all", snapshot, labs, settings, 
 function GalleryChart({ id, anchor, title, chart, speed, ranked, defaultMode, labs, settings }: { id: string; anchor: string; title: string; chart?: MetricChart; speed?: boolean; ranked: RankedVariant[]; defaultMode: "all" | "best"; labs: Lab[]; settings?: SharedSettings }) {
   const [mode, setMode] = useState<"all" | "best">(defaultMode);
   const [view, setView] = useScatterView(`gallery-${id}`);
-  const rows = useMemo(() => selectVariants(ranked, mode), [ranked, mode]);
-  const bars = view.kind === "bars";
+  const bars = view.kind === "bars" && chart?.scale !== "time";
+  // Deep links carry the chart view (`cv=bars`, `cm=best|all`). Captured once per mount —
+  // mirror effects may rewrite the URL before init effects run (and StrictMode mounts twice).
+  const linked = useMemo(() => {
+    if (typeof window === "undefined") return { linked: false } as { linked: boolean; cv?: string | null; cm?: string | null };
+    const url = new URL(window.location.href);
+    return decodeURIComponent(url.hash.slice(1)) === anchor || url.searchParams.get("c") === anchor
+      ? { linked: true, cv: url.searchParams.get("cv"), cm: url.searchParams.get("cm") }
+      : { linked: false };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  // Apply the linked view for this session only (localStorage defaults untouched).
+  useEffect(() => {
+    if (!linked.linked) return;
+    setView({ ...view, kind: linked.cv === "bars" && chart?.scale !== "time" ? "bars" : "scatter" }, false);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- URL deep-link init
+    if (linked.cm === "best" || linked.cm === "all") setMode(linked.cm);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  // While this panel is the linked chart, keep cv/cm in the URL in sync with the toggles.
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (decodeURIComponent(url.hash.slice(1)) !== anchor && url.searchParams.get("c") !== anchor) return;
+    if (bars) url.searchParams.set("cv", "bars"); else url.searchParams.delete("cv");
+    if (mode !== defaultMode) url.searchParams.set("cm", mode); else url.searchParams.delete("cm");
+    window.history.replaceState(null, "", url.toString());
+  }, [bars, mode, anchor, defaultMode]);
+  const linkParams = { cv: bars ? ("bars" as const) : undefined, cm: mode !== defaultMode ? mode : undefined };
+  const metric = speed ? speedChart : chart;
+  const pts = useMemo(() => (metric ? pickPoints(metric, ranked, mode) : []), [metric, ranked, mode]);
   const toggle = <div className="seg" role="group" aria-label={`${title} chart type`}>
     <button type="button" aria-pressed={!bars} title="Score vs metric" onClick={() => setView({ ...view, kind: "scatter" })}><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><circle cx="4" cy="11" r="1.6" /><circle cx="8" cy="6" r="1.6" /><circle cx="12.5" cy="4" r="1.6" /><circle cx="10" cy="10" r="1.6" /></svg></button>
     <button type="button" aria-pressed={bars} title="Bar chart" onClick={() => setView({ ...view, kind: "bars" })}><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><rect x="2" y="3" width="3" height="11" /><rect x="6.5" y="6" width="3" height="8" /><rect x="11" y="9" width="3" height="5" /></svg></button>
   </div>;
   const actions = <>{chart?.scale !== "time" && toggle}<ChartSettings label={title} mode={mode} onChange={setMode} view={bars ? undefined : view} onView={setView} {...settings} /></>;
-  if (bars && speed) return <MetricBars pts={rows.filter((r) => r.speed && r.speed > 0).map((r) => ({ x: r.speed!, r }))} labs={labs} better="higher" xName="Output speed (tok/s)" formatValue={(v) => `${Math.round(v)}`} aria="Output speed by model" actions={actions} exportName="Output speed" anchor={anchor} />;
-  if (speed) return <SpeedChart ranked={rows} labs={labs} view={view} actions={actions} anchor={anchor} />;
-  if (!chart) return null;
-  if (bars && chart.scale !== "time") return <MetricBars pts={chart.points(rows)} labs={labs} better={chart.better} xName={chart.xName} formatValue={chart.formatValue ?? chart.formatX} aria={chart.aria.replace("Index score versus", "By model:")} actions={actions} exportName={title} anchor={anchor} />;
-  return <MetricScatter pts={chart.points(rows)} labs={labs} better={chart.better} xLabel={chart.xLabel} xName={chart.xName} scale={chart.scale} formatX={chart.formatX} formatValue={chart.formatValue} aria={chart.aria} view={view} actions={actions} exportName={title} anchor={anchor} />;
+  if (!metric) return null;
+  if (bars) return <MetricBars pts={pts} labs={labs} better={metric.better} xName={metric.xName} formatValue={metric.formatValue ?? metric.formatX} aria={metric.aria.replace("Index score versus", "By model:")} actions={actions} exportName={title} anchor={anchor} linkParams={linkParams} />;
+  if (speed) return <SpeedChart pts={pts} labs={labs} view={view} actions={actions} anchor={anchor} linkParams={linkParams} />;
+  return <MetricScatter pts={pts} labs={labs} better={metric.better} xLabel={metric.xLabel} xName={metric.xName} scale={metric.scale} formatX={metric.formatX} formatValue={metric.formatValue} aria={metric.aria} view={view} actions={actions} exportName={title} anchor={anchor} linkParams={linkParams} />;
 }
 
 function Panel({ anchor, title, desc, defaultOpen, children }: { anchor: string; title: string; desc: string; defaultOpen?: boolean; children: React.ReactNode }) {

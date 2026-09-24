@@ -34,8 +34,9 @@ export async function generateMetadata({ params, searchParams }: PageProps<"/[ha
   const p = await getProfile(handle);
   if (!p) return {};
   const { chart, title, description } = profileCard(p, sp);
+  const viewParams = `${typeof sp.cv === "string" ? `&cv=${sp.cv}` : ""}${typeof sp.cm === "string" ? `&cm=${sp.cm}` : ""}`;
   const image = chart && p.indices[0]
-    ? { url: `/og?handle=${handle}&i=${encodeURIComponent(encodeIndex(p.indices[0]))}&c=${chart}`, width: 1200, height: 630, alt: title }
+    ? { url: `/og?handle=${handle}&i=${encodeURIComponent(encodeIndex(p.indices[0]))}&c=${chart}${viewParams}`, width: 1200, height: 630, alt: title }
     : { url: `/${handle}/opengraph-image?v=${Math.round((p as { updatedAt?: number }).updatedAt ?? 0)}`, width: 1200, height: 630, alt: title };
   return { title, description, alternates: { canonical: `/${handle}` }, openGraph: { title, description, type: "profile", url: `/${handle}`, images: [image] }, twitter: { card: "summary_large_image", title, description, images: [image.url] } };
 }

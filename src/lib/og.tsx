@@ -22,7 +22,7 @@ function ctxFor(snapshot:Snapshot,index:IndexConfig,who:Ctx["who"],opts?:{accent
  if(!p){p=(async()=>{const r=computeIndex(snapshot,{...index,variants:"all"}),mode=chartVariantMode(index,"ranking"),list=selectVariants(r.ranked,mode),pareto=selectVariants(r.ranked,chartVariantMode(index,"pareto")),link=`https://mypriors.com${who.handle?`/${who.handle}`:""}`;return{index,who,top:list.slice(0,5),board:list.slice(0,10),pts:pareto.filter(x=>!!x.costUsd&&x.costUsd>0),ranked:r.ranked,pareto,benches:r.benchmarks.map(b=>({id:b.benchmark.id,name:b.benchmark.shortName??b.benchmark.name,share:b.share})),colors:new Map(snapshot.labs.map(l=>[l.id,l.color])),accent:opts?.accent??"#2F4FB0",bg:opts?.surface??"#FBFBF9",date:snapshot.date,qr:await QRCode.toDataURL(link,{margin:0,width:300,color:{dark:"#1A1A1A",light:"#00000000"}}),snapshot}})();ctxCache.set(key,p);if(ctxCache.size>24)ctxCache.delete(ctxCache.keys().next().value!);}
  return p;
 }
-export async function renderShareCard(snapshot: Snapshot,index:IndexConfig,who:{name:string;handle?:string;avatarUrl?:string},opts?:{accent?:string;surface?:string;design?:string;chart?:string;theme?:{preset?:string;surface?:"bone"|"white"}}) {
+export async function renderShareCard(snapshot: Snapshot,index:IndexConfig,who:{name:string;handle?:string;avatarUrl?:string},opts?:{accent?:string;surface?:string;design?:string;chart?:string;cv?:string;cm?:string;theme?:{preset?:string;surface?:"bone"|"white"}}) {
  const design:ShareDesign|null=isShareDesign(opts?.design)?opts.design:null;
  const [c,serif,s4,s5,s6,m4,m5]=await Promise.all([ctxFor(snapshot,index,who,opts),font("Newsreader-400.ttf"),font("Inter-400.ttf"),font("Inter-500.ttf"),font("Inter-600.ttf"),font("JetBrainsMono-400.ttf"),font("JetBrainsMono-500.ttf")]);
  // An explicit design wins; then the linked chart (rendered like the site's own PNG export);
@@ -31,10 +31,10 @@ export async function renderShareCard(snapshot: Snapshot,index:IndexConfig,who:{
  if(!c.top.length)body=<Empty c={c}/>;
  else if(design)body=<Design c={c} design={design}/>;
  else{
-  const spec=scatterSpec(snapshot,c.pareto,opts?.chart);
-  if(spec&&spec.pts.length){
-   const png=await renderChartPng(spec,snapshot.labs,cardPalette(opts?.theme));
-   return new Response(png as unknown as BodyInit,{headers:{"content-type":"image/png"}});
+  const spec=scatterSpec(snapshot,c.ranked,index,opts?.chart,opts?.cm);
+  if(spec){
+   const png=await renderChartPng(spec,snapshot.labs,cardPalette(opts?.theme),opts?.cv);
+   if(png)return new Response(png as unknown as BodyInit,{headers:{"content-type":"image/png"}});
   }
   if(c.top.length<=4)body=<Matchup c={c}/>;
   else body=<Design c={c} design="ranking"/>;
