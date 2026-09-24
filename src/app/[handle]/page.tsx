@@ -9,6 +9,7 @@ import { PageTransition } from "@/components/PageTransition";
 import { encodeIndex } from "@/lib/url";
 import { chartTitle } from "@/lib/metrics";
 import { resolveProfileChart } from "../og/route";
+import { isPreviewBot, PreviewPage } from "@/lib/link-preview";
 
 export const dynamic = "force-dynamic";
 
@@ -18,16 +19,21 @@ async function getProfile(handle: string): Promise<Profile | null> {
   return (await new ConvexHttpClient(url).query(api.profiles.byHandle, { handle })) as Profile | null;
 }
 
-export async function generateMetadata({ params, searchParams }: PageProps<"/[handle]">): Promise<Metadata> {
-  const { handle } = await params;
-  const sp = await searchParams;
-  const p = await getProfile(handle);
-  if (!p) return {};
+function profileCard(p: Profile, sp: Record<string, string | string[] | undefined>) {
   const chart = resolveProfileChart(p, typeof sp.c === "string" ? sp.c : undefined);
   const ct = chartTitle(chart);
   const base = `${p.displayName}’s priors`;
   const title = ct ? `${base} · ${ct}` : base;
   const description = p.bio || `${p.indices.map((i) => i.name).join(", ")} — a personal index of AI models.`;
+  return { chart, title, description };
+}
+
+export async function generateMetadata({ params, searchParams }: PageProps<"/[handle]">): Promise<Metadata> {
+  const { handle } = await params;
+  const sp = await searchParams;
+  const p = await getProfile(handle);
+  if (!p) return {};
+  const { chart, title, description } = profileCard(p, sp);
   const image = chart && p.indices[0]
     ? { url: `/og?handle=${handle}&i=${encodeURIComponent(encodeIndex(p.indices[0]))}&c=${chart}`, width: 1200, height: 630, alt: title }
     : { url: `/${handle}/opengraph-image?v=${Math.round((p as { updatedAt?: number }).updatedAt ?? 0)}`, width: 1200, height: 630, alt: title };
@@ -39,6 +45,12 @@ export default async function Page({ params, searchParams }: PageProps<"/[handle
   const sp = await searchParams;
   const p = await getProfile(handle);
   if (!p) notFound();
+  if (await isPreviewBot()) {
+    // Link-preview crawlers cap response size — give them the tags plus a tiny body, not the app.
+    const { title, description } = profileCard(p, sp);
+    const c = typeof sp.c === "string" ? `?c=${sp.c}` : "";
+    return <PreviewPage title={title} description={description} href={`/${handle}${c}`} />;
+  }
   const date = typeof sp.date === "string" ? sp.date : undefined;
   const [snap, dates] = await Promise.all([loadSnapshot(date), listSnapshotDates()]);
   if (!snap) notFound();

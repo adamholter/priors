@@ -1,4 +1,6 @@
 import type { ReactNode } from "react";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 import { ImageResponse } from "next/og";
 import type { Snapshot } from "@/data/types";
 import { chartVariantMode, computeIndex, selectVariants, type IndexConfig, type RankedVariant } from "@/engine";
@@ -21,7 +23,7 @@ function ctxFor(snapshot:Snapshot,index:IndexConfig,who:Ctx["who"],opts?:{accent
 }
 export async function renderShareCard(snapshot: Snapshot,index:IndexConfig,who:{name:string;handle?:string;avatarUrl?:string},opts?:{accent?:string;surface?:string;design?:string;chart?:string}) {
  const design:ShareDesign|null=isShareDesign(opts?.design)?opts.design:null;
- const [c,serif,sans,mono]=await Promise.all([ctxFor(snapshot,index,who,opts),font("Newsreader","wght@400"),font("Inter","wght@400;500;600"),font("JetBrains+Mono","wght@400;500")]);
+ const [c,serif,s4,s5,s6,m4,m5]=await Promise.all([ctxFor(snapshot,index,who,opts),font("Newsreader-400.ttf"),font("Inter-400.ttf"),font("Inter-500.ttf"),font("Inter-600.ttf"),font("JetBrainsMono-400.ttf"),font("JetBrainsMono-500.ttf")]);
  // An explicit design wins; then the linked chart; then a head-to-head card for
  // tiny fields (2-4 visible models); otherwise the default ranking bars.
  let body:ReactNode;
@@ -34,7 +36,7 @@ export async function renderShareCard(snapshot: Snapshot,index:IndexConfig,who:{
   else if(c.top.length<=4)body=<Matchup c={c}/>;
   else body=<Design c={c} design="ranking"/>;
  }
- return new ImageResponse(<Frame c={c}>{body}</Frame>,{width:1200,height:630,fonts:[{name:"Newsreader",data:serif},{name:"Inter",data:sans},{name:"JetBrains Mono",data:mono}]});
+ return new ImageResponse(<Frame c={c}>{body}</Frame>,{width:1200,height:630,fonts:[{name:"Newsreader",data:serif,weight:400},{name:"Inter",data:s4,weight:400},{name:"Inter",data:s5,weight:500},{name:"Inter",data:s6,weight:600},{name:"JetBrains Mono",data:m4,weight:400},{name:"JetBrains Mono",data:m5,weight:500}]});
 }
 function Frame({c,children}:{c:Ctx;children:ReactNode}){return <div style={{width:1200,height:630,background:c.bg,color:ink,display:"flex",position:"relative",fontFamily:"Inter",overflow:"hidden"}}>{children}<div style={{position:"absolute",left:58,bottom:36,fontFamily:"JetBrains Mono",fontSize:15,color:muted,display:"flex"}}>{`mypriors.com · ${c.date}`}</div><div style={{position:"absolute",right:50,bottom:32,fontFamily:"Newsreader",fontSize:36,display:"flex"}}><span>pr</span><span style={{color:c.accent}}>i</span><span>ors</span></div></div>}
 function Identity({c}:{c:Ctx}){return <div style={{display:"flex",alignItems:"center",gap:11}}>{c.who.avatarUrl&&<img src={c.who.avatarUrl} width="42" height="42" style={{width:42,height:42,objectFit:"cover",flexShrink:0,borderRadius:21,border:`1px solid ${line}`}} alt=""/>}<div style={{display:"flex",flexDirection:"column"}}><span style={{fontSize:18,fontWeight:500}}>{c.who.name}</span>{c.who.handle&&<span style={{fontSize:12,color:muted,fontFamily:"JetBrains Mono"}}>{`mypriors.com/${c.who.handle}`}</span>}</div></div>}
@@ -141,7 +143,8 @@ function Constellation({c}:{c:Ctx}){
 }
 function Empty({c}:{c:Ctx}){return <div style={{padding:68,width:"100%",display:"flex",flexDirection:"column",justifyContent:"space-between"}}><Identity c={c}/><div style={{display:"flex",flexDirection:"column"}}><div style={{fontFamily:"Newsreader",fontSize:64,display:"flex"}}>{c.index.name}</div><div style={{fontSize:21,color:muted,marginTop:15,display:"flex"}}>No models meet this index&apos;s current requirements.</div></div><div style={{width:550,borderTop:`1px solid ${line}`,display:"flex"}}/></div>}
 const cache=new Map<string,Promise<ArrayBuffer>>();
-function font(family:string,axis:string){const key=family+axis;if(!cache.has(key))cache.set(key,(async()=>{const css=await(await fetch(`https://fonts.googleapis.com/css2?family=${family}:${axis}&display=swap`,{headers:{"User-Agent":""}})).text();const url=css.match(/url\(([^)]+\.ttf)\)/)?.[1]??css.match(/src: url\(([^)]+)\) format\('(truetype|opentype)'\)/)?.[1];if(!url)throw new Error(`no font url for ${family}`);return(await fetch(url)).arrayBuffer()})());return cache.get(key)!}
+/** OFL fonts vendored in src/lib/og-fonts — no runtime fetch (cold starts matter for link previews). */
+function font(file:string){if(!cache.has(file))cache.set(file,readFile(path.join(process.cwd(),"src/lib/og-fonts",file)).then(b=>b.buffer.slice(b.byteOffset,b.byteOffset+b.byteLength) as ArrayBuffer));return cache.get(file)!}
 
 /** Generic metric scatter card for gallery chart links — same frame as Constellation. */
 function MetricCard({c,chart,pts,title}:{c:Ctx;chart:MetricChart;pts:MetricPoint[];title:string}){

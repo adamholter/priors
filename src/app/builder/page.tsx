@@ -5,6 +5,7 @@ import { listSnapshotDates, loadSnapshot } from "@/data/load";
 import { decodeIndices } from "@/lib/url";
 import { chartTitle } from "@/lib/metrics";
 import { chartVariantMode, computeIndex, selectVariants } from "@/engine";
+import { isPreviewBot, PreviewPage } from "@/lib/link-preview";
 
 export const dynamic = "force-dynamic";
 
@@ -24,26 +25,36 @@ async function describe(index: Parameters<typeof computeIndex>[1], date?: string
   }
 }
 
-export async function generateMetadata({ searchParams }: PageProps<"/builder">): Promise<Metadata> {
-  const sp = await searchParams;
+type SP = Record<string, string | string[] | undefined>;
+
+async function cardFor(sp: SP) {
   const query = new URLSearchParams();
   for (const key of ["i", "date", "design", "handle", "c"]) {
     const value = sp[key];
     for (const item of Array.isArray(value) ? value : value ? [value] : []) query.append(key, item);
   }
   const index = decodeIndices(query)[0];
-  const c = typeof sp.c === "string" ? sp.c : undefined;
-  const ct = chartTitle(c);
+  const ct = chartTitle(typeof sp.c === "string" ? sp.c : undefined);
   const base = index?.name ?? "priors";
   const title = ct ? `${base} · ${ct}` : base;
   const description = index ? await describe(index, typeof sp.date === "string" ? sp.date : undefined) : undefined;
   const desc = description ? (ct ? `${ct}: ${description}` : description) : undefined;
+  return { query, title, desc };
+}
+
+export async function generateMetadata({ searchParams }: PageProps<"/builder">): Promise<Metadata> {
+  const { query, title, desc } = await cardFor(await searchParams);
   const image = { url: `/og?${query}`, width: 1200, height: 630, alt: `${title} model rankings` };
   return { title, description: desc, openGraph: { title, description: desc, images: [image] }, twitter: { card: "summary_large_image", title, description: desc, images: [image] } };
 }
 
 export default async function Home({ searchParams }: PageProps<"/builder">) {
   const sp = await searchParams;
+  if (await isPreviewBot()) {
+    // Link-preview crawlers cap response size — give them the tags plus a tiny body, not the app.
+    const { query, title, desc } = await cardFor(sp);
+    return <PreviewPage title={title} description={desc} href={`/builder?${query}`} />;
+  }
   const date = typeof sp.date === "string" ? sp.date : undefined;
   const [snapshot, dates] = await Promise.all([loadSnapshot(date), listSnapshotDates()]);
   if (!snapshot) return <main className="p-10"><h1 className="text-3xl">priors</h1><p className="mt-3 text-ink-2">No snapshot yet. Run <code className="mono">npm run scrape</code>.</p></main>;
