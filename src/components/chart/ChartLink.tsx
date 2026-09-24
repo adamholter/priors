@@ -9,7 +9,10 @@ export function useHashTarget(id: string | undefined, onHit?: () => void) {
   useEffect(() => {
     if (!id) return;
     const check = () => {
-      if (decodeURIComponent(window.location.hash.slice(1)) !== id) return;
+      const url = new URL(window.location.href), hash = decodeURIComponent(url.hash.slice(1));
+      if (hash ? hash !== id : url.searchParams.get("c") !== id) return;
+      // Crawlers never see the #fragment; mirror it into ?c= so a copied address-bar link previews this chart.
+      if (url.searchParams.get("c") !== id || !hash) { url.searchParams.set("c", id); url.hash = id; window.history.replaceState(null, "", url.toString()); }
       onHit?.();
       // Charts render after hydration and shift layout; scroll once they have settled.
       setTimeout(() => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" }), 450);
