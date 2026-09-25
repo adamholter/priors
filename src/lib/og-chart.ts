@@ -64,7 +64,7 @@ export async function renderChartPng(spec: ChartSpec, labs: Lab[], pal: ChartPal
   if (cv === "bars" && spec.chart.scale !== "time") {
     const bars = selectBars(spec.pts, spec.chart.better, 24);
     if (!bars.length) return null;
-    const opt = barsOption({ bars, labs, xName: spec.chart.xName, formatValue: spec.chart.formatValue ?? spec.chart.formatX, pal, narrow: false });
+    const opt = barsOption({ bars, labs, xName: spec.chart.xName.replace(", log", ""), formatValue: spec.chart === costChart ? costChart.formatX : spec.chart.formatValue ?? spec.chart.formatX, pal, narrow: false });
     // Rotated category labels need deep bottom margin; keep them clear of X's bottom-left pill (~y550).
     chart.setOption({ ...opt, animation: false, grid: { ...(opt.grid as Record<string, number>), bottom: 132 } });
     svg = chart.renderToSVGString();

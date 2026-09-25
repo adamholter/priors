@@ -1,0 +1,33 @@
+import assert from 'node:assert/strict';
+import { chromium } from 'playwright';
+const base = process.env.TEST_URL ?? 'http://localhost:48740';
+const browser = await chromium.launch();
+const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+const errors = [];
+page.on('pageerror', e => errors.push(e.message));
+try {
+  await page.goto(`${base}/builder`, { waitUntil: 'networkidle' });
+  const toggle = page.getByRole('group', { name: 'Cost chart type' });
+  await toggle.getByTitle('Bar chart', { exact: true }).click();
+  const chart = page.getByRole('img', { name: 'Cost per task by model', exact: true });
+  await chart.waitFor();
+  await page.waitForTimeout(500);
+  assert((await chart.locator('svg path').count()) > 10);
+  assert((await chart.textContent()).includes('$'));
+  assert(!(await chart.textContent()).includes('log'));
+  await page.locator('#cost').screenshot({ path: '/tmp/priors-cost-desktop.png' });
+  await page.reload({ waitUntil: 'networkidle' });
+  await chart.waitFor();
+  await toggle.getByTitle('Score vs cost', { exact: true }).click();
+  await page.getByRole('img', { name: 'Index score versus cost per task', exact: true }).waitFor();
+  await page.goto(`${base}/builder?c=cost&cv=bars#cost`, { waitUntil: 'networkidle' });
+  await chart.waitFor();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.waitForTimeout(500);
+  assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+  await page.locator('#cost').screenshot({ path: '/tmp/priors-cost-mobile.png' });
+  await toggle.getByTitle('Score vs cost', { exact: true }).click();
+  assert(!new URL(page.url()).searchParams.has('cv'));
+  assert.deepEqual(errors, []);
+  console.log('PASS cost bars: render, labels, persistence, scatter toggle, deep link, mobile overflow, no page errors');
+} finally { await browser.close(); }
