@@ -23,9 +23,26 @@ const snapshot: Snapshot = {
 const config = { ...defaultConfig(snapshot), weights: { "aa-intelligence-index-v4": 1 }, strictness: 0, variants: "all" as const, releasedAfter: "" };
 
 describe("task metric sources", () => {
+  it.each(["deepswe-1.1", "frontierswe-v2"] as const)("uses only %s measurements and preserves selections", (source) => {
+    const s = { ...snapshot, observations: [...snapshot.observations,
+      obs(source, "a@high", 80, { costUsd: 6, durationSec: 900 }),
+      obs("deepswe-1", "b@high", 70, { costUsd: 100, durationSec: 500 }),
+    ] };
+    const selected = { ...config, costSource: source, timeSource: source };
+    const ranked = computeIndex(s, selected).ranked;
+    expect(ranked.find((r) => r.variant.id === "a@high")?.costUsd).toBe(6);
+    expect(ranked.find((r) => r.variant.id === "b@high")?.costUsd).toBeUndefined();
+    expect(taskMetricData(s, source, "time").get("a@low")).toBeUndefined();
+    expect(taskMetricData(s, source, "cost").modelCount).toBe(1);
+    expect(metricPanels(s, ranked, source)[0].chart?.points(ranked).map((p) => p.x)).toEqual([900]);
+    const restored = decodeIndex(encodeIndex(selected), "test")!;
+    expect(restored.costSource).toBe(source);
+    expect(restored.timeSource).toBe(source);
+    expect(taskMetricOptions(s, "cost").some((o) => o.id.startsWith("vals"))).toBe(false);
+  });
   it("counts unique models separately by metric, ignoring invalid data", () => {
     const s = { ...snapshot, observations: [...snapshot.observations, obs("terminalbench-4", "b@high", 60, { costUsd: NaN, durationSec: -1 })] };
-    expect(taskMetricOptions(s, "cost").map((x) => x.modelCount)).toEqual([2, 1]);
+    expect(taskMetricOptions(s, "cost").map((x) => x.modelCount)).toEqual([2, 1, 0, 0]);
     expect(taskMetricData(s, "terminalbench-4", "time").modelCount).toBe(1);
     expect(taskMetricData(s, "terminalbench-4", "time").get("a@low")).toBeUndefined();
   });

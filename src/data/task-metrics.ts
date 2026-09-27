@@ -1,16 +1,28 @@
 import type { Observation, Snapshot } from "./types";
 
-export type TaskMetricSource = "aa" | "terminalbench-4";
+export type TaskMetricSource = "aa" | "terminalbench-4" | "deepswe-1.1" | "frontierswe-v2";
 export type TaskMetric = "cost" | "time";
 export const TASK_METRIC_SOURCES: { id: TaskMetricSource; name: string }[] = [
   { id: "aa", name: "Artificial Analysis" },
   { id: "terminalbench-4", name: "Terminal-Bench 4.0" },
+  { id: "deepswe-1.1", name: "DeepSWE 1.1" },
+  { id: "frontierswe-v2", name: "FrontierSWE v2" },
 ];
+
+export function isTaskMetricSource(value: string): value is TaskMetricSource {
+  return TASK_METRIC_SOURCES.some((source) => source.id === value);
+}
 
 export function taskMetricDescription(source: TaskMetricSource, metric: TaskMetric): string {
   if (source === "terminalbench-4") return metric === "cost"
     ? "Terminal-Bench 4.0 · average cost per trial, including unsuccessful trials"
     : "Terminal-Bench 4.0 · average trial duration, including unsuccessful trials";
+  if (source === "deepswe-1.1") return metric === "cost"
+    ? "DeepSWE 1.1 · average cost per task run, mini-swe-agent"
+    : "DeepSWE 1.1 · average task-run duration, mini-swe-agent";
+  if (source === "frontierswe-v2") return metric === "cost"
+    ? "FrontierSWE v2 · average cost per trial, Proximus, five trials per task"
+    : "FrontierSWE v2 · average trial duration, Proximus, 20-hour budget";
   return metric === "cost"
     ? "Artificial Analysis · measured task costs, weighted by your mix when available"
     : "Artificial Analysis · estimated decode time per Intelligence Index task, excluding first-token wait and overhead";
@@ -18,14 +30,14 @@ export function taskMetricDescription(source: TaskMetricSource, metric: TaskMetr
 
 /** Measurements only. Match the same model and effort; never substitute another effort or source. */
 export function taskMetricData(snapshot: Snapshot, source: TaskMetricSource, metric: TaskMetric) {
-  const benchmarkId = source === "terminalbench-4" ? source : metric === "cost" ? "aa-cost-per-task-index"
+  const benchmarkId = source !== "aa" ? source : metric === "cost" ? "aa-cost-per-task-index"
     : snapshot.benchmarks.filter((b) => b.id.startsWith("aa-intelligence-index")).sort((a, b) => b.id.localeCompare(a.id))[0]?.id;
   const rows = new Map<string, { value: number; observation: Observation }>();
   const models = new Set<string>();
   const variantModels = new Map(snapshot.variants.map((v) => [v.id, v.modelId]));
   for (const o of snapshot.observations) {
     if (o.benchmarkId !== benchmarkId || o.details?.priorsEstimate) continue;
-    const value = source === "terminalbench-4" ? (metric === "cost" ? o.costUsd : o.durationSec)
+    const value = source !== "aa" ? (metric === "cost" ? o.costUsd : o.durationSec)
       : metric === "cost" ? o.value : o.details?.estimatedDecodeSecondsPerTask;
     if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) continue;
     // Scraper order selects the published best-scoring harness when several share an identity.

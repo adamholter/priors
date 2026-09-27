@@ -1,3 +1,4 @@
+import { isTaskMetricSource } from "../data/task-metrics";
 import { DEFAULT_CUTOFF, type IndexConfig } from "../engine";
 import { FOCUS_IDS, type FocusId } from "../data/types";
 
@@ -52,8 +53,8 @@ export function decodeIndex(s: string, id: string): IndexConfig | null {
     else if (k === "ex") c.excludeModels = v.split(",").filter(Boolean);
     else if (k === "only") c.onlyModels = v.split(",").filter(Boolean);
     else if (k === "after") c.releasedAfter = v;
-    else if (k === "costsrc" && (v === "aa" || v === "terminalbench-4")) c.costSource = v;
-    else if (k === "timesrc" && (v === "aa" || v === "terminalbench-4")) c.timeSource = v;
+    else if (k === "costsrc" && isTaskMetricSource(v)) c.costSource = v;
+    else if (k === "timesrc" && isTaskMetricSource(v)) c.timeSource = v;
     else if (k === "focus" && FOCUS_IDS.includes(v as FocusId)) c.focus = v as FocusId;
   }
   return c;
