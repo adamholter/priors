@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import type { Snapshot } from "@/data/types";
 import { chartVariantMode, computeIndex, selectVariants, type IndexConfig } from "@/engine";
+import { taskMetricOptions, taskMetricDescription } from "@/data/task-metrics";
 import { pickPoints, speedChart } from "@/lib/metrics";
 import { encodeIndices } from "@/lib/url";
 import { ShareCards } from "../ShareCards";
@@ -105,8 +106,8 @@ export function IndexPage({ profile, snapshot, dates, edit }: { profile: Profile
           if (s.kind === "benchmark" && s.benchmarkId) return <section key={s.id} className="chart-panel"><h2 className="text-[21px] sm:text-[24px] mb-3">{title}</h2><BenchmarkTable snapshot={snapshot} benchmarkId={s.benchmarkId} /></section>;
           if (!idx || !r) return null;
           const rankingMode = chartVariantMode(idx, "ranking"), paretoMode = chartVariantMode(idx, "pareto");
-          if (s.kind === "gallery") return <section key={s.id} className="chart-panel"><h2 className="text-[21px] sm:text-[24px] mb-1">{title}</h2><p className="cap mb-3">More metrics · expand a row</p><MetricGallery ranked={r.ranked} mode={paretoMode} snapshot={snapshot} labs={snapshot.labs} /></section>;
           const updateIndex = (patch: Partial<IndexConfig>) => setP({ ...p, indices: p.indices.map((i) => i.id === idx.id ? { ...i, ...patch } : i) });
+          if (s.kind === "gallery") return <section key={s.id} className="chart-panel"><h2 className="text-[21px] sm:text-[24px] mb-1">{title}</h2><p className="cap mb-3">More metrics · expand a row</p><MetricGallery timeSource={idx.timeSource} onTimeSourceChange={(timeSource) => updateIndex({ timeSource })} ranked={r.ranked} mode={paretoMode} snapshot={snapshot} labs={snapshot.labs} /></section>;
           const pickerModels = (() => {
             const col = new Map(snapshot.labs.map((l) => [l.id, l.color]));
             const seen = new Map<string, { id: string; name: string; color?: string }>();
@@ -125,7 +126,7 @@ export function IndexPage({ profile, snapshot, dates, edit }: { profile: Profile
               <Rankings anchor={anchorOf(title)} title={<h2 className="text-[21px] sm:text-[24px]">{title}</h2>} actions={settings("Ranking", rankingMode, "rankingVariants")} ranked={selectVariants(r.ranked, rankingMode)} showEffort={rankingMode === "all"} labs={snapshot.labs} limit={25} selected={selected} onSelect={(x) => setSelected(x?.variant.id ?? null)} />
             </section>
           );
-          if (s.kind === "pareto") return <section key={s.id} className="chart-panel"><ParetoChart anchor={anchorOf(title)} ranked={r.ranked} mode={paretoMode} labs={snapshot.labs} height={440} view={paretoView} onView={setParetoView} title={<h2 className="text-[21px] sm:text-[24px]">{title}</h2>} actions={<ChartSettings label="Pareto" mode={paretoMode} onChange={(v) => updateIndex({ paretoVariants: v })} view={paretoView} onView={setParetoView} releasedAfter={idx.releasedAfter} onChangeReleased={(v) => updateIndex({ releasedAfter: v })} models={pickerModels} excluded={excludedIds} onToggleModel={toggleModel} onShowAllModels={() => updateIndex(SHOW_ALL)} onHideAllModels={() => updateIndex(HIDE_ALL)} />} /></section>;
+          if (s.kind === "pareto") return <section key={s.id} className="chart-panel"><ParetoChart description={taskMetricDescription(idx.costSource ?? "aa", "cost")} anchor={anchorOf(title)} ranked={r.ranked} mode={paretoMode} labs={snapshot.labs} height={440} view={paretoView} onView={setParetoView} title={<h2 className="text-[21px] sm:text-[24px]">{title}</h2>} actions={<ChartSettings dataSource={{ value: idx.costSource ?? "aa", options: taskMetricOptions(snapshot, "cost"), onChange: (costSource) => updateIndex({ costSource }) }} label="Pareto" mode={paretoMode} onChange={(v) => updateIndex({ paretoVariants: v })} view={paretoView} onView={setParetoView} releasedAfter={idx.releasedAfter} onChangeReleased={(v) => updateIndex({ releasedAfter: v })} models={pickerModels} excluded={excludedIds} onToggleModel={toggleModel} onShowAllModels={() => updateIndex(SHOW_ALL)} onHideAllModels={() => updateIndex(HIDE_ALL)} />} /></section>;
           if (s.kind === "speed") return <section key={s.id} className="chart-panel"><SpeedChart anchor={anchorOf(title)} pts={pickPoints(speedChart, r.ranked, paretoMode)} labs={snapshot.labs} view={speedView} title={<h2 className="text-[21px] sm:text-[24px]">{title}</h2>} actions={<ChartSettings label="Speed" mode={paretoMode} onChange={(v) => updateIndex({ paretoVariants: v })} view={speedView} onView={setSpeedView} />} /></section>;
           if (s.kind === "history") return <section key={s.id}><h2 className="text-[21px] sm:text-[24px] mb-2">{title}</h2><p className="cap">Use the date picker above to view this page as of any earlier snapshot.</p></section>;
           return null;

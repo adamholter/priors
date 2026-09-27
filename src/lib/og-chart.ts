@@ -27,7 +27,7 @@ export function scatterSpec(snapshot: Snapshot, ranked: RankedVariant[], index: 
   const mode = cm === "best" || cm === "all" ? cm : chartVariantMode(index, "pareto");
   const from = (chart: MetricChart, title: string, hasTitle: boolean): ChartSpec => ({ title, hasTitle, chart, pts: pickPoints(chart, ranked, mode) });
   if (c === "cost") return from(costChart, "Score vs cost per task", true);
-  const ck = chartKind(snapshot, ranked, c);
+  const ck = chartKind(snapshot, ranked, c, index.timeSource);
   if (ck?.kind !== "metric") return null;
   return from(ck.chart, chartTitle(c) ?? ck.chart.xName, false);
 }

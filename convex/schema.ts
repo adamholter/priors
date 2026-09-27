@@ -13,6 +13,8 @@ const indexConfig = v.object({
   strictness: v.optional(v.number()),
   optional: v.optional(v.array(v.string())),
   rankingVariants: v.optional(v.union(v.literal("all"), v.literal("best"))),
+  costSource: v.optional(v.union(v.literal("aa"), v.literal("terminalbench-4"))),
+  timeSource: v.optional(v.union(v.literal("aa"), v.literal("terminalbench-4"))),
   paretoVariants: v.optional(v.union(v.literal("all"), v.literal("best"))),
   labs: v.optional(v.array(v.string())),
   excludeModels: v.optional(v.array(v.string())),

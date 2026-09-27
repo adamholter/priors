@@ -18,6 +18,7 @@ import { HeaderAuth } from "./HeaderAuth";
 import { DatePicker } from "./DatePicker";
 import { mergeImports, type ImportPayload } from "@/lib/import";
 import { SourceStatus } from "./SourceStatus";
+import { taskMetricOptions, taskMetricDescription } from "@/data/task-metrics";
 import { MetricGallery } from "./page/MetricGallery";
 
 export function Builder({ snapshot: base, dates, initialIndices }: { snapshot: Snapshot; dates: string[]; initialIndices: IndexConfig[] }) {
@@ -132,12 +133,12 @@ export function Builder({ snapshot: base, dates, initialIndices }: { snapshot: S
             <Rankings anchor="rankings" title={<h2 className="text-[26px]">{active.name}</h2>} actions={<ChartSettings label="Ranking" mode={rankingMode} onChange={(rankingVariants) => update({ ...active, rankingVariants })} {...releaseProps} {...modelPicker} />} onSelect={(r) => { if (r) calculations.current?.inspect(r.variant.id); }} ranked={rankingRows} labs={snapshot.labs} showEffort={rankingMode === "all"} />
           </div>
           <div>
-            <ParetoChart anchor="cost" ranked={result.ranked} mode={paretoMode} labs={snapshot.labs} view={paretoView} onView={setParetoView} title={<h2 className="text-[22px]">Score vs cost per task</h2>}
-              actions={<ChartSettings label="Pareto" mode={paretoMode} onChange={(paretoVariants) => update({ ...active, paretoVariants })} view={paretoView} onView={setParetoView} {...releaseProps} {...modelPicker} />} />
+            <ParetoChart description={taskMetricDescription(active.costSource ?? "aa", "cost")} anchor="cost" ranked={result.ranked} mode={paretoMode} labs={snapshot.labs} view={paretoView} onView={setParetoView} title={<h2 className="text-[22px]">Score vs cost per task</h2>}
+              actions={<ChartSettings dataSource={{ value: active.costSource ?? "aa", options: taskMetricOptions(snapshot, "cost"), onChange: (costSource) => update({ ...active, costSource }) }} label="Pareto" mode={paretoMode} onChange={(paretoVariants) => update({ ...active, paretoVariants })} view={paretoView} onView={setParetoView} {...releaseProps} {...modelPicker} />} />
           </div>
           <div>
             <h2 className="text-[22px] mb-1">More metrics</h2>
-            <MetricGallery ranked={result.ranked} mode={paretoMode} snapshot={snapshot} labs={snapshot.labs} settings={{ ...releaseProps, ...modelPicker }} />
+            <MetricGallery timeSource={active.timeSource} onTimeSourceChange={(timeSource) => update({ ...active, timeSource })} ranked={result.ranked} mode={paretoMode} snapshot={snapshot} labs={snapshot.labs} settings={{ ...releaseProps, ...modelPicker }} />
           </div>
         </section>
       </main>

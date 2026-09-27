@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
+import { taskMetricOptions, type TaskMetricSource } from "@/data/task-metrics";
 import type { Snapshot, Lab } from "@/data/types";
 import type { RankedVariant } from "@/engine";
 import { metricPanels, pickPoints, speedChart, type MetricChart } from "@/lib/metrics";
@@ -16,18 +17,18 @@ type SharedSettings = Omit<React.ComponentProps<typeof ChartSettings>, "label" |
  *  Panels mount their chart only when first expanded. */
 /** `ranked` is the full variant set; each panel picks best-effort or all efforts on its own. */
 
-export function MetricGallery({ ranked, mode = "all", snapshot, labs, settings, anchorPrefix = "" }: { ranked: RankedVariant[]; mode?: "all" | "best"; snapshot: Snapshot; labs: Lab[]; settings?: SharedSettings; anchorPrefix?: string }) {
-  const panels = useMemo(() => metricPanels(snapshot, ranked), [snapshot, ranked]);
+export function MetricGallery({ ranked, mode = "all", snapshot, labs, settings, anchorPrefix = "", timeSource = "aa", onTimeSourceChange }: { ranked: RankedVariant[]; mode?: "all" | "best"; snapshot: Snapshot; labs: Lab[]; settings?: SharedSettings; anchorPrefix?: string; timeSource?: TaskMetricSource; onTimeSourceChange?: (source: TaskMetricSource) => void }) {
+  const panels = useMemo(() => metricPanels(snapshot, ranked, timeSource), [snapshot, ranked, timeSource]);
   if (!panels.length) return null;
   return (
     <div className="border-t hairline">
-      {panels.map((p) => { const anchor = `${anchorPrefix}${anchorOf(p.title)}`; return <Panel key={p.id} anchor={anchor} title={p.title} desc={p.desc} defaultOpen={p.open}><GalleryChart id={p.id} anchor={anchor} title={p.title} chart={p.chart} speed={p.speed} ranked={ranked} defaultMode={mode} labs={labs} settings={settings} /></Panel>; })}
+      {panels.map((p) => { const anchor = `${anchorPrefix}${anchorOf(p.title)}`; return <Panel key={p.id} anchor={anchor} title={p.title} desc={p.desc} defaultOpen={p.open}><GalleryChart id={p.id} anchor={anchor} title={p.title} chart={p.chart} speed={p.speed} ranked={ranked} defaultMode={mode} labs={labs} settings={settings} dataSource={p.id === "tpt" && onTimeSourceChange ? { value: timeSource, options: taskMetricOptions(snapshot, "time"), onChange: onTimeSourceChange } : undefined} /></Panel>; })}
     </div>
   );
 }
 
 /** One gallery chart with its own effort mode and display settings; shared index filters pass through. */
-function GalleryChart({ id, anchor, title, chart, speed, ranked, defaultMode, labs, settings }: { id: string; anchor: string; title: string; chart?: MetricChart; speed?: boolean; ranked: RankedVariant[]; defaultMode: "all" | "best"; labs: Lab[]; settings?: SharedSettings }) {
+function GalleryChart({ id, anchor, title, chart, speed, ranked, defaultMode, labs, settings, dataSource }: { id: string; anchor: string; title: string; chart?: MetricChart; speed?: boolean; ranked: RankedVariant[]; defaultMode: "all" | "best"; labs: Lab[]; settings?: SharedSettings; dataSource?: React.ComponentProps<typeof ChartSettings>["dataSource"] }) {
   const [mode, setMode] = useState<"all" | "best">(defaultMode);
   const [view, setView] = useScatterView(`gallery-${id}`);
   const bars = view.kind === "bars" && chart?.scale !== "time";
@@ -64,7 +65,7 @@ function GalleryChart({ id, anchor, title, chart, speed, ranked, defaultMode, la
     <button type="button" aria-pressed={!bars} title="Score vs metric" onClick={() => setView({ ...view, kind: "scatter" })}><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><circle cx="4" cy="11" r="1.6" /><circle cx="8" cy="6" r="1.6" /><circle cx="12.5" cy="4" r="1.6" /><circle cx="10" cy="10" r="1.6" /></svg></button>
     <button type="button" aria-pressed={bars} title="Bar chart" onClick={() => setView({ ...view, kind: "bars" })}><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><rect x="2" y="3" width="3" height="11" /><rect x="6.5" y="6" width="3" height="8" /><rect x="11" y="9" width="3" height="5" /></svg></button>
   </div>;
-  const actions = <>{chart?.scale !== "time" && toggle}<ChartSettings label={title} mode={mode} onChange={setMode} view={bars ? undefined : view} onView={setView} {...settings} /></>;
+  const actions = <>{chart?.scale !== "time" && toggle}<ChartSettings dataSource={dataSource} label={title} mode={mode} onChange={setMode} view={bars ? undefined : view} onView={setView} {...settings} /></>;
   if (!metric) return null;
   if (bars) return <MetricBars pts={pts} labs={labs} better={metric.better} xName={metric.xName} formatValue={metric.formatValue ?? metric.formatX} aria={metric.aria.replace("Index score versus", "By model:")} actions={actions} exportName={title} anchor={anchor} linkParams={linkParams} />;
   if (speed) return <SpeedChart pts={pts} labs={labs} view={view} actions={actions} anchor={anchor} linkParams={linkParams} />;

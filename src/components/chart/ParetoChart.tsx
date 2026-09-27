@@ -12,7 +12,7 @@ export function variantLabel(r: RankedVariant) {
 }
 
 /** Index score vs measured cost per task (log x), with the Pareto frontier traced in ink. */
-export function ParetoChart({ ranked, mode = "all", labs, height = 460, title, actions, view, onView, anchor }: { ranked: RankedVariant[]; mode?: "all" | "best"; labs: Lab[]; height?: number; title?: ReactNode; actions?: ReactNode; view: ScatterView; onView: (view: ScatterView) => void; anchor?: string }) {
+export function ParetoChart({ ranked, mode = "all", labs, height = 460, title, actions, view, onView, anchor, description }: { ranked: RankedVariant[]; mode?: "all" | "best"; labs: Lab[]; height?: number; title?: ReactNode; actions?: ReactNode; view: ScatterView; onView: (view: ScatterView) => void; anchor?: string; description?: string }) {
   const [linkedKind, setLinkedKind] = useState<"bars" | "scatter">();
   useEffect(() => {
     if (!anchor) return;
@@ -37,7 +37,8 @@ export function ParetoChart({ ranked, mode = "all", labs, height = 460, title, a
   </div>{actions}</>;
   const linkParams = { cv: bars ? "bars" as const : undefined };
   const pts = pickPoints(costChart, ranked, mode);
-  if (bars) return <MetricBars pts={pts} labs={labs} better={costChart.better} xName="Cost per task ($)" formatValue={costChart.formatX} height={height} aria="Cost per task by model" title={<h2 className="text-[22px]">Cost per task</h2>} actions={controls} anchor={anchor} linkParams={linkParams} exportName="Cost per task" />;
-  return <ScoreScatter pts={pts} labs={labs} better={costChart.better} xName={costChart.xName} xShort={costChart.xShort} scale={costChart.scale} formatX={costChart.formatX} formatValue={costChart.formatValue} height={height} aria={costChart.aria} title={title} actions={controls} linkParams={linkParams} view={view} anchor={anchor} exportName="Score vs cost per task"
+  const heading = <div>{bars ? <h2 className="text-[22px]">Cost per task</h2> : title}{description && <p className="cap mt-1">{description}</p>}</div>;
+  if (bars) return <MetricBars pts={pts} labs={labs} better={costChart.better} xName="Cost per task ($)" formatValue={costChart.formatX} height={height} aria="Cost per task by model" title={heading} actions={controls} anchor={anchor} linkParams={linkParams} exportName="Cost per task" />;
+  return <ScoreScatter pts={pts} labs={labs} better={costChart.better} xName={costChart.xName} xShort={costChart.xShort} scale={costChart.scale} formatX={costChart.formatX} formatValue={costChart.formatValue} height={height} aria={costChart.aria} title={heading} actions={controls} linkParams={linkParams} view={view} anchor={anchor} exportName="Score vs cost per task"
     tooltipExtra={(p) => p.r.speed ? ` · ${Math.round(p.r.speed)} tok/s` : ""} extraRows={(p) => ({ speed_toks: p.r.speed ?? null, coverage: p.r.coverage })} />;
 }

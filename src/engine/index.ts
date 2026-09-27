@@ -1,3 +1,4 @@
+import { taskMetricData, taskMetricDescription, type TaskMetricSource } from "../data/task-metrics";
 import type { Benchmark, FocusId, Model, Observation, Snapshot, Variant } from "../data/types";
 
 /* ------------------------------------------------------------------ */
@@ -22,6 +23,8 @@ export interface IndexConfig {
   optional?: string[];
   rankingVariants?: "all" | "best";
   paretoVariants?: "all" | "best";
+  costSource?: TaskMetricSource;
+  timeSource?: TaskMetricSource;
   /** Optional filters */
   labs?: string[]; // include only these labIds
   excludeModels?: string[]; // modelIds
@@ -297,6 +300,7 @@ export function computeIndex(snapshot: Snapshot, config: IndexConfig): IndexResu
   const benches = new Map(snapshot.benchmarks.map((b) => [b.id, b]));
   const models = new Map(snapshot.models.map((m) => [m.id, m]));
   const idx = indexObservations(snapshot);
+  const costData = taskMetricData(snapshot, config.costSource ?? "aa", "cost");
 
   const used = Object.entries(config.weights).filter(([id, w]) => w > 0 && benches.has(id));
   const total = used.reduce((a, [, w]) => a + w, 0);
@@ -372,7 +376,12 @@ export function computeIndex(snapshot: Snapshot, config: IndexConfig): IndexResu
       if (est != null) { values.push({ benchmarkId: s.benchmark.id, value: est, estimated: true, estimateKind: "peer" }); num += est * s.share; den += s.share; }
     }
     if (den <= 0) continue;
-    const cost = costFor(snapshot, idx, v.id, shares.map((s) => ({ id: s.benchmark.id, share: s.share })));
+    const measuredCost = costData.get(v.id);
+    // Preserve AA's mix-weighted cost when every selected benchmark publishes it.
+    const aaCosts = (config.costSource ?? "aa") === "aa" ? shares.map((s) => ({ share: s.share, observation: idx.get(s.benchmark.id)?.get(v.id) })) : [];
+    const weightedAaCost = aaCosts.length && aaCosts.every(({ observation: o }) => o?.sourceModelId && o.costUsd != null && Number.isFinite(o.costUsd) && o.costUsd >= 0)
+      ? aaCosts.reduce((sum, { share, observation: o }) => sum + o!.costUsd! * share / 100, 0) : undefined;
+    const cost = weightedAaCost != null ? { usd: weightedAaCost, source: "AA measured task costs, weighted by this mix" } : measuredCost ? { usd: measuredCost.value, source: taskMetricDescription(config.costSource ?? "aa", "cost") + (measuredCost.observation.harness ? ` · ${measuredCost.observation.harness}` : "") } : undefined;
     const speedObs = idx.get(SPEED_BENCHMARK)?.get(v.id);
     ranked.push({ variant: v, model, score: num / den, coverage: Math.min(1, Math.round(covered * 1e4) / 1e6), measuredShare, values, mixedEfforts: values.some((value) => value.estimateKind === "effort"), costUsd: cost?.usd, costSource: cost?.source, speed: speedObs && speedObs.value > 0 ? speedObs.value : undefined, onFrontier: false, rank: 0 });
   }
@@ -425,19 +434,6 @@ function estimate(
 }
 
 function daysBetween(a: string, b: string) { return (new Date(a).getTime() - new Date(b).getTime()) / 86_400_000; }
-
-function costFor(snapshot: Snapshot, idx: ObsIndex, variantId: string, benchWeights: { id: string; share: number }[]): { usd: number; source: string } | undefined {
-  const perTask = benchWeights.map((b) => ({ ...b, obs: idx.get(b.id)?.get(variantId) }));
-  if (perTask.length && perTask.every((b) => b.obs?.sourceModelId && b.obs.costUsd != null && b.obs.costUsd >= 0)) {
-    return { usd: perTask.reduce((sum, b) => sum + b.obs!.costUsd! * b.share / 100, 0), source: "AA measured task costs, weighted by this mix" };
-  }
-  const benchIds = benchWeights.map((b) => b.id);
-  for (const b of COST_BENCHMARK_PREFERENCE) { const o = idx.get(b)?.get(variantId); if (o && o.value > 0) return { usd: o.value, source: b }; }
-  const costs: number[] = [];
-  for (const b of benchIds) { const o = idx.get(b)?.get(variantId); if (o?.costUsd && o.costUsd > 0) costs.push(o.costUsd); }
-  if (costs.length) return { usd: costs.reduce((a, c) => a + c, 0) / costs.length, source: "mean of benchmark run costs" };
-  return undefined;
-}
 
 /** Pareto frontier over (cost asc, score): a point is on the frontier if no cheaper point scores >= it. */
 export function markFrontier(ranked: RankedVariant[]) {

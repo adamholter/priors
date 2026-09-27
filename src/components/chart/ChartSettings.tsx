@@ -1,6 +1,7 @@
 "use client";
 import { useId, useMemo, useRef, useCallback, useState } from "react";
 
+import type { TaskMetricSource } from "@/data/task-metrics";
 import { useLightDismiss } from "@/hooks/useLightDismiss";
 import type { ScatterView } from "./ScoreScatter";
 
@@ -10,7 +11,8 @@ const RELEASE_WINDOWS: { label: string; months: number }[] = [
   { label: "Last 2 years", months: 24 },
 ];
 
-export function ChartSettings({ label, mode, onChange, releasedAfter, onChangeReleased, models, excluded, onToggleModel, onShowAllModels, onHideAllModels, view, onView }: {
+export function ChartSettings({ label, mode, onChange, releasedAfter, onChangeReleased, models, excluded, onToggleModel, onShowAllModels, onHideAllModels, view, onView, dataSource }: {
+  dataSource?: { value: TaskMetricSource; options: { id: TaskMetricSource; name: string; modelCount: number }[]; onChange: (source: TaskMetricSource) => void };
   label: string; mode: "all" | "best"; onChange: (mode: "all" | "best") => void;
   /** Model-age filter: ISO date cutoff; "" means all time. */
   releasedAfter?: string;
@@ -29,6 +31,7 @@ export function ChartSettings({ label, mode, onChange, releasedAfter, onChangeRe
   const root = useRef<HTMLDetailsElement>(null);
   const trigger = useRef<HTMLElement>(null);
   const [query, setQuery] = useState("");
+  const [menuShift, setMenuShift] = useState(0);
   const dismiss = useCallback((reason: "outside" | "escape") => {
     if (!root.current?.open) return;
     root.current.open = false;
@@ -49,11 +52,24 @@ export function ChartSettings({ label, mode, onChange, releasedAfter, onChangeRe
   }, [models, query]);
   const shown = models ? models.length - (excluded?.size ?? 0) : 0;
   return (
-    <details ref={root} className="relative shrink-0" name="chart-settings">
+    <details ref={root} className="relative shrink-0" name="chart-settings" onToggle={(e) => {
+      if (!e.currentTarget.open) return;
+      const right = e.currentTarget.getBoundingClientRect().right;
+      const width = Math.min(256, window.innerWidth * 0.85);
+      setMenuShift(Math.max(0, 8 - (right - width)) - Math.max(0, right - window.innerWidth + 8));
+    }}>
       <summary ref={trigger} aria-label={`${label} settings`} title={`${label} settings`} className="list-none [&::-webkit-details-marker]:hidden cursor-pointer p-1.5 text-grey hover:text-ink rounded-sm focus-visible:outline-indigo">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="M4 6h4m4 0h8M4 12h10m4 0h2M4 18h2m4 0h10" /><circle cx="10" cy="6" r="2" /><circle cx="16" cy="12" r="2" /><circle cx="8" cy="18" r="2" /></svg>
       </summary>
-      <div className="absolute right-0 top-full mt-1 w-64 max-w-[85vw] max-h-[70dvh] overflow-y-auto overscroll-contain border hairline rounded-sm bg-white p-3 z-20 shadow-sm">
+      <div style={{ transform: `translateX(${menuShift}px)` }} className="absolute right-0 top-full mt-1 w-64 max-w-[85vw] max-h-[70dvh] overflow-y-auto overscroll-contain border hairline rounded-sm bg-white p-3 z-20 shadow-sm">
+        {dataSource && <div className="mb-3 pb-3 border-b hairline">
+          <label htmlFor={`${id}-source`} className="block text-[12px] text-ink-2 mb-2">Data source</label>
+          <select id={`${id}-source`} aria-label={`${label} data source`} className="inp" value={dataSource.value} onChange={(e) => dataSource.onChange(e.target.value as TaskMetricSource)}>
+            {dataSource.options.map((source) => <option key={source.id} value={source.id}>{source.name} · {source.modelCount} models</option>)}
+          </select>
+          <p className="text-[11px] text-grey mt-2">Coverage across this snapshot, before your filters. Only models with data from this source appear.</p>
+          {dataSource.value === "terminalbench-4" && <p className="text-[11px] text-grey mt-2">Agent and model runs. Uses the best-scoring published harness for each model and effort.</p>}
+        </div>}
         <label htmlFor={id} className="block text-[12px] text-ink-2 mb-2">Reasoning efforts</label>
         <select id={id} aria-label={`${label} reasoning efforts`} value={mode} onChange={(e) => { onChange(e.target.value as "all" | "best"); dismiss("escape"); }} className="inp">
           <option value="best">Best effort per model</option>

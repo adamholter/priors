@@ -1,3 +1,4 @@
+import { taskMetricData, taskMetricDescription, type TaskMetricSource } from "../data/task-metrics";
 import type { Observation, Snapshot } from "@/data/types";
 import type { RankedVariant } from "@/engine";
 
@@ -40,7 +41,7 @@ export function chartLabel(r: RankedVariant) {
 }
 
 /** Gallery panel definitions — shared between the client gallery and share cards. */
-export function metricPanels(snapshot: Snapshot, ranked: RankedVariant[]): MetricPanel[] {
+export function metricPanels(snapshot: Snapshot, ranked: RankedVariant[], timeSource: TaskMetricSource = "aa"): MetricPanel[] {
   const obs = new Map<string, Map<string, Observation>>();
   for (const o of snapshot.observations) {
     const b = obs.get(o.benchmarkId) ?? obs.set(o.benchmarkId, new Map()).get(o.benchmarkId)!;
@@ -57,7 +58,8 @@ export function metricPanels(snapshot: Snapshot, ranked: RankedVariant[]): Metri
   const panels: MetricPanel[] = [];
   const iiId = snapshot.benchmarks.filter((b) => b.id.startsWith("aa-intelligence-index")).sort((a, b) => b.id.localeCompare(a.id))[0]?.id;
   const ttft = at("aa-ttft");
-  const decode = iiId ? at(iiId, (o) => (o.details?.estimatedDecodeSecondsPerTask as number | undefined) ?? undefined) : () => [];
+  const timeData = taskMetricData(snapshot, timeSource, "time");
+  const decode = (rows: RankedVariant[]): MetricPoint[] => rows.flatMap((r) => { const x = timeData.get(r.variant.id)?.value; return x == null ? [] : [{ x, r }]; });
   const tokens = iiId ? at(iiId, (o) => (o.details?.outputTokensPerTask as number | undefined) ?? o.outputTokens ?? undefined) : () => [];
   const uptime = at("openrouter-uptime");
   const dates = (rows: RankedVariant[]) => rows.flatMap((r) => r.model.releaseDate ? [{ x: Date.parse(r.model.releaseDate), r }] : []);
@@ -67,7 +69,7 @@ export function metricPanels(snapshot: Snapshot, ranked: RankedVariant[]): Metri
   const fmtDate = (x: number) => new Date(x).toISOString().slice(0, 10);
   const secs = (x: number) => x >= 1000 ? `${Math.round(x / 100) / 10}k s` : fmt("s")(x);
 
-  if (has(decode)) panels.push({ id: "tpt", title: "Time per task", desc: "Artificial Analysis · weighted decode time per Intelligence Index task, excl. first-token wait and overhead", open: true, chart: { better: "lower", points: decode, xLabel: "s/task", xName: "Time per task (s)", scale: "log", secs: true, formatX: secs, aria: "Index score versus estimated time per task" } });
+  panels.push({ id: "tpt", title: "Time per task", desc: taskMetricDescription(timeSource, "time"), open: true, chart: { better: "lower", points: decode, xLabel: "s/task", xName: "Time per task (s)", scale: "log", secs: true, formatX: secs, aria: timeSource === "aa" ? "Index score versus estimated time per task" : "Index score versus average Terminal-Bench trial duration" } });
   if (ranked.some((r) => r.speed)) panels.push({ id: "speed", title: "Output speed", desc: "tokens per second", open: !has(decode), speed: true });
   if (has(ttft)) panels.push({ id: "latency", title: "Latency", desc: "seconds to first token", chart: { better: "lower", points: ttft, xLabel: "s", xName: "Time to first token (s)", scale: "log", secs: true, formatX: fmt("s"), aria: "Index score versus time to first token" } });
   if (has(tokens)) panels.push({ id: "tokens", title: "Output tokens", desc: "tokens generated per task", chart: { better: "lower", points: tokens, xLabel: "tok", xName: "Output tokens per task", scale: "log", formatX: (x) => x >= 1000 ? `${(x / 1000).toFixed(0)}k` : `${x.toFixed(0)}`, aria: "Index score versus output tokens per task" } });
@@ -135,10 +137,10 @@ export function chartTitle(c: string | undefined): string | undefined {
 }
 
 /** Resolve a chart param to its card kind: "rankings" | "cost" | a metric chart. */
-export function chartKind(snapshot: Snapshot, ranked: RankedVariant[], c: string | undefined): { kind: "rankings" | "cost" } | { kind: "metric"; chart: MetricChart } | null {
+export function chartKind(snapshot: Snapshot, ranked: RankedVariant[], c: string | undefined, timeSource: TaskMetricSource = "aa"): { kind: "rankings" | "cost" } | { kind: "metric"; chart: MetricChart } | null {
   if (!c || c === "rankings") return { kind: "rankings" };
   if (c === "cost") return { kind: "cost" };
   if (c === "output-speed") return ranked.some((r) => r.speed) ? { kind: "metric", chart: speedChart } : null;
-  const panel = metricPanels(snapshot, ranked).find((p) => anchorOf(p.title) === c && p.chart);
+  const panel = metricPanels(snapshot, ranked, timeSource).find((p) => anchorOf(p.title) === c && p.chart);
   return panel?.chart ? { kind: "metric", chart: panel.chart } : null;
 }

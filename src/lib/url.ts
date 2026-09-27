@@ -21,6 +21,8 @@ export function encodeIndex(c: IndexConfig): string {
   if (c.excludeModels?.length) parts.push(`ex=${c.excludeModels.join(",")}`);
   if (c.onlyModels !== undefined) parts.push(`only=${c.onlyModels.join(",")}`);
   if (c.releasedAfter !== undefined) parts.push(`after=${c.releasedAfter}`);
+  if (c.costSource && c.costSource !== "aa") parts.push(`costsrc=${c.costSource}`);
+  if (c.timeSource && c.timeSource !== "aa") parts.push(`timesrc=${c.timeSource}`);
   if (c.focus) parts.push(`focus=${c.focus}`);
   return parts.join("|");
 }
@@ -50,6 +52,8 @@ export function decodeIndex(s: string, id: string): IndexConfig | null {
     else if (k === "ex") c.excludeModels = v.split(",").filter(Boolean);
     else if (k === "only") c.onlyModels = v.split(",").filter(Boolean);
     else if (k === "after") c.releasedAfter = v;
+    else if (k === "costsrc" && (v === "aa" || v === "terminalbench-4")) c.costSource = v;
+    else if (k === "timesrc" && (v === "aa" || v === "terminalbench-4")) c.timeSource = v;
     else if (k === "focus" && FOCUS_IDS.includes(v as FocusId)) c.focus = v as FocusId;
   }
   return c;
