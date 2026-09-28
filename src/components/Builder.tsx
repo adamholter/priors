@@ -5,7 +5,7 @@ import type { Snapshot } from "@/data/types";
 import { chartVariantMode, computeIndex, defaultConfig, selectVariants, type IndexConfig } from "@/engine";
 import { ShareCards } from "./ShareCards";
 import { encodeIndices, decodeIndices } from "@/lib/url";
-import { hiddenIds, compactVisibility, toggleVisibility, SHOW_ALL, HIDE_ALL, type Vis } from "@/lib/model-visibility";
+import { hiddenIds, toggleVisibility, SHOW_ALL, type Vis } from "@/lib/model-visibility";
 import { WeightsPanel } from "./WeightsPanel";
 import { Rankings } from "./Rankings";
 import { ParetoChart } from "./chart/ParetoChart";
@@ -66,16 +66,8 @@ export function Builder({ snapshot: base, dates, initialIndices }: { snapshot: S
     if (i.id !== activeId) return i;
     return { ...i, ...toggleVisibility(i, id, pickerIds) };
   })), [activeId, pickerIds]);
-  // Compact legacy URLs: when exclusions hide more than half the picker, switch
-  // to the shorter allowlist once so the shared link shrinks.
-  useEffect(() => {
-    if (active.onlyModels !== undefined) return;
-    const vis = compactVisibility(new Set(active.excludeModels ?? []), pickerIds);
-    if (!vis.onlyModels) return;
-    const id = requestAnimationFrame(() => setIndices((list) => list.map((i) => i.id === activeId ? { ...i, ...vis } : i)));
-    return () => cancelAnimationFrame(id);
-  }, [active.onlyModels, active.excludeModels, pickerIds, activeId]);
-  const modelPicker = { models: pickerModels, excluded: excludedIds, onToggleModel: toggleModel, onShowAllModels: () => setVisibility(SHOW_ALL), onHideAllModels: () => setVisibility(HIDE_ALL) };
+  // Legacy allowlists are converted when the user changes model visibility.
+  const modelPicker = { models: pickerModels, excluded: excludedIds, onToggleModel: toggleModel, onShowAllModels: () => setVisibility(SHOW_ALL), onHideAllModels: () => setVisibility({ excludeModels: pickerIds, onlyModels: undefined }) };
   const [paretoView, setParetoView] = useScatterView("pareto");
   const releaseProps = { releasedAfter: active.releasedAfter, onChangeReleased: (v: string) => update({ ...active, releasedAfter: v }) };
 
@@ -145,4 +137,3 @@ export function Builder({ snapshot: base, dates, initialIndices }: { snapshot: S
     </div>
   );
 }
-

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Snapshot } from "../data/types";
-import { DEFAULT_PRIORS_MIX, LEGACY_DEFAULTS, defaultLineup, savedLineup } from "./defaults";
+import { DEFAULT_PRIORS_MIX, LEGACY_DEFAULTS, defaultLineup, savedLineup, savedMix } from "./defaults";
+import { encodeIndex } from "../lib/url";
 
 const benchmarkIds = Object.keys(DEFAULT_PRIORS_MIX.weights);
 
@@ -27,6 +28,17 @@ describe("defaultLineup", () => {
 
   it("respects a smaller n", () => {
     expect(defaultLineup(snapshot(20), 5)).toEqual(["m0", "m1", "m2", "m3", "m4"]);
+  });
+  it("adds a new leading model from the saved mix without changing a stored lineup", () => {
+    const before = snapshot(20);
+    const after = snapshot(20);
+    after.models.push({ id: "new-model", name: "new-model", labId: "lab", kind: "llm", reasoning: true, aliases: [] });
+    after.variants.push({ id: "new-model@max", modelId: "new-model", effort: "max" });
+    after.observations.push(...benchmarkIds.map((benchmarkId) => ({ benchmarkId, variantId: "new-model@max", value: 100, observedAt: after.date, sourceUrl: "https://example.com" })));
+    const mix = savedMix(encodeURIComponent(encodeIndex(DEFAULT_PRIORS_MIX)), after);
+    expect(mix).not.toBeNull();
+    expect(defaultLineup(before, 5, mix!)).toEqual(["m0", "m1", "m2", "m3", "m4"]);
+    expect(defaultLineup(after, 5, mix!)).toEqual(["new-model", "m0", "m1", "m2", "m3"]);
   });
 });
 

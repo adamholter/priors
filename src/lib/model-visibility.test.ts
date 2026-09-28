@@ -4,11 +4,11 @@ import { compactVisibility, hiddenIds, toggleVisibility, HIDE_ALL, SHOW_ALL } fr
 const picker = Array.from({ length: 10 }, (_, i) => `m${i}`);
 
 describe("model visibility", () => {
-  it("switches to an onlyModels allowlist when most models are hidden", () => {
+  it("keeps explicit exclusions when most models are hidden", () => {
     let vis = SHOW_ALL;
     for (const id of picker.slice(0, 6)) vis = { ...vis, ...toggleVisibility(vis, id, picker) };
-    expect(vis.onlyModels).toEqual(picker.slice(6));
-    expect(vis.excludeModels).toBeUndefined();
+    expect(vis.excludeModels).toEqual(picker.slice(0, 6));
+    expect(vis.onlyModels).toBeUndefined();
   });
   it("returns to excludeModels when fewer than half are hidden", () => {
     let vis = HIDE_ALL;
@@ -17,9 +17,10 @@ describe("model visibility", () => {
     expect(vis.excludeModels).toHaveLength(4);
     expect(vis.onlyModels).toBeUndefined();
   });
-  it("HIDE_ALL then toggling one model yields onlyModels [id]", () => {
+  it("converts a legacy allowlist into exclusions when edited", () => {
     const vis = toggleVisibility(HIDE_ALL, "m3", picker);
-    expect(vis.onlyModels).toEqual(["m3"]);
+    expect(vis.onlyModels).toBeUndefined();
+    expect(vis.excludeModels).toEqual(picker.filter((id) => id !== "m3"));
   });
   it("hiddenIds resolves both representations", () => {
     expect(hiddenIds({ excludeModels: ["m1"], onlyModels: undefined }, picker)).toEqual(new Set(["m1"]));
@@ -29,5 +30,9 @@ describe("model visibility", () => {
   it("compactVisibility keeps ids hidden outside the picker in excludeModels", () => {
     const vis = compactVisibility(new Set(["m1", "ghost"]), picker);
     expect(vis.excludeModels).toEqual(expect.arrayContaining(["m1", "ghost"]));
+  });
+  it("lets a newly added model appear in a saved selection", () => {
+    const vis = compactVisibility(new Set(picker.slice(0, 9)), picker);
+    expect(hiddenIds(vis, [...picker, "new-model"]).has("new-model")).toBe(false);
   });
 });

@@ -3,7 +3,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent } from "react";
 import type { Snapshot } from "@/data/types";
 import { Wordmark } from "@/components/Wordmark";
-import { encodeIndices } from "@/lib/url";
+import { decodeIndices, encodeIndex, encodeIndices } from "@/lib/url";
 import { PREFERRED, type BenchmarkQuality } from "./quality";
 import type { FitUpdate } from "./optimizer";
 import { DEFAULT_FOCUS, FOCUSES, FOCUS_IDS, type FocusId } from "./focus";
@@ -12,7 +12,7 @@ import { useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { convexEnabled } from "@/app/providers";
 import { Intro, INTRO_KEY } from "./Intro";
-import { savedLineup } from "./defaults";
+import { PRIORS_MIX_COOKIE, savedLineup } from "./defaults";
 import "./onboarding.css";
 const ROW = 46;
 const phaseNames = { preparing: "Reading the evidence", searching: "Searching the combinations", simplifying: "Keeping what matters", complete: "Your index, found" };
@@ -45,7 +45,7 @@ function Trace({ values }: { values: number[] }) {
   return <svg className="fit-trace" viewBox="0 0 300 76" role="img" aria-label="How closely the search matches your requested order"><path d="M0 68H300M0 38H300M0 8H300" stroke="#DDDBD4" strokeWidth=".5" /><path d={path} fill="none" stroke="#2F4FB0" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />{values.length > 0 && <circle cx="300" cy={68 - values[values.length - 1] * .6} r="3" fill="#2F4FB0" />}</svg>;
 }
 
-export function Onboarding({ snapshot, lineup, quality, observedModelIds }: { snapshot: Snapshot; lineup: string[]; quality: BenchmarkQuality[]; observedModelIds: string[] }) {
+export function Onboarding({ snapshot, lineup, quality, observedModelIds, hasSavedMix }: { snapshot: Snapshot; lineup: string[]; quality: BenchmarkQuality[]; observedModelIds: string[]; hasSavedMix: boolean }) {
   const models = useMemo(() => new Map(snapshot.models.map(m => [m.id, m])), [snapshot]);
   const colors = useMemo(() => new Map(snapshot.labs.map(l => [l.id, l.color])), [snapshot]);
   const qMap = useMemo(() => new Map(quality.map(q => [q.id, q])), [quality]);
@@ -60,7 +60,24 @@ export function Onboarding({ snapshot, lineup, quality, observedModelIds }: { sn
   useEffect(() => {
     const raf = requestAnimationFrame(() => {
       restored.current = true;
-      const saved = savedLineup(localStorage.getItem("priors:lineup"), (id) => models.has(id));
+      if (!hasSavedMix) {
+        try {
+          const indices = decodeIndices(JSON.parse(localStorage.getItem("priors:indices") ?? "[]") as string[]);
+          const fit = indices.find((i) => i.name === "My priors");
+          const handle = localStorage.getItem("priors:handle");
+          if (fit || handle) {
+            const encoded = fit ? encodeURIComponent(encodeIndex({ ...fit, onlyModels: undefined, excludeModels: undefined })) : "";
+            if (encoded.length > 2048) return;
+            const url = fit ? `/api/lineup?mix=${encoded}` : `/api/lineup?handle=${encodeURIComponent(handle!)}`;
+            fetch(url).then((r) => r.ok ? r.json() : null).then((data) => {
+              const ids = (data?.lineup as string[] | undefined)?.filter((id) => models.has(id));
+              if (ids?.length) { setOrder(ids); orderRef.current = ids; edited.current = false; localStorage.removeItem("priors:lineup"); document.cookie = `${PRIORS_MIX_COOKIE}=${encodeURIComponent(data.mix)}; Path=/; Max-Age=31536000; SameSite=Lax`; }
+            }).catch(() => {});
+            return;
+          }
+        } catch { /* use the earlier unfinished lineup below */ }
+      }
+      const saved = hasSavedMix ? null : savedLineup(localStorage.getItem("priors:lineup"), (id) => models.has(id));
       if (saved) { setOrder(saved); orderRef.current = saved; edited.current = true; }
     });
     return () => cancelAnimationFrame(raf);
@@ -200,6 +217,7 @@ export function Onboarding({ snapshot, lineup, quality, observedModelIds }: { sn
         setLogs(l => l.at(-1)?.text === text ? l : [...l.slice(-2), entry]);
         setHistory(h => [...h.slice(-23), u.fitScore]);
         if (u.phase === "complete") {
+          try { document.cookie = `${PRIORS_MIX_COOKIE}=${encodeURIComponent(encodeIndex(u.config))}; Path=/; Max-Age=31536000; SameSite=Lax`; } catch { /* storage can be disabled */ }
           setAnnouncement(`Search complete. ${u.exactMatch ? "Your full order matches." : "No matching configuration found."} ${u.matchedPositions} of ${order.length} models are in their requested positions.`);
           recordLineup.current?.({ focus, lineup: order, weights: u.weights, strictness: u.config.strictness ?? 50, fitScore: u.fitScore, exact: u.exactMatch, snapshotDate: snapshot.date });
         }

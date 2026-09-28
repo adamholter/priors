@@ -28,7 +28,7 @@ export interface IndexConfig {
   /** Optional filters */
   labs?: string[]; // include only these labIds
   excludeModels?: string[]; // modelIds
-  /** Allowlist (modelIds); when set, only these rank. Used instead of `excludeModels` when most models are hidden. */
+  /** Legacy allowlist. New visibility choices use `excludeModels` so future models can rank. */
   onlyModels?: string[];
   releasedAfter?: string; // ISO date
   /** Onboarding focus preset that produced this index; ranking ignores it. */

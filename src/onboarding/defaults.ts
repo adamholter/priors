@@ -2,6 +2,8 @@ import type { Snapshot } from "../data/types";
 import { chartVariantMode, computeIndex, selectVariants, type IndexConfig } from "../engine";
 import { decodeIndex } from "../lib/url";
 
+export const PRIORS_MIX_COOKIE = "priors:mix";
+
 /** Earlier hardcoded defaults — a stored lineup equal to one of these is not a user choice. */
 export const LEGACY_DEFAULTS = [
   ["claude-opus-5.5", "claude-fable-5.1", "gpt-6-astra", "claude-opus-5", "claude-fable-5", "muse-spark-1.3", "gpt-6-sol", "grok-4.7", "mimo-v2.6-pro", "qwen-3.8-max", "glm-5.3", "grok-4.6", "kimi-k3", "gpt-5.6-terra", "glm-5.3-flash", "gemini-3.8-flash"],
@@ -21,8 +23,12 @@ export const DEFAULT_PRIORS_MIX: IndexConfig = decodeIndex(
 )!;
 
 const lineupCache = new WeakMap<Snapshot, string[]>();
-/** The default onboarding lineup: the first `n` models under DEFAULT_PRIORS_MIX on this snapshot. */
-export function defaultLineup(snapshot: Snapshot, n = 14): string[] {
+/** The first `n` models under a mix on the current snapshot. */
+export function defaultLineup(snapshot: Snapshot, n = 14, mix: IndexConfig = DEFAULT_PRIORS_MIX): string[] {
+  if (mix !== DEFAULT_PRIORS_MIX) {
+    const r = computeIndex(snapshot, { ...mix, variants: "all" });
+    return selectVariants(r.ranked, chartVariantMode(mix, "ranking")).slice(0, n).map((x) => x.model.id);
+  }
   let l = lineupCache.get(snapshot);
   if (!l) {
     const r = computeIndex(snapshot, { ...DEFAULT_PRIORS_MIX, variants: "all" });
@@ -30,6 +36,19 @@ export function defaultLineup(snapshot: Snapshot, n = 14): string[] {
     lineupCache.set(snapshot, l);
   }
   return l.slice(0, n);
+}
+
+/** A completed fit is a mix, never a frozen list of model IDs. */
+export function savedMix(raw: string | undefined, snapshot: Snapshot): IndexConfig | null {
+  if (!raw || raw.length > 2048) return null;
+  try {
+    const decoded = decodeIndex(decodeURIComponent(raw), "saved-priors");
+    if (!decoded) return null;
+    const known = new Set(snapshot.benchmarks.map((b) => b.id));
+    const weights = Object.fromEntries(Object.entries(decoded.weights).filter(([id, weight]) => known.has(id) && weight > 0));
+    if (!Object.keys(weights).length || Object.keys(weights).length > 20) return null;
+    return { ...decoded, weights, required: decoded.required.filter((id) => known.has(id)), onlyModels: undefined, excludeModels: undefined };
+  } catch { return null; }
 }
 
 /**
