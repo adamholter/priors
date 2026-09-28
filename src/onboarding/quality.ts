@@ -133,15 +133,15 @@ function normalizedValue(benchmark: Benchmark, value: number): number | undefine
   return undefined;
 }
 
-function saturationScore(snapshot: Snapshot, benchmark: Benchmark): number {
+type QualityRow = { modelId: string; value: number };
+
+function saturationScore(benchmark: Benchmark, rows: QualityRow[]): number {
   // Multiple effort/config rows for one model must not make the benchmark look more saturated.
   const byModel = new Map<string, number>();
-  for (const observation of snapshot.observations) {
-    if (observation.benchmarkId !== benchmark.id) continue;
-    const modelId = snapshot.variants.find((v) => v.id === observation.variantId)?.modelId ?? observation.variantId.split("@")[0];
-    const value = normalizedValue(benchmark, observation.value);
+  for (const row of rows) {
+    const value = normalizedValue(benchmark, row.value);
     if (value == null) continue;
-    byModel.set(modelId, Math.max(value, byModel.get(modelId) ?? -Infinity));
+    byModel.set(row.modelId, Math.max(value, byModel.get(row.modelId) ?? -Infinity));
   }
   const scores = [...byModel.values()].sort((a, b) => a - b);
   if (!scores.length) return 50;
@@ -164,25 +164,20 @@ function objectivityScore(benchmark: Benchmark): number {
   return benchmark.unit === "percent" ? 80 : 65;
 }
 
-function modelsMeasured(snapshot: Snapshot, benchmarkId: string): number {
-  const llms = new Set(snapshot.models.filter((m) => m.kind === "llm").map((m) => m.id));
+function modelsMeasured(rows: QualityRow[], llms: Set<string>): number {
   const covered = new Set<string>();
-  for (const observation of snapshot.observations) {
-    if (observation.benchmarkId !== benchmarkId) continue;
-    const modelId = snapshot.variants.find((v) => v.id === observation.variantId)?.modelId ?? observation.variantId.split("@")[0];
-    if (llms.has(modelId)) covered.add(modelId);
+  for (const row of rows) {
+    if (llms.has(row.modelId)) covered.add(row.modelId);
   }
   return covered.size;
 }
 
-function frontierCoverage(snapshot: Snapshot, benchmarkId: string, cohort: string[]): { measured: number; total: number; score: number } {
-  const available = new Set(snapshot.models.filter((m) => m.kind === "llm").map((m) => m.id));
-  cohort = cohort.filter((id) => available.has(id));
+function frontierCoverage(rows: QualityRow[], cohort: string[], llms: Set<string>): { measured: number; total: number; score: number } {
+  cohort = cohort.filter((id) => llms.has(id));
+  const selected = new Set(cohort);
   const measured = new Set<string>();
-  for (const observation of snapshot.observations) {
-    if (observation.benchmarkId !== benchmarkId) continue;
-    const modelId = snapshot.variants.find((v) => v.id === observation.variantId)?.modelId ?? observation.variantId.split("@")[0];
-    if (cohort.includes(modelId)) measured.add(modelId);
+  for (const row of rows) {
+    if (selected.has(row.modelId)) measured.add(row.modelId);
   }
   return { measured: measured.size, total: cohort.length, score: cohort.length ? rounded(100 * measured.size / cohort.length) : 0 };
 }
@@ -193,14 +188,23 @@ export function affinity(q: BenchmarkQuality, focus: Focus, benchmark: Benchmark
 }
 
 export function benchmarkQuality(snapshot: Snapshot, cohort: string[] = defaultLineup(snapshot, 10)): BenchmarkQuality[] {
+  const variantModels = new Map(snapshot.variants.map((variant) => [variant.id, variant.modelId]));
+  const rowsByBenchmark = new Map<string, QualityRow[]>();
+  for (const observation of snapshot.observations) {
+    const rows = rowsByBenchmark.get(observation.benchmarkId) ?? [];
+    rows.push({ modelId: variantModels.get(observation.variantId) ?? observation.variantId.split("@")[0], value: observation.value });
+    rowsByBenchmark.set(observation.benchmarkId, rows);
+  }
+  const llms = new Set(snapshot.models.filter((model) => model.kind === "llm").map((model) => model.id));
   return snapshot.benchmarks.map((benchmark) => {
+    const rows = rowsByBenchmark.get(benchmark.id) ?? [];
     const release = RELEASES[benchmark.id];
     const recency = recencyScore(snapshot.date, release?.date);
-    const saturation = saturationScore(snapshot, benchmark);
+    const saturation = saturationScore(benchmark, rows);
     const objectivity = objectivityScore(benchmark);
-    const measured = modelsMeasured(snapshot, benchmark.id);
+    const measured = modelsMeasured(rows, llms);
     const coverage = rounded(100 * Math.min(1, measured / 40));
-    const frontier = frontierCoverage(snapshot, benchmark.id, cohort);
+    const frontier = frontierCoverage(rows, cohort, llms);
     const frontierScore = frontier.total ? frontier.score : coverage;
     const preferred = (PREFERRED as readonly string[]).includes(benchmark.id);
     const superseded = SUPERSEDED.has(benchmark.id);

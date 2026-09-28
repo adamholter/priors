@@ -58,9 +58,13 @@ export default async function Home({ searchParams }: PageProps<"/builder">) {
     return <PreviewPage title={title} description={desc} href={`/builder?${query}`} />;
   }
   const date = typeof sp.date === "string" ? sp.date : undefined;
-  const [snapshot, dates] = await Promise.all([loadSnapshot(date), listSnapshotDates()]);
-  if (!snapshot) return <main className="p-10"><h1 className="text-3xl">priors</h1><p className="mt-3 text-ink-2">No snapshot yet. Run <code className="mono">npm run scrape</code>.</p></main>;
+  const dates = await listSnapshotDates();
+  if (!dates.length || (date && !dates.includes(date))) return <main className="p-10"><h1 className="text-3xl">priors</h1><p className="mt-3 text-ink-2">No snapshot yet. Run <code className="mono">npm run scrape</code>.</p></main>;
   const i = sp.i == null ? [] : Array.isArray(sp.i) ? sp.i : [sp.i];
-  if (await isSearchBot()) return <PageTransition><Builder snapshot={clientSnapshot(snapshot)} dates={dates} initialIndices={decodeIndices(i)} /></PageTransition>;
-  return <PageTransition><BuilderLoader key={snapshot.generatedAt} date={date} version={snapshot.generatedAt} dates={dates} initialIndices={decodeIndices(i)} /></PageTransition>;
+  if (await isSearchBot()) {
+    const snapshot = await loadSnapshot(date);
+    if (!snapshot) return <main className="p-10">No benchmark snapshot available.</main>;
+    return <PageTransition><Builder snapshot={clientSnapshot(snapshot)} dates={dates} initialIndices={decodeIndices(i)} /></PageTransition>;
+  }
+  return <PageTransition><BuilderLoader key={date ?? "latest"} date={date} dates={dates} initialIndices={decodeIndices(i)} /></PageTransition>;
 }
