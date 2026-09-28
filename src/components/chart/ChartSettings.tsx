@@ -31,7 +31,6 @@ export function ChartSettings({ label, mode, onChange, releasedAfter, onChangeRe
   const root = useRef<HTMLDetailsElement>(null);
   const trigger = useRef<HTMLElement>(null);
   const [query, setQuery] = useState("");
-  const [menuShift, setMenuShift] = useState(0);
   const dismiss = useCallback((reason: "outside" | "escape") => {
     if (!root.current?.open) return;
     root.current.open = false;
@@ -52,16 +51,11 @@ export function ChartSettings({ label, mode, onChange, releasedAfter, onChangeRe
   }, [models, query]);
   const shown = models ? models.length - (excluded?.size ?? 0) : 0;
   return (
-    <details ref={root} className="relative shrink-0" name="chart-settings" onToggle={(e) => {
-      if (!e.currentTarget.open) return;
-      const right = e.currentTarget.getBoundingClientRect().right;
-      const width = Math.min(256, window.innerWidth * 0.85);
-      setMenuShift(Math.max(0, 8 - (right - width)) - Math.max(0, right - window.innerWidth + 8));
-    }}>
+    <details ref={root} className="relative shrink-0" name="chart-settings">
       <summary ref={trigger} aria-label={`${label} settings`} title={`${label} settings`} className="list-none [&::-webkit-details-marker]:hidden cursor-pointer p-1.5 text-grey hover:text-ink rounded-sm focus-visible:outline-indigo">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="M4 6h4m4 0h8M4 12h10m4 0h2M4 18h2m4 0h10" /><circle cx="10" cy="6" r="2" /><circle cx="16" cy="12" r="2" /><circle cx="8" cy="18" r="2" /></svg>
       </summary>
-      <div style={{ transform: `translateX(${menuShift}px)` }} className="absolute right-0 top-full mt-1 w-64 max-w-[85vw] max-h-[70dvh] overflow-y-auto overscroll-contain border hairline rounded-sm bg-white p-3 z-20 shadow-sm">
+      <div className="chart-settings-menu absolute right-0 top-full mt-1 w-64 max-w-[85vw] max-h-[70dvh] overflow-y-auto overscroll-contain border hairline rounded-sm bg-white p-3 z-20 shadow-sm">
         {dataSource && <div className="mb-3 pb-3 border-b hairline">
           <label htmlFor={`${id}-source`} className="block text-[12px] text-ink-2 mb-2">Data source</label>
           <select id={`${id}-source`} aria-label={`${label} data source`} className="inp" value={dataSource.value} onChange={(e) => dataSource.onChange(e.target.value as TaskMetricSource)}>

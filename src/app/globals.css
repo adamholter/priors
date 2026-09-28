@@ -99,6 +99,18 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 
 /* Metric gallery */
 details.gallery-panel > summary::-webkit-details-marker { display: none; }
+@media (max-width: 639px) {
+  .chart-settings-menu {
+    position: fixed;
+    left: 50vw;
+    right: auto;
+    top: 50dvh;
+    margin-top: 0;
+    width: min(256px, calc(100vw - 16px));
+    max-width: none;
+    transform: translate(-50%, -50%);
+  }
+}
 .handle-input:focus-visible { outline: none; }
 .seg { display: inline-flex; border: 1px solid var(--hair); border-radius: 4px; overflow: hidden; }
 .seg > button { display: inline-grid; place-items: center; padding: 4px 7px; border: 0; background: transparent; color: var(--grey); cursor: pointer; }
