@@ -23,7 +23,7 @@ export async function GET(req: Request) {
       .query(api.profiles.byHandle, { handle }) as Profile | null;
     if (profile?.indices[0]) {
       data = mergeImports(snapshot, profile.imports ?? []).snapshot;
-      mix = savedMix(encodeURIComponent(encodeIndex(profile.indices[0])), data);
+      mix = savedMix(encodeURIComponent(encodeIndex({ ...profile.indices[0], onlyModels: undefined, excludeModels: undefined })), data);
     }
   }
   if (!mix) return NextResponse.json({ error: "Saved mix unavailable." }, { status: 400 });
