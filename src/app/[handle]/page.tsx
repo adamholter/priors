@@ -1,23 +1,28 @@
 import { ConvexHttpClient } from "convex/browser";
+import { cache } from "react";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { api } from "../../../convex/_generated/api";
 import { listSnapshotDates, loadSnapshot } from "@/data/load";
 import { mergeImports } from "@/lib/import";
-import { IndexPage, type Profile } from "@/components/page/IndexPage";
+import type { Profile } from "@/components/page/IndexPage";
+import { IndexPage } from "@/components/page/IndexPage";
+import { ProfileLoader } from "@/components/page/ProfileLoader";
+import { clientSnapshot } from "@/data/client-snapshot";
 import { PageTransition } from "@/components/PageTransition";
+import { chartVariantMode, computeIndex, selectVariants } from "@/engine";
 import { encodeIndex } from "@/lib/url";
 import { chartTitle } from "@/lib/metrics";
 import { resolveProfileChart } from "../og/route";
-import { isPreviewBot, PreviewPage } from "@/lib/link-preview";
+import { isPreviewBot, isSearchBot, PreviewPage } from "@/lib/link-preview";
 
 export const dynamic = "force-dynamic";
 
-async function getProfile(handle: string): Promise<Profile | null> {
+const getProfile = cache(async function getProfile(handle: string): Promise<Profile | null> {
   const url = process.env.NEXT_PUBLIC_CONVEX_URL;
   if (!url) return null;
   return (await new ConvexHttpClient(url).query(api.profiles.byHandle, { handle })) as Profile | null;
-}
+});
 
 function profileCard(p: Profile, sp: Record<string, string | string[] | undefined>) {
   const chart = resolveProfileChart(p, typeof sp.c === "string" ? sp.c : undefined);
@@ -56,5 +61,8 @@ export default async function Page({ params, searchParams }: PageProps<"/[handle
   const [snap, dates] = await Promise.all([loadSnapshot(date), listSnapshotDates()]);
   if (!snap) notFound();
   const { snapshot } = mergeImports(snap, p.imports ?? []);
-  return <PageTransition><IndexPage profile={p} snapshot={snapshot} dates={dates} edit={sp.edit === "1"} /></PageTransition>;
+  if (await isSearchBot()) return <PageTransition><IndexPage profile={p} snapshot={clientSnapshot(snapshot)} dates={dates} edit={false} /></PageTransition>;
+  const first = p.indices[0];
+  const leaders = first ? selectVariants(computeIndex(snapshot, { ...first, variants: "all" }).ranked, chartVariantMode(first, "ranking")).slice(0, 10).map((r) => ({ name: r.model.name, score: r.score })) : [];
+  return <PageTransition><ProfileLoader key={`${p.handle}-${snapshot.generatedAt}`} profile={p} date={snapshot.date} version={snapshot.generatedAt} dates={dates} edit={sp.edit === "1"} leaders={leaders} /></PageTransition>;
 }

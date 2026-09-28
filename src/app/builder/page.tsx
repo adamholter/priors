@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
+import { BuilderLoader } from "@/components/BuilderLoader";
 import { Builder } from "@/components/Builder";
+import { clientSnapshot } from "@/data/client-snapshot";
 import { PageTransition } from "@/components/PageTransition";
 import { listSnapshotDates, loadSnapshot } from "@/data/load";
 import { decodeIndices } from "@/lib/url";
 import { chartTitle } from "@/lib/metrics";
 import { chartVariantMode, computeIndex, selectVariants } from "@/engine";
-import { isPreviewBot, PreviewPage } from "@/lib/link-preview";
+import { isPreviewBot, isSearchBot, PreviewPage } from "@/lib/link-preview";
 
 export const dynamic = "force-dynamic";
 
@@ -59,5 +61,6 @@ export default async function Home({ searchParams }: PageProps<"/builder">) {
   const [snapshot, dates] = await Promise.all([loadSnapshot(date), listSnapshotDates()]);
   if (!snapshot) return <main className="p-10"><h1 className="text-3xl">priors</h1><p className="mt-3 text-ink-2">No snapshot yet. Run <code className="mono">npm run scrape</code>.</p></main>;
   const i = sp.i == null ? [] : Array.isArray(sp.i) ? sp.i : [sp.i];
-  return <PageTransition><Builder snapshot={snapshot} dates={dates} initialIndices={decodeIndices(i)} /></PageTransition>;
+  if (await isSearchBot()) return <PageTransition><Builder snapshot={clientSnapshot(snapshot)} dates={dates} initialIndices={decodeIndices(i)} /></PageTransition>;
+  return <PageTransition><BuilderLoader key={snapshot.generatedAt} date={date} version={snapshot.generatedAt} dates={dates} initialIndices={decodeIndices(i)} /></PageTransition>;
 }

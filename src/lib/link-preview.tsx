@@ -12,6 +12,10 @@ export async function isPreviewBot(): Promise<boolean> {
   return BOT_RE.test(ua) || (!SEARCH_RE.test(ua) && !BROWSER_RE.test(ua));
 }
 
+export async function isSearchBot(): Promise<boolean> {
+  return SEARCH_RE.test((await headers()).get("user-agent") ?? "");
+}
+
 /** Minimal crawlable body — metadata in <head> is unchanged; this only avoids serializing the app. */
 export function PreviewPage({ title, description, href }: { title: string; description?: string; href: string }) {
   return (

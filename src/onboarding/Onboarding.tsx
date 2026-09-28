@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerE
 import type { Snapshot } from "@/data/types";
 import { Wordmark } from "@/components/Wordmark";
 import { encodeIndices } from "@/lib/url";
-import { benchmarkQuality, PREFERRED } from "./quality";
+import { PREFERRED, type BenchmarkQuality } from "./quality";
 import type { FitUpdate } from "./optimizer";
 import { DEFAULT_FOCUS, FOCUSES, FOCUS_IDS, type FocusId } from "./focus";
 import type { MixLibrary } from "./library";
@@ -12,7 +12,7 @@ import { useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { convexEnabled } from "@/app/providers";
 import { Intro, INTRO_KEY } from "./Intro";
-import { defaultLineup, savedLineup } from "./defaults";
+import { savedLineup } from "./defaults";
 import "./onboarding.css";
 const ROW = 46;
 const phaseNames = { preparing: "Reading the evidence", searching: "Searching the combinations", simplifying: "Keeping what matters", complete: "Your index, found" };
@@ -45,13 +45,12 @@ function Trace({ values }: { values: number[] }) {
   return <svg className="fit-trace" viewBox="0 0 300 76" role="img" aria-label="How closely the search matches your requested order"><path d="M0 68H300M0 38H300M0 8H300" stroke="#DDDBD4" strokeWidth=".5" /><path d={path} fill="none" stroke="#2F4FB0" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />{values.length > 0 && <circle cx="300" cy={68 - values[values.length - 1] * .6} r="3" fill="#2F4FB0" />}</svg>;
 }
 
-export function Onboarding({ snapshot }: { snapshot: Snapshot }) {
+export function Onboarding({ snapshot, lineup, quality, observedModelIds }: { snapshot: Snapshot; lineup: string[]; quality: BenchmarkQuality[]; observedModelIds: string[] }) {
   const models = useMemo(() => new Map(snapshot.models.map(m => [m.id, m])), [snapshot]);
   const colors = useMemo(() => new Map(snapshot.labs.map(l => [l.id, l.color])), [snapshot]);
-  const quality = useMemo(() => benchmarkQuality(snapshot), [snapshot]);
   const qMap = useMemo(() => new Map(quality.map(q => [q.id, q])), [quality]);
-  const observedModels = useMemo(() => { const variants = new Map(snapshot.variants.map(v => [v.id, v.modelId])); return new Set(snapshot.observations.map(o => variants.get(o.variantId))); }, [snapshot]);
-  const original = useMemo(() => defaultLineup(snapshot).filter(id => models.has(id)), [snapshot, models]);
+  const observedModels = useMemo(() => new Set(observedModelIds), [observedModelIds]);
+  const original = useMemo(() => lineup.filter(id => models.has(id)), [lineup, models]);
   const [order, setOrder] = useState(original);
   const orderRef = useRef(order);
   useEffect(() => { orderRef.current = order; }, [order]);
@@ -103,6 +102,8 @@ export function Onboarding({ snapshot }: { snapshot: Snapshot }) {
     try { if (!localStorage.getItem(INTRO_KEY)) intro.current?.showModal(); } catch { /* ignore */ }
   }, []);
   const worker = useRef<Worker | null>(null);
+  const calculationSnapshot = useRef<Snapshot | null>(null);
+  const searchAttempt = useRef(0);
   const latest = useRef<FitUpdate | null>(null);
   const displayTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const startTime = useRef(0);
@@ -164,10 +165,26 @@ export function Onboarding({ snapshot }: { snapshot: Snapshot }) {
     else if (orderRef.current.join(",") !== d.original.join(",")) edited.current = true;
     setDrag(null);
   }
-  function start() {
+  async function start() {
+    const attempt = ++searchAttempt.current;
     release();
     worker.current?.terminate(); if (displayTimer.current) clearTimeout(displayTimer.current); displayTimer.current = null; setError(""); setCopied(false); setUpdate(null); latest.current = null; setLogs([]); setHistory([]); setElapsed(0); startTime.current = performance.now(); setStage("fit");
     window.scrollTo({ top: 0, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth" });
+    let fullSnapshot = calculationSnapshot.current;
+    if (!fullSnapshot || fullSnapshot.date !== snapshot.date) {
+      try {
+        const response = await fetch(`/api/snapshot?view=core&date=${encodeURIComponent(snapshot.date)}&version=${encodeURIComponent(snapshot.generatedAt)}`);
+        if (!response.ok) throw new Error("Could not load benchmark data.");
+        const payload = await response.json();
+        fullSnapshot = payload.snapshot as Snapshot;
+        if (fullSnapshot.date !== snapshot.date) throw new Error("Benchmark data changed. Please reload the page.");
+        calculationSnapshot.current = fullSnapshot;
+      } catch (e) {
+        if (searchAttempt.current === attempt) setError(e instanceof Error ? e.message : "Could not load benchmark data.");
+        return;
+      }
+    }
+    if (searchAttempt.current !== attempt) return;
     try {
       const w = new Worker(new URL("./fit.worker.ts", import.meta.url)); worker.current = w;
       let lastPaint = -Infinity;
@@ -198,10 +215,10 @@ export function Onboarding({ snapshot }: { snapshot: Snapshot }) {
         if (e.data.phase === "complete") w.terminate();
       };
       w.onerror = () => { setError("The search stopped unexpectedly. Your order is still here."); w.terminate(); };
-      w.postMessage({ snapshot, target: order, priorities: { baseline: original }, reducedMotion: window.matchMedia("(prefers-reduced-motion: reduce)").matches, quality: Object.fromEntries(quality.map(q => [q.id, q.score])), focus, library });
+      w.postMessage({ snapshot: fullSnapshot, target: order, priorities: { baseline: original }, reducedMotion: window.matchMedia("(prefers-reduced-motion: reduce)").matches, quality: Object.fromEntries(quality.map(q => [q.id, q.score])), focus, library });
     } catch { setError("Could not start the search. Please try again."); }
   }
-  function edit() { release(); worker.current?.terminate(); worker.current = null; if (displayTimer.current) clearTimeout(displayTimer.current); displayTimer.current = null; latest.current = null; setStage("order"); setUpdate(null); setError(""); }
+  function edit() { ++searchAttempt.current; release(); worker.current?.terminate(); worker.current = null; if (displayTimer.current) clearTimeout(displayTimer.current); displayTimer.current = null; latest.current = null; setStage("order"); setUpdate(null); setError(""); }
   function openDialog(kind: "models" | "quality") { setModal(kind); setQuery(""); dialog.current?.showModal(); }
   const liveOrder = stage === "order" || !update?.ranking.length ? order : [...update.ranking.map(r => r.modelId).filter(id => order.includes(id)), ...order.filter(id => !update.ranking.some(r => r.modelId === id))];
   const liveScores = new Map(update?.ranking.map(r => [r.modelId, r]) ?? []);

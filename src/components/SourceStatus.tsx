@@ -11,14 +11,19 @@ export function SourceStatus({ snapshot, onSnapshot }: { snapshot: Snapshot; onS
     let active = true;
     const poll = async () => {
       try {
-        const response = await fetch("/api/snapshot", { cache: "no-store" });
+        const response = await fetch("/api/snapshot?view=meta", { cache: "no-store" });
         if (!response.ok) throw new Error("Could not check for updated data.");
         const data = await response.json();
         if (!active) return;
         setError("");
         setCanRefresh(data.canRefresh);
         setBusy(data.refreshing);
-        if (!new URLSearchParams(window.location.search).has("date") && data.snapshot && data.snapshot.generatedAt !== snapshot.generatedAt) onSnapshot(data.snapshot);
+        if (!new URLSearchParams(window.location.search).has("date") && data.generatedAt !== snapshot.generatedAt) {
+          const updated = await fetch(`/api/snapshot?view=core&version=${encodeURIComponent(data.generatedAt)}`, { cache: "no-store" });
+          if (!updated.ok) throw new Error("Could not load updated data.");
+          const payload = await updated.json();
+          if (active && payload.snapshot) onSnapshot(payload.snapshot);
+        }
         setChecked(new Date(snapshot.generatedAt).toLocaleString());
       } catch { if (active) setError("Could not check for updated data."); }
     };
