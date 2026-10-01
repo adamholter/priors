@@ -13,7 +13,7 @@ const browser=await chromium.launch({headless:true});
 try {
  const page=await browser.newPage({viewport:{width:1440,height:1100}});await page.addInitScript(()=>localStorage.setItem('priors:intro-seen','1'));const errors=[];page.on('pageerror',e=>errors.push(e.message));
  await page.addInitScript(()=>{Object.defineProperty(navigator,'clipboard',{value:{writeText:async s=>{window.__copied=s;}}});});
- await page.goto('http://localhost:48741',{waitUntil:'networkidle'});await page.waitForTimeout(500);
+ await page.goto('http://localhost:48741',{waitUntil:'networkidle'});await page.getByRole('button',{name:'Rank the list instead'}).click();await page.waitForTimeout(500);
  const bars=await page.locator('.belief-bar').evaluateAll(es=>es.map(e=>e.getBoundingClientRect().width));assert(bars.every(w=>Math.abs(w-bars[0])<1));
  const mover=page.getByRole('button',{name:'Move GPT-6 Astra, rank 1',exact:true});const rect=await mover.boundingBox();
  await page.mouse.move(rect.x+rect.width/2,rect.y+20);await page.mouse.down();await page.mouse.move(rect.x+rect.width/2,rect.y+113,{steps:10});await page.screenshot({path:`${out}/drag.png`});await page.mouse.up();
@@ -29,7 +29,7 @@ try {
  await page.getByRole('button',{name:'Copy index link',exact:true}).click();assert.equal(await page.evaluate(()=>window.__copied),`http://localhost:48741${href}`);
  await page.getByRole('button',{name:'About the evidence',exact:false}).click();await page.waitForTimeout(300);await page.screenshot({path:`${out}/quality.png`});await page.keyboard.press('Escape');assert(!await page.getByRole('dialog').isVisible());
  await link.click();await page.getByRole('heading',{name:'My priors',exact:true}).waitFor();assert.deepEqual(await page.locator('.ranking-list [data-k]').evaluateAll(es=>es.map(e=>e.dataset.k)),result.ranked.slice(0,30).map(r=>r.variant.id));
- await page.goto('http://localhost:48741',{waitUntil:'networkidle'});await page.setViewportSize({width:390,height:844});await page.screenshot({path:`${out}/mobile.png`,fullPage:true});assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+ await page.goto('http://localhost:48741',{waitUntil:'networkidle'});await page.getByRole('button',{name:'Rank the list instead'}).click();await page.setViewportSize({width:390,height:844});await page.screenshot({path:`${out}/mobile.png`,fullPage:true});assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
  await page.getByRole('button',{name:'Find my index',exact:true}).click();await page.getByRole('button',{name:'Stop & reorder',exact:true}).click();assert(await page.getByRole('button',{name:'Find my index',exact:true}).isVisible());
  await page.emulateMedia({reducedMotion:'reduce'});assert.equal(await page.locator('.tactile-row').first().evaluate(e=>getComputedStyle(e).transitionDuration),'0s');
  assert.deepEqual(errors,[]);console.log(`PASS drag, keyboard, equal bars, exact result agreement ${matched}/${pairs}, ${Object.keys(config.weights).length} benchmarks, copy URL, builder score/rank handoff, quality/Escape, mobile, cancellation, reduced motion.`);

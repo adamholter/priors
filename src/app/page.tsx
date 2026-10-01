@@ -23,5 +23,5 @@ export default async function Home({ searchParams }: PageProps<"/">) {
   const quality = benchmarkQuality(snapshot);
   const variantModels = new Map(snapshot.variants.map((v) => [v.id, v.modelId]));
   const observedModelIds = [...new Set(snapshot.observations.map((o) => variantModels.get(o.variantId)).filter((id): id is string => !!id))];
-  return <PageTransition><Onboarding snapshot={onboardingSnapshot(snapshot)} lineup={lineup} quality={quality} observedModelIds={observedModelIds} hasSavedMix={!!mix} /></PageTransition>;
+  return <PageTransition><Onboarding snapshot={onboardingSnapshot(snapshot)} lineup={lineup} quality={quality} observedModelIds={observedModelIds} hasSavedMix={!!mix} seeds={defaultLineup(snapshot, 16)} /></PageTransition>;
 }

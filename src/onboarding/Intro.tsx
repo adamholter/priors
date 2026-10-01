@@ -8,8 +8,8 @@ import { INTRO_CARDS } from "@/lib/share-designs";
 export const INTRO_KEY = "priors:intro-seen";
 const STEP_MS = [3200, 3400, 5200];
 const STEPS = [
-  { n: "01", title: "Rank a few models", body: "Put them in the order your own experience says." },
-  { n: "02", title: "We find the evidence", body: "Priors searches thousands of benchmark mixes for the one that reproduces your order." },
+  { n: "01", title: "Pick the better model", body: "Two at a time. Swipe or tap. Skip any you don’t know." },
+  { n: "02", title: "We find the evidence", body: "Your calls become a ranking. Priors searches thousands of benchmark mixes for the one that reproduces it." },
   { n: "03", title: "Share your leaderboard", body: "Every model ranked by your index, live, with a card ready to post." },
 ];
 
@@ -50,10 +50,11 @@ export function Intro({ snapshot, lineup, dialogRef, onClose }: { snapshot: Snap
     <div className="intro-shell" tabIndex={-1} autoFocus>
       <div className={`intro-stage step-${shown}`} aria-hidden="true" key={open ? "open" : "closed"}>
         <div className="intro-scene scene-rank">
-          <span className="scene-label">Your order</span>
-          <div className="mini-list" style={{ height: rows.length * 44 }}>
-            {rows.map((m, i) => { const to = i === 2 ? 1 : i === 1 ? 2 : i; return <div key={m.id} className={`mini-row ${i === 2 ? "lift" : i === 1 ? "drop" : ""}`} style={{ "--from": `${i * 44}px`, "--to": `${to * 44}px` } as CSSProperties}><span className="mini-name">{m.name}</span><i style={{ background: colors.get(m.labId) ?? "#8A8A80" }} /><span className="mini-grip">⋮⋮</span></div>; })}
+          <span className="scene-label">Which is better?</span>
+          <div className="mini-duel">
+            {rows.slice(0, 2).map((m, i) => <div key={m.id} className={`mini-card ${i === 0 ? "pick" : "pass"}`} style={{ "--lab": colors.get(m.labId) ?? "#8A8A80" } as CSSProperties}><i /><span>{m.name}</span><em>✓ Better</em></div>)}
           </div>
+          <div className="mini-choices"><span>← Left</span><span>Not sure</span><span>Right →</span></div>
         </div>
         <div className="intro-scene scene-fit">
           <div className="fit-top"><span className="scene-label">Benchmarks that agree</span><span className="fit-match">Matches your order ✓</span></div>
@@ -65,11 +66,11 @@ export function Intro({ snapshot, lineup, dialogRef, onClose }: { snapshot: Snap
         </div>
       </div>
       <div className="intro-copy">
-        <div className="intro-top"><h2 id="intro-heading">Your gut ranking, <em>backed by benchmarks.</em></h2><button className="icon-close" aria-label="Close" onClick={() => dialogRef.current?.close()}><Cross /></button></div>
+        <div className="intro-top"><h2 id="intro-heading">Your gut calls, <em>backed by benchmarks.</em></h2><button className="icon-close" aria-label="Close" onClick={() => dialogRef.current?.close()}><Cross /></button></div>
         <ol className="intro-steps">
           {STEPS.map((s, i) => <li key={s.n}><button className={i === shown ? "active" : ""} aria-current={i === shown ? "step" : undefined} onClick={() => setStep(i)}><span className="intro-n">{s.n}</span><span><strong>{s.title}</strong><span>{s.body}</span></span></button></li>)}
         </ol>
-        <button className="primary-action" onClick={() => dialogRef.current?.close()}>Start ranking <Arrow /></button>
+        <button className="primary-action" onClick={() => dialogRef.current?.close()}>Start choosing <Arrow /></button>
         <span className="intro-note">About a minute. No sign-in. · <Link href="/privacy" className="hover:text-ink">Privacy</Link></span>
       </div>
     </div>

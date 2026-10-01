@@ -9,7 +9,7 @@ const {decodeIndices}=require('../src/lib/url.ts');
 const browser=await chromium.launch({headless:true});
 try{
  const page=await browser.newPage({viewport:{width:1440,height:1100}});await page.addInitScript(()=>localStorage.setItem('priors:intro-seen','1'));const errors=[];page.on('pageerror',e=>errors.push(e.message));
- await page.goto('http://localhost:48741',{waitUntil:'networkidle'});
+ await page.goto('http://localhost:48741',{waitUntil:'networkidle'});await page.getByRole('button',{name:'Rank the list instead'}).click();
  await page.getByRole('button',{name:'Move GPT-5.6 Sol up',exact:true}).click();
  await page.getByRole('button',{name:'Choose models',exact:false}).click();
  await page.getByRole('searchbox',{name:'Find a model',exact:true}).fill('Muse Spark 1.3');

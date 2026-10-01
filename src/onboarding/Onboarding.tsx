@@ -13,6 +13,8 @@ import { api } from "../../convex/_generated/api";
 import { convexEnabled } from "@/app/providers";
 import { Intro, INTRO_KEY } from "./Intro";
 import { PRIORS_MIX_COOKIE, savedLineup } from "./defaults";
+import { Bracket } from "./BracketDuel";
+import type { BracketStep } from "./bracket";
 import "./onboarding.css";
 const ROW = 46;
 const phaseNames = { preparing: "Reading the evidence", searching: "Searching the combinations", simplifying: "Keeping what matters", complete: "Your index, found" };
@@ -45,9 +47,11 @@ function Trace({ values }: { values: number[] }) {
   return <svg className="fit-trace" viewBox="0 0 300 76" role="img" aria-label="How closely the search matches your requested order"><path d="M0 68H300M0 38H300M0 8H300" stroke="#DDDBD4" strokeWidth=".5" /><path d={path} fill="none" stroke="#2F4FB0" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />{values.length > 0 && <circle cx="300" cy={68 - values[values.length - 1] * .6} r="3" fill="#2F4FB0" />}</svg>;
 }
 
-export function Onboarding({ snapshot, lineup, quality, observedModelIds, hasSavedMix }: { snapshot: Snapshot; lineup: string[]; quality: BenchmarkQuality[]; observedModelIds: string[]; hasSavedMix: boolean }) {
+export function Onboarding({ snapshot, lineup, seeds, quality, observedModelIds, hasSavedMix }: { snapshot: Snapshot; lineup: string[]; seeds: string[]; quality: BenchmarkQuality[]; observedModelIds: string[]; hasSavedMix: boolean }) {
   const models = useMemo(() => new Map(snapshot.models.map(m => [m.id, m])), [snapshot]);
   const colors = useMemo(() => new Map(snapshot.labs.map(l => [l.id, l.color])), [snapshot]);
+  const labs = useMemo(() => new Map(snapshot.labs.map(l => [l.id, l])), [snapshot]);
+  const bracketSeeds = useMemo(() => seeds.filter(id => models.has(id)), [seeds, models]);
   const qMap = useMemo(() => new Map(quality.map(q => [q.id, q])), [quality]);
   const observedModels = useMemo(() => new Set(observedModelIds), [observedModelIds]);
   const original = useMemo(() => lineup.filter(id => models.has(id)), [lineup, models]);
@@ -84,7 +88,9 @@ export function Onboarding({ snapshot, lineup, quality, observedModelIds, hasSav
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   useEffect(() => { if (!restored.current || !edited.current) return; try { localStorage.setItem("priors:lineup", JSON.stringify({ v: 2, lineup: order })); } catch { /* ignore */ } }, [order]);
-  const [stage, setStage] = useState<"order" | "fit">("order");
+  const [stage, setStage] = useState<"compare" | "order" | "fit">("compare");
+  const [bracket, setBracket] = useState<BracketStep | null>(null);
+  function finishBracket(step: BracketStep) { setBracket(step); setOrder(step.order); orderRef.current = step.order; edited.current = true; setStage("order"); window.scrollTo({ top: 0 }); }
   const [focus, setFocus] = useState<FocusId>(DEFAULT_FOCUS);
   const [library, setLibrary] = useState<MixLibrary | null>(null);
   const recordLineup = useRef<((a: LineupArgs) => void) | null>(null);
@@ -250,14 +256,14 @@ export function Onboarding({ snapshot, lineup, quality, observedModelIds, hasSav
 
   return <div className={`onboarding stage-${stage} ${running ? "is-running" : ""}`}>
     {convexEnabled && <LineupRecorder onRegister={(fn) => { recordLineup.current = fn; }} />}
-    <header className="onboard-header"><Wordmark size={32} href={null} /><span className="experiment-label">The priors experiment</span><div className="header-links"><button className="text-control" onClick={() => intro.current?.showModal()}>How it works</button><Link className="text-control" href="/privacy">Privacy</Link><button className="text-control" onClick={() => openDialog("quality")}>About the evidence <span aria-hidden="true">↗</span></button></div></header>
+    <header className="onboard-header"><Wordmark size={32} href={null} /><span className="experiment-label">The priors experiment</span><div className="header-links"><button className="text-control" onClick={() => intro.current?.showModal()}>How it works</button><Link className="text-control" href="/privacy">Privacy</Link><button className="text-control" onClick={() => openDialog("quality")} aria-label="About the evidence"><span className="label-long">About the evidence</span><span className="label-short">Evidence</span><span aria-hidden="true">↗</span></button></div></header>
     <main className="onboard-main">
-      <div className="step-line"><span className={stage === "order" ? "current" : "passed"}>01 <span>Your intuition</span></span><i /><span className={stage === "fit" ? "current" : ""}>02 <span>The evidence</span></span></div>
+      <div className="step-line"><span className={stage === "compare" ? "current" : "passed"}>01 <span>Your calls</span></span><i /><span className={stage === "order" ? "current" : stage === "fit" ? "passed" : ""}>02 <span>Your ranking</span></span><i /><span className={stage === "fit" ? "current" : ""}>03 <span>The evidence</span></span></div>
       <div className="onboard-intro" key={stage}>
-        <h1>{stage === "order" ? <>What are your <em>priors?</em></> : complete ? update?.exactMatch ? <>Your priors, <em>in numbers.</em></> : <>The closest <em>we found.</em></> : <>Putting your priors<br className="mobile-break" /> <em>to the test.</em></>}</h1>
-        <p>{stage === "order" ? "You have a sense of which models are better. Put them in order." : complete ? update?.exactMatch ? "A compact benchmark mix that matches your full order." : "No matching configuration found for your priors. The result below still has disagreements." : "Trying the benchmarks. Adjusting the weights. Keeping only what helps."}</p>
+        <h1>{stage === "compare" ? <>Which is <em>better?</em></> : stage === "order" ? bracket ? <>Your ranking, <em>from your calls.</em></> : <>What are your <em>priors?</em></> : complete ? update?.exactMatch ? <>Your priors, <em>in numbers.</em></> : <>The closest <em>we found.</em></> : <>Putting your priors<br className="mobile-break" /> <em>to the test.</em></>}</h1>
+        <p>{stage === "compare" ? "The index’s top 16, head to head. Go with your gut. Skip any you don’t know." : stage === "order" ? bracket ? `Built from ${bracket.asked} head-to-head ${bracket.asked === 1 ? "call" : "calls"}. Drag to make final adjustments.` : "You have a sense of which models are better. Put them in order." : complete ? update?.exactMatch ? "A compact benchmark mix that matches your full order." : "No matching configuration found for your priors. The result below still has disagreements." : "Trying the benchmarks. Adjusting the weights. Keeping only what helps."}</p>
       </div>
-      <div className="experiment-grid">
+      {stage === "compare" ? <Bracket seeds={bracketSeeds} models={models} labs={labs} onFinish={finishBracket} onList={() => setStage("order")} /> : <div className="experiment-grid">
         <section className="order-board" aria-label={stage === "order" ? "Your model preferences" : "Fitted model ranking"}>
           <div className="board-heading"><span>{stage === "order" ? "YOUR ORDER" : "BEST FIT · YOUR SELECTED MODELS"}</span><span>{stage === "order" ? "BEST FIRST" : "SCORE / YOUR ORDER"}</span></div>
           {stage === "order" && <div className="focus-picker">
@@ -279,7 +285,7 @@ export function Onboarding({ snapshot, lineup, quality, observedModelIds, hasSav
               </div>;
             })}
           </div>
-          <div className="board-foot">{stage === "order" ? <><span id="drag-help">Drag a handle, or use the arrows.</span><button className="text-control" onClick={() => openDialog("models")}>Choose models <span aria-hidden="true">+</span></button></> : <><span>Relative order within your lineup.</span><button className="text-control" onClick={edit}>{running ? "Stop & reorder" : "Change my order"}</button></>}</div>
+          <div className="board-foot">{stage === "order" ? <><span id="drag-help">Drag a handle, or use the arrows.</span><button className="text-control" onClick={() => setStage("compare")}>{bracket ? "Back to the matchups" : "Use matchups"}</button><button className="text-control" onClick={() => openDialog("models")}>Choose models <span aria-hidden="true">+</span></button></> : <><span>Relative order within your lineup.</span><button className="text-control" onClick={edit}>{running ? "Stop & reorder" : "Change my order"}</button></>}</div>
         </section>
         <aside className="experiment-side">
           {stage === "order" ? <div className="setup-note">
@@ -307,7 +313,7 @@ export function Onboarding({ snapshot, lineup, quality, observedModelIds, hasSav
             {complete && <div className="result-actions"><p className="fit-disclosure">{update!.exactMatch ? "Every model matches your requested order." : "No matching configuration found. This is an approximate fit, not your requested ranking."} {update!.estimatedShare > 0 && `${Math.round(update!.estimatedShare * 100)}% of weighted evidence is estimated.`}</p>{update!.mismatches.length > 0 && <details className="fit-details"><summary>See the disagreements</summary><ul>{update!.mismatches.map((pair, i) => <li key={i}>You placed <strong>{models.get(pair.above)?.name}</strong> above <strong>{models.get(pair.below)?.name}</strong>.</li>)}</ul></details>}<details className="fit-details"><summary>How this fit was calculated</summary><p>Strictness {update!.config.strictness ?? 20}/100. {update!.config.effortMatching === "strict" ? "Exact reasoning efforts only." : "Calibrated reasoning-effort estimates allowed."} {update!.config.estimateMissing ? "Peer estimates may fill remaining gaps." : "Remaining gaps are left out and available weights are renormalized."} Calibrated benchmark fallbacks are allowed below maximum strictness. Only the relative order of your selected models is optimized. An unselected model appearing between them adds no penalty. Displayed positions are within your lineup. Your reversals and the placements of added models take priority, starting at the top. Remaining comparisons favor higher ranks. A comparison checks whether one selected model ranks above another; it is not an extra model. Unselected models cannot compensate for a mistake in that lineup. Best effort per model. The search starts from benchmark mixes precomputed for your focus and favors tests with more coverage, fresher releases, more headroom, and more objective grading. The displayed fit is rank-weighted: mistakes near the top of your lineup cost the most, thin margins and extra benchmarks cost a little. Candidates are screened against a surrogate, then checked with the builder’s scoring engine under a time budget (about 30 seconds typical, 60 seconds at most). This is a best fit found, not a guarantee of the global minimum.</p></details><Link className="primary-action" href={resultUrl as "/builder"} transitionTypes={["nav-forward"]}>Explore this index <Arrow /></Link><button className="text-control copy-result" onClick={copy}>{copied ? "Link copied ✓" : "Copy index link"}</button></div>}
           </>}
         </aside>
-      </div>
+      </div>}
     </main>
     <span className="sr-only" aria-live="polite">{announcement}</span>
     <dialog ref={done} className="done-dialog" aria-labelledby="done-heading" onClick={e => { if (e.target === e.currentTarget) done.current?.close(); }}>
