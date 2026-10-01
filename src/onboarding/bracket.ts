@@ -1,13 +1,18 @@
 /**
- * Pairwise bracket. Seeds (the index's top models, best first) play a merge-sort tournament:
- * neighbours meet in the first round and each later round merges two sorted groups. Before a
- * merge, the weakest of the stronger group meets the best of the other; when the user agrees
- * with the seeds that single match settles the whole merge, so a fully agreeing user ranks 16
- * models in 15 calls. "Not sure" defers that match to seed order. Pairs implied by earlier calls
- * are never asked, except for a couple of double-checks near the top; a contradiction there is
- * a loop, and the final order minimizes broken calls, breaking remaining ties toward the index.
+ * Pairwise ranking, tuned for few calls. Seeds are the index's top models, best first.
+ * 1. The top group (default 5) is sorted with a merge bracket: neighbours meet first, and before
+ *    each merge the weakest of the stronger group meets the best of the other, so agreeing with
+ *    the index settles a merge in one call.
+ * 2. Each challenger (the next 7 seeds) meets the current last place of the top group; a winner
+ *    is placed by binary search and bumps that last place out. Seeds after the challengers keep
+ *    index order — the ranking is editable afterwards, and the fit cares most about the top.
+ * Agreeing with the index takes 11 calls; nothing takes more than the cap (15), after which
+ * remaining matches follow index order. "Not sure" defers that match to index order. Pairs implied
+ * by earlier calls are never asked. Optional double-checks of inferred pairs can expose loops;
+ * the final order then breaks the fewest calls, ties going to the index. With `top: n` this is
+ * a full merge-sort bracket (the earlier behaviour).
  *
- * The bracket is a pure replay of `answers`, so undo is just dropping the last answer.
+ * A pure replay of `answers`, so undo is just dropping the last answer.
  */
 export type Answer = { a: string; b: string; winner: string | null; check?: boolean; auto?: boolean };
 export type BracketStep = {
@@ -29,7 +34,6 @@ export type BracketStep = {
   loops: number;
 };
 
-export const CHECKS = 2;
 const ROUND_NAMES = ["Final", "Semifinals", "Quarterfinals", "Round of 16", "Round of 32", "Round of 64"];
 export const pairKey = (a: string, b: string) => (a < b ? `${a}|${b}` : `${b}|${a}`);
 function hash(s: string) { let h = 2166136261; for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619); return h >>> 0; }
@@ -42,9 +46,25 @@ export function roundName(level: number, levels: number, check = false) {
   return check ? "Double-check" : ROUND_NAMES[levels - level] ?? `Round ${level}`;
 }
 
-export function runBracket(seeds: string[], answers: Answer[], checks = CHECKS): BracketStep {
+export type BracketOptions = {
+  /** Size of the fully sorted top group (default 6); `seeds.length` sorts everything. */
+  top?: number;
+  /** Seeds after the top group that get one chance to break into it (default 6). Later seeds keep index order. */
+  challengers?: number;
+  /** Double-checks of inferred pairs near the top (default 0). */
+  checks?: number;
+  /** After this many answers, every remaining match goes to index order (default 15). */
+  cap?: number;
+};
+export const QUICK: Required<BracketOptions> = { top: 5, challengers: 7, checks: 0, cap: 15 };
+
+export function runBracket(seeds: string[], answers: Answer[], opts: BracketOptions = {}): BracketStep {
   const n = seeds.length;
-  const levels = Math.max(1, Math.ceil(Math.log2(Math.max(2, n))));
+  const top = Math.max(1, Math.min(n, opts.top ?? QUICK.top));
+  const challengers = Math.max(0, Math.min(n - top, opts.challengers ?? QUICK.challengers));
+  const checks = opts.checks ?? QUICK.checks;
+  const cap = opts.cap ?? (top < n ? QUICK.cap : Infinity);
+  const levels = Math.max(1, Math.ceil(Math.log2(Math.max(2, top))));
   const rank = new Map(seeds.map((id, i) => [id, i]));
   const direct = new Map<string, string | null>();
   const beats = new Map<string, Set<string>>();
@@ -65,41 +85,63 @@ export function runBracket(seeds: string[], answers: Answer[], checks = CHECKS):
     if (direct.has(k)) { const w = direct.get(k); return w ? w === a : rank.get(a)! < rank.get(b)!; }
     if (reaches(a, b)) return true;
     if (reaches(b, a)) return false;
+    if (answers.length >= cap) return rank.get(a)! < rank.get(b)!;
     throw new Need(a, b);
   };
-  const base = { asked: answers.filter((x) => !x.auto).length, unsure: answers.filter((x) => !x.winner && !x.auto).length, levels };
-  const units = n * levels + checks * 2;
-  let blocks = seeds.map((s) => [s]);
-  let level = 0, work = 0;
+  const real = answers.filter((x) => !x.auto).length;
+  const base = { asked: real, unsure: answers.filter((x) => !x.winner && !x.auto).length, levels };
+  const tail = seeds.slice(top + challengers);
+  let blocks = seeds.slice(0, top).map((s) => [s]);
+  let level = 0;
   let view: () => string[][] = () => blocks;
-  let partial = 0;
+  // Remaining matches, at least one per pending merge and challenger; drives the progress bar.
+  let pending = () => 0;
+  let round = "";
   try {
+    // 1. Sort the top group with a merge bracket.
+    round = top < n ? `Your top ${top}` : "";
     while (blocks.length > 1) {
       level++;
+      if (!round) round = roundName(level, levels);
       const next: string[][] = [];
       for (let i = 0; i < blocks.length; i += 2) {
         const A = blocks[i], B = blocks[i + 1];
-        if (!B) { next.push(A); work += A.length; continue; }
+        if (!B) { next.push(A); continue; }
         const out: string[] = [];
         let ai = 0, bi = 0;
-        view = () => [...next, [...out, ...A.slice(ai), ...B.slice(bi)], ...blocks.slice(i + 2)];
-        partial = 0;
+        view = () => [[...next.flat(), ...out, ...A.slice(ai), ...B.slice(bi), ...blocks.slice(i + 2).flat()], seeds.slice(top, top + challengers), tail].filter((b) => b.length);
+        pending = () => Math.ceil((blocks.length - i) / 2) + Math.max(0, Math.ceil(Math.log2(next.length + Math.ceil((blocks.length - i) / 2))) - 1) + challengers;
+        if (top === n) view = () => [...next, [...out, ...A.slice(ai), ...B.slice(bi)], ...blocks.slice(i + 2)];
         if (above(A[A.length - 1], B[0])) out.push(...A, ...B);
         else {
-          while (ai < A.length && bi < B.length) { out.push(above(A[ai], B[bi]) ? A[ai++] : B[bi++]); partial = out.length; }
+          while (ai < A.length && bi < B.length) out.push(above(A[ai], B[bi]) ? A[ai++] : B[bi++]);
           out.push(...A.slice(ai), ...B.slice(bi));
         }
         next.push(out);
-        work += out.length;
       }
       blocks = next;
+      if (top === n) round = "";
     }
-    view = () => blocks;
-    const order = blocks[0] ?? [];
+    // 2. Each challenger meets the current #top; a winner is placed by binary search and bumps the last.
+    const L = [...(blocks[0] ?? [])];
+    const rest: string[] = [];
+    for (let c = 0; c < challengers; c++) {
+      const id = seeds[top + c];
+      round = "Challengers";
+      view = () => [L, [...rest, ...seeds.slice(top + c, top + challengers)].sort((a, b) => rank.get(a)! - rank.get(b)!), tail].filter((b) => b.length);
+      pending = () => challengers - c;
+      if (above(L[L.length - 1], id)) { rest.push(id); continue; }
+      let lo = 0, hi = L.length - 1;
+      while (lo < hi) { const mid = (lo + hi) >> 1; if (above(id, L[mid])) hi = mid; else lo = mid + 1; }
+      L.splice(lo, 0, id);
+      rest.push(L.pop()!);
+    }
+    const order = [...L, ...rest.sort((a, b) => rank.get(a)! - rank.get(b)!), ...tail];
+    view = () => [order];
     const asked = answers.filter((x) => x.check).length;
-    if (asked < checks) {
-      for (let i = 0; i + 2 < Math.min(order.length, 6); i++) {
-        if (!direct.has(pairKey(order[i], order[i + 2]))) throw Object.assign(new Need(order[i], order[i + 2]), { check: true });
+    if (asked < checks && answers.length < cap) {
+      for (let i = 0; i + 2 < Math.min(L.length, 6); i++) {
+        if (!direct.has(pairKey(order[i], order[i + 2]))) { round = "Double-check"; pending = () => checks - asked; throw Object.assign(new Need(order[i], order[i + 2]), { check: true }); }
       }
     }
     const final = resolve(order, answers, rank);
@@ -107,8 +149,8 @@ export function runBracket(seeds: string[], answers: Answer[], checks = CHECKS):
   } catch (e) {
     if (!(e instanceof Need)) throw e;
     const check = (e as Need & { check?: boolean }).check === true;
-    const progress = check ? (n * levels + answers.filter((x) => x.check).length * 2 + 1) / units : (work + partial) / units;
-    return { ...base, done: false, pair: sides(e.a, e.b), check, round: roundName(level, levels, check), level, progress: Math.min(0.98, progress), blocks: view(), order: view().flat(), loops: 0 };
+    const progress = Math.max(answers.length / cap, answers.length / (answers.length + pending() + 1));
+    return { ...base, done: false, pair: sides(e.a, e.b), check, round, level, progress: Math.min(0.95, progress), blocks: view(), order: view().flat(), loops: 0 };
   }
 }
 
@@ -139,9 +181,9 @@ function resolve(start: string[], answers: Answer[], rank: Map<string, number>) 
 }
 
 /** Answers every remaining match with "not sure", letting the index place the rest. */
-export function finishWithIndex(seeds: string[], answers: Answer[]): Answer[] {
+export function finishWithIndex(seeds: string[], answers: Answer[], opts?: BracketOptions): Answer[] {
   const out = [...answers];
-  for (let step = runBracket(seeds, out), guard = 0; !step.done && step.pair && guard < 400; step = runBracket(seeds, out), guard++) {
+  for (let step = runBracket(seeds, out, opts), guard = 0; !step.done && step.pair && guard < 400; step = runBracket(seeds, out, opts), guard++) {
     const [a, b] = step.pair;
     const winner = step.check ? (step.order.indexOf(a) < step.order.indexOf(b) ? a : b) : null;
     out.push({ a, b, winner, check: step.check, auto: true });

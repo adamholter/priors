@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
 import type { Lab, Model } from "@/data/types";
-import { finishWithIndex, pairKey, runBracket, type Answer, type BracketStep } from "./bracket";
+import { QUICK, finishWithIndex, pairKey, runBracket, type Answer, type BracketStep } from "./bracket";
 
 const KEY = "priors:bracket";
 const SWIPE = 72;
@@ -138,7 +138,7 @@ export function Bracket({ seeds, models, labs, onFinish, onList }: { seeds: stri
         <button className="primary-action" onClick={() => onFinish(step)}>See my full ranking <Arrow /></button>
         <div className="duel-foot"><button className="text-control" onClick={undo} disabled={!answers.some((a) => !a.auto)}>Undo last call</button><button className="text-control" onClick={restart}>Start over</button></div>
       </div> : <>
-        <div className="bracket-meta"><span className="bracket-round">{step.round}</span><span>Call {String(step.asked + 1).padStart(2, "0")}</span></div>
+        <div className="bracket-meta"><span className="bracket-round">{step.round}</span><span>Call {String(step.asked + 1).padStart(2, "0")} · up to {QUICK.cap}</span></div>
         <div className="bracket-progress" role="progressbar" aria-label="Bracket progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(step.progress * 100)}><i style={{ transform: `scaleX(${step.progress})` }} /></div>
         {step.check && <p className="check-note">Quick check: this one follows from your earlier calls.</p>}
         <div className={`duel ${offset ? "dragging" : ""} ${leaving ? `leaving-${leaving}` : ""} ${answers.length === 0 && !offset && !leaving ? "first" : ""}`} onPointerDown={down}>
@@ -163,7 +163,7 @@ export function Bracket({ seeds, models, labs, onFinish, onList }: { seeds: stri
       </>}
     </section>
     <aside className="bracket-side" aria-label="Ranking so far">
-      <div className="board-heading"><span>{step.done ? "YOUR RANKING" : "TAKING SHAPE"}</span><span>{step.done ? "BEST FIRST" : `${step.blocks.length} GROUPS`}</span></div>
+      <div className="board-heading"><span>{step.done ? "YOUR RANKING" : "TAKING SHAPE"}</span><span>BEST FIRST</span></div>
       <ol className="shape-list">{step.blocks.flatMap((block, bi) => block.map((id, i) => { const m = models.get(id); return <li key={id} className={`${i === 0 && bi > 0 ? "group-start" : ""} ${live.has(id) ? "live" : ""}`} style={{ "--lab": labs.get(m?.labId ?? "")?.color ?? "#8A8A80" } as CSSProperties}><i aria-hidden="true" /><span>{m?.name ?? id}</span></li>; }))}</ol>
       <button className="text-control" onClick={onList}>Rank the list instead <Arrow /></button>
     </aside>

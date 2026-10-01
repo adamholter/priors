@@ -15,7 +15,7 @@ try {
   await page.addInitScript(() => { if (!sessionStorage.getItem('seeded')) { localStorage.clear(); localStorage.setItem('priors:intro-seen', '1'); sessionStorage.setItem('seeded', '1'); } });
   await page.goto(BASE, { waitUntil: 'networkidle' });
   await page.locator('.duel-card').first().waitFor();
-  assert.equal((await round(page)).toLowerCase(), 'round of 16');
+  assert.equal((await round(page)).toLowerCase(), 'your top 5');
   assert.equal(await page.locator('.shape-list li').count(), 16);
   await page.screenshot({ path: `${out}/desktop-start.png` });
   const first = await pair(page);
@@ -37,16 +37,16 @@ try {
   assert.match(await page.locator('.duel-card.leaning .duel-stamp').innerText(), /better/i);
   assert(await page.locator('.duel-choice.armed').innerText().then((t) => /Right is better/.test(t)), 'matching button highlights');
   await page.mouse.move(box.x + box.width / 2 + 160, box.y + box.height / 2, { steps: 6 }); await page.mouse.up(); await page.waitForTimeout(800);
-  assert.equal(await page.locator('.bracket-meta span').nth(1).innerText(), 'CALL 05');
+  assert.equal(await page.locator('.bracket-meta span').nth(1).innerText(), 'CALL 05 · UP TO 15');
   // Reload restores progress
   await page.reload({ waitUntil: 'networkidle' }); await page.waitForTimeout(400);
-  assert.equal(await page.locator('.bracket-meta span').nth(1).innerText(), 'CALL 05', 'progress persists');
+  assert.equal(await page.locator('.bracket-meta span').nth(1).innerText(), 'CALL 05 · UP TO 15', 'progress persists');
   // Agree with whatever is left side for a while, then let the index finish.
   for (let i = 0; i < 8; i++) { await page.keyboard.press(i % 3 ? 'ArrowLeft' : 'ArrowRight'); await page.waitForTimeout(750); }
   await page.screenshot({ path: `${out}/desktop-mid.png` });
   await page.getByRole('button', { name: 'Let the index decide the rest' }).click();
   await page.getByRole('heading', { name: /Your top three/ }).waitFor();
-  assert.match(await page.locator('.done-cap').first().innerText(), /12 CALLS/i);
+  assert.match(await page.locator('.done-cap').first().innerText(), /\d+ CALLS/i);
   await page.screenshot({ path: `${out}/desktop-done.png` });
   const ranking = await page.locator('.shape-list li span').allInnerTexts();
   await page.getByRole('button', { name: 'See my full ranking' }).click();
@@ -94,7 +94,7 @@ try {
   await swipe(-150);
   assert.notDeepEqual(await pair(m), before, 'swipe left answers');
   await swipe(150); await m.getByRole('button', { name: 'Not sure' }).tap(); await m.waitForTimeout(800);
-  assert.equal(await m.locator('.bracket-meta span').nth(1).innerText(), 'CALL 04');
+  assert.equal(await m.locator('.bracket-meta span').nth(1).innerText(), 'CALL 04 · UP TO 15');
   await m.screenshot({ path: `${out}/mobile-mid.png` });
   await m.getByRole('button', { name: 'Let the index decide the rest' }).click();
   await m.getByRole('heading', { name: /Your top three/ }).waitFor(); await m.waitForTimeout(700);
