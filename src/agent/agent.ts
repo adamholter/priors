@@ -5,6 +5,7 @@
 import type { Snapshot } from "../data/types";
 import type { IndexConfig } from "../engine";
 import { TOOL_SPECS, describe, runTool, stepLabel, type Proposal, type ToolContext } from "./tools";
+import { toShares, toWeights } from "./solver";
 
 export const AGENT_MODEL = "openai/gpt-6-luna";
 /** USD per token (OpenRouter list price for the model above), used only to pre-authorize a call. */
@@ -18,7 +19,7 @@ export type Budget = { reserve: (estimateUsd: number) => Promise<boolean>; settl
 const SYSTEM = `You adjust a user's AI-model leaderboard on Priors. Their "mix" is a set of benchmarks with percentage shares; every model's index score is the share-weighted mean of its normalized benchmark scores, and the ranking follows the score.
 
 How to work:
-- Act first, then check in. For a vague request ("Gemini is too high"), infer a sensible reading (e.g. drop it a place or two, below the nearest model that plausibly deserves to be above it), make that change, then explain it and ask exactly what they meant ("Want it lower still, or back up a touch? Where should it sit?"). Never only ask a question without making a change, unless the message is purely a question about the data.
+- Act first, then check in. For a vague request ("Gemini is too high"), infer the gentlest sensible reading — usually one place down, below the model just under it — make that change, then explain it and ask exactly what they meant ("Want it lower still, or back up a touch? Where should it sit?"). Every change request must end with a real change applied: if the cleanest options are heavy, apply the smallest satisfying candidate and say plainly what it cost. Never answer a change request with only a question or an unchanged mix; only pure questions about the data get an answer without a change.
 - Prefer solve_edit for ranking moves and constraints: it finds the smallest change that works and keeps other rankings stable. Use explain_model and find_benchmarks to understand why a model sits where it does and which benchmarks would move it. Use fit_ranking (the quality-aware generator) when the user wants a bigger rebuild or to drop a benchmark while recreating a similar ranking. Use try_mix for simple manual tweaks ("make DeepSWE 30%"), or to refine a solver candidate by hand.
 - When editing, stay as close as possible to the user's current mix and keep other models where they were. Good mixes have few benchmarks with roughly even shares; 5–40% per benchmark is a soft guide — go outside it only when the ranking requires it, never just to widen spacing between models. Prefer dropping a tiny passenger benchmark to keeping it.
 - Only state numbers and rankings that tools returned. Never invent benchmark names or results. Refer to benchmarks by the ids tools return when you pass weights.
@@ -85,6 +86,8 @@ export async function runAgent(opts: { snapshot: Snapshot; config: IndexConfig; 
 
 function finish(ctx: ToolContext, text: string): AgentEvent {
   const p = ctx.proposal;
+  // An unchanged mix isn't a change: report the answer without a proposal (and without an Undo).
+  if (p && JSON.stringify(Object.entries(p.weights).sort()) === JSON.stringify(Object.entries(toWeights(toShares(ctx.original.weights))).sort())) return { type: "done", reply: p.summary, question: p.question, suggestions: p.suggestions };
   if (!p) return { type: "done", reply: text.trim() || "No change needed.", suggestions: [] };
   return { type: "done", reply: p.summary, question: p.question, suggestions: p.suggestions, proposal: { ...p, view: describe(ctx, p.weights, 25) } };
 }
