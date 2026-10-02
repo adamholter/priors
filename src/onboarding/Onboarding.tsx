@@ -15,7 +15,7 @@ import { api } from "../../convex/_generated/api";
 import { convexEnabled } from "@/app/providers";
 import { Intro, INTRO_KEY } from "./Intro";
 import { PRIORS_MIX_COOKIE, savedLineup } from "./defaults";
-import { Bracket } from "./BracketDuel";
+import { Bracket, undoSavedCall } from "./BracketDuel";
 import type { BracketStep } from "./bracket";
 import "./onboarding.css";
 const ROW = 46;
@@ -93,6 +93,8 @@ export function Onboarding({ snapshot, lineup, seeds, quality, observedModelIds,
   useEffect(() => { if (!restored.current || !edited.current) return; try { localStorage.setItem("priors:lineup", JSON.stringify({ v: 2, lineup: order })); } catch { /* ignore */ } }, [order]);
   const [stage, setStage] = useState<"compare" | "order" | "fit">("compare");
   const [bracket, setBracket] = useState<BracketStep | null>(null);
+  // The finished bracket's ranking is the review list; going back reopens the last call so there's something to change.
+  function backToMatchups() { if (bracket) undoSavedCall(); setStage("compare"); }
   function finishBracket(step: BracketStep) { setBracket(step); setOrder(step.order); orderRef.current = step.order; edited.current = true; setStage("order"); window.scrollTo({ top: 0 }); }
   const [focus, setFocus] = useState<FocusId>(DEFAULT_FOCUS);
   const [library, setLibrary] = useState<MixLibrary | null>(null);
@@ -259,7 +261,7 @@ export function Onboarding({ snapshot, lineup, seeds, quality, observedModelIds,
 
   return <div className={`onboarding stage-${stage} ${running ? "is-running" : ""}`}>
     {convexEnabled && <LineupRecorder onRegister={(fn) => { recordLineup.current = fn; }} />}
-    <header className="onboard-header"><Wordmark size={32} href={null} /><span className="experiment-label">The priors experiment</span><div className="header-links"><button className="text-control" onClick={() => intro.current?.showModal()}>How it works</button><Link className="text-control" href="/privacy">Privacy</Link><button className="text-control" onClick={() => openDialog("quality")} aria-label="About the evidence"><span className="label-long">About the evidence</span><span className="label-short">Evidence</span><span aria-hidden="true">↗</span></button><ThemeToggle className="text-control theme-icon" /></div></header>
+    <header className="onboard-header"><Wordmark size={32} href={null} /><div className="header-links"><button className="text-control" onClick={() => intro.current?.showModal()}>How it works</button><Link className="text-control" href="/privacy">Privacy</Link><button className="text-control" onClick={() => openDialog("quality")} aria-label="About the evidence"><span className="label-long">About the evidence</span><span className="label-short">Evidence</span><span aria-hidden="true">↗</span></button><ThemeToggle className="text-control theme-icon" /></div></header>
     <main className="onboard-main">
       <div className="step-line"><span className={stage === "compare" ? "current" : "passed"}>01 <span>Your calls</span></span><i /><span className={stage === "order" ? "current" : stage === "fit" ? "passed" : ""}>02 <span>Your ranking</span></span><i /><span className={stage === "fit" ? "current" : ""}>03 <span>The evidence</span></span></div>
       <div className="onboard-intro" key={stage}>
@@ -288,7 +290,7 @@ export function Onboarding({ snapshot, lineup, seeds, quality, observedModelIds,
               </div>;
             })}
           </div>
-          <div className="board-foot">{stage === "order" ? <><span id="drag-help">Drag a handle, or use the arrows.</span><button className="text-control" onClick={() => setStage("compare")}>{bracket ? "Back to the matchups" : "Use matchups"}</button><button className="text-control" onClick={() => openDialog("models")}>Choose models <span aria-hidden="true">+</span></button></> : <><span>Relative order within your lineup.</span><button className="text-control" onClick={edit}>{running ? "Stop & reorder" : "Change my order"}</button></>}</div>
+          <div className="board-foot">{stage === "order" ? <><span id="drag-help">Drag a handle, or use the arrows.</span><button className="text-control" onClick={backToMatchups}>{bracket ? "Back to the matchups" : "Use matchups"}</button><button className="text-control" onClick={() => openDialog("models")}>Choose models <span aria-hidden="true">+</span></button></> : <><span>Relative order within your lineup.</span><button className="text-control" onClick={edit}>{running ? "Stop & reorder" : "Change my order"}</button></>}</div>
         </section>
         <aside className="experiment-side">
           {stage === "order" ? <div className="setup-note">

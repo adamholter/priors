@@ -2,6 +2,9 @@
 import { chromium } from 'playwright';
 import assert from 'node:assert/strict';
 import { mkdir } from 'node:fs/promises';
+import { createRequire } from 'node:module';
+import 'tsx/cjs';
+const { runBracket } = createRequire(import.meta.url)('../src/onboarding/bracket.ts');
 
 const BASE = process.env.BASE ?? 'http://localhost:48740';
 const out = '/tmp/priors-bracket-qa'; await mkdir(out, { recursive: true });
@@ -45,19 +48,20 @@ try {
   for (let i = 0; i < 8; i++) { await page.keyboard.press(i % 3 ? 'ArrowLeft' : 'ArrowRight'); await page.waitForTimeout(750); }
   await page.screenshot({ path: `${out}/desktop-mid.png` });
   await page.getByRole('button', { name: 'Let the index decide the rest' }).click();
-  await page.getByRole('heading', { name: /Your top three/ }).waitFor();
-  assert.match(await page.locator('.done-cap').first().innerText(), /\d+ CALLS/i);
-  await page.screenshot({ path: `${out}/desktop-done.png` });
-  const ranking = await page.locator('.shape-list li span').allInnerTexts();
-  await page.getByRole('button', { name: 'See my full ranking' }).click();
+  // A finished bracket goes straight to the full ranking — no intermediate summary screen.
   await page.getByRole('heading', { name: /Your ranking/ }).waitFor();
+  assert.equal(await page.locator('.experiment-label').count(), 0);
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('priors:bracket')));
+  const ranking = runBracket(saved.seeds.split(','), saved.answers).order;
   const rows = await page.locator('.tactile-row .model-name').allInnerTexts();
   assert.equal(rows.length, 16);
-  const visual = await page.locator('[data-model]').evaluateAll((es) => es.map((e) => [e.querySelector('.model-name').textContent, new DOMMatrix(getComputedStyle(e).transform).m42]).sort((a, b) => a[1] - b[1]).map((x) => x[0]));
+  const visual = await page.locator('[data-model]').evaluateAll((es) => es.map((e) => [e.dataset.model, new DOMMatrix(getComputedStyle(e).transform).m42]).sort((a, b) => a[1] - b[1]).map((x) => x[0]));
   assert.deepEqual(visual, ranking, 'review list starts from the bracket result');
   await page.screenshot({ path: `${out}/desktop-review.png`, fullPage: true });
+  // Going back reopens the last real call.
   await page.getByRole('button', { name: 'Back to the matchups' }).click();
-  await page.getByRole('heading', { name: /Your top three/ }).waitFor();
+  await page.locator('.duel-card').first().waitFor(); await page.waitForTimeout(400);
+  assert.equal(await page.locator('.bracket-meta span').nth(1).innerText(), `CALL ${String(saved.answers.filter((a) => !a.auto).length).padStart(2, '0')} · UP TO 15`);
   assert.deepEqual(errors, []);
 
   // Mobile: touch swipes.
@@ -97,9 +101,7 @@ try {
   assert.equal(await m.locator('.bracket-meta span').nth(1).innerText(), 'CALL 04 · UP TO 15');
   await m.screenshot({ path: `${out}/mobile-mid.png` });
   await m.getByRole('button', { name: 'Let the index decide the rest' }).click();
-  await m.getByRole('heading', { name: /Your top three/ }).waitFor(); await m.waitForTimeout(700);
-  await m.screenshot({ path: `${out}/mobile-done.png` });
-  await m.getByRole('button', { name: 'See my full ranking' }).click(); await m.waitForTimeout(400);
+  await m.getByRole('heading', { name: /Your ranking/ }).waitFor(); await m.waitForTimeout(400);
   await m.screenshot({ path: `${out}/mobile-review.png`, fullPage: true });
   assert(await m.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
   assert.deepEqual(merr, []);

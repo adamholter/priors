@@ -11,6 +11,17 @@ function Arrow({ left = false }: { left?: boolean }) { return <svg width="16" he
 const TIERS = { frontier: "Frontier tier", mid: "Mid tier", small: "Small model" } as const;
 const released = (iso?: string) => iso ? `Released ${new Date(`${iso.slice(0, 10)}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", year: "numeric", timeZone: "UTC" })}` : "Release date unknown";
 
+/** Drops the last real call from the saved bracket, so reopening the matchups resumes one step back. */
+export function undoSavedCall() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(KEY) ?? "null") as { v?: number; answers?: Answer[] } | null;
+    if (!saved?.answers?.length) return;
+    let i = saved.answers.length - 1;
+    while (i >= 0 && saved.answers[i].auto) i--;
+    localStorage.setItem(KEY, JSON.stringify({ ...saved, answers: saved.answers.slice(0, Math.max(0, i)) }));
+  } catch { /* ignore */ }
+}
+
 export function Bracket({ seeds, models, labs, onFinish, onList }: { seeds: string[]; models: Map<string, Model>; labs: Map<string, Lab>; onFinish: (step: BracketStep) => void; onList: () => void }) {
   const [answers, setAnswers] = useState<Answer[]>([]);
   const step = useMemo(() => runBracket(seeds, answers), [seeds, answers]);
@@ -36,6 +47,10 @@ export function Bracket({ seeds, models, labs, onFinish, onList }: { seeds: stri
   }, [seeds]);
   useEffect(() => { if (restored.current) try { localStorage.setItem(KEY, JSON.stringify({ v: 1, seeds: seeds.join(), answers })); } catch { /* ignore */ } }, [answers, seeds]);
   useEffect(() => () => { if (timer.current) clearTimeout(timer.current); gesture.current?.cleanup(); }, []);
+  // A finished bracket goes straight to the full ranking for review.
+  const finish = useRef(onFinish);
+  useEffect(() => { finish.current = onFinish; }, [onFinish]);
+  useEffect(() => { if (step.done && step.order.length) finish.current(step); }, [step]);
 
   function choose(side: Side) {
     const s = stepRef.current;
@@ -56,7 +71,6 @@ export function Bracket({ seeds, models, labs, onFinish, onList }: { seeds: stri
     setAnswers((a) => { let i = a.length - 1; while (i >= 0 && a[i].auto) i--; return i < 0 ? a : a.slice(0, i); });
     setAnnouncement("Last call undone.");
   }
-  function restart() { setAnswers([]); setAnnouncement("Bracket restarted."); }
   function finishRest() { setAnswers((a) => finishWithIndex(seeds, a)); }
 
   useEffect(() => {
@@ -126,18 +140,10 @@ export function Bracket({ seeds, models, labs, onFinish, onList }: { seeds: stri
   };
   const leanName = lean && lean !== "tie" && step.pair ? models.get(step.pair[lean === "left" ? 0 : 1])?.name : undefined;
   const live = new Set(step.pair ?? []);
-  const auto = answers.filter((a) => a.auto).length;
 
   return <div className="bracket" data-done={step.done || undefined}>
     <section className="bracket-main" aria-label="Head-to-head matchups">
-      {step.done ? <div className="bracket-done" key="done">
-        <p className="done-cap">Bracket complete · {step.asked} {step.asked === 1 ? "call" : "calls"}</p>
-        <h2>Your top <em>three.</em></h2>
-        <ol className="podium">{step.order.slice(0, 3).map((id, i) => { const m = models.get(id); return <li key={id} style={{ "--lab": labs.get(m?.labId ?? "")?.color ?? "#8A8A80", "--d": `${120 + i * 110}ms` } as CSSProperties}><span className="podium-n">{i + 1}</span><span className="podium-name">{m?.name ?? id}</span><span className="podium-lab">{labs.get(m?.labId ?? "")?.name}</span></li>; })}</ol>
-        <p className="bracket-summary">{[auto + step.unsure > 0 && `${auto + step.unsure} left to the index`, step.loops > 0 && `${step.loops} ${step.loops === 1 ? "loop" : "loops"} in your calls, settled by the index`].filter(Boolean).join(" · ") || "Every call came from you."}</p>
-        <button className="primary-action" onClick={() => onFinish(step)}>See my full ranking <Arrow /></button>
-        <div className="duel-foot"><button className="text-control" onClick={undo} disabled={!answers.some((a) => !a.auto)}>Undo last call</button><button className="text-control" onClick={restart}>Start over</button></div>
-      </div> : <>
+      {step.done ? null : <>
         <div className="bracket-meta"><span className="bracket-round">{step.round}</span><span>Call {String(step.asked + 1).padStart(2, "0")} · up to {QUICK.cap}</span></div>
         <div className="bracket-progress" role="progressbar" aria-label="Bracket progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(step.progress * 100)}><i style={{ transform: `scaleX(${step.progress})` }} /></div>
         {step.check && <p className="check-note">Quick check: this one follows from your earlier calls.</p>}
@@ -163,7 +169,7 @@ export function Bracket({ seeds, models, labs, onFinish, onList }: { seeds: stri
       </>}
     </section>
     <aside className="bracket-side" aria-label="Ranking so far">
-      <div className="board-heading"><span>{step.done ? "YOUR RANKING" : "TAKING SHAPE"}</span><span>BEST FIRST</span></div>
+      <div className="board-heading"><span>TAKING SHAPE</span><span>BEST FIRST</span></div>
       <ol className="shape-list">{step.blocks.flatMap((block, bi) => block.map((id, i) => { const m = models.get(id); return <li key={id} className={`${i === 0 && bi > 0 ? "group-start" : ""} ${live.has(id) ? "live" : ""}`} style={{ "--lab": labs.get(m?.labId ?? "")?.color ?? "#8A8A80" } as CSSProperties}><i aria-hidden="true" /><span>{m?.name ?? id}</span></li>; }))}</ol>
       <button className="text-control" onClick={onList}>Rank the list instead <Arrow /></button>
     </aside>
