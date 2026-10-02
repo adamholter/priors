@@ -124,10 +124,28 @@ function Inner({ config, onApply, date, handle }: { config: IndexConfig; onApply
 
 function Diff({ view }: { view: View }) {
   const moved = view.ranking.filter((r) => r.was !== r.rank).slice(0, 6);
-  const changed = view.benchmarks.filter((b) => Math.abs(b.share - b.was) >= 0.5);
-  const removed = view.removed ?? [];
+  const rows = [...view.benchmarks.filter((b) => Math.abs(b.share - b.was) >= 0.5).map((b) => ({ id: b.id, name: b.name, was: b.was, now: b.share })), ...(view.removed ?? []).map((b) => ({ id: b.id, name: b.name, was: b.was, now: 0 }))];
+  const max = Math.max(1, ...rows.flatMap((r) => [r.was, r.now]));
   return <div className="assistant-diff">
     {moved.length > 0 && <div><span className="cap">Ranking</span>{moved.map((r) => <p key={r.model}><span className="num w-7 inline-block">#{r.rank}</span>{r.model}<span className={`num ml-2 ${r.was == null ? "text-grey" : r.was > r.rank ? "is-up" : "is-down"}`}>{r.was == null ? "new" : r.was > r.rank ? `↑${r.was - r.rank}` : `↓${r.rank - r.was}`}</span></p>)}</div>}
-    {(changed.length > 0 || removed.length > 0) && <div><span className="cap">Mix · {view.movedFromOriginal}% of weight moved</span>{changed.map((b) => <p key={b.id}>{b.name}<span className="num ml-2 text-grey">{b.was ? `${b.was}% → ` : "new · "}{b.share}%</span></p>)}{removed.map((b) => <p key={b.id}>{b.name}<span className="num ml-2 text-grey">{b.was}% → removed</span></p>)}</div>}
+    {rows.length > 0 && <div><span className="cap">Mix · {view.movedFromOriginal}% of weight moved</span>{rows.map((r) => <ShareChange key={r.id} {...r} max={max} />)}</div>}
   </div>;
+}
+
+/**
+ * One benchmark's share change on a shared scale. The part that stayed is solid; a gain extends past a
+ * tick marking the old share; a loss leaves a dashed outline where the share used to reach.
+ */
+export function ShareChange({ name, was, now, max }: { name: string; was: number; now: number; max: number }) {
+  const pct = (v: number) => `${(v / max) * 100}%`, keep = Math.min(was, now), d = now - was;
+  return <p className="share-change" title={`${name}: ${was ? `${was}%` : "not in mix"} → ${now ? `${now}%` : "removed"}`}>
+    <span className="share-name">{name}</span>
+    <span className="share-bar" aria-hidden="true">
+      <i className="share-keep" style={{ width: pct(keep) }} />
+      {d > 0 && <i className="share-gain" style={{ left: pct(keep), width: pct(d) }} />}
+      {d < 0 && <i className="share-loss" style={{ left: pct(keep), width: pct(-d) }} />}
+      {was > 0 && d > 0 && <i className="share-was" style={{ left: pct(was) }} />}
+    </span>
+    <span className={`num share-delta ${d > 0 ? "is-up" : "is-down"}`}>{!was ? "new" : !now ? "out" : `${d > 0 ? "+" : "−"}${Math.abs(d).toFixed(1)}`}</span>
+  </p>;
 }

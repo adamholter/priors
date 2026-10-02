@@ -236,3 +236,13 @@ details.gallery-panel > summary::-webkit-details-marker { display: none; }
 @media (max-width: 1023px) { .assistant-docked { left: 0; width: auto; top: auto; max-height: 75dvh; border-left: 0; border-top: 1px solid var(--hair); } }
 body:has(.assistant-docked) { padding-right: 400px; }
 @media (max-width: 1023px) { body:has(.assistant-docked) { padding-right: 0; } }
+/* Share change bars: solid = kept, bright = gained past the old-share tick, dashed = lost. */
+p.share-change { display: grid; grid-template-columns: minmax(0, 1fr) 40% 38px; align-items: center; gap: 8px; height: 20px; margin: 0; }
+.share-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.share-bar { position: relative; height: 8px; }
+.share-bar i { position: absolute; top: 0; bottom: 0; }
+.share-keep { left: 0; background: color-mix(in srgb, var(--indigo) 45%, transparent); border-radius: 2px 0 0 2px; }
+.share-gain { background: var(--indigo); border-radius: 0 2px 2px 0; }
+.share-loss { border: 1px dashed var(--grey); border-left: 0; border-radius: 0 2px 2px 0; opacity: .8; }
+.share-was { top: -2px !important; bottom: -2px !important; width: 1.5px; background: var(--ink); margin-left: -0.75px; opacity: .55; }
+.share-delta { text-align: right; font-size: 11.5px; }
