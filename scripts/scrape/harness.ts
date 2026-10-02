@@ -1,5 +1,6 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { inflateRawSync } from "node:zlib";
 import type { ScrapeContext } from "../../src/data/types";
 
 const UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0 Safari/537.36";
@@ -62,4 +63,41 @@ export function ci(s: string): [number, number] | undefined {
   if (!m) return undefined;
   const v = parseFloat(m[1]), d = parseFloat(m[2]);
   return [v - d, v + d];
+}
+
+/** Entries of a .zip (e.g. an .xlsx) using Node's zlib: stored and deflated members only. */
+export function unzip(buf: Buffer): Map<string, Buffer> {
+  let eocd = buf.length - 22;
+  while (eocd >= 0 && buf.readUInt32LE(eocd) !== 0x06054b50) eocd--;
+  if (eocd < 0) throw new Error("Not a zip file");
+  const count = buf.readUInt16LE(eocd + 10);
+  let p = buf.readUInt32LE(eocd + 16);
+  const out = new Map<string, Buffer>();
+  for (let i = 0; i < count; i++) {
+    if (buf.readUInt32LE(p) !== 0x02014b50) throw new Error("Bad zip directory");
+    const method = buf.readUInt16LE(p + 10), size = buf.readUInt32LE(p + 20), nameLen = buf.readUInt16LE(p + 28), extra = buf.readUInt16LE(p + 30), comment = buf.readUInt16LE(p + 32), local = buf.readUInt32LE(p + 42);
+    const name = buf.toString("utf8", p + 46, p + 46 + nameLen);
+    const start = local + 30 + buf.readUInt16LE(local + 26) + buf.readUInt16LE(local + 28), data = buf.subarray(start, start + size);
+    out.set(name, method === 8 ? inflateRawSync(data) : data);
+    p += 46 + nameLen + extra + comment;
+  }
+  return out;
+}
+
+/** First sheet of an .xlsx as rows of header → cell text (shared strings and inline values resolved). */
+export function xlsxRows(buf: Buffer): Record<string, string>[] {
+  const files = unzip(buf), decode = (s: string) => s.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, "&");
+  const strings = [...(files.get("xl/sharedStrings.xml")?.toString("utf8") ?? "").matchAll(/<si>([\s\S]*?)<\/si>/g)].map((m) => decode(m[1].replace(/<[^>]+>/g, "")));
+  const sheet = files.get("xl/worksheets/sheet1.xml")?.toString("utf8");
+  if (!sheet) throw new Error("xlsx has no sheet1");
+  const grid = [...sheet.matchAll(/<row[^>]*>([\s\S]*?)<\/row>/g)].map((r) => {
+    const cells: Record<string, string> = {};
+    for (const c of r[1].matchAll(/<c r="([A-Z]+)\d+"([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g)) {
+      const body = c[3] ?? "", v = body.match(/<v>([\s\S]*?)<\/v>/)?.[1] ?? body.replace(/<[^>]+>/g, "");
+      cells[c[1]] = /t="s"/.test(c[2]) ? strings[Number(v)] ?? "" : decode(v);
+    }
+    return cells;
+  });
+  const header = grid[0] ?? {};
+  return grid.slice(1).map((cells) => Object.fromEntries(Object.entries(header).map(([col, name]) => [name, cells[col] ?? ""])));
 }

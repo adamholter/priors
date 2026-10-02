@@ -8,10 +8,8 @@ export function clientSnapshot(snapshot: Snapshot): Snapshot {
     observations: snapshot.observations.map((observation): Observation => {
       const details = observation.details;
       if (!details) return observation;
-      const realIndex = details.realIndex as { rawValue?: number; effortAttribution?: string } | undefined;
       const usedDetails = {
         ...(details.priorsEstimate !== undefined && { priorsEstimate: details.priorsEstimate }),
-        ...(realIndex && { realIndex: { rawValue: realIndex.rawValue, effortAttribution: realIndex.effortAttribution } }),
         ...(details.estimatedDecodeSecondsPerTask !== undefined && { estimatedDecodeSecondsPerTask: details.estimatedDecodeSecondsPerTask }),
         ...(details.outputTokensPerTask !== undefined && { outputTokensPerTask: details.outputTokensPerTask }),
         ...(observation.benchmarkId === "t3-usage-share" && details.window !== undefined && { window: details.window }),

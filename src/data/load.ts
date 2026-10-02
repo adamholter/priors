@@ -3,7 +3,6 @@ import path from "node:path";
 import { gunzipSync } from "node:zlib";
 import type { Snapshot } from "./types";
 import type { MixLibrary } from "../onboarding/library";
-import { appendRealIndex } from "./real-index";
 
 const SNAP_DIR = path.resolve(process.cwd(), "data/snapshots");
 
@@ -23,7 +22,7 @@ export function loadSnapshot(date?: string): Promise<Snapshot | null> {
   let p = snapshots.get(file);
   if (!p) {
     p = (async () => {
-      try { return appendRealIndex(JSON.parse(gunzipSync(await readFile(path.join(SNAP_DIR, file))).toString("utf8")) as Snapshot); }
+      try { return JSON.parse(gunzipSync(await readFile(path.join(SNAP_DIR, file))).toString("utf8")) as Snapshot; }
       catch { return null; }
     })();
     snapshots.set(file, p);

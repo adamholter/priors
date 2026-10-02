@@ -17,7 +17,8 @@ describe("coverage floor on the real snapshot", () => {
     expect(ids).not.toContain("aa-motif-3");
     expect(ids).not.toContain("gpt-5.5-instant");
     expect(ids).toContain("gpt-6-astra");
-    expect(ids).toContain("claude-fable-5.1");
+    // Fable 5.1 has no live DeepSWE 1.1 or ARC-AGI-3 result, so in this mix it's below the floor.
+    expect(ids).not.toContain("claude-fable-5.1");
     expect(ids).toContain("claude-opus-5");
   });
 });

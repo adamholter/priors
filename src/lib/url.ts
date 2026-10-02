@@ -29,11 +29,26 @@ export function encodeIndex(c: IndexConfig): string {
   return parts.join("|");
 }
 
+/**
+ * Retired benchmark ids → their live equivalents. The frozen Real Index import (Sept 2026) was removed
+ * in favour of live scrapers; old links keep their weights by pointing at the live benchmark.
+ */
+const RETIRED: Record<string, string> = Object.fromEntries(Object.entries({
+  "automationbench-aa": "aa-automationbench-aa", "gdp-pdf": "aa-gdp-pdf", "arena-text-multi-turn": "arena-text-multi-turn", "agent-arena": "arena-agent",
+  "osworld-2": "osworld-2", "osworld-verified": "osworld-verified", "roboflow-visual-reasoning": "roboflow-visual-reasoning", "terminal-bench-2-1": "aa-terminalbench-v2-1",
+  "mmmu-pro": "aa-mmmu-pro", "arc-agi-2": "arc-agi-2", "automationbench": "automationbench", "enterprise-ops-gym-aa": "aa-enterprise-ops-gym-aa",
+  "terminal-bench-science": "aa-terminalbench-science", "aa-lcr": "aa-artificial-analysis-long-context-reasoning", "aa-briefcase": "aa-briefcase",
+  "terminal-bench-v4": "terminalbench-4", "deepswe-1-1": "deepswe-1.1", "swe-atlas-qna": "swe-atlas-qna", "arc-agi-3": "arc-agi-3", "hle": "aa-humanitys-last-exam",
+  "aa-omniscience": "aa-omniscience", "tau3-banking": "aa-tau3-banking", "scicode": "aa-scicode", "aa-omniscience-accuracy": "aa-omniscience-accuracy",
+  "aa-omniscience-hallucination-rate": "aa-omniscience-non-hallucination", "critpt": "aa-critpt", "output-speed": "aa-output-speed", "cost-per-task": "aa-cost-per-task-index",
+}).map(([k, v]) => [`real-index:${k}`, v]));
+export const liveBenchmarkId = (id: string) => RETIRED[id] ?? id;
+
 export function decodeIndex(s: string, id: string): IndexConfig | null {
   const [name, weightsStr, ...rest] = s.split("|");
   if (name == null || weightsStr == null) return null;
   const weights: Record<string, number> = {};
-  for (const kv of weightsStr.split(",")) { const split = kv.lastIndexOf(":"); const k = kv.slice(0, split), v = kv.slice(split + 1); const w = Number(v); if (split > 0 && k && Number.isFinite(w) && w > 0) weights[k] = w; }
+  for (const kv of weightsStr.split(",")) { const split = kv.lastIndexOf(":"); const k = liveBenchmarkId(kv.slice(0, split)), v = kv.slice(split + 1); const w = Number(v); if (split > 0 && k && Number.isFinite(w) && w > 0) weights[k] = (weights[k] ?? 0) + w; }
   const c: IndexConfig = { id, name: decodeURIComponent(name) || "Untitled", weights, required: [], cutoff: DEFAULT_CUTOFF, estimateMissing: true, variants: "all" };
   // Default: strictness 50. `strict=` or `cut=` (legacy) override; `after=` is
   // explicit-only — absent means the engine default (snapshot date − 6 months),
@@ -41,8 +56,8 @@ export function decodeIndex(s: string, id: string): IndexConfig | null {
   if (!rest.some((r) => r.startsWith("strict=") || r.startsWith("cut="))) c.strictness = 50;
   for (const r of rest) {
     const [k, v = ""] = r.split("=");
-    if (k === "req") c.required = v.split(",").filter(Boolean);
-    else if (k === "opt") c.optional = v.split(",").filter(Boolean);
+    if (k === "req") c.required = [...new Set(v.split(",").filter(Boolean).map(liveBenchmarkId))];
+    else if (k === "opt") c.optional = [...new Set(v.split(",").filter(Boolean).map(liveBenchmarkId))];
     else if (k === "strict" && Number.isFinite(Number(v))) c.strictness = Math.max(0, Math.min(100, Number(v)));
     else if (k === "bars" && (v === "all" || v === "best")) c.rankingVariants = v;
     else if (k === "pareto" && (v === "all" || v === "best")) c.paretoVariants = v;

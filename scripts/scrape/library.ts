@@ -12,7 +12,6 @@ import { benchmarkQuality, affinity } from "../../src/onboarding/quality";
 import { FOCUSES } from "../../src/onboarding/focus";
 import type { LibraryFit, MixLibrary } from "../../src/onboarding/library";
 import { DEFAULT_PRIORS_MIX, defaultLineup } from "../../src/onboarding/defaults";
-import { appendRealIndex } from "../../src/data/real-index";
 import { fitPriors, settingsKey, LEVELS } from "../../src/onboarding/optimizer";
 
 const args = process.argv.slice(2);
@@ -114,8 +113,8 @@ async function buildFits(snapshot: Snapshot, library: MixLibrary, quality: Recor
 }
 
 export async function buildLibrary(date?: string): Promise<void> {
-  // Same snapshot the app serves (supplemental Real Index metrics included), so columns and fits match the client.
-  const snapshot: Snapshot = appendRealIndex(JSON.parse(gunzipSync(await readFile(path.join(SNAP_DIR, date ? `${date}.json.gz` : "latest.json.gz"))).toString("utf8")));
+  // Same snapshot the app serves, so columns and fits match the client.
+  const snapshot: Snapshot = JSON.parse(gunzipSync(await readFile(path.join(SNAP_DIR, date ? `${date}.json.gz` : "latest.json.gz"))).toString("utf8"));
   const quality = benchmarkQuality(snapshot);
   const qMap = new Map(quality.map((q) => [q.id, q]));
   const benchmarks = snapshot.benchmarks.filter(eligible);

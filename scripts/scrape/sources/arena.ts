@@ -25,6 +25,8 @@ interface EloBoard { arenaSlug: string; leaderboardSlug: string; params?: Record
 const ELO_BOARDS: { id: string; path: string; name: string; category: BenchmarkCategory; desc: string; weight: number }[] = [
   { id: "arena-text", path: "/leaderboard/text", name: "Arena Text", category: "composite", weight: 5,
     desc: "Crowdsourced pairwise human preference on open-ended text prompts (style control on); Bradley-Terry rating." },
+  { id: "arena-text-multi-turn", path: "/leaderboard/text/multi-turn", name: "Arena Text — Multi-Turn", category: "composite", weight: 0,
+    desc: "Crowdsourced pairwise human preference restricted to multi-turn conversations (style control on); Bradley-Terry rating." },
   { id: "arena-webdev", path: "/leaderboard/code/webdev", name: "Arena WebDev", category: "coding", weight: 5,
     desc: "Human preference between agentic front-end web development outputs; Bradley-Terry rating." },
   { id: "arena-search", path: "/leaderboard/search", name: "Arena Search", category: "knowledge", weight: 0,

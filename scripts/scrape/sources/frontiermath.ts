@@ -13,7 +13,7 @@ function definition(task: string): Benchmark | undefined {
     const id = `frontiermath-${tier[1].toLowerCase()}-v${tier[2]}`;
     return {
       id, name: `FrontierMath ${tier[1].replaceAll("-", " ")} (v${tier[2]})`.replace(/Tiers (\d) (\d)/, "Tiers $1–$2"),
-      shortName: `FM ${tier[1].replaceAll("-", " ")}`,
+      shortName: `FM ${tier[1].replaceAll("-", " ").replace(/Tiers (\d) (\d)/, "Tiers $1–$2")}`,
       sourceId: "frontiermath", url: `${ORIGIN}/benchmarks/${id}`,
       description: `Epoch AI's FrontierMath ${tier[1].replaceAll("-", " ")}, version ${tier[2]}: expert-written mathematics problems evaluated with Python tools. Accuracy on the private set, not the public sample questions. Data: Epoch AI, CC BY.`,
       unit: "percent", higherIsBetter: true, category: "math", versionPolicy: { kind: "fresh" }, defaultWeight: 0,

@@ -27,8 +27,7 @@ export function ModelDetail({ r, snapshot, result, onClose }: { r: RankedVariant
         <div className="grid grid-cols-[1fr_auto_auto] gap-x-4 gap-y-1">
           <span className="cap">benchmark</span><span className="cap text-right">source raw</span><span className="cap text-right">0–100 · share</span>
           {r.values.map((v) => {
-            const observation = snapshot.observations.find(o => o.benchmarkId === (v.from ?? v.benchmarkId) && o.variantId === (v.sourceVariantId ?? r.variant.id));
-            const sourceRaw = (observation?.details?.realIndex as { rawValue?: number } | undefined)?.rawValue ?? v.raw;
+            const sourceRaw = v.raw;
             const b = benches.get(v.benchmarkId)!; const share = result.benchmarks.find((x) => x.benchmark.id === v.benchmarkId)!.share;
             return [
               <span key={v.benchmarkId + "n"} className="min-w-0" title={b.description}>{b.name}{v.estimated && <span className="block text-indigo">{v.effortFactor != null ? `${v.sourceVariantId?.split("@")[1] ?? "Source effort"} → ${r.variant.effort}: ×${v.effortFactor.toFixed(3)} from ${v.evidence?.length ?? 0} comparisons` : "Calibrated or inferred evidence"}<span className="block text-grey">{v.evidence?.map((id) => benches.get(id)?.name ?? id).join(", ")}</span></span>}{v.sourceUrl && /^https?:\/\//.test(v.sourceUrl) && <a href={v.sourceUrl} target="_blank" rel="noreferrer" className="ml-1 text-indigo underline">source</a>}{v.from && v.from !== v.benchmarkId && <span className="cap ml-1">via {benches.get(v.from)?.shortName ?? v.from}</span>}{v.estimated && <span className="cap ml-1 text-indigo">estimated</span>}</span>,

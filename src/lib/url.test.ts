@@ -30,8 +30,14 @@ it("round trips the onboarding focus", () => {
 });
 
 it("preserves namespaced benchmark weights in shared results", () => {
-  const config = { ...decodeIndex("Custom|swe:20", "a")!, weights: { "real-index:terminal-bench-2-1": 23, "deepswe-1.1": 29 }, optional: ["real-index:terminal-bench-2-1"] };
+  const config = { ...decodeIndex("Custom|swe:20", "a")!, weights: { "vals:terminal-bench-2-1": 23, "deepswe-1.1": 29 }, optional: ["vals:terminal-bench-2-1"] };
   expect(decodeIndex(encodeIndex(config), "a")).toEqual(config);
+});
+
+it("moves retired Real Index weights onto the live benchmarks", () => {
+  const c = decodeIndex("Old|real-index:deepswe-1-1:20,deepswe-1.1:10,real-index:hle:30|req=real-index:hle", "a")!;
+  expect(c.weights).toEqual({ "deepswe-1.1": 30, "aa-humanitys-last-exam": 30 });
+  expect(c.required).toEqual(["aa-humanitys-last-exam"]);
 });
 
 describe("model visibility params", () => {
