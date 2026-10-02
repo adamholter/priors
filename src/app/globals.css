@@ -76,7 +76,8 @@ h1, h2, h3, .serif { font-family: var(--font-serif); font-weight: 400; letter-sp
 .page-root .wm i { color: var(--indigo); }
 
 /* controls */
-input[type="range"] { accent-color: var(--indigo); }
+/* Horizontal sliders must still let a vertical swipe scroll the page. */
+input[type="range"] { accent-color: var(--indigo); touch-action: pan-y pinch-zoom; }
 button, [role="button"] { cursor: pointer; }
 .btn { font-size: 12.5px; padding: 6px 12px; border: 1px solid var(--ink); border-radius: 4px; background: var(--white); color: var(--ink); }
 .btn:hover { background: var(--ink); color: var(--white); }
