@@ -11,7 +11,8 @@
     "library": "tsx scripts/scrape/library.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "validate": "npm test && npm run typecheck && eslint src scripts && npm run build"
+    "validate": "npm run ci && npm run build",
+    "ci": "vitest run && tsc --noEmit && eslint src scripts convex"
   },
   "dependencies": {
     "@clerk/nextjs": "^7.9.1",

@@ -1,5 +1,6 @@
 "use client";
 import { useMutation, useQuery } from "convex/react";
+import { storableIndex } from "../../../convex/validators";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
@@ -46,7 +47,7 @@ export function PageEditor({ profile, onChange, snapshot, editing }: { profile: 
   const save = async () => {
     setSaving(true);
     const { displayName, bio, socials, indices, sections, theme } = profile;
-    await update({ patch: { displayName, bio, socials: socials?.filter((x) => x.url && !["https://", "https://x.com/", "https://github.com/", "https://linkedin.com/in/"].includes(x.url.trim())), indices, sections, theme } });
+    await update({ patch: { displayName, bio, socials: socials?.filter((x) => x.url && !["https://", "https://x.com/", "https://github.com/", "https://linkedin.com/in/"].includes(x.url.trim())), indices: indices.map(storableIndex), sections, theme } });
     setSaving(false); setDirty(false); router.refresh();
   };
   const upload = async (file: File, field: "avatarStorageId" | "bannerStorageId" = "avatarStorageId") => {

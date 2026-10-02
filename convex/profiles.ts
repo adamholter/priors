@@ -1,5 +1,7 @@
 import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
-import { v } from "convex/values";
+import { indexConfig, profileTheme, section, storableIndex } from "./validators";
+import { ConvexError, v } from "convex/values";
+import type { IndexConfig } from "../src/engine";
 
 const HANDLE = /^[a-z0-9][a-z0-9-]{1,29}$/;
 const RESERVED = new Set(["sign-in", "sign-up", "api", "skill", "import", "me", "og", "about", "admin", "priors", "u", "settings", "privacy", "terms", "builder", "claim", "models"]);
@@ -46,7 +48,7 @@ export const handleAvailable = query({
 
 /** Create the profile on first claim, seeded with the anonymous indices the user built. */
 export const claim = mutation({
-  args: { handle: v.string(), displayName: v.string(), avatarUrl: v.optional(v.string()), indices: v.any() },
+  args: { handle: v.string(), displayName: v.string(), avatarUrl: v.optional(v.string()), indices: v.array(indexConfig) },
   handler: async (ctx, { handle, displayName, avatarUrl, indices }) => {
     const m = await me(ctx);
     if (!m) throw new Error("Sign in first");
@@ -69,8 +71,8 @@ export const update = mutation({
     patch: v.object({
       displayName: v.optional(v.string()), bio: v.optional(v.string()), avatarUrl: v.optional(v.string()), avatarStorageId: v.optional(v.id("_storage")), bannerStorageId: v.optional(v.union(v.id("_storage"), v.null())),
       socials: v.optional(v.array(v.object({ label: v.string(), url: v.string() }))),
-      indices: v.optional(v.any()), sections: v.optional(v.any()),
-      theme: v.optional(v.object({ accent: v.optional(v.string()), surface: v.optional(v.union(v.literal("bone"), v.literal("white"))), preset: v.optional(v.string()), cardDesign: v.optional(v.string()), serif: v.optional(v.string()), mono: v.optional(v.string()), css: v.optional(v.string()) })),
+      indices: v.optional(v.array(indexConfig)), sections: v.optional(v.array(section)),
+      theme: v.optional(profileTheme),
     }),
   },
   handler: async (ctx, { patch }) => {
@@ -146,8 +148,10 @@ export const agentApply = mutation({
       return { ok: true, benchmarkId: benchmark.id, rows: rows.length, url: `/${p.handle}` };
     }
     if (action === "indices") {
-      if (!Array.isArray(payload)) throw new Error("payload must be IndexConfig[]");
-      await ctx.db.patch(p._id, { indices: payload, updatedAt: Date.now() });
+      if (!Array.isArray(payload)) throw new ConvexError("payload must be IndexConfig[]");
+      // Agent payloads are untyped JSON: keep only stored fields, and report schema problems readably.
+      try { await ctx.db.patch(p._id, { indices: payload.map((c: IndexConfig) => storableIndex(c)), updatedAt: Date.now() }); }
+      catch (e) { throw new ConvexError(`Invalid index config: ${e instanceof Error ? e.message.split("\n")[0] : String(e)}`); }
       return { ok: true, url: `/${p.handle}` };
     }
     const patch: Record<string, unknown> = {};

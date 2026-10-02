@@ -39,6 +39,11 @@ Personal benchmark index builder. Anyone weights AI-model benchmarks, sees ranki
 - Spend safety: `convex/agentBudget.ts` enforces a hard daily USD cap (`AGENT_DAILY_USD_CAP`, default 3) and per-user daily requests (`AGENT_USER_DAILY_REQUESTS`, default 40) transactionally; every model call reserves its worst case first and settles with OpenRouter's reported cost. Mutations require `AGENT_SERVER_SECRET` (Convex env on dev+prod and Vercel env; never client-side). `OPENROUTER_API_KEY` lives only in Vercel/`.env.local`.
 - Offline try: `npx tsx scripts/try-assistant.mts "Gemini 4 is too high"`.
 
+## Stored shapes and checks
+
+- `convex/validators.ts` is the single definition of stored profile shapes (`indexConfig`, `section`, `profileTheme`). `Section`/`ProfileTheme` types are inferred from it; `IndexConfig` (engine) is asserted *exactly equal* to the validator at compile time, so adding a field to either side without the other fails `tsc`. Mutation args use these validators (never `v.any()` for indices/sections); every write passes configs through `storableIndex()` (drops transient keys). `src/lib/stored-index.test.ts` checks every config producer.
+- Deploys are gated: `vercel.json` runs `npm run ci` (vitest + tsc incl. convex/ + eslint) before `next build`; a failing check blocks the deploy. GitHub Actions runs the same on push/PR. If `CONVEX_DEPLOY_KEY` is set in Vercel, the build also deploys Convex functions so backend and app can't drift; until then run `npx convex deploy` before pushing schema changes.
+
 ## Commands
 
 - `npm run dev` (dev on 48740 in this workspace: `npx next dev -p 48740`)

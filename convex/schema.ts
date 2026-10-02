@@ -1,41 +1,8 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
+import { indexConfig, profileTheme, section } from "./validators";
 
-const indexConfig = v.object({
-  id: v.string(),
-  name: v.string(),
-  weights: v.record(v.string(), v.number()),
-  required: v.array(v.string()),
-  cutoff: v.number(),
-  estimateMissing: v.boolean(),
-  variants: v.union(v.literal("all"), v.literal("best")),
-  effortMatching: v.optional(v.union(v.literal("calibrated"), v.literal("nearest"), v.literal("strict"))),
-  strictness: v.optional(v.number()),
-  optional: v.optional(v.array(v.string())),
-  rankingVariants: v.optional(v.union(v.literal("all"), v.literal("best"))),
-  costSource: v.optional(v.union(v.literal("aa"), v.literal("terminalbench-4"), v.literal("deepswe-1.1"), v.literal("frontierswe-v2"))),
-  timeSource: v.optional(v.union(v.literal("aa"), v.literal("terminalbench-4"), v.literal("deepswe-1.1"), v.literal("frontierswe-v2"))),
-  paretoVariants: v.optional(v.union(v.literal("all"), v.literal("best"))),
-  labs: v.optional(v.array(v.string())),
-  excludeModels: v.optional(v.array(v.string())),
-  onlyModels: v.optional(v.array(v.string())),
-  releasedAfter: v.optional(v.string()),
-});
 
-/** A page is a list of sections; the editor and the agent skill both manipulate this. */
-const section = v.object({
-  id: v.string(),
-  kind: v.union(
-    v.literal("rankings"), v.literal("pareto"), v.literal("speed"), v.literal("benchmark"),
-    v.literal("text"), v.literal("links"), v.literal("history"), v.literal("gallery"),
-  ),
-  title: v.optional(v.string()),
-  indexId: v.optional(v.string()), // rankings/pareto/speed/history
-  benchmarkId: v.optional(v.string()), // benchmark
-  body: v.optional(v.string()), // text (markdown-lite)
-  links: v.optional(v.array(v.object({ label: v.string(), url: v.string() }))),
-  hidden: v.optional(v.boolean()),
-});
 
 export default defineSchema({
   profiles: defineTable({
@@ -49,7 +16,7 @@ export default defineSchema({
     socials: v.optional(v.array(v.object({ label: v.string(), url: v.string() }))),
     indices: v.array(indexConfig),
     sections: v.array(section),
-    theme: v.optional(v.object({ accent: v.optional(v.string()), surface: v.optional(v.union(v.literal("bone"), v.literal("white"))), preset: v.optional(v.string()), cardDesign: v.optional(v.string()), serif: v.optional(v.string()), mono: v.optional(v.string()), css: v.optional(v.string()) })),
+    theme: v.optional(profileTheme),
     /** API token hash for agent writes (skill). */
     agentTokenHash: v.optional(v.string()),
     updatedAt: v.number(),

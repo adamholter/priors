@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import type { ProfileTheme, Section } from "../../../convex/validators";
 import { MixAssistant } from "../MixAssistant";
 import { ThemeToggle } from "../Theme";
 import { useEffect, useMemo, useState } from "react";
@@ -26,14 +27,12 @@ import { hiddenIds, toggleVisibility, SHOW_ALL } from "@/lib/model-visibility";
 import { anchorOf } from "../chart/ChartLink";
 import { ChartPaletteContext, markColor, paletteFor } from "../chart/echarts";
 
-export interface Section {
-  id: string; kind: "rankings" | "pareto" | "speed" | "benchmark" | "text" | "links" | "history" | "gallery";
-  title?: string; indexId?: string; benchmarkId?: string; body?: string; links?: { label: string; url: string }[]; hidden?: boolean;
-}
+/** Stored shapes come from the Convex validators, so the page and the database can't disagree. */
+export type { Section };
 export interface Profile {
   _id: string; handle: string; displayName: string; avatarUrl?: string; bannerUrl?: string; bio?: string;
   socials?: { label: string; url: string }[]; indices: IndexConfig[]; sections: Section[];
-  theme?: { accent?: string; surface?: "bone" | "white"; preset?: string; cardDesign?: string; serif?: string; mono?: string; css?: string };
+  theme?: ProfileTheme;
   imports?: { benchmark: Snapshot["benchmarks"][0]; rows: import("@/data/types").RawRow[] }[];
 }
 

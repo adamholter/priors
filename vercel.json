@@ -1,0 +1,4 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "npm run ci && if [ -n \"$CONVEX_DEPLOY_KEY\" ]; then npx convex deploy --cmd 'next build'; else next build; fi"
+}
