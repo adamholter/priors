@@ -11,7 +11,7 @@ import { FOCUS_IDS, type FocusId } from "../onboarding/focus";
 import { benchmarksFor, distance, exactRanking, explainModel, mixMetrics, solveEdit, toShares, toWeights, qualityOf, churn, type Goal, type Move } from "./solver";
 
 export type Proposal = { weights: Record<string, number>; required: string[]; summary: string; question?: string; suggestions: string[] };
-export type ToolContext = { snapshot: Snapshot; original: IndexConfig; proposal?: Proposal };
+export type ToolContext = { snapshot: Snapshot; original: IndexConfig; proposal?: Proposal; warned?: boolean };
 
 const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9.]+/g, " ").trim();
 export function resolveModel(snapshot: Snapshot, name: string): string | null {
@@ -135,6 +135,9 @@ export async function runTool(ctx: ToolContext, name: string, args: Record<strin
       const { weights, unknown } = cleanWeights(snapshot, args.weights as Record<string, unknown>);
       if (!Object.keys(weights).length) return { error: "No known benchmarks in that mix.", unknown };
       if (computeIndex(snapshot, { ...original, weights, required: original.required.filter((id) => weights[id]) }).ranked.length < 3) return { error: "That mix ranks fewer than three models. Pick benchmarks with wider coverage." };
+      // Guard against hand-made mixes that "move" a model by pulling previously unranked models above it.
+      const entrants = describe(ctx, weights, 10).ranking.filter((r) => r.was == null || r.was > 20).map((r) => r.model);
+      if (entrants.length && !ctx.warned) { ctx.warned = true; return { error: `Not applied: this mix pulls models into the top 10 that weren't there before (${entrants.join(", ")}), which the user didn't ask for. Use solve_edit (it keeps new entrants out) or adjust, then propose again. If the user explicitly wants this, propose the same mix again.` }; }
       ctx.proposal = { weights, required: original.required.filter((id) => weights[id]), summary: String(args.summary ?? "").slice(0, 1200), question: args.question ? String(args.question).slice(0, 300) : undefined, suggestions: (Array.isArray(args.suggestions) ? args.suggestions : []).map((s) => String(s).slice(0, 80)).filter((s) => !/^(undo|revert)\b/i.test(s.trim())).slice(0, 3) };
       return { applied: true };
     }
