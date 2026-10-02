@@ -30,6 +30,14 @@ Personal benchmark index builder. Anyone weights AI-model benchmarks, sees ranki
 - `convex/` — profiles (handle, indices, sections, theme, agent token hash) + imports. Clerk JWT via `CLERK_JWT_ISSUER_DOMAIN` env in Convex.
 - `src/app/` — `/` onboarding→builder redirect, `/builder` explorer (generateMetadata emits the og card per URL), `/[handle]` public page (+ `opengraph-image`), `/og` anonymous share card, `/skill`, `/import`, `/claim`, `/sign-in`, `/api/agent`, `/api/benchmarks`.
 
+## Mix assistant
+
+- Signed-in users adjust the active index in plain language from a composer bar on `/builder` and profile pages (`src/components/MixAssistant.tsx`; `/` focuses it; can dock as a right panel). It acts first (applies the change with Undo), then explains and, for vague asks, asks where exactly the user wants things.
+- `POST /api/assistant` (Clerk `auth()` required) streams NDJSON steps then a proposal. Loop in `src/agent/agent.ts` on OpenRouter `openai/gpt-6-luna` (verify id/price live if changing). Tools in `src/agent/tools.ts`: get_mix, explain_model, find_benchmarks, search_benchmarks, solve_edit, fit_ranking (the onboarding quality-aware fitter), try_mix, propose.
+- `src/agent/solver.ts`: edit solver. Smallest change to the mix that satisfies moves (pairwise against models from the original order, so newly ranked models can't satisfy a "drop"), minimizing weight moved + rank churn (new top-20 entrants penalized) + mix complexity (few benchmarks, even shares, soft 5–40% band — never hard caps). Fast surrogate (single-benchmark engine columns) screens candidates; the exact engine verifies. Excluding a benchmark excludes its mirrors/versions (`withFamilies`). Auto-adds skip price/speed/arena/vision/creative boards.
+- Spend safety: `convex/agentBudget.ts` enforces a hard daily USD cap (`AGENT_DAILY_USD_CAP`, default 3) and per-user daily requests (`AGENT_USER_DAILY_REQUESTS`, default 40) transactionally; every model call reserves its worst case first and settles with OpenRouter's reported cost. Mutations require `AGENT_SERVER_SECRET` (Convex env on dev+prod and Vercel env; never client-side). `OPENROUTER_API_KEY` lives only in Vercel/`.env.local`.
+- Offline try: `npx tsx scripts/try-assistant.mts "Gemini 4 is too high"`.
+
 ## Commands
 
 - `npm run dev` (dev on 48740 in this workspace: `npx next dev -p 48740`)

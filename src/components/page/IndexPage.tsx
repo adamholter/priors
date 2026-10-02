@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { MixAssistant } from "../MixAssistant";
 import { ThemeToggle } from "../Theme";
 import { useEffect, useMemo, useState } from "react";
 import type { Snapshot } from "@/data/types";
@@ -145,6 +146,7 @@ export function IndexPage({ profile, snapshot, dates, edit }: { profile: Profile
           <Link href="/" className="hover:text-ink">Build your own</Link>
         </footer>
       </main>
+      {p.indices[0] && <MixAssistant config={p.indices[0]} date={snapshot.date} handle={p.handle} onApply={(next) => setP({ ...p, indices: p.indices.map((x) => x.id === next.id ? next : x) })} />}
     </div>
     </ChartPaletteContext.Provider>
   );

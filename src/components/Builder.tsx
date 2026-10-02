@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { MixAssistant } from "./MixAssistant";
 import { ThemeToggle } from "./Theme";
 import Link from "next/link";
 import type { Snapshot } from "@/data/types";
@@ -107,7 +108,7 @@ export function Builder({ snapshot: base, dates, initialIndices }: { snapshot: S
         </div>
       </header>
 
-      <main className="grid grid-cols-1 lg:grid-cols-[360px_minmax(0,1fr)] gap-10 px-4 sm:px-8 py-8 max-w-[1500px] items-start">
+      <main className="grid grid-cols-1 lg:grid-cols-[360px_minmax(0,1fr)] gap-10 px-4 sm:px-8 pt-8 pb-28 max-w-[1500px] items-start">
         <aside aria-label="Index controls" className="relative z-30 flex flex-col gap-5 min-h-0 lg:sticky lg:top-[88px] lg:h-[calc(100dvh-120px)]">
           <section aria-label="Benchmarks and eligibility" className="min-h-0 min-w-0 lg:flex-1 lg:overflow-y-auto overflow-x-hidden overscroll-contain pr-2 pb-2">
             <h2 className="text-[22px] mb-1">Your mix</h2>
@@ -138,6 +139,7 @@ export function Builder({ snapshot: base, dates, initialIndices }: { snapshot: S
           </div>
         </section>
       </main>
+      <MixAssistant config={active} onApply={update} date={snapshot.date} />
     </div>
   );
 }

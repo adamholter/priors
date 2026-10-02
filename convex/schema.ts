@@ -63,6 +63,11 @@ export default defineSchema({
     createdAt: v.number(),
   }).index("by_profile", ["profileId"]),
 
+  /** Mix assistant spend per UTC day (see agentBudget.ts). */
+  agentSpend: defineTable({ day: v.string(), spentUsd: v.number(), reservedUsd: v.number(), calls: v.number(), requests: v.number() }).index("by_day", ["day"]),
+  /** Mix assistant requests per signed-in user per UTC day. */
+  agentUsers: defineTable({ userId: v.string(), day: v.string(), requests: v.number(), spentUsd: v.number() }).index("by_user_day", ["userId", "day"]),
+
   /** Completed onboarding lineups — anonymous, feeds the precomputed mix library. */
   lineups: defineTable({
     focus: v.string(),
