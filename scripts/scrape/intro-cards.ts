@@ -1,5 +1,5 @@
 /**
- * Pre-renders the intro dialog's share cards to public/intro/<design>.png from the latest snapshot,
+ * Pre-renders the intro dialog's share cards to public/intro/<design>.png (and <design>-dark.png) from the latest snapshot,
  * so the first visit shows them instantly instead of waiting on /og.
  * Usage: npx tsx scripts/scrape/intro-cards.ts
  */
@@ -16,10 +16,10 @@ async function main() {
   const out = path.resolve("public/intro");
   await mkdir(out, { recursive: true });
   const index = { ...defaultConfig(snapshot), name: "My priors" };
-  for (const design of INTRO_CARDS) {
-    const res = await renderShareCard(snapshot, index, { name: "" }, { design });
-    if (!res.ok) throw new Error(`${design}: ${res.status}`);
-    await writeFile(path.join(out, `${design}.png`), Buffer.from(await res.arrayBuffer()));
+  for (const design of INTRO_CARDS) for (const scheme of ["light", "dark"] as const) {
+    const res = await renderShareCard(snapshot, index, { name: "" }, { design, scheme });
+    if (!res.ok) throw new Error(`${design} ${scheme}: ${res.status}`);
+    await writeFile(path.join(out, `${design}${scheme === "dark" ? "-dark" : ""}.png`), Buffer.from(await res.arrayBuffer()));
   }
   console.log(`intro cards: ${INTRO_CARDS.join(", ")} (${snapshot.date})`);
 }

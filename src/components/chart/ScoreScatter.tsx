@@ -3,7 +3,7 @@ import { ChartExport, type ExportRow } from "./ChartExport";
 import type { EChartsOption } from "echarts";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Lab } from "@/data/types";
-import { useChartPalette, useEChart } from "./echarts";
+import { DARK_PALETTE, markColor, useChartPalette, useEChart } from "./echarts";
 import { scatterHtml, unitOf } from "./embed";
 import { ChartLink, type ChartLinkParams } from "./ChartLink";
 import { useChartExpand } from "./ChartExpand";
@@ -67,10 +67,10 @@ export function ScoreScatter({ pts, labs, better, xName, xShort, xUnit = "", sca
     return scatterHtml({
       title: exportName, xName, scale, unit: unitOf(formatX),
       yMin: Math.max(0, Math.floor((Math.min(...ys, 100) - 6) / 5) * 5), yMax: Math.min(100, Math.ceil((Math.max(...ys, 0) + 4) / 5) * 5),
-      points: pts.map((p) => ({ v: [p.x, p.r.score], c: color.get(p.r.model.labId) ?? "#A3A39B", n: chartLabel(p.r), s: labeled.has(p.r.variant.id), f: view.frontier && onFrontierIds.has(p.r.variant.id),
+      points: pts.map((p) => ({ v: [p.x, p.r.score], c: color.get(p.r.model.labId) ?? "#A3A39B", d: markColor(color.get(p.r.model.labId), DARK_PALETTE, p.r.model.labId), n: chartLabel(p.r), s: labeled.has(p.r.variant.id), f: view.frontier && onFrontierIds.has(p.r.variant.id),
         t: `<b>${escapeHtml(p.r.variant.sourceModel?.name ?? chartLabel(p.r))}</b><div style="font-family:'JetBrains Mono',monospace;margin-top:4px">${p.r.score.toFixed(1)} · ${escapeHtml((formatValue ?? formatX)(p.raw ?? p.x))}${xUnit ? ` ${escapeHtml(xUnit)}` : ""}</div>` })),
       frontier: view.frontier ? frontier.map((p) => [p.x, p.r.score]) : [],
-      links: view.links ? [...byModel.values()].filter((v) => v.length > 1).map((v) => ({ c: color.get(v[0].r.model.labId) ?? "#A3A39B", d: [...v].sort((a, b) => a.x - b.x).map((p) => [p.x, p.r.score] as [number, number]) })) : [],
+      links: view.links ? [...byModel.values()].filter((v) => v.length > 1).map((v) => ({ c: color.get(v[0].r.model.labId) ?? "#A3A39B", d: markColor(color.get(v[0].r.model.labId), DARK_PALETTE, v[0].r.model.labId), p: [...v].sort((a, b) => a.x - b.x).map((p) => [p.x, p.r.score] as [number, number]) })) : [],
     });
   };
   return (

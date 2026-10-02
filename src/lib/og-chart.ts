@@ -4,7 +4,7 @@ import type { Lab } from "@/data/types";
 import type { RankedVariant, IndexConfig } from "@/engine";
 import { chartVariantMode } from "@/engine";
 import type { Snapshot } from "@/data/types";
-import { echarts, themeFor, paletteFor, SANS_STATIC, MONO_STATIC, type ChartPalette } from "@/components/chart/theme";
+import { echarts, themeFor, paletteFor, DARK_PALETTE, SANS_STATIC, MONO_STATIC, type ChartPalette } from "@/components/chart/theme";
 import { scatterOption, DEFAULT_VIEW, type ScatterPoint } from "@/components/chart/scatter-option";
 import { barsOption, selectBars } from "@/components/chart/bars-option";
 import { frameSvg } from "@/components/chart/export-frame";
@@ -33,8 +33,10 @@ export function scatterSpec(snapshot: Snapshot, ranked: RankedVariant[], index: 
 }
 
 /** Chart palette for a share card: the profile's scheme, else the site default. */
-export function cardPalette(theme?: { preset?: string; surface?: "bone" | "white" }): ChartPalette {
-  return paletteFor(presetOf(theme));
+export function cardPalette(theme?: { preset?: string; surface?: "bone" | "white" }, scheme?: "light" | "dark"): ChartPalette {
+  // A dark card renders a Bone (default) scheme with the site's dark palette; explicit presets keep their own.
+  const preset = presetOf(theme);
+  return scheme === "dark" && preset.id === "bone" ? DARK_PALETTE : paletteFor(preset);
 }
 
 const FONT_FILES = ["Newsreader-400.ttf", "Inter-400.ttf", "Inter-500.ttf", "Inter-600.ttf", "JetBrainsMono-400.ttf", "JetBrainsMono-500.ttf"].map((f) => path.join(process.cwd(), "src/lib/og-fonts", f));

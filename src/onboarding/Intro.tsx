@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useLabColor } from "@/components/chart/echarts";
+import { useTheme } from "@/components/Theme";
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { Snapshot } from "@/data/types";
 import { defaultConfig } from "@/engine";
@@ -24,6 +25,7 @@ export function Intro({ snapshot, lineup, dialogRef, onClose }: { snapshot: Snap
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const models = useMemo(() => new Map(snapshot.models.map(m => [m.id, m])), [snapshot]);
   const labColor = useLabColor();
+  const { dark } = useTheme();
   const colors = useMemo(() => new Map(snapshot.labs.map(l => [l.id, labColor(l.id, l.color)])), [snapshot, labColor]);
   const rows = lineup.slice(0, 4).map(id => models.get(id)).filter(m => !!m);
   const mix = useMemo(() => {
@@ -64,7 +66,7 @@ export function Intro({ snapshot, lineup, dialogRef, onClose }: { snapshot: Snap
         </div>
         <div className="intro-scene scene-cards">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          {INTRO_CARDS.map((d, i) => <img key={d} className={`share-card card-${i}`} src={`/intro/${d}.png`} alt="" width={1200} height={630} loading="eager" fetchPriority="high" decoding="async" />)}
+          {INTRO_CARDS.map((d, i) => <img key={d} className={`share-card card-${i}`} src={`/intro/${d}${dark ? "-dark" : ""}.png`} alt="" width={1200} height={630} loading="eager" fetchPriority="high" decoding="async" />)}
         </div>
       </div>
       <div className="intro-copy">

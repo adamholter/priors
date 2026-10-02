@@ -33,6 +33,12 @@ try {
   const l = await b.newPage({ colorScheme: 'light' });
   await l.goto(`${BASE}/`, { waitUntil: 'networkidle' });
   assert.equal(await theme(l), 'light');
+  // Share cards render in both schemes (corner pixel = card background); the share dialog follows the site theme.
+  const px = (url) => l.evaluate(async (u) => { const img = new Image(); img.src = u; await img.decode(); const c = document.createElement('canvas'); c.width = img.width; c.height = img.height; const g = c.getContext('2d'); g.drawImage(img, 0, 0); return [...g.getImageData(4, 4, 1, 1).data.slice(0, 3)]; }, url);
+  for (const d of ['board', 'qr', 'ranking', 'podium', 'split', 'scoreboard', 'staircase', 'constellation', 'columns', 'race', 'ledger', 'spotlight']) {
+    assert.deepEqual(await px(`${BASE}/og?design=${d}&scheme=dark`), d === 'spotlight' ? [30, 39, 71] : [20, 20, 19], `${d} dark`);
+    assert.deepEqual(await px(`${BASE}/og?design=${d}`), d === 'spotlight' ? [26, 26, 26] : [251, 251, 249], `${d} light`);
+  }
   assert.deepEqual(errors, []);
-  console.log('PASS dark mode: system default, toggle, persistence, chart + lab re-theme, clean hydration across routes');
+  console.log('PASS dark mode: system default, toggle, persistence, chart + lab re-theme, clean hydration across routes, share cards in both schemes');
 } finally { await b.close(); }
