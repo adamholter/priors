@@ -87,8 +87,10 @@ export function frontierModels(snapshot: Snapshot, n = 30): Set<string> {
 /** First-visit mix, matching the shared General frontier configuration. */
 /** Six months before the given (or current) date — the default model-age cutoff. */
 export function defaultReleasedAfter(from?: string): string {
+  // UTC throughout: local-time month math shifts the date across DST and timezones, so server
+  // (UTC) and browser would pick different cutoffs and render different rankings.
   const d = from ? new Date(from) : new Date();
-  d.setMonth(d.getMonth() - 6);
+  d.setUTCMonth(d.getUTCMonth() - 6);
   return d.toISOString().slice(0, 10);
 }
 

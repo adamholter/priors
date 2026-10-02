@@ -33,8 +33,13 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const dark = useSyncExternalStore(subscribe, readDark, () => false);
   const [mode, setModeState] = useState<ThemeMode>("system");
   useEffect(() => {
+    let m: ThemeMode = "system";
+    try { const saved = localStorage.getItem(THEME_KEY); if (saved === "light" || saved === "dark") m = saved; } catch { /* ignore */ }
     // eslint-disable-next-line react-hooks/set-state-in-effect -- localStorage is client-only
-    try { const m = localStorage.getItem(THEME_KEY); if (m === "light" || m === "dark") setModeState(m); } catch { /* ignore */ }
+    setModeState(m);
+    // A hydration error makes React re-render <html> and drop the attribute the head script set; restore it.
+    const want = m === "dark" || (m === "system" && matchMedia("(prefers-color-scheme: dark)").matches);
+    if (document.documentElement.dataset.theme !== (want ? "dark" : "light")) { document.documentElement.dataset.theme = want ? "dark" : "light"; document.documentElement.style.colorScheme = want ? "dark" : "light"; }
   }, []);
   useEffect(() => {
     if (mode !== "system") return;
