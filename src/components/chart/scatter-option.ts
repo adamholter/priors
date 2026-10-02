@@ -1,7 +1,7 @@
 import type { EChartsOption } from "echarts";
 import type { Lab } from "../../data/types";
 import type { RankedVariant } from "../../engine";
-import { markColor, markLabel, type ChartPalette } from "./theme";
+import { CONTAIN_AXIS_LABELS, insideLabels, markColor, markLabel, type ChartPalette } from "./theme";
 import { chartLabel } from "../../lib/metrics";
 
 export interface ScatterPoint { x: number; r: RankedVariant; /** untransformed value for tooltips/export when x is transformed */ raw?: number }
@@ -48,10 +48,12 @@ function escapeHtml(s: string) { return s.replace(/[&<>"']/g, (c) => ({ "&": "&a
  * server-side share-card rasterizer. `hasTitle` mirrors the page's title row (gallery
  * panels are untitled and float their controls over the plot's empty top margin).
  */
-export function scatterOption({ pts, labs, better, xName, xShort, xUnit = "", scale = "linear", formatX, formatValue, view, pal, narrow, hasTitle = false, tooltipExtra }: {
+export function scatterOption({ pts, labs, better, xName, xShort, xUnit = "", scale = "linear", formatX, formatValue, view, pal, narrow, hasTitle = false, tooltipExtra, width }: {
   pts: ScatterPoint[]; labs: Lab[]; better: "lower" | "higher"; xName: string; xShort?: string; xUnit?: string;
   scale?: "linear" | "log" | "time"; formatX: (x: number) => string; formatValue?: (x: number) => string;
   view: ScatterView; pal: ChartPalette; narrow: boolean; hasTitle?: boolean; tooltipExtra?: (p: ScatterPoint) => string;
+  /** Canvas width at layout time, so point labels near the right edge flip inward instead of clipping. */
+  width?: () => number | undefined;
 }): EChartsOption {
   const frontier = frontierOf(pts, better);
   const color = new Map(labs.map((l) => [l.id, markColor(l.color, pal, l.id)]));
@@ -74,7 +76,7 @@ export function scatterOption({ pts, labs, better, xName, xShort, xUnit = "", sc
         return { name: chartLabel(p.r), value: [p.x, p.r.score], id: p.r.variant.id, itemStyle: { color: color.get(p.r.model.labId), borderColor: front ? pal.ink : pal.bg, borderWidth: 1.5, opacity: show || front ? 1 : 0.8 }, symbolSize: front ? 11 : 9, label: { show }, extra: p };
       }),
       label: narrow ? { ...markLabel(pal), fontSize: 10.5 } : markLabel(pal),
-      labelLayout: { hideOverlap: true, moveOverlap: "shiftY" },
+      labelLayout: insideLabels(width ?? (() => undefined)),
       emphasis: { scale: 1.4, label: { show: true, fontWeight: 600 } },
       clip: true, universalTransition: { enabled: false },
       animationDurationUpdate: 350, animationEasingUpdate: "cubicOut",
@@ -83,7 +85,7 @@ export function scatterOption({ pts, labs, better, xName, xShort, xUnit = "", sc
   const name = narrow && xShort ? xShort : xName;
   return {
     animation: true,
-    grid: narrow ? { left: 38, right: 12, top: hasTitle ? 24 : 48, bottom: 40 } : { left: 48, right: 130, top: hasTitle ? 24 : 48, bottom: 44 },
+    grid: { ...(narrow ? { left: 38, right: 12, top: hasTitle ? 24 : 48, bottom: 40 } : { left: 48, right: 130, top: hasTitle ? 24 : 48, bottom: 44 }), ...CONTAIN_AXIS_LABELS },
     xAxis: {
       type: scale === "linear" ? "value" : scale, name, nameLocation: "end", nameGap: 8, scale: scale === "linear",
       nameTextStyle: { color: pal.grey, fontSize: 11, align: "right", verticalAlign: "top", padding: [26, 0, 0, 0] },

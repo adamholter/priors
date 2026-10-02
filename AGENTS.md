@@ -61,6 +61,7 @@ Personal benchmark index builder. Anyone weights AI-model benchmarks, sees ranki
 - Weight sliders control benchmark *share* (0–70%), not raw weight, so the range is identical for every benchmark regardless of fitted weights.
 - Share links point at `/builder?i=...` directly; `/builder` sets og/twitter meta to `/og?...` so X link unfurls show the card. X web intent cannot attach an image — Download the PNG for that.
 - Metric gallery exists on both `/builder` and profile pages; Time per task is the default-open panel.
+- Chart text must never clip. Grids use fixed pixel margins and the chart div clips overflow, so every grid spreads `CONTAIN_AXIS_LABELS` (ECharts 6 `outerBounds`, shrinks the plot when rotated/long axis labels or axis names would leave the canvas) and every scatter with point labels uses `insideLabels(width)` (flips a label to the left of its mark at the right edge). Embeds inline the same rules. `node scripts/verify-chart-labels.mjs` checks every builder chart (both views, expanded), model pages, desktop/tablet/mobile, light/dark.
 - Not every chart defaults to a Pareto scatter: `MetricChart.defaultKind` makes Output speed, Latency, Output tokens and Uptime open as bars; cost and time per task stay scatter (real trade-offs); release date is time-scale scatter only. A user's explicit toggle is remembered (`kindChosen`); deep links carry `cv=bars|scatter` only when it differs from the default. Every scatter/bars chart has an expand button (`ChartExpand.tsx`) that fills ~95% of the viewport; Escape or the backdrop closes it.
 
 ## Design

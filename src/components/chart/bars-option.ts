@@ -1,6 +1,6 @@
 import type { EChartsOption } from "echarts";
 import type { Lab } from "../../data/types";
-import { markColor, type ChartPalette } from "./theme";
+import { CONTAIN_AXIS_LABELS, markColor, type ChartPalette } from "./theme";
 import { chartLabel } from "../../lib/metrics";
 import type { ScatterPoint } from "./scatter-option";
 
@@ -25,7 +25,7 @@ export function barsOption({ bars, labs, xName, formatValue, pal, narrow }: {
 }): EChartsOption {
   const color = new Map(labs.map((l) => [l.id, l.color]));
   return {
-    grid: { left: 52, right: 16, top: 52, bottom: 96 },
+    grid: { left: 52, right: 16, top: 52, bottom: 96, ...CONTAIN_AXIS_LABELS },
     xAxis: { type: "category", data: bars.map((p) => chartLabel(p.r)), axisLabel: { rotate: 45, interval: 0, fontSize: 10.5, color: pal.ink2, fontFamily: "var(--font-inter), Inter, sans-serif", width: 110, overflow: "truncate" }, axisTick: { show: false } },
     yAxis: { type: "value", name: xName, nameTextStyle: { color: pal.grey, fontSize: 11, align: "left", padding: [0, 0, 0, -30] }, axisLabel: { formatter: (v: number) => compact(formatValue)(v) } },
     tooltip: { trigger: "item", confine: true, formatter: (p: unknown) => { const d = bars[(p as { dataIndex: number }).dataIndex]; return d ? `<div style="font-weight:600">${chartLabel(d.r)}</div><div style="font-family:var(--font-jetbrains);margin-top:4px">${formatValue(value(d))} · index ${d.r.score.toFixed(1)}</div>` : ""; } },

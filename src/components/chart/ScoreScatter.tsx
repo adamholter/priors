@@ -1,7 +1,7 @@
 "use client";
 import { ChartExport, type ExportRow } from "./ChartExport";
 import type { EChartsOption } from "echarts";
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Lab } from "@/data/types";
 import { DARK_PALETTE, markColor, useChartPalette, useEChart } from "./echarts";
 import { scatterHtml, unitOf } from "./embed";
@@ -47,16 +47,18 @@ export function ScoreScatter({ pts, labs, better, xName, xShort, xUnit = "", sca
   extraRows?: (p: ScatterPoint) => ExportRow; tooltipExtra?: (p: ScatterPoint) => string; anchor?: string; linkParams?: ChartLinkParams;
 }) {
   const wrapRef = useRef<HTMLDivElement>(null);
-  const [narrow, setNarrow] = useState(false);
+  const [plotW, setPlotW] = useState(0);
+  const narrow = plotW > 0 && plotW < 560;
   useEffect(() => {
     const el = wrapRef.current; if (!el) return;
-    const ro = new ResizeObserver(([e]) => setNarrow(e.contentRect.width < 560));
+    const ro = new ResizeObserver(([e]) => setPlotW(Math.round(e.contentRect.width / 4) * 4));
     ro.observe(el); return () => ro.disconnect();
   }, []);
   const frontier = useMemo(() => frontierOf(pts, better), [pts, better]);
   const pal = useChartPalette();
-  const option = useMemo<EChartsOption>(() => scatterOption({ pts, labs, better, xName, xShort, xUnit, scale, formatX, formatValue, view, pal, narrow, hasTitle: !!title, tooltipExtra }),
-    [pts, labs, better, view, narrow, xName, xShort, xUnit, scale, formatX, formatValue, tooltipExtra, title, pal]);
+  const plotWidth = useCallback(() => plotW || undefined, [plotW]);
+  const option = useMemo<EChartsOption>(() => scatterOption({ pts, labs, better, xName, xShort, xUnit, scale, formatX, formatValue, view, pal, narrow, hasTitle: !!title, tooltipExtra, width: plotWidth }),
+    [pts, labs, better, view, narrow, xName, xShort, xUnit, scale, formatX, formatValue, tooltipExtra, title, pal, plotWidth]);
   const { ref, chart } = useEChart(option, [option]);
   const expand = useChartExpand(exportName);
   const onFrontierIds = useMemo(() => new Set(frontier.map((p) => p.r.variant.id)), [frontier]);

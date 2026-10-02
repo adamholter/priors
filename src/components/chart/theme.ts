@@ -66,6 +66,27 @@ export function markColor(color: string | undefined, pal: ChartPalette, labId?: 
   return (labId && DARK_LAB_COLORS[labId]) ?? (luminance(c) < 0.06 ? pal.ink2 : c);
 }
 
+/**
+ * Axis labels (rotated bar categories, long tick text) are laid out against fixed grid margins, so a
+ * long first label used to run past the canvas edge and get clipped. Every grid merges this: the plot
+ * shrinks just enough that axis labels stay inside the canvas, and keeps its margins otherwise.
+ */
+export const CONTAIN_AXIS_LABELS = { outerBounds: { left: 10, right: 4, top: 2, bottom: 4 }, outerBoundsContain: "all" as const };
+
+/**
+ * Series labels (point names on scatters) are not part of the grid, so outerBounds can't hold them.
+ * This labelLayout flips a label to the left of its mark when it would cross the right edge, and
+ * nudges it down when it would cross the top. `width` is read at layout time (charts resize).
+ */
+export function insideLabels(width: () => number | undefined, opts: { moveOverlap?: boolean } = {}) {
+  return (p: { rect: { x: number; y: number; width: number; height: number }; labelRect: { x: number; y: number; width: number; height: number } }) => {
+    const w = width(), r = p.labelRect, out: Record<string, unknown> = { hideOverlap: true, ...(opts.moveOverlap === false ? {} : { moveOverlap: "shiftY" }) };
+    if (w && r.x + r.width > w - 4) { out.x = p.rect.x - 6; out.align = "right"; }
+    if (r.y < 2) out.y = 2 + r.height / 2;
+    return out;
+  };
+}
+
 export const markLabel = (pal: ChartPalette) => ({ show: true, position: "right" as const, formatter: "{b}", fontSize: 11.5, color: pal.ink, opacity: 1, distance: 7, backgroundColor: pal.bg + "B8", padding: [2, 3], borderRadius: 2, textBorderColor: pal.bg + "D9", textBorderWidth: 2 });
 export const MARK_LABEL = markLabel(LIGHT_PALETTE);
 
