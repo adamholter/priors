@@ -31,7 +31,7 @@ export function barsOption({ bars, labs, xName, formatValue, pal, narrow }: {
     tooltip: { trigger: "item", confine: true, formatter: (p: unknown) => { const d = bars[(p as { dataIndex: number }).dataIndex]; return d ? `<div style="font-weight:600">${chartLabel(d.r)}</div><div style="font-family:var(--font-jetbrains);margin-top:4px">${formatValue(value(d))} · index ${d.r.score.toFixed(1)}</div>` : ""; } },
     series: [{
       type: "bar", id: "bars", barMaxWidth: 28,
-      data: bars.map((p) => ({ value: value(p), itemStyle: { color: markColor(color.get(p.r.model.labId), pal), borderRadius: [2, 2, 0, 0] } })),
+      data: bars.map((p) => ({ value: value(p), itemStyle: { color: markColor(color.get(p.r.model.labId), pal, p.r.model.labId), borderRadius: [2, 2, 0, 0] } })),
       label: { show: true, position: "top", fontSize: narrow ? 9 : 10, color: pal.ink, fontFamily: "var(--font-jetbrains), monospace", formatter: (p: { value?: unknown }) => compact(formatValue)(Number(p.value)) },
       animationDurationUpdate: 350,
     }],

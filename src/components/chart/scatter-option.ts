@@ -5,7 +5,7 @@ import { markColor, markLabel, type ChartPalette } from "./theme";
 import { chartLabel } from "../../lib/metrics";
 
 export interface ScatterPoint { x: number; r: RankedVariant; /** untransformed value for tooltips/export when x is transformed */ raw?: number }
-export interface ScatterView { density: number; frontier: boolean; links: boolean; kind?: "scatter" | "bars" }
+export interface ScatterView { density: number; frontier: boolean; links: boolean; kind?: "scatter" | "bars"; /** The user picked `kind` (vs. the chart default). */ kindChosen?: boolean }
 export const DEFAULT_VIEW: ScatterView = { density: 0.45, frontier: true, links: true, kind: "scatter" };
 
 /**
@@ -54,7 +54,7 @@ export function scatterOption({ pts, labs, better, xName, xShort, xUnit = "", sc
   view: ScatterView; pal: ChartPalette; narrow: boolean; hasTitle?: boolean; tooltipExtra?: (p: ScatterPoint) => string;
 }): EChartsOption {
   const frontier = frontierOf(pts, better);
-  const color = new Map(labs.map((l) => [l.id, markColor(l.color, pal)]));
+  const color = new Map(labs.map((l) => [l.id, markColor(l.color, pal, l.id)]));
   const onFrontier = new Set(frontier.map((p) => p.r.variant.id));
   const labeled = pickLabels(pts, better, narrow ? view.density * 0.5 : view.density);
   const byModel = new Map<string, ScatterPoint[]>();
@@ -65,7 +65,7 @@ export function scatterOption({ pts, labs, better, xName, xShort, xUnit = "", sc
   // Labeled marks draw last so their labels win overlap resolution.
   const ordered = [...pts].sort((a, b) => Number(labeled.has(a.r.variant.id)) - Number(labeled.has(b.r.variant.id)) || Number(onFrontier.has(a.r.variant.id)) - Number(onFrontier.has(b.r.variant.id)));
   const series: EChartsOption["series"] = [
-    ...links.map((v) => ({ type: "line" as const, id: `link-${v[0].r.model.id}`, data: v.map((p) => ({ id: p.r.variant.id, value: [p.x, p.r.score] })), showSymbol: false, lineStyle: { color: color.get(v[0].r.model.labId), width: 1, opacity: 0.35 }, silent: true, animationDuration: 500, z: 1 })),
+    ...links.map((v) => ({ type: "line" as const, id: `link-${v[0].r.model.id}`, data: v.map((p) => ({ id: p.r.variant.id, value: [p.x, p.r.score] })), showSymbol: false, lineStyle: { color: color.get(v[0].r.model.labId), width: 1, opacity: pal.dark ? 0.45 : 0.35 }, silent: true, animationDuration: 500, z: 1 })),
     ...(view.frontier && frontier.length > 1 ? [{ type: "line" as const, id: "frontier", data: frontier.map((p) => ({ id: p.r.variant.id, value: [p.x, p.r.score] })), showSymbol: false, lineStyle: { color: pal.ink, width: 1.4 }, silent: true, animationDuration: 500, z: 2 }] : []),
     {
       type: "scatter", id: "marks", z: 3,

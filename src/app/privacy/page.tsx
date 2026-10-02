@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ThemeToggle } from "@/components/Theme";
 import { Wordmark } from "@/components/Wordmark";
 
 export const metadata = { title: "Privacy" };
@@ -8,7 +9,7 @@ const UPDATED = "September 23, 2026";
 export default function PrivacyPage() {
   return (
     <main className="min-h-screen">
-      <header className="flex items-center gap-6 px-8 h-14 border-b hairline"><Wordmark /><Link href="/builder" className="text-grey text-[13px] hover:text-ink">Builder</Link></header>
+      <header className="flex items-center gap-6 px-8 h-14 border-b hairline"><Wordmark /><Link href="/builder" className="text-grey text-[13px] hover:text-ink">Builder</Link><span className="ml-auto"><ThemeToggle /></span></header>
       <article className="max-w-[720px] mx-auto px-8 py-12 grid gap-7 text-[15px] leading-[1.7] text-ink-2">
         <div>
           <h1 className="text-[36px] text-ink mb-2">Privacy</h1>

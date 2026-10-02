@@ -8,7 +8,7 @@ export function BenchmarkTable({ snapshot, benchmarkId, limit = 25 }: { snapshot
   const b = snapshot.benchmarks.find((x) => x.id === benchmarkId);
   if (!b) return <p className="cap">Unknown benchmark {benchmarkId}</p>;
   const models = new Map(snapshot.models.map((m) => [m.id, m]));
-  const color = new Map(snapshot.labs.map((l) => [l.id, markColor(l.color, pal)]));
+  const color = new Map(snapshot.labs.map((l) => [l.id, markColor(l.color, pal, l.id)]));
   const rows = snapshot.observations.filter((o) => o.benchmarkId === benchmarkId).sort((x, y) => (b.higherIsBetter ? y.value - x.value : x.value - y.value)).slice(0, limit);
   const max = Math.max(...rows.map((r) => Math.abs(r.value)), 1);
   return (

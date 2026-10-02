@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ThemeToggle } from "./Theme";
 import Link from "next/link";
 import type { Snapshot } from "@/data/types";
 import { chartVariantMode, computeIndex, defaultConfig, selectVariants, type IndexConfig } from "@/engine";
@@ -9,6 +10,7 @@ import { hiddenIds, toggleVisibility, SHOW_ALL, type Vis } from "@/lib/model-vis
 import { WeightsPanel } from "./WeightsPanel";
 import { Rankings } from "./Rankings";
 import { ParetoChart } from "./chart/ParetoChart";
+import { useLabColor } from "./chart/echarts";
 import { useScatterView } from "./chart/ScoreScatter";
 import { Wordmark } from "./Wordmark";
 import { IndexTabs } from "./IndexTabs";
@@ -50,15 +52,16 @@ export function Builder({ snapshot: base, dates, initialIndices }: { snapshot: S
   // Settings-gear model picker: ranked models first (rank order), then the rest
   // of the candidate pool, then any excluded ids resolved from the catalog so
   // they can be re-checked.
+  const labColor = useLabColor();
   const pickerModels = useMemo(() => {
-    const col = new Map(snapshot.labs.map((l) => [l.id, l.color]));
+    const col = new Map(snapshot.labs.map((l) => [l.id, labColor(l.id, l.color)]));
     const seen = new Map<string, { id: string; name: string; color?: string }>();
     const add = (id: string) => { if (!seen.has(id)) { const m = snapshot.models.find((x) => x.id === id); if (m) seen.set(id, { id, name: m.name, color: col.get(m.labId) }); } };
     for (const r of result.ranked) if (!seen.has(r.model.id)) seen.set(r.model.id, { id: r.model.id, name: r.model.name, color: col.get(r.model.labId) });
     for (const id of result.candidateModelIds) add(id);
     for (const id of active.excludeModels ?? []) add(id);
     return [...seen.values()];
-  }, [result, active.excludeModels, snapshot]);
+  }, [result, active.excludeModels, snapshot, labColor]);
   const pickerIds = useMemo(() => pickerModels.map((m) => m.id), [pickerModels]);
   const excludedIds = useMemo(() => hiddenIds(active, pickerIds), [active, pickerIds]);
   const setVisibility = useCallback((vis: Vis) => setIndices((list) => list.map((i) => i.id === activeId ? { ...i, ...vis } : i)), [activeId]);
@@ -100,6 +103,7 @@ export function Builder({ snapshot: base, dates, initialIndices }: { snapshot: S
           <DatePicker current={snapshot.date} dates={[...new Set([snapshot.date, ...dates])].sort().reverse()} />
           <ShareCards indices={indices} active={active} date={snapshot.date} />
           <HeaderAuth indices={indices} />
+          <ThemeToggle />
         </div>
       </header>
 

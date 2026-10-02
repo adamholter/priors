@@ -109,7 +109,7 @@ export function Bracket({ seeds, models, labs, onFinish, onList }: { seeds: stri
     if (leaving || !lean || lean === "tie") return undefined;
     const towardCenter = side === "left" ? 1 : -1;
     return lean === side
-      ? { transform: `translate(${towardCenter * pull * 10}px, ${-6 * pull}px) scale(${1 + 0.035 * pull})`, borderColor: armed ? "#2F4FB0" : `rgba(47,79,176,${0.25 + 0.5 * pull})`, boxShadow: `0 0 0 ${armed ? 2 : pull}px rgba(47,79,176,${0.35 + 0.65 * pull}), 0 ${12 + 14 * pull}px 40px -22px rgba(47,79,176,${0.5 * pull})` }
+      ? { transform: `translate(${towardCenter * pull * 10}px, ${-6 * pull}px) scale(${1 + 0.035 * pull})`, borderColor: armed ? "var(--indigo)" : `color-mix(in srgb, var(--indigo) ${Math.round(25 + 50 * pull)}%, transparent)`, boxShadow: `0 0 0 ${armed ? 2 : pull}px color-mix(in srgb, var(--indigo) ${Math.round(35 + 65 * pull)}%, transparent), 0 ${12 + 14 * pull}px 40px -22px color-mix(in srgb, var(--indigo-fill) ${Math.round(50 * pull)}%, transparent)` }
       : { transform: `translate(${-towardCenter * pull * 14}px, ${4 * pull}px) scale(${1 - 0.06 * pull})`, opacity: 1 - 0.6 * pull, filter: `grayscale(${pull})` };
   };
   const card = (id: string, side: "left" | "right") => {

@@ -55,13 +55,14 @@ function rasterize(svg: string, bg: string): Buffer {
  * Rasterize a chart exactly as the site's PNG export draws it: the shared ECharts option rendered
  * SSR→SVG, wrapped in the export frame (serif title top-left; footer moved right because X's title
  * pill covers bottom-left), then resvg → 2400×1260 PNG with the vendored OFL fonts.
- * `cv=bars` renders the bars view; time-scale charts stay scatter.
+ * `cv=bars|scatter` overrides the chart's default view; time-scale charts stay scatter.
  */
 export async function renderChartPng(spec: ChartSpec, labs: Lab[], pal: ChartPalette, cv?: string): Promise<Buffer | null> {
   const theme = themeFor(pal, { sans: SANS_STATIC, mono: MONO_STATIC });
   const chart = echarts.init(null, theme, { renderer: "svg", ssr: true, width: CHART_W, height: CHART_H });
   let svg: string;
-  if (cv === "bars" && spec.chart.scale !== "time") {
+  const kind = cv === "bars" || cv === "scatter" ? cv : spec.chart.defaultKind ?? "scatter";
+  if (kind === "bars" && spec.chart.scale !== "time") {
     const bars = selectBars(spec.pts, spec.chart.better, 24);
     if (!bars.length) return null;
     const opt = barsOption({ bars, labs, xName: spec.chart.xName.replace(", log", ""), formatValue: spec.chart === costChart ? costChart.formatX : spec.chart.formatValue ?? spec.chart.formatX, pal, narrow: false });

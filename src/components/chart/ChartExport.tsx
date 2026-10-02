@@ -79,6 +79,6 @@ export function ChartExport({ name, getSvg, getRows, getHtml, frame, className =
         {formats.map((format) => <button key={format} type="button" role="menuitem" disabled={busy} onClick={() => download(format)}>{format.toUpperCase()}</button>)}
       </div>
     </>}
-    {error && <span role="alert" className="absolute right-0 top-full mt-1 whitespace-nowrap text-[12px] text-red-700 bg-white px-1.5 z-20">{error}</span>}
+    {error && <span role="alert" className="absolute right-0 top-full mt-1 whitespace-nowrap text-[12px] text-[color:var(--danger)] bg-white px-1.5 z-20">{error}</span>}
   </div>;
 }

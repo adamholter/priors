@@ -137,7 +137,7 @@ function ShareCardsContent({ indices, active, date, profile, pageUrl, defaultDes
         <div className="my-4 flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm">{String(SHARE_DESIGNS.findIndex((d) => d.id === design) + 1).padStart(2, "0")} / {selected.name}</p>
           <div className="flex flex-wrap gap-2">
-            <button type="button" className="btn-quiet inline-flex items-center gap-1.5 !border-black !bg-black !text-white hover:opacity-85" onClick={shareToX}><XLogo />Share on X</button>
+            <button type="button" className="btn-quiet inline-flex items-center gap-1.5 !border-black !bg-black !text-[#fff] hover:opacity-85" onClick={shareToX}><XLogo />Share on X</button>
             <button type="button" className="btn-quiet inline-flex items-center gap-1.5" onClick={copy}><CopyIcon />Copy link</button>
             <a className="btn-quiet inline-flex items-center gap-1.5" href={selectedUrl} download={`priors-${design}.png`}><DownloadIcon />Download</a>
           </div>

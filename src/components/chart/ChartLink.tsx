@@ -4,8 +4,8 @@ import { anchorOf } from "@/lib/metrics";
 
 export { anchorOf };
 
-/** Chart-view params carried by deep links: `cv=bars` for the bars view, `cm=` for effort mode. */
-export interface ChartLinkParams { cv?: "bars"; cm?: "best" | "all" }
+/** Chart-view params carried by deep links: `cv=bars|scatter` when it differs from the chart default, `cm=` for effort mode. */
+export interface ChartLinkParams { cv?: "bars" | "scatter"; cm?: "best" | "all" }
 
 function applyParams(url: URL, id: string, params?: ChartLinkParams) {
   url.searchParams.set("c", id);

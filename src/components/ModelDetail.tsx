@@ -3,17 +3,19 @@ import type { Snapshot } from "@/data/types";
 import type { IndexResult, RankedVariant } from "@/engine";
 import Link from "next/link";
 import { variantLabel } from "./chart/ParetoChart";
+import { useLabColor } from "./chart/echarts";
 
 /** Per-benchmark breakdown for one ranked variant. */
 export function ModelDetail({ r, snapshot, result, onClose }: { r: RankedVariant; snapshot: Snapshot; result: IndexResult; onClose?: () => void }) {
   const benches = new Map(snapshot.benchmarks.map((b) => [b.id, b]));
   const lab = snapshot.labs.find((l) => l.id === r.model.labId);
+  const labColor = useLabColor();
   const siblings = result.ranked.filter((x) => x.model.id === r.model.id && x.variant.id !== r.variant.id);
   return (
     <div className="border hairline rounded-md bg-white p-5">
       <div className="flex items-baseline justify-between mb-3">
         <div className="flex items-baseline gap-3">
-          <span className="inline-block w-2.5 h-2.5 rounded-full translate-y-[-1px]" style={{ background: lab?.color }} />
+          <span className="inline-block w-2.5 h-2.5 rounded-full translate-y-[-1px]" style={{ background: labColor(lab?.id, lab?.color) }} />
           <h3 className="text-[20px]">{variantLabel(r)}</h3>
           <span className="cap">{lab?.name}{r.model.releaseDate && ` · ${r.model.releaseDate}`}</span>
         </div>

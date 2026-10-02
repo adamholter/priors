@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { useLabColor } from "@/components/chart/echarts";
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { Snapshot } from "@/data/types";
 import { defaultConfig } from "@/engine";
@@ -22,7 +23,8 @@ export function Intro({ snapshot, lineup, dialogRef, onClose }: { snapshot: Snap
   const [reduced, setReduced] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const models = useMemo(() => new Map(snapshot.models.map(m => [m.id, m])), [snapshot]);
-  const colors = useMemo(() => new Map(snapshot.labs.map(l => [l.id, l.color])), [snapshot]);
+  const labColor = useLabColor();
+  const colors = useMemo(() => new Map(snapshot.labs.map(l => [l.id, labColor(l.id, l.color)])), [snapshot, labColor]);
   const rows = lineup.slice(0, 4).map(id => models.get(id)).filter(m => !!m);
   const mix = useMemo(() => {
     const w = Object.entries(defaultConfig(snapshot).weights).sort((a, b) => b[1] - a[1]).slice(0, 4);

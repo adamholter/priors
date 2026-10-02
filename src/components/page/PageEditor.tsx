@@ -61,7 +61,7 @@ export function PageEditor({ profile, onChange, snapshot, editing }: { profile: 
     <>
       <button type="button" className="btn" onClick={() => setOpen(!open)}>{open ? "Close editor" : "Edit page"}</button>
       {open && mounted && createPortal(
-        <aside className="page-editor fixed top-0 right-0 bottom-0 w-[400px] max-w-full bg-white border-l hairline overflow-auto p-5 grid gap-7 content-start text-[13px] z-50 shadow-[-24px_0_60px_-30px_#1a1a1a40]" aria-label="Edit page">
+        <aside className="page-editor fixed top-0 right-0 bottom-0 w-[400px] max-w-full bg-white border-l hairline overflow-auto p-5 grid gap-7 content-start text-[13px] z-50 shadow-[-24px_0_60px_-30px_var(--shadow)]" aria-label="Edit page">
           <div className="flex items-center justify-between gap-3 sticky -top-5 -mx-5 -mt-5 px-5 py-4 bg-white border-b hairline z-10"><h2 className="text-[22px]">Edit page</h2><div className="flex gap-2"><button type="button" className="btn" disabled={!dirty || saving} onClick={save}>{saving ? "Saving…" : dirty ? "Save" : "Saved"}</button><button type="button" className="btn-quiet" onClick={() => setOpen(false)} aria-label="Close editor">Close</button></div></div>
 
           <Group title="Profile">

@@ -19,6 +19,9 @@ export interface MetricChart {
   formatX: (x: number) => string;
   formatValue?: (x: number) => string;
   aria: string;
+  /** Chart shown before the user picks one. Bars for single metrics where the trade-off against
+   *  index score isn't the point; the scatter (with its Pareto frontier) stays a click away. */
+  defaultKind?: "bars" | "scatter";
 }
 
 export interface MetricPanel {
@@ -71,13 +74,27 @@ export function metricPanels(snapshot: Snapshot, ranked: RankedVariant[], timeSo
 
   panels.push({ id: "tpt", title: "Time per task", desc: taskMetricDescription(timeSource, "time"), open: true, chart: { better: "lower", points: decode, xLabel: "s/task", xName: "Time per task (s)", scale: "log", secs: true, formatX: secs, aria: timeSource === "aa" ? "Index score versus estimated time per task" : "Index score versus average task-run duration" } });
   if (ranked.some((r) => r.speed)) panels.push({ id: "speed", title: "Output speed", desc: "tokens per second", open: !has(decode), speed: true });
-  if (has(ttft)) panels.push({ id: "latency", title: "Latency", desc: "seconds to first token", chart: { better: "lower", points: ttft, xLabel: "s", xName: "Time to first token (s)", scale: "log", secs: true, formatX: fmt("s"), aria: "Index score versus time to first token" } });
-  if (has(tokens)) panels.push({ id: "tokens", title: "Output tokens", desc: "tokens generated per task", chart: { better: "lower", points: tokens, xLabel: "tok", xName: "Output tokens per task", scale: "log", formatX: (x) => x >= 1000 ? `${(x / 1000).toFixed(0)}k` : `${x.toFixed(0)}`, aria: "Index score versus output tokens per task" } });
+  if (has(ttft)) panels.push({ id: "latency", title: "Latency", desc: "seconds to first token", chart: { better: "lower", points: ttft, xLabel: "s", xName: "Time to first token (s)", scale: "log", secs: true, formatX: fmt("s"), aria: "Index score versus time to first token", defaultKind: "bars" } });
+  if (has(tokens)) panels.push({ id: "tokens", title: "Output tokens", desc: "tokens generated per task", chart: { better: "lower", points: tokens, xLabel: "tok", xName: "Output tokens per task", scale: "log", formatX: (x) => x >= 1000 ? `${(x / 1000).toFixed(0)}k` : `${x.toFixed(0)}`, aria: "Index score versus output tokens per task", defaultKind: "bars" } });
   if (has(dates)) panels.push({ id: "date", title: "Release date", desc: "when each model shipped", chart: { better: "higher", points: dates, xLabel: "", xName: "Release date", scale: "time", formatX: fmtDate, aria: "Index score versus model release date" } });
   if (has(uptime)) {
     // "Nines" axis: plot -log10(downtime) so 90%, 99%, 99.9% get equal spacing.
     const nines = (rows: RankedVariant[]) => uptime(rows).map((p) => ({ r: p.r, raw: p.x, x: -Math.log10(Math.max(0.01, 100 - p.x)) }));
-    panels.push({ id: "uptime", title: "Uptime", desc: "OpenRouter provider uptime, trailing 7 days", chart: { better: "higher", points: nines, xLabel: "", xName: "Uptime (%)", formatX: (t) => `${parseFloat((100 - 10 ** -t).toFixed(3))}%`, formatValue: fmt("%"), aria: "Index score versus OpenRouter uptime" } });
+    panels.push({ id: "uptime", title: "Uptime", desc: "OpenRouter provider uptime, trailing 7 days", chart: { better: "higher", points: nines, xLabel: "", xName: "Uptime (%)", formatX: (t) => `${parseFloat((100 - 10 ** -t).toFixed(3))}%`, formatValue: fmt("%"), aria: "Index score versus OpenRouter uptime", defaultKind: "bars" } });
+  }
+  // Model-level (no effort): one point per model, on its best-scoring ranked variant.
+  const usageByModel = new Map<string, number>();
+  const variantModel = new Map(snapshot.variants.map((v) => [v.id, v.modelId]));
+  for (const o of snapshot.observations) if (o.benchmarkId === "t3-usage-share" && o.value > 0) { const m = variantModel.get(o.variantId) ?? o.variantId.split("@")[0]; usageByModel.set(m, Math.max(usageByModel.get(m) ?? 0, o.value)); }
+  const usage = (rows: RankedVariant[]): MetricPoint[] => {
+    const best = new Map<string, RankedVariant>();
+    for (const r of rows) if (usageByModel.has(r.model.id) && (!best.has(r.model.id) || r.score > best.get(r.model.id)!.score)) best.set(r.model.id, r);
+    return [...best.values()].map((r) => ({ x: usageByModel.get(r.model.id)!, r }));
+  };
+  if (has(usage)) {
+    const pct = (x: number) => `${x >= 10 ? x.toFixed(0) : x >= 0.1 ? x.toFixed(1) : x.toFixed(2)}%`;
+    const window = snapshot.observations.find((o) => o.benchmarkId === "t3-usage-share")?.details?.window;
+    panels.push({ id: "usage", title: "Usage", desc: `share of turns in T3 Code${typeof window === "string" ? `, ${window.replace(" to ", " – ")}` : ""} · via Slopalytics`, chart: { better: "higher", points: usage, xLabel: "%", xName: "Share of T3 Code turns (%)", scale: "log", formatX: pct, formatValue: pct, aria: "Index score versus T3 Code usage share", defaultKind: "bars" } });
   }
   return panels;
 }
@@ -118,6 +135,7 @@ export const speedChart: MetricChart = {
   xName: "Output speed (tok/s)",
   formatX: (v) => `${Math.round(v)}`,
   aria: "Index score versus output speed",
+  defaultKind: "bars",
 };
 
 /** Canonical chart-link ids (ChartLink anchors) → card titles. `rankings` uses the index name. */

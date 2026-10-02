@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef } from "react";
 import type { Benchmark, Snapshot } from "@/data/types";
+import { useLabColor } from "./chart/echarts";
 
 const CATS: Record<string, string> = { coding: "Coding", agentic: "Agentic", reasoning: "Reasoning", knowledge: "Knowledge", math: "Math", "long-context": "Long context", instruction: "Instruction following", creative: "Creative", safety: "Safety", economics: "Economics", composite: "Composite index", speed: "Speed", cost: "Cost", reliability: "Reliability", other: "Other" };
 const UNIT: Record<string, string> = { percent: "Percent", elo: "Elo rating", score: "Score", usd: "US dollars", seconds: "Seconds", count: "Count" };
@@ -21,6 +22,7 @@ function format(b: Benchmark, v: number) {
 
 /** A benchmark's own leaderboard (best configuration per model, as published), what it measures, and its source. */
 export function BenchmarkInfo({ snapshot, benchmarkId, inMix, onAdd, onClose }: { snapshot: Snapshot; benchmarkId: string | null; inMix?: boolean; onAdd?: (id: string) => void; onClose: () => void }) {
+  const labColor = useLabColor();
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => { const d = ref.current; if (!d) return; if (benchmarkId && !d.open) d.showModal(); if (!benchmarkId && d.open) d.close(); }, [benchmarkId]);
   const b = snapshot.benchmarks.find((x) => x.id === benchmarkId);
@@ -28,7 +30,7 @@ export function BenchmarkInfo({ snapshot, benchmarkId, inMix, onAdd, onClose }: 
     if (!b) return null;
     const variants = new Map(snapshot.variants.map((v) => [v.id, v]));
     const models = new Map(snapshot.models.map((m) => [m.id, m]));
-    const color = new Map(snapshot.labs.map((l) => [l.id, l.color]));
+    const color = new Map(snapshot.labs.map((l) => [l.id, labColor(l.id, l.color)]));
     const best = new Map<string, { value: number; effort: string }>();
     for (const o of snapshot.observations) {
       if (o.benchmarkId !== b.id) continue;
@@ -43,7 +45,7 @@ export function BenchmarkInfo({ snapshot, benchmarkId, inMix, onAdd, onClose }: 
     const width = (v: number) => Math.max(3, hi > lo ? ((b.higherIsBetter ? v - lo : hi - v) / (hi - lo)) * 100 : 50);
     let host = ""; try { host = new URL(b.url).hostname.replace(/^www\./, ""); } catch { /* no url */ }
     return { top, total: rows.length, width, host };
-  }, [b, snapshot]);
+  }, [b, snapshot, labColor]);
 
   return <dialog ref={ref} className="bench-dialog" aria-labelledby="bench-title" onClose={onClose} onClick={(e) => { if (e.target === e.currentTarget) ref.current?.close(); }}>
     {b && data && <div className="p-6 sm:p-7">

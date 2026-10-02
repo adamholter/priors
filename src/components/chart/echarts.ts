@@ -1,12 +1,17 @@
 "use client";
-import { createContext, useContext, useEffect, useRef } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef } from "react";
 import type { EChartsOption } from "echarts";
-import { echarts, themeFor, LIGHT_PALETTE, type ChartPalette } from "./theme";
+import { echarts, themeFor, markColor, LIGHT_PALETTE, type ChartPalette } from "./theme";
 
 export * from "./theme";
 
 export const ChartPaletteContext = createContext<ChartPalette>(LIGHT_PALETTE);
 export const useChartPalette = () => useContext(ChartPaletteContext);
+/** Lab color for DOM marks (bars, dots, swatches) under the current palette. */
+export function useLabColor() {
+  const pal = useChartPalette();
+  return useCallback((labId: string | undefined, color: string | undefined) => markColor(color, pal, labId), [pal]);
+}
 
 /** Mounts an ECharts instance and keeps it in sync with `option` (merge mode, so transitions animate). */
 export function useEChart(option: EChartsOption, deps: unknown[] = [], onReady?: (chart: echarts.ECharts) => void) {

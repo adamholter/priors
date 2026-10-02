@@ -74,8 +74,8 @@ export function ChartSettings({ label, mode, onChange, releasedAfter, onChangeRe
           <div className="flex items-baseline justify-between mb-1.5"><label htmlFor={`${id}-lab`} className="text-[12px] text-ink-2">Labels</label><span className="cap">{view.density >= 0.999 ? "all" : view.density <= 0.001 ? "frontier only" : `${Math.round(view.density * 100)}%`}</span></div>
           <input id={`${id}-lab`} type="range" min={0} max={100} step={5} value={Math.round(view.density * 100)} onChange={(e) => onView({ ...view, density: Number(e.target.value) / 100 })} className="w-full h-[3px]" aria-label={`${label} label density`} />
           <div className="flex justify-between cap mt-1"><span>Fewer</span><span>More</span></div>
-          <label className="flex items-center gap-2 mt-2.5 text-[12.5px] cursor-pointer"><input type="checkbox" className="accent-[#2F4FB0]" checked={view.frontier} onChange={(e) => onView({ ...view, frontier: e.target.checked })} />Pareto frontier</label>
-          <label className="flex items-center gap-2 mt-1.5 text-[12.5px] cursor-pointer"><input type="checkbox" className="accent-[#2F4FB0]" checked={view.links} onChange={(e) => onView({ ...view, links: e.target.checked })} />Connect a model&rsquo;s efforts</label>
+          <label className="flex items-center gap-2 mt-2.5 text-[12.5px] cursor-pointer"><input type="checkbox" className="accent-indigo" checked={view.frontier} onChange={(e) => onView({ ...view, frontier: e.target.checked })} />Pareto frontier</label>
+          <label className="flex items-center gap-2 mt-1.5 text-[12.5px] cursor-pointer"><input type="checkbox" className="accent-indigo" checked={view.links} onChange={(e) => onView({ ...view, links: e.target.checked })} />Connect a model&rsquo;s efforts</label>
         </fieldset>}
         {onChangeReleased && <>
           <label htmlFor={`${id}-rel`} className="block text-[12px] text-ink-2 mt-3 mb-2">Models released</label>
@@ -92,7 +92,7 @@ export function ChartSettings({ label, mode, onChange, releasedAfter, onChangeRe
           <div className="max-h-52 overflow-y-auto overscroll-contain -mx-1 px-1">
             {filtered?.map((m) => (
               <label key={m.id} className="flex items-center gap-2 py-[3px] text-[12.5px] cursor-pointer rounded-sm hover:bg-bone">
-                <input type="checkbox" className="accent-[#2F4FB0] shrink-0" checked={!excluded?.has(m.id)} onChange={() => onToggleModel(m.id)} />
+                <input type="checkbox" className="accent-indigo shrink-0" checked={!excluded?.has(m.id)} onChange={() => onToggleModel(m.id)} />
                 {m.color && <i className="w-2 h-2 rounded-full shrink-0" style={{ background: m.color }} aria-hidden="true" />}
                 <span className="truncate">{m.name}</span>
               </label>

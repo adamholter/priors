@@ -1,12 +1,13 @@
 "use client";
 import Link from "next/link";
+import { ThemeToggle } from "../Theme";
 import { useEffect, useMemo, useState } from "react";
 import type { EChartsOption } from "echarts";
 import type { Benchmark, Snapshot } from "@/data/types";
 import { computeIndex, defaultConfig, type IndexConfig, type RankedVariant } from "@/engine";
 import { decodeIndices, encodeIndices } from "@/lib/url";
 import { Wordmark } from "../Wordmark";
-import { useEChart } from "../chart/echarts";
+import { markColor, useChartPalette, useEChart } from "../chart/echarts";
 import { BenchmarkInfo, InfoIcon } from "../BenchmarkInfo";
 
 type Row = { variantId: string; modelId: string; effort: string; value: number; cost?: number; rank: number };
@@ -32,7 +33,9 @@ export function ModelPage({ snapshot, modelId }: { snapshot: Snapshot; modelId: 
   const model = snapshot.models.find((m) => m.id === modelId)!;
   const lab = snapshot.labs.find((l) => l.id === model.labId);
   const names = useMemo(() => new Map(snapshot.models.map((m) => [m.id, m.name])), [snapshot]);
-  const color = useMemo(() => ({ lab: lab?.color ?? "#2F4FB0", name: (id: string) => names.get(id) ?? id }), [lab, names]);
+  const pal = useChartPalette();
+  const labC = markColor(lab?.color ?? "#2F4FB0", pal, lab?.id);
+  const color = useMemo(() => ({ lab: labC, name: (id: string) => names.get(id) ?? id }), [labC, names]);
   const mix = useCachedMix(snapshot);
   const result = useMemo(() => computeIndex(snapshot, { ...mix, variants: "all" }), [snapshot, mix]);
   // Cost per task is measured per variant; the full-pool "all time" index supplies it for every variant.
@@ -66,11 +69,11 @@ export function ModelPage({ snapshot, modelId }: { snapshot: Snapshot; modelId: 
 
   return (
     <main className="min-h-screen">
-      <header className="flex items-center gap-6 px-4 sm:px-8 h-14 border-b hairline"><Wordmark /><Link href={`/builder?${encodeIndices([mix])}` as "/builder"} className="text-grey text-[13px] hover:text-ink">Builder</Link></header>
+      <header className="flex items-center gap-6 px-4 sm:px-8 h-14 border-b hairline"><Wordmark /><Link href={`/builder?${encodeIndices([mix])}` as "/builder"} className="text-grey text-[13px] hover:text-ink">Builder</Link><span className="ml-auto"><ThemeToggle /></span></header>
       <div className="max-w-[1100px] mx-auto px-5 sm:px-8 py-10 grid gap-12">
         <section className="grid gap-5 sm:grid-cols-[1fr_auto] items-end">
           <div>
-            <p className="cap flex items-center gap-2"><i className="inline-block w-2.5 h-2.5 rounded-full" style={{ background: lab?.color }} />{lab?.name}{model.releaseDate && ` · released ${model.releaseDate}`}</p>
+            <p className="cap flex items-center gap-2"><i className="inline-block w-2.5 h-2.5 rounded-full" style={{ background: labC }} />{lab?.name}{model.releaseDate && ` · released ${model.releaseDate}`}</p>
             <h1 className="text-[44px] leading-[1.05] mt-2">{model.name}</h1>
             <p className="text-[13.5px] text-ink-2 mt-2">Measured on {measured.length} benchmarks{mine.length > 1 ? ` across ${mine.length} reasoning efforts` : ""}.</p>
           </div>
@@ -83,7 +86,7 @@ export function ModelPage({ snapshot, modelId }: { snapshot: Snapshot; modelId: 
 
         {mine.length > 1 && <section className="border-t-2 border-ink pt-3">
           <h2 className="text-[20px] mb-2">Reasoning efforts in your mix</h2>
-          <div className="grid gap-[5px]">{mine.map((r) => <EffortRow key={r.variant.id} r={r} rank={shown.ranked.indexOf(r) + 1} total={shown.ranked.length} max={mine[0].score} color={lab?.color} />)}</div>
+          <div className="grid gap-[5px]">{mine.map((r) => <EffortRow key={r.variant.id} r={r} rank={shown.ranked.indexOf(r) + 1} total={shown.ranked.length} max={mine[0].score} color={labC} />)}</div>
         </section>}
 
         <section className="grid gap-4">
@@ -136,21 +139,22 @@ function BenchCard({ b, rows, modelId, color, onInfo }: { b: Benchmark; rows: Ro
 }
 
 function BenchScatter({ b, rows, modelId, color }: { b: Benchmark; rows: Row[]; modelId: string; color: { lab: string; name: (id: string) => string } }) {
+  const pal = useChartPalette();
   const option = useMemo<EChartsOption>(() => {
     const mine = rows.filter((r) => r.modelId === modelId).sort((a, c) => a.cost! - c.cost!), rest = rows.filter((r) => r.modelId !== modelId);
     const labColor = color.lab;
     return {
       grid: { left: 44, right: 70, top: 14, bottom: 34 },
-      xAxis: { type: "log", name: "$ / task", nameLocation: "end", nameGap: 6, nameTextStyle: { color: "#8A8A80", fontSize: 10, align: "right", verticalAlign: "top", padding: [22, 0, 0, 0] }, axisLabel: { formatter: (v: number) => `$${v >= 1 ? Math.round(v) : v.toFixed(2)}`, hideOverlap: true, showMinLabel: false, showMaxLabel: false }, min: (e: { min: number }) => e.min / 1.5, max: (e: { max: number }) => e.max * 1.5 },
+      xAxis: { type: "log", name: "$ / task", nameLocation: "end", nameGap: 6, nameTextStyle: { color: pal.grey, fontSize: 10, align: "right", verticalAlign: "top", padding: [22, 0, 0, 0] }, axisLabel: { formatter: (v: number) => `$${v >= 1 ? Math.round(v) : v.toFixed(2)}`, hideOverlap: true, showMinLabel: false, showMaxLabel: false }, min: (e: { min: number }) => e.min / 1.5, max: (e: { max: number }) => e.max * 1.5 },
       yAxis: { type: "value", scale: true, axisLabel: { formatter: (v: number) => b.unit === "percent" ? `${v}%` : `${v}` } },
       tooltip: { trigger: "item", confine: true, formatter: (p: unknown) => { const d = (p as { data?: { r?: Row } }).data?.r; return d ? `<b>${color.name(d.modelId)} ${d.effort}</b><br/><span style="font-family:var(--font-jetbrains)">${fmt(b, d.value)} · $${d.cost!.toFixed(2)}/task · #${d.rank}</span>` : ""; } },
       series: [
-        { type: "scatter", id: "ghost", symbolSize: 7, data: rest.map((r) => ({ value: [r.cost, r.value], r })), itemStyle: { color: "#A3A39B", opacity: 0.28 }, emphasis: { itemStyle: { opacity: 0.9 } }, z: 1 },
+        { type: "scatter", id: "ghost", symbolSize: 7, data: rest.map((r) => ({ value: [r.cost, r.value], r })), itemStyle: { color: pal.dark ? "#8C8B83" : "#A3A39B", opacity: pal.dark ? 0.32 : 0.28 }, emphasis: { itemStyle: { opacity: 0.9 } }, z: 1 },
         { type: "line", id: "mine-line", data: mine.map((r) => [r.cost, r.value]), showSymbol: false, lineStyle: { color: labColor, width: 1.2, opacity: 0.6 }, silent: true, z: 2 },
-        { type: "scatter", id: "mine", symbolSize: 11, data: mine.map((r) => ({ value: [r.cost, r.value], r, name: r.effort })), itemStyle: { color: labColor, borderColor: "#1A1A1A", borderWidth: 1.2 }, label: { show: true, position: "right", formatter: "{b}", fontSize: 11, color: "#1A1A1A", distance: 6, backgroundColor: "rgba(251,251,249,.8)", padding: [1, 3] }, labelLayout: { hideOverlap: true, moveOverlap: "shiftY" }, z: 3 },
+        { type: "scatter", id: "mine", symbolSize: 11, data: mine.map((r) => ({ value: [r.cost, r.value], r, name: r.effort })), itemStyle: { color: labColor, borderColor: pal.ink, borderWidth: 1.2 }, label: { show: true, position: "right", formatter: "{b}", fontSize: 11, color: pal.ink, distance: 6, backgroundColor: pal.bg + "CC", padding: [1, 3] }, labelLayout: { hideOverlap: true, moveOverlap: "shiftY" }, z: 3 },
       ],
     };
-  }, [b, rows, modelId, color]);
+  }, [b, rows, modelId, color, pal]);
   const { ref } = useEChart(option, [option]);
   return <div ref={ref} role="img" aria-label={`${b.name} score versus cost per task`} style={{ width: "100%", height: 230 }} />;
 }

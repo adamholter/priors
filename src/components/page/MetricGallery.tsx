@@ -30,7 +30,9 @@ export function MetricGallery({ ranked, mode = "all", snapshot, labs, settings, 
 /** One gallery chart with its own effort mode and display settings; shared index filters pass through. */
 function GalleryChart({ id, anchor, title, chart, speed, ranked, defaultMode, labs, settings, dataSource }: { id: string; anchor: string; title: string; chart?: MetricChart; speed?: boolean; ranked: RankedVariant[]; defaultMode: "all" | "best"; labs: Lab[]; settings?: SharedSettings; dataSource?: React.ComponentProps<typeof ChartSettings>["dataSource"] }) {
   const [mode, setMode] = useState<"all" | "best">(defaultMode);
-  const [view, setView] = useScatterView(`gallery-${id}`);
+  const metric = speed ? speedChart : chart;
+  const defaultKind = metric?.scale === "time" ? "scatter" : metric?.defaultKind ?? "scatter";
+  const [view, setView] = useScatterView(`gallery-${id}`, defaultKind);
   const bars = view.kind === "bars" && chart?.scale !== "time";
   // Deep links carry the chart view (`cv=bars`, `cm=best|all`). Captured once per mount —
   // mirror effects may rewrite the URL before init effects run (and StrictMode mounts twice).
@@ -45,7 +47,8 @@ function GalleryChart({ id, anchor, title, chart, speed, ranked, defaultMode, la
   // Apply the linked view for this session only (localStorage defaults untouched).
   useEffect(() => {
     if (!linked.linked) return;
-    setView({ ...view, kind: linked.cv === "bars" && chart?.scale !== "time" ? "bars" : "scatter" }, false);
+    const kind = linked.cv === "bars" || linked.cv === "scatter" ? linked.cv : defaultKind;
+    setView({ ...view, kind: kind === "bars" && chart?.scale !== "time" ? "bars" : "scatter" }, false);
     // eslint-disable-next-line react-hooks/set-state-in-effect -- URL deep-link init
     if (linked.cm === "best" || linked.cm === "all") setMode(linked.cm);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -54,12 +57,13 @@ function GalleryChart({ id, anchor, title, chart, speed, ranked, defaultMode, la
   useEffect(() => {
     const url = new URL(window.location.href);
     if (decodeURIComponent(url.hash.slice(1)) !== anchor && url.searchParams.get("c") !== anchor) return;
-    if (bars) url.searchParams.set("cv", "bars"); else url.searchParams.delete("cv");
+    const kind = bars ? "bars" : "scatter";
+    if (kind !== defaultKind) url.searchParams.set("cv", kind); else url.searchParams.delete("cv");
     if (mode !== defaultMode) url.searchParams.set("cm", mode); else url.searchParams.delete("cm");
     window.history.replaceState(null, "", url.toString());
-  }, [bars, mode, anchor, defaultMode]);
-  const linkParams = { cv: bars ? ("bars" as const) : undefined, cm: mode !== defaultMode ? mode : undefined };
-  const metric = speed ? speedChart : chart;
+  }, [bars, mode, anchor, defaultMode, defaultKind]);
+  const kind = bars ? ("bars" as const) : ("scatter" as const);
+  const linkParams = { cv: kind !== defaultKind ? kind : undefined, cm: mode !== defaultMode ? mode : undefined };
   const pts = useMemo(() => (metric ? pickPoints(metric, ranked, mode) : []), [metric, ranked, mode]);
   const toggle = <div className="seg" role="group" aria-label={`${title} chart type`}>
     <button type="button" aria-pressed={!bars} title="Score vs metric" onClick={() => setView({ ...view, kind: "scatter" })}><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><circle cx="4" cy="11" r="1.6" /><circle cx="8" cy="6" r="1.6" /><circle cx="12.5" cy="4" r="1.6" /><circle cx="10" cy="10" r="1.6" /></svg></button>

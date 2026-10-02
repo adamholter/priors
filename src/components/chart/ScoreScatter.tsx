@@ -6,6 +6,7 @@ import type { Lab } from "@/data/types";
 import { useChartPalette, useEChart } from "./echarts";
 import { scatterHtml, unitOf } from "./embed";
 import { ChartLink, type ChartLinkParams } from "./ChartLink";
+import { useChartExpand } from "./ChartExpand";
 import { chartLabel } from "@/lib/metrics";
 import { scatterOption, frontierOf, pickLabels, DEFAULT_VIEW, type ScatterPoint, type ScatterView } from "./scatter-option";
 
@@ -13,13 +14,24 @@ export { chartLabel, pickLabels, frontierOf, DEFAULT_VIEW };
 export type { ScatterPoint, ScatterView };
 
 /** Per-chart display preferences (label density, frontier, effort lines), remembered in localStorage. */
-export function useScatterView(key: string): [ScatterView, (v: ScatterView, persist?: boolean) => void] {
-  const [view, setView] = useState<ScatterView>(DEFAULT_VIEW);
+export function useScatterView(key: string, defaultKind: "bars" | "scatter" = "scatter"): [ScatterView, (v: ScatterView, persist?: boolean) => void] {
+  const [view, setView] = useState<ScatterView>({ ...DEFAULT_VIEW, kind: defaultKind });
   useEffect(() => {
-    const raf = requestAnimationFrame(() => { try { const s = JSON.parse(localStorage.getItem(`priors:chart:${key}`) ?? "null"); if (s) setView({ ...DEFAULT_VIEW, ...s }); } catch { /* ignore */ } });
+    const raf = requestAnimationFrame(() => {
+      try {
+        const s = JSON.parse(localStorage.getItem(`priors:chart:${key}`) ?? "null") as ScatterView | null;
+        // Older saves stored the then-default "scatter" without marking a choice; only an explicit
+        // pick (or bars, which was never a default) overrides the chart's own default.
+        if (s) setView({ ...DEFAULT_VIEW, ...s, kind: s.kindChosen || s.kind === "bars" ? s.kind : defaultKind });
+      } catch { /* ignore */ }
+    });
     return () => cancelAnimationFrame(raf);
-  }, [key]);
-  return [view, (v, persist = true) => { setView(v); if (persist) try { localStorage.setItem(`priors:chart:${key}`, JSON.stringify(v)); } catch { /* ignore */ } }];
+  }, [key, defaultKind]);
+  return [view, (v, persist = true) => {
+    const next = v.kind !== view.kind ? { ...v, kindChosen: true } : v;
+    setView(next);
+    if (persist) try { localStorage.setItem(`priors:chart:${key}`, JSON.stringify(next)); } catch { /* ignore */ }
+  }];
 }
 
 function escapeHtml(s: string) { return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!)); }
@@ -46,6 +58,7 @@ export function ScoreScatter({ pts, labs, better, xName, xShort, xUnit = "", sca
   const option = useMemo<EChartsOption>(() => scatterOption({ pts, labs, better, xName, xShort, xUnit, scale, formatX, formatValue, view, pal, narrow, hasTitle: !!title, tooltipExtra }),
     [pts, labs, better, view, narrow, xName, xShort, xUnit, scale, formatX, formatValue, tooltipExtra, title, pal]);
   const { ref, chart } = useEChart(option, [option]);
+  const expand = useChartExpand(exportName);
   const onFrontierIds = useMemo(() => new Set(frontier.map((p) => p.r.variant.id)), [frontier]);
   const getHtml = () => {
     const color = new Map(labs.map((l) => [l.id, l.color])), labeled = pickLabels(pts, better, view.density), ys = pts.map((p) => p.r.score);
@@ -61,20 +74,21 @@ export function ScoreScatter({ pts, labs, better, xName, xShort, xUnit = "", sca
     });
   };
   return (
-    <div ref={wrapRef} id={anchor} className="max-sm:-mx-4 scroll-mt-20">
+    <>{expand.backdrop}<div ref={wrapRef} id={anchor} className={`max-sm:-mx-4 scroll-mt-20 ${expand.expanded ? "chart-expanded" : ""}`} role={expand.expanded ? "dialog" : undefined} aria-modal={expand.expanded || undefined} aria-label={expand.expanded ? exportName : undefined}>
       {/* Untitled charts (gallery panels) float their controls over the plot's empty top margin. */}
-      <div className={`flex flex-wrap items-center justify-between gap-x-4 gap-y-1 max-sm:px-4 min-h-8 ${title ? "mb-1" : "-mb-8 relative z-10 pointer-events-none"}`}>
-        <div className="min-w-0">{title}</div>
+      <div className={`flex flex-wrap items-center justify-between gap-x-4 gap-y-1 max-sm:px-4 min-h-8 ${title || expand.expanded ? "mb-1" : "-mb-8 relative z-10 pointer-events-none"}`}>
+        <div className="min-w-0">{title ?? (expand.expanded && <h2 className="text-[22px]">{exportName}</h2>)}</div>
         <div className="flex items-center gap-1 ml-auto pointer-events-auto">
           {actions}
           {anchor && <ChartLink id={anchor} name={exportName} params={linkParams} />}
           <ChartExport name={exportName} frame getHtml={getHtml} getSvg={() => chart.current?.renderToSVGString()} getRows={() => pts.map((p) => ({ rank: p.r.rank, model: p.r.model.name, effort: p.r.variant.effort, score: +p.r.score.toFixed(2), lab: p.r.model.labId, [xName]: +(p.raw ?? p.x).toFixed(4), on_frontier: onFrontierIds.has(p.r.variant.id), ...extraRows?.(p) }))} />
+          {expand.button}
         </div>
       </div>
-      <div className="relative">
-        <div ref={ref} role="img" aria-label={aria} style={{ width: "100%", height, overflow: "hidden", position: "relative", isolation: "isolate" }} />
+      <div className={`relative ${expand.expanded ? "flex-1 min-h-0" : ""}`}>
+        <div ref={ref} role="img" aria-label={aria} style={{ width: "100%", height: expand.expanded ? "100%" : height, overflow: "hidden", position: "relative", isolation: "isolate" }} />
         {!pts.length && <p className="cap absolute inset-0 grid place-items-center">No model in this view has this metric.</p>}
       </div>
-    </div>
+    </div></>
   );
 }

@@ -1,5 +1,7 @@
 "use client";
 import Link from "next/link";
+import { useLabColor } from "@/components/chart/echarts";
+import { ThemeToggle } from "@/components/Theme";
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent } from "react";
 import type { Snapshot } from "@/data/types";
 import { Wordmark } from "@/components/Wordmark";
@@ -44,13 +46,14 @@ function LineupRecorder({ onRegister }: { onRegister: (fn: ((a: LineupArgs) => v
 }
 function Trace({ values }: { values: number[] }) {
   const path = values.map((v, i) => `${i ? "L" : "M"}${i / Math.max(1, values.length - 1) * 300},${68 - v * .6}`).join(" ");
-  return <svg className="fit-trace" viewBox="0 0 300 76" role="img" aria-label="How closely the search matches your requested order"><path d="M0 68H300M0 38H300M0 8H300" stroke="#DDDBD4" strokeWidth=".5" /><path d={path} fill="none" stroke="#2F4FB0" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />{values.length > 0 && <circle cx="300" cy={68 - values[values.length - 1] * .6} r="3" fill="#2F4FB0" />}</svg>;
+  return <svg className="fit-trace" viewBox="0 0 300 76" role="img" aria-label="How closely the search matches your requested order"><path d="M0 68H300M0 38H300M0 8H300" style={{ stroke: "var(--hair)" }} strokeWidth=".5" /><path d={path} fill="none" style={{ stroke: "var(--indigo)" }} strokeWidth="1.5" vectorEffect="non-scaling-stroke" />{values.length > 0 && <circle cx="300" cy={68 - values[values.length - 1] * .6} r="3" style={{ fill: "var(--indigo)" }} />}</svg>;
 }
 
 export function Onboarding({ snapshot, lineup, seeds, quality, observedModelIds, hasSavedMix }: { snapshot: Snapshot; lineup: string[]; seeds: string[]; quality: BenchmarkQuality[]; observedModelIds: string[]; hasSavedMix: boolean }) {
   const models = useMemo(() => new Map(snapshot.models.map(m => [m.id, m])), [snapshot]);
-  const colors = useMemo(() => new Map(snapshot.labs.map(l => [l.id, l.color])), [snapshot]);
-  const labs = useMemo(() => new Map(snapshot.labs.map(l => [l.id, l])), [snapshot]);
+  const labColor = useLabColor();
+  const colors = useMemo(() => new Map(snapshot.labs.map(l => [l.id, labColor(l.id, l.color)])), [snapshot, labColor]);
+  const labs = useMemo(() => new Map(snapshot.labs.map(l => [l.id, { ...l, color: labColor(l.id, l.color) }])), [snapshot, labColor]);
   const bracketSeeds = useMemo(() => seeds.filter(id => models.has(id)), [seeds, models]);
   const qMap = useMemo(() => new Map(quality.map(q => [q.id, q])), [quality]);
   const observedModels = useMemo(() => new Set(observedModelIds), [observedModelIds]);
@@ -256,7 +259,7 @@ export function Onboarding({ snapshot, lineup, seeds, quality, observedModelIds,
 
   return <div className={`onboarding stage-${stage} ${running ? "is-running" : ""}`}>
     {convexEnabled && <LineupRecorder onRegister={(fn) => { recordLineup.current = fn; }} />}
-    <header className="onboard-header"><Wordmark size={32} href={null} /><span className="experiment-label">The priors experiment</span><div className="header-links"><button className="text-control" onClick={() => intro.current?.showModal()}>How it works</button><Link className="text-control" href="/privacy">Privacy</Link><button className="text-control" onClick={() => openDialog("quality")} aria-label="About the evidence"><span className="label-long">About the evidence</span><span className="label-short">Evidence</span><span aria-hidden="true">↗</span></button></div></header>
+    <header className="onboard-header"><Wordmark size={32} href={null} /><span className="experiment-label">The priors experiment</span><div className="header-links"><button className="text-control" onClick={() => intro.current?.showModal()}>How it works</button><Link className="text-control" href="/privacy">Privacy</Link><button className="text-control" onClick={() => openDialog("quality")} aria-label="About the evidence"><span className="label-long">About the evidence</span><span className="label-short">Evidence</span><span aria-hidden="true">↗</span></button><ThemeToggle className="text-control theme-icon" /></div></header>
     <main className="onboard-main">
       <div className="step-line"><span className={stage === "compare" ? "current" : "passed"}>01 <span>Your calls</span></span><i /><span className={stage === "order" ? "current" : stage === "fit" ? "passed" : ""}>02 <span>Your ranking</span></span><i /><span className={stage === "fit" ? "current" : ""}>03 <span>The evidence</span></span></div>
       <div className="onboard-intro" key={stage}>
@@ -289,7 +292,7 @@ export function Onboarding({ snapshot, lineup, seeds, quality, observedModelIds,
         </section>
         <aside className="experiment-side">
           {stage === "order" ? <div className="setup-note">
-            <div className="equal-bars" aria-hidden="true">{["#282828", "#CE7155", "#CE7155", "#397ACC", "#24A38B"].map((c, i) => <i key={i} style={{ background: c, animationDelay: `${i * 65}ms` }} />)}</div>
+            <div className="equal-bars" aria-hidden="true">{([["openai", "#282828"], ["anthropic", "#CE7155"], ["anthropic", "#CE7155"], ["google", "#397ACC"], ["meta", "#24A38B"]] as const).map(([lab, c], i) => <i key={i} style={{ background: labColor(lab, c), animationDelay: `${i * 65}ms` }} />)}</div>
             <h2>Intuition first.<br />Evidence next.</h2>
             <p>Your top choices lead the search. Changes you make and models you add get extra priority.</p>
             <div className="preference-note"><span className="tiny-star" aria-hidden="true">✳</span><p>Your focus biases the search toward high-quality benchmarks in that area. Newer, less saturated, more objective tests get more weight when choosing between similar fits.</p></div>

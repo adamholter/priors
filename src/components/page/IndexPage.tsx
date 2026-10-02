@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { ThemeToggle } from "../Theme";
 import { useEffect, useMemo, useState } from "react";
 import type { Snapshot } from "@/data/types";
 import { chartVariantMode, computeIndex, selectVariants, type IndexConfig } from "@/engine";
@@ -18,10 +19,11 @@ import { MetricGallery } from "./MetricGallery";
 import { authEnabled } from "@/app/providers";
 import { PageEditor } from "./PageEditor";
 import { ChartSettings } from "../chart/ChartSettings";
-import { presetOf, presetStyle } from "@/lib/page-presets";
+import { presetOf, presetStyle, resolveAccent, resolvePreset } from "@/lib/page-presets";
+import { useTheme } from "../Theme";
 import { hiddenIds, toggleVisibility, SHOW_ALL } from "@/lib/model-visibility";
 import { anchorOf } from "../chart/ChartLink";
-import { ChartPaletteContext, paletteFor } from "../chart/echarts";
+import { ChartPaletteContext, markColor, paletteFor } from "../chart/echarts";
 
 export interface Section {
   id: string; kind: "rankings" | "pareto" | "speed" | "benchmark" | "text" | "links" | "history" | "gallery";
@@ -40,8 +42,10 @@ export function IndexPage({ profile, snapshot, dates, edit }: { profile: Profile
   if (profile !== prevProfile) { setPrevProfile(profile); setPState(profile); }
   const setP = setPState;
   const results = useMemo(() => new Map(p.indices.map((i) => [i.id, computeIndex(snapshot, { ...i, variants: "all" })])), [snapshot, p.indices]);
-  const preset = presetOf(p.theme);
-  const accent = p.theme?.accent ?? preset.accent;
+  const { dark: siteDark } = useTheme();
+  const preset = resolvePreset(p.theme, siteDark);
+  const followsSite = presetOf(p.theme).id === "bone";
+  const accent = resolveAccent(p.theme, preset);
   const surface = preset.bg;
   // Dark schemes theme every chart: text, grid, marks, tooltips and exports follow the page palette.
   const palette = paletteFor(preset);
@@ -53,11 +57,12 @@ export function IndexPage({ profile, snapshot, dates, edit }: { profile: Profile
   const [speedView, setSpeedView] = useScatterView("page-speed");
   // Owner-controlled theme: preset fields become scoped rules, `css` is a raw
   // stylesheet for their page. .page-root scopes everything to this page.
+  const themeSerif = p.theme?.serif, themeMono = p.theme?.mono, themeCss = p.theme?.css;
   const customCss = useMemo(() => sanitizeCss([
-    p.theme?.serif ? `.page-root h1, .page-root h2, .page-root h3, .page-root .serif { font-family: ${p.theme.serif}, Newsreader, Georgia, serif; }` : "",
-    p.theme?.mono ? `.page-root .mono, .page-root .num, .page-root code { font-family: ${p.theme.mono}, "JetBrains Mono", Menlo, monospace; }` : "",
-    p.theme?.css ?? "",
-  ].filter(Boolean).join("\n")), [p.theme?.serif, p.theme?.mono, p.theme?.css]);
+    themeSerif ? `.page-root h1, .page-root h2, .page-root h3, .page-root .serif { font-family: ${themeSerif}, Newsreader, Georgia, serif; }` : "",
+    themeMono ? `.page-root .mono, .page-root .num, .page-root code { font-family: ${themeMono}, "JetBrains Mono", Menlo, monospace; }` : "",
+    themeCss ?? "",
+  ].filter(Boolean).join("\n")), [themeSerif, themeMono, themeCss]);
 
   return (
     <ChartPaletteContext.Provider value={palette}>
@@ -72,9 +77,11 @@ export function IndexPage({ profile, snapshot, dates, edit }: { profile: Profile
           {p.indices[0] && <ShareCards indices={p.indices} active={p.indices[0]} date={snapshot.date} profile={p} pageUrl={`${origin || "https://mypriors.com"}/${p.handle}`} defaultDesign={p.theme?.cardDesign} />}
           <Link href={builderHref as "/"} className="btn-quiet">Open in builder</Link>
           {authEnabled && <PageEditor profile={p} onChange={setP} snapshot={snapshot} editing={edit} />}
+          {followsSite && <ThemeToggle />}
         </div>
         <div className="ml-auto flex sm:hidden items-center gap-1">
           {p.indices[0] && <ShareCards compact indices={p.indices} active={p.indices[0]} date={snapshot.date} profile={p} pageUrl={`${origin || "https://mypriors.com"}/${p.handle}`} defaultDesign={p.theme?.cardDesign} />}
+          {followsSite && <ThemeToggle />}
           <MobileMenu>
             <DatePicker current={snapshot.date} dates={dates} />
             <Link href={builderHref as "/"} className="btn-quiet text-center">Open in builder</Link>
@@ -108,7 +115,7 @@ export function IndexPage({ profile, snapshot, dates, edit }: { profile: Profile
           const rankingMode = chartVariantMode(idx, "ranking"), paretoMode = chartVariantMode(idx, "pareto");
           const updateIndex = (patch: Partial<IndexConfig>) => setP({ ...p, indices: p.indices.map((i) => i.id === idx.id ? { ...i, ...patch } : i) });
           const pickerModels = (() => {
-            const col = new Map(snapshot.labs.map((l) => [l.id, l.color]));
+            const col = new Map(snapshot.labs.map((l) => [l.id, markColor(l.color, palette, l.id)]));
             const seen = new Map<string, { id: string; name: string; color?: string }>();
             const add = (id: string) => { if (!seen.has(id)) { const m = snapshot.models.find((x) => x.id === id); if (m) seen.set(id, { id, name: m.name, color: col.get(m.labId) }); } };
             for (const v of r.ranked) if (!seen.has(v.model.id)) seen.set(v.model.id, { id: v.model.id, name: v.model.name, color: col.get(v.model.labId) });
@@ -154,7 +161,7 @@ function MobileMenu({ children }: { children: React.ReactNode }) {
   }, [open]);
   return <div className="mobile-menu relative">
     <button type="button" className="icon-btn" aria-label="More" aria-expanded={open} onClick={() => setOpen(!open)}><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.7" /><circle cx="12" cy="12" r="1.7" /><circle cx="19" cy="12" r="1.7" /></svg></button>
-    <div className={`${open ? "grid" : "hidden"} absolute right-0 top-full mt-1.5 w-56 gap-2 p-3 bg-white border hairline rounded-md shadow-[0_18px_40px_-18px_#1a1a1a55] z-30 [&>*]:w-full`} role="menu">{children}</div>
+    <div className={`${open ? "grid" : "hidden"} absolute right-0 top-full mt-1.5 w-56 gap-2 p-3 bg-white border hairline rounded-md shadow-[0_18px_40px_-18px_var(--shadow)] z-30 [&>*]:w-full`} role="menu">{children}</div>
   </div>;
 }
 

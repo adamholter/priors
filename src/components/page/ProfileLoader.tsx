@@ -3,7 +3,8 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { Snapshot } from "@/data/types";
 import { mergeImports } from "@/lib/import";
-import { presetOf, presetStyle } from "@/lib/page-presets";
+import { presetStyle, resolveAccent, resolvePreset } from "@/lib/page-presets";
+import { useTheme } from "../Theme";
 import { Wordmark } from "../Wordmark";
 import { IndexPage, type Profile } from "./IndexPage";
 
@@ -12,6 +13,7 @@ export function ProfileLoader({ profile, date, version, dates, edit, leaders }: 
   profile: Profile; date: string; version: string; dates: string[]; edit: boolean;
   leaders: { name: string; score: number }[];
 }) {
+  const { dark: siteDark } = useTheme();
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [error, setError] = useState("");
   const [retry, setRetry] = useState(0);
@@ -31,9 +33,9 @@ export function ProfileLoader({ profile, date, version, dates, edit, leaders }: 
     return () => controller.abort();
   }, [date, version, profile.imports, retry]);
   if (snapshot) return <IndexPage profile={profile} snapshot={snapshot} dates={dates} edit={edit} />;
-  const preset = presetOf(profile.theme);
+  const preset = resolvePreset(profile.theme, siteDark);
   const surface = preset.bg;
-  return <div className="page-root min-h-screen" data-dark={preset.dark || undefined} style={presetStyle(preset, profile.theme?.accent ?? preset.accent) as React.CSSProperties}>
+  return <div className="page-root min-h-screen" data-dark={preset.dark || undefined} style={presetStyle(preset, resolveAccent(profile.theme, preset)) as React.CSSProperties}>
     <header className="flex items-center px-4 sm:px-8 h-12 sm:min-h-14 border-b hairline" style={{ background: surface }}><Wordmark /><div className="ml-auto load-bar w-24 h-6" /></header>
     {profile.bannerUrl && <div className="page-banner-frame"><img src={profile.bannerUrl} alt="" className="page-banner" /></div>}
     <main className={`max-w-[1100px] mx-auto px-5 sm:px-8 grid gap-10 ${profile.bannerUrl ? "pb-12" : "py-8 sm:py-12"}`} aria-busy={!error}>

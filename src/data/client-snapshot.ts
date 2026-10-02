@@ -14,6 +14,7 @@ export function clientSnapshot(snapshot: Snapshot): Snapshot {
         ...(realIndex && { realIndex: { rawValue: realIndex.rawValue, effortAttribution: realIndex.effortAttribution } }),
         ...(details.estimatedDecodeSecondsPerTask !== undefined && { estimatedDecodeSecondsPerTask: details.estimatedDecodeSecondsPerTask }),
         ...(details.outputTokensPerTask !== undefined && { outputTokensPerTask: details.outputTokensPerTask }),
+        ...(observation.benchmarkId === "t3-usage-share" && details.window !== undefined && { window: details.window }),
       };
       return Object.keys(usedDetails).length ? { ...observation, details: usedDetails } : { ...observation, details: undefined };
     }),
