@@ -3,6 +3,7 @@ import { useId, useMemo, useRef, useCallback, useState } from "react";
 
 import type { TaskMetricSource } from "@/data/task-metrics";
 import { useLightDismiss } from "@/hooks/useLightDismiss";
+import { isHighlighted, toggleModel, useHighlight } from "./highlight";
 import type { ScatterView } from "./ScoreScatter";
 
 const RELEASE_WINDOWS: { label: string; months: number }[] = [
@@ -31,6 +32,7 @@ export function ChartSettings({ label, mode, onChange, releasedAfter, onChangeRe
   const root = useRef<HTMLDetailsElement>(null);
   const trigger = useRef<HTMLElement>(null);
   const [query, setQuery] = useState("");
+  const hl = useHighlight();
   const dismiss = useCallback((reason: "outside" | "escape") => {
     if (!root.current?.open) return;
     root.current.open = false;
@@ -47,8 +49,10 @@ export function ChartSettings({ label, mode, onChange, releasedAfter, onChangeRe
   const filtered = useMemo(() => {
     if (!models) return models;
     const q = query.trim().toLowerCase();
-    return q ? models.filter((m) => m.name.toLowerCase().includes(q)) : models;
-  }, [models, query]);
+    const list = q ? models.filter((m) => m.name.toLowerCase().includes(q)) : models;
+    // Highlighted (starred) models pin to the top of the list.
+    return hl?.items.length ? [...list.filter((m) => isHighlighted(hl.items, m.id)), ...list.filter((m) => !isHighlighted(hl.items, m.id))] : list;
+  }, [models, query, hl]);
   const shown = models ? models.length - (excluded?.size ?? 0) : 0;
   return (
     <details ref={root} className="relative shrink-0" name="chart-settings">
@@ -76,6 +80,7 @@ export function ChartSettings({ label, mode, onChange, releasedAfter, onChangeRe
           <div className="flex justify-between cap mt-1"><span>Fewer</span><span>More</span></div>
           <label className="flex items-center gap-2 mt-2.5 text-[12.5px] cursor-pointer"><input type="checkbox" className="accent-indigo" checked={view.frontier} onChange={(e) => onView({ ...view, frontier: e.target.checked })} />Pareto frontier</label>
           <label className="flex items-center gap-2 mt-1.5 text-[12.5px] cursor-pointer"><input type="checkbox" className="accent-indigo" checked={view.links} onChange={(e) => onView({ ...view, links: e.target.checked })} />Connect a model&rsquo;s efforts</label>
+          <label className="flex items-center gap-2 mt-1.5 text-[12.5px] cursor-pointer"><input type="checkbox" className="accent-indigo" checked={view.guides !== false} onChange={(e) => onView({ ...view, guides: e.target.checked })} />Guide lines for highlighted models</label>
         </fieldset>}
         {onChangeReleased && <>
           <label htmlFor={`${id}-rel`} className="block text-[12px] text-ink-2 mt-3 mb-2">Models released</label>
@@ -90,13 +95,18 @@ export function ChartSettings({ label, mode, onChange, releasedAfter, onChangeRe
           <p className="text-[12px] text-ink-2 mt-3 mb-1.5">Models · {shown} of {models.length}</p>
           <input type="search" placeholder="Search models" aria-label="Search models" value={query} onChange={(e) => setQuery(e.target.value)} className="inp mb-1.5 !py-1 text-[12px]" />
           <div className="max-h-52 overflow-y-auto overscroll-contain -mx-1 px-1">
-            {filtered?.map((m) => (
-              <label key={m.id} className="flex items-center gap-2 py-[3px] text-[12.5px] cursor-pointer rounded-sm hover:bg-bone">
-                <input type="checkbox" className="accent-indigo shrink-0" checked={!excluded?.has(m.id)} onChange={() => onToggleModel(m.id)} />
-                {m.color && <i className="w-2 h-2 rounded-full shrink-0" style={{ background: m.color }} aria-hidden="true" />}
-                <span className="truncate">{m.name}</span>
-              </label>
-            ))}
+            {filtered?.map((m, i) => { const star = !!hl && isHighlighted(hl.items, m.id), lastStar = star && !(filtered[i + 1] && isHighlighted(hl!.items, filtered[i + 1].id)); return (
+              <div key={m.id} className={`flex items-center gap-1 rounded-sm hover:bg-bone ${lastStar && i < filtered.length - 1 ? "border-b hairline pb-1 mb-1" : ""}`}>
+                <label className="flex items-center gap-2 py-[3px] text-[12.5px] cursor-pointer min-w-0 flex-1">
+                  <input type="checkbox" className="accent-indigo shrink-0" checked={!excluded?.has(m.id)} onChange={() => onToggleModel(m.id)} />
+                  {m.color && <i className="w-2 h-2 rounded-full shrink-0" style={{ background: m.color }} aria-hidden="true" />}
+                  <span className={`truncate ${star ? "text-ink font-medium" : ""}`}>{m.name}</span>
+                </label>
+                {hl && <button type="button" className={`model-star ${star ? "is-on" : ""}`} aria-pressed={star} aria-label={star ? `Remove highlight from ${m.name}` : `Highlight ${m.name}`} title={star ? "Remove highlight" : "Highlight on charts"} onClick={() => { if (!star && excluded?.has(m.id)) onToggleModel(m.id); hl.set(toggleModel(hl.items, m.id)); }}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill={star ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><path d="m12 3.5 2.6 5.3 5.9.9-4.25 4.1 1 5.8L12 16.9l-5.25 2.7 1-5.8L3.5 9.7l5.9-.9z" /></svg>
+                </button>}
+              </div>
+            ); })}
             {filtered && !filtered.length && <p className="text-[12px] text-grey py-1">No matching models.</p>}
           </div>
           <div className="flex justify-between mt-1.5 pt-1.5 border-t hairline">

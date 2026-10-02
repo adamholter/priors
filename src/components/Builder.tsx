@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MixAssistant } from "./MixAssistant";
+import { HighlightContext } from "./chart/highlight";
 import { ThemeToggle } from "./Theme";
 import Link from "next/link";
 import type { Snapshot } from "@/data/types";
@@ -90,6 +91,7 @@ export function Builder({ snapshot: base, dates, initialIndices }: { snapshot: S
   }, [indices]);
 
   const update = useCallback((c: IndexConfig) => setIndices((list) => list.map((i) => (i.id === c.id ? c : i))), []);
+  const highlightState = useMemo(() => ({ items: active.highlight ?? [], set: (h: string[]) => update({ ...active, highlight: h.length ? h : undefined }), models: pickerModels }), [active, update, pickerModels]);
   const add = () => { const id = `i${Date.now().toString(36)}`; const c = { ...defaultConfig(snapshot, id, "New index") }; setIndices((l) => [...l, c]); setActiveId(id); };
   const remove = (id: string) => { setIndices((l) => { const n = l.filter((i) => i.id !== id); if (!n.length) n.push(defaultConfig(snapshot)); if (activeId === id) setActiveId(n[0].id); return n; }); };
 
@@ -108,6 +110,7 @@ export function Builder({ snapshot: base, dates, initialIndices }: { snapshot: S
         <div className="col-start-3 row-start-1 shrink-0"><ThemeToggle /></div>
       </header>
 
+      <HighlightContext.Provider value={highlightState}>
       <main className="grid grid-cols-1 lg:grid-cols-[360px_minmax(0,1fr)] gap-10 px-4 sm:px-8 pt-5 lg:pt-8 pb-8 max-w-[1500px] items-start">
         <aside aria-label="Index controls" className="relative z-30 flex flex-col gap-5 min-h-0 lg:sticky lg:top-[88px] lg:h-[calc(100dvh-120px)]">
           <section aria-label="Benchmarks and eligibility" className="min-h-0 min-w-0 lg:flex-1 lg:overflow-y-auto lg:overflow-x-hidden lg:overscroll-contain pr-2 pb-2">
@@ -140,6 +143,7 @@ export function Builder({ snapshot: base, dates, initialIndices }: { snapshot: S
           </div>
         </section>
       </main>
+      </HighlightContext.Provider>
       <MixAssistant config={active} onApply={update} date={snapshot.date} />
     </div>
   );

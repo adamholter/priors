@@ -31,6 +31,8 @@ export interface IndexConfig {
   /** Legacy allowlist. New visibility choices use `excludeModels` so future models can rank. */
   onlyModels?: string[];
   releasedAfter?: string; // ISO date
+  /** Highlighted models on charts: model ids (their best effort) or variant ids (that effort). Ranking ignores it. */
+  highlight?: string[];
   /** Onboarding focus preset that produced this index; ranking ignores it. */
   focus?: FocusId;
 }

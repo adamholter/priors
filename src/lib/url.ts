@@ -25,6 +25,7 @@ export function encodeIndex(c: IndexConfig): string {
   if (c.costSource && c.costSource !== "aa") parts.push(`costsrc=${c.costSource}`);
   if (c.timeSource && c.timeSource !== "aa") parts.push(`timesrc=${c.timeSource}`);
   if (c.focus) parts.push(`focus=${c.focus}`);
+  if (c.highlight?.length) parts.push(`hl=${c.highlight.join(",")}`);
   return parts.join("|");
 }
 
@@ -56,6 +57,7 @@ export function decodeIndex(s: string, id: string): IndexConfig | null {
     else if (k === "costsrc" && isTaskMetricSource(v)) c.costSource = v;
     else if (k === "timesrc" && isTaskMetricSource(v)) c.timeSource = v;
     else if (k === "focus" && FOCUS_IDS.includes(v as FocusId)) c.focus = v as FocusId;
+    else if (k === "hl") c.highlight = v.split(",").filter(Boolean).slice(0, 12);
   }
   return c;
 }

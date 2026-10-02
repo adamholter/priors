@@ -87,6 +87,13 @@ export function insideLabels(width: () => number | undefined, opts: { moveOverla
   };
 }
 
+/** A lab color pushed toward the palette's neutral: how non-highlighted marks recede. */
+export function dimColor(color: string | undefined, pal: ChartPalette, amount = 0.72) {
+  const neutral = pal.dark ? "#55554F" : "#C4C3BB", c = color && /^#[0-9a-f]{6}$/i.test(color) ? color : neutral;
+  const p = (h: string) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16)), a = p(c), b = p(neutral);
+  return "#" + a.map((v, i) => Math.round(v + (b[i] - v) * amount).toString(16).padStart(2, "0")).join("");
+}
+
 export const markLabel = (pal: ChartPalette) => ({ show: true, position: "right" as const, formatter: "{b}", fontSize: 11.5, color: pal.ink, opacity: 1, distance: 7, backgroundColor: pal.bg + "B8", padding: [2, 3], borderRadius: 2, textBorderColor: pal.bg + "D9", textBorderWidth: 2 });
 export const MARK_LABEL = markLabel(LIGHT_PALETTE);
 

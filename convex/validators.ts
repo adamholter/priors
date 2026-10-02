@@ -27,6 +27,7 @@ export const indexConfig = v.object({
   excludeModels: v.optional(v.array(v.string())),
   onlyModels: v.optional(v.array(v.string())),
   releasedAfter: v.optional(v.string()),
+  highlight: v.optional(v.array(v.string())),
   focus: v.optional(v.union(v.literal("capabilities"), v.literal("knowledge"), v.literal("problem-solving"), v.literal("general"))),
 });
 
