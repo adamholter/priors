@@ -5,7 +5,7 @@ import { CONTAIN_AXIS_LABELS, dimColor, insideLabels, markColor, markLabel, type
 import { chartLabel } from "../../lib/metrics";
 
 export interface ScatterPoint { x: number; r: RankedVariant; /** untransformed value for tooltips/export when x is transformed */ raw?: number }
-export interface ScatterView { density: number; frontier: boolean; links: boolean; /** Dashed axis guides for highlighted efforts (default on). */ guides?: boolean; kind?: "scatter" | "bars"; /** The user picked `kind` (vs. the chart default). */ kindChosen?: boolean }
+export interface ScatterView { density: number; frontier: boolean; links: boolean; /** The user explicitly toggled the frontier rather than saving an old default. */ frontierChosen?: boolean; /** Dashed axis guides for highlighted efforts (default on). */ guides?: boolean; kind?: "scatter" | "bars"; /** The user picked `kind` (vs. the chart default). */ kindChosen?: boolean }
 /**
  * Emphasis for chosen models. `items` are model ids (feature that model's best effort) or variant ids
  * (feature exactly that effort); a model may have several featured efforts. Everything else recedes
@@ -25,6 +25,15 @@ export function featuredPoints(pts: ScatterPoint[], items: string[]): ScatterPoi
 /** Models touched by a highlight (a variant item highlights its whole model). */
 export const highlightedModels = (items: string[]) => new Set(items.map((it) => it.split("@")[0]));
 export const DEFAULT_VIEW: ScatterView = { density: 0.45, frontier: true, links: true, kind: "scatter" };
+
+/** Preserve explicit choices while letting a changed chart default replace old implicit saves. */
+export function restoreScatterView(kind: "bars" | "scatter" = "scatter", frontier = true, saved?: ScatterView | null): ScatterView {
+  return {
+    ...DEFAULT_VIEW, ...saved,
+    kind: saved?.kindChosen || saved?.kind === "bars" ? saved.kind : kind,
+    frontier: !frontier && !saved?.frontierChosen ? false : saved?.frontier ?? frontier,
+  };
+}
 
 /**
  * Chooses which marks get a label. Frontier marks come first, then marks closest below the frontier;
@@ -134,7 +143,7 @@ export function scatterOption({ pts, labs, better, xName, xShort, xUnit = "", sc
       trigger: "item", confine: true, formatter: (p: unknown) => {
         const d = (p as { data?: { extra?: ScatterPoint } }).data?.extra; if (!d) return "";
         const lab = labs.find((l) => l.id === d.r.model.labId)?.name ?? d.r.model.labId;
-        return `<div style="font-weight:600">${escapeHtml(d.r.variant.sourceModel?.name ?? chartLabel(d.r))}</div><div style="color:${pal.grey};font-size:11px">${escapeHtml(lab)}${onFrontier.has(d.r.variant.id) ? " · on the frontier" : ""}</div><div style="font-family:var(--font-jetbrains);margin-top:4px">${d.r.score.toFixed(1)} · ${escapeHtml((formatValue ?? formatX)(d.raw ?? d.x))}${xUnit ? ` ${xUnit}` : ""}${tooltipExtra ? escapeHtml(tooltipExtra(d)) : ""}</div>`;
+        return `<div style="font-weight:600">${escapeHtml(d.r.variant.sourceModel?.name ?? chartLabel(d.r))}</div><div style="color:${pal.grey};font-size:11px">${escapeHtml(lab)}${view.frontier && onFrontier.has(d.r.variant.id) ? " · on the frontier" : ""}</div><div style="font-family:var(--font-jetbrains);margin-top:4px">${d.r.score.toFixed(1)} · ${escapeHtml((formatValue ?? formatX)(d.raw ?? d.x))}${xUnit ? ` ${xUnit}` : ""}${tooltipExtra ? escapeHtml(tooltipExtra(d)) : ""}</div>`;
       },
     },
     series,

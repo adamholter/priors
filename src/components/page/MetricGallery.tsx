@@ -32,7 +32,7 @@ function GalleryChart({ id, anchor, title, chart, speed, ranked, defaultMode, la
   const [mode, setMode] = useState<"all" | "best">(defaultMode);
   const metric = speed ? speedChart : chart;
   const defaultKind = metric?.scale === "time" ? "scatter" : metric?.defaultKind ?? "scatter";
-  const [view, setView] = useScatterView(`gallery-${id}`, defaultKind);
+  const [view, setView] = useScatterView(`gallery-${id}`, defaultKind, metric?.defaultFrontier ?? true);
   const bars = view.kind === "bars" && chart?.scale !== "time";
   // Deep links carry the chart view (`cv=bars`, `cm=best|all`). Captured once per mount —
   // mirror effects may rewrite the URL before init effects run (and StrictMode mounts twice).

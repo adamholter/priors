@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { RankedVariant } from "@/engine";
-import { pickPoints, type MetricChart } from "./metrics";
+import type { Snapshot } from "@/data/types";
+import { metricPanels, pickPoints, type MetricChart } from "./metrics";
 import { selectBars } from "../components/chart/bars-option";
 
 const rv = (model: string, variant: string, score: number, metric?: number) =>
@@ -14,6 +15,14 @@ const metricChart: MetricChart = {
   formatX: (v) => `${v}s`,
   aria: "",
 };
+
+it("uses release chronology with the frontier off for gallery and preview definitions", () => {
+  const ranked = [rv("older", "older@high", 65), rv("middle", "middle@high", 60), rv("newer", "newer@high", 70)].map((r, i) => ({ ...r, model: { ...r.model, releaseDate: `2026-0${i + 1}-01` } }));
+  const snapshot: Snapshot = { version: 1, date: "2026-10-03", generatedAt: "2026-10-03T00:00:00Z", models: ranked.map(r => r.model), variants: ranked.map(r => r.variant), labs: [], benchmarks: [], observations: [], estimates: [], series: [], sources: [] };
+  const chart = metricPanels(snapshot, ranked).find(p => p.id === "date")?.chart;
+  expect(chart).toMatchObject({ better: "lower", scale: "time", defaultFrontier: false });
+  expect(chart?.points(ranked).map(p => p.x)).toEqual([Date.UTC(2026, 0, 1), Date.UTC(2026, 1, 1), Date.UTC(2026, 2, 1)]);
+});
 
 describe("pickPoints", () => {
   const ranked = [

@@ -9,26 +9,24 @@ import { scatterHtml, unitOf } from "./embed";
 import { ChartLink, type ChartLinkParams } from "./ChartLink";
 import { useChartExpand } from "./ChartExpand";
 import { chartLabel } from "@/lib/metrics";
-import { scatterOption, frontierOf, featuredPoints, guidePoints, highlightedModels, pickLabels, DEFAULT_VIEW, type Highlight, type ScatterPoint, type ScatterView } from "./scatter-option";
+import { scatterOption, frontierOf, featuredPoints, guidePoints, highlightedModels, pickLabels, DEFAULT_VIEW, restoreScatterView, type Highlight, type ScatterPoint, type ScatterView } from "./scatter-option";
 import { dimColor } from "./theme";
 
 export { chartLabel, pickLabels, frontierOf, DEFAULT_VIEW };
 export type { Highlight, ScatterPoint, ScatterView };
 
 /** Per-chart display preferences (label density, frontier, effort lines), remembered in localStorage. */
-export function useScatterView(key: string, defaultKind: "bars" | "scatter" = "scatter"): [ScatterView, (v: ScatterView, persist?: boolean) => void] {
-  const [view, setView] = useState<ScatterView>({ ...DEFAULT_VIEW, kind: defaultKind });
+export function useScatterView(key: string, defaultKind: "bars" | "scatter" = "scatter", defaultFrontier = true): [ScatterView, (v: ScatterView, persist?: boolean) => void] {
+  const [view, setView] = useState<ScatterView>(() => restoreScatterView(defaultKind, defaultFrontier));
   useEffect(() => {
     const raf = requestAnimationFrame(() => {
       try {
         const s = JSON.parse(localStorage.getItem(`priors:chart:${key}`) ?? "null") as ScatterView | null;
-        // Older saves stored the then-default "scatter" without marking a choice; only an explicit
-        // pick (or bars, which was never a default) overrides the chart's own default.
-        if (s) setView({ ...DEFAULT_VIEW, ...s, kind: s.kindChosen || s.kind === "bars" ? s.kind : defaultKind });
+        if (s) setView(restoreScatterView(defaultKind, defaultFrontier, s));
       } catch { /* ignore */ }
     });
     return () => cancelAnimationFrame(raf);
-  }, [key, defaultKind]);
+  }, [key, defaultKind, defaultFrontier]);
   return [view, (v, persist = true) => {
     const next = v.kind !== view.kind ? { ...v, kindChosen: true } : v;
     setView(next);

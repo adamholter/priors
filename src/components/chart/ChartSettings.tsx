@@ -78,9 +78,9 @@ export function ChartSettings({ label, mode, onChange, releasedAfter, onChangeRe
           <div className="flex items-baseline justify-between mb-1.5"><label htmlFor={`${id}-lab`} className="text-[12px] text-ink-2">Labels</label><span className="cap">{view.density >= 0.999 ? "all" : view.density <= 0.001 ? "frontier only" : `${Math.round(view.density * 100)}%`}</span></div>
           <input id={`${id}-lab`} type="range" min={0} max={100} step={5} value={Math.round(view.density * 100)} onChange={(e) => onView({ ...view, density: Number(e.target.value) / 100 })} className="w-full h-[3px]" aria-label={`${label} label density`} />
           <div className="flex justify-between cap mt-1"><span>Fewer</span><span>More</span></div>
-          <label className="flex items-center gap-2 mt-2.5 text-[12.5px] cursor-pointer"><input type="checkbox" className="accent-indigo" checked={view.frontier} onChange={(e) => onView({ ...view, frontier: e.target.checked })} />Pareto frontier</label>
+          <label className="flex items-center gap-2 mt-2.5 text-[12.5px] cursor-pointer"><input type="checkbox" className="accent-indigo" checked={view.frontier} onChange={(e) => onView({ ...view, frontier: e.target.checked, frontierChosen: true })} />Pareto frontier</label>
           <label className="flex items-center gap-2 mt-1.5 text-[12.5px] cursor-pointer"><input type="checkbox" className="accent-indigo" checked={view.links} onChange={(e) => onView({ ...view, links: e.target.checked })} />Connect a model&rsquo;s efforts</label>
-          <label className="flex items-center gap-2 mt-1.5 text-[12.5px] cursor-pointer"><input type="checkbox" className="accent-indigo" checked={view.guides !== false} onChange={(e) => onView({ ...view, guides: e.target.checked })} />Guide lines for highlighted models</label>
+          {!!hl?.items.length && <label className="flex items-center gap-2 mt-1.5 text-[12.5px] cursor-pointer"><input type="checkbox" className="accent-indigo" checked={view.guides !== false} onChange={(e) => onView({ ...view, guides: e.target.checked })} />Guide lines for highlighted models</label>}
         </fieldset>}
         {onChangeReleased && <>
           <label htmlFor={`${id}-rel`} className="block text-[12px] text-ink-2 mt-3 mb-2">Models released</label>

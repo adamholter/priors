@@ -22,6 +22,8 @@ export interface MetricChart {
   /** Chart shown before the user picks one. Bars for single metrics where the trade-off against
    *  index score isn't the point; the scatter (with its Pareto frontier) stays a click away. */
   defaultKind?: "bars" | "scatter";
+  /** Release chronology has no frontier until the viewer enables it. */
+  defaultFrontier?: boolean;
 }
 
 export interface MetricPanel {
@@ -76,7 +78,7 @@ export function metricPanels(snapshot: Snapshot, ranked: RankedVariant[], timeSo
   if (ranked.some((r) => r.speed)) panels.push({ id: "speed", title: "Output speed", desc: "tokens per second", open: !has(decode), speed: true });
   if (has(ttft)) panels.push({ id: "latency", title: "Latency", desc: "seconds to first token", chart: { better: "lower", points: ttft, xLabel: "s", xName: "Time to first token (s)", scale: "log", secs: true, formatX: fmt("s"), aria: "Index score versus time to first token", defaultKind: "bars" } });
   if (has(tokens)) panels.push({ id: "tokens", title: "Output tokens", desc: "tokens generated per task", chart: { better: "lower", points: tokens, xLabel: "tok", xName: "Output tokens per task", scale: "log", formatX: (x) => x >= 1000 ? `${(x / 1000).toFixed(0)}k` : `${x.toFixed(0)}`, aria: "Index score versus output tokens per task", defaultKind: "bars" } });
-  if (has(dates)) panels.push({ id: "date", title: "Release date", desc: "when each model shipped", chart: { better: "higher", points: dates, xLabel: "", xName: "Release date", scale: "time", formatX: fmtDate, aria: "Index score versus model release date" } });
+  if (has(dates)) panels.push({ id: "date", title: "Release date", desc: "when each model shipped", chart: { better: "lower", points: dates, xLabel: "", xName: "Release date", scale: "time", formatX: fmtDate, aria: "Index score versus model release date", defaultFrontier: false } });
   if (has(uptime)) {
     // "Nines" axis: plot -log10(downtime) so 90%, 99%, 99.9% get equal spacing.
     const nines = (rows: RankedVariant[]) => uptime(rows).map((p) => ({ r: p.r, raw: p.x, x: -Math.log10(Math.max(0.01, 100 - p.x)) }));
