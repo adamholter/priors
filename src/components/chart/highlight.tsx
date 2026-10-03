@@ -2,13 +2,14 @@
 import { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
 import { useLightDismiss } from "@/hooks/useLightDismiss";
 import { featuredPoints, type ScatterPoint } from "./scatter-option";
+import type { IndexConfig } from "@/engine";
 
 /**
  * Highlighted models for every chart on a page. Items are model ids (feature the model's best effort)
  * or variant ids (feature exactly that effort). Stored on the index (`hl=` in URLs), so links, saved
  * pages and exported images keep them.
  */
-export type HighlightState = { items: string[]; set: (items: string[]) => void; models: { id: string; name: string; color?: string }[] };
+export type HighlightState = { items: string[]; set: (items: string[]) => void; models: { id: string; name: string; color?: string }[]; indexId?: string; linkIndices?: IndexConfig[] };
 export const HighlightContext = createContext<HighlightState | null>(null);
 export const useHighlight = () => useContext(HighlightContext);
 

@@ -3,13 +3,14 @@ import { ChartExport, type ExportRow } from "./ChartExport";
 import type { EChartsOption } from "echarts";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Lab } from "@/data/types";
-import { DARK_PALETTE, markColor, useChartPalette, useEChart } from "./echarts";
+import { DARK_PALETTE, LIGHT_PALETTE, markColor, useChartPalette, useEChart } from "./echarts";
 import { HighlightList, HighlightMenu, togglePoint, useHighlight } from "./highlight";
 import { scatterHtml, unitOf } from "./embed";
 import { ChartLink, type ChartLinkParams } from "./ChartLink";
 import { useChartExpand } from "./ChartExpand";
 import { chartLabel } from "@/lib/metrics";
-import { scatterOption, frontierOf, guidePoints, pickLabels, DEFAULT_VIEW, type Highlight, type ScatterPoint, type ScatterView } from "./scatter-option";
+import { scatterOption, frontierOf, featuredPoints, guidePoints, highlightedModels, pickLabels, DEFAULT_VIEW, type Highlight, type ScatterPoint, type ScatterView } from "./scatter-option";
+import { dimColor } from "./theme";
 
 export { chartLabel, pickLabels, frontierOf, DEFAULT_VIEW };
 export type { Highlight, ScatterPoint, ScatterView };
@@ -119,15 +120,26 @@ export function ScoreScatter({ pts, labs, better, xName, xShort, xUnit = "", sca
   const onFrontierIds = useMemo(() => new Set(frontier.map((p) => p.r.variant.id)), [frontier]);
   const getHtml = () => {
     const color = new Map(labs.map((l) => [l.id, l.color])), labeled = pickLabels(pts, better, view.density), ys = pts.map((p) => p.r.score);
+    const items = highlight?.items ?? [], focusedModels = highlightedModels(items), featured = new Set(featuredPoints(pts, items).map((p) => p.r.variant.id));
+    const guides = new Set(guidePoints(pts, highlight).map((p) => p.r.variant.id));
     const byModel = new Map<string, ScatterPoint[]>();
     for (const p of pts) (byModel.get(p.r.model.id) ?? byModel.set(p.r.model.id, []).get(p.r.model.id)!).push(p);
     return scatterHtml({
-      title: exportName, xName, scale, unit: unitOf(formatX),
+      title: exportName, xName, scale, unit: unitOf(formatX), highlight: items, guides: view.guides !== false,
       yMin: Math.max(0, Math.floor((Math.min(...ys, 100) - 6) / 5) * 5), yMax: Math.min(100, Math.ceil((Math.max(...ys, 0) + 4) / 5) * 5),
-      points: pts.map((p) => ({ v: [p.x, p.r.score], c: color.get(p.r.model.labId) ?? "#A3A39B", d: markColor(color.get(p.r.model.labId), DARK_PALETTE, p.r.model.labId), n: chartLabel(p.r), s: labeled.has(p.r.variant.id), f: view.frontier && onFrontierIds.has(p.r.variant.id),
-        t: `<b>${escapeHtml(p.r.variant.sourceModel?.name ?? chartLabel(p.r))}</b><div style="font-family:'JetBrains Mono',monospace;margin-top:4px">${p.r.score.toFixed(1)} · ${escapeHtml((formatValue ?? formatX)(p.raw ?? p.x))}${xUnit ? ` ${escapeHtml(xUnit)}` : ""}</div>` })),
+      points: pts.map((p) => {
+        const light = markColor(color.get(p.r.model.labId), LIGHT_PALETTE, p.r.model.labId), dark = markColor(color.get(p.r.model.labId), DARK_PALETTE, p.r.model.labId);
+        return { v: [p.x, p.r.score], c: light, d: dark, dc: dimColor(light, LIGHT_PALETTE), dd: dimColor(dark, DARK_PALETTE),
+          m: p.r.model.id, id: p.r.variant.id, e: p.r.variant.effort, h: focusedModels.has(p.r.model.id), a: featured.has(p.r.variant.id), g: guides.has(p.r.variant.id),
+          gx: guides.has(p.r.variant.id) ? formatX(p.x) : undefined,
+          n: chartLabel(p.r), s: labeled.has(p.r.variant.id), f: view.frontier && onFrontierIds.has(p.r.variant.id),
+          t: `<b>${escapeHtml(p.r.variant.sourceModel?.name ?? chartLabel(p.r))}</b><div style="font-family:'JetBrains Mono',monospace;margin-top:4px">${p.r.score.toFixed(1)} · ${escapeHtml((formatValue ?? formatX)(p.raw ?? p.x))}${xUnit ? ` ${escapeHtml(xUnit)}` : ""}</div>` };
+      }),
       frontier: view.frontier ? frontier.map((p) => [p.x, p.r.score]) : [],
-      links: view.links ? [...byModel.values()].filter((v) => v.length > 1).map((v) => ({ c: color.get(v[0].r.model.labId) ?? "#A3A39B", d: markColor(color.get(v[0].r.model.labId), DARK_PALETTE, v[0].r.model.labId), p: [...v].sort((a, b) => a.x - b.x).map((p) => [p.x, p.r.score] as [number, number]) })) : [],
+      links: view.links ? [...byModel.values()].filter((v) => v.length > 1).map((v) => {
+        const light = markColor(color.get(v[0].r.model.labId), LIGHT_PALETTE, v[0].r.model.labId), dark = markColor(color.get(v[0].r.model.labId), DARK_PALETTE, v[0].r.model.labId);
+        return { m: v[0].r.model.id, h: focusedModels.has(v[0].r.model.id), c: light, d: dark, dc: dimColor(light, LIGHT_PALETTE), dd: dimColor(dark, DARK_PALETTE), p: [...v].sort((a, b) => a.x - b.x).map((p) => [p.x, p.r.score] as [number, number]) };
+      }) : [],
     });
   };
   return (

@@ -1,21 +1,23 @@
 import path from "node:path";
 import { Resvg } from "@resvg/resvg-js";
-import type { Lab } from "@/data/types";
-import type { RankedVariant, IndexConfig } from "@/engine";
-import { chartVariantMode } from "@/engine";
-import type { Snapshot } from "@/data/types";
-import { echarts, themeFor, paletteFor, DARK_PALETTE, SANS_STATIC, MONO_STATIC, type ChartPalette } from "@/components/chart/theme";
-import { scatterOption, DEFAULT_VIEW, type ScatterPoint } from "@/components/chart/scatter-option";
-import { barsOption, selectBars } from "@/components/chart/bars-option";
-import { frameSvg } from "@/components/chart/export-frame";
-import { chartKind, chartTitle, costChart, pickPoints, type MetricChart } from "@/lib/metrics";
-import { presetOf } from "@/lib/page-presets";
+import type { EChartsOption } from "echarts";
+import type { Lab, Snapshot } from "../data/types";
+import type { RankedVariant, IndexConfig } from "../engine";
+import { chartVariantMode } from "../engine";
+import { echarts, themeFor, paletteFor, markColor, DARK_PALETTE, SANS_STATIC, MONO_STATIC, type ChartPalette } from "../components/chart/theme";
+import { scatterOption, DEFAULT_VIEW, guidePoints, type Highlight, type ScatterPoint } from "../components/chart/scatter-option";
+import { barsOption, selectBars } from "../components/chart/bars-option";
+import { frameSvg } from "../components/chart/export-frame";
+import { chartKind, chartTitle, costChart, pickPoints, type MetricChart } from "./metrics";
+import { presetOf } from "./page-presets";
 
 export interface ChartSpec {
   title: string;
   chart: MetricChart;
   pts: ScatterPoint[];
   hasTitle: boolean;
+  /** Highlighted model ids or exact variant ids from the shared index URL. */
+  highlight?: string[];
 }
 
 /**
@@ -25,7 +27,7 @@ export interface ChartSpec {
  */
 export function scatterSpec(snapshot: Snapshot, ranked: RankedVariant[], index: IndexConfig, c: string | undefined, cm?: string): ChartSpec | null {
   const mode = cm === "best" || cm === "all" ? cm : chartVariantMode(index, "pareto");
-  const from = (chart: MetricChart, title: string, hasTitle: boolean): ChartSpec => ({ title, hasTitle, chart, pts: pickPoints(chart, ranked, mode) });
+  const from = (chart: MetricChart, title: string, hasTitle: boolean): ChartSpec => ({ title, hasTitle, chart, pts: pickPoints(chart, ranked, mode), highlight: index.highlight?.length ? [...index.highlight] : undefined });
   if (c === "cost") return from(costChart, "Score vs cost per task", true);
   const ck = chartKind(snapshot, ranked, c, index.timeSource);
   if (ck?.kind !== "metric") return null;
@@ -53,6 +55,50 @@ function rasterize(svg: string, bg: string): Buffer {
   return Buffer.from(png);
 }
 
+/** Add the same axis guides and value badges used by ScoreScatter before server-side SVG rendering. */
+function addHighlightGuides(chart: ReturnType<typeof echarts.init>, pts: ScatterPoint[], highlight: Highlight | undefined, labs: Lab[], pal: ChartPalette, formatX: (x: number) => string) {
+  const guides = guidePoints(pts, highlight);
+  if (!guides.length) return;
+
+  const grid = ((chart as unknown as { getModel: () => { getComponent: (type: string, index: number) => { coordinateSystem?: { getRect: () => { x: number; y: number; width: number; height: number } } } | undefined } }).getModel())
+    .getComponent("grid", 0)?.coordinateSystem?.getRect();
+  if (!grid) return;
+
+  const colorOf = new Map(labs.map((lab) => [lab.id, markColor(lab.color, pal, lab.id)]));
+  const bottom = grid.y + grid.height;
+  const placed = guides.map((p) => ({ p, px: chart.convertToPixel({ seriesId: "marks" }, [p.x, p.r.score]) as unknown as number[] | undefined }))
+    .filter((g): g is { p: ScatterPoint; px: number[] } => !!g.px && Number.isFinite(g.px[0]) && Number.isFinite(g.px[1]));
+  if (!placed.length) return;
+
+  const width = chart.getWidth();
+  const xs = placed.map(({ p, px }) => { const text = formatX(p.x); return { text, at: px[0], size: text.length * 6.6 + 10 }; });
+  const ys = placed.map(({ p, px }) => ({ text: p.r.score.toFixed(1), at: px[1], size: 16 }));
+  const spread = (items: { at: number; size: number }[], lo: number, hi: number) => {
+    const order = items.map((_, i) => i).sort((i, j) => items[i].at - items[j].at), pos = items.map((item) => item.at);
+    for (let k = 0; k < order.length; k++) {
+      const i = order[k], prev = order[k - 1];
+      pos[i] = Math.max(pos[i], lo + items[i].size / 2, prev == null ? -Infinity : pos[prev] + (items[prev].size + items[i].size) / 2 + 3);
+    }
+    for (let k = order.length - 1; k >= 0; k--) {
+      const i = order[k], next = order[k + 1];
+      pos[i] = Math.min(pos[i], hi - items[i].size / 2, next == null ? Infinity : pos[next] - (items[next].size + items[i].size) / 2 - 3);
+    }
+    return pos;
+  };
+  const xAt = spread(xs, 2, width - 2), yAt = spread(ys, grid.y - 6, bottom + 6);
+  const badge = { fontSize: 10.5, fontFamily: "JetBrains Mono, Menlo, monospace", fill: pal.dark ? "#141413" : "#FFFFFF", padding: [2, 4], borderRadius: 2 };
+  const children = placed.flatMap(({ p, px }, i) => {
+    const color = colorOf.get(p.r.model.labId) ?? pal.ink, dash = { stroke: color, lineDash: [4, 3], lineWidth: 1.2, opacity: 0.9 };
+    return [
+      { type: "line", shape: { x1: px[0], y1: px[1], x2: px[0], y2: bottom }, style: dash, z: 3 },
+      { type: "line", shape: { x1: grid.x, y1: px[1], x2: px[0], y2: px[1] }, style: dash, z: 3 },
+      { type: "text", x: xAt[i], y: bottom + 5, style: { ...badge, text: xs[i].text, backgroundColor: color, align: "center", verticalAlign: "top" }, z: 20 },
+      { type: "text", x: grid.x - 5, y: yAt[i], style: { ...badge, text: ys[i].text, backgroundColor: color, align: "right", verticalAlign: "middle" }, z: 20 },
+    ];
+  });
+  chart.setOption({ graphic: [{ id: "guides", type: "group", silent: true, z: 3, children }] } as EChartsOption, { replaceMerge: ["graphic"] });
+}
+
 /**
  * Rasterize a chart exactly as the site's PNG export draws it: the shared ECharts option rendered
  * SSR→SVG, wrapped in the export frame (serif title top-left; footer moved right because X's title
@@ -64,18 +110,21 @@ export async function renderChartPng(spec: ChartSpec, labs: Lab[], pal: ChartPal
   const chart = echarts.init(null, theme, { renderer: "svg", ssr: true, width: CHART_W, height: CHART_H });
   let svg: string;
   const kind = cv === "bars" || cv === "scatter" ? cv : spec.chart.defaultKind ?? "scatter";
+  const highlight = spec.highlight?.length ? spec.highlight : undefined;
   if (kind === "bars" && spec.chart.scale !== "time") {
-    const bars = selectBars(spec.pts, spec.chart.better, 24);
+    const bars = selectBars(spec.pts, spec.chart.better, 24, highlight);
     if (!bars.length) return null;
-    const opt = barsOption({ bars, labs, xName: spec.chart.xName.replace(", log", ""), formatValue: spec.chart === costChart ? costChart.formatX : spec.chart.formatValue ?? spec.chart.formatX, pal, narrow: false });
+    const opt = barsOption({ bars, labs, xName: spec.chart.xName.replace(", log", ""), formatValue: spec.chart === costChart ? costChart.formatX : spec.chart.formatValue ?? spec.chart.formatX, pal, narrow: false, highlight });
     // Rotated category labels need deep bottom margin; keep them clear of X's bottom-left pill (~y550).
     chart.setOption({ ...opt, animation: false, grid: { ...(opt.grid as Record<string, number>), bottom: 132 } });
     svg = chart.renderToSVGString();
   } else {
     if (!spec.pts.length) return null;
-    const opt = scatterOption({ ...spec.chart, xUnit: spec.chart.xLabel, pts: spec.pts, hasTitle: spec.hasTitle, labs, view: DEFAULT_VIEW, pal, narrow: false, width: () => CHART_W });
+    const emphasis: Highlight | undefined = highlight ? { items: highlight, guides: true } : undefined;
+    const opt = scatterOption({ ...spec.chart, xUnit: spec.chart.xLabel, pts: spec.pts, hasTitle: spec.hasTitle, labs, view: DEFAULT_VIEW, pal, narrow: false, width: () => CHART_W, highlight: emphasis });
     // Lift the x-axis so tick labels and the axis name clear X's bottom-left title overlay (~y550).
     chart.setOption({ ...opt, animation: false, grid: { ...(opt.grid as Record<string, number>), bottom: 108 } });
+    addHighlightGuides(chart, spec.pts, emphasis, labs, pal, spec.chart.formatX);
     svg = chart.renderToSVGString();
   }
   chart.dispose();

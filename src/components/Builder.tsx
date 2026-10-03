@@ -81,17 +81,17 @@ export function Builder({ snapshot: base, dates, initialIndices }: { snapshot: S
   useEffect(() => {
     if (t.current) window.clearTimeout(t.current);
     t.current = window.setTimeout(() => {
-      const p = encodeIndices(indices); const url = new URL(window.location.href);
+      const p = encodeIndices([active, ...indices.filter((i) => i.id !== active.id)]); const url = new URL(window.location.href);
       url.searchParams.delete("i");
       p.getAll("i").forEach((value) => url.searchParams.append("i", value));
       window.history.replaceState(null, "", url.toString());
       try { localStorage.setItem("priors:indices", JSON.stringify(p.getAll("i"))); } catch { /* ignore */ }
     }, 150);
     return () => { if (t.current) window.clearTimeout(t.current); };
-  }, [indices]);
+  }, [indices, active]);
 
   const update = useCallback((c: IndexConfig) => setIndices((list) => list.map((i) => (i.id === c.id ? c : i))), []);
-  const highlightState = useMemo(() => ({ items: active.highlight ?? [], set: (h: string[]) => update({ ...active, highlight: h.length ? h : undefined }), models: pickerModels }), [active, update, pickerModels]);
+  const highlightState = useMemo(() => ({ items: active.highlight ?? [], set: (h: string[]) => update({ ...active, highlight: h.length ? h : undefined }), models: pickerModels, linkIndices: [active, ...indices.filter((i) => i.id !== active.id)] }), [active, indices, update, pickerModels]);
   const add = () => { const id = `i${Date.now().toString(36)}`; const c = { ...defaultConfig(snapshot, id, "New index") }; setIndices((l) => [...l, c]); setActiveId(id); };
   const remove = (id: string) => { setIndices((l) => { const n = l.filter((i) => i.id !== id); if (!n.length) n.push(defaultConfig(snapshot)); if (activeId === id) setActiveId(n[0].id); return n; }); };
 

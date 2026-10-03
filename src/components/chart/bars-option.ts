@@ -14,9 +14,11 @@ export const compact = (format: (x: number) => string) => (v: number) => {
 };
 
 /** Top `cap` points by index score, drawn in metric order. The caller's effort mode applies. */
-export function selectBars(pts: ScatterPoint[], better: "lower" | "higher", cap: number): ScatterPoint[] {
-  const top = [...pts].sort((a, b) => b.r.score - a.r.score).slice(0, cap);
-  return top.sort((a, b) => better === "lower" ? value(a) - value(b) : value(b) - value(a));
+export function selectBars(pts: ScatterPoint[], better: "lower" | "higher", cap: number, highlight: string[] = []): ScatterPoint[] {
+  const featured = featuredPoints(pts, highlight), pinned = new Set(featured.map((p) => p.r.variant.id));
+  const top = [...pts].sort((a, b) => b.r.score - a.r.score);
+  const kept = [...featured, ...top.filter((p) => !pinned.has(p.r.variant.id)).slice(0, Math.max(0, cap - featured.length))];
+  return kept.sort((a, b) => better === "lower" ? value(a) - value(b) : value(b) - value(a));
 }
 
 /** The ECharts option behind MetricBars — shared verbatim by the browser chart and /og rasterizer. */

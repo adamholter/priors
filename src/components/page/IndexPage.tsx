@@ -27,6 +27,7 @@ import { hiddenIds, toggleVisibility, SHOW_ALL } from "@/lib/model-visibility";
 import { anchorOf } from "../chart/ChartLink";
 import { ChartPaletteContext, markColor, paletteFor } from "../chart/echarts";
 import { HighlightContext } from "../chart/highlight";
+import { setHighlightParams } from "@/lib/highlight-link";
 
 /** Stored shapes come from the Convex validators, so the page and the database can't disagree. */
 export type { Section };
@@ -53,6 +54,8 @@ export function IndexPage({ profile, snapshot, dates, edit }: { profile: Profile
   const [origin, setOrigin] = useState("");
   useEffect(() => { const id = requestAnimationFrame(() => setOrigin(window.location.origin)); return () => cancelAnimationFrame(id); }, []);
   const builderHref = `/?${encodeIndices(p.indices).toString()}`;
+  const pageUrl = new URL(`${origin || "https://mypriors.com"}/${p.handle}`);
+  if (p.indices[0]) setHighlightParams(pageUrl, p.indices[0].id, p.indices[0].highlight ?? []);
   const [selected, setSelected] = useState<string | null>(null);
   const [paretoView, setParetoView] = useScatterView("page-pareto");
   const [speedView, setSpeedView] = useScatterView("page-speed");
@@ -75,13 +78,13 @@ export function IndexPage({ profile, snapshot, dates, edit }: { profile: Profile
         <span className="text-grey text-[13px] max-sm:hidden">/ {p.handle}</span>
         <div className="ml-auto hidden sm:flex flex-wrap items-center justify-end gap-3">
           <DatePicker current={snapshot.date} dates={dates} />
-          {p.indices[0] && <ShareCards indices={p.indices} active={p.indices[0]} date={snapshot.date} profile={p} pageUrl={`${origin || "https://mypriors.com"}/${p.handle}`} defaultDesign={p.theme?.cardDesign} />}
+          {p.indices[0] && <ShareCards indices={p.indices} active={p.indices[0]} date={snapshot.date} profile={p} pageUrl={pageUrl.toString()} defaultDesign={p.theme?.cardDesign} />}
           <Link href={builderHref as "/"} className="btn-quiet">Open in builder</Link>
           {authEnabled && <PageEditor profile={p} onChange={setP} snapshot={snapshot} editing={edit} />}
           {followsSite && <ThemeToggle />}
         </div>
         <div className="ml-auto flex sm:hidden items-center gap-1">
-          {p.indices[0] && <ShareCards compact indices={p.indices} active={p.indices[0]} date={snapshot.date} profile={p} pageUrl={`${origin || "https://mypriors.com"}/${p.handle}`} defaultDesign={p.theme?.cardDesign} />}
+          {p.indices[0] && <ShareCards compact indices={p.indices} active={p.indices[0]} date={snapshot.date} profile={p} pageUrl={pageUrl.toString()} defaultDesign={p.theme?.cardDesign} />}
           {followsSite && <ThemeToggle />}
           <MobileMenu>
             <DatePicker current={snapshot.date} dates={dates} />
@@ -128,7 +131,10 @@ export function IndexPage({ profile, snapshot, dates, edit }: { profile: Profile
           const excludedIds = hiddenIds(idx, pickerIds);
           const toggleModel = (id: string) => updateIndex(toggleVisibility(idx, id, pickerIds));
           const modelPicker = { models: pickerModels, excluded: excludedIds, onToggleModel: toggleModel, onShowAllModels: () => updateIndex(SHOW_ALL), onHideAllModels: () => updateIndex({ excludeModels: pickerIds, onlyModels: undefined }) };
-          const wrap = (el: React.ReactNode) => <HighlightContext.Provider key={s.id} value={{ items: idx.highlight ?? [], set: (h) => updateIndex({ highlight: h.length ? h : undefined }), models: pickerModels }}>{el}</HighlightContext.Provider>;
+          const wrap = (el: React.ReactNode) => <HighlightContext.Provider key={s.id} value={{ items: idx.highlight ?? [], indexId: idx.id, set: (h) => {
+            updateIndex({ highlight: h.length ? h : undefined });
+            window.history.replaceState(null, "", setHighlightParams(new URL(window.location.href), idx.id, h).toString());
+          }, models: pickerModels }}>{el}</HighlightContext.Provider>;
           if (s.kind === "gallery") return wrap(<section key={s.id} className="chart-panel"><h2 className="text-[21px] sm:text-[24px] mb-1">{title}</h2><p className="cap mb-3">More metrics · expand a row</p><MetricGallery timeSource={idx.timeSource} onTimeSourceChange={(timeSource) => updateIndex({ timeSource })} ranked={r.ranked} mode={paretoMode} snapshot={snapshot} labs={snapshot.labs} settings={{ releasedAfter: idx.releasedAfter, onChangeReleased: (v) => updateIndex({ releasedAfter: v }), ...modelPicker }} /></section>);
           const settings = (label: string, mode: "all" | "best", key: "rankingVariants" | "paretoVariants") => <ChartSettings label={label} mode={mode} onChange={(v) => updateIndex({ [key]: v })} releasedAfter={idx.releasedAfter} onChangeReleased={(v) => updateIndex({ releasedAfter: v })} models={pickerModels} excluded={excludedIds} onToggleModel={toggleModel} onShowAllModels={() => updateIndex(SHOW_ALL)} onHideAllModels={() => updateIndex({ excludeModels: pickerIds, onlyModels: undefined })} />;
           if (s.kind === "rankings") return wrap(

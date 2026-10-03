@@ -1,20 +1,13 @@
 "use client";
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { anchorOf } from "@/lib/metrics";
+import { chartLinkUrl } from "@/lib/highlight-link";
+import { useHighlight } from "./highlight";
 
 export { anchorOf };
 
 /** Chart-view params carried by deep links: `cv=bars|scatter` when it differs from the chart default, `cm=` for effort mode. */
 export interface ChartLinkParams { cv?: "bars" | "scatter"; cm?: "best" | "all" }
-
-function applyParams(url: URL, id: string, params?: ChartLinkParams) {
-  url.searchParams.set("c", id);
-  url.hash = id;
-  if (params) {
-    if (params.cv) url.searchParams.set("cv", params.cv); else url.searchParams.delete("cv");
-    if (params.cm) url.searchParams.set("cm", params.cm); else url.searchParams.delete("cm");
-  }
-}
 
 /** Mirroring only sets — never deletes — so a linked panel's own init pass can still read cv/cm. */
 function mirrorParams(url: URL, id: string, params?: ChartLinkParams) {
@@ -46,12 +39,13 @@ export function useHashTarget(id: string | undefined, onHit?: () => void, params
 
 /** Copies a link to this chart (current URL, which carries the index, plus #anchor). */
 export function ChartLink({ id, name, params }: { id: string; name: string; params?: ChartLinkParams }) {
+  const highlight = useHighlight();
   const [copied, setCopied] = useState(false);
   const paramsRef = useRef(params);
   useEffect(() => { paramsRef.current = params; });
   useHashTarget(id, undefined, params ? paramsRef : undefined);
   const copy = async () => {
-    const url = new URL(window.location.href); applyParams(url, id, params);
+    const url = chartLinkUrl(window.location.href, id, params, highlight ?? undefined);
     window.history.replaceState(null, "", url.toString());
     try { await navigator.clipboard.writeText(url.toString()); setCopied(true); setTimeout(() => setCopied(false), 1600); } catch { /* the address bar still has the link */ }
   };
