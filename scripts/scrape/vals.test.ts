@@ -79,6 +79,42 @@ describe("Vals AI Astro benchmark payload", () => {
     expect(result.raw["overall.json"]).toContain("80.5");
   });
 
+  it("loads a JSON-backed BenchmarkViewLoader page and follows its catalog import", async () => {
+    const { metadata, tasks } = pageFixture();
+    const props = JSON.stringify({ benchmarkViewUrl: "/_astro/benchmark_view_fixture_loader.json" })
+      .replaceAll("&", "&amp;")
+      .replaceAll('"', "&quot;");
+    const html = `<astro-island component-url="/_astro/BenchmarkViewLoader.fixture.js" props="${props}"></astro-island>`;
+    const requests: string[] = [];
+    const fetchText = async (url: string) => {
+      requests.push(url);
+      if (url.endsWith("/benchmarks/fixture_bench")) return html;
+      if (url.endsWith("benchmark_view_fixture_loader.json")) return JSON.stringify({ default: { metadata, tasks } });
+      if (url.endsWith("BenchmarkViewLoader.fixture.js")) return 'import{r as m}from"./BenchmarkView.loader.js";';
+      if (url.endsWith("BenchmarkView.loader.js")) return 'import{r as m}from"./constants.loader.js";';
+      if (url.endsWith("constants.loader.js")) return catalogFixture;
+      throw new Error("Unexpected VALS URL " + url);
+    };
+    const source = createValsSource({
+      sourceId: "vals-loader-fixture",
+      slug: "fixture_bench",
+      benchmarkId: "vals-loader-fixture",
+      name: "Fixture Bench",
+      category: "agentic",
+      description: "Loader fixture.",
+    });
+
+    const result = await source.scrape({ fetchText } as ScrapeContext);
+
+    expect(result.rows.map((row) => row.value)).toEqual([80.5, 70]);
+    expect(result.rows.map((row) => row.modelLabel)).toEqual(["GPT-6 Astra", "Claude Opus 5.5"]);
+    expect(requests).toEqual(expect.arrayContaining([
+      "https://www.vals.ai/_astro/benchmark_view_fixture_loader.json",
+      "https://www.vals.ai/_astro/BenchmarkView.loader.js",
+      "https://www.vals.ai/_astro/constants.loader.js",
+    ]));
+  });
+
   it("keeps VALS speech-to-text systems as audio identities", async () => {
     const metadata = { benchmark: "Voice Code Bench", slug: "voice-code-bench", updated: "2026-09-18T00:00:00Z", total_models: 1, models: ["openai/gpt-4o-transcribe"] };
     const tasks = { overall: { "openai/gpt-4o-transcribe": { accuracy: 91.2, provider: "OpenAI" } } };

@@ -77,7 +77,7 @@ function decodeAstroValue(value: unknown): unknown {
 
 /** Extract the hydrated props for a named component from its server-rendered Astro island. */
 export function astroIslandProps(html: string, componentName: string): Record<string, unknown> {
-  for (const match of html.matchAll(/<astro-island\b[^>]*>/g)) {
+  for (const match of html.matchAll(/<astro-island\b(?:[^>"']|"[^"]*"|'[^']*')*>/g)) {
     const tag = match[0];
     const componentUrl = tag.match(/(?:^|\s)component-url="([^"]*)"/)?.[1] ?? "";
     if (!componentUrl.includes(componentName)) continue;
@@ -94,7 +94,7 @@ export function astroIslandProps(html: string, componentName: string): Record<st
 }
 
 function astroComponentUrl(html: string, componentName: string): string {
-  for (const match of html.matchAll(/<astro-island\b[^>]*>/g)) {
+  for (const match of html.matchAll(/<astro-island\b(?:[^>"']|"[^"]*"|'[^']*')*>/g)) {
     const tag = match[0];
     const componentUrl = tag.match(/(?:^|\s)component-url="([^"]*)"/)?.[1] ?? "";
     if (componentUrl.includes(componentName)) return decodeHtmlEntities(componentUrl);
@@ -245,11 +245,7 @@ export function valsDisplayName(labels: Record<string, string>, modelKey: string
 }
 
 async function fetchValsModelCatalog(html: string, fetchText: (url: string) => Promise<string>): Promise<{ url: string; entries: Record<string, ValsModelCatalogEntry>; source: string; componentUrl: string; componentSource: string }> {
-  const componentUrl = new URL(astroComponentUrl(html, "BenchmarkView"), VALS_ORIGIN).toString();
-  const componentSource = await fetchText(componentUrl);
-  const modulePath = componentSource.match(/from["']\.\/(constants\.[^"']+\.js)["']/)?.[1];
-  if (!modulePath) throw new Error("Vals AI BenchmarkView: model catalog import missing");
-  const url = new URL(`/_astro/${modulePath}`, VALS_ORIGIN).toString();
+  const { url, componentUrl, componentSource } = await valsConstantsUrl(html, fetchText);
   let pending = catalogCache.get(url);
   if (!pending) {
     pending = fetchText(url).then((source) => ({ entries: parseValsModelCatalog(source), source }));
@@ -260,9 +256,44 @@ async function fetchValsModelCatalog(html: string, fetchText: (url: string) => P
   return { url, entries, source, componentUrl, componentSource };
 }
 
+/**
+ * The benchmark view (metadata + task score tables). Older pages inline it in the BenchmarkView island's
+ * props; newer ones render a BenchmarkViewLoader island whose `benchmarkViewUrl` points at a JSON file.
+ */
+export async function loadValsView(html: string, fetchText: (url: string) => Promise<string>): Promise<Record<string, unknown> | undefined> {
+  const props = astroIslandProps(html, "BenchmarkView");
+  if (isRecord(props.benchmarkView)) return isRecord(props.benchmarkView.default) ? props.benchmarkView.default : props.benchmarkView;
+  if (typeof props.benchmarkViewUrl === "string") {
+    const json = JSON.parse(await fetchText(new URL(props.benchmarkViewUrl, VALS_ORIGIN).toString())) as unknown;
+    return isRecord(json) ? (isRecord(json.default) ? json.default : json) : undefined;
+  }
+  return undefined;
+}
+
+/** URL of the model-catalog bundle (`constants.*.js`), imported by the view component or one hop below it. */
+export async function valsConstantsUrl(html: string, fetchText: (url: string) => Promise<string>): Promise<{ url: string; componentUrl: string; componentSource: string }> {
+  const componentUrl = new URL(astroComponentUrl(html, "BenchmarkView"), VALS_ORIGIN).toString();
+  const componentSource = await fetchText(componentUrl);
+  const direct = componentSource.match(/from\s*["']\.\/(constants\.[^"']+\.js)["']/)?.[1];
+  if (direct) return { url: new URL(`/_astro/${direct}`, VALS_ORIGIN).toString(), componentUrl, componentSource };
+  for (const dep of componentSource.matchAll(/from\s*["']\.\/(BenchmarkView\.[^"']+\.js)["']/g)) {
+    const src = await fetchText(new URL(`/_astro/${dep[1]}`, VALS_ORIGIN).toString());
+    const found = src.match(/from\s*["']\.\/(constants\.[^"']+\.js)["']/)?.[1];
+    if (found) return { url: new URL(`/_astro/${found}`, VALS_ORIGIN).toString(), componentUrl, componentSource: src };
+  }
+  throw new Error("Vals AI BenchmarkView: model catalog import missing");
+}
+
+export async function loadValsBenchmarkView(html: string, expectedSlug: string, fetchText: (url: string) => Promise<string>): Promise<ValsView> {
+  return checkValsView(await loadValsView(html, fetchText), expectedSlug);
+}
+
 export function parseValsBenchmarkView(html: string, expectedSlug: string): ValsView {
   const props = astroIslandProps(html, "BenchmarkView");
-  const root = props.benchmarkView;
+  return checkValsView(props.benchmarkView, expectedSlug);
+}
+
+function checkValsView(root: unknown, expectedSlug: string): ValsView {
   if (!isRecord(root)) throw new Error(`Vals AI ${expectedSlug}: benchmarkView missing`);
   const view = isRecord(root.default) ? root.default : root;
   if (!isRecord(view.metadata) || !isRecord(view.tasks)) throw new Error(`Vals AI ${expectedSlug}: benchmark metadata or tasks missing`);
@@ -286,7 +317,7 @@ export function createValsSource(config: ValsSourceConfig): Source {
     url,
     async scrape(ctx): Promise<ScrapeResult> {
       const html = await ctx.fetchText(url);
-      const view = parseValsBenchmarkView(html, config.payloadSlug ?? config.slug);
+      const view = await loadValsBenchmarkView(html, config.payloadSlug ?? config.slug, (target) => ctx.fetchText(target));
       const catalog = await fetchValsModelCatalog(html, (target) => ctx.fetchText(target));
       const metadata = view.metadata!;
       const task = view.tasks!.overall;

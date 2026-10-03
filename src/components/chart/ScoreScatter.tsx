@@ -99,8 +99,8 @@ export function ScoreScatter({ pts, labs, better, xName, xShort, xUnit = "", sca
       const children = placed.flatMap(({ p, px }, i) => {
         const col = colorOf.get(p.r.model.labId) ?? pal.ink, dash = { stroke: col, lineDash: [4, 3], lineWidth: 1.2, opacity: 0.9 };
         return [
-          { type: "line", shape: { x1: px[0], y1: px[1], x2: px[0], y2: bottom }, style: dash },
-          { type: "line", shape: { x1: grid.x, y1: px[1], x2: px[0], y2: px[1] }, style: dash },
+          { type: "line", shape: { x1: px[0], y1: px[1], x2: px[0], y2: bottom }, style: dash, z: 3 },
+          { type: "line", shape: { x1: grid.x, y1: px[1], x2: px[0], y2: px[1] }, style: dash, z: 3 },
           { type: "text", x: xAt[i], y: bottom + 5, style: { ...badge, text: xs[i].text, backgroundColor: col, align: "center", verticalAlign: "top" }, z: 20 },
           { type: "text", x: grid.x - 5, y: yAt[i], style: { ...badge, text: ys[i].text, backgroundColor: col, align: "right", verticalAlign: "middle" }, z: 20 },
         ];
@@ -108,7 +108,8 @@ export function ScoreScatter({ pts, labs, better, xName, xShort, xUnit = "", sca
       const key = JSON.stringify(children);
       if (key === last && (present() || !children.length)) return;
       last = key;
-      c.setOption({ graphic: [{ id: "guides", type: "group", silent: true, z: 15, children }] } as EChartsOption, { replaceMerge: ["graphic"] });
+      // Guides stay behind model labels; only the axis badges draw above the series.
+      c.setOption({ graphic: [{ id: "guides", type: "group", silent: true, z: 3, children }] } as EChartsOption, { replaceMerge: ["graphic"] });
     };
     const frame = requestAnimationFrame(draw);
     c.on("finished", draw);

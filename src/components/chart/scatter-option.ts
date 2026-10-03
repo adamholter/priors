@@ -108,7 +108,8 @@ export function scatterOption({ pts, labs, better, xName, xShort, xUnit = "", sc
     ...links.map((v) => { const mine = hl.has(v[0].r.model.id), c = color.get(v[0].r.model.labId); return { type: "line" as const, id: `link-${v[0].r.model.id}`, data: v.map((p) => ({ id: p.r.variant.id, value: [p.x, p.r.score] })), showSymbol: false, lineStyle: { color: on && !mine ? dimColor(c, pal) : c, width: mine ? 2 : 1, opacity: mine ? 1 : on ? 0.25 : pal.dark ? 0.45 : 0.35 }, silent: true, animationDuration: 500, z: mine ? 4 : 1 }; }),
     ...(view.frontier && frontier.length > 1 ? [{ type: "line" as const, id: "frontier", data: frontier.map((p) => ({ id: p.r.variant.id, value: [p.x, p.r.score] })), showSymbol: false, lineStyle: { color: pal.ink, width: 1.4, opacity: on ? 0.3 : 1 }, silent: true, animationDuration: 500, z: 2 }] : []),
     {
-      type: "scatter", id: "marks", z: 3,
+      // Keep marks and their label backgrounds above highlighted effort links (z: 4).
+      type: "scatter", id: "marks", z: 5,
       data: drawOrder.map((p) => ({ name: chartLabel(p.r), value: [p.x, p.r.score], id: p.r.variant.id, extra: p, ...markOf(p) })),
       label: narrow ? { ...markLabel(pal), fontSize: 10.5 } : markLabel(pal),
       labelLayout: insideLabels(width ?? (() => undefined)),

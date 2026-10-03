@@ -1,4 +1,5 @@
 import type { Benchmark, Effort, RawRow, ScrapeResult, Source } from "../../../src/data/types";
+import { loadValsView, valsConstantsUrl } from "./_vals";
 
 const ORIGIN = "https://www.vals.ai";
 
@@ -21,7 +22,7 @@ const PAGES: readonly PageDefinition[] = [
   { slug: "medcode", id: "vals-medcode", name: "MedCode", shortName: "MedCode", category: "knowledge", industry: "healthcare" },
   { slug: "medscribe", id: "vals-medscribe", name: "MedScribe", shortName: "MedScribe", category: "knowledge", industry: "healthcare" },
   { slug: "proof_bench", id: "vals-proofbench-v1.1", name: "ProofBench v1.1", shortName: "ProofBench 1.1", category: "math", industry: "math" },
-  { slug: "terminal-bench-science", id: "vals-terminal-bench-science", name: "Terminal-Bench Science", shortName: "TB Science", category: "agentic", industry: "science" },
+  { slug: "terminal-bench-science", id: "vals-terminal-bench-science", name: "Terminal-Bench Science (Vals)", shortName: "Vals TB Science", category: "agentic", industry: "science" },
   { slug: "biomysterybench", id: "vals-biomysterybench", name: "BioMysteryBench", shortName: "BioMystery", category: "agentic", industry: "science" },
   { slug: "mysterymechanism", id: "vals-mysterymechanism", name: "MysteryMechanism", shortName: "MysteryMechanism", category: "reasoning", industry: "science" },
 ];
@@ -148,18 +149,23 @@ function normalizeUpdatedDate(value: unknown): string | undefined {
   return Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== date ? undefined : date;
 }
 
-export function parseValsBenchmarkPage(html: string, expectedSlug: string): ParsedValsPage {
+/** `loaded` is the view fetched from a BenchmarkViewLoader island (newer pages); otherwise it's read from the inline props. */
+export function parseValsBenchmarkPage(html: string, expectedSlug: string, loaded?: Record<string, unknown>): ParsedValsPage {
   const island = findBenchmarkViewProps(html);
-  let serialized: unknown;
-  try {
-    serialized = JSON.parse(island.props);
-  } catch (error) {
-    throw new Error("VALS " + expectedSlug + " BenchmarkView props are not valid JSON: " + String(error));
+  let view: PlainRecord;
+  if (loaded) view = loaded as PlainRecord;
+  else {
+    let serialized: unknown;
+    try {
+      serialized = JSON.parse(island.props);
+    } catch (error) {
+      throw new Error("VALS " + expectedSlug + " BenchmarkView props are not valid JSON: " + String(error));
+    }
+    const root = decodeAstroValue(serialized);
+    const rootRecord = isRecord(root) ? root : {};
+    const benchmarkView = isRecord(rootRecord.benchmarkView) ? rootRecord.benchmarkView : {};
+    view = isRecord(benchmarkView.default) ? benchmarkView.default : {};
   }
-  const root = decodeAstroValue(serialized);
-  const rootRecord = isRecord(root) ? root : {};
-  const benchmarkView = isRecord(rootRecord.benchmarkView) ? rootRecord.benchmarkView : {};
-  const view = isRecord(benchmarkView.default) ? benchmarkView.default : {};
   const metadata = isRecord(view.metadata) ? view.metadata : undefined;
   const taskSets = isRecord(view.tasks) ? view.tasks : undefined;
   const scores = taskSets && isRecord(taskSets.overall) ? taskSets.overall : undefined;
@@ -267,22 +273,19 @@ const source: Source = {
   name: "VALS AI Benchmarks",
   url: ORIGIN + "/benchmarks",
   async scrape(ctx): Promise<ScrapeResult> {
-    const pages: { definition: PageDefinition; url: string; page: ParsedValsPage }[] = [];
+    const pages: { definition: PageDefinition; url: string; html: string; page: ParsedValsPage }[] = [];
     for (let start = 0; start < PAGES.length; start += 4) {
       const batch = await Promise.all(PAGES.slice(start, start + 4).map(async (definition) => {
         const url = ORIGIN + "/benchmarks/" + definition.slug;
         const html = await ctx.fetchText(url);
-        return { definition, url, page: parseValsBenchmarkPage(html, definition.slug) };
+        const loaded = await loadValsView(html, (target) => ctx.fetchText(target));
+        return { definition, url, html, page: parseValsBenchmarkPage(html, definition.slug, loaded) };
       }));
       pages.push(...batch);
     }
 
-    const componentUrls = [...new Set(pages.map(({ page }) => new URL(page.componentUrl, ORIGIN).href))];
-    const componentModules = await Promise.all(componentUrls.map((url) => ctx.fetchText(url)));
-    const constantsUrls = new Set<string>();
-    componentModules.forEach((moduleText, index) => {
-      constantsUrls.add(new URL(extractConstantsImport(moduleText), componentUrls[index]).href);
-    });
+    // The catalog bundle is imported by the view component, or (loader pages) by the component it loads.
+    const constantsUrls = new Set((await Promise.all(pages.map(({ html }) => valsConstantsUrl(html, (target) => ctx.fetchText(target))))).map((c) => c.url));
     if (constantsUrls.size !== 1) throw new Error("VALS pages resolved to multiple model catalog bundles");
 
     const constantsUrl = [...constantsUrls][0];

@@ -1,5 +1,5 @@
 import type { Benchmark, BenchmarkCategory, RawRow, ScrapeResult, Source } from "../../../src/data/types";
-import { fetchValsDisplayNames, parseValsBenchmarkView, valsDisplayName, VALS_ORIGIN } from "./_vals";
+import { fetchValsDisplayNames, loadValsBenchmarkView, parseValsBenchmarkView, valsDisplayName, VALS_ORIGIN } from "./_vals";
 
 const INDEX_URL = `${VALS_ORIGIN}/benchmarks`;
 const SOURCE_ID = "vals-archived";
@@ -47,7 +47,9 @@ function decodeHtml(value: string): string {
 
 function pageTitle(html: string, fallback: string): string {
   const title = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1];
-  return (title ? decodeHtml(title.replace(/<[^>]*>/g, "")).trim() : "") || fallback;
+  // Titles read "AIME Leaderboard and Methodology | Vals AI"; keep just the benchmark name.
+  const clean = title ? decodeHtml(title.replace(/<[^>]*>/g, "")).replace(/\s*\|\s*Vals AI\s*$/i, "").replace(/\s+Leaderboard(\s+and\s+Methodology)?\s*$/i, "").trim() : "";
+  return clean || fallback;
 }
 
 function finite(value: unknown): value is number {
@@ -101,8 +103,8 @@ function idFor(slug: string): string {
   return normalized.startsWith("vals-") ? normalized : `vals-${normalized}`;
 }
 
-export function parseArchivedPage(html: string, slug: string, displayNames: Record<string, string> = {}): ParsedArchivedPage {
-  const payload = parseValsBenchmarkView(html, slug) as unknown as Json;
+export function parseArchivedPage(html: string, slug: string, displayNames: Record<string, string> = {}, view?: unknown): ParsedArchivedPage {
+  const payload = (view ?? parseValsBenchmarkView(html, slug)) as unknown as Json;
   const metadata = payload.metadata as Json | undefined;
   const taskRows = payload.tasks as Record<string, Record<string, Score>> | undefined;
   if (!metadata || !taskRows || typeof taskRows !== "object") {
@@ -150,7 +152,7 @@ export function parseArchivedPage(html: string, slug: string, displayNames: Reco
   let name = pageTitle(html, sourceName);
   const version = typeof metadata.version === "string" ? metadata.version : "";
   if (/^vals\s/i.test(name) && version && !name.toLowerCase().includes(version.toLowerCase())) name += ` v${version}`;
-  if (!/^vals\s/i.test(name)) name += " (Vals AI)";
+  if (!/^vals\s/i.test(name)) name += " (Vals)";
   const lastUpdated = parseDate(metadata.updated, slug);
   const advanced = Object.entries(taskNames)
     .filter(([taskId]) => taskId !== "overall")
@@ -262,7 +264,8 @@ const source: Source = {
     const pages = await mapWithConcurrency(ARCHIVED_BENCHMARK_SLUGS, 4, async (slug) => {
       const html = await ctx.fetchText(`${VALS_ORIGIN}/benchmarks/${slug}`);
       const displayNames = await fetchValsDisplayNames(html, (url) => ctx.fetchText(url));
-      return { slug, html, parsed: parseArchivedPage(html, slug, displayNames) };
+      const view = await loadValsBenchmarkView(html, slug, (url) => ctx.fetchText(url));
+      return { slug, html, parsed: parseArchivedPage(html, slug, displayNames, view) };
     });
     const raw: Record<string, string> = { "benchmarks.html": catalogue };
     for (const page of pages) {

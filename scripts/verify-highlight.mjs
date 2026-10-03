@@ -36,6 +36,12 @@ try {
   await p.keyboard.press('Escape'); await p.waitForTimeout(900);
   assert.equal((await items()).length, 4);
   assert(await badgesInside(), 'guide badges stay inside the chart');
+  assert(await cost.evaluate((el) => {
+    const elements = [...el.querySelectorAll('[role=img] svg path, [role=img] svg text')];
+    const lines = elements.filter((e) => e.tagName === 'path' && (e.getAttribute('stroke-dasharray') === '4,3' || (e.getAttribute('stroke-width') === '2' && e.getAttribute('fill') === 'none')));
+    const labels = elements.filter((e) => e.tagName === 'text' && /GPT-6|Fable|Opus/.test(e.textContent));
+    return lines.length > 0 && labels.length > 0 && labels.every((label) => lines.every((line) => elements.indexOf(line) < elements.indexOf(label)));
+  }), 'highlighted effort links and guides draw behind model labels');
   await cost.screenshot({ path: `${out}/multi.png` });
   // Guides toggle (Pareto settings) turns lines off.
   await cost.locator('summary[aria-label="Pareto settings"]').click();

@@ -52,7 +52,7 @@ describe("VALS archived benchmark parsing", () => {
 
     expect(parsed.benchmark).toMatchObject({
       id: "vals-example",
-      name: "Example (Vals AI)",
+      name: "Example (Vals)",
       sourceId: "vals-archived",
       lastUpdated: "2026-06-09",
       defaultWeight: 0,
@@ -71,6 +71,17 @@ describe("VALS archived benchmark parsing", () => {
       labHint: "OpenAI",
       details: { easy: 82 },
     });
+  });
+
+  it("trims the VALS leaderboard title suffix while keeping its source label", () => {
+    const html = benchmarkPageHtml().replace(
+      "<title>Example</title>",
+      "<title>Example Leaderboard and Methodology | Vals AI</title>",
+    );
+    const parsed = parseArchivedPage(html, "example", { "openai/gpt-5.2": "GPT-5.2" });
+
+    expect(parsed.benchmark.name).toBe("Example (Vals)");
+    expect(parsed.benchmark.shortName).toBe("Vals Example");
   });
 
   it("normalizes timestamp update metadata to YYYY-MM-DD", () => {
