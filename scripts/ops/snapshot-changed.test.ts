@@ -105,11 +105,13 @@ describe("scheduled snapshot change gate", () => {
         GATE_CLI: path.resolve("scripts/ops/snapshot-changed.ts"), PUSH_LOG: path.join(cwd, "push.log"),
       } });
       const initial = git("rev-parse", "HEAD");
-      expect(run().status).toBe(0);
+      const noop = run();
+      expect(noop.status, noop.stderr).toBe(0);
       expect(git("rev-parse", "HEAD")).toBe(initial);
       next.observations[0].value++;
       writeFileSync(file, gzipSync(JSON.stringify(next)));
-      expect(run().status).toBe(0);
+      const update = run();
+      expect(update.status, update.stderr).toBe(0);
       expect(readFileSync(path.join(cwd, "push.log"), "utf8")).toBe("push\n");
       expect(git("diff", "--cached", "--name-only")).toBe("app-edit.txt\n");
       expect(git("show", "--format=", "--name-only", "HEAD")).toBe("data/snapshots/latest.json.gz\n");

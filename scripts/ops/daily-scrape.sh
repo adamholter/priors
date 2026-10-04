@@ -5,7 +5,7 @@ cd "$(dirname "$0")/../.."
 export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
 DATE=$(date +%F)
 echo "== $(date -Iseconds) scrape $DATE"
-LOG=$(mktemp -t priors-scrape)
+LOG=$(mktemp "${TMPDIR:-/tmp}/priors-scrape.XXXXXX") || exit 1
 notify() { osascript -e "display notification \"$1\" with title \"Priors\"" 2>/dev/null || true; }
 if ! npx tsx scripts/scrape/build.ts --date "$DATE" 2>&1 | tee "$LOG"; then
   notify "Priors scrape failed for $DATE — see logs/scrape.log"
