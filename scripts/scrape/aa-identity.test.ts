@@ -12,6 +12,16 @@ const aa = (overrides: Partial<AAModelRecord> = {}): AAModelRecord => ({
 });
 
 describe("resolveAAIdentity", () => {
+  it("keeps Grok releases separate while recognizing equivalent spellings and efforts", () => {
+    const identity = (name: string, slug: string, release: string) => resolveAAIdentity(aa({ name, slug, effort: { slug: "high" }, release: { name: release } }));
+    expect(identity("Grok 4.5 (High)", "grok-4-5", "Grok 4.5").modelId).toBe("grok-4.5");
+    expect(identity("x-ai/grok-4-6-high", "grok-4-6", "Grok 4.6").modelId).toBe("grok-4.6");
+  });
+
+  it("rejects a UUID join with conflicting release identities instead of grouping them", () => {
+    expect(() => resolveAAIdentity(aa({ name: "Grok 4.5 (High)", slug: "grok-4-6", release: { name: "Grok 4.6" } }))).toThrow(/identity conflict/);
+    expect(() => resolveAAIdentity(aa({ name: "Grok 4.5 (High)" }), aa({ name: "Grok 4.6 (High)" }))).toThrow(/identity conflict/);
+  });
   it.each([
     ["gpt-6-astra-non-reasoning", "GPT-6 Astra (Non-reasoning)", undefined, false, "none"],
     ["gpt-6-astra-low", "GPT-6 Astra (low)", "low", true, "low"],

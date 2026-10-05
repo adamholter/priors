@@ -56,21 +56,27 @@ export function ScoreScatter({ pts: allPoints, labs, better, xName: baseXName, x
   const exportControl = useRef<ChartExportHandle>(null);
   const contextPick = useRef(context.pointMenu);
   useEffect(() => { contextPick.current = context.pointMenu; });
-  const [plotW, setPlotW] = useState(0);
+  const [plotW, setPlotW] = useState(0), [plotH, setPlotH] = useState(height);
   const narrow = plotW > 0 && plotW < 560;
   useEffect(() => {
     const el = wrapRef.current; if (!el) return;
     const ro = new ResizeObserver(([e]) => setPlotW(Math.round(e.contentRect.width / 4) * 4));
     ro.observe(el); return () => ro.disconnect();
   }, []);
+  useEffect(() => {
+    const el = wrapRef.current?.querySelector<HTMLElement>('[role="img"]'); if (!el) return;
+    const ro = new ResizeObserver(([e]) => setPlotH(Math.round(e.contentRect.height)));
+    ro.observe(el); return () => ro.disconnect();
+  }, []);
   const frontier = useMemo(() => frontierOf(pts, better), [pts, better]);
   const pal = useChartPalette();
   const plotWidth = useCallback(() => plotW || undefined, [plotW]);
+  const plotHeight = useCallback(() => plotH, [plotH]);
   const hl = useHighlight();
   const hlItems = hl?.items;
   const highlight = useMemo<Highlight | undefined>(() => hlItems?.length ? { items: hlItems, guides: view.guides !== false } : undefined, [hlItems, view.guides]);
-  const option = useMemo<EChartsOption>(() => scatterOption({ pts, labs, better, xName, xShort, xUnit, scale, formatX, formatValue, view, pal, narrow, hasTitle: !!title, tooltipExtra, width: plotWidth, highlight }),
-    [pts, labs, better, view, narrow, xName, xShort, xUnit, scale, formatX, formatValue, tooltipExtra, title, pal, plotWidth, highlight]);
+  const option = useMemo<EChartsOption>(() => scatterOption({ pts, labs, better, xName, xShort, xUnit, scale, formatX, formatValue, view, pal, narrow, hasTitle: !!title, tooltipExtra, width: plotWidth, height: plotHeight, highlight }),
+    [pts, labs, better, view, narrow, xName, xShort, xUnit, scale, formatX, formatValue, tooltipExtra, title, pal, plotWidth, plotHeight, highlight]);
   // Clicking a mark toggles that exact effort's highlight (several efforts per model are allowed).
   const pick = useRef<(p: ScatterPoint) => void>(() => {});
   useEffect(() => { pick.current = (p) => { if (hl) hl.set(togglePoint(hl.items, pts, p)); }; }, [hl, pts]);
@@ -133,6 +139,7 @@ export function ScoreScatter({ pts: allPoints, labs, better, xName: baseXName, x
   const onFrontierIds = useMemo(() => new Set(frontier.map((p) => p.r.variant.id)), [frontier]);
   const getHtml = () => {
     const color = new Map(labs.map((l) => [l.id, l.color])), labeled = pickLabels(pts, better, view.density), ys = pts.map((p) => p.r.score);
+    const labelPriority = new Map([...labeled].map((id, i) => [id, i]));
     const items = highlight?.items ?? [], focusedModels = highlightedModels(items), featured = new Set(featuredPoints(pts, items).map((p) => p.r.variant.id));
     const guides = new Set(guidePoints(pts, highlight).map((p) => p.r.variant.id));
     const byModel = new Map<string, ScatterPoint[]>();
@@ -140,7 +147,7 @@ export function ScoreScatter({ pts: allPoints, labs, better, xName: baseXName, x
     return scatterHtml({
       title: exportName, xName, scale, unit: unitOf(formatX), highlight: items, guides: view.guides !== false,
       yMin: Math.max(0, Math.floor((Math.min(...ys, 100) - 6) / 5) * 5), yMax: Math.min(100, Math.ceil((Math.max(...ys, 0) + 4) / 5) * 5),
-      points: pts.map((p) => {
+      points: [...pts].sort((a, b) => (labelPriority.get(a.r.variant.id) ?? Infinity) - (labelPriority.get(b.r.variant.id) ?? Infinity)).map((p) => {
         const light = markColor(color.get(p.r.model.labId), LIGHT_PALETTE, p.r.model.labId), dark = markColor(color.get(p.r.model.labId), DARK_PALETTE, p.r.model.labId);
         return { v: [p.x, p.r.score], c: light, d: dark, dc: dimColor(light, LIGHT_PALETTE), dd: dimColor(dark, DARK_PALETTE),
           m: p.r.model.id, id: p.r.variant.id, e: p.r.variant.effort, h: focusedModels.has(p.r.model.id), a: featured.has(p.r.variant.id), g: guides.has(p.r.variant.id),

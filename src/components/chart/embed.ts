@@ -1,4 +1,5 @@
 /** Standalone, interactive HTML exports: ECharts from a pinned CDN build plus the chart's data baked in. */
+import { scatterLabelLayout } from "./scatter-label-layout";
 
 const ECHARTS = "https://cdn.jsdelivr.net/npm/echarts@6.1.0/dist/echarts.min.js";
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
@@ -78,13 +79,14 @@ const key=JSON.stringify(children);if(key===last)return;last=key;chart.setOption
 };
 let last="";onFinish=guides;
 const order=[...S.points].sort((a,b)=>Number(a.h)-Number(b.h));
+const scatterLabels=(${scatterLabelLayout.toString()})(()=>chart.getWidth(),()=>chart.getHeight(),order.map(p=>active?(p.a||(p.h&&p.e!=="default")):p.s));
 chart.setOption({textStyle:{fontFamily:"Inter,system-ui,sans-serif",color:P.ink},grid:{left:48,right:130,top:30,bottom:44,...CONTAIN},tooltip:{...tip,trigger:"item",formatter:(p)=>p.data&&p.data.t||""},
 xAxis:{...axis,type:S.scale==="linear"?"value":S.scale,scale:S.scale==="linear",name:S.xName,nameLocation:"end",nameGap:8,nameTextStyle:{color:GREY,fontSize:11,align:"right",verticalAlign:"top",padding:[26,0,0,0]},axisLabel:{...axis.axisLabel,hideOverlap:true,showMinLabel:S.scale==="linear",showMaxLabel:S.scale==="linear",...(S.scale==="time"?{}:{formatter:fmt})},...(S.scale==="log"?{min:(e)=>e.min/1.5,max:(e)=>e.max*1.8}:{})},
 yAxis:{...axis,type:"value",name:"Index score",min:S.yMin,max:S.yMax,nameTextStyle:{color:GREY,fontSize:11,align:"left",padding:[0,0,0,-30]}},
 series:[...S.links.map((l)=>({type:"line",data:l.p,showSymbol:false,silent:true,lineStyle:{color:active&&!l.h?dim(l):lab(l),width:l.h?2:1,opacity:l.h?1:active ? .25 : D ? .45 : .35},z:l.h?4:1})),
 ...(S.frontier.length>1?[{type:"line",data:S.frontier,showSymbol:false,silent:true,lineStyle:{color:P.ink,width:1.4,opacity:active ? .3 : 1},z:2}]:[]),
 {type:"scatter",id:"marks",z:5,data:order.map((p)=>({value:p.v,name:p.n,id:p.id,t:p.t,symbolSize:active?(p.a?12:9):(p.f?11:9),itemStyle:{color:active&&!p.h?dim(p):lab(p),borderColor:active?(p.h?P.ink:P.bg):(p.f?P.ink:P.bg),borderWidth:active?(p.h?(p.a?1.8:1.2):1):(p.f?1.5:1.5),opacity:active&&!p.h?(D ? .55 : .6):(active||p.s||p.f?1:.8)},label:active?(p.a?{show:true,formatter:p.n,fontWeight:600,color:P.ink}:{show:p.h&&p.e!=="default",formatter:p.e.toUpperCase(),fontSize:9,color:P.grey,backgroundColor:"transparent",textBorderColor:P.bg,textBorderWidth:3,distance:5}):{show:p.s}})),
-label:{position:"right",formatter:"{b}",fontSize:11.5,color:P.ink,distance:7,backgroundColor:P.labelBg,padding:[2,3],borderRadius:2},labelLayout:inside,emphasis:{scale:1.4,label:{show:true,fontWeight:600}}}]},true);
+label:{position:"right",formatter:"{b}",fontSize:11.5,color:P.ink,distance:7,backgroundColor:P.labelBg,padding:[2,3],borderRadius:2},labelLayout:scatterLabels,emphasis:{scale:1.4,label:{show:true,fontWeight:600}}}]},true);
 guides();`, 520);
 }
 

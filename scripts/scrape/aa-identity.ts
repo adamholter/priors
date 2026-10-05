@@ -105,6 +105,14 @@ export function resolveAAIdentity(raw: AAModelRecord, tbl?: AAModelRecord): AAId
   const effort = effortFor(record, `${label} ${sourceSlug}`);
   const normalized = normalizeLabel(label, effort === "default" ? undefined : effort);
 
+  // Evaluation and catalog rows are joined by UUID, but names can drift independently. A changed
+  // release number must never turn an old evaluation into another model's reasoning effort.
+  // Compare normalized identities so provider prefixes, punctuation and effort words still match.
+  const release = record.release && typeof record.release === "object" ? record.release as Record<string, unknown> : undefined;
+  const names = [label, text(record.name), text(release?.name)].filter((name): name is string => !!name);
+  const identities = new Set(names.map(name => normalizeLabel(name)).filter(identity => identity.ok).map(identity => identity.modelId));
+  if (identities.size > 1) throw new Error(`AA model identity conflict for ${sourceModelId}: ${names.join(" / ")}`);
+
   const modelId = normalized.ok ? normalized.modelId : `aa-${sourceSlug || slugify(sourceModelId)}`;
   const modelName = normalized.ok ? normalized.modelName : label;
   const resolvedLabId = normalized.ok ? normalized.labId : labId(record.creator ?? raw.creator);

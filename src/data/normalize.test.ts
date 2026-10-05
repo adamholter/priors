@@ -37,6 +37,10 @@ const cases: [string, string, string | undefined][] = [
 ];
 
 describe("normalizeLabel", () => {
+  it.each(["Grok 4.5 (High)", "x-ai/grok-4.5-high", "grok-4-5 [high]", "SpaceXAI: Grok 4.5 High"])("preserves the release number while merging equivalent label forms: %s", label => {
+    expect(normalizeLabel(label)).toMatchObject({ modelId: "grok-4.5", effort: "high" });
+    expect(normalizeLabel(label.replace(/4([.-])5/, "4$16"))).toMatchObject({ modelId: "grok-4.6", effort: "high" });
+  });
   it("keeps Epoch's no-reasoning, sized models, Instant and dated releases distinct", () => {
     expect(normalizeLabel("GPT-6 Astra (none)")).toMatchObject({ effort: "none" });
     expect(normalizeLabel("GPT-6 Astra (low)")).toMatchObject({ effort: "low" });
