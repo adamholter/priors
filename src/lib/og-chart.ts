@@ -130,6 +130,12 @@ export async function renderChartPng(spec: ChartSpec, labs: Lab[], pal: ChartPal
     // Lift the x-axis so tick labels and the axis name clear X's bottom-left title overlay (~y550).
     chart.setOption({ ...opt, animation: false, grid: { ...(opt.grid as Record<string, number>), bottom: 108 } });
     addHighlightGuides(chart, spec.pts, emphasis, labs, pal, spec.chart.formatX);
+    // Browser clipping safely omits labels with no free slot. resvg's clip intersection can panic
+    // for a label entirely outside the canvas, so omit those labels from the server SVG as well.
+    for (const root of chart.getZr().storage.getRoots()) root.traverse(el => {
+      const label = el.getTextContent();
+      if (label && (label.x < -CHART_W || label.y < -CHART_H)) label.ignore = true;
+    });
     svg = chart.renderToSVGString();
   }
   chart.dispose();

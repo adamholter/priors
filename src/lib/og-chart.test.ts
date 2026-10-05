@@ -32,6 +32,12 @@ const index = (highlight: string[]): IndexConfig => ({
 });
 
 describe("share-card chart highlights", () => {
+  it("renders dense charts without passing clipped labels to the PNG renderer", async () => {
+    const dense = Array.from({ length: 80 }, (_, i) => ranked(`model-${i}`, `Model ${i}`, "anthropic", "high", 80, 0.1));
+    const spec = scatterSpec({} as Snapshot, dense, index([]), "cost", "all")!;
+    const image = await renderChartPng(spec, labs, LIGHT_PALETTE);
+    expect(image?.subarray(0, 8).toString("hex")).toBe("89504e470d0a1a0a");
+  });
   it("filters saved removals before selecting and rendering preview marks", async () => {
     const spec = scatterSpec({} as Snapshot, points, index(["beta@low"]), "cost", "all", "linear", { models: ["alpha"], efforts: ["beta@high"] });
     expect(spec?.pts.map(p => p.r.variant.id)).toEqual(["beta@low"]);
