@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, type RefObject } from "react";
 import { anchorOf } from "@/lib/metrics";
 import { chartLinkUrl } from "@/lib/highlight-link";
 import { useHighlight } from "./highlight";
+import { ChartLinkIcon } from "./ChartIcons";
 
 export { anchorOf };
 
@@ -51,7 +52,7 @@ export function ChartLink({ id, name, params }: { id: string; name: string; para
   };
   return <button type="button" onClick={copy} className="relative grid place-items-center w-7 h-7 rounded-sm text-grey hover:text-ink focus-visible:outline-indigo" aria-label={`Copy link to ${name}`} title={copied ? "Link copied" : `Copy link to ${name}`}>
     {copied ? <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5" /></svg>
-      : <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden="true"><path d="M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1 1" /><path d="M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1-1" /></svg>}
+      : <ChartLinkIcon />}
     <span role="status" className="sr-only">{copied ? "Link copied" : ""}</span>
   </button>;
 }

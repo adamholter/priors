@@ -151,7 +151,14 @@ details.gallery-panel > summary::-webkit-details-marker { display: none; }
 .chart-context-menu button { width: 100%; display: flex; align-items: center; gap: 10px; padding: 8px 9px; border: 0; border-radius: 3px; background: transparent; color: var(--ink); text-align: left; }
 .chart-context-menu button:hover, .chart-context-menu button:focus-visible { background: var(--bone); outline-offset: -2px; }
 .chart-context-section { border-top: 1px solid var(--hair); padding-top: 4px; margin-top: 4px; }
-.chart-context-icon { width: 16px; text-align: center; color: var(--grey); }
+.chart-context-icon { display: inline-flex; flex: none; align-items: center; justify-content: center; width: 20px; height: 20px; color: var(--ink-2); }
+.chart-context-menu kbd { margin-left: auto; font: 10px var(--font-sans); color: var(--grey); white-space: nowrap; }
+.chart-context-export-row { display: flex; align-items: stretch; }
+.chart-context-export-row > button:first-child { flex: 1; min-width: 0; }
+.chart-context-export-row > .chart-context-disclosure { flex: none; width: 32px; padding: 8px; justify-content: center; }
+.chart-context-disclosure svg { transition: transform .12s; }
+.chart-context-disclosure[aria-expanded="true"] svg { transform: rotate(90deg); }
+.chart-context-formats { padding-left: 30px; }
 .chart-context-group { display: block; padding: 5px 9px; font-size: 10px; color: var(--grey); }
 .chart-context-menu.menu-grouped { width: 252px; }
 @media (max-width: 639px) {

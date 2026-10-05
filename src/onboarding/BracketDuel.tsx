@@ -7,6 +7,11 @@ const KEY = "priors:bracket";
 const SWIPE = 72;
 type Side = "left" | "right" | "tie";
 
+/** Starts a fresh production run when the user explicitly chooses Rank in pairs. */
+export function resetSavedBracket() {
+  try { localStorage.removeItem(KEY); } catch { /* storage can be disabled */ }
+}
+
 function Arrow({ left = false }: { left?: boolean }) { return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true" style={left ? { transform: "rotate(180deg)" } : undefined}><path d="M4 12h15m-6-6 6 6-6 6" /></svg>; }
 const TIERS = { frontier: "Frontier tier", mid: "Mid tier", small: "Small model" } as const;
 const released = (iso?: string) => iso ? `Released ${new Date(`${iso.slice(0, 10)}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", year: "numeric", timeZone: "UTC" })}` : "Release date unknown";
@@ -22,7 +27,7 @@ export function undoSavedCall() {
   } catch { /* ignore */ }
 }
 
-export function Bracket({ seeds, models, labs, onFinish, onList }: { seeds: string[]; models: Map<string, Model>; labs: Map<string, Lab>; onFinish: (step: BracketStep) => void; onList: () => void }) {
+export function Bracket({ seeds, models, labs, onFinish, onList, storageKey = KEY }: { seeds: string[]; models: Map<string, Model>; labs: Map<string, Lab>; onFinish: (step: BracketStep) => void; onList: () => void; storageKey?: string | null }) {
   const [answers, setAnswers] = useState<Answer[]>([]);
   const step = useMemo(() => runBracket(seeds, answers), [seeds, answers]);
   const [leaving, setLeaving] = useState<Side | null>(null);
@@ -38,14 +43,14 @@ export function Bracket({ seeds, models, labs, onFinish, onList }: { seeds: stri
   useEffect(() => {
     const raf = requestAnimationFrame(() => {
       try {
-        const saved = JSON.parse(localStorage.getItem(KEY) ?? "null") as { v?: number; seeds?: string; answers?: Answer[] } | null;
+        const saved = JSON.parse(storageKey ? localStorage.getItem(storageKey) ?? "null" : "null") as { v?: number; seeds?: string; answers?: Answer[] } | null;
         if (saved?.v === 1 && saved.seeds === seeds.join() && Array.isArray(saved.answers)) setAnswers(saved.answers);
       } catch { /* start fresh */ }
       restored.current = true;
     });
     return () => cancelAnimationFrame(raf);
-  }, [seeds]);
-  useEffect(() => { if (restored.current) try { localStorage.setItem(KEY, JSON.stringify({ v: 1, seeds: seeds.join(), answers })); } catch { /* ignore */ } }, [answers, seeds]);
+  }, [seeds, storageKey]);
+  useEffect(() => { if (restored.current && storageKey) try { localStorage.setItem(storageKey, JSON.stringify({ v: 1, seeds: seeds.join(), answers })); } catch { /* ignore */ } }, [answers, seeds, storageKey]);
   useEffect(() => () => { if (timer.current) clearTimeout(timer.current); gesture.current?.cleanup(); }, []);
   // A finished bracket goes straight to the full ranking for review.
   const finish = useRef(onFinish);

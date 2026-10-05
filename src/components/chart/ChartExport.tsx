@@ -1,11 +1,14 @@
 "use client";
-import { useState } from "react";
+import { useImperativeHandle, useState, type Ref } from "react";
 import { useChartPalette } from "./echarts";
 import { escapeSvg, frameSvg } from "./export-frame";
+import { ChartDownloadIcon } from "./ChartIcons";
 
 export { escapeSvg, frameSvg };
 
 export type ExportRow = Record<string, string | number | boolean | null | undefined>;
+export type ChartExportFormat = "png" | "svg" | "csv" | "json" | "html";
+export type ChartExportHandle = { download: (format: ChartExportFormat) => Promise<void>; formats: ChartExportFormat[] };
 
 function toCsv(rows: ExportRow[]) {
   const keys = [...new Set(rows.flatMap((r) => Object.keys(r)))];
@@ -17,7 +20,7 @@ function toCsv(rows: ExportRow[]) {
 }
 
 /** Export control: PNG is the primary button, a chevron opens the full format menu (PNG, SVG, CSV, JSON). */
-export function ChartExport({ name, getSvg, getRows, getHtml, frame, className = "" }: { name: string; getSvg: () => string | undefined; getRows?: () => ExportRow[]; getHtml?: () => string; frame?: boolean; className?: string }) {
+export function ChartExport({ name, getSvg, getRows, getHtml, frame, className = "", ref }: { name: string; getSvg: () => string | undefined; getRows?: () => ExportRow[]; getHtml?: () => string; frame?: boolean; className?: string; ref?: Ref<ChartExportHandle> }) {
   const pal = useChartPalette();
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState(false);
@@ -28,7 +31,7 @@ export function ChartExport({ name, getSvg, getRows, getHtml, frame, className =
     a.download = `priors-${name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}.${ext}`;
     a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
-  async function download(format: "svg" | "png" | "csv" | "json" | "html") {
+  async function download(format: ChartExportFormat) {
     setOpen(false); setBusy(true); setError("");
     try {
       if (format === "html") { const html = getHtml?.(); if (!html) throw new Error("Chart is still loading. Try again."); save(new Blob([html], { type: "text/html;charset=utf-8" }), "html"); return; }
@@ -64,9 +67,10 @@ export function ChartExport({ name, getSvg, getRows, getHtml, frame, className =
     } catch (e) { setError(e instanceof Error ? e.message : "Export failed. Try again."); }
     finally { setBusy(false); }
   }
-  const formats: ("png" | "svg" | "csv" | "json" | "html")[] = ["png", "svg", ...(getHtml ? (["html"] as const) : []), ...(getRows ? (["csv", "json"] as const) : [])];
+  const formats: ChartExportFormat[] = ["png", "svg", ...(getHtml ? (["html"] as const) : []), ...(getRows ? (["csv", "json"] as const) : [])];
+  useImperativeHandle(ref, () => ({ download, formats }));
   return <div className={`relative flex items-center gap-1.5 ${className}`} role="group" aria-label={`Export ${name}`} title={`Export ${name}`}>
-    <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-grey"><path d="M12 3v12m-4-4 4 4 4-4M5 16v5h14v-5" /></svg>
+    <span className="text-grey"><ChartDownloadIcon /></span>
     <div className="export-split">
       <button type="button" disabled={busy} aria-label={`Download ${name} as PNG`} onClick={() => download("png")}>PNG</button>
       <button type="button" className="export-toggle" aria-haspopup="menu" aria-expanded={open} aria-label={`More export formats for ${name}`} onClick={() => setOpen(o => !o)}>

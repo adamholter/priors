@@ -1,5 +1,5 @@
 "use client";
-import { ChartExport } from "./ChartExport";
+import { ChartExport, type ChartExportHandle } from "./ChartExport";
 import type { EChartsOption } from "echarts";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Lab } from "@/data/types";
@@ -28,6 +28,7 @@ export function MetricBars({ pts: allPoints, labs, better, xName, formatValue, h
   const wrap = useRef<HTMLDivElement>(null);
   const visibility = useChartVisibility(allPoints), pts = visibility.points;
   const context = useChartContextMenu();
+  const exportControl = useRef<ChartExportHandle>(null);
   const contextPick = useRef(context.pointMenu);
   useEffect(() => { contextPick.current = context.pointMenu; });
   const [narrow, setNarrow] = useState(false);
@@ -67,9 +68,9 @@ export function MetricBars({ pts: allPoints, labs, better, xName, formatValue, h
   };
   return (
     <>{expand.backdrop}<div ref={wrap} id={anchor} className={`max-sm:-mx-4 scroll-mt-20 ${expand.expanded ? "chart-expanded" : ""}`} role={expand.expanded ? "dialog" : undefined} aria-modal={expand.expanded || undefined} aria-label={expand.expanded ? exportName : undefined}>
-      <div className={`chart-toolbar flex flex-wrap items-center justify-end gap-1 max-sm:px-4 min-h-8 ${title || expand.expanded ? "mb-1" : "-mb-8 relative z-10 pointer-events-none"}`}>{(title || expand.expanded) ? <div className="min-w-0 mr-auto">{title ?? <h2 className="text-[22px]">{exportName}</h2>}<HighlightList /></div> : <div className="min-w-0 mr-auto"><HighlightList /></div>}<div className="flex items-center gap-1 pointer-events-auto"><HighlightMenu label={exportName} />{!!visibility.hiddenCount && <button type="button" className="cap hover:text-ink" onClick={visibility.restore}>Restore removed ({visibility.hiddenCount})</button>}{actions}{anchor && <ChartLink id={anchor} name={exportName} params={linkParams} />}<ChartExport name={exportName} frame getHtml={getHtml} getSvg={() => chart.current?.renderToSVGString()} getRows={() => bars.map((p, i) => ({ rank: i + 1, model: p.r.model.name, effort: p.r.variant.effort, [xName]: +value(p).toFixed(4), index_score: +p.r.score.toFixed(2) }))} />{expand.button}</div></div>
+      <div className={`chart-toolbar flex flex-wrap items-center justify-end gap-1 max-sm:px-4 min-h-8 ${title || expand.expanded ? "mb-1" : "-mb-8 relative z-10 pointer-events-none"}`}>{(title || expand.expanded) ? <div className="min-w-0 mr-auto">{title ?? <h2 className="text-[22px]">{exportName}</h2>}<HighlightList /></div> : <div className="min-w-0 mr-auto"><HighlightList /></div>}<div className="flex items-center gap-1 pointer-events-auto"><HighlightMenu label={exportName} />{visibility.canUndo && <button type="button" className="cap hover:text-ink" onClick={visibility.undo} aria-label="Undo chart removal">Undo</button>}{actions}{anchor && <ChartLink id={anchor} name={exportName} params={linkParams} />}<ChartExport ref={exportControl} name={exportName} frame getHtml={getHtml} getSvg={() => chart.current?.renderToSVGString()} getRows={() => bars.map((p, i) => ({ rank: i + 1, model: p.r.model.name, effort: p.r.variant.effort, [xName]: +value(p).toFixed(4), index_score: +p.r.score.toFixed(2) }))} />{expand.button}</div></div>
       <div className={expand.expanded ? "flex-1 min-h-0" : undefined}><div ref={ref} role="img" aria-label={aria} tabIndex={0} onContextMenu={context.onContextMenu} onKeyDown={context.onKeyDown} style={{ width: "100%", height: expand.expanded ? "100%" : height, overflow: "hidden", position: "relative", isolation: "isolate" }} /></div>
-      <ChartContextMenu state={context.menu} close={context.close} name={exportName} points={bars} visibility={visibility} chart={chart} wrap={wrap} expanded={expand.expanded} anchor={anchor} />
+      <ChartContextMenu exportControl={exportControl} state={context.menu} close={context.close} name={exportName} points={bars} visibility={visibility} chart={chart} wrap={wrap} expanded={expand.expanded} anchor={anchor} />
     </div></>
   );
 }

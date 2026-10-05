@@ -15,7 +15,7 @@ import { api } from "../../convex/_generated/api";
 import { convexEnabled } from "@/app/providers";
 import { Intro, INTRO_KEY } from "./Intro";
 import { PRIORS_MIX_COOKIE, savedLineup } from "./defaults";
-import { Bracket, undoSavedCall } from "./BracketDuel";
+import { Bracket, resetSavedBracket, undoSavedCall } from "./BracketDuel";
 import type { BracketStep } from "./bracket";
 import "./onboarding.css";
 const ROW = 46;
@@ -35,6 +35,7 @@ function searchMessage(u: FitUpdate, snapshot: Snapshot) {
   return "Refining the remaining disagreements.";
 }
 type LineupArgs = { focus: string; lineup: string[]; weights: Record<string, number>; strictness: number; fitScore: number; exact: boolean; snapshotDate: string };
+export type OnboardingLabOptions = { label: string; placement: "heading" | "board-heading" | "board-top" };
 /** Registers the Convex mutation on a stable ref; mounted only when Convex is configured. */
 function LineupRecorder({ onRegister }: { onRegister: (fn: ((a: LineupArgs) => void) | null) => void }) {
   const record = useMutation(api.lineups.record);
@@ -49,7 +50,8 @@ function Trace({ values }: { values: number[] }) {
   return <svg className="fit-trace" viewBox="0 0 300 76" role="img" aria-label="How closely the search matches your requested order"><path d="M0 68H300M0 38H300M0 8H300" style={{ stroke: "var(--hair)" }} strokeWidth=".5" /><path d={path} fill="none" style={{ stroke: "var(--indigo)" }} strokeWidth="1.5" vectorEffect="non-scaling-stroke" />{values.length > 0 && <circle cx="300" cy={68 - values[values.length - 1] * .6} r="3" style={{ fill: "var(--indigo)" }} />}</svg>;
 }
 
-export function Onboarding({ snapshot, lineup, seeds, quality, observedModelIds, hasSavedMix }: { snapshot: Snapshot; lineup: string[]; seeds: string[]; quality: BenchmarkQuality[]; observedModelIds: string[]; hasSavedMix: boolean }) {
+export function Onboarding({ snapshot, lineup, seeds, quality, observedModelIds, hasSavedMix, labMode }: { snapshot: Snapshot; lineup: string[]; seeds: string[]; quality: BenchmarkQuality[]; observedModelIds: string[]; hasSavedMix: boolean; labMode?: OnboardingLabOptions }) {
+  const inLab = !!labMode;
   const models = useMemo(() => new Map(snapshot.models.map(m => [m.id, m])), [snapshot]);
   const labColor = useLabColor();
   const colors = useMemo(() => new Map(snapshot.labs.map(l => [l.id, labColor(l.id, l.color)])), [snapshot, labColor]);
@@ -65,6 +67,7 @@ export function Onboarding({ snapshot, lineup, seeds, quality, observedModelIds,
   const restored = useRef(false);
   const edited = useRef(false);
   useEffect(() => {
+    if (inLab) { restored.current = true; return; }
     const raf = requestAnimationFrame(() => {
       restored.current = true;
       if (!hasSavedMix) {
@@ -90,8 +93,8 @@ export function Onboarding({ snapshot, lineup, seeds, quality, observedModelIds,
     return () => cancelAnimationFrame(raf);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  useEffect(() => { if (!restored.current || !edited.current) return; try { localStorage.setItem("priors:lineup", JSON.stringify({ v: 2, lineup: order })); } catch { /* ignore */ } }, [order]);
-  const [stage, setStage] = useState<"compare" | "order" | "fit">("compare");
+  useEffect(() => { if (inLab || !restored.current || !edited.current) return; try { localStorage.setItem("priors:lineup", JSON.stringify({ v: 2, lineup: order })); } catch { /* ignore */ } }, [order, inLab]);
+  const [stage, setStage] = useState<"compare" | "order" | "fit">("order");
   const [bracket, setBracket] = useState<BracketStep | null>(null);
   // The finished bracket's ranking is the review list; going back reopens the last call so there's something to change.
   function backToMatchups() { if (bracket) undoSavedCall(); setStage("compare"); }
@@ -101,18 +104,20 @@ export function Onboarding({ snapshot, lineup, seeds, quality, observedModelIds,
   const recordLineup = useRef<((a: LineupArgs) => void) | null>(null);
   // Restore the last focus after mount (localStorage is client-only).
   useEffect(() => {
+    if (inLab) return;
     const raf = requestAnimationFrame(() => {
       try { const saved = localStorage.getItem("priors:focus"); if (FOCUS_IDS.includes(saved as FocusId)) setFocus(saved as FocusId); } catch { /* ignore */ }
     });
     return () => cancelAnimationFrame(raf);
-  }, []);
-  useEffect(() => { try { localStorage.setItem("priors:focus", focus); } catch { /* ignore */ } }, [focus]);
+  }, [inLab]);
+  useEffect(() => { if (!inLab) try { localStorage.setItem("priors:focus", focus); } catch { /* ignore */ } }, [focus, inLab]);
   // Precomputed mix library seeds the search; absent or stale, the worker computes live.
   useEffect(() => {
+    if (inLab) return;
     let live = true;
     fetch("/api/library").then((r) => (r.ok ? r.json() : null)).then((l) => { if (live && l && l.date === snapshot.date) setLibrary(l); }).catch(() => {});
     return () => { live = false; };
-  }, [snapshot.date]);
+  }, [snapshot.date, inLab]);
   const [drag, setDrag] = useState<{ id: string; y: number } | null>(null);
   const dragInfo = useRef<{ id: string; startY: number; top: number; scroll: number; original: string[]; pointerId: number; cleanup: () => void } | null>(null);
   const [announcement, setAnnouncement] = useState("");
@@ -127,8 +132,9 @@ export function Onboarding({ snapshot, lineup, seeds, quality, observedModelIds,
   const intro = useRef<HTMLDialogElement>(null);
   const done = useRef<HTMLDialogElement>(null);
   useEffect(() => {
+    if (inLab) return;
     try { if (!localStorage.getItem(INTRO_KEY)) intro.current?.showModal(); } catch { /* ignore */ }
-  }, []);
+  }, [inLab]);
   const worker = useRef<Worker | null>(null);
   const calculationSnapshot = useRef<Snapshot | null>(null);
   const searchAttempt = useRef(0);
@@ -192,6 +198,13 @@ export function Onboarding({ snapshot, lineup, seeds, quality, observedModelIds,
     if (cancel) { orderRef.current = d.original; setOrder(d.original); }
     else if (orderRef.current.join(",") !== d.original.join(",")) edited.current = true;
     setDrag(null);
+  }
+  function openPairwise() {
+    release();
+    setBracket(null);
+    if (!inLab) resetSavedBracket();
+    setStage("compare");
+    window.scrollTo({ top: 0, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth" });
   }
   async function start() {
     const attempt = ++searchAttempt.current;
@@ -258,19 +271,22 @@ export function Onboarding({ snapshot, lineup, seeds, quality, observedModelIds,
   const resultUrl = update ? `/builder?${encodeIndices([{ ...update.config, name: "My priors", focus }])}` : "";
   async function copy() { try { await navigator.clipboard.writeText(`${location.origin}${resultUrl}`); setCopied(true); } catch { setError("Couldn't copy. Use Explore this index, then copy its address."); } }
   const modelOptions = snapshot.models.filter(m => m.kind === "llm" && m.name.toLowerCase().includes(query.toLowerCase()) && observedModels.has(m.id)).sort((a, b) => Number(order.includes(b.id)) - Number(order.includes(a.id)) || a.name.localeCompare(b.name));
+  const pairwiseAction = () => <button type="button" className={inLab ? "lab-pairwise-action" : "production-pairwise-action"} onClick={openPairwise} aria-label={`${labMode?.label ?? "Rank in pairs"}, compare the models in pairs`}><span>{labMode?.label ?? "Rank in pairs"}</span><Arrow /></button>;
+  const introTitle = <h1>{stage === "compare" ? <>Which is <em>better?</em></> : stage === "order" ? bracket ? <>Your ranking, <em>from your calls.</em></> : <>What are your <em>priors?</em></> : complete ? update?.exactMatch ? <>Your priors, <em>in numbers.</em></> : <>The closest <em>we found.</em></> : <>Putting your priors<br className="mobile-break" /> <em>to the test.</em></>}</h1>;
 
-  return <div className={`onboarding stage-${stage} ${running ? "is-running" : ""}`}>
-    {convexEnabled && <LineupRecorder onRegister={(fn) => { recordLineup.current = fn; }} />}
+  return <div className={`onboarding stage-${stage} ${running ? "is-running" : ""} ${inLab ? "lab-mode" : ""}`}>
+    {!inLab && convexEnabled && <LineupRecorder onRegister={(fn) => { recordLineup.current = fn; }} />}
     <header className="onboard-header"><Wordmark size={32} href={null} /><div className="header-links"><button className="text-control" onClick={() => intro.current?.showModal()}>How it works</button><Link className="text-control" href="/privacy">Privacy</Link><button className="text-control" onClick={() => openDialog("quality")} aria-label="About the evidence"><span className="label-long">About the evidence</span><span className="label-short">Evidence</span><span aria-hidden="true">↗</span></button><ThemeToggle className="text-control theme-icon" /></div></header>
     <main className="onboard-main">
       <div className="step-line"><span className={stage === "compare" ? "current" : "passed"}>01 <span>Your calls</span></span><i /><span className={stage === "order" ? "current" : stage === "fit" ? "passed" : ""}>02 <span>Your ranking</span></span><i /><span className={stage === "fit" ? "current" : ""}>03 <span>The evidence</span></span></div>
       <div className="onboard-intro" key={stage}>
-        <h1>{stage === "compare" ? <>Which is <em>better?</em></> : stage === "order" ? bracket ? <>Your ranking, <em>from your calls.</em></> : <>What are your <em>priors?</em></> : complete ? update?.exactMatch ? <>Your priors, <em>in numbers.</em></> : <>The closest <em>we found.</em></> : <>Putting your priors<br className="mobile-break" /> <em>to the test.</em></>}</h1>
+        {labMode?.placement === "heading" && stage === "order" ? <div className="lab-onboard-title">{introTitle}{pairwiseAction()}</div> : introTitle}
         <p>{stage === "compare" ? "A few quick head-to-heads from the index’s top 16. Go with your gut. Skip any you don’t know." : stage === "order" ? bracket ? `Built from ${bracket.asked} head-to-head ${bracket.asked === 1 ? "call" : "calls"}. Drag to make final adjustments.` : "You have a sense of which models are better. Put them in order." : complete ? update?.exactMatch ? "A compact benchmark mix that matches your full order." : "No matching configuration found for your priors. The result below still has disagreements." : "Trying the benchmarks. Adjusting the weights. Keeping only what helps."}</p>
       </div>
-      {stage === "compare" ? <Bracket seeds={bracketSeeds} models={models} labs={labs} onFinish={finishBracket} onList={() => setStage("order")} /> : <div className="experiment-grid">
+      {stage === "compare" ? <Bracket seeds={bracketSeeds} models={models} labs={labs} storageKey={inLab ? null : undefined} onFinish={finishBracket} onList={() => setStage("order")} /> : <div className={`experiment-grid ${inLab ? "lab-mode-grid" : ""}`}>
         <section className="order-board" aria-label={stage === "order" ? "Your model preferences" : "Fitted model ranking"}>
-          <div className="board-heading"><span>{stage === "order" ? "YOUR ORDER" : "BEST FIT · YOUR SELECTED MODELS"}</span><span>{stage === "order" ? "BEST FIRST" : "SCORE / YOUR ORDER"}</span></div>
+          {stage === "order" && (!inLab || labMode?.placement === "board-top") && <div className={inLab ? "lab-pairwise-top" : "production-pairwise-top"}>{pairwiseAction()}</div>}
+          <div className="board-heading"><span>{stage === "order" ? "YOUR ORDER" : "BEST FIT · YOUR SELECTED MODELS"}</span>{labMode?.placement === "board-heading" && stage === "order" ? <div className="lab-board-heading-action">{pairwiseAction() }<span>BEST FIRST</span></div> : <span>{stage === "order" ? "BEST FIRST" : "SCORE / YOUR ORDER"}</span>}</div>
           {stage === "order" && <div className="focus-picker">
             <span className="focus-label">Focus</span>
             <div className="focus-row" role="radiogroup" aria-label="Benchmark focus">
@@ -290,7 +306,7 @@ export function Onboarding({ snapshot, lineup, seeds, quality, observedModelIds,
               </div>;
             })}
           </div>
-          <div className="board-foot">{stage === "order" ? <><span id="drag-help">Drag a handle, or use the arrows.</span><button className="text-control" onClick={backToMatchups}>{bracket ? "Back to the matchups" : "Use matchups"}</button><button className="text-control" onClick={() => openDialog("models")}>Choose models <span aria-hidden="true">+</span></button></> : <><span>Relative order within your lineup.</span><button className="text-control" onClick={edit}>{running ? "Stop & reorder" : "Change my order"}</button></>}</div>
+          <div className="board-foot">{stage === "order" ? <><span id="drag-help">Drag a handle, or use the arrows.</span>{!inLab && bracket && <button className="text-control" onClick={backToMatchups}>Back to the matchups</button>}<button className="text-control" onClick={() => openDialog("models")}>Choose models <span aria-hidden="true">+</span></button></> : <><span>Relative order within your lineup.</span><button className="text-control" onClick={edit}>{running ? "Stop & reorder" : "Change my order"}</button></>}</div>
         </section>
         <aside className="experiment-side">
           {stage === "order" ? <div className="setup-note">
@@ -332,7 +348,7 @@ export function Onboarding({ snapshot, lineup, seeds, quality, observedModelIds,
         <button className="text-control done-later" onClick={() => done.current?.close()}>Review the fit first</button>
       </div>}
     </dialog>
-    <Intro snapshot={snapshot} lineup={order} dialogRef={intro} onClose={() => { try { localStorage.setItem(INTRO_KEY, "1"); } catch { /* ignore */ } }} />
+    <Intro snapshot={snapshot} lineup={order} dialogRef={intro} onClose={() => { if (!inLab) try { localStorage.setItem(INTRO_KEY, "1"); } catch { /* ignore */ } }} />
     <dialog ref={dialog} className="evidence-dialog" aria-labelledby="dialog-heading" onClick={e => { if (e.target === e.currentTarget) { const r = e.currentTarget.getBoundingClientRect(); if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) dialog.current?.close(); } }}>
       <div className="dialog-heading"><div><h2 id="dialog-heading">{modal === "models" ? "Who’s in your lineup?" : "Better evidence, fewer benchmarks."}</h2><p>{modal === "models" ? `Choose 3 to 18 models. ${order.length} selected.` : "Your preferences guide the search. Quality helps break close calls."}</p></div><button aria-label="Close dialog" className="icon-close" onClick={() => dialog.current?.close()}><Cross /></button></div>
       {modal === "models" ? <><input className="model-search" type="search" placeholder="Find a model…" aria-label="Find a model" value={query} onChange={e => setQuery(e.target.value)} /><div className="model-options">{modelOptions.map(m => <label key={m.id}><input type="checkbox" checked={order.includes(m.id)} disabled={order.includes(m.id) ? order.length <= 3 : order.length >= 18} onChange={() => { edited.current = true; setOrder(o => o.includes(m.id) ? o.filter(id => id !== m.id) : [...o, m.id]); }} /><i style={{ background: colors.get(m.labId) ?? "#8A8A80" }} /><span>{m.name}</span></label>)}{!modelOptions.length && <p>No models found.</p>}</div><button className="primary-action" onClick={() => dialog.current?.close()}>Use this lineup <Arrow /></button></> : <>

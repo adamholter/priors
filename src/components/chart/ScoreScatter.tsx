@@ -1,5 +1,5 @@
 "use client";
-import { ChartExport, type ExportRow } from "./ChartExport";
+import { ChartExport, type ExportRow, type ChartExportHandle } from "./ChartExport";
 import type { EChartsOption } from "echarts";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Lab } from "@/data/types";
@@ -50,6 +50,7 @@ export function ScoreScatter({ pts: allPoints, labs, better, xName, xShort, xUni
   const wrapRef = useRef<HTMLDivElement>(null);
   const visibility = useChartVisibility(allPoints), pts = visibility.points;
   const context = useChartContextMenu();
+  const exportControl = useRef<ChartExportHandle>(null);
   const contextPick = useRef(context.pointMenu);
   useEffect(() => { contextPick.current = context.pointMenu; });
   const [plotW, setPlotW] = useState(0);
@@ -157,10 +158,10 @@ export function ScoreScatter({ pts: allPoints, labs, better, xName, xShort, xUni
         <div className="min-w-0">{title ?? (expand.expanded && <h2 className="text-[22px]">{exportName}</h2>)}<HighlightList /></div>
         <div className="flex items-center gap-1 ml-auto pointer-events-auto">
           <HighlightMenu label={exportName} />
-          {!!visibility.hiddenCount && <button type="button" className="cap hover:text-ink" onClick={visibility.restore}>Restore removed ({visibility.hiddenCount})</button>}
+          {visibility.canUndo && <button type="button" className="cap hover:text-ink" onClick={visibility.undo} aria-label="Undo chart removal">Undo</button>}
           {actions}
           {anchor && <ChartLink id={anchor} name={exportName} params={linkParams} />}
-          <ChartExport name={exportName} frame getHtml={getHtml} getSvg={() => chart.current?.renderToSVGString()} getRows={() => pts.map((p) => ({ rank: p.r.rank, model: p.r.model.name, effort: p.r.variant.effort, score: +p.r.score.toFixed(2), lab: p.r.model.labId, [xName]: +(p.raw ?? p.x).toFixed(4), on_frontier: onFrontierIds.has(p.r.variant.id), ...extraRows?.(p) }))} />
+          <ChartExport ref={exportControl} name={exportName} frame getHtml={getHtml} getSvg={() => chart.current?.renderToSVGString()} getRows={() => pts.map((p) => ({ rank: p.r.rank, model: p.r.model.name, effort: p.r.variant.effort, score: +p.r.score.toFixed(2), lab: p.r.model.labId, [xName]: +(p.raw ?? p.x).toFixed(4), on_frontier: onFrontierIds.has(p.r.variant.id), ...extraRows?.(p) }))} />
           {expand.button}
         </div>
       </div>
@@ -168,7 +169,7 @@ export function ScoreScatter({ pts: allPoints, labs, better, xName, xShort, xUni
         <div ref={ref} role="img" aria-label={aria} tabIndex={0} onContextMenu={context.onContextMenu} onKeyDown={context.onKeyDown} style={{ width: "100%", height: expand.expanded ? "100%" : height, overflow: "hidden", position: "relative", isolation: "isolate" }} />
         {!pts.length && <p className="cap absolute inset-0 grid place-items-center">No model in this view has this metric.</p>}
       </div>
-      <ChartContextMenu state={context.menu} close={context.close} name={exportName} points={pts} visibility={visibility} chart={chart} wrap={wrapRef} expanded={expand.expanded} anchor={anchor} />
+      <ChartContextMenu exportControl={exportControl} state={context.menu} close={context.close} name={exportName} points={pts} visibility={visibility} chart={chart} wrap={wrapRef} expanded={expand.expanded} anchor={anchor} />
     </div></>
   );
 }
