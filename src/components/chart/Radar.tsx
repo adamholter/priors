@@ -22,9 +22,9 @@ function shape(points: RadarPoint[], angles: number[], cx: number, cy: number, R
  * benchmark card placed outward from the label; a model's dot opens a one-line value. The plot
  * area itself never triggers a tooltip, so it stays readable.
  */
-export function Radar({ axes, series, ghost, norm, size = 340, labels = true, compact = false, hoverAxis, onHoverAxis, focus, ariaLabel, ghostLabel = "Field median", ghostStyle = "median" }: {
+export function Radar({ axes, series, ghost, norm, size = 340, labels = true, compact = false, hoverAxis, onHoverAxis, focus, ariaLabel, ghostLabel = "Field median", ghostStyle = "median", onAxisClick }: {
   axes: RadarAxis[]; series: RadarSeries[]; ghost?: RadarPoint[]; norm: RadarNorm; size?: number; labels?: boolean; compact?: boolean;
-  hoverAxis?: number | null; onHoverAxis?: (i: number | null) => void; focus?: string | null; ariaLabel: string; ghostLabel?: string; ghostStyle?: "median" | "outline";
+  hoverAxis?: number | null; onHoverAxis?: (i: number | null) => void; focus?: string | null; ariaLabel: string; ghostLabel?: string; ghostStyle?: "median" | "outline"; onAxisClick?: (benchmarkId: string) => void;
 }) {
   const [hover, setHover] = useState<Hover>(null);
   const activeAxis = hover?.axis ?? hoverAxis ?? null;
@@ -83,7 +83,9 @@ export function Radar({ axes, series, ghost, norm, size = 340, labels = true, co
         return <circle key={`${s.id}-${i}`} cx={r1(x)} cy={r1(y)} r={7} className="rl-hit" onMouseEnter={() => set({ kind: "dot", axis: i, series: s.id })} onMouseLeave={() => set(null)} />; }))}
       {labels && angles.map((_, i) => { const l = label(i);
         const w = l.text.length * 6.4 + 8, x0 = l.anchor === "start" ? l.x - 4 : l.anchor === "end" ? l.x - w + 4 : l.x - w / 2;
-        return <g key={axes[i].id} onMouseEnter={() => set({ kind: "axis", axis: i })} onMouseLeave={() => set(null)}>
+        const open = onAxisClick && (() => { set(null); onAxisClick(axes[i].id); });
+        return <g key={axes[i].id} className={open ? "rl-axis-link" : undefined} onMouseEnter={() => set({ kind: "axis", axis: i })} onMouseLeave={() => set(null)}
+          {...(open ? { role: "button", tabIndex: 0, "aria-label": `About ${axes[i].name}`, onClick: open, onFocus: () => set({ kind: "axis", axis: i }), onBlur: () => set(null), onKeyDown: (e: React.KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(); } } } : {})}>
           <rect x={r1(x0)} y={l.y - 13} width={r1(w)} height={18} className="rl-hit" />
           <text x={l.x} y={l.y} textAnchor={l.anchor} className={activeAxis === i ? "rl-label rl-label-on" : "rl-label"}>{l.text}</text>
         </g>; })}

@@ -1,14 +1,14 @@
 import { describe, expect, it } from "vitest";
 import type { Benchmark, Model, Variant } from "@/data/types";
 import type { IndexResult, RankedVariant } from "@/engine";
-import { medianPoints, normalize, radarAxes, radarModels, type RadarAxis } from "./radar-data";
+import { fillFromSiblings, medianPoints, normalize, radarAxes, radarModels, type RadarAxis } from "./radar-data";
 
 const bench = (id: string, category: Benchmark["category"], share: number) => ({
   benchmark: { id, name: id.toUpperCase(), sourceId: "t", url: "", description: "", unit: "percent", higherIsBetter: true, category } as Benchmark,
   share, required: false,
 });
-const row = (id: string, rank: number, values: Record<string, number>): RankedVariant => ({
-  variant: { id: `${id}@high`, modelId: id, effort: "high" } as Variant,
+const row = (id: string, rank: number, values: Record<string, number>, variant = `${id}@high`, effort: Variant["effort"] = "high"): RankedVariant => ({
+  variant: { id: variant, modelId: id, effort } as Variant,
   model: { id, name: id, labId: "lab", kind: "llm", reasoning: true, aliases: [] } as Model,
   score: 100 - rank, coverage: 1, measuredShare: 1, onFrontier: false, rank,
   values: Object.entries(values).map(([benchmarkId, value]) => ({ benchmarkId, value, estimated: false })),
@@ -37,5 +37,16 @@ describe("radar data", () => {
     const c = radarModels(rows, axes, "field").find((m) => m.id === "c")!;
     expect(c.points[1]).toEqual({ r: null, estimated: false });
     expect(medianPoints(rows, axes, "score").map((p) => p.value)).toEqual([60, 70, 40]);
+  });
+
+  it("fills a gap from the same model's other source configuration", () => {
+    const ranked = row("m", 1, { code: 70 }, "m@max~aa-x", "max");
+    const vals = row("m", 9, { agent: 44 }, "m@max~vals-y", "max");
+    const lower = row("m", 9, { know: 30 }, "m@low", "low");
+    const substituted = { ...row("m", 9, {}, "m@max", "max"), values: [{ benchmarkId: "agent", value: 40, estimated: true, estimateKind: "effort" as const }] };
+    const [filled] = fillFromSiblings([ranked], [ranked, substituted, vals, lower], ["code", "agent", "know"]);
+    expect(filled.values.find((v) => v.benchmarkId === "agent")).toMatchObject({ value: 44, estimated: false, sourceVariantId: "m@max~vals-y" });
+    expect(filled.values.find((v) => v.benchmarkId === "know")).toMatchObject({ value: 30, estimated: true });
+    expect(filled.score).toBe(ranked.score);
   });
 });

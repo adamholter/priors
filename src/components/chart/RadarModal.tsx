@@ -6,8 +6,8 @@ import { Radar, RadarSwatch, type RadarSeries } from "./Radar";
 import { formatValue, type RadarAxis, type RadarModel, type RadarNorm, type RadarPoint } from "./radar-data";
 
 /** One model's full radar against a chosen comparison, benchmarks sorted by gap. Arrow keys step through models. */
-export function RadarModal({ onClose, onStep, series, all, axes, norm, model, leader, median }: {
-  onClose: () => void; onStep: (dir: 1 | -1) => void;
+export function RadarModal({ onClose, onStep, series, all, axes, norm, model, leader, median, onAxisClick }: {
+  onClose: () => void; onStep: (dir: 1 | -1) => void; onAxisClick?: (benchmarkId: string) => void;
   series: RadarSeries; all: RadarSeries[]; axes: RadarAxis[]; norm: RadarNorm; model: RadarModel; leader: RadarSeries; median: RadarPoint[];
 }) {
   const ref = useRef<HTMLDialogElement>(null);
@@ -51,7 +51,7 @@ export function RadarModal({ onClose, onStep, series, all, axes, norm, model, le
       </header>
       <div className="rl-modal-body">
         <div className="rl-modal-chart">
-          <Radar axes={axes} series={[series]} ghost={other.points} ghostStyle={other.outline ? "outline" : "median"} ghostLabel={other.name} norm={norm} size={360} hoverAxis={axis} onHoverAxis={setAxis} ariaLabel={`${model.name} against ${other.name}`} />
+          <Radar axes={axes} series={[series]} ghost={other.points} ghostStyle={other.outline ? "outline" : "median"} ghostLabel={other.name} norm={norm} size={360} hoverAxis={axis} onHoverAxis={setAxis} onAxisClick={onAxisClick} ariaLabel={`${model.name} against ${other.name}`} />
           <p className="rl-modal-key cap"><span className={other.outline ? "rl-key-outline" : "rl-key-median"} aria-hidden="true" /> {other.name}</p>
         </div>
         <aside className="rl-modal-notes">

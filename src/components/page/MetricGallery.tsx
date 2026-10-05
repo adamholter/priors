@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { taskMetricOptions, type TaskMetricSource } from "@/data/task-metrics";
 import type { Snapshot, Lab } from "@/data/types";
-import type { IndexResult, RankedVariant } from "@/engine";
+import type { IndexConfig, IndexResult, RankedVariant } from "@/engine";
 import { metricPanels, pickPoints, speedChart, type MetricChart } from "@/lib/metrics";
 import { MetricScatter } from "../chart/MetricScatter";
 import { SpeedChart } from "../chart/SpeedChart";
@@ -20,12 +20,12 @@ type SharedSettings = Omit<React.ComponentProps<typeof ChartSettings>, "label" |
  *  Panels mount their chart only when first expanded. */
 /** `ranked` is the full variant set; each panel picks best-effort or all efforts on its own. */
 
-/** `benchmarks` (the index's weighted benchmarks) enables the Strengths radar, placed after Time per task. */
-export function MetricGallery({ ranked, mode = "all", snapshot, labs, settings, anchorPrefix = "", timeSource = "aa", onTimeSourceChange, benchmarks }: { ranked: RankedVariant[]; mode?: "all" | "best"; snapshot: Snapshot; labs: Lab[]; settings?: SharedSettings; anchorPrefix?: string; timeSource?: TaskMetricSource; onTimeSourceChange?: (source: TaskMetricSource) => void; benchmarks?: IndexResult["benchmarks"] }) {
+/** `benchmarks` + `config` (the index's weighted benchmarks and its config) enable the Strengths radar, placed after Time per task. */
+export function MetricGallery({ ranked, mode = "all", snapshot, labs, settings, anchorPrefix = "", timeSource = "aa", onTimeSourceChange, benchmarks, config }: { ranked: RankedVariant[]; mode?: "all" | "best"; snapshot: Snapshot; labs: Lab[]; settings?: SharedSettings; anchorPrefix?: string; timeSource?: TaskMetricSource; onTimeSourceChange?: (source: TaskMetricSource) => void; benchmarks?: IndexResult["benchmarks"]; config?: IndexConfig }) {
   const panels = useMemo(() => metricPanels(snapshot, ranked, timeSource), [snapshot, ranked, timeSource]);
   if (!panels.length) return null;
   const strengthsAnchor = `${anchorPrefix}${anchorOf("Strengths")}`;
-  const strengths = benchmarks && radarReady(benchmarks) && <Panel key="strengths" anchor={strengthsAnchor} title="Strengths" desc={`each model's shape across the ${benchmarks.length} benchmarks in this index`}><div id={strengthsAnchor} className="scroll-mt-20"><StrengthsRadar ranked={ranked} benchmarks={benchmarks} labs={labs} /></div></Panel>;
+  const strengths = benchmarks && config && radarReady(benchmarks) && <Panel key="strengths" anchor={strengthsAnchor} title="Strengths" desc={`each model's shape across the ${benchmarks.length} benchmarks in this index`}><div id={strengthsAnchor} className="scroll-mt-20"><StrengthsRadar ranked={ranked} benchmarks={benchmarks} labs={labs} snapshot={snapshot} config={config} /></div></Panel>;
   return (
     <div className="border-t hairline">
       {panels.flatMap((p) => { const anchor = `${anchorPrefix}${anchorOf(p.title)}`; const panel = <Panel key={p.id} anchor={anchor} title={p.title} desc={p.desc} defaultOpen={p.open}><GalleryChart id={p.id} anchor={anchor} title={p.title} chart={p.chart} speed={p.speed} ranked={ranked} defaultMode={mode} labs={labs} settings={settings} dataSource={p.id === "tpt" && onTimeSourceChange ? { value: timeSource, options: taskMetricOptions(snapshot, "time"), onChange: onTimeSourceChange } : undefined} /></Panel>; return p.id === "tpt" && strengths ? [panel, strengths] : [panel]; })}

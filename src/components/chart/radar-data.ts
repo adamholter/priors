@@ -1,5 +1,5 @@
-import type { Benchmark, BenchmarkCategory } from "@/data/types";
-import type { IndexResult, RankedVariant } from "@/engine";
+import { EFFORT_ORDER, type Benchmark, type BenchmarkCategory } from "../../data/types";
+import type { BenchValue, IndexResult, RankedVariant } from "@/engine";
 
 type IndexBenchmarks = IndexResult["benchmarks"];
 
@@ -72,4 +72,30 @@ export function formatValue(p: RadarPoint, axis: RadarAxis): string {
   if (axis.unit === "usd") return `$${raw.toFixed(2)}`;
   if (axis.unit === "seconds") return `${raw.toFixed(0)}s`;
   return Math.abs(raw) >= 100 ? raw.toFixed(0) : raw.toFixed(1);
+}
+
+/**
+ * Sources publish the same model under their own configuration (`model@max~aa-…`, `model@max~vals-…`),
+ * and the engine keeps those as separate variants, so the ranked one can lack a benchmark another
+ * source measured. Fill each gap from the same model's other variants (`siblings`, e.g. a
+ * strictness-0 run): same effort counts as measured; another effort is marked estimated.
+ */
+export function fillFromSiblings(rows: RankedVariant[], siblings: RankedVariant[], benchmarkIds: string[]): RankedVariant[] {
+  const byModel = new Map<string, RankedVariant[]>();
+  for (const s of siblings) byModel.set(s.model.id, [...(byModel.get(s.model.id) ?? []), s]);
+  const effortAt = (r: RankedVariant) => EFFORT_ORDER.indexOf(r.variant.effort as (typeof EFFORT_ORDER)[number]);
+  return rows.map((row) => {
+    const missing = benchmarkIds.filter((id) => !row.values.some((v) => v.benchmarkId === id));
+    if (!missing.length) return row;
+    const target = effortAt(row);
+    const pool = (byModel.get(row.model.id) ?? []).filter((s) => s.variant.id !== row.variant.id);
+    const filled: BenchValue[] = [];
+    for (const id of missing) {
+      // Nearest effort first; at equal distance a direct measurement beats an effort-substituted one.
+      const best = pool.flatMap((sib) => sib.values.filter((x) => x.benchmarkId === id && (!x.estimated || x.estimateKind === "effort")).map((v) => ({ sib, v })))
+        .sort((a, b) => Math.abs(effortAt(a.sib) - target) - Math.abs(effortAt(b.sib) - target) || Number(a.v.estimated) - Number(b.v.estimated))[0];
+      if (best) filled.push({ ...best.v, estimated: best.v.estimated || best.sib.variant.effort !== row.variant.effort, sourceVariantId: best.v.sourceVariantId ?? best.sib.variant.id });
+    }
+    return filled.length ? { ...row, values: [...row.values, ...filled] } : row;
+  });
 }

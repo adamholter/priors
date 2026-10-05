@@ -95,3 +95,7 @@
 .rl-m-compare select { max-width: 200px; padding: 5px 7px; border: 1px solid var(--hair); border-radius: 4px; background: var(--bone); color: var(--ink); font-size: 12px; }
 .rl-m-foot { margin-top: 10px; line-height: 1.5; }
 @media (max-width: 760px) { .rl-modal-body { grid-template-columns: minmax(0, 1fr); } }
+.rl-axis-link { cursor: pointer; }
+.rl-axis-link:focus { outline: none; }
+.rl-axis-link:focus-visible .rl-label { fill: var(--indigo); text-decoration: underline; }
+.rl-axis-link:hover .rl-label { text-decoration: underline; text-underline-offset: 2px; }

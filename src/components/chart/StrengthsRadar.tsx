@@ -2,13 +2,14 @@
 
 import { useCallback, useId, useMemo, useRef, useState } from "react";
 import { IconAdjustmentsHorizontal, IconX } from "@tabler/icons-react";
-import type { Lab } from "@/data/types";
-import { selectVariants, type IndexResult, type RankedVariant } from "@/engine";
+import type { Lab, Snapshot } from "@/data/types";
+import { computeIndex, selectVariants, type IndexConfig, type IndexResult, type RankedVariant } from "@/engine";
+import { BenchmarkInfo } from "../BenchmarkInfo";
 import { useLightDismiss } from "@/hooks/useLightDismiss";
 import { useChartPalette, useLabColor } from "./echarts";
 import { Radar, RadarSwatch, type RadarSeries } from "./Radar";
 import { RadarModal } from "./RadarModal";
-import { formatValue, medianPoints, radarAxes, radarModels, RADAR_MIN_AXES, type RadarModel, type RadarNorm } from "./radar-data";
+import { fillFromSiblings, formatValue, medianPoints, radarAxes, radarModels, RADAR_MIN_AXES, type RadarModel, type RadarNorm } from "./radar-data";
 import styles from "./ChartSettings.module.css";
 import "./radar.css";
 
@@ -30,7 +31,7 @@ export const radarReady = (benchmarks: IndexResult["benchmarks"]) => benchmarks.
  * Overlaid radar of the top models across the index's benchmarks, plus one small radar per model.
  * Selection follows the live top 4 until the user picks models; then their picks stick.
  */
-export function StrengthsRadar({ ranked, benchmarks, labs }: { ranked: RankedVariant[]; benchmarks: IndexResult["benchmarks"]; labs: Lab[] }) {
+export function StrengthsRadar({ ranked, benchmarks, labs, snapshot, config }: { ranked: RankedVariant[]; benchmarks: IndexResult["benchmarks"]; labs: Lab[]; snapshot: Snapshot; config: IndexConfig }) {
   const [norm, setNorm] = useState<RadarNorm>("field");
   const [compare, setCompare] = useState<Compare>("leader");
   const [colorMode, setColorMode] = useState<"lab" | "distinct">("lab");
@@ -40,10 +41,13 @@ export function StrengthsRadar({ ranked, benchmarks, labs }: { ranked: RankedVar
   const [focus, setFocus] = useState<string | null>(null);
   const [axis, setAxis] = useState<number | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
   const pal = useChartPalette();
   const labColor = useLabColor();
 
-  const rows = useMemo(() => selectVariants(ranked, "best"), [ranked]);
+  // Strictness 0 ranks every variant with any value, so other source configurations of a ranked model can fill its gaps.
+  const siblings = useMemo(() => computeIndex(snapshot, { ...config, strictness: 0, required: [], variants: "all" }).ranked, [snapshot, config]);
+  const rows = useMemo(() => fillFromSiblings(selectVariants(ranked, "best"), siblings, benchmarks.map((b) => b.benchmark.id)), [ranked, siblings, benchmarks]);
   const axes = useMemo(() => radarAxes(benchmarks, rows), [benchmarks, rows]);
   const models = useMemo(() => radarModels(rows, axes, norm), [rows, axes, norm]);
   const median = useMemo(() => medianPoints(rows, axes, norm), [rows, axes, norm]);
@@ -100,7 +104,7 @@ export function StrengthsRadar({ ranked, benchmarks, labs }: { ranked: RankedVar
     {!series.length ? <p className="cap py-10 text-center">No models selected. Pick some in the chart settings.</p> :
     <div className="rl-strengths">
       <div className="rl-main">
-        <Radar axes={axes} series={series} ghost={showMedian ? median : undefined} norm={norm} size={380} focus={focus} hoverAxis={axis} onHoverAxis={setAxis}
+        <Radar axes={axes} series={series} ghost={showMedian ? median : undefined} norm={norm} size={380} focus={focus} hoverAxis={axis} onHoverAxis={setAxis} onAxisClick={setInfo}
           ariaLabel={`Radar of ${series.map((s) => s.name).join(", ")} across ${axes.length} benchmarks`} />
       </div>
       <div>
@@ -122,7 +126,8 @@ export function StrengthsRadar({ ranked, benchmarks, labs }: { ranked: RankedVar
         <p className="cap rl-rail-hint">Click a model to expand it.</p>
       </div>
     </div>}
-    {open && <RadarModal key={open.id} onClose={() => setExpanded(null)} onStep={step} series={open} all={series} axes={axes} norm={norm} model={byId.get(open.id)!} leader={leader} median={median} />}
+    {open && <RadarModal key={open.id} onClose={() => setExpanded(null)} onStep={step} series={open} all={series} axes={axes} norm={norm} model={byId.get(open.id)!} leader={leader} median={median} onAxisClick={setInfo} />}
+    <BenchmarkInfo snapshot={snapshot} benchmarkId={info} inMix onClose={() => setInfo(null)} />
   </div>;
 }
 
