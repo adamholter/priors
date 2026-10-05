@@ -11,6 +11,7 @@ import { useChartExpand } from "./ChartExpand";
 import { chartLabel } from "@/lib/metrics";
 import { scatterOption, frontierOf, featuredPoints, guidePoints, highlightedModels, pickLabels, DEFAULT_VIEW, restoreScatterView, type Highlight, type ScatterPoint, type ScatterView } from "./scatter-option";
 import { dimColor } from "./theme";
+import { ChartContextMenu, useChartContextMenu, useChartVisibility } from "./ChartContextMenu";
 
 export { chartLabel, pickLabels, frontierOf, DEFAULT_VIEW };
 export type { Highlight, ScatterPoint, ScatterView };
@@ -40,13 +41,17 @@ function escapeHtml(s: string) { return s.replace(/[&<>"']/g, (c) => ({ "&": "&a
  * Index score vs one metric. Lab-colored marks, reasoning efforts of one model joined by a thin line,
  * Pareto frontier traced in ink, labels thinned by density. Title, settings and export share one row.
  */
-export function ScoreScatter({ pts, labs, better, xName, xShort, xUnit = "", scale = "linear", formatX, formatValue, height = 420, aria, title, actions, view, exportName, extraRows, tooltipExtra, anchor, linkParams }: {
+export function ScoreScatter({ pts: allPoints, labs, better, xName, xShort, xUnit = "", scale = "linear", formatX, formatValue, height = 420, aria, title, actions, view, exportName, extraRows, tooltipExtra, anchor, linkParams }: {
   pts: ScatterPoint[]; labs: Lab[]; better: "lower" | "higher"; xName: string; xShort?: string; xUnit?: string;
   scale?: "linear" | "log" | "time"; formatX: (x: number) => string; formatValue?: (x: number) => string;
   height?: number; aria: string; title?: ReactNode; actions?: ReactNode; view: ScatterView; exportName: string;
   extraRows?: (p: ScatterPoint) => ExportRow; tooltipExtra?: (p: ScatterPoint) => string; anchor?: string; linkParams?: ChartLinkParams;
 }) {
   const wrapRef = useRef<HTMLDivElement>(null);
+  const visibility = useChartVisibility(allPoints), pts = visibility.points;
+  const context = useChartContextMenu();
+  const contextPick = useRef(context.pointMenu);
+  useEffect(() => { contextPick.current = context.pointMenu; });
   const [plotW, setPlotW] = useState(0);
   const narrow = plotW > 0 && plotW < 560;
   useEffect(() => {
@@ -67,6 +72,11 @@ export function ScoreScatter({ pts, labs, better, xName, xShort, xUnit = "", sca
   useEffect(() => { pick.current = (p) => { if (hl) hl.set(togglePoint(hl.items, pts, p)); }; }, [hl, pts]);
   const { ref, chart } = useEChart(option, [option], (c) => {
     c.on("click", (e) => { const d = (e.data as { extra?: ScatterPoint } | undefined)?.extra; if (d) pick.current(d); });
+    c.on("contextmenu", (e) => {
+      const d = (e.data as { extra?: ScatterPoint } | undefined)?.extra;
+      const event = e.event?.event as MouseEvent | undefined;
+      if (d && event) { event.preventDefault(); event.stopPropagation(); contextPick.current(d, event.clientX, event.clientY); }
+    });
   });
 
   // Guide lines for highlighted models, drawn in pixel space so they stop exactly at the axes on every
@@ -147,6 +157,7 @@ export function ScoreScatter({ pts, labs, better, xName, xShort, xUnit = "", sca
         <div className="min-w-0">{title ?? (expand.expanded && <h2 className="text-[22px]">{exportName}</h2>)}<HighlightList /></div>
         <div className="flex items-center gap-1 ml-auto pointer-events-auto">
           <HighlightMenu label={exportName} />
+          {!!visibility.hiddenCount && <button type="button" className="cap hover:text-ink" onClick={visibility.restore}>Restore removed ({visibility.hiddenCount})</button>}
           {actions}
           {anchor && <ChartLink id={anchor} name={exportName} params={linkParams} />}
           <ChartExport name={exportName} frame getHtml={getHtml} getSvg={() => chart.current?.renderToSVGString()} getRows={() => pts.map((p) => ({ rank: p.r.rank, model: p.r.model.name, effort: p.r.variant.effort, score: +p.r.score.toFixed(2), lab: p.r.model.labId, [xName]: +(p.raw ?? p.x).toFixed(4), on_frontier: onFrontierIds.has(p.r.variant.id), ...extraRows?.(p) }))} />
@@ -154,9 +165,10 @@ export function ScoreScatter({ pts, labs, better, xName, xShort, xUnit = "", sca
         </div>
       </div>
       <div className={`relative ${expand.expanded ? "flex-1 min-h-0" : ""}`}>
-        <div ref={ref} role="img" aria-label={aria} style={{ width: "100%", height: expand.expanded ? "100%" : height, overflow: "hidden", position: "relative", isolation: "isolate" }} />
+        <div ref={ref} role="img" aria-label={aria} tabIndex={0} onContextMenu={context.onContextMenu} onKeyDown={context.onKeyDown} style={{ width: "100%", height: expand.expanded ? "100%" : height, overflow: "hidden", position: "relative", isolation: "isolate" }} />
         {!pts.length && <p className="cap absolute inset-0 grid place-items-center">No model in this view has this metric.</p>}
       </div>
+      <ChartContextMenu state={context.menu} close={context.close} name={exportName} points={pts} visibility={visibility} chart={chart} wrap={wrapRef} expanded={expand.expanded} anchor={anchor} />
     </div></>
   );
 }

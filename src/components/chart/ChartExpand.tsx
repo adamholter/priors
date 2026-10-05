@@ -10,7 +10,7 @@ export function useChartExpand(name: string) {
   const trigger = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     if (!expanded) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape" && !document.querySelector('details[name="chart-settings"][open]')) close(); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape" && !document.querySelector('details[name="chart-settings"][open], .chart-context-menu')) close(); };
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     window.addEventListener("keydown", onKey);

@@ -12,6 +12,7 @@ import { ChartLink, type ChartLinkParams } from "./ChartLink";
 import { useChartExpand } from "./ChartExpand";
 import { dimColor } from "./theme";
 import { featuredPoints, highlightedModels } from "./scatter-option";
+import { ChartContextMenu, useChartContextMenu, useChartVisibility } from "./ChartContextMenu";
 
 const value = (p: ScatterPoint) => p.raw ?? p.x;
 
@@ -20,11 +21,15 @@ const value = (p: ScatterPoint) => p.raw ?? p.x;
  * applies: best mode shows one bar per model, all mode shows every effort. Capped at `limit`
  * points by index score so the axis stays readable.
  */
-export function MetricBars({ pts, labs, better, xName, formatValue, height = 400, aria, title, actions, limit = 24, exportName, anchor, linkParams }: {
+export function MetricBars({ pts: allPoints, labs, better, xName, formatValue, height = 400, aria, title, actions, limit = 24, exportName, anchor, linkParams }: {
   pts: ScatterPoint[]; labs: Lab[]; better: "lower" | "higher"; xName: string; formatValue: (x: number) => string;
   height?: number; aria: string; title?: ReactNode; actions?: ReactNode; limit?: number; exportName: string; anchor?: string; linkParams?: ChartLinkParams;
 }) {
   const wrap = useRef<HTMLDivElement>(null);
+  const visibility = useChartVisibility(allPoints), pts = visibility.points;
+  const context = useChartContextMenu();
+  const contextPick = useRef(context.pointMenu);
+  useEffect(() => { contextPick.current = context.pointMenu; });
   const [narrow, setNarrow] = useState(false);
   useEffect(() => { const el = wrap.current; if (!el) return; const ro = new ResizeObserver(([e]) => setNarrow(e.contentRect.width < 560)); ro.observe(el); return () => ro.disconnect(); }, []);
   const expand = useChartExpand(exportName);
@@ -38,6 +43,11 @@ export function MetricBars({ pts, labs, better, xName, formatValue, height = 400
   useEffect(() => { pick.current = (p) => { if (hl) hl.set(togglePoint(hl.items, pts, p)); }; }, [hl, pts]);
   const { ref, chart } = useEChart(option, [option], (c) => {
     c.on("click", (e) => { const d = (e.data as { extra?: ScatterPoint } | undefined)?.extra; if (d) pick.current(d); });
+    c.on("contextmenu", (e) => {
+      const d = (e.data as { extra?: ScatterPoint } | undefined)?.extra;
+      const event = e.event?.event as MouseEvent | undefined;
+      if (d && event) { event.preventDefault(); event.stopPropagation(); contextPick.current(d, event.clientX, event.clientY); }
+    });
   });
   const getHtml = () => {
     const highlightItems = highlight ?? [], focusedModels = highlightedModels(highlightItems);
@@ -57,8 +67,9 @@ export function MetricBars({ pts, labs, better, xName, formatValue, height = 400
   };
   return (
     <>{expand.backdrop}<div ref={wrap} id={anchor} className={`max-sm:-mx-4 scroll-mt-20 ${expand.expanded ? "chart-expanded" : ""}`} role={expand.expanded ? "dialog" : undefined} aria-modal={expand.expanded || undefined} aria-label={expand.expanded ? exportName : undefined}>
-      <div className={`chart-toolbar flex flex-wrap items-center justify-end gap-1 max-sm:px-4 min-h-8 ${title || expand.expanded ? "mb-1" : "-mb-8 relative z-10 pointer-events-none"}`}>{(title || expand.expanded) ? <div className="min-w-0 mr-auto">{title ?? <h2 className="text-[22px]">{exportName}</h2>}<HighlightList /></div> : <div className="min-w-0 mr-auto"><HighlightList /></div>}<div className="flex items-center gap-1 pointer-events-auto"><HighlightMenu label={exportName} />{actions}{anchor && <ChartLink id={anchor} name={exportName} params={linkParams} />}<ChartExport name={exportName} frame getHtml={getHtml} getSvg={() => chart.current?.renderToSVGString()} getRows={() => bars.map((p, i) => ({ rank: i + 1, model: p.r.model.name, effort: p.r.variant.effort, [xName]: +value(p).toFixed(4), index_score: +p.r.score.toFixed(2) }))} />{expand.button}</div></div>
-      <div className={expand.expanded ? "flex-1 min-h-0" : undefined}><div ref={ref} role="img" aria-label={aria} style={{ width: "100%", height: expand.expanded ? "100%" : height, overflow: "hidden", position: "relative", isolation: "isolate" }} /></div>
+      <div className={`chart-toolbar flex flex-wrap items-center justify-end gap-1 max-sm:px-4 min-h-8 ${title || expand.expanded ? "mb-1" : "-mb-8 relative z-10 pointer-events-none"}`}>{(title || expand.expanded) ? <div className="min-w-0 mr-auto">{title ?? <h2 className="text-[22px]">{exportName}</h2>}<HighlightList /></div> : <div className="min-w-0 mr-auto"><HighlightList /></div>}<div className="flex items-center gap-1 pointer-events-auto"><HighlightMenu label={exportName} />{!!visibility.hiddenCount && <button type="button" className="cap hover:text-ink" onClick={visibility.restore}>Restore removed ({visibility.hiddenCount})</button>}{actions}{anchor && <ChartLink id={anchor} name={exportName} params={linkParams} />}<ChartExport name={exportName} frame getHtml={getHtml} getSvg={() => chart.current?.renderToSVGString()} getRows={() => bars.map((p, i) => ({ rank: i + 1, model: p.r.model.name, effort: p.r.variant.effort, [xName]: +value(p).toFixed(4), index_score: +p.r.score.toFixed(2) }))} />{expand.button}</div></div>
+      <div className={expand.expanded ? "flex-1 min-h-0" : undefined}><div ref={ref} role="img" aria-label={aria} tabIndex={0} onContextMenu={context.onContextMenu} onKeyDown={context.onKeyDown} style={{ width: "100%", height: expand.expanded ? "100%" : height, overflow: "hidden", position: "relative", isolation: "isolate" }} /></div>
+      <ChartContextMenu state={context.menu} close={context.close} name={exportName} points={bars} visibility={visibility} chart={chart} wrap={wrap} expanded={expand.expanded} anchor={anchor} />
     </div></>
   );
 }
