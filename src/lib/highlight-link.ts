@@ -1,5 +1,6 @@
 import type { IndexConfig } from "../engine";
 import { encodeIndices } from "./url";
+import { setChartHidden, type ChartHidden } from "../components/chart/chart-visibility";
 
 /** Profile links override the selection on one index without changing the saved page. */
 export function linkedHighlights(indices: IndexConfig[], params: URLSearchParams): IndexConfig[] {
@@ -17,11 +18,12 @@ export function setHighlightParams(url: URL, indexId: string, items: string[]) {
 }
 
 /** Copy current React state, including the active mix, before the debounced address bar update. */
-export function chartLinkUrl(current: string, id: string, params?: { cv?: "bars" | "scatter"; cm?: "best" | "all"; cs?: "log" | "linear" }, state?: { items: string[]; indexId?: string; linkIndices?: IndexConfig[] }) {
+export function chartLinkUrl(current: string, id: string, params?: { cv?: "bars" | "scatter"; cm?: "best" | "all"; cs?: "log" | "linear"; hidden?: ChartHidden }, state?: { items: string[]; indexId?: string; linkIndices?: IndexConfig[] }) {
   const url = new URL(current);
   url.searchParams.set("c", id);
   url.hash = id;
   if (params) {
+    if (params.hidden) setChartHidden(url, id, params.hidden);
     for (const key of ["cv", "cm", "cs"] as const) {
       if (params[key]) url.searchParams.set(key, params[key]); else url.searchParams.delete(key);
     }

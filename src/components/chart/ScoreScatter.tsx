@@ -51,7 +51,7 @@ export function ScoreScatter({ pts: allPoints, labs, better, xName: baseXName, x
   const xName = scale === "linear" ? baseXName.replace(/, log| \(log\)/g, "") : baseXName;
   const xShort = scale === "linear" ? baseXShort?.replace(/, log| \(log\)/g, "") : baseXShort;
   const wrapRef = useRef<HTMLDivElement>(null);
-  const visibility = useChartVisibility(allPoints), pts = visibility.points;
+  const visibility = useChartVisibility(allPoints, anchor ?? exportName, linkParams), pts = visibility.points;
   const context = useChartContextMenu();
   const exportControl = useRef<ChartExportHandle>(null);
   const contextPick = useRef(context.pointMenu);
@@ -173,7 +173,7 @@ export function ScoreScatter({ pts: allPoints, labs, better, xName: baseXName, x
           <HighlightMenu label={exportName} />
           {visibility.canUndo && <button type="button" className="cap hover:text-ink" onClick={visibility.undo} aria-label="Undo chart removal">Undo</button>}
           {actions}
-          {anchor && <ChartLink id={anchor} name={exportName} params={linkParams} />}
+          {anchor && <ChartLink id={anchor} name={exportName} params={{ ...linkParams, hidden: visibility.hidden }} />}
           <ChartExport ref={exportControl} name={exportName} frame getHtml={getHtml} getSvg={() => chart.current?.renderToSVGString()} getRows={() => pts.map((p) => ({ rank: p.r.rank, model: p.r.model.name, effort: p.r.variant.effort, score: +p.r.score.toFixed(2), lab: p.r.model.labId, [xName]: +(p.raw ?? p.x).toFixed(4), on_frontier: onFrontierIds.has(p.r.variant.id), ...extraRows?.(p) }))} />
           {expand.button}
         </div>

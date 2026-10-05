@@ -32,6 +32,19 @@ const index = (highlight: string[]): IndexConfig => ({
 });
 
 describe("share-card chart highlights", () => {
+  it("filters saved removals before selecting and rendering preview marks", async () => {
+    const spec = scatterSpec({} as Snapshot, points, index(["beta@low"]), "cost", "all", "linear", { models: ["alpha"], efforts: ["beta@high"] });
+    expect(spec?.pts.map(p => p.r.variant.id)).toEqual(["beta@low"]);
+    for (const kind of ["scatter", "bars"] as const) {
+      const image = await renderChartPng(spec!, labs, LIGHT_PALETTE, kind);
+      expect(image?.subarray(0, 8).toString("hex")).toBe("89504e470d0a1a0a");
+      const empty = scatterSpec({} as Snapshot, points, index([]), "cost", "all", undefined, { models: ["alpha", "beta"], efforts: [] });
+      expect(empty?.pts).toEqual([]);
+      const emptyImage = await renderChartPng(empty!, labs, LIGHT_PALETTE, kind);
+      expect(emptyImage?.subarray(0, 8).toString("hex")).toBe("89504e470d0a1a0a");
+      expect(emptyImage && image && Buffer.compare(emptyImage, image)).not.toBe(0);
+    }
+  });
   it("uses the linked scale in cost previews without changing points or highlights", () => {
     const spec = scatterSpec({} as Snapshot, points, index(["beta@low"]), "cost", "all", "linear");
     expect(spec?.chart.scale).toBe("linear");

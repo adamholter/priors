@@ -8,6 +8,7 @@ import { renderShareCard } from "@/lib/og";
 import { defaultConfig } from "@/engine";
 import { anchorOf, CHART_TITLES } from "@/lib/metrics";
 import type { Profile, Section } from "@/components/page/IndexPage";
+import { readChartHidden } from "@/components/chart/chart-visibility";
 
 export const dynamic = "force-dynamic";
 
@@ -47,6 +48,6 @@ export async function GET(req: Request) {
   const indices = linkedHighlights(list.length ? list : profile?.indices.length ? profile.indices : [defaultConfig(snapshot)], u.searchParams);
   const index = indices.find((i) => i.id === u.searchParams.get("hi")) ?? indices[0];
   const chart = profile ? resolveProfileChart(profile as Profile, u.searchParams.get("c")) : u.searchParams.get("c") ?? undefined;
-  const res = await renderShareCard(snapshot, index, profile ? { name: profile.displayName, handle: profile.handle, avatarUrl: profile.avatarUrl } : { name: u.searchParams.get("name") ?? "" }, { design: u.searchParams.get("design") ?? undefined, chart, cv: u.searchParams.get("cv") ?? undefined, cm: u.searchParams.get("cm") ?? undefined, cs: u.searchParams.get("cs") ?? undefined, scheme: u.searchParams.get("scheme") === "dark" ? "dark" : undefined, accent: profile?.theme?.accent, surface: profile?.theme?.surface === "white" ? "#FFFFFF" : undefined, theme: profile?.theme ? { preset: profile.theme.preset, surface: profile.theme.surface } : undefined });
+  const res = await renderShareCard(snapshot, index, profile ? { name: profile.displayName, handle: profile.handle, avatarUrl: profile.avatarUrl } : { name: u.searchParams.get("name") ?? "" }, { hidden: readChartHidden(u.searchParams, u.searchParams.get("c") ?? undefined), design: u.searchParams.get("design") ?? undefined, chart, cv: u.searchParams.get("cv") ?? undefined, cm: u.searchParams.get("cm") ?? undefined, cs: u.searchParams.get("cs") ?? undefined, scheme: u.searchParams.get("scheme") === "dark" ? "dark" : undefined, accent: profile?.theme?.accent, surface: profile?.theme?.surface === "white" ? "#FFFFFF" : undefined, theme: profile?.theme ? { preset: profile.theme.preset, surface: profile.theme.surface } : undefined });
   return new Response(res.body, { status: res.status, headers: { "content-type": res.headers.get("content-type") ?? "image/png", "cache-control": "public, max-age=600, s-maxage=86400, stale-while-revalidate=86400" } });
 }

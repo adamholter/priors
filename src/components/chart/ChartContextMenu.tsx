@@ -1,5 +1,5 @@
 "use client";
-import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type RefObject, type ReactNode, type MouseEvent as ReactMouseEvent, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type RefObject, type ReactNode, type MouseEvent as ReactMouseEvent, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 import { IconX, IconTrash, IconStar, IconStarFilled, IconArrowBackUp, IconCaretRightFilled } from "@tabler/icons-react";
 import type { ECharts } from "echarts";
@@ -7,32 +7,51 @@ import { useChartPalette } from "./echarts";
 import { featuredPoints, type ScatterPoint } from "./scatter-option";
 import { chartLabel } from "@/lib/metrics";
 import { useHighlight, togglePoint } from "./highlight";
-import { EMPTY_HIDDEN, hideChartPoint, visiblePoints, type ChartHidden } from "./chart-visibility";
+import { EMPTY_HIDDEN, hideChartPoint, visiblePoints, readChartHidden, setChartHidden, type ChartHidden } from "./chart-visibility";
 import { chartUndo, listenForChartUndo } from "./chart-undo";
 import { ChartDownloadIcon, ChartExpandIcon, ChartLinkIcon } from "./ChartIcons";
 import type { ChartExportHandle } from "./ChartExport";
+import type { ChartLinkParams } from "./ChartLink";
+import { chartLinkUrl } from "@/lib/highlight-link";
 
 export type ChartMenuDesign = "plain" | "icons" | "grouped";
 export const ChartMenuDesignContext = createContext<ChartMenuDesign>("icons");
 type MenuState = { x: number; y: number; point?: ScatterPoint };
 type Action = { id: string; label: string; run: () => void; group: "point" | "chart" };
 
-export function useChartVisibility(allPoints: ScatterPoint[]) {
-  const [history, setHistory] = useState<ChartHidden[]>([EMPTY_HIDDEN]);
+const VISIBILITY_EVENT = "priors:chart-visibility";
+function subscribeVisibility(change: () => void) {
+  window.addEventListener(VISIBILITY_EVENT, change);
+  window.addEventListener("popstate", change);
+  return () => { window.removeEventListener(VISIBILITY_EVENT, change); window.removeEventListener("popstate", change); };
+}
+function persistVisibility(anchor: string, hidden: ChartHidden, target?: ChartLinkParams) {
+  const url = target ? chartLinkUrl(window.location.href, anchor, target) : new URL(window.location.href);
+  window.history.replaceState(window.history.state, "", setChartHidden(url, anchor, hidden));
+  window.dispatchEvent(new Event(VISIBILITY_EVENT));
+}
+
+export function useChartVisibility(allPoints: ScatterPoint[], anchor: string, params: ChartLinkParams = {}) {
+  const encoded = useSyncExternalStore(subscribeVisibility, () => JSON.stringify(readChartHidden(new URL(window.location.href).searchParams, anchor)), () => JSON.stringify(EMPTY_HIDDEN));
+  const hidden: ChartHidden = useMemo(() => JSON.parse(encoded), [encoded]);
+  const [undoCount, setUndoCount] = useState(0);
   const owner = useRef({});
   useEffect(() => {
     const id = owner.current, stop = listenForChartUndo();
+    const restored = readChartHidden(new URL(window.location.href).searchParams, anchor);
+    // A reloaded chart can also undo its saved removals.
+    if (restored.models.length || restored.efforts.length) chartUndo.record(id, () => persistVisibility(anchor, EMPTY_HIDDEN));
     return () => { chartUndo.forget(id); stop(); };
-  }, []);
-  const hidden = history[history.length - 1];
+  }, [anchor]);
   const points = useMemo(() => visiblePoints(allPoints, hidden), [allPoints, hidden]);
   return {
-    points, hiddenCount: allPoints.length - points.length, canUndo: history.length > 1,
+    points, hidden, hiddenCount: allPoints.length - points.length, canUndo: undoCount > 0 || hidden.models.length > 0 || hidden.efforts.length > 0,
     hide: (p: ScatterPoint, wholeModel = false) => {
-      chartUndo.record(owner.current, () => setHistory(h => h.length > 1 ? h.slice(0, -1) : h));
-      setHistory(h => [...h, hideChartPoint(h[h.length - 1], p, wholeModel)]);
+      chartUndo.record(owner.current, () => { persistVisibility(anchor, hidden); setUndoCount(n => Math.max(0, n - 1)); });
+      persistVisibility(anchor, hideChartPoint(hidden, p, wholeModel), params);
+      setUndoCount(n => n + 1);
     },
-    undo: () => { chartUndo.undo(owner.current); },
+    undo: () => { if (!chartUndo.undo(owner.current)) persistVisibility(anchor, EMPTY_HIDDEN); },
   };
 }
 

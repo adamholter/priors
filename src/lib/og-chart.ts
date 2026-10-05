@@ -10,6 +10,7 @@ import { barsOption, selectBars } from "../components/chart/bars-option";
 import { frameSvg } from "../components/chart/export-frame";
 import { chartKind, chartTitle, costChart, pickPoints, type MetricChart } from "./metrics";
 import { presetOf } from "./page-presets";
+import { EMPTY_HIDDEN, visiblePoints, type ChartHidden } from "../components/chart/chart-visibility";
 
 export interface ChartSpec {
   title: string;
@@ -25,9 +26,9 @@ export interface ChartSpec {
  * from the full ranked set via pickPoints: `cm` overrides the index's pareto effort mode, and
  * best mode keeps each model's best *measured* effort rather than dropping the model.
  */
-export function scatterSpec(snapshot: Snapshot, ranked: RankedVariant[], index: IndexConfig, c: string | undefined, cm?: string, cs?: string): ChartSpec | null {
+export function scatterSpec(snapshot: Snapshot, ranked: RankedVariant[], index: IndexConfig, c: string | undefined, cm?: string, cs?: string, hidden: ChartHidden = EMPTY_HIDDEN): ChartSpec | null {
   const mode = cm === "best" || cm === "all" ? cm : chartVariantMode(index, "pareto");
-  const from = (chart: MetricChart, title: string, hasTitle: boolean): ChartSpec => ({ title, hasTitle, chart: chart.scale === "log" && cs === "linear" ? { ...chart, scale: "linear", xName: chart.xName.replace(/, log| \(log\)/g, "") } : chart, pts: pickPoints(chart, ranked, mode), highlight: index.highlight?.length ? [...index.highlight] : undefined });
+  const from = (chart: MetricChart, title: string, hasTitle: boolean): ChartSpec => ({ title, hasTitle, chart: chart.scale === "log" && cs === "linear" ? { ...chart, scale: "linear", xName: chart.xName.replace(/, log| \(log\)/g, "") } : chart, pts: visiblePoints(pickPoints(chart, ranked, mode), hidden), highlight: index.highlight?.length ? [...index.highlight] : undefined });
   if (c === "cost") return from(costChart, "Score vs cost per task", true);
   const ck = chartKind(snapshot, ranked, c, index.timeSource);
   if (ck?.kind !== "metric") return null;
@@ -106,6 +107,10 @@ function addHighlightGuides(chart: ReturnType<typeof echarts.init>, pts: Scatter
  * `cv=bars|scatter` overrides the chart's default view; time-scale charts stay scatter.
  */
 export async function renderChartPng(spec: ChartSpec, labs: Lab[], pal: ChartPalette, cv?: string): Promise<Buffer | null> {
+  if (!spec.pts.length) {
+    const empty = `<svg xmlns="http://www.w3.org/2000/svg" width="${CHART_W}" height="${CHART_H}"><text x="${CHART_W / 2}" y="${CHART_H / 2}" text-anchor="middle" fill="${pal.grey}" font-family="Inter" font-size="14">No model in this view has this metric.</text></svg>`;
+    return rasterize(frameSvg(empty, spec.title, undefined, { bg: pal.bg, ink: pal.ink, grey: pal.grey }, { footer: "right" }), pal.bg);
+  }
   const theme = themeFor(pal, { sans: SANS_STATIC, mono: MONO_STATIC });
   const chart = echarts.init(null, theme, { renderer: "svg", ssr: true, width: CHART_W, height: CHART_H });
   let svg: string;

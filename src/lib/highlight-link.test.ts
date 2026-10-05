@@ -1,11 +1,21 @@
 import { describe, expect, it } from "vitest";
 import { decodeIndices, decodeIndex, encodeIndex } from "./url";
 import { chartLinkUrl, linkedHighlights, setHighlightParams } from "./highlight-link";
+import { readChartHidden, setChartHidden } from "../components/chart/chart-visibility";
 
 const first = decodeIndex("First|swe:50", "first")!;
 const second = { ...decodeIndex("Second|term:50", "second")!, highlight: ["gpt-6.1-sol@xhigh", "claude-opus-5.5@max~vals"] };
 
 describe("highlighted chart links", () => {
+  it("copies current chart removals alongside highlights and keeps other chart removals", () => {
+    const hidden = { models: ["alpha"], efforts: ["beta@high"] };
+    const current = setChartHidden(new URL("https://mypriors.com/adamholter"), "time-per-task", { models: ["gamma"], efforts: [] });
+    const url = chartLinkUrl(current.toString(), "custom-cost", { hidden }, { items: second.highlight, indexId: "second" });
+    expect(readChartHidden(url.searchParams, "custom-cost")).toEqual(hidden);
+    expect(readChartHidden(url.searchParams, "time-per-task").models).toEqual(["gamma"]);
+    expect(linkedHighlights([first, second], url.searchParams)[1].highlight).toEqual(second.highlight);
+    expect(readChartHidden(chartLinkUrl(url.toString(), "custom-cost", { hidden: { models: [], efforts: [] } }).searchParams, "custom-cost").models).toEqual([]);
+  });
   it("copies scale with highlights and clears it when copying another chart", () => {
     const url = chartLinkUrl("https://mypriors.com/builder?cs=log", "cost", { cs: "linear" }, { items: second.highlight, linkIndices: [second] });
     expect(url.searchParams.get("cs")).toBe("linear");
