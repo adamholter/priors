@@ -144,6 +144,8 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 
 /* Metric gallery */
 details.gallery-panel > summary::-webkit-details-marker { display: none; }
+/* Raise the whole toolbar while a menu is open so later chart toolbars cannot paint over it. */
+.chart-toolbar:has(details[open], .export-menu) { position: relative; z-index: 30; }
 @media (max-width: 639px) {
   .chart-settings-menu {
     position: fixed;
