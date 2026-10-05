@@ -60,7 +60,7 @@ export function ChartContextMenu({ state, close, name, points, visibility, chart
   useLayoutEffect(() => {
     if (!state || !root.current) return;
     const r = root.current.getBoundingClientRect();
-    setPosition({ left: Math.max(8, Math.min(state.x, innerWidth - r.width - 8)), top: Math.max(8, Math.min(state.y, innerHeight - r.height - 8)) });
+    setPosition({ left: Math.max(8, Math.min(state.x, document.documentElement.clientWidth - r.width - 8)), top: Math.max(8, Math.min(state.y, innerHeight - r.height - 8)) });
     returnFocus.current = document.activeElement as HTMLElement;
     root.current.querySelector<HTMLButtonElement>('button[role="menuitem"]')?.focus({ preventScroll: true });
     chart.current?.dispatchAction({ type: "hideTip" });
