@@ -139,7 +139,7 @@ export function Builder({ snapshot: base, dates, initialIndices }: { snapshot: S
           </div>
           <div>
             <h2 className="text-[22px] mb-1">More metrics</h2>
-            <MetricGallery timeSource={active.timeSource} onTimeSourceChange={(timeSource) => update({ ...active, timeSource })} ranked={result.ranked} mode={paretoMode} snapshot={snapshot} labs={snapshot.labs} settings={{ ...releaseProps, ...modelPicker }} />
+            <MetricGallery timeSource={active.timeSource} onTimeSourceChange={(timeSource) => update({ ...active, timeSource })} ranked={result.ranked} mode={paretoMode} snapshot={snapshot} labs={snapshot.labs} benchmarks={result.benchmarks} settings={{ ...releaseProps, ...modelPicker }} />
           </div>
         </section>
       </main>

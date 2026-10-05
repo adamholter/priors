@@ -19,6 +19,7 @@
   --shadow: rgba(26, 26, 26, .22);
   --backdrop: rgba(21, 26, 19, .34);
   --danger: #A0403A;
+  --good: #2E7A3C;
   --warn: #A96E24;
   color-scheme: light;
 }
@@ -43,6 +44,7 @@
   --shadow: rgba(0, 0, 0, .55);
   --backdrop: rgba(0, 0, 0, .55);
   --danger: #F0907F;
+  --good: #7CC68A;
   --warn: #E6B464;
   color-scheme: dark;
 }
