@@ -48,7 +48,7 @@ function GalleryChart({ id, anchor, title, chart, speed, ranked, defaultMode, la
   useEffect(() => {
     if (!linked.linked) return;
     const kind = linked.cv === "bars" || linked.cv === "scatter" ? linked.cv : defaultKind;
-    setView({ ...view, kind: kind === "bars" && chart?.scale !== "time" ? "bars" : "scatter", ...(metric?.scale === "log" && (linked.cs === "log" || linked.cs === "linear") ? { scale: linked.cs } : {}) }, false);
+    setView({ ...view, kind: kind === "bars" && chart?.scale !== "time" ? "bars" : "scatter", kindChosen: true, ...(metric?.scale === "log" && (linked.cs === "log" || linked.cs === "linear") ? { scale: linked.cs } : {}) }, false);
     // eslint-disable-next-line react-hooks/set-state-in-effect -- URL deep-link init
     if (linked.cm === "best" || linked.cm === "all") setMode(linked.cm);
     // eslint-disable-next-line react-hooks/exhaustive-deps
