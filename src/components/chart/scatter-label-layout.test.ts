@@ -28,4 +28,12 @@ describe("scatter label placement", () => {
     layout(mark(1, 100));
     expect(layout(mark(2, 100)).y).toBe(136.5);
   });
+
+  it("keeps occupied slots when reused marks arrive out of index order", () => {
+    const layout = scatterLabelLayout(() => 320, () => 420, [true, true, true]);
+    expect(layout(mark(2, 160)).align).toBe("left");
+    expect(layout(mark(0, 165)).align).toBe("right");
+    expect(layout(mark(1, 160)).y).not.toBe(104.5);
+    expect(layout(mark(2, 160)).y).toBe(104.5);
+  });
 });

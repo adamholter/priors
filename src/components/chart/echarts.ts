@@ -14,7 +14,7 @@ export function useLabColor() {
 }
 
 /** Mounts an ECharts instance and keeps it in sync with `option` (merge mode, so transitions animate). */
-export function useEChart(option: EChartsOption, deps: unknown[] = [], onReady?: (chart: echarts.ECharts) => void) {
+export function useEChart(option: EChartsOption, deps: unknown[] = [], onReady?: (chart: echarts.ECharts) => void, resetSeries = false) {
   const ref = useRef<HTMLDivElement>(null);
   const chart = useRef<echarts.ECharts | null>(null);
   const theme = themeFor(useChartPalette());
@@ -35,7 +35,7 @@ export function useEChart(option: EChartsOption, deps: unknown[] = [], onReady?:
   useEffect(() => {
     const frame = requestAnimationFrame(() => {
       const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-      chart.current?.setOption({ ...option, animation: !reduced, animationDurationUpdate: reduced ? 0 : 350, animationEasingUpdate: "cubicOut" }, { notMerge: false, replaceMerge: ["series", "graphic"] });
+      chart.current?.setOption({ ...option, animation: !reduced, animationDurationUpdate: reduced ? 0 : 350, animationEasingUpdate: "cubicOut" }, { notMerge: resetSeries, replaceMerge: ["series", "graphic"] });
     });
     return () => cancelAnimationFrame(frame);
   }, deps); // eslint-disable-line react-hooks/exhaustive-deps

@@ -80,6 +80,8 @@ export function ScoreScatter({ pts: allPoints, labs, better, xName: baseXName, x
   // Clicking a mark toggles that exact effort's highlight (several efforts per model are allowed).
   const pick = useRef<(p: ScatterPoint) => void>(() => {});
   useEffect(() => { pick.current = (p) => { if (hl) hl.set(togglePoint(hl.items, pts, p)); }; }, [hl, pts]);
+  // Rebuild series so mark traversal follows the new label priority after slider/filter changes.
+  // Merge mode retains the previous graphic order even when the data array is reordered.
   const { ref, chart } = useEChart(option, [option], (c) => {
     c.on("click", (e) => { const d = (e.data as { extra?: ScatterPoint } | undefined)?.extra; if (d) pick.current(d); });
     c.on("contextmenu", (e) => {
@@ -87,7 +89,7 @@ export function ScoreScatter({ pts: allPoints, labs, better, xName: baseXName, x
       const event = e.event?.event as MouseEvent | undefined;
       if (d && event) { event.preventDefault(); event.stopPropagation(); contextPick.current(d, event.clientX, event.clientY); }
     });
-  });
+  }, true);
 
   // Guide lines for highlighted models, drawn in pixel space so they stop exactly at the axes on every
   // scale (log, linear, time) and carry value badges on the axes. Part of the SVG, so exports include them.
