@@ -8,7 +8,7 @@ import { ChartLinkIcon } from "./ChartIcons";
 export { anchorOf };
 
 /** Chart-view params carried by deep links: `cv=bars|scatter` when it differs from the chart default, `cm=` for effort mode. */
-export interface ChartLinkParams { cv?: "bars" | "scatter"; cm?: "best" | "all" }
+export interface ChartLinkParams { cv?: "bars" | "scatter"; cm?: "best" | "all"; cs?: "log" | "linear" }
 
 /** Mirroring only sets — never deletes — so a linked panel's own init pass can still read cv/cm. */
 function mirrorParams(url: URL, id: string, params?: ChartLinkParams) {
@@ -16,6 +16,7 @@ function mirrorParams(url: URL, id: string, params?: ChartLinkParams) {
   url.hash = id;
   if (params?.cv) url.searchParams.set("cv", params.cv);
   if (params?.cm) url.searchParams.set("cm", params.cm);
+  if (params?.cs) url.searchParams.set("cs", params.cs);
 }
 
 /** True once when the page loads (or the hash changes) pointing at `id`. */

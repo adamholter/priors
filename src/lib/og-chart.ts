@@ -25,9 +25,9 @@ export interface ChartSpec {
  * from the full ranked set via pickPoints: `cm` overrides the index's pareto effort mode, and
  * best mode keeps each model's best *measured* effort rather than dropping the model.
  */
-export function scatterSpec(snapshot: Snapshot, ranked: RankedVariant[], index: IndexConfig, c: string | undefined, cm?: string): ChartSpec | null {
+export function scatterSpec(snapshot: Snapshot, ranked: RankedVariant[], index: IndexConfig, c: string | undefined, cm?: string, cs?: string): ChartSpec | null {
   const mode = cm === "best" || cm === "all" ? cm : chartVariantMode(index, "pareto");
-  const from = (chart: MetricChart, title: string, hasTitle: boolean): ChartSpec => ({ title, hasTitle, chart, pts: pickPoints(chart, ranked, mode), highlight: index.highlight?.length ? [...index.highlight] : undefined });
+  const from = (chart: MetricChart, title: string, hasTitle: boolean): ChartSpec => ({ title, hasTitle, chart: chart.scale === "log" && cs === "linear" ? { ...chart, scale: "linear", xName: chart.xName.replace(/, log| \(log\)/g, "") } : chart, pts: pickPoints(chart, ranked, mode), highlight: index.highlight?.length ? [...index.highlight] : undefined });
   if (c === "cost") return from(costChart, "Score vs cost per task", true);
   const ck = chartKind(snapshot, ranked, c, index.timeSource);
   if (ck?.kind !== "metric") return null;
@@ -114,7 +114,7 @@ export async function renderChartPng(spec: ChartSpec, labs: Lab[], pal: ChartPal
   if (kind === "bars" && spec.chart.scale !== "time") {
     const bars = selectBars(spec.pts, spec.chart.better, 24, highlight);
     if (!bars.length) return null;
-    const opt = barsOption({ bars, labs, xName: spec.chart.xName.replace(", log", ""), formatValue: spec.chart === costChart ? costChart.formatX : spec.chart.formatValue ?? spec.chart.formatX, pal, narrow: false, highlight });
+    const opt = barsOption({ bars, labs, xName: spec.chart.xName.replace(", log", ""), formatValue: spec.chart.xLabel === costChart.xLabel ? costChart.formatX : spec.chart.formatValue ?? spec.chart.formatX, pal, narrow: false, highlight });
     // Rotated category labels need deep bottom margin; keep them clear of X's bottom-left pill (~y550).
     chart.setOption({ ...opt, animation: false, grid: { ...(opt.grid as Record<string, number>), bottom: 132 } });
     svg = chart.renderToSVGString();

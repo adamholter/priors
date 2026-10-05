@@ -23,7 +23,7 @@ export function useScatterView(key: string, defaultKind: "bars" | "scatter" = "s
     const raf = requestAnimationFrame(() => {
       try {
         const s = JSON.parse(localStorage.getItem(`priors:chart:${key}`) ?? "null") as ScatterView | null;
-        if (s) setView(restoreScatterView(defaultKind, defaultFrontier, s));
+        if (s) setView(current => ({ ...restoreScatterView(defaultKind, defaultFrontier, s), ...(current.scale ? { scale: current.scale } : {}), ...(current.kindChosen ? { kind: current.kind, kindChosen: true } : {}) }));
       } catch { /* ignore */ }
     });
     return () => cancelAnimationFrame(raf);
@@ -41,12 +41,15 @@ function escapeHtml(s: string) { return s.replace(/[&<>"']/g, (c) => ({ "&": "&a
  * Index score vs one metric. Lab-colored marks, reasoning efforts of one model joined by a thin line,
  * Pareto frontier traced in ink, labels thinned by density. Title, settings and export share one row.
  */
-export function ScoreScatter({ pts: allPoints, labs, better, xName, xShort, xUnit = "", scale = "linear", formatX, formatValue, height = 420, aria, title, actions, view, exportName, extraRows, tooltipExtra, anchor, linkParams }: {
+export function ScoreScatter({ pts: allPoints, labs, better, xName: baseXName, xShort: baseXShort, xUnit = "", scale: defaultScale = "linear", formatX, formatValue, height = 420, aria, title, actions, view, exportName, extraRows, tooltipExtra, anchor, linkParams }: {
   pts: ScatterPoint[]; labs: Lab[]; better: "lower" | "higher"; xName: string; xShort?: string; xUnit?: string;
   scale?: "linear" | "log" | "time"; formatX: (x: number) => string; formatValue?: (x: number) => string;
   height?: number; aria: string; title?: ReactNode; actions?: ReactNode; view: ScatterView; exportName: string;
   extraRows?: (p: ScatterPoint) => ExportRow; tooltipExtra?: (p: ScatterPoint) => string; anchor?: string; linkParams?: ChartLinkParams;
 }) {
+  const scale = defaultScale === "time" ? "time" : view.scale ?? defaultScale;
+  const xName = scale === "linear" ? baseXName.replace(/, log| \(log\)/g, "") : baseXName;
+  const xShort = scale === "linear" ? baseXShort?.replace(/, log| \(log\)/g, "") : baseXShort;
   const wrapRef = useRef<HTMLDivElement>(null);
   const visibility = useChartVisibility(allPoints), pts = visibility.points;
   const context = useChartContextMenu();
@@ -121,9 +124,10 @@ export function ScoreScatter({ pts: allPoints, labs, better, xName, xShort, xUni
       // Guides stay behind model labels; only the axis badges draw above the series.
       c.setOption({ graphic: [{ id: "guides", type: "group", silent: true, z: 3, children }] } as EChartsOption, { replaceMerge: ["graphic"] });
     };
-    const frame = requestAnimationFrame(draw);
-    c.on("finished", draw);
-    return () => { cancelAnimationFrame(frame); c.off("finished", draw); };
+    let frame = requestAnimationFrame(draw);
+    const scheduleDraw = () => { cancelAnimationFrame(frame); frame = requestAnimationFrame(draw); };
+    c.on("finished", scheduleDraw);
+    return () => { cancelAnimationFrame(frame); c.off("finished", scheduleDraw); };
   }, [guides, labs, pal, formatX, chart, option]);
   const expand = useChartExpand(exportName);
   const onFrontierIds = useMemo(() => new Set(frontier.map((p) => p.r.variant.id)), [frontier]);

@@ -6,6 +6,12 @@ const first = decodeIndex("First|swe:50", "first")!;
 const second = { ...decodeIndex("Second|term:50", "second")!, highlight: ["gpt-6.1-sol@xhigh", "claude-opus-5.5@max~vals"] };
 
 describe("highlighted chart links", () => {
+  it("copies scale with highlights and clears it when copying another chart", () => {
+    const url = chartLinkUrl("https://mypriors.com/builder?cs=log", "cost", { cs: "linear" }, { items: second.highlight, linkIndices: [second] });
+    expect(url.searchParams.get("cs")).toBe("linear");
+    expect(decodeIndices(url.searchParams)[0].highlight).toEqual(second.highlight);
+    expect(chartLinkUrl(url.toString(), "release-date", {}).searchParams.has("cs")).toBe(false);
+  });
   it("copies the active builder mix and current selection before the URL debounce", () => {
     const url = chartLinkUrl(`https://mypriors.com/builder?i=${encodeURIComponent(encodeIndex(first))}&date=2026-10-03`, "cost", { cv: "bars" }, { items: second.highlight, linkIndices: [second, first] });
     const decoded = decodeIndices(url.searchParams);

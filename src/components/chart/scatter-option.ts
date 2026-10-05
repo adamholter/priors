@@ -5,7 +5,7 @@ import { CONTAIN_AXIS_LABELS, dimColor, insideLabels, markColor, markLabel, type
 import { chartLabel } from "../../lib/metrics";
 
 export interface ScatterPoint { x: number; r: RankedVariant; /** untransformed value for tooltips/export when x is transformed */ raw?: number }
-export interface ScatterView { density: number; frontier: boolean; links: boolean; /** The user explicitly toggled the frontier rather than saving an old default. */ frontierChosen?: boolean; /** Dashed axis guides for highlighted efforts (default on). */ guides?: boolean; kind?: "scatter" | "bars"; /** The user picked `kind` (vs. the chart default). */ kindChosen?: boolean }
+export interface ScatterView { scale?: "log" | "linear"; density: number; frontier: boolean; links: boolean; /** The user explicitly toggled the frontier rather than saving an old default. */ frontierChosen?: boolean; /** Dashed axis guides for highlighted efforts (default on). */ guides?: boolean; kind?: "scatter" | "bars"; /** The user picked `kind` (vs. the chart default). */ kindChosen?: boolean }
 /**
  * Emphasis for chosen models. `items` are model ids (feature that model's best effort) or variant ids
  * (feature exactly that effort); a model may have several featured efforts. Everything else recedes
@@ -30,6 +30,7 @@ export const DEFAULT_VIEW: ScatterView = { density: 0.45, frontier: true, links:
 export function restoreScatterView(kind: "bars" | "scatter" = "scatter", frontier = true, saved?: ScatterView | null): ScatterView {
   return {
     ...DEFAULT_VIEW, ...saved,
+    scale: saved?.scale === "log" || saved?.scale === "linear" ? saved.scale : undefined,
     kind: saved?.kindChosen || saved?.kind === "bars" ? saved.kind : kind,
     frontier: !frontier && !saved?.frontierChosen ? false : saved?.frontier ?? frontier,
   };

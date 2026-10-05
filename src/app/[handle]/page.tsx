@@ -47,13 +47,13 @@ export async function generateMetadata({ params, searchParams }: PageProps<"/[ha
   if (!saved) return {};
   const p = profileWithLink(saved, sp);
   const { chart, title, description } = profileCard(p, sp);
-  const viewParams = `${typeof sp.cv === "string" ? `&cv=${sp.cv}` : ""}${typeof sp.cm === "string" ? `&cm=${sp.cm}` : ""}`;
+  const viewParams = `${typeof sp.cv === "string" ? `&cv=${sp.cv}` : ""}${typeof sp.cm === "string" ? `&cm=${sp.cm}` : ""}${typeof sp.cs === "string" ? `&cs=${sp.cs}` : ""}`;
   const index = p.indices.find((i) => i.id === sp.hi) ?? p.indices[0];
   const image = (chart || typeof sp.hl === "string") && index
     ? { url: `/og?handle=${handle}&i=${encodeURIComponent(encodeIndex(index))}${chart ? `&c=${chart}` : ""}${viewParams}`, width: 1200, height: 630, alt: title }
     : { url: `/${handle}/opengraph-image?v=${Math.round((p as { updatedAt?: number }).updatedAt ?? 0)}`, width: 1200, height: 630, alt: title };
   const query = new URLSearchParams();
-  for (const key of ["c", "cv", "cm", "date", "hl", "hi"]) if (typeof sp[key] === "string") query.set(key, sp[key]);
+  for (const key of ["c", "cv", "cm", "cs", "date", "hl", "hi"]) if (typeof sp[key] === "string") query.set(key, sp[key]);
   return { title, description, alternates: { canonical: `/${handle}` }, openGraph: { title, description, type: "profile", url: `/${handle}${query.size ? `?${query}` : ""}`, images: [image] }, twitter: { card: "summary_large_image", title, description, images: [image.url] } };
 }
 
@@ -67,7 +67,7 @@ export default async function Page({ params, searchParams }: PageProps<"/[handle
     // Link-preview crawlers cap response size — give them the tags plus a tiny body, not the app.
     const { title, description } = profileCard(p, sp);
     const query = new URLSearchParams();
-    for (const key of ["c", "cv", "cm", "date", "hl", "hi"]) if (typeof sp[key] === "string") query.set(key, sp[key]);
+    for (const key of ["c", "cv", "cm", "cs", "date", "hl", "hi"]) if (typeof sp[key] === "string") query.set(key, sp[key]);
     return <PreviewPage title={title} description={description} href={`/${handle}${query.size ? `?${query}` : ""}`} />;
   }
   const date = typeof sp.date === "string" ? sp.date : undefined;

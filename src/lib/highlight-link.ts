@@ -17,12 +17,12 @@ export function setHighlightParams(url: URL, indexId: string, items: string[]) {
 }
 
 /** Copy current React state, including the active mix, before the debounced address bar update. */
-export function chartLinkUrl(current: string, id: string, params?: { cv?: "bars" | "scatter"; cm?: "best" | "all" }, state?: { items: string[]; indexId?: string; linkIndices?: IndexConfig[] }) {
+export function chartLinkUrl(current: string, id: string, params?: { cv?: "bars" | "scatter"; cm?: "best" | "all"; cs?: "log" | "linear" }, state?: { items: string[]; indexId?: string; linkIndices?: IndexConfig[] }) {
   const url = new URL(current);
   url.searchParams.set("c", id);
   url.hash = id;
   if (params) {
-    for (const key of ["cv", "cm"] as const) {
+    for (const key of ["cv", "cm", "cs"] as const) {
       if (params[key]) url.searchParams.set(key, params[key]); else url.searchParams.delete(key);
     }
   }

@@ -32,6 +32,14 @@ const index = (highlight: string[]): IndexConfig => ({
 });
 
 describe("share-card chart highlights", () => {
+  it("uses the linked scale in cost previews without changing points or highlights", () => {
+    const spec = scatterSpec({} as Snapshot, points, index(["beta@low"]), "cost", "all", "linear");
+    expect(spec?.chart.scale).toBe("linear");
+    expect(spec?.chart.xName).not.toContain("log");
+    expect(spec?.highlight).toEqual(["beta@low"]);
+    expect(spec?.pts.map(p => p.x)).toEqual(points.map(p => p.costUsd));
+    expect(scatterSpec({} as Snapshot, points, index([]), "cost", "all", "invalid")?.chart.scale).toBe("log");
+  });
   it("carries model and exact-effort ids from the index into the preview spec", () => {
     const spec = scatterSpec({} as Snapshot, points, index(["alpha", "beta@low"]), "cost");
 

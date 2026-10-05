@@ -1,18 +1,15 @@
 "use client";
-import { useId, useMemo, useRef, useCallback, useState } from "react";
-
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
+import { IconAdjustmentsHorizontal, IconStar, IconStarFilled, IconX } from "@tabler/icons-react";
 import type { TaskMetricSource } from "@/data/task-metrics";
 import { useLightDismiss } from "@/hooks/useLightDismiss";
 import { isHighlighted, toggleModel, useHighlight } from "./highlight";
 import type { ScatterView } from "./ScoreScatter";
+import styles from "./ChartSettings.module.css";
 
-const RELEASE_WINDOWS: { label: string; months: number }[] = [
-  { label: "Last 6 months", months: 6 },
-  { label: "Last year", months: 12 },
-  { label: "Last 2 years", months: 24 },
-];
-
-export function ChartSettings({ label, mode, onChange, releasedAfter, onChangeReleased, models, excluded, onToggleModel, onShowAllModels, onHideAllModels, view, onView, dataSource }: {
+export function ChartSettings({ label, mode, onChange, releasedAfter, onChangeReleased, models = [], excluded, onToggleModel, onShowAllModels, onHideAllModels, view, onView, dataSource, defaultScale }: {
+  /** Default metric scale, when the chart supports switching to linear. */
+  defaultScale?: "log" | "linear";
   dataSource?: { value: TaskMetricSource; options: { id: TaskMetricSource; name: string; modelCount: number }[]; onChange: (source: TaskMetricSource) => void };
   label: string; mode: "all" | "best"; onChange: (mode: "all" | "best") => void;
   /** Model-age filter: ISO date cutoff; "" means all time. */
@@ -28,93 +25,69 @@ export function ChartSettings({ label, mode, onChange, releasedAfter, onChangeRe
   view?: ScatterView;
   onView?: (view: ScatterView) => void;
 }) {
-  const id = useId();
-  const root = useRef<HTMLDetailsElement>(null);
-  const trigger = useRef<HTMLElement>(null);
-  const [query, setQuery] = useState("");
+  const id = useId(), root = useRef<HTMLDetailsElement>(null), trigger = useRef<HTMLElement>(null);
+  const [open, setOpen] = useState(false), [tab, setTab] = useState<"models" | "settings">(models.length && onToggleModel ? "models" : "settings"), [query, setQuery] = useState("");
+  const [placement, setPlacement] = useState({ height: 620, above: false });
+  useEffect(() => {
+    if (!open) return;
+    const position = () => {
+      const rect = trigger.current?.getBoundingClientRect();
+      if (!rect) return;
+      const below = innerHeight - rect.bottom - 16, above = rect.top - 16;
+      const flip = innerWidth >= 640 && below < 240 && above > below;
+      setPlacement({ height: Math.max(120, flip ? above : below), above: flip });
+    };
+    const frame = requestAnimationFrame(position);
+    addEventListener("resize", position);
+    addEventListener("scroll", position, true);
+    return () => { cancelAnimationFrame(frame); removeEventListener("resize", position); removeEventListener("scroll", position, true); };
+  }, [open]);
   const hl = useHighlight();
-  const dismiss = useCallback((reason: "outside" | "escape") => {
-    if (!root.current?.open) return;
-    root.current.open = false;
-    if (reason === "escape") trigger.current?.focus();
-  }, []);
+  const dismiss = useCallback((reason: "outside" | "escape") => { setOpen(false); if (reason === "escape") trigger.current?.focus(); }, []);
   useLightDismiss(root, dismiss);
-  const windowDate = (months: number) => { const d = new Date(); d.setMonth(d.getMonth() - months); return d.toISOString().slice(0, 10); };
-  const daysBetween = (a: string, b: string) => Math.abs((new Date(a).getTime() - new Date(b).getTime()) / 86_400_000);
-  // Map a stored cutoff date to the nearest named window (±45 days) so
-  // URL-decoded dates still show as "Last year" rather than "Custom".
-  const releasedValue = releasedAfter === "" ? "all"
-    : releasedAfter === undefined ? "6"
-    : (RELEASE_WINDOWS.find((w) => daysBetween(releasedAfter, windowDate(w.months)) <= 45)?.months.toString() ?? "custom");
-  const filtered = useMemo(() => {
-    if (!models) return models;
-    const q = query.trim().toLowerCase();
-    const list = q ? models.filter((m) => m.name.toLowerCase().includes(q)) : models;
-    // Highlighted (starred) models pin to the top of the list.
-    return hl?.items.length ? [...list.filter((m) => isHighlighted(hl.items, m.id)), ...list.filter((m) => !isHighlighted(hl.items, m.id))] : list;
-  }, [models, query, hl]);
-  const shown = models ? models.length - (excluded?.size ?? 0) : 0;
-  return (
-    <details ref={root} className="relative shrink-0" name="chart-settings">
-      <summary ref={trigger} aria-label={`${label} settings`} title={`${label} settings`} className="list-none [&::-webkit-details-marker]:hidden cursor-pointer p-1.5 text-grey hover:text-ink rounded-sm focus-visible:outline-indigo">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="M4 6h4m4 0h8M4 12h10m4 0h2M4 18h2m4 0h10" /><circle cx="10" cy="6" r="2" /><circle cx="16" cy="12" r="2" /><circle cx="8" cy="18" r="2" /></svg>
-      </summary>
-      <div className="chart-settings-menu absolute right-0 top-full mt-1 w-64 max-w-[85vw] max-h-[70dvh] overflow-y-auto overscroll-contain border hairline rounded-sm bg-white p-3 z-20 shadow-sm">
-        {dataSource && <div className="mb-3 pb-3 border-b hairline">
-          <label htmlFor={`${id}-source`} className="block text-[12px] text-ink-2 mb-2">Data source</label>
-          <select id={`${id}-source`} aria-label={`${label} data source`} className="inp" value={dataSource.value} onChange={(e) => dataSource.onChange(e.target.value as TaskMetricSource)}>
-            {dataSource.options.map((source) => <option key={source.id} value={source.id}>{source.name} · {source.modelCount} models</option>)}
-          </select>
-          <p className="text-[11px] text-grey mt-2">Coverage across this snapshot, before your filters. Only models with data from this source appear.</p>
-          {dataSource.value === "terminalbench-4" && <p className="text-[11px] text-grey mt-2">Agent and model runs. Uses the best-scoring published harness for each model and effort.</p>}
-        </div>}
-        <label htmlFor={id} className="block text-[12px] text-ink-2 mb-2">Reasoning efforts</label>
-        <select id={id} aria-label={`${label} reasoning efforts`} value={mode} onChange={(e) => { onChange(e.target.value as "all" | "best"); dismiss("escape"); }} className="inp">
-          <option value="best">Best effort per model</option>
-          <option value="all">All reasoning efforts</option>
-        </select>
-        {view && onView && <fieldset className="mt-3 pt-3 border-t hairline">
-          <legend className="sr-only">Display</legend>
-          <div className="flex items-baseline justify-between mb-1.5"><label htmlFor={`${id}-lab`} className="text-[12px] text-ink-2">Labels</label><span className="cap">{view.density >= 0.999 ? "all" : view.density <= 0.001 ? "frontier only" : `${Math.round(view.density * 100)}%`}</span></div>
-          <input id={`${id}-lab`} type="range" min={0} max={100} step={5} value={Math.round(view.density * 100)} onChange={(e) => onView({ ...view, density: Number(e.target.value) / 100 })} className="w-full h-[3px]" aria-label={`${label} label density`} />
-          <div className="flex justify-between cap mt-1"><span>Fewer</span><span>More</span></div>
-          <label className="flex items-center gap-2 mt-2.5 text-[12.5px] cursor-pointer"><input type="checkbox" className="accent-indigo" checked={view.frontier} onChange={(e) => onView({ ...view, frontier: e.target.checked, frontierChosen: true })} />Pareto frontier</label>
-          <label className="flex items-center gap-2 mt-1.5 text-[12.5px] cursor-pointer"><input type="checkbox" className="accent-indigo" checked={view.links} onChange={(e) => onView({ ...view, links: e.target.checked })} />Connect a model&rsquo;s efforts</label>
-          {!!hl?.items.length && <label className="flex items-center gap-2 mt-1.5 text-[12.5px] cursor-pointer"><input type="checkbox" className="accent-indigo" checked={view.guides !== false} onChange={(e) => onView({ ...view, guides: e.target.checked })} />Guide lines for highlighted models</label>}
-        </fieldset>}
-        {onChangeReleased && <>
-          <label htmlFor={`${id}-rel`} className="block text-[12px] text-ink-2 mt-3 mb-2">Models released</label>
-          <select id={`${id}-rel`} aria-label={`${label} release window`} value={releasedValue}
-            onChange={(e) => { const v = e.target.value; onChangeReleased(v === "all" ? "" : windowDate(Number(v))); }} className="inp">
-            {RELEASE_WINDOWS.map((w) => <option key={w.months} value={w.months}>{w.label}{w.months === 6 ? " (default)" : ""}</option>)}
-            <option value="all">All time</option>
-            {releasedValue === "custom" && <option value="custom" disabled>Custom ({releasedAfter})</option>}
-          </select>
-        </>}
-        {models && onToggleModel && <>
-          <p className="text-[12px] text-ink-2 mt-3 mb-1.5">Models · {shown} of {models.length}</p>
-          <input type="search" placeholder="Search models" aria-label="Search models" value={query} onChange={(e) => setQuery(e.target.value)} className="inp mb-1.5 !py-1 text-[12px]" />
-          <div className="max-h-52 overflow-y-auto overscroll-contain -mx-1 px-1">
-            {filtered?.map((m, i) => { const star = !!hl && isHighlighted(hl.items, m.id), lastStar = star && !(filtered[i + 1] && isHighlighted(hl!.items, filtered[i + 1].id)); return (
-              <div key={m.id} className={`flex items-center gap-1 rounded-sm hover:bg-bone ${lastStar && i < filtered.length - 1 ? "border-b hairline pb-1 mb-1" : ""}`}>
-                <label className="flex items-center gap-2 py-[3px] text-[12.5px] cursor-pointer min-w-0 flex-1">
-                  <input type="checkbox" className="accent-indigo shrink-0" checked={!excluded?.has(m.id)} onChange={() => onToggleModel(m.id)} />
-                  {m.color && <i className="w-2 h-2 rounded-full shrink-0" style={{ background: m.color }} aria-hidden="true" />}
-                  <span className={`truncate ${star ? "text-ink font-medium" : ""}`}>{m.name}</span>
-                </label>
-                {hl && <button type="button" className={`model-star ${star ? "is-on" : ""}`} aria-pressed={star} aria-label={star ? `Remove highlight from ${m.name}` : `Highlight ${m.name}`} title={star ? "Remove highlight" : "Highlight on charts"} onClick={() => { if (!star && excluded?.has(m.id)) onToggleModel(m.id); hl.set(toggleModel(hl.items, m.id)); }}>
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill={star ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><path d="m12 3.5 2.6 5.3 5.9.9-4.25 4.1 1 5.8L12 16.9l-5.25 2.7 1-5.8L3.5 9.7l5.9-.9z" /></svg>
-                </button>}
-              </div>
-            ); })}
-            {filtered && !filtered.length && <p className="text-[12px] text-grey py-1">No matching models.</p>}
-          </div>
-          <div className="flex justify-between mt-1.5 pt-1.5 border-t hairline">
-            <button type="button" className="cap hover:text-ink" onClick={() => onHideAllModels?.()}>Clear</button>
-            <button type="button" className="cap hover:text-ink" onClick={() => onShowAllModels?.()}>Select all</button>
-          </div>
-        </>}
+  const releaseDate = (months: number) => { const d = new Date(); d.setMonth(d.getMonth() - months); return d.toISOString().slice(0, 10); };
+  const releaseValue = releasedAfter === "" ? "all" : releasedAfter === undefined ? "6" : [6, 12, 24].find(m => Math.abs(Date.parse(releasedAfter) - Date.parse(releaseDate(m))) < 45 * 86400000)?.toString() ?? "custom";
+  const filtered = useMemo(() => models.filter(m => m.name.toLowerCase().includes(query.trim().toLowerCase())).sort((a, b) => Number(!!hl && isHighlighted(hl.items, b.id)) - Number(!!hl && isHighlighted(hl.items, a.id))), [models, query, hl]);
+  function tabKey(event: KeyboardEvent, current: "models" | "settings") {
+    const arrows = ["ArrowLeft", "ArrowRight"];
+    if (![...arrows, "Home", "End"].includes(event.key)) return;
+    event.preventDefault();
+    const next = event.key === "Home" ? "models" : event.key === "End" ? "settings" : current === "models" ? "settings" : "models";
+    setTab(next); document.getElementById(`${id}-${next}-tab`)?.focus();
+  }
+  const hasModels = !!onToggleModel && models.length > 0;
+  const modelPanel = <>
+    <div className={styles.modelCount}><span>{models.filter(m => !excluded?.has(m.id)).length} of {models.length} selected</span>{onShowAllModels && <button type="button" onClick={onShowAllModels}>All</button>}{onHideAllModels && <button type="button" onClick={onHideAllModels}>None</button>}</div>
+    <input type="search" className={styles.search} aria-label="Search models" placeholder="Search models" value={query} onChange={e => setQuery(e.target.value)} />
+    <div className={styles.modelList}>{filtered.map(m => {
+      const star = !!hl && isHighlighted(hl.items, m.id);
+      return <div key={m.id} className={styles.model}><label><input type="checkbox" checked={!excluded?.has(m.id)} onChange={() => onToggleModel?.(m.id)} />{m.color && <i aria-hidden="true" style={{ background: m.color }} />}<span>{m.name}</span></label>{hl && <button type="button" className={star ? styles.starred : undefined} aria-label={`${star ? "Unstar" : "Star"} ${m.name}`} aria-pressed={star} onClick={() => { if (!hl) return; if (!star && excluded?.has(m.id)) onToggleModel?.(m.id); hl.set(toggleModel(hl.items, m.id)); }}>{star ? <IconStarFilled size={15} aria-hidden="true" /> : <IconStar size={15} stroke={1.5} aria-hidden="true" />}</button>}</div>;
+    })}{!filtered.length && <p>No matching models.</p>}</div>
+  </>;
+  const settingsPanel = <>
+    {(dataSource || onChangeReleased) && <div className={styles.dataControls}>
+      {dataSource && <div className={styles.dataField}><label htmlFor={`${id}-source`}>Data source</label><select aria-label={`${label} data source`} id={`${id}-source`} value={dataSource.value} onChange={e => dataSource.onChange(e.target.value as TaskMetricSource)}>{dataSource.options.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></div>}
+      {onChangeReleased && <div className={styles.dataField}><label htmlFor={`${id}-release`}>Released</label><select aria-label={`${label} release window`} id={`${id}-release`} value={releaseValue} onChange={e => onChangeReleased?.(e.target.value === "all" ? "" : releaseDate(+e.target.value))}><option value="6">Last 6 months</option><option value="12">Last year</option><option value="24">Last 2 years</option><option value="all">All time</option>{releaseValue === "custom" && <option value="custom" disabled>Custom</option>}</select></div>}
+    </div>}
+    {defaultScale && view && onView && view.kind !== "bars" && <div className={styles.row}><span id={`${id}-scale-label`}>Scale</span><div className={styles.choice} role="group" aria-labelledby={`${id}-scale-label`}>{(["log", "linear"] as const).map(value => <button key={value} type="button" aria-pressed={(view.scale ?? defaultScale) === value} onClick={() => onView({ ...view, scale: value })}>{value === "log" ? "Log" : "Linear"}</button>)}</div></div>}
+    <div className={styles.row}><label htmlFor={`${id}-effort`}>Reasoning efforts</label><select aria-label={`${label} reasoning efforts`} id={`${id}-effort`} value={mode} onChange={e => onChange(e.target.value as "all" | "best")}><option value="all">All efforts</option><option value="best">Best per model</option></select></div>
+    {view && onView && view.kind !== "bars" && <>
+      <div className={styles.labels}><div><label htmlFor={`${id}-density`}>Labels</label><span>{view.density === 0 ? "Frontier only" : view.density === 1 ? "All" : `${Math.round(view.density * 100)}%`}</span></div><input aria-label={`${label} label density`} id={`${id}-density`} type="range" min={0} max={100} step={5} value={Math.round(view.density * 100)} onChange={e => onView({ ...view, density: +e.target.value / 100 })} /></div>
+      <div className={styles.toggles}>
+        <label><span>Pareto frontier</span><input type="checkbox" checked={view.frontier} onChange={e => onView({ ...view, frontier: e.target.checked, frontierChosen: true })} /></label>
+        <label><span>Connect efforts</span><input type="checkbox" checked={view.links} onChange={e => onView({ ...view, links: e.target.checked })} /></label>
+        {!!hl?.items.length && <label><span>Highlight guides</span><input type="checkbox" checked={view.guides !== false} onChange={e => onView({ ...view, guides: e.target.checked })} /></label>}
       </div>
-    </details>
-  );
+    </>}
+  </>;
+  return <details ref={root} open={open} className={styles.picker} name="chart-settings">
+    <summary ref={trigger} aria-label={`${label} settings`} title={`${label} settings`} onClick={e => { e.preventDefault(); if (!open) setTab(hasModels ? "models" : "settings"); setOpen(!open); }}><IconAdjustmentsHorizontal size={16} stroke={1.5} aria-hidden="true" /></summary>
+    <div className={`${styles.menu} chart-settings-menu`} data-above={placement.above} style={{ "--picker-space": `${placement.height}px` } as CSSProperties}>
+      <div className={styles.heading}><span>Chart settings</span><button type="button" aria-label="Close chart settings" onClick={() => dismiss("escape")}><IconX size={16} stroke={1.5} aria-hidden="true" /></button></div>
+      {hasModels && <div className={styles.tabs} role="tablist" aria-label={`${label} settings sections`}>
+        {(["models", "settings"] as const).map(value => <button key={value} id={`${id}-${value}-tab`} role="tab" type="button" aria-selected={tab === value} aria-controls={`${id}-${value}-panel`} tabIndex={tab === value ? 0 : -1} onKeyDown={e => tabKey(e, value)} onClick={() => setTab(value)}>{value === "models" ? "Models" : "Settings"}</button>)}
+      </div>}
+      <div className={styles.body} role={hasModels ? "tabpanel" : "region"} id={`${id}-${tab}-panel`} aria-labelledby={hasModels ? `${id}-${tab}-tab` : undefined} aria-label={hasModels ? undefined : `${label} settings`}>{hasModels && tab === "models" ? modelPanel : settingsPanel}</div>
+    </div>
+  </details>;
 }
