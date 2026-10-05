@@ -9,7 +9,8 @@ import type { ChartHidden } from "./chart-visibility";
 export { anchorOf };
 
 /** Chart-view params carried by deep links: `cv=bars|scatter` when it differs from the chart default, `cm=` for effort mode. */
-export interface ChartLinkParams { cv?: "bars" | "scatter"; cm?: "best" | "all"; cs?: "log" | "linear"; ls?: number; hidden?: ChartHidden }
+/** `extra`: chart-specific params (e.g. the radar's rm/rs); undefined values are removed from the link. */
+export interface ChartLinkParams { cv?: "bars" | "scatter"; cm?: "best" | "all"; cs?: "log" | "linear"; ls?: number; hidden?: ChartHidden; extra?: Record<string, string | undefined> }
 
 /** Mirroring only sets — never deletes — so a linked panel's own init pass can still read cv/cm. */
 function mirrorParams(url: URL, id: string, params?: ChartLinkParams) {
@@ -18,6 +19,7 @@ function mirrorParams(url: URL, id: string, params?: ChartLinkParams) {
   if (params?.cv) url.searchParams.set("cv", params.cv);
   if (params?.cm) url.searchParams.set("cm", params.cm);
   if (params?.cs) url.searchParams.set("cs", params.cs);
+  for (const [key, value] of Object.entries(params?.extra ?? {})) if (value) url.searchParams.set(key, value);
 }
 
 /** True once when the page loads (or the hash changes) pointing at `id`. */

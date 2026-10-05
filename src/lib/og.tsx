@@ -6,7 +6,9 @@ import type { Snapshot } from "@/data/types";
 import { chartVariantMode, computeIndex, selectVariants, type IndexConfig, type RankedVariant } from "@/engine";
 import { isShareDesign, type ShareDesign } from "@/lib/share-designs";
 import { chartLabel, type MetricPoint } from "@/lib/metrics";
-import { cardPalette, renderChartPng, scatterSpec } from "@/lib/og-chart";
+import { cardPalette, renderChartPng, renderRadarPng, scatterSpec } from "@/lib/og-chart";
+import { DEFAULT_RADAR, RADAR_ANCHOR, RADAR_PALETTES, radarSnapshotView, radarSvg, type RadarSettings } from "@/components/chart/radar-view";
+import { markColor } from "@/components/chart/theme";
 import type { ChartHidden } from "@/components/chart/chart-visibility";
 import QRCode from "qrcode";
 import { DARK_LAB_COLORS } from "@/components/chart/theme";
@@ -32,12 +34,21 @@ function ctxFor(snapshot:Snapshot,index:IndexConfig,who:Ctx["who"],opts?:{accent
  if(!p){p=(async()=>{const r=computeIndex(snapshot,{...index,variants:"all"}),mode=chartVariantMode(index,"ranking"),list=selectVariants(r.ranked,mode),pareto=selectVariants(r.ranked,chartVariantMode(index,"pareto")),link=`https://mypriors.com${who.handle?`/${who.handle}`:""}`;return{...k,index,who,top:list.slice(0,5),board:list.slice(0,10),pts:pareto.filter(x=>!!x.costUsd&&x.costUsd>0),ranked:r.ranked,pareto,benches:r.benchmarks.map(b=>({id:b.benchmark.id,name:b.benchmark.shortName??b.benchmark.name,share:b.share})),colors:new Map(snapshot.labs.map(l=>[l.id,scheme==="dark"?DARK_LAB_COLORS[l.id]??l.color:l.color])),accent:scheme==="dark"?(opts?.accent&&opts.accent.toLowerCase()!=="#2f4fb0"?mixHex(opts.accent,"#ffffff",0.38):k.accent):opts?.accent??k.accent,bg:scheme==="dark"?k.bg:opts?.surface??k.bg,dark:scheme==="dark",date:snapshot.date,qr:await QRCode.toDataURL(link,{margin:0,width:300,color:{dark:"#1A1A1A",light:"#00000000"}}),snapshot}})();ctxCache.set(key,p);if(ctxCache.size>24)ctxCache.delete(ctxCache.keys().next().value!);}
  return p;
 }
-export async function renderShareCard(snapshot: Snapshot,index:IndexConfig,who:{name:string;handle?:string;avatarUrl?:string},opts?:{accent?:string;surface?:string;design?:string;chart?:string;cv?:string;cm?:string;cs?:string;hidden?:ChartHidden;labelScale?:number;scheme?:CardScheme;theme?:{preset?:string;surface?:"bone"|"white"}}) {
+export async function renderShareCard(snapshot: Snapshot,index:IndexConfig,who:{name:string;handle?:string;avatarUrl?:string},opts?:{accent?:string;surface?:string;design?:string;chart?:string;cv?:string;cm?:string;cs?:string;hidden?:ChartHidden;labelScale?:number;scheme?:CardScheme;theme?:{preset?:string;surface?:"bone"|"white"};radar?:RadarSettings}) {
  const design:ShareDesign|null=isShareDesign(opts?.design)?opts.design:null;
  const [c,serif,s4,s5,s6,m4,m5]=await Promise.all([ctxFor(snapshot,index,who,opts),font("Newsreader-400.ttf"),font("Inter-400.ttf"),font("Inter-500.ttf"),font("Inter-600.ttf"),font("JetBrainsMono-400.ttf"),font("JetBrainsMono-500.ttf")]);
  // An explicit design wins; then the linked chart (rendered like the site's own PNG export);
  // then a head-to-head card for tiny fields; otherwise the default ranking bars.
  let body:ReactNode;
+ // Strengths radar: the "radar" design, or a link to the Strengths chart (carrying its rm/rs/… settings).
+ if(c.top.length&&(design==="radar"||(!design&&opts?.chart===RADAR_ANCHOR))){
+  const pal=cardPalette(opts?.theme,opts?.scheme);
+  const v=radarSnapshotView(snapshot,index,opts?.radar??DEFAULT_RADAR,pal.dark,(lab)=>markColor(lab.color,pal,lab.id));
+  if(v.axes.length>=3&&v.series.length){
+   const svg=radarSvg({axes:v.axes,series:v.series,ghost:v.ghost,norm:(opts?.radar??DEFAULT_RADAR).norm,meta:v.meta,pal:{...RADAR_PALETTES[pal.dark?"dark":"light"],bg:pal.bg,ink:pal.ink,grey:pal.grey},size:440});
+   return new Response(renderRadarPng(svg,`Strengths · ${index.name}`,pal) as unknown as BodyInit,{headers:{"content-type":"image/png"}});
+  }
+ }
  if(!c.top.length)body=<Empty c={c}/>;
  else if(design)body=<Design c={c} design={design}/>;
  else{

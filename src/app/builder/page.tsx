@@ -6,6 +6,7 @@ import { PageTransition } from "@/components/PageTransition";
 import { listSnapshotDates, loadSnapshot } from "@/data/load";
 import { decodeIndices } from "@/lib/url";
 import { chartTitle } from "@/lib/metrics";
+import { RADAR_PARAM_KEYS } from "@/components/chart/radar-view";
 import { chartVariantMode, computeIndex, selectVariants } from "@/engine";
 import { isPreviewBot, isSearchBot, PreviewPage } from "@/lib/link-preview";
 
@@ -31,7 +32,7 @@ type SP = Record<string, string | string[] | undefined>;
 
 async function cardFor(sp: SP) {
   const query = new URLSearchParams();
-  for (const key of ["i", "date", "design", "handle", "c", "cv", "cm", "cs", "ls", "ch", "scheme"]) {
+  for (const key of ["i", "date", "design", "handle", "c", "cv", "cm", "cs", "ls", "ch", "scheme", ...RADAR_PARAM_KEYS]) {
     const value = sp[key];
     for (const item of Array.isArray(value) ? value : value ? [value] : []) query.append(key, item);
   }

@@ -144,3 +144,13 @@ export async function renderChartPng(spec: ChartSpec, labs: Lab[], pal: ChartPal
   chart.dispose();
   return rasterize(frameSvg(svg, spec.title, undefined, { bg: pal.bg, ink: pal.ink, grey: pal.grey }, { footer: "right" }), pal.bg);
 }
+
+/** A static radar (radar-view radarSvg) centered in the 1200×630 card frame, rasterized like chart cards. */
+export function renderRadarPng(radar: string, title: string, pal: ChartPalette): Buffer {
+  const open = radar.match(/<svg[^>]*>/)?.[0] ?? "";
+  const w = Number(open.match(/width="([\d.]+)/)?.[1] ?? CHART_W), h = Number(open.match(/height="([\d.]+)/)?.[1] ?? CHART_H);
+  const scale = Math.min(CHART_W / w, CHART_H / h, 1.25), x = (CHART_W - w * scale) / 2, y = (CHART_H - h * scale) / 2;
+  const inner = radar.replace(/<svg[^>]*>/, `<svg x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${(w * scale).toFixed(1)}" height="${(h * scale).toFixed(1)}" viewBox="0 0 ${w} ${h}">`);
+  const canvas = `<svg xmlns="http://www.w3.org/2000/svg" width="${CHART_W}" height="${CHART_H}" viewBox="0 0 ${CHART_W} ${CHART_H}">${inner}</svg>`;
+  return rasterize(frameSvg(canvas, title, undefined, { bg: pal.bg, ink: pal.ink, grey: pal.grey }, { footer: "right" }), pal.bg);
+}

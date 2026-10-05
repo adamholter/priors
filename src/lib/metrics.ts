@@ -150,6 +150,7 @@ export const CHART_TITLES: Record<string, string> = {
   "output-tokens": "Output tokens",
   "release-date": "Release date",
   uptime: "Uptime",
+  strengths: "Strengths",
 };
 
 export function chartTitle(c: string | undefined): string | undefined {

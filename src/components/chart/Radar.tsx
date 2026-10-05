@@ -3,7 +3,9 @@
 import { useState } from "react";
 import { formatValue, ringLabels, type RadarAxis, type RadarNorm, type RadarPoint } from "./radar-data";
 
-export interface RadarSeries { id: string; name: string; color: string; dash?: string; points: RadarPoint[] }
+import type { RadarSeries } from "./radar-view";
+
+export type { RadarSeries };
 type Hover = { kind: "axis"; axis: number } | { kind: "dot"; axis: number; series: string } | null;
 
 const TAU = Math.PI * 2;
@@ -68,7 +70,7 @@ export function Radar({ axes, series, ghost, norm, size = 340, labels = true, co
     <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={ariaLabel}>
       {rings.map((t, i) => <circle key={t} cx={cx} cy={cy} r={R * t} className={i === rings.length - 1 ? "rl-ring rl-ring-outer" : "rl-ring"} />)}
       {angles.map((_, i) => { const e = at(i, 1); return <line key={axes[i].id} x1={cx} y1={cy} x2={r1(e.x)} y2={r1(e.y)} className={activeAxis === i ? "rl-spoke rl-spoke-on" : "rl-spoke"} />; })}
-      {labels && !compact && caps.map((c, i) => c && <text key={c} x={r1(cx + Math.cos(-1.22) * R * rings[i] + 4)} y={r1(cy + Math.sin(-1.22) * R * rings[i] - 3)} className="rl-ring-cap">{c}</text>)}
+      {labels && !compact && caps.map((c, i) => { const a = -Math.PI / 2 + Math.PI / Math.max(3, axes.length); return c && <text key={c} x={r1(cx + Math.cos(a) * R * rings[i] + 3)} y={r1(cy + Math.sin(a) * R * rings[i] - 3)} className="rl-ring-cap">{c}</text>; })}
       {ghost && (() => { const d = shape(ghost, angles, cx, cy, R); return <path d={d} className={ghostStyle === "outline" ? "rl-ghost rl-ghost-outline" : "rl-ghost"} style={{ d: `path("${d}")` }}><title>{ghostLabel}</title></path>; })()}
       {series.map((s) => {
         const d = shape(s.points, angles, cx, cy, R), dim = !!focus && focus !== s.id;

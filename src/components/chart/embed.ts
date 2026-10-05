@@ -105,3 +105,18 @@ xAxis:{...axis,type:"category",data:S.bars.map((b)=>active&&b.a?{value:b.n,textS
 yAxis:{...axis,type:"value",name:S.yName,nameTextStyle:{color:GREY,fontSize:11,align:"left",padding:[0,0,0,-30]},axisLabel:{...axis.axisLabel,formatter:fmt}},
 series:[{type:"bar",barMaxWidth:28,data:S.bars.map((b)=>({value:b.v,itemStyle:{color:active&&!b.h?dim(b):lab(b),opacity:active&&!b.h ? .6 : 1,borderRadius:[2,2,0,0]},label:active&&!b.h?{color:GREY}:active&&b.a?{fontWeight:700}:undefined})),label:{show:true,position:"top",fontSize:10*fontScale,fontFamily:MONO,color:P.ink,formatter:(p)=>fmt(p.value)}}]},true);`, 460);
 }
+
+/** Standalone radar embed: the same static SVG in both schemes (native hover titles on every point),
+ *  following the viewer's color scheme unless `?theme=` or `#dark` / `#light` forces one. */
+export function radarHtml({ title, date, light, dark }: { title: string; date?: string; light: string; dark: string }) {
+  const L = SCHEMES.light, D = SCHEMES.dark;
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark">
+<title>${esc(title)} · Priors</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&family=JetBrains+Mono&family=Newsreader:opsz@6..72&display=swap" rel="stylesheet">
+<style>:root{--bg:${L.bg};--ink:${L.ink};--grey:${L.grey};--link:${L.link}}.d{display:none}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:${D.bg};--ink:${D.ink};--grey:${D.grey};--link:${D.link}}:root:not([data-theme=light]) .l{display:none}:root:not([data-theme=light]) .d{display:block}}
+:root[data-theme=dark]{--bg:${D.bg};--ink:${D.ink};--grey:${D.grey};--link:${D.link}}:root[data-theme=dark] .l{display:none}:root[data-theme=dark] .d{display:block}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:Inter,system-ui,sans-serif}main{max-width:1000px;margin:0 auto;padding:28px 24px 20px}h1{font:400 26px/1.1 Newsreader,Georgia,serif;letter-spacing:-.02em;margin:0 0 12px}svg{display:block;width:100%;height:auto}footer{font:11px 'JetBrains Mono',monospace;color:var(--grey);margin-top:10px}footer a{color:var(--link);text-decoration:none}</style>
+<script>{const f=(new URLSearchParams(location.search).get("theme")||location.hash.slice(1)).toLowerCase();if(f==="dark"||f==="light")document.documentElement.dataset.theme=f}</script>
+</head><body><main><h1>${esc(title)}</h1><div class="l" role="img" aria-label="${esc(title)}">${light}</div><div class="d" role="img" aria-label="${esc(title)}">${dark}</div><footer><a href="https://mypriors.com">mypriors.com</a>${date ? ` · ${esc(date)}` : ""}</footer></main></body></html>`;
+}
