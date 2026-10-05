@@ -31,7 +31,7 @@ type SP = Record<string, string | string[] | undefined>;
 
 async function cardFor(sp: SP) {
   const query = new URLSearchParams();
-  for (const key of ["i", "date", "design", "handle", "c", "cv", "cm", "cs", "ch", "scheme"]) {
+  for (const key of ["i", "date", "design", "handle", "c", "cv", "cm", "cs", "ls", "ch", "scheme"]) {
     const value = sp[key];
     for (const item of Array.isArray(value) ? value : value ? [value] : []) query.append(key, item);
   }

@@ -81,3 +81,16 @@ describe("share-card chart highlights", () => {
     }
   }, 30_000);
 });
+
+it("renders the linked label size in scatter and bar share previews", async () => {
+  const normal = scatterSpec({} as Snapshot, points, index([]), "cost")!;
+  const larger = scatterSpec({} as Snapshot, points, index([]), "cost", undefined, undefined, undefined, 1.5)!;
+  expect(larger.labelScale).toBe(1.5);
+  expect(larger.pts).toEqual(normal.pts);
+  for (const kind of ["scatter", "bars"] as const) {
+    const plain = await renderChartPng(normal, labs, LIGHT_PALETTE, kind);
+    const scaled = await renderChartPng(larger, labs, LIGHT_PALETTE, kind);
+    expect(scaled?.subarray(0, 8).toString("hex")).toBe("89504e470d0a1a0a");
+    expect(scaled && plain && Buffer.compare(scaled, plain)).not.toBe(0);
+  }
+});

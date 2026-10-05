@@ -9,7 +9,7 @@ import type { ChartHidden } from "./chart-visibility";
 export { anchorOf };
 
 /** Chart-view params carried by deep links: `cv=bars|scatter` when it differs from the chart default, `cm=` for effort mode. */
-export interface ChartLinkParams { cv?: "bars" | "scatter"; cm?: "best" | "all"; cs?: "log" | "linear"; hidden?: ChartHidden }
+export interface ChartLinkParams { cv?: "bars" | "scatter"; cm?: "best" | "all"; cs?: "log" | "linear"; ls?: number; hidden?: ChartHidden }
 
 /** Mirroring only sets — never deletes — so a linked panel's own init pass can still read cv/cm. */
 function mirrorParams(url: URL, id: string, params?: ChartLinkParams) {

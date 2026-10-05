@@ -5,9 +5,12 @@ import type { TaskMetricSource } from "@/data/task-metrics";
 import { useLightDismiss } from "@/hooks/useLightDismiss";
 import { isHighlighted, toggleModel, useHighlight } from "./highlight";
 import type { ScatterView } from "./ScoreScatter";
+import { labelScale } from "./label-size";
+import { chartLinkUrl } from "@/lib/highlight-link";
 import styles from "./ChartSettings.module.css";
 
-export function ChartSettings({ label, mode, onChange, releasedAfter, onChangeReleased, models = [], excluded, onToggleModel, onShowAllModels, onHideAllModels, view, onView, dataSource, defaultScale }: {
+export function ChartSettings({ label, mode, onChange, releasedAfter, onChangeReleased, models = [], excluded, onToggleModel, onShowAllModels, onHideAllModels, view, onView, dataSource, defaultScale, anchor }: {
+  anchor?: string;
   /** Default metric scale, when the chart supports switching to linear. */
   defaultScale?: "log" | "linear";
   dataSource?: { value: TaskMetricSource; options: { id: TaskMetricSource; name: string; modelCount: number }[]; onChange: (source: TaskMetricSource) => void };
@@ -23,7 +26,7 @@ export function ChartSettings({ label, mode, onChange, releasedAfter, onChangeRe
   onHideAllModels?: () => void;
   /** Scatter display: label density, frontier line, reasoning-effort lines. */
   view?: ScatterView;
-  onView?: (view: ScatterView) => void;
+  onView?: (view: ScatterView, persist?: boolean) => void;
 }) {
   const id = useId(), root = useRef<HTMLDetailsElement>(null), trigger = useRef<HTMLElement>(null);
   const [open, setOpen] = useState(false), [tab, setTab] = useState<"models" | "settings">(models.length && onToggleModel ? "models" : "settings"), [query, setQuery] = useState("");
@@ -73,6 +76,16 @@ export function ChartSettings({ label, mode, onChange, releasedAfter, onChangeRe
     <div className={styles.row}><label htmlFor={`${id}-effort`}>Reasoning efforts</label><select aria-label={`${label} reasoning efforts`} id={`${id}-effort`} value={mode} onChange={e => onChange(e.target.value as "all" | "best")}><option value="all">All efforts</option><option value="best">Best per model</option></select></div>
     {view && onView && view.kind !== "bars" && <>
       <div className={styles.labels}><div><label htmlFor={`${id}-density`}>Labels</label><span>{view.density === 0 ? "Frontier only" : view.density === 1 ? "All" : `${Math.round(view.density * 100)}%`}</span></div><input aria-label={`${label} label density`} id={`${id}-density`} type="range" min={0} max={100} step={5} value={Math.round(view.density * 100)} onChange={e => onView({ ...view, density: +e.target.value / 100 })} /></div>
+    </>}
+    {view && onView && <div className={styles.labels}><div><label htmlFor={`${id}-label-size`}>Label size</label><span>{Math.round(labelScale(view.labelScale) * 100)}%</span></div><input aria-label={`${label} label size`} id={`${id}-label-size`} type="range" min={75} max={175} step={5} value={Math.round(labelScale(view.labelScale) * 100)} onChange={e => {
+      const ls = +e.target.value;
+      onView({ ...view, labelScale: ls / 100 });
+      if (anchor) {
+        const url = chartLinkUrl(window.location.href, anchor, { cv: view.kind, cm: mode, cs: view.kind !== "bars" ? view.scale ?? defaultScale : undefined, ls }, hl ?? undefined);
+        window.history.replaceState(window.history.state, "", url.toString());
+      }
+    }} /></div>}
+    {view && onView && view.kind !== "bars" && <>
       <div className={styles.toggles}>
         <label><span>Pareto frontier</span><input type="checkbox" checked={view.frontier} onChange={e => onView({ ...view, frontier: e.target.checked, frontierChosen: true })} /></label>
         <label><span>Connect efforts</span><input type="checkbox" checked={view.links} onChange={e => onView({ ...view, links: e.target.checked })} /></label>

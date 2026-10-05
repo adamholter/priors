@@ -4,6 +4,8 @@ import { CONTAIN_AXIS_LABELS, dimColor, markColor, type ChartPalette } from "./t
 import { chartLabel } from "../../lib/metrics";
 import { featuredPoints, highlightedModels, type ScatterPoint } from "./scatter-option";
 
+import { labelScale as normalizeLabelScale } from "./label-size";
+
 const value = (p: ScatterPoint) => p.raw ?? p.x;
 
 /** Bar labels: round to what a reader compares (189 s, 45.2%, 0.83 s), keeping the metric's unit. */
@@ -22,20 +24,21 @@ export function selectBars(pts: ScatterPoint[], better: "lower" | "higher", cap:
 }
 
 /** The ECharts option behind MetricBars — shared verbatim by the browser chart and /og rasterizer. */
-export function barsOption({ bars, labs, xName, formatValue, pal, narrow, highlight }: {
-  bars: ScatterPoint[]; labs: Lab[]; xName: string; formatValue: (x: number) => string; pal: ChartPalette; narrow: boolean; highlight?: string[];
+export function barsOption({ bars, labs, xName, formatValue, pal, narrow, highlight, labelScale }: {
+  bars: ScatterPoint[]; labs: Lab[]; xName: string; formatValue: (x: number) => string; pal: ChartPalette; narrow: boolean; highlight?: string[]; labelScale?: number;
 }): EChartsOption {
+  const fontScale = normalizeLabelScale(labelScale);
   const hl = highlightedModels(highlight ?? []), on = hl.size > 0, featured = new Set(featuredPoints(bars, highlight ?? []).map((p) => p.r.variant.id));
   const color = new Map(labs.map((l) => [l.id, l.color]));
   return {
     grid: { left: 52, right: 16, top: 52, bottom: 96, ...CONTAIN_AXIS_LABELS },
-    xAxis: { type: "category", data: bars.map((p) => on && featured.has(p.r.variant.id) ? { value: chartLabel(p.r), textStyle: { color: pal.ink, fontWeight: 600 } } : chartLabel(p.r)), axisLabel: { rotate: 45, interval: 0, fontSize: 10.5, color: pal.ink2, fontFamily: "var(--font-inter), Inter, sans-serif", width: 110, overflow: "truncate" }, axisTick: { show: false } },
+    xAxis: { type: "category", data: bars.map((p) => on && featured.has(p.r.variant.id) ? { value: chartLabel(p.r), textStyle: { color: pal.ink, fontWeight: 600 } } : chartLabel(p.r)), axisLabel: { rotate: 45, interval: 0, fontSize: 10.5 * fontScale, color: pal.ink2, fontFamily: "var(--font-inter), Inter, sans-serif", width: 110 * fontScale, overflow: "truncate" }, axisTick: { show: false } },
     yAxis: { type: "value", name: xName, nameTextStyle: { color: pal.grey, fontSize: 11, align: "left", padding: [0, 0, 0, -30] }, axisLabel: { formatter: (v: number) => compact(formatValue)(v) } },
     tooltip: { trigger: "item", confine: true, formatter: (p: unknown) => { const d = bars[(p as { dataIndex: number }).dataIndex]; return d ? `<div style="font-weight:600">${chartLabel(d.r)}</div><div style="font-family:var(--font-jetbrains);margin-top:4px">${formatValue(value(d))} · index ${d.r.score.toFixed(1)}</div>` : ""; } },
     series: [{
       type: "bar", id: "bars", barMaxWidth: 28,
       data: bars.map((p) => { const c = markColor(color.get(p.r.model.labId), pal, p.r.model.labId), dim = on && !hl.has(p.r.model.id); return { value: value(p), extra: p, itemStyle: { color: dim ? dimColor(c, pal) : c, opacity: dim ? 0.6 : 1, borderRadius: [2, 2, 0, 0] }, label: dim ? { color: pal.grey } : on && featured.has(p.r.variant.id) ? { fontWeight: 700 } : undefined }; }),
-      label: { show: true, position: "top", fontSize: narrow ? 9 : 10, color: pal.ink, fontFamily: "var(--font-jetbrains), monospace", formatter: (p: { value?: unknown }) => compact(formatValue)(Number(p.value)) },
+      label: { show: true, position: "top", fontSize: (narrow ? 9 : 10) * fontScale, color: pal.ink, fontFamily: "var(--font-jetbrains), monospace", formatter: (p: { value?: unknown }) => compact(formatValue)(Number(p.value)) },
       animationDurationUpdate: 350,
     }],
   };

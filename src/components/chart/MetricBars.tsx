@@ -14,6 +14,8 @@ import { dimColor } from "./theme";
 import { featuredPoints, highlightedModels } from "./scatter-option";
 import { ChartContextMenu, useChartContextMenu, useChartVisibility } from "./ChartContextMenu";
 
+import { labelScale as normalizeLabelScale } from "./label-size";
+
 const value = (p: ScatterPoint) => p.raw ?? p.x;
 
 /**
@@ -21,12 +23,14 @@ const value = (p: ScatterPoint) => p.raw ?? p.x;
  * applies: best mode shows one bar per model, all mode shows every effort. Capped at `limit`
  * points by index score so the axis stays readable.
  */
-export function MetricBars({ pts: allPoints, labs, better, xName, formatValue, height = 400, aria, title, actions, limit = 24, exportName, anchor, linkParams }: {
+export function MetricBars({ pts: allPoints, labs, better, xName, formatValue, height = 400, aria, title, actions, limit = 24, exportName, anchor, linkParams, labelScale }: {
   pts: ScatterPoint[]; labs: Lab[]; better: "lower" | "higher"; xName: string; formatValue: (x: number) => string;
-  height?: number; aria: string; title?: ReactNode; actions?: ReactNode; limit?: number; exportName: string; anchor?: string; linkParams?: ChartLinkParams;
+  labelScale?: number; height?: number; aria: string; title?: ReactNode; actions?: ReactNode; limit?: number; exportName: string; anchor?: string; linkParams?: ChartLinkParams;
 }) {
   const wrap = useRef<HTMLDivElement>(null);
-  const visibility = useChartVisibility(allPoints, anchor ?? exportName, linkParams), pts = visibility.points;
+  const fontScale = normalizeLabelScale(labelScale);
+  const effectiveLinkParams = { ...linkParams, ls: Math.round(fontScale * 100) };
+  const visibility = useChartVisibility(allPoints, anchor ?? exportName, effectiveLinkParams), pts = visibility.points;
   const context = useChartContextMenu();
   const exportControl = useRef<ChartExportHandle>(null);
   const contextPick = useRef(context.pointMenu);
@@ -39,7 +43,7 @@ export function MetricBars({ pts: allPoints, labs, better, xName, formatValue, h
   const hl = useHighlight();
   const highlight = hl?.items;
   const bars = useMemo(() => selectBars(pts, better, cap, highlight), [pts, better, cap, highlight]);
-  const option = useMemo<EChartsOption>(() => barsOption({ bars, labs, xName, formatValue, pal, narrow, highlight }), [bars, labs, xName, formatValue, narrow, pal, highlight]);
+  const option = useMemo<EChartsOption>(() => barsOption({ bars, labs, xName, formatValue, pal, narrow, highlight, labelScale: fontScale }), [bars, labs, xName, formatValue, narrow, pal, highlight, fontScale]);
   const pick = useRef<(p: ScatterPoint) => void>(() => {});
   useEffect(() => { pick.current = (p) => { if (hl) hl.set(togglePoint(hl.items, pts, p)); }; }, [hl, pts]);
   const { ref, chart } = useEChart(option, [option], (c) => {
@@ -54,7 +58,7 @@ export function MetricBars({ pts: allPoints, labs, better, xName, formatValue, h
     const highlightItems = highlight ?? [], focusedModels = highlightedModels(highlightItems);
     const featured = new Set(featuredPoints(bars, highlightItems).map((p) => p.r.variant.id));
     return barsHtml({
-      title: exportName, yName: xName, unit: unitOf(formatValue), highlight: highlightItems,
+      title: exportName, labelScale: fontScale, yName: xName, unit: unitOf(formatValue), highlight: highlightItems,
       bars: bars.map((p) => {
         const lab = labs.find((l) => l.id === p.r.model.labId), c = markColor(lab?.color, LIGHT_PALETTE, p.r.model.labId), d = markColor(lab?.color, DARK_PALETTE, p.r.model.labId);
         return {
@@ -68,7 +72,7 @@ export function MetricBars({ pts: allPoints, labs, better, xName, formatValue, h
   };
   return (
     <>{expand.backdrop}<div ref={wrap} id={anchor} className={`max-sm:-mx-4 scroll-mt-20 ${expand.expanded ? "chart-expanded" : ""}`} role={expand.expanded ? "dialog" : undefined} aria-modal={expand.expanded || undefined} aria-label={expand.expanded ? exportName : undefined}>
-      <div className={`chart-toolbar flex flex-wrap items-center justify-end gap-1 max-sm:px-4 min-h-8 ${title || expand.expanded ? "mb-1" : "-mb-8 relative z-10 pointer-events-none"}`}>{(title || expand.expanded) ? <div className="min-w-0 mr-auto">{title ?? <h2 className="text-[22px]">{exportName}</h2>}<HighlightList /></div> : <div className="min-w-0 mr-auto"><HighlightList /></div>}<div className="flex items-center gap-1 pointer-events-auto"><HighlightMenu label={exportName} />{visibility.canUndo && <button type="button" className="cap hover:text-ink" onClick={visibility.undo} aria-label="Undo chart removal">Undo</button>}{actions}{anchor && <ChartLink id={anchor} name={exportName} params={{ ...linkParams, hidden: visibility.hidden }} />}<ChartExport ref={exportControl} name={exportName} frame getHtml={getHtml} getSvg={() => chart.current?.renderToSVGString()} getRows={() => bars.map((p, i) => ({ rank: i + 1, model: p.r.model.name, effort: p.r.variant.effort, [xName]: +value(p).toFixed(4), index_score: +p.r.score.toFixed(2) }))} />{expand.button}</div></div>
+      <div className={`chart-toolbar flex flex-wrap items-center justify-end gap-1 max-sm:px-4 min-h-8 ${title || expand.expanded ? "mb-1" : "-mb-8 relative z-10 pointer-events-none"}`}>{(title || expand.expanded) ? <div className="min-w-0 mr-auto">{title ?? <h2 className="text-[22px]">{exportName}</h2>}<HighlightList /></div> : <div className="min-w-0 mr-auto"><HighlightList /></div>}<div className="flex items-center gap-1 pointer-events-auto"><HighlightMenu label={exportName} />{visibility.canUndo && <button type="button" className="cap hover:text-ink" onClick={visibility.undo} aria-label="Undo chart removal">Undo</button>}{actions}{anchor && <ChartLink id={anchor} name={exportName} params={{ ...effectiveLinkParams, hidden: visibility.hidden }} />}<ChartExport ref={exportControl} name={exportName} frame getHtml={getHtml} getSvg={() => chart.current?.renderToSVGString()} getRows={() => bars.map((p, i) => ({ rank: i + 1, model: p.r.model.name, effort: p.r.variant.effort, [xName]: +value(p).toFixed(4), index_score: +p.r.score.toFixed(2) }))} />{expand.button}</div></div>
       <div className={expand.expanded ? "flex-1 min-h-0" : undefined}><div ref={ref} role="img" aria-label={aria} tabIndex={0} onContextMenu={context.onContextMenu} onKeyDown={context.onKeyDown} style={{ width: "100%", height: expand.expanded ? "100%" : height, overflow: "hidden", position: "relative", isolation: "isolate" }} /></div>
       <ChartContextMenu exportControl={exportControl} state={context.menu} close={context.close} name={exportName} points={bars} visibility={visibility} chart={chart} wrap={wrap} expanded={expand.expanded} anchor={anchor} />
     </div></>

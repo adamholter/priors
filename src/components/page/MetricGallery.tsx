@@ -11,7 +11,9 @@ import { useScatterView } from "../chart/ScoreScatter";
 import { MetricBars } from "../chart/MetricBars";
 import { anchorOf, useHashTarget } from "../chart/ChartLink";
 
-type SharedSettings = Omit<React.ComponentProps<typeof ChartSettings>, "label" | "mode" | "onChange" | "view" | "onView" | "defaultScale">;
+import { linkedLabelScale } from "../chart/label-size";
+
+type SharedSettings = Omit<React.ComponentProps<typeof ChartSettings>, "label" | "mode" | "onChange" | "view" | "onView" | "defaultScale" | "anchor">;
 
 /** Collapsed-by-default metric charts for a profile page (AA-style gallery).
  *  Panels mount their chart only when first expanded. */
@@ -37,10 +39,10 @@ function GalleryChart({ id, anchor, title, chart, speed, ranked, defaultMode, la
   // Deep links carry the chart view (`cv=bars`, `cm=best|all`). Captured once per mount —
   // mirror effects may rewrite the URL before init effects run (and StrictMode mounts twice).
   const linked = useMemo(() => {
-    if (typeof window === "undefined") return { linked: false } as { linked: boolean; cv?: string | null; cm?: string | null; cs?: string | null };
+    if (typeof window === "undefined") return { linked: false } as { linked: boolean; cv?: string | null; cm?: string | null; cs?: string | null; labelScale?: number };
     const url = new URL(window.location.href);
     return decodeURIComponent(url.hash.slice(1)) === anchor || url.searchParams.get("c") === anchor
-      ? { linked: true, cv: url.searchParams.get("cv"), cm: url.searchParams.get("cm"), cs: url.searchParams.get("cs") }
+      ? { linked: true, cv: url.searchParams.get("cv"), cm: url.searchParams.get("cm"), cs: url.searchParams.get("cs"), labelScale: linkedLabelScale(url.searchParams) }
       : { linked: false };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -48,7 +50,7 @@ function GalleryChart({ id, anchor, title, chart, speed, ranked, defaultMode, la
   useEffect(() => {
     if (!linked.linked) return;
     const kind = linked.cv === "bars" || linked.cv === "scatter" ? linked.cv : defaultKind;
-    setView({ ...view, kind: kind === "bars" && chart?.scale !== "time" ? "bars" : "scatter", kindChosen: true, ...(metric?.scale === "log" && (linked.cs === "log" || linked.cs === "linear") ? { scale: linked.cs } : {}) }, false);
+    setView({ ...view, ...(linked.labelScale != null ? { labelScale: linked.labelScale } : {}), kind: kind === "bars" && chart?.scale !== "time" ? "bars" : "scatter", kindChosen: true, ...(metric?.scale === "log" && (linked.cs === "log" || linked.cs === "linear") ? { scale: linked.cs } : {}) }, false);
     // eslint-disable-next-line react-hooks/set-state-in-effect -- URL deep-link init
     if (linked.cm === "best" || linked.cm === "all") setMode(linked.cm);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -71,9 +73,9 @@ function GalleryChart({ id, anchor, title, chart, speed, ranked, defaultMode, la
     <button type="button" aria-pressed={!bars} title="Score vs metric" onClick={() => setView({ ...view, kind: "scatter" })}><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><circle cx="4" cy="11" r="1.6" /><circle cx="8" cy="6" r="1.6" /><circle cx="12.5" cy="4" r="1.6" /><circle cx="10" cy="10" r="1.6" /></svg></button>
     <button type="button" aria-pressed={bars} title="Bar chart" onClick={() => setView({ ...view, kind: "bars" })}><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><rect x="2" y="3" width="3" height="11" /><rect x="6.5" y="6" width="3" height="8" /><rect x="11" y="9" width="3" height="5" /></svg></button>
   </div>;
-  const actions = <>{chart?.scale !== "time" && toggle}<ChartSettings defaultScale={metric?.scale === "log" ? "log" : undefined} dataSource={dataSource} label={title} mode={mode} onChange={setMode} view={bars ? undefined : view} onView={setView} {...settings} /></>;
+  const actions = <>{chart?.scale !== "time" && toggle}<ChartSettings anchor={anchor} defaultScale={metric?.scale === "log" ? "log" : undefined} dataSource={dataSource} label={title} mode={mode} onChange={setMode} view={view} onView={setView} {...settings} /></>;
   if (!metric) return null;
-  if (bars) return <MetricBars pts={pts} labs={labs} better={metric.better} xName={metric.xName} formatValue={metric.formatValue ?? metric.formatX} aria={metric.aria.replace("Index score versus", "By model:")} actions={actions} exportName={title} anchor={anchor} linkParams={linkParams} />;
+  if (bars) return <MetricBars labelScale={view.labelScale} pts={pts} labs={labs} better={metric.better} xName={metric.xName} formatValue={metric.formatValue ?? metric.formatX} aria={metric.aria.replace("Index score versus", "By model:")} actions={actions} exportName={title} anchor={anchor} linkParams={linkParams} />;
   if (speed) return <SpeedChart pts={pts} labs={labs} view={view} actions={actions} anchor={anchor} linkParams={linkParams} />;
   return <MetricScatter pts={pts} labs={labs} better={metric.better} xLabel={metric.xLabel} xName={metric.xName} scale={metric.scale} formatX={metric.formatX} formatValue={metric.formatValue} aria={metric.aria} view={view} actions={actions} exportName={title} anchor={anchor} linkParams={linkParams} />;
 }

@@ -50,3 +50,12 @@ describe("highlighted chart links", () => {
     expect(decodeIndex(encodeIndex(second), second.id)?.highlight).toEqual(second.highlight);
   });
 });
+
+it("copies label size alongside removals and clears the old size for a different chart", () => {
+  const hidden = { models: ["alpha"], efforts: ["beta@high"] };
+  const url = chartLinkUrl("https://mypriors.com/AdamHolter", "cost", { ls: 150, hidden }, { items: second.highlight, indexId: "second" });
+  expect(url.searchParams.get("ls")).toBe("150");
+  expect(readChartHidden(url.searchParams, "cost")).toEqual(hidden);
+  expect(linkedHighlights([first, second], url.searchParams)[1].highlight).toEqual(second.highlight);
+  expect(chartLinkUrl(url.toString(), "time-per-task", {}).searchParams.has("ls")).toBe(false);
+});

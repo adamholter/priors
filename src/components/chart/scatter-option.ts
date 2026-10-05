@@ -4,9 +4,10 @@ import type { RankedVariant } from "../../engine";
 import { CONTAIN_AXIS_LABELS, dimColor, markColor, markLabel, type ChartPalette } from "./theme";
 import { scatterLabelLayout } from "./scatter-label-layout";
 import { chartLabel } from "../../lib/metrics";
+import { labelScale } from "./label-size";
 
 export interface ScatterPoint { x: number; r: RankedVariant; /** untransformed value for tooltips/export when x is transformed */ raw?: number }
-export interface ScatterView { scale?: "log" | "linear"; density: number; frontier: boolean; links: boolean; /** The user explicitly toggled the frontier rather than saving an old default. */ frontierChosen?: boolean; /** Dashed axis guides for highlighted efforts (default on). */ guides?: boolean; kind?: "scatter" | "bars"; /** The user picked `kind` (vs. the chart default). */ kindChosen?: boolean }
+export interface ScatterView { labelScale?: number; scale?: "log" | "linear"; density: number; frontier: boolean; links: boolean; /** The user explicitly toggled the frontier rather than saving an old default. */ frontierChosen?: boolean; /** Dashed axis guides for highlighted efforts (default on). */ guides?: boolean; kind?: "scatter" | "bars"; /** The user picked `kind` (vs. the chart default). */ kindChosen?: boolean }
 /**
  * Emphasis for chosen models. `items` are model ids (feature that model's best effort) or variant ids
  * (feature exactly that effort); a model may have several featured efforts. Everything else recedes
@@ -31,6 +32,7 @@ export const DEFAULT_VIEW: ScatterView = { density: 0.45, frontier: true, links:
 export function restoreScatterView(kind: "bars" | "scatter" = "scatter", frontier = true, saved?: ScatterView | null): ScatterView {
   return {
     ...DEFAULT_VIEW, ...saved,
+    labelScale: saved?.labelScale == null ? undefined : labelScale(saved.labelScale),
     scale: saved?.scale === "log" || saved?.scale === "linear" ? saved.scale : undefined,
     kind: saved?.kindChosen || saved?.kind === "bars" ? saved.kind : kind,
     frontier: !frontier && !saved?.frontierChosen ? false : saved?.frontier ?? frontier,
@@ -102,6 +104,7 @@ export function scatterOption({ pts, labs, better, xName, xShort, xUnit = "", sc
   highlight?: Highlight;
 }): EChartsOption {
   const frontier = frontierOf(pts, better);
+  const fontScale = labelScale(view.labelScale);
   const color = new Map(labs.map((l) => [l.id, markColor(l.color, pal, l.id)]));
   const onFrontier = new Set(frontier.map((p) => p.r.variant.id));
   const labeled = pickLabels(pts, better, narrow ? view.density ** 2 : view.density);
@@ -123,7 +126,7 @@ export function scatterOption({ pts, labs, better, xName, xShort, xUnit = "", sc
     const isBest = featured.has(p.r.variant.id);
     const label = isBest
       ? { show: true, fontWeight: 600, color: pal.ink }
-      : { show: p.r.variant.effort !== "default", formatter: p.r.variant.effort.toUpperCase(), fontSize: 9, color: pal.grey, backgroundColor: "transparent", textBorderColor: pal.bg, textBorderWidth: 3, distance: 5 };
+      : { show: p.r.variant.effort !== "default", formatter: p.r.variant.effort.toUpperCase(), fontSize: 9 * fontScale, color: pal.grey, backgroundColor: "transparent", textBorderColor: pal.bg, textBorderWidth: 3, distance: 5 };
     return { itemStyle: { color: c, borderColor: pal.ink, borderWidth: isBest ? 1.8 : 1.2, opacity: 1 }, symbolSize: isBest ? 12 : 9, label, z: 10 };
   };
   // Chosen marks draw last so they sit on top and win label overlap.
@@ -136,7 +139,7 @@ export function scatterOption({ pts, labs, better, xName, xShort, xUnit = "", sc
       // Keep marks and their label backgrounds above highlighted effort links (z: 4).
       type: "scatter", id: "marks", z: 5,
       data: marks,
-      label: narrow ? { ...markLabel(pal), fontSize: 10.5 } : markLabel(pal),
+      label: { ...markLabel(pal), fontSize: (narrow ? 10.5 : 11.5) * fontScale },
       labelLayout: scatterLabelLayout(width ?? (() => undefined), height ?? (() => undefined), marks.map(p => p.label.show)),
       emphasis: { scale: 1.4, label: { show: true, fontWeight: 600 } },
       clip: true, universalTransition: { enabled: false },

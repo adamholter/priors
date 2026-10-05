@@ -75,3 +75,14 @@ describe("release chronology", () => {
     expect(guidePoints(points, { items: ["best"], guides: false })).toEqual([]);
   });
 });
+
+it("scales ordinary, mobile and highlighted effort labels without changing density", () => {
+  const pts = [point("alpha", 1, 80), { ...point("alpha", 2, 60), r: { ...point("alpha", 2, 60).r, variant: { id: "alpha@low", effort: "low" } } } as ScatterPoint];
+  for (const narrow of [false, true]) {
+    const option = scatterOption({ pts, labs: [], better: "lower", xName: "Cost", formatX: String, view: { ...DEFAULT_VIEW, labelScale: 1.5 }, pal: LIGHT_PALETTE, narrow, highlight: { items: ["alpha"], guides: false } });
+    const marks = (option.series as { id: string; label: { fontSize: number }; data: { id: string; label: { fontSize?: number } }[] }[]).find(s => s.id === "marks")!;
+    expect(marks.label.fontSize).toBe((narrow ? 10.5 : 11.5) * 1.5);
+    expect(marks.data.find(p => p.id === "alpha@low")!.label.fontSize).toBe(13.5);
+  }
+  expect(restoreScatterView("scatter", true, { ...DEFAULT_VIEW, labelScale: 1.25 }).labelScale).toBe(1.25);
+});

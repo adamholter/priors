@@ -6,6 +6,8 @@ import type { RankedVariant } from "@/engine";
 import { ScoreScatter, type ScatterView } from "./ScoreScatter";
 import { costChart, pickPoints } from "@/lib/metrics";
 
+import { linkedLabelScale } from "./label-size";
+
 export function variantLabel(r: RankedVariant) {
   if (r.variant.configuration && r.variant.sourceModel) return r.variant.sourceModel.name;
   return r.variant.effort === "default" ? r.model.name : `${r.model.name} ${r.variant.effort}`;
@@ -21,8 +23,8 @@ export function ParetoChart({ ranked, mode = "all", labs, height = 460, title, a
     const kind = url.searchParams.get("cv") === "bars" ? "bars" : "scatter";
     // eslint-disable-next-line react-hooks/set-state-in-effect -- apply chart deep link after hydration
     setLinkedKind(kind);
-    const scale = url.searchParams.get("cs");
-    onView({ ...view, kind, kindChosen: true, ...(scale === "log" || scale === "linear" ? { scale } : {}) }, false);
+    const scale = url.searchParams.get("cs"), labelScale = linkedLabelScale(url.searchParams);
+    onView({ ...view, kind, kindChosen: true, ...(labelScale != null ? { labelScale } : {}), ...(scale === "log" || scale === "linear" ? { scale } : {}) }, false);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- initialize only when the chart anchor changes
   }, [anchor]);
   const bars = (linkedKind ?? view.kind) === "bars";
@@ -51,7 +53,7 @@ export function ParetoChart({ ranked, mode = "all", labs, height = 460, title, a
   }, [anchor, bars, view.scale]);
   const pts = pickPoints(costChart, ranked, mode);
   const heading = <div>{bars ? <h2 className="text-[22px]">Cost per task</h2> : title}{description && <p className="cap mt-1">{description}</p>}</div>;
-  if (bars) return <MetricBars pts={pts} labs={labs} better={costChart.better} xName="Cost per task ($)" formatValue={costChart.formatX} height={height} aria="Cost per task by model" title={heading} actions={controls} anchor={anchor} linkParams={linkParams} exportName="Cost per task" />;
+  if (bars) return <MetricBars labelScale={view.labelScale} pts={pts} labs={labs} better={costChart.better} xName="Cost per task ($)" formatValue={costChart.formatX} height={height} aria="Cost per task by model" title={heading} actions={controls} anchor={anchor} linkParams={linkParams} exportName="Cost per task" />;
   return <ScoreScatter pts={pts} labs={labs} better={costChart.better} xName={costChart.xName} xShort={costChart.xShort} scale={costChart.scale} formatX={costChart.formatX} formatValue={costChart.formatValue} height={height} aria={costChart.aria} title={heading} actions={controls} linkParams={linkParams} view={view} anchor={anchor} exportName="Score vs cost per task"
     tooltipExtra={(p) => p.r.speed ? ` · ${Math.round(p.r.speed)} tok/s` : ""} extraRows={(p) => ({ speed_toks: p.r.speed ?? null, coverage: p.r.coverage })} />;
 }

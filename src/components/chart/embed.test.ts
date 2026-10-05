@@ -109,3 +109,11 @@ describe("standalone chart exports", () => {
     expect(dimmed.itemStyle).toMatchObject({ color: "#B8B8D0", opacity: 0.6 });
   });
 });
+
+it("uses the selected label size in executable scatter and bar embeds", () => {
+  const scatterOption = runEmbed(inlineScript(scatterHtml({ ...scatter, labelScale: 1.5 })))[0].option;
+  const barsOption = runEmbed(inlineScript(barsHtml({ ...bars, labelScale: 1.5 })))[0].option;
+  expect((scatterOption.series as { label: { fontSize: number } }[]).at(-1)!.label.fontSize).toBe(17.25);
+  expect((barsOption.xAxis as { axisLabel: { fontSize: number } }).axisLabel.fontSize).toBe(15.75);
+  expect((barsOption.series as { label: { fontSize: number } }[])[0].label.fontSize).toBe(15);
+});

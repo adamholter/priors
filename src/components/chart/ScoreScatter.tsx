@@ -11,6 +11,7 @@ import { useChartExpand } from "./ChartExpand";
 import { chartLabel } from "@/lib/metrics";
 import { scatterOption, frontierOf, featuredPoints, guidePoints, highlightedModels, pickLabels, DEFAULT_VIEW, restoreScatterView, type Highlight, type ScatterPoint, type ScatterView } from "./scatter-option";
 import { dimColor } from "./theme";
+import { labelScale } from "./label-size";
 import { ChartContextMenu, useChartContextMenu, useChartVisibility } from "./ChartContextMenu";
 
 export { chartLabel, pickLabels, frontierOf, DEFAULT_VIEW };
@@ -23,7 +24,7 @@ export function useScatterView(key: string, defaultKind: "bars" | "scatter" = "s
     const raf = requestAnimationFrame(() => {
       try {
         const s = JSON.parse(localStorage.getItem(`priors:chart:${key}`) ?? "null") as ScatterView | null;
-        if (s) setView(current => ({ ...restoreScatterView(defaultKind, defaultFrontier, s), ...(current.scale ? { scale: current.scale } : {}), ...(current.kindChosen ? { kind: current.kind, kindChosen: true } : {}) }));
+        if (s) setView(current => ({ ...restoreScatterView(defaultKind, defaultFrontier, s), ...(current.scale ? { scale: current.scale } : {}), ...(current.labelScale != null ? { labelScale: current.labelScale } : {}), ...(current.kindChosen ? { kind: current.kind, kindChosen: true } : {}) }));
       } catch { /* ignore */ }
     });
     return () => cancelAnimationFrame(raf);
@@ -51,7 +52,8 @@ export function ScoreScatter({ pts: allPoints, labs, better, xName: baseXName, x
   const xName = scale === "linear" ? baseXName.replace(/, log| \(log\)/g, "") : baseXName;
   const xShort = scale === "linear" ? baseXShort?.replace(/, log| \(log\)/g, "") : baseXShort;
   const wrapRef = useRef<HTMLDivElement>(null);
-  const visibility = useChartVisibility(allPoints, anchor ?? exportName, linkParams), pts = visibility.points;
+  const effectiveLinkParams = { ...linkParams, ls: Math.round(labelScale(view.labelScale) * 100) };
+  const visibility = useChartVisibility(allPoints, anchor ?? exportName, effectiveLinkParams), pts = visibility.points;
   const context = useChartContextMenu();
   const exportControl = useRef<ChartExportHandle>(null);
   const contextPick = useRef(context.pointMenu);
@@ -147,7 +149,7 @@ export function ScoreScatter({ pts: allPoints, labs, better, xName: baseXName, x
     const byModel = new Map<string, ScatterPoint[]>();
     for (const p of pts) (byModel.get(p.r.model.id) ?? byModel.set(p.r.model.id, []).get(p.r.model.id)!).push(p);
     return scatterHtml({
-      title: exportName, xName, scale, unit: unitOf(formatX), highlight: items, guides: view.guides !== false,
+      title: exportName, xName, scale, unit: unitOf(formatX), highlight: items, guides: view.guides !== false, labelScale: labelScale(view.labelScale),
       yMin: Math.max(0, Math.floor((Math.min(...ys, 100) - 6) / 5) * 5), yMax: Math.min(100, Math.ceil((Math.max(...ys, 0) + 4) / 5) * 5),
       points: [...pts].sort((a, b) => (labelPriority.get(a.r.variant.id) ?? Infinity) - (labelPriority.get(b.r.variant.id) ?? Infinity)).map((p) => {
         const light = markColor(color.get(p.r.model.labId), LIGHT_PALETTE, p.r.model.labId), dark = markColor(color.get(p.r.model.labId), DARK_PALETTE, p.r.model.labId);
@@ -173,7 +175,7 @@ export function ScoreScatter({ pts: allPoints, labs, better, xName: baseXName, x
           <HighlightMenu label={exportName} />
           {visibility.canUndo && <button type="button" className="cap hover:text-ink" onClick={visibility.undo} aria-label="Undo chart removal">Undo</button>}
           {actions}
-          {anchor && <ChartLink id={anchor} name={exportName} params={{ ...linkParams, hidden: visibility.hidden }} />}
+          {anchor && <ChartLink id={anchor} name={exportName} params={{ ...effectiveLinkParams, hidden: visibility.hidden }} />}
           <ChartExport ref={exportControl} name={exportName} frame getHtml={getHtml} getSvg={() => chart.current?.renderToSVGString()} getRows={() => pts.map((p) => ({ rank: p.r.rank, model: p.r.model.name, effort: p.r.variant.effort, score: +p.r.score.toFixed(2), lab: p.r.model.labId, [xName]: +(p.raw ?? p.x).toFixed(4), on_frontier: onFrontierIds.has(p.r.variant.id), ...extraRows?.(p) }))} />
           {expand.button}
         </div>

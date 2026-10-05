@@ -135,7 +135,7 @@ export function Builder({ snapshot: base, dates, initialIndices }: { snapshot: S
           </div>
           <div>
             <ParetoChart description={taskMetricDescription(active.costSource ?? "aa", "cost")} anchor="cost" ranked={result.ranked} mode={paretoMode} labs={snapshot.labs} view={paretoView} onView={setParetoView} title={<h2 className="text-[22px]">Score vs cost per task</h2>}
-              actions={<ChartSettings defaultScale="log" dataSource={{ value: active.costSource ?? "aa", options: taskMetricOptions(snapshot, "cost"), onChange: (costSource) => update({ ...active, costSource }) }} label="Pareto" mode={paretoMode} onChange={(paretoVariants) => update({ ...active, paretoVariants })} view={paretoView} onView={setParetoView} {...releaseProps} {...modelPicker} />} />
+              actions={<ChartSettings anchor="cost" defaultScale="log" dataSource={{ value: active.costSource ?? "aa", options: taskMetricOptions(snapshot, "cost"), onChange: (costSource) => update({ ...active, costSource }) }} label="Pareto" mode={paretoMode} onChange={(paretoVariants) => update({ ...active, paretoVariants })} view={paretoView} onView={setParetoView} {...releaseProps} {...modelPicker} />} />
           </div>
           <div>
             <h2 className="text-[22px] mb-1">More metrics</h2>

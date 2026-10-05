@@ -47,14 +47,14 @@ export async function generateMetadata({ params, searchParams }: PageProps<"/[ha
   if (!saved) return {};
   const p = profileWithLink(saved, sp);
   const { chart, title, description } = profileCard(p, sp);
-  const viewParams = `${typeof sp.cv === "string" ? `&cv=${sp.cv}` : ""}${typeof sp.cm === "string" ? `&cm=${sp.cm}` : ""}${typeof sp.cs === "string" ? `&cs=${sp.cs}` : ""}`;
+  const viewParams = `${typeof sp.cv === "string" ? `&cv=${sp.cv}` : ""}${typeof sp.cm === "string" ? `&cm=${sp.cm}` : ""}${typeof sp.cs === "string" ? `&cs=${sp.cs}` : ""}${typeof sp.ls === "string" ? `&ls=${encodeURIComponent(sp.ls)}` : ""}`;
   const hiddenParams = (Array.isArray(sp.ch) ? sp.ch : typeof sp.ch === "string" ? [sp.ch] : []).map(value => `&ch=${encodeURIComponent(value)}`).join("");
   const index = p.indices.find((i) => i.id === sp.hi) ?? p.indices[0];
   const image = (chart || typeof sp.hl === "string") && index
     ? { url: `/og?handle=${handle}&i=${encodeURIComponent(encodeIndex(index))}${chart ? `&c=${encodeURIComponent(typeof sp.c === "string" ? sp.c : chart)}` : ""}${viewParams}${hiddenParams}`, width: 1200, height: 630, alt: title }
     : { url: `/${handle}/opengraph-image?v=${Math.round((p as { updatedAt?: number }).updatedAt ?? 0)}`, width: 1200, height: 630, alt: title };
   const query = new URLSearchParams();
-  for (const key of ["c", "cv", "cm", "cs", "ch", "date", "hl", "hi"]) {
+  for (const key of ["c", "cv", "cm", "cs", "ls", "ch", "date", "hl", "hi"]) {
     const value = sp[key];
     for (const item of Array.isArray(value) ? value : typeof value === "string" ? [value] : []) query.append(key, item);
   }
@@ -71,7 +71,7 @@ export default async function Page({ params, searchParams }: PageProps<"/[handle
     // Link-preview crawlers cap response size — give them the tags plus a tiny body, not the app.
     const { title, description } = profileCard(p, sp);
     const query = new URLSearchParams();
-    for (const key of ["c", "cv", "cm", "cs", "ch", "date", "hl", "hi"]) {
+    for (const key of ["c", "cv", "cm", "cs", "ls", "ch", "date", "hl", "hi"]) {
       const value = sp[key];
       for (const item of Array.isArray(value) ? value : typeof value === "string" ? [value] : []) query.append(key, item);
     }

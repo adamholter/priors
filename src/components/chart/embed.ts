@@ -1,6 +1,8 @@
 /** Standalone, interactive HTML exports: ECharts from a pinned CDN build plus the chart's data baked in. */
 import { scatterLabelLayout } from "./scatter-label-layout";
 
+import { labelScale } from "./label-size";
+
 const ECHARTS = "https://cdn.jsdelivr.net/npm/echarts@6.1.0/dist/echarts.min.js";
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
 const json = (v: unknown) => JSON.stringify(v).replace(/</g, "\\u003c");
@@ -51,14 +53,15 @@ addEventListener("resize",()=>chart.resize());
 }
 
 export type ScatterSpec = {
-  title: string; date?: string; xName: string; scale: "linear" | "log" | "time"; unit: { prefix: string; suffix: string }; yMin: number; yMax: number;
+  title: string; date?: string; labelScale?: number; xName: string; scale: "linear" | "log" | "time"; unit: { prefix: string; suffix: string }; yMin: number; yMax: number;
   highlight: string[]; guides: boolean;
   points: { v: [number, number]; c: string; d: string; dc: string; dd: string; m: string; id: string; e: string; h: boolean; a: boolean; g: boolean; gx?: string; n: string; s: boolean; f: boolean; t: string }[];
   frontier: [number, number][]; links: { m: string; h: boolean; c: string; d: string; dc: string; dd: string; p: [number, number][] }[];
 };
 
 export function scatterHtml(spec: ScatterSpec) {
-  return page(spec.title, spec.date ?? "", `const S=${json(spec)};
+  return page(spec.title, spec.date ?? "", `const S=${json({ ...spec, labelScale: labelScale(spec.labelScale) })};
+const fontScale=S.labelScale;
 const fmt=compact(S.unit);
 const active=S.highlight.length>0,dim=(o)=>D?o.dd:o.dc;
 const guides=()=>{
@@ -85,19 +88,20 @@ xAxis:{...axis,type:S.scale==="linear"?"value":S.scale,scale:S.scale==="linear",
 yAxis:{...axis,type:"value",name:"Index score",min:S.yMin,max:S.yMax,nameTextStyle:{color:GREY,fontSize:11,align:"left",padding:[0,0,0,-30]}},
 series:[...S.links.map((l)=>({type:"line",data:l.p,showSymbol:false,silent:true,lineStyle:{color:active&&!l.h?dim(l):lab(l),width:l.h?2:1,opacity:l.h?1:active ? .25 : D ? .45 : .35},z:l.h?4:1})),
 ...(S.frontier.length>1?[{type:"line",data:S.frontier,showSymbol:false,silent:true,lineStyle:{color:P.ink,width:1.4,opacity:active ? .3 : 1},z:2}]:[]),
-{type:"scatter",id:"marks",z:5,data:order.map((p)=>({value:p.v,name:p.n,id:p.id,t:p.t,symbolSize:active?(p.a?12:9):(p.f?11:9),itemStyle:{color:active&&!p.h?dim(p):lab(p),borderColor:active?(p.h?P.ink:P.bg):(p.f?P.ink:P.bg),borderWidth:active?(p.h?(p.a?1.8:1.2):1):(p.f?1.5:1.5),opacity:active&&!p.h?(D ? .55 : .6):(active||p.s||p.f?1:.8)},label:active?(p.a?{show:true,formatter:p.n,fontWeight:600,color:P.ink}:{show:p.h&&p.e!=="default",formatter:p.e.toUpperCase(),fontSize:9,color:P.grey,backgroundColor:"transparent",textBorderColor:P.bg,textBorderWidth:3,distance:5}):{show:p.s}})),
-label:{position:"right",formatter:"{b}",fontSize:11.5,color:P.ink,distance:7,backgroundColor:P.labelBg,padding:[2,3],borderRadius:2},labelLayout:scatterLabels,emphasis:{scale:1.4,label:{show:true,fontWeight:600}}}]},true);
+{type:"scatter",id:"marks",z:5,data:order.map((p)=>({value:p.v,name:p.n,id:p.id,t:p.t,symbolSize:active?(p.a?12:9):(p.f?11:9),itemStyle:{color:active&&!p.h?dim(p):lab(p),borderColor:active?(p.h?P.ink:P.bg):(p.f?P.ink:P.bg),borderWidth:active?(p.h?(p.a?1.8:1.2):1):(p.f?1.5:1.5),opacity:active&&!p.h?(D ? .55 : .6):(active||p.s||p.f?1:.8)},label:active?(p.a?{show:true,formatter:p.n,fontWeight:600,color:P.ink}:{show:p.h&&p.e!=="default",formatter:p.e.toUpperCase(),fontSize:9*fontScale,color:P.grey,backgroundColor:"transparent",textBorderColor:P.bg,textBorderWidth:3,distance:5}):{show:p.s}})),
+label:{position:"right",formatter:"{b}",fontSize:11.5*fontScale,color:P.ink,distance:7,backgroundColor:P.labelBg,padding:[2,3],borderRadius:2},labelLayout:scatterLabels,emphasis:{scale:1.4,label:{show:true,fontWeight:600}}}]},true);
 guides();`, 520);
 }
 
-export type BarSpec = { title: string; date?: string; yName: string; unit: { prefix: string; suffix: string }; highlight: string[]; bars: { n: string; v: number; c: string; d: string; dc: string; dd: string; m: string; id: string; e: string; h: boolean; a: boolean; t: string }[] };
+export type BarSpec = { title: string; date?: string; labelScale?: number; yName: string; unit: { prefix: string; suffix: string }; highlight: string[]; bars: { n: string; v: number; c: string; d: string; dc: string; dd: string; m: string; id: string; e: string; h: boolean; a: boolean; t: string }[] };
 
 export function barsHtml(spec: BarSpec) {
-  return page(spec.title, spec.date ?? "", `const S=${json(spec)};
+  return page(spec.title, spec.date ?? "", `const S=${json({ ...spec, labelScale: labelScale(spec.labelScale) })};
+const fontScale=S.labelScale;
 const fmt=compact(S.unit);
 const active=S.highlight.length>0,dim=(o)=>D?o.dd:o.dc;
 chart.setOption({textStyle:{fontFamily:"Inter,system-ui,sans-serif",color:P.ink},grid:{left:52,right:16,top:34,bottom:100,...CONTAIN},tooltip:{...tip,trigger:"item",formatter:(p)=>S.bars[p.dataIndex].t},
-xAxis:{...axis,type:"category",data:S.bars.map((b)=>active&&b.a?{value:b.n,textStyle:{color:P.ink,fontWeight:600}}:b.n),axisLabel:{...axis.axisLabel,fontFamily:"Inter,system-ui,sans-serif",color:P.ink2,rotate:45,interval:0,fontSize:10.5,width:110,overflow:"truncate"}},
+xAxis:{...axis,type:"category",data:S.bars.map((b)=>active&&b.a?{value:b.n,textStyle:{color:P.ink,fontWeight:600}}:b.n),axisLabel:{...axis.axisLabel,fontFamily:"Inter,system-ui,sans-serif",color:P.ink2,rotate:45,interval:0,fontSize:10.5*fontScale,width:110*fontScale,overflow:"truncate"}},
 yAxis:{...axis,type:"value",name:S.yName,nameTextStyle:{color:GREY,fontSize:11,align:"left",padding:[0,0,0,-30]},axisLabel:{...axis.axisLabel,formatter:fmt}},
-series:[{type:"bar",barMaxWidth:28,data:S.bars.map((b)=>({value:b.v,itemStyle:{color:active&&!b.h?dim(b):lab(b),opacity:active&&!b.h ? .6 : 1,borderRadius:[2,2,0,0]},label:active&&!b.h?{color:GREY}:active&&b.a?{fontWeight:700}:undefined})),label:{show:true,position:"top",fontSize:10,fontFamily:MONO,color:P.ink,formatter:(p)=>fmt(p.value)}}]},true);`, 460);
+series:[{type:"bar",barMaxWidth:28,data:S.bars.map((b)=>({value:b.v,itemStyle:{color:active&&!b.h?dim(b):lab(b),opacity:active&&!b.h ? .6 : 1,borderRadius:[2,2,0,0]},label:active&&!b.h?{color:GREY}:active&&b.a?{fontWeight:700}:undefined})),label:{show:true,position:"top",fontSize:10*fontScale,fontFamily:MONO,color:P.ink,formatter:(p)=>fmt(p.value)}}]},true);`, 460);
 }
