@@ -28,7 +28,7 @@ export function taskMetricDescription(source: TaskMetricSource, metric: TaskMetr
     : "Artificial Analysis · estimated decode time per Intelligence Index task, excluding first-token wait and overhead";
 }
 
-/** Measurements only. Match the same model and effort; never substitute another effort or source. */
+/** Measurements only. Match the same model, effort and configuration, including legacy aliases. */
 export function taskMetricData(snapshot: Snapshot, source: TaskMetricSource, metric: TaskMetric) {
   const benchmarkId = source !== "aa" ? source : metric === "cost" ? "aa-cost-per-task-index"
     : snapshot.benchmarks.filter((b) => b.id.startsWith("aa-intelligence-index")).sort((a, b) => b.id.localeCompare(a.id))[0]?.id;
@@ -45,11 +45,10 @@ export function taskMetricData(snapshot: Snapshot, source: TaskMetricSource, met
     const modelId = variantModels.get(o.variantId);
     if (modelId) models.add(modelId);
   }
-  const baseRows = new Map<string, { value: number; observation: Observation }>();
-  for (const [id, row] of rows) if (!baseRows.has(id.split("~")[0])) baseRows.set(id.split("~")[0], row);
+  const aliases = new Map(snapshot.variants.flatMap(v => (v.aliases ?? []).map(id => [id, v.id] as const)));
   return {
     modelCount: models.size,
-    get: (variantId: string) => rows.get(variantId) ?? (variantId.includes("~") ? rows.get(variantId.split("~")[0]) : baseRows.get(variantId)),
+    get: (variantId: string) => rows.get(aliases.get(variantId) ?? variantId),
   };
 }
 

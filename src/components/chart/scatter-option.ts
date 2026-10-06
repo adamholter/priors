@@ -19,7 +19,7 @@ export interface Highlight { items: string[]; guides: boolean }
 export function featuredPoints(pts: ScatterPoint[], items: string[]): ScatterPoint[] {
   const out: ScatterPoint[] = [], seen = new Set<string>();
   for (const it of items) {
-    const p = it.includes("@") ? pts.find((x) => x.r.variant.id === it) : pts.filter((x) => x.r.model.id === it).sort((a, b) => b.r.score - a.r.score)[0];
+    const p = it.includes("@") ? pts.find((x) => x.r.variant.id === it || x.r.variant.aliases?.includes(it)) : pts.filter((x) => x.r.model.id === it).sort((a, b) => b.r.score - a.r.score)[0];
     if (p && !seen.has(p.r.variant.id)) { seen.add(p.r.variant.id); out.push(p); }
   }
   return out;

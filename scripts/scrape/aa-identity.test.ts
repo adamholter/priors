@@ -46,7 +46,8 @@ describe("resolveAAIdentity", () => {
     const withFallback = resolveAAIdentity(aa({ id: "aaaaaaaa-1111", slug: "claude-fable-5-1", name: "Claude Fable 5.1 (Adaptive Reasoning, Max Effort, Default Fallback)", creator: { slug: "anthropic" } }));
     const withoutFallback = resolveAAIdentity(aa({ id: "bbbbbbbb-2222", slug: "claude-fable-5-1-no-fallback", name: "Claude Fable 5.1 (Adaptive Reasoning, Max Effort, No Fallback)", creator: { slug: "anthropic" } }));
     expect(withFallback.modelId).toBe("claude-fable-5.1");
-    expect(withFallback.configuration).toContain("aaaaaaaa");
+    expect(withFallback.configuration).toBeUndefined();
+    expect(withFallback.variantId).toBe("claude-fable-5.1@max");
     expect(withoutFallback.configuration).toContain("bbbbbbbb");
     expect(withFallback.variantId).not.toBe(withoutFallback.variantId);
   });

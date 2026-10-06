@@ -3,6 +3,7 @@ import { createContext, useCallback, useContext, useMemo, useRef, useState } fro
 import { useLightDismiss } from "@/hooks/useLightDismiss";
 import { featuredPoints, type ScatterPoint } from "./scatter-option";
 import type { IndexConfig } from "@/engine";
+import { matchesVariantId } from "@/data/variant-identity";
 
 /**
  * Highlighted models for every chart on a page. Items are model ids (feature the model's best effort)
@@ -20,7 +21,7 @@ export const toggleModel = (items: string[], modelId: string) => (isHighlighted(
 /** Clicking a mark: a featured effort turns off; any other effort is added (several per model allowed). */
 export function togglePoint(items: string[], pts: ScatterPoint[], p: ScatterPoint) {
   const id = p.r.variant.id;
-  if (items.includes(id)) return items.filter((it) => it !== id);
+  if (items.some(it => matchesVariantId(p.r.variant, it))) return items.filter(it => !matchesVariantId(p.r.variant, it));
   const viaModel = items.includes(p.r.model.id) && featuredPoints(pts, [p.r.model.id])[0]?.r.variant.id === id;
   return viaModel ? items.filter((it) => it !== p.r.model.id) : [...items, id];
 }

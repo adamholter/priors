@@ -1,5 +1,6 @@
 import type { Effort } from "../../src/data/types";
 import { normalizeLabel } from "../../src/data/normalize";
+import { isBaselineVariant } from "../../src/data/variant-identity";
 
 export interface AAModelRecord {
   id?: unknown;
@@ -117,14 +118,9 @@ export function resolveAAIdentity(raw: AAModelRecord, tbl?: AAModelRecord): AAId
   const modelName = normalized.ok ? normalized.modelName : label;
   const resolvedLabId = normalized.ok ? normalized.labId : labId(record.creator ?? raw.creator);
 
-  const canonicalSlug = slugify(modelId);
-  const uncomplicatedSlug = sourceSlug === canonicalSlug ||
-    (effort !== "default" && effort !== "none" && sourceSlug === `${canonicalSlug}-${effort}`);
-  const hasConfiguration = /\b(?:default[ -]?fallback|no[ -]?fallback|without[ -]?fallback|with[ -]?fallback|\d+k\s*(?:token|thinking)|token\s*budget|harness)\b/i.test(`${label} ${sourceSlug}`);
-
   // Anything beyond the canonical slug/effort pattern remains source-scoped.
   // The readable slug aids audits; the UUID prefix makes uniqueness unconditional.
-  const configuration = uncomplicatedSlug && !hasConfiguration
+  const configuration = isBaselineVariant(modelId, effort, sourceSlug, label)
     ? undefined
     : `aa-${sourceSlug}-${slugify(sourceModelId).slice(0, 8)}`;
   const variantId = `${modelId}@${effort}${configuration ? `~${configuration}` : ""}`;

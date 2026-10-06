@@ -49,9 +49,20 @@ describe("task metric sources", () => {
   it("preserves the selected harness and exact effort without source fallback", () => {
     const data = taskMetricData(snapshot, "terminalbench-4", "cost");
     expect(data.get("a@high")?.value).toBe(8);
-    expect(data.get("a@high~aa-config")?.value).toBe(8);
+    expect(data.get("a@high~aa-config")).toBeUndefined();
     expect(data.get("a@max")).toBeUndefined();
     expect(data.get("b@high")).toBeUndefined();
+  });
+  it("accepts recorded legacy aliases while keeping actual configurations independent", () => {
+    const s: Snapshot = { ...snapshot, variants: [
+      { ...snapshot.variants[0], aliases: ["a@high~old-source-id"] },
+      ...snapshot.variants.slice(1),
+      { id: "a@high~no-fallback", modelId: "a", effort: "high", configuration: "no-fallback" },
+    ], observations: [...snapshot.observations, obs("terminalbench-4", "a@high~no-fallback", 65, { costUsd: 3 })] };
+    const data = taskMetricData(s, "terminalbench-4", "cost");
+    expect(data.get("a@high~old-source-id")?.value).toBe(8);
+    expect(data.get("a@high~no-fallback")?.value).toBe(3);
+    expect(data.get("a@high~unmeasured-harness")).toBeUndefined();
   });
   it("switches cost without changing rankings or borrowing AA costs for missing TB models", () => {
     const aa = computeIndex(snapshot, config);

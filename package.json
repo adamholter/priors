@@ -10,6 +10,7 @@
     "scrape": "tsx scripts/scrape/build.ts",
     "library": "tsx scripts/scrape/library.ts",
     "test": "vitest run",
+    "benchmark:identity": "tsx scripts/benchmarks/run-identity.ts",
     "typecheck": "tsc --noEmit",
     "validate": "npm run ci && npm run build",
     "ci": "next typegen && vitest run && tsc --noEmit && eslint src scripts convex"

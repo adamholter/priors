@@ -11,6 +11,7 @@ import type { Benchmark, Effort, Model, Observation, RawRow, RawSeries, Series, 
 import { EFFORT_WORDS, LABS, normalizeLabel, variantId } from "../../src/data/normalize";
 import { makeContext, saveRaw } from "./harness";
 import { buildLibrary } from "./library";
+import { canonicalizeSnapshot } from "../../src/data/canonical-snapshot";
 
 const args = process.argv.slice(2);
 const opt = (k: string) => { const i = args.indexOf(`--${k}`); return i >= 0 ? args[i + 1] : undefined; };
@@ -135,8 +136,8 @@ async function main() {
   const observations: Observation[] = [];
   for (const p of pending) {
     const effort = resolveEffort(p.modelId, p.effort);
-    // VALS can publish separate Thinking and Nonthinking rows at the same reported
-    // effort. Preserve its stable model key as part of the evaluated configuration.
+    // Retain VALS keys until the final canonicalization pass can check all records
+    // for conflicts. Ordinary aliases merge; explicit configurations remain scoped.
     const valsConfig = (p.row.sourceId.startsWith("vals") || p.row.sourceId === "programbench") && p.row.sourceModelId
       ? `vals-${createHash("sha256").update(p.row.sourceModelId).digest("hex").slice(0, 12)}` : undefined;
     const vid = p.row.identity?.variantId ?? `${variantId(p.modelId, effort)}${valsConfig ? `~${valsConfig}` : ""}`;
@@ -177,7 +178,7 @@ async function main() {
   const seen = new Set<string>();
   const deduped = observations.filter((o) => { const k = `${o.benchmarkId}|${o.variantId}|${o.harness ?? ""}`; if (seen.has(k)) return false; seen.add(k); return true; });
 
-  const snap: Snapshot = {
+  let snap: Snapshot = {
     version: 1, date, generatedAt: new Date().toISOString(),
     labs: [...LABS, ...[...models.values()].filter((m) => !LABS.some((l) => l.id === m.labId)).filter((m, i, a) => a.findIndex((x) => x.labId === m.labId) === i).map((m) => ({ id: m.labId, name: m.labId, color: "#A3A39B" }))],
     models: [...models.values()].filter((m) => catalogModelIds.has(m.id) || deduped.some((o) => o.variantId.startsWith(m.id + "@")) || series.some((s) => s.variantId.startsWith(m.id + "@"))).sort((a, b) => a.id.localeCompare(b.id)),
@@ -206,6 +207,7 @@ async function main() {
     }
   } catch { /* first run */ }
 
+  snap = canonicalizeSnapshot(snap);
   await mkdir(SNAP_DIR, { recursive: true });
   const json = JSON.stringify(snap);
   // gz only: ~130 KB/day committed to the repo is the backup and the time-travel archive.

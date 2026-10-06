@@ -51,10 +51,6 @@ export function metricPanels(snapshot: Snapshot, ranked: RankedVariant[], timeSo
   for (const o of snapshot.observations) {
     const b = obs.get(o.benchmarkId) ?? obs.set(o.benchmarkId, new Map()).get(o.benchmarkId)!;
     b.set(o.variantId, o);
-    // Source-qualified variants (`id@effort~source-conf`) back their base
-    // effort variant's metrics, the same way the engine substitutes them.
-    const base = o.variantId.split("~")[0];
-    if (!b.has(base)) b.set(base, o);
   }
 
   const at = (benchId: string, pick: (o: Observation) => number | undefined = (o) => o.value) => (rows: RankedVariant[]): MetricPoint[] =>

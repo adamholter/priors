@@ -30,6 +30,10 @@ export interface Variant {
   effort: Effort;
   configuration?: string;
   sourceModel?: { id: string; slug: string; name: string; url: string; metadata?: Record<string, unknown> };
+  /** Complete source lineage when several publishers refer to the same model and effort. */
+  sourceModels?: NonNullable<Variant["sourceModel"]>[];
+  /** Old source-scoped IDs accepted by saved highlights and links. */
+  aliases?: string[];
 }
 
 /** Onboarding lineup-fit focus preset. Stored on IndexConfig; ranking ignores it. */
