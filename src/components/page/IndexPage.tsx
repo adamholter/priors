@@ -11,6 +11,7 @@ import { pickPoints, speedChart } from "@/lib/metrics";
 import { encodeIndices } from "@/lib/url";
 import { ShareCards } from "../ShareCards";
 import { Wordmark } from "../Wordmark";
+import { SiteNav } from "../SiteNav";
 import { Rankings } from "../Rankings";
 import { ParetoChart } from "../chart/ParetoChart";
 import { useScatterView } from "../chart/ScoreScatter";
@@ -76,6 +77,7 @@ export function IndexPage({ profile, snapshot, dates, edit }: { profile: Profile
       <header className="flex items-center gap-x-6 gap-y-2 px-4 sm:px-8 h-12 sm:h-auto sm:min-h-14 sm:py-2 border-b hairline sm:sticky top-0 z-10" style={{ background: surface + "E6", backdropFilter: "blur(8px)" }}>
         <Wordmark />
         <span className="text-grey text-[13px] max-sm:hidden">/ {p.handle}</span>
+        <span className="max-sm:hidden"><SiteNav /></span>
         <div className="ml-auto hidden sm:flex flex-wrap items-center justify-end gap-3">
           <DatePicker current={snapshot.date} dates={dates} />
           {p.indices[0] && <ShareCards indices={p.indices} active={p.indices[0]} date={snapshot.date} profile={p} pageUrl={pageUrl.toString()} defaultDesign={p.theme?.cardDesign} />}
@@ -89,6 +91,8 @@ export function IndexPage({ profile, snapshot, dates, edit }: { profile: Profile
           <MobileMenu>
             <DatePicker current={snapshot.date} dates={dates} />
             <Link href={builderHref as "/"} className="btn-quiet text-center">Open in builder</Link>
+            <Link href="/explore" className="btn-quiet text-center">Explore rankings</Link>
+            <Link href="/rank" className="btn-quiet text-center">Rank models</Link>
             {authEnabled && <PageEditor profile={p} onChange={setP} snapshot={snapshot} editing={false} />}
           </MobileMenu>
         </div>

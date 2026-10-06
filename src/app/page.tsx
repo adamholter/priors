@@ -1,27 +1,22 @@
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
-import { loadSnapshot } from "@/data/load";
-import { Onboarding } from "@/onboarding/Onboarding";
-import { PageTransition } from "@/components/PageTransition";
-import { onboardingSnapshot } from "@/data/client-snapshot";
-import { defaultLineup, PRIORS_MIX_COOKIE, savedMix } from "@/onboarding/defaults";
-import { benchmarkQuality } from "@/onboarding/quality";
+import { PRIORS_MIX_COOKIE } from "@/onboarding/defaults";
+import Rank from "./rank/page";
+
 export const dynamic = "force-dynamic";
+
+/**
+ * Entry point. Links carrying an index go to the builder; visitors who already finished the ranking
+ * (the saved-mix cookie is set when a fit completes) go straight to the builder too. Everyone else
+ * gets the onboarding, which stays reachable at /rank.
+ */
 export default async function Home({ searchParams }: PageProps<"/">) {
   const sp = await searchParams;
-  if (sp.i != null || sp.date != null || sp.design != null || sp.handle != null) {
-    const query = new URLSearchParams();
-    for (const [key, value] of Object.entries(sp)) {
-      for (const item of Array.isArray(value) ? value : value ? [value] : []) query.append(key, item);
-    }
-    redirect(`/builder?${query}`);
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(sp)) {
+    for (const item of Array.isArray(value) ? value : value ? [value] : []) query.append(key, item);
   }
-  const snapshot = await loadSnapshot();
-  if (!snapshot) return <main className="p-10">No benchmark snapshot available.</main>;
-  const mix = savedMix((await cookies()).get(PRIORS_MIX_COOKIE)?.value, snapshot);
-  const lineup = defaultLineup(snapshot, 16, mix ?? undefined);
-  const quality = benchmarkQuality(snapshot);
-  const variantModels = new Map(snapshot.variants.map((v) => [v.id, v.modelId]));
-  const observedModelIds = [...new Set(snapshot.observations.map((o) => variantModels.get(o.variantId)).filter((id): id is string => !!id))];
-  return <PageTransition><Onboarding snapshot={onboardingSnapshot(snapshot)} lineup={lineup} quality={quality} observedModelIds={observedModelIds} hasSavedMix={!!mix} seeds={lineup} /></PageTransition>;
+  if (sp.i != null || sp.date != null || sp.design != null || sp.handle != null) redirect(`/builder?${query}`);
+  if ((await cookies()).get(PRIORS_MIX_COOKIE)?.value) redirect(query.size ? `/builder?${query}` : "/builder");
+  return <Rank />;
 }

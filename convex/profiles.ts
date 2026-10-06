@@ -4,7 +4,7 @@ import { ConvexError, v } from "convex/values";
 import type { IndexConfig } from "../src/engine";
 
 const HANDLE = /^[a-z0-9][a-z0-9-]{1,29}$/;
-const RESERVED = new Set(["sign-in", "sign-up", "api", "skill", "import", "me", "og", "about", "admin", "priors", "u", "settings", "privacy", "terms", "builder", "claim", "models"]);
+const RESERVED = new Set(["sign-in", "sign-up", "api", "skill", "import", "me", "og", "about", "admin", "priors", "u", "settings", "privacy", "terms", "builder", "claim", "models", "explore", "rank"]);
 
 async function me(ctx: QueryCtx | MutationCtx) {
   const identity = await ctx.auth.getUserIdentity();
@@ -34,6 +34,20 @@ export const byHandle = query({
     const bannerUrl = p.bannerStorageId ? await ctx.storage.getUrl(p.bannerStorageId) : null;
     const { agentTokenHash: _h, ...rest } = p; void _h;
     return { ...rest, avatarUrl: avatarUrl ?? undefined, bannerUrl: bannerUrl ?? undefined, imports: imports.map((i) => ({ benchmark: i.benchmark, rows: i.rows })) };
+  },
+});
+
+/** Published pages for /explore, newest first: public fields only (never clerkId or token hash). */
+export const explore = query({
+  args: {},
+  handler: async (ctx) => {
+    const rows = await ctx.db.query("profiles").order("desc").take(300);
+    const list = await Promise.all(rows.map(async (p) => ({
+      handle: p.handle, displayName: p.displayName, bio: p.bio, updatedAt: p.updatedAt, createdAt: p._creationTime,
+      avatarUrl: (p.avatarStorageId ? await ctx.storage.getUrl(p.avatarStorageId) : p.avatarUrl) ?? undefined,
+      indices: p.indices.slice(0, 3),
+    })));
+    return list.filter((p) => p.indices.length).sort((a, b) => b.updatedAt - a.updatedAt);
   },
 });
 
