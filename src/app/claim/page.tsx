@@ -1,4 +1,5 @@
 "use client";
+import { track } from "@/lib/analytics";
 import { useUser } from "@clerk/nextjs";
 import { storableIndex } from "../../../convex/validators";
 import Link from "next/link";
@@ -63,7 +64,7 @@ function Claim() {
     <main className="min-h-screen grid place-items-center p-8">
       <form className="grid gap-5 w-full max-w-[380px]" onSubmit={async (e) => {
         e.preventDefault(); setBusy(true); setErr(null);
-        try { await claim({ handle, displayName: user.fullName || [user.firstName, user.lastName].filter(Boolean).join(" ") || user.username || user.primaryEmailAddress?.emailAddress.split("@")[0] || handle, avatarUrl: user.externalAccounts.find((a) => /google/.test(a.provider))?.imageUrl || (user.hasImage ? user.imageUrl : undefined), indices: pending.map(storableIndex) }); localStorage.removeItem("priors:pending"); sessionStorage.removeItem("priors:pending"); localStorage.setItem("priors:handle", handle); router.replace(`/${handle}?edit=1`); }
+        try { await claim({ handle, displayName: user.fullName || [user.firstName, user.lastName].filter(Boolean).join(" ") || user.username || user.primaryEmailAddress?.emailAddress.split("@")[0] || handle, avatarUrl: user.externalAccounts.find((a) => /google/.test(a.provider))?.imageUrl || (user.hasImage ? user.imageUrl : undefined), indices: pending.map(storableIndex) }); localStorage.removeItem("priors:pending"); sessionStorage.removeItem("priors:pending"); localStorage.setItem("priors:handle", handle); track("profile_claimed", { handle }); router.replace(`/${handle}?edit=1`); }
         catch (x) { setErr((x as Error).message.replace(/^[\s\S]*Uncaught Error:\s*/, "").split("\n")[0]); setBusy(false); }
       }}>
         <Wordmark size={30} />

@@ -1,4 +1,5 @@
 "use client";
+import { track } from "@/lib/analytics";
 import { useEffect, useId, useRef, useState } from "react";
 import type { IndexConfig } from "@/engine";
 import { encodeIndices } from "@/lib/url";
@@ -92,6 +93,7 @@ function ShareCardsContent({ indices, active, date, profile, pageUrl, defaultDes
   const coarse = typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches;
   const pasteKey = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform || "") ? "⌘V" : "Ctrl+V";
   const shareToX = () => {
+    track("share_card_shared", { design, scheme, target: "x" });
     const intent = `https://x.com/intent/post?${xParams}`;
     const card = fetch(selectedUrl).then((r) => r.blob());
     if (coarse) {
@@ -121,7 +123,7 @@ function ShareCardsContent({ indices, active, date, profile, pageUrl, defaultDes
     const r = dialog.current?.getBoundingClientRect();
     return !!r && (x < r.left || x > r.right || y < r.top || y > r.bottom);
   };
-  const openCard = () => { const saved = new URLSearchParams(window.location.search).get("design"); if (!openedBefore.current && SHARE_DESIGNS.some((d) => d.id === saved)) setDesign(saved!); openedBefore.current = true; setOrigin(window.location.origin); setMessage(""); dialog.current?.showModal(); setOpen(true); };
+  const openCard = () => { const saved = new URLSearchParams(window.location.search).get("design"); if (!openedBefore.current && SHARE_DESIGNS.some((d) => d.id === saved)) setDesign(saved!); openedBefore.current = true; setOrigin(window.location.origin); setMessage(""); dialog.current?.showModal(); setOpen(true); track("share_card_opened"); };
   return <>
     {compact ? <button type="button" className="icon-btn" onClick={openCard} aria-label="Share" title="Share"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v12M7.5 7.5 12 3l4.5 4.5M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7" /></svg></button> : <>
     <button type="button" className="btn-quiet inline-flex items-center gap-1.5" onClick={copy} title="Copy link" aria-label="Copy link">{message === "Link copied" && !open ? "Link copied" : <><CopyIcon /><span className="hidden sm:inline">Copy link</span></>}</button>

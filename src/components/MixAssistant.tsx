@@ -1,4 +1,5 @@
 "use client";
+import { track } from "@/lib/analytics";
 import Link from "next/link";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useAuth } from "@clerk/nextjs";
@@ -58,6 +59,7 @@ function Inner({ config, onApply, date, handle }: { config: IndexConfig; onApply
     const before = latest.current;
     const ctrl = new AbortController(); abort.current = ctrl;
     try {
+      track("assistant_asked", { handle: !!handle });
       const res = await fetch("/api/assistant", { method: "POST", signal: ctrl.signal, headers: { "content-type": "application/json" }, body: JSON.stringify({ index: encodeIndex(before), date, handle, messages: history }) });
       if (!res.ok || !res.body) { const j = await res.json().catch(() => ({})); throw new Error(j.error ?? "The assistant is unavailable right now."); }
       const reader = res.body.getReader(), decoder = new TextDecoder();

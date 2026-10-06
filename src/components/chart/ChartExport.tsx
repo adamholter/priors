@@ -1,4 +1,5 @@
 "use client";
+import { track } from "@/lib/analytics";
 import { useImperativeHandle, useState, type Ref } from "react";
 import { useChartPalette } from "./echarts";
 import { escapeSvg, frameSvg } from "./export-frame";
@@ -33,6 +34,7 @@ export function ChartExport({ name, getSvg, getRows, getHtml, frame, className =
   }
   async function download(format: ChartExportFormat) {
     setOpen(false); setBusy(true); setError("");
+    track("chart_exported", { chart: name, format });
     try {
       if (format === "html") { const html = getHtml?.(); if (!html) throw new Error("Chart is still loading. Try again."); save(new Blob([html], { type: "text/html;charset=utf-8" }), "html"); return; }
       if (format === "csv" || format === "json") {

@@ -7,5 +7,5 @@ const enabled = !!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY && !!process.env
 export default enabled ? clerkMiddleware() : () => NextResponse.next();
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt|.*\\..*).*)"],
+  matcher: ["/((?!_next/static|_next/image|ingest|favicon.ico|sitemap.xml|robots.txt|.*\\..*).*)"],
 };

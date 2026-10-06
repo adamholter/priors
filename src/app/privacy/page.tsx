@@ -4,7 +4,7 @@ import { Wordmark } from "@/components/Wordmark";
 
 export const metadata = { title: "Privacy" };
 
-const UPDATED = "September 23, 2026";
+const UPDATED = "October 6, 2026";
 
 export default function PrivacyPage() {
   return (
@@ -27,7 +27,11 @@ export default function PrivacyPage() {
         </section>
         <section className="grid gap-2">
           <h2 className="text-[22px] text-ink">Service providers</h2>
-          <p>We use Vercel (hosting), Clerk (authentication), and Convex (database). They process data only to run Priors. We do not sell personal data, show ads, or use third-party advertising trackers.</p>
+          <p>We use Vercel (hosting), Clerk (authentication), Convex (database), and PostHog (product analytics). They process data only to run Priors. We do not sell personal data, show ads, or use third-party advertising trackers.</p>
+        </section>
+        <section className="grid gap-2">
+          <h2 className="text-[22px] text-ink">Usage analytics</h2>
+          <p>We use PostHog to understand how Priors is used: pages viewed, buttons clicked, and anonymized session recordings (text you type is masked). This tells us which features help and where people get stuck. If you sign in, these events are linked to your account id and name, not your email address. Blocking or clearing cookies for mypriors.com stops it.</p>
         </section>
         <section className="grid gap-2">
           <h2 className="text-[22px] text-ink">Your choices</h2>

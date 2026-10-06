@@ -1,4 +1,5 @@
 "use client";
+import { track } from "@/lib/analytics";
 import Link from "next/link";
 import { useLabColor } from "@/components/chart/echarts";
 import { ThemeToggle } from "@/components/Theme";
@@ -40,7 +41,7 @@ export type OnboardingLabOptions = { label: string; placement: "heading" | "boar
 function LineupRecorder({ onRegister }: { onRegister: (fn: ((a: LineupArgs) => void) | null) => void }) {
   const record = useMutation(api.lineups.record);
   useEffect(() => {
-    onRegister((a) => { void record(a).catch(() => {}); });
+    onRegister((a) => { track("onboarding_completed", { focus: a.focus, lineup_size: a.lineup.length, exact: a.exact }); void record(a).catch(() => {}); });
     return () => onRegister(null);
   }, [record, onRegister]);
   return null;

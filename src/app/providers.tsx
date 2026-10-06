@@ -1,9 +1,10 @@
 "use client";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
-import { ClerkProvider, useAuth } from "@clerk/nextjs";
+import { ClerkProvider, useAuth, useUser } from "@clerk/nextjs";
+import posthog from "posthog-js";
 import { ConvexProviderWithClerk } from "convex/react-clerk";
 import { ConvexProvider, ConvexReactClient } from "convex/react";
-import { useMemo, type ReactNode } from "react";
+import { useEffect, useMemo, type ReactNode } from "react";
 import { ThemeProvider, useTheme } from "@/components/Theme";
 
 export const authEnabled = !!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
@@ -22,5 +23,16 @@ const CLERK_LIGHT = { colorPrimary: "#2F4FB0", fontFamily: "var(--font-inter)", 
 const CLERK_DARK = { ...CLERK_LIGHT, colorPrimary: "#3E5BC2", colorPrimaryForeground: "#FFFFFF", colorBackground: "#1C1C1A", colorForeground: "#EDECE6", colorMutedForeground: "#A9A8A0", colorMuted: "#242422", colorInput: "#141413", colorInputForeground: "#EDECE6", colorNeutral: "#EDECE6", colorDanger: "#F0907F", colorModalBackdrop: "rgba(0, 0, 0, .55)" };
 function ThemedClerk({ children }: { children: ReactNode }) {
   const { dark } = useTheme();
-  return <ClerkProvider appearance={{ variables: dark ? CLERK_DARK : CLERK_LIGHT }}>{children}</ClerkProvider>;
+  return <ClerkProvider appearance={{ variables: dark ? CLERK_DARK : CLERK_LIGHT }}><AnalyticsIdentity />{children}</ClerkProvider>;
+}
+
+/** Ties analytics to the Clerk user id while signed in; resets on sign-out. Email is not sent. */
+function AnalyticsIdentity() {
+  const { isLoaded, user } = useUser();
+  useEffect(() => {
+    if (!isLoaded || !posthog.__loaded) return;
+    if (user) posthog.identify(user.id, { name: user.fullName ?? undefined, handle: localStorage.getItem("priors:handle") ?? undefined });
+    else if (posthog.get_property("$user_state") === "identified") posthog.reset();
+  }, [isLoaded, user]);
+  return null;
 }
