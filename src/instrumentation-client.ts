@@ -10,6 +10,7 @@ if (key && !/^(localhost|127\.0\.0\.1)$/.test(window.location.hostname)) {
     defaults: "2026-08-30",
     // Anonymous visitors are counted without person profiles; signed-in users get one (see AnalyticsIdentity).
     person_profiles: "identified_only",
+    // Inputs are masked; elements marked .ph-no-capture (e.g. the one-time agent token) are never recorded.
     session_recording: { maskAllInputs: true },
   });
 }

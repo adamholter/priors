@@ -131,7 +131,7 @@ export function PageEditor({ profile, onChange, snapshot, editing }: { profile: 
 
           <Field label="Agent access">
             <p className="text-ink-2 mb-1.5">Give your agent the <Link href="/skill" className="text-indigo">Priors skill</Link> and this token. It can add benchmarks, change weights, and edit this page for you.</p>
-            {token ? <code className="mono block break-all bg-bone border hairline rounded-sm p-2 text-[11.5px]">{token}</code> : <button type="button" className="btn-quiet" onClick={async () => setToken(await mint())}>Mint token</button>}
+            {token ? <code className="ph-no-capture mono block break-all bg-bone border hairline rounded-sm p-2 text-[11.5px]">{token}</code> : <button type="button" className="btn-quiet" onClick={async () => setToken(await mint())}>Mint token</button>}
             {token && <p className="cap mt-1">Shown once. Minting again revokes the old token.</p>}
           </Field>
           </Group>
