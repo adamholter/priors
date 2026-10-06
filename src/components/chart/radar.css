@@ -92,7 +92,9 @@
 .rl-m-delta.up { color: var(--good); }
 .rl-m-delta.down { color: var(--danger); }
 .rl-m-compare { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; font-size: 12.5px; }
-.rl-m-compare select { max-width: 200px; padding: 5px 7px; border: 1px solid var(--hair); border-radius: 4px; background: var(--bone); color: var(--ink); font-size: 12px; }
+.rl-m-select { position: relative; min-width: 0; max-width: 200px; }
+.rl-m-select > svg { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); pointer-events: none; }
+.rl-m-compare select { width: 100%; appearance: none; padding: 5px 28px 5px 10px; border: 1px solid var(--hair); border-radius: 4px; background: var(--bone); color: var(--ink); font-size: 12px; }
 .rl-m-foot { margin-top: 10px; line-height: 1.5; }
 @media (max-width: 760px) { .rl-modal-body { grid-template-columns: minmax(0, 1fr); } }
 .rl-axis-link { cursor: pointer; }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { IconArrowDown, IconArrowUp, IconChevronLeft, IconChevronRight, IconX } from "@tabler/icons-react";
+import { IconArrowDown, IconArrowUp, IconChevronDown, IconChevronLeft, IconChevronRight, IconX } from "@tabler/icons-react";
 import { Radar, RadarSwatch, type RadarSeries } from "./Radar";
 import { formatValue, type RadarAxis, type RadarModel, type RadarNorm, type RadarPoint } from "./radar-data";
 
@@ -57,11 +57,11 @@ export function RadarModal({ onClose, onStep, series, all, axes, norm, model, le
         <aside className="rl-modal-notes">
           <div className="rl-m-compare">
             <label htmlFor="rl-compare">Compare with</label>
-            <select id="rl-compare" value={compareId} onChange={(e) => setCompareId(e.target.value)}>
+            <div className="rl-m-select"><select id="rl-compare" value={compareId} onChange={(e) => setCompareId(e.target.value)}>
               {(!isLeader || all.length > 1) && <option value="leader">{isLeader ? `Next best (${all[1]?.name})` : `Leader (${leader.name})`}</option>}
               <option value="median">Field median</option>
               {all.filter((s) => s.id !== series.id && s.id !== leader.id && !(isLeader && s.id === all[1]?.id)).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </select>
+            </select><IconChevronDown size={14} stroke={1.5} aria-hidden="true" /></div>
           </div>
           <h3>Biggest gaps vs {other.name}</h3>
           <ol className="rl-m-list">{gaps.map(({ a, i, mine, theirs, d }) => <li key={a.id} className={axis === i ? "rl-m-row rl-m-row-on" : "rl-m-row"} onMouseEnter={() => setAxis(i)} onMouseLeave={() => setAxis(null)}>
