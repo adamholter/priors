@@ -60,7 +60,7 @@ export function ModelFinder({ data, initialGroup = "overall", initialBudget = 10
   const changeGroup = (position: number) => { const id = data.groups[position].id; setGroupId(id); setMixId(undefined); setExpanded(false); syncUrl(id, budgetPosition); };
   const changeMix = (id: string) => { setMixId(id); setExpanded(false); syncUrl(group.id, budgetPosition, id); };
   return <section className={styles.card} aria-label="Model finder">
-    <div className={styles.heading}><h1>Model finder</h1><p>Pick your constraints. Find your model.</p></div>
+    <div className={styles.heading}><h1>Model finder</h1><p>{mix.name} · Strictness 50</p></div>
     <div className={styles.dials}>
       <Dial label="Budget per task" max={100} value={budgetPosition} text={budget == null ? "No limit" : money(budget)} onChange={changeBudget} />
       <Dial label="Optimize for" max={data.groups.length - 1} value={groupPosition} text={group.label} onChange={changeGroup} />
@@ -71,7 +71,7 @@ export function ModelFinder({ data, initialGroup = "overall", initialBudget = 10
     <div className={styles.rows} role="list" aria-label={`${group.label} models within budget`} style={{ height: rows.length * 44 }}>
       {rows.map((row, index) => <div role="listitem" className={styles.row} key={row.modelId} data-model={row.modelId} data-cost={row.costUsd} style={{ transform: `translateY(${index * 44}px)` }}>
         <Link className={styles.model} href={`/models/${row.modelId}` as "/"} title={`${row.name}, ${row.effort}, ${row.labName}`}><span className={styles.lab} aria-hidden="true" style={{ color: colorOf(row) }}>{row.labName.slice(0, 2)}</span><span>{row.name}<small>{row.effort === "default" ? "" : row.effort}</small></span></Link>
-        <div className={styles.score} aria-label={`Index score ${row.score.toFixed(1)}`}><div className={styles.bar} style={{ width: `${Math.max(2, row.score)}%`, background: colorOf(row) }}><span>{row.score.toFixed(1)}</span></div></div>
+        <div className={styles.score} aria-label={`Index score ${row.score.toFixed(1)}`} title={`${Math.round(row.measuredShare * 100)}% of benchmark weight measured`}><div className={styles.bar} style={{ width: `${Math.max(2, row.score)}%`, background: colorOf(row) }}><span>{row.score.toFixed(1)}</span></div></div>
         <span className={styles.cost} title={row.costSource ?? "Measured task cost"}>{money(row.costUsd)}</span>
       </div>)}
     </div>

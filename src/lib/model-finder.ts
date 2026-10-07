@@ -9,6 +9,7 @@ export interface ModelFinderVariant {
   effort: Effort;
   score: number;
   measuredBenchmarks: string[];
+  measuredShare: number;
   costUsd: number;
   costSource?: string;
   color: string;
@@ -50,6 +51,7 @@ interface MixDefinition {
   name: string;
   description: string;
   weights: Record<string, number>;
+  required?: string[];
 }
 
 interface GroupDefinition {
@@ -94,14 +96,26 @@ const GROUPS: GroupDefinition[] = [
   {
     id: "coding",
     label: "Coding",
-    mixes: () => [
-      fixedMix("software-engineering", "Software engineering", "Combines maintainer-reviewed code changes with long-horizon repository work.", {
-        "frontiercode-1.1-main": 50, "deepswe-1.1": 50,
-      }),
-      fixedMix("coding-breadth", "Coding breadth", "Adds machine-learning pipelines and web-app building to maintainer-reviewed code changes.", {
-        "frontiercode-1.1-main": 40, "weirdml-v2": 30, "vals-vibe-code-v1-1": 30,
-      }),
-    ],
+    mixes: (snapshot) => {
+      // Use current releases and a shared measured anchor. A 50/50 mix of
+      // unrelated leaderboards let one-benchmark models outrank fully tested ones.
+      const latest = (pattern: RegExp, fallback: string) => snapshot.benchmarks
+        .filter((benchmark) => pattern.test(benchmark.id))
+        .sort((a, b) => b.id.localeCompare(a.id, undefined, { numeric: true }))[0]?.id ?? fallback;
+      const terminal = latest(/^aa-terminalbench-v[\d.]+(?:-\d+)*$/, "aa-terminalbench-v4-0");
+      const frontierExtended = latest(/^frontiercode-[\d.]+-extended$/, "frontiercode-1.1-extended");
+      const frontierMain = latest(/^frontiercode-[\d.]+-main$/, "frontiercode-1.1-main");
+      const vibe = latest(/^vals-vibe-code-v[\d-]+$/, "vals-vibe-code-v1-1");
+      const ml = latest(/^weirdml-v\d+$/, "weirdml-v3");
+      return [
+        { ...fixedMix("software-engineering", "Software engineering", "Current terminal tasks, maintainer-reviewed code changes, and web-app building. Every ranked effort has a measured Terminal-Bench result.", {
+          [terminal]: 50, [frontierExtended]: 25, [vibe]: 25,
+        }), required: [terminal] },
+        { ...fixedMix("coding-breadth", "Coding breadth", "Current terminal tasks, maintainer-reviewed code changes, and machine-learning pipelines. Every ranked effort has a measured Terminal-Bench result.", {
+          [terminal]: 50, [frontierMain]: 25, [ml]: 25,
+        }), required: [terminal] },
+      ];
+    },
   },
   {
     id: "knowledge",
@@ -159,7 +173,7 @@ export function buildModelFinder(snapshot: Snapshot): ModelFinderData {
         id: `model-finder-${group.id}-${definition.id}`,
         name: definition.name,
         weights,
-        required: [],
+        required: definition.required ?? [],
         cutoff: 5,
         strictness: 50,
         estimateMissing: false,
@@ -178,6 +192,7 @@ export function buildModelFinder(snapshot: Snapshot): ModelFinderData {
           effort: row.variant.effort,
           score: row.score,
           measuredBenchmarks: row.values.map((value) => value.benchmarkId),
+          measuredShare: row.measuredShare,
           costUsd: row.costUsd!,
           costSource: row.costSource,
           color: labs.get(row.model.labId)?.color ?? "currentColor",

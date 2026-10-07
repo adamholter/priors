@@ -10,7 +10,7 @@ function latestSnapshot(): Snapshot {
 }
 
 const row = (id: string, modelId: string, effort: ModelFinderVariant["effort"], score: number, costUsd: number): ModelFinderVariant => ({
-  id, modelId, name: modelId, effort, score, measuredBenchmarks: [], costUsd, color: "#000000", labName: "Lab", labId: "other",
+  id, modelId, name: modelId, effort, score, measuredBenchmarks: [], measuredShare: 1, costUsd, color: "#000000", labName: "Lab", labId: "other",
 });
 
 describe("model finder data", () => {
@@ -48,6 +48,32 @@ describe("model finder data", () => {
           && new Set(variants.map((variant) => variant.costUsd)).size > 1);
       });
       expect(hasEffortCostTradeoff, group.id).toBe(true);
+    }
+  });
+
+  it("uses a common current coding benchmark instead of ranking disjoint partial mixes", () => {
+    const snapshot = latestSnapshot();
+    const mixes = buildModelFinder(snapshot).groups.find((group) => group.id === "coding")!.mixes;
+    for (const mix of mixes) {
+      const config = decodeIndex(new URL(mix.builderUrl, "https://mypriors.com").searchParams.get("i")!, mix.id)!;
+      expect(config.required).toHaveLength(1);
+      expect(config.required[0]).toMatch(/^aa-terminalbench-v/);
+      expect(mix.variants.every((variant) => variant.measuredBenchmarks.includes(config.required[0]))).toBe(true);
+      expect(mix.benchmarks.some((benchmark) => ["deepswe-1.1", "weirdml-v2"].includes(benchmark.id))).toBe(false);
+    }
+    const leaders = affordableModels(mixes[0].variants, null).slice(0, 5);
+    expect(leaders.every((row) => row.measuredShare === 1)).toBe(true);
+  });
+
+  it("moves coding mixes to a new benchmark release instead of reusing old-only observations", () => {
+    const snapshot = latestSnapshot();
+    const terminal = snapshot.benchmarks.find((benchmark) => benchmark.id === "aa-terminalbench-v4-0")!;
+    const future = { ...snapshot, benchmarks: [...snapshot.benchmarks, { ...terminal, id: "aa-terminalbench-v99-0" }] };
+    const mixes = buildModelFinder(future).groups.find((group) => group.id === "coding")!.mixes;
+    for (const mix of mixes) {
+      expect(mix.benchmarks.some((benchmark) => benchmark.id === "aa-terminalbench-v99-0")).toBe(true);
+      // None of the old observations can satisfy the new required benchmark.
+      expect(mix.variants).toHaveLength(0);
     }
   });
 
