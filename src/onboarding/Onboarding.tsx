@@ -18,10 +18,10 @@ import { Intro, INTRO_KEY } from "./Intro";
 import { PRIORS_MIX_COOKIE, savedLineup } from "./defaults";
 import { Bracket, resetSavedBracket, undoSavedCall } from "./BracketDuel";
 import type { BracketOptions, BracketStep } from "./bracket";
-import { compareTops, copyCardImage, readVia, shareCardToX, shareText, stashForPublish, type Via } from "@/lib/share";
+import { readVia, type Via } from "@/lib/share";
 import { TopPicker } from "./TopPicker";
-import type { AdaptiveOptions } from "./adaptive";
-import { LabFinish } from "@/components/lab/LabFinish";
+import type { RankingEvidence } from "./adaptive";
+import { Finish } from "./Finish";
 import "./onboarding.css";
 const ROW = 46;
 const phaseNames = { preparing: "Reading the evidence", searching: "Searching the combinations", simplifying: "Keeping what matters", complete: "Your index, found" };
@@ -54,10 +54,13 @@ export type OnboardingFlow = {
   intro: boolean;
   focus: "full" | "compact";
   done: "share" | "classic" | "compare";
+  /** Smart sprint: ask the pairs the benchmark evidence is least sure about, at most this many. Falls back to `bracket` without evidence. */
+  adaptiveCap?: number;
   pickCount?: number;
 };
 /** About 9 calls when you agree with the index, never more than 10; seeds 11–16 keep index order. */
-export const LIVE_FLOW: OnboardingFlow = { start: "compare", bracket: { challengers: 5, cap: 10 }, autoFit: true, intro: false, focus: "compact", done: "compare" };
+/** Smart sprint, at most 6 calls; without ranking evidence, the plain bracket at most 10. */
+export const LIVE_FLOW: OnboardingFlow = { start: "compare", bracket: { challengers: 5, cap: 10 }, adaptiveCap: 6, autoFit: true, intro: false, focus: "compact", done: "share" };
 /** Registers the Convex mutation on a stable ref; mounted only when Convex is configured. */
 function LineupRecorder({ onRegister }: { onRegister: (fn: ((a: LineupArgs) => void) | null) => void }) {
   const record = useMutation(api.lineups.record);
@@ -72,8 +75,9 @@ function Trace({ values }: { values: number[] }) {
   return <svg className="fit-trace" viewBox="0 0 300 76" role="img" aria-label="How closely the search matches your requested order"><path d="M0 68H300M0 38H300M0 8H300" style={{ stroke: "var(--hair)" }} strokeWidth=".5" /><path d={path} fill="none" style={{ stroke: "var(--indigo)" }} strokeWidth="1.5" vectorEffect="non-scaling-stroke" />{values.length > 0 && <circle cx="300" cy={68 - values[values.length - 1] * .6} r="3" style={{ fill: "var(--indigo)" }} />}</svg>;
 }
 
-export function Onboarding({ snapshot, lineup, seeds, quality, observedModelIds, hasSavedMix, labMode, flow = LIVE_FLOW, rankedCount = 0, labVia, labExperience }: { snapshot: Snapshot; lineup: string[]; seeds: string[]; quality: BenchmarkQuality[]; observedModelIds: string[]; hasSavedMix: boolean; labMode?: OnboardingLabOptions; flow?: OnboardingFlow; rankedCount?: number; /** Lab only: pretend the visitor came from this page. */ labVia?: Via; labExperience?: { adaptive?: AdaptiveOptions; reference?: string[] } }) {
+export function Onboarding({ snapshot, lineup, seeds, quality, observedModelIds, hasSavedMix, labMode, flow = LIVE_FLOW, rankedCount = 0, evidence, labReference }: { snapshot: Snapshot; lineup: string[]; seeds: string[]; quality: BenchmarkQuality[]; observedModelIds: string[]; hasSavedMix: boolean; labMode?: OnboardingLabOptions; flow?: OnboardingFlow; rankedCount?: number; /** Rankings from today's benchmark mixes; they steer the smart sprint. */ evidence?: RankingEvidence[]; /** Lab only: a ranking to compare the result with. */ labReference?: string[] }) {
   const inLab = !!labMode;
+  const adaptive = useMemo(() => flow.adaptiveCap && evidence?.length ? { evidence, cap: flow.adaptiveCap } : undefined, [flow.adaptiveCap, evidence]);
   const { dark } = useTheme();
   const models = useMemo(() => new Map(snapshot.models.map(m => [m.id, m])), [snapshot]);
   const labColor = useLabColor();
@@ -272,13 +276,13 @@ export function Onboarding({ snapshot, lineup, seeds, quality, observedModelIds,
         if (worker.current !== w || !latest.current) return;
         const u = latest.current; latest.current = null; lastPaint = performance.now();
         setUpdate(u);
-        const text = labExperience && u.phase === "complete" && !u.exactMatch ? "Closest benchmark mix found." : searchMessage(u, snapshot);
+        const text = u.phase === "complete" && !u.exactMatch ? "Closest benchmark mix found." : searchMessage(u, snapshot);
         const entry = { id: ++logId, text };
         setLogs(l => l.at(-1)?.text === text ? l : [...l.slice(-2), entry]);
         setHistory(h => [...h.slice(-23), u.fitScore]);
         if (u.phase === "complete") {
           if (!inLab) try { document.cookie = `${PRIORS_MIX_COOKIE}=${encodeURIComponent(encodeIndex(u.config))}; Path=/; Max-Age=31536000; SameSite=Lax${location.protocol === "https:" ? "; Secure" : ""}`; } catch { /* storage can be disabled */ }
-          setAnnouncement(`Search complete. ${u.exactMatch ? "Your full order matches." : labExperience ? "Your closest benchmark mix is ready." : "No matching configuration found."} ${u.matchedPositions} of ${target.length} models are in their requested positions.`);
+          setAnnouncement(`Search complete. ${u.exactMatch ? "Your full order matches." : "Your closest benchmark mix is ready."} ${u.matchedPositions} of ${target.length} models are in their requested positions.`);
           recordLineup.current?.({ focus, lineup: target, weights: u.weights, strictness: u.config.strictness ?? 50, fitScore: u.fitScore, exact: u.exactMatch, snapshotDate: snapshot.date });
         }
       };
@@ -305,24 +309,16 @@ export function Onboarding({ snapshot, lineup, seeds, quality, observedModelIds,
   const totalWeight = activeWeights.reduce((sum, [, w]) => sum + w, 0) || 1;
   useEffect(() => { if (complete && stage === "fit" && !done.current?.open) { const t = setTimeout(() => { done.current?.showModal(); if (flow.done !== "classic") track("share_card_opened", { from: "onboarding" }); }, 450); return () => clearTimeout(t); } }, [complete, stage, flow.done]);
   const resultQuery = update ? encodeIndices([{ ...update.config, name: "My priors", focus }]) : new URLSearchParams();
-  if (labExperience) resultQuery.set("date", snapshot.date);
-  const resultUrl = update ? `${labExperience ? "/lab/index" : "/builder"}?${resultQuery}` : "";
+  if (inLab) resultQuery.set("date", snapshot.date);
+  const resultUrl = update ? `${inLab ? "/lab/index" : "/builder"}?${resultQuery}` : "";
   async function copy() { try { await navigator.clipboard.writeText(`${location.origin}${resultUrl}`); setCopied(true); } catch { setError("Couldn't copy. Use Explore this index, then copy its address."); } }
   const modelOptions = snapshot.models.filter(m => m.kind === "llm" && m.name.toLowerCase().includes(query.toLowerCase()) && observedModels.has(m.id)).sort((a, b) => Number(order.includes(b.id)) - Number(order.includes(a.id)) || a.name.localeCompare(b.name));
   const topNames = update ? update.ranking.slice(0, 5).map((r) => models.get(r.modelId)?.name ?? r.modelId) : [];
   const fittedIndex = update ? { ...update.config, name: "My priors", focus } : null;
   const cardUrl = fittedIndex ? `/og?${(() => { const q = encodeIndices([fittedIndex]); q.set("date", snapshot.date); if (dark) q.set("scheme", "dark"); return q; })()}` : "";
-  const [cardLoaded, setCardLoaded] = useState("");
-  const [shareMsg, setShareMsg] = useState("");
-  const [via, setVia] = useState<Via | null>(labVia ?? null);
+  const [via, setVia] = useState<Via | null>(null);
   const rankedLabel = `${rankedCount.toLocaleString()}${rankedCount >= 1000 ? "+" : ""}`;
   useEffect(() => { if (inLab) return; const id = requestAnimationFrame(() => setVia(readVia())); return () => cancelAnimationFrame(id); }, [inLab]);
-  const comparison = via && topNames.length ? compareTops(topNames, via.top, `@${via.handle}`) : null;
-  async function shareX() {
-    track("share_card_shared", { target: "x", from: "onboarding" });
-    setShareMsg(await shareCardToX({ imageUrl: cardUrl, text: shareText(topNames), url: `${location.origin}${resultUrl}`, fileName: "my-priors.png" }));
-  }
-  function publish() { track("publish_clicked", { from: "onboarding" }); if (fittedIndex) stashForPublish([fittedIndex]); }
   const pairwiseAction = () => <button type="button" className={inLab ? "lab-pairwise-action" : "production-pairwise-action"} onClick={openPairwise} aria-label={`${labMode?.label ?? "Rank in pairs"}, compare the models in pairs`}><span>{labMode?.label ?? "Rank in pairs"}</span><Arrow /></button>;
   const introTitle = <h1>{stage === "compare" ? <>Which is <em>better?</em></> : stage === "pick" ? <>Who are your <em>top {flow.pickCount ?? 3}?</em></> : stage === "order" ? bracket ? <>Your ranking, <em>from your calls.</em></> : <>What are your <em>priors?</em></> : complete ? update?.exactMatch ? <>Your priors, <em>in numbers.</em></> : <>The closest <em>we found.</em></> : <>Putting your priors<br className="mobile-break" /> <em>to the test.</em></>}</h1>;
 
@@ -333,9 +329,9 @@ export function Onboarding({ snapshot, lineup, seeds, quality, observedModelIds,
       <div className="step-line"><span className={stage === "compare" ? "current" : "passed"}>01 <span>Your calls</span></span><i /><span className={stage === "order" ? "current" : stage === "fit" ? "passed" : ""}>02 <span>Your ranking</span></span><i /><span className={stage === "fit" ? "current" : ""}>03 <span>The evidence</span></span></div>
       <div className="onboard-intro" key={stage}>
         {labMode?.placement === "heading" && stage === "order" ? <div className="lab-onboard-title">{introTitle}{pairwiseAction()}</div> : introTitle}
-        <p>{stage === "compare" ? <>Tap the better model, {labExperience?.adaptive?.cap ?? flow.bracket?.cap ?? 15} quick calls at most. We find the benchmarks that agree with you. <span className="intro-proof">About a minute · no sign-in{rankedCount > 20 ? ` · ${rankedLabel} rankings so far` : ""}</span></> : stage === "pick" ? <>Tap them in order, best first. We find the benchmarks that agree with you. <span className="intro-proof">Takes seconds · no sign-in{rankedCount > 20 ? ` · ${rankedLabel} rankings so far` : ""}</span></> : stage === "order" ? bracket ? `Built from ${bracket.asked} head-to-head ${bracket.asked === 1 ? "call" : "calls"}. Drag to make final adjustments.` : "You have a sense of which models are better. Put them in order." : complete ? update?.exactMatch ? "A compact benchmark mix that matches your full order." : labExperience ? "Your closest benchmark mix. You can inspect the remaining disagreements below." : "No matching configuration found for your priors. The result below still has disagreements." : "Trying the benchmarks. Adjusting the weights. Keeping only what helps."}</p>
+        <p>{stage === "compare" ? <>Tap the better model, {adaptive?.cap ?? flow.bracket?.cap ?? 15} quick calls at most. We find the benchmarks that agree with you. <span className="intro-proof">About a minute · no sign-in{rankedCount > 20 ? ` · ${rankedLabel} rankings so far` : ""}</span></> : stage === "pick" ? <>Tap them in order, best first. We find the benchmarks that agree with you. <span className="intro-proof">Takes seconds · no sign-in{rankedCount > 20 ? ` · ${rankedLabel} rankings so far` : ""}</span></> : stage === "order" ? bracket ? `Built from ${bracket.asked} head-to-head ${bracket.asked === 1 ? "call" : "calls"}. Drag to make final adjustments.` : "You have a sense of which models are better. Put them in order." : complete ? update?.exactMatch ? "A compact benchmark mix that matches your full order." : "Your closest benchmark mix. You can inspect the remaining disagreements below." : "Trying the benchmarks. Adjusting the weights. Keeping only what helps."}</p>
       </div>
-      {stage === "compare" ? <Bracket seeds={bracketSeeds} models={models} labs={labs} options={flow.bracket} adaptive={labExperience?.adaptive} storageKey={inLab ? null : undefined} onFinish={finishBracket} onList={step => { if (labExperience) { setBracket(step); setOrder(step.order); orderRef.current = step.order; } setStage("order"); }} /> : stage === "pick" ? <TopPicker seeds={bracketSeeds} models={models} labs={labs} count={flow.pickCount ?? 3} onFinish={finishPick} onList={() => setStage("order")} /> : <div className={`experiment-grid ${inLab ? "lab-mode-grid" : ""}`}>
+      {stage === "compare" ? <Bracket seeds={bracketSeeds} models={models} labs={labs} options={flow.bracket} adaptive={adaptive} storageKey={inLab ? null : undefined} onFinish={finishBracket} onList={step => { if (adaptive) { setBracket(step); setOrder(step.order); orderRef.current = step.order; } setStage("order"); }} /> : stage === "pick" ? <TopPicker seeds={bracketSeeds} models={models} labs={labs} count={flow.pickCount ?? 3} onFinish={finishPick} onList={() => setStage("order")} /> : <div className={`experiment-grid ${inLab ? "lab-mode-grid" : ""}`}>
         <section className="order-board" aria-label={stage === "order" ? "Your model preferences" : "Fitted model ranking"}>
           {stage === "order" && (!inLab || labMode?.placement === "board-top") && <div className={inLab ? "lab-pairwise-top" : "production-pairwise-top"}>{pairwiseAction()}</div>}
           <div className="board-heading"><span>{stage === "order" ? "YOUR ORDER" : "BEST FIT · YOUR SELECTED MODELS"}</span>{labMode?.placement === "board-heading" && stage === "order" ? <div className="lab-board-heading-action">{pairwiseAction() }<span>BEST FIRST</span></div> : <span>{stage === "order" ? "BEST FIRST" : "SCORE / YOUR ORDER"}</span>}</div>
@@ -383,15 +379,15 @@ export function Onboarding({ snapshot, lineup, seeds, quality, observedModelIds,
               {activeWeights.length ? <div className="mix-rows">{activeWeights.map(([id, w]) => { const q = qMap.get(id); return <button key={id} className="mix-row" onClick={() => openDialog("quality")} title={q?.reason}><span className="mix-name">{q?.preferred && <span className="preferred-star" aria-label="Preferred benchmark">✳</span>}{q?.name ?? snapshot.benchmarks.find(b => b.id === id)?.name ?? id}</span><span className="mix-percent">{(w / totalWeight * 100).toFixed(1)}%</span><span className="mix-weight-track"><i style={{ width: `${w / totalWeight * 100}%` }} /></span></button>; })}</div> : <div className="mix-empty">Checking coverage across your models<span className="cursor">_</span></div>}
               {update && <div className="mix-quality"><button className="text-control" onClick={() => openDialog("quality")}>Evidence quality <span>{Math.round(update.quality)}/100</span></button><span>✳ Your preferred benchmarks</span></div>}
             </div>
-            {complete && <div className="result-actions"><p className="fit-disclosure">{update!.exactMatch ? "Every model matches your requested order." : labExperience ? "Approximate fit. Some models differ from your requested order." : "No matching configuration found. This is an approximate fit, not your requested ranking."} {update!.estimatedShare > 0 && `${Math.round(update!.estimatedShare * 100)}% of weighted evidence is estimated.`}</p>{update!.mismatches.length > 0 && <details className="fit-details"><summary>See the disagreements</summary><ul>{update!.mismatches.map((pair, i) => <li key={i}>You placed <strong>{models.get(pair.above)?.name}</strong> above <strong>{models.get(pair.below)?.name}</strong>.</li>)}</ul></details>}<details className="fit-details"><summary>How this fit was calculated</summary><p>Strictness {update!.config.strictness ?? 20}/100. {update!.config.effortMatching === "strict" ? "Exact reasoning efforts only." : "Calibrated reasoning-effort estimates allowed."} {update!.config.estimateMissing ? "Peer estimates may fill remaining gaps." : "Remaining gaps are left out and available weights are renormalized."} Calibrated benchmark fallbacks are allowed below maximum strictness. Only the relative order of your selected models is optimized. An unselected model appearing between them adds no penalty. Displayed positions are within your lineup. Your reversals and the placements of added models take priority, starting at the top. Remaining comparisons favor higher ranks. A comparison checks whether one selected model ranks above another; it is not an extra model. Unselected models cannot compensate for a mistake in that lineup. Best effort per model. The search starts from benchmark mixes precomputed for your focus and favors tests with more coverage, fresher releases, more headroom, and more objective grading. The displayed fit is rank-weighted: mistakes near the top of your lineup cost the most, thin margins and extra benchmarks cost a little. Candidates are screened against a surrogate, then checked with the builder’s scoring engine under a time budget (about 30 seconds typical, 60 seconds at most). This is a best fit found, not a guarantee of the global minimum.</p></details><Link className="primary-action" href={resultUrl as "/builder"} transitionTypes={["nav-forward"]}>Explore this index <Arrow /></Link><button className="text-control copy-result" onClick={copy}>{copied ? "Link copied ✓" : "Copy index link"}</button></div>}
+            {complete && <div className="result-actions"><p className="fit-disclosure">{update!.exactMatch ? "Every model matches your requested order." : "Approximate fit. Some models differ from your requested order."} {update!.estimatedShare > 0 && `${Math.round(update!.estimatedShare * 100)}% of weighted evidence is estimated.`}</p>{update!.mismatches.length > 0 && <details className="fit-details"><summary>See the disagreements</summary><ul>{update!.mismatches.map((pair, i) => <li key={i}>You placed <strong>{models.get(pair.above)?.name}</strong> above <strong>{models.get(pair.below)?.name}</strong>.</li>)}</ul></details>}<details className="fit-details"><summary>How this fit was calculated</summary><p>Strictness {update!.config.strictness ?? 20}/100. {update!.config.effortMatching === "strict" ? "Exact reasoning efforts only." : "Calibrated reasoning-effort estimates allowed."} {update!.config.estimateMissing ? "Peer estimates may fill remaining gaps." : "Remaining gaps are left out and available weights are renormalized."} Calibrated benchmark fallbacks are allowed below maximum strictness. Only the relative order of your selected models is optimized. An unselected model appearing between them adds no penalty. Displayed positions are within your lineup. Your reversals and the placements of added models take priority, starting at the top. Remaining comparisons favor higher ranks. A comparison checks whether one selected model ranks above another; it is not an extra model. Unselected models cannot compensate for a mistake in that lineup. Best effort per model. The search starts from benchmark mixes precomputed for your focus and favors tests with more coverage, fresher releases, more headroom, and more objective grading. The displayed fit is rank-weighted: mistakes near the top of your lineup cost the most, thin margins and extra benchmarks cost a little. Candidates are screened against a surrogate, then checked with the builder’s scoring engine under a time budget (about 30 seconds typical, 60 seconds at most). This is a best fit found, not a guarantee of the global minimum.</p></details><Link className="primary-action" href={resultUrl as "/builder"} transitionTypes={["nav-forward"]}>Explore this index <Arrow /></Link><button className="text-control copy-result" onClick={copy}>{copied ? "Link copied ✓" : "Copy index link"}</button></div>}
           </>}
         </aside>
       </div>}
     </main>
     <span className="sr-only" aria-live="polite">{announcement}</span>
     <dialog ref={done} className={`done-dialog ${flow.done !== "classic" ? "wide" : ""}`} aria-labelledby="done-heading" onClick={e => { if (e.target === e.currentTarget) done.current?.close(); }}>
-      {complete && update && labExperience && <LabFinish update={update} models={models} cardUrl={cardUrl} resultUrl={resultUrl} publicUrl={`https://mypriors.com/builder?${resultQuery}`} reference={labExperience.reference} onClose={() => done.current?.close()} />}
-      {complete && update && !labExperience && flow.done === "classic" && <div className="done-body">
+      {complete && update && flow.done !== "classic" && <Finish update={update} models={models} cardUrl={cardUrl} resultUrl={resultUrl} publicUrl={`https://mypriors.com/builder?${resultQuery}`} reference={labReference ?? via?.ids} referenceLabel={labReference ? "@demo" : via ? `@${via.handle}` : undefined} onClose={() => done.current?.close()} />}
+      {complete && update && flow.done === "classic" && <div className="done-body">
         <div className="done-check" aria-hidden="true"><svg viewBox="0 0 52 52"><circle cx="26" cy="26" r="24" /><path d="M15 27l7 7 15-16" /></svg></div>
         <p className="done-cap">{update.exactMatch ? "Search complete · every model in place" : `Search complete · ${update.matchedPositions}/${order.length} in place`}</p>
         <h2 id="done-heading">{update.exactMatch ? <>Your index <em>is ready.</em></> : <>The closest index <em>we found.</em></>}</h2>
@@ -399,25 +395,6 @@ export function Onboarding({ snapshot, lineup, seeds, quality, observedModelIds,
         <div className="done-mix">{activeWeights.slice(0, 4).map(([id, w], i) => <div key={id} style={{ "--d": `${200 + i * 110}ms`, "--w": `${w / totalWeight * 100}%` } as CSSProperties}><span>{qMap.get(id)?.name ?? snapshot.benchmarks.find(b => b.id === id)?.name ?? id}</span><em>{(w / totalWeight * 100).toFixed(0)}%</em><b><i /></b></div>)}</div>
         <Link className="primary-action done-cta" href={resultUrl as "/builder"} transitionTypes={["nav-forward"]}>Explore your index <Arrow /></Link>
         <button className="text-control done-later" onClick={() => done.current?.close()}>Review the fit first</button>
-      </div>}
-      {complete && update && !labExperience && flow.done !== "classic" && <div className="done-body done-share">
-        <p className="done-cap">{update.exactMatch ? `Every model in place · ${update.benchmarkCount} benchmarks` : `${update.matchedPositions}/${order.length} in place · ${update.benchmarkCount} benchmarks`}</p>
-        <h2 id="done-heading">{update.exactMatch ? <>Your index <em>is ready.</em></> : <>The closest index <em>we found.</em></>}</h2>
-        <div className="done-card" aria-busy={cardLoaded !== cardUrl}>
-          {cardLoaded !== cardUrl && <ol className="done-top" aria-hidden="true">{topNames.slice(0, 3).map((n, i) => <li key={n}><span>{i + 1}</span>{n}</li>)}</ol>}
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img key={cardUrl} src={cardUrl} alt={`Your ranking: ${topNames.slice(0, 3).join(", ")}`} width={1200} height={630} onLoad={() => setCardLoaded(cardUrl)} className={cardLoaded === cardUrl ? "ready" : ""} />
-        </div>
-        {flow.done === "compare" && via && comparison && <div className="done-compare"><span className="done-compare-tag">vs @{via.handle}</span><p>{comparison.first} {comparison.of > 0 && <>You share <strong>{comparison.shared} of {comparison.of}</strong> top picks.</>}</p><Link className="text-control" href={`/${via.handle}` as "/"}>Their page <Arrow /></Link></div>}
-        <div className="done-share-row">
-          <button type="button" className="done-x" onClick={shareX}><svg aria-hidden="true" viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24h-6.657l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231 5.45-6.231Zm-1.161 17.52h1.833L7.084 4.126H5.117L17.083 19.77Z" /></svg>Share on X</button>
-          <button type="button" className="done-dl" onClick={async () => { track("share_card_shared", { target: "clipboard", from: "onboarding" }); setShareMsg(await copyCardImage(cardUrl)); }}>Copy image</button>
-          <a className="done-dl" href={cardUrl} download="my-priors.png" onClick={() => track("share_card_shared", { target: "download", from: "onboarding" })}>Download card</a>
-        </div>
-        {shareMsg && <p className="done-msg" role="status">{shareMsg}</p>}
-        <Link className="primary-action done-cta" href={resultUrl as "/builder"} transitionTypes={["nav-forward"]}>Explore your index <Arrow /></Link>
-        <div className="done-links"><Link className="text-control" href="/claim" onClick={publish}>Publish to Explore <Arrow /></Link><button className="text-control" onClick={() => done.current?.close()}>Review the fit first</button></div>
-        <p className="done-note">Publishing gives you mypriors.com/you and lists your ranking on Explore.</p>
       </div>}
     </dialog>
     <Intro snapshot={snapshot} lineup={order} dialogRef={intro} onClose={() => { if (!inLab) try { localStorage.setItem(INTRO_KEY, "1"); } catch { /* ignore */ } }} />

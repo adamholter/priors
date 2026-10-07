@@ -34,7 +34,7 @@ export function Bracket({ seeds, models, labs, onFinish, onList, options, adapti
   const [finishedEarly, setFinishedEarly] = useState(false);
   const step = useMemo(() => adaptive ? runAdaptive(seeds, models, answers, adaptive, finishedEarly) : runBracket(seeds, answers, options), [seeds, models, answers, options, adaptive, finishedEarly]);
   // Saved answers replay only against the same seeds and bracket shape.
-  const shape = `${seeds.join()}|${JSON.stringify(options ?? {})}`;
+  const shape = `${seeds.join()}|${JSON.stringify(options ?? {})}|${adaptive ? `smart${adaptive.cap}` : ""}`;
   const [leaving, setLeaving] = useState<Side | null>(null);
   const [offset, setOffset] = useState<{ x: number; y: number } | null>(null);
   const [announcement, setAnnouncement] = useState("");

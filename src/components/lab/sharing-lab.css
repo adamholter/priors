@@ -1,28 +1,3 @@
-.lab-share-menu{position:relative;display:inline-flex;text-align:left}
-.lab-share-trigger{display:inline-flex;align-items:center;justify-content:center;gap:8px;width:36px;height:36px;border:1px solid var(--hair);border-radius:6px;background:var(--bone);color:var(--ink)}
-.lab-share-trigger.with-label{width:auto;padding:0 14px;font-size:12px}
-.lab-share-trigger:hover,.lab-share-trigger[aria-expanded=true]{border-color:var(--ink);background:var(--white)}
-.lab-share-options{position:absolute;right:0;top:calc(100% + 6px);z-index:80;min-width:190px;padding:5px;background:var(--white);border:1px solid var(--hair);border-radius:6px;box-shadow:0 8px 28px var(--shadow);font:12.5px var(--font-sans);color:var(--ink)}
-.lab-share-menu:has(.with-label)>.lab-share-options{left:0;right:auto}
-.lab-share-options>button,.lab-share-options>a{display:flex;gap:10px;align-items:center;width:100%;padding:10px 8px;text-align:left;border-radius:3px;white-space:nowrap}
-.lab-share-options>button:hover,.lab-share-options>a:hover,.lab-share-options>:focus-visible{background:var(--indigo-soft);outline:0}
-.lab-finish{position:relative;padding:28px 26px 26px;gap:0}
-.done-dialog:has(.lab-finish)::backdrop{backdrop-filter:none;background:color-mix(in srgb,var(--bone) 88%,var(--backdrop))}
-.lab-finish .done-cap{margin:0 0 7px}
-.lab-finish h2{font-size:32px;margin-bottom:22px}
-.lab-finish-close{position:absolute;right:8px;top:8px;padding:5px;color:var(--grey);border-radius:4px}
-.lab-finish-close:hover{color:var(--ink)}
-.lab-finish-card{position:relative;width:100%;aspect-ratio:1200/630;border:1px solid var(--hair);border-radius:5px;background:var(--bone)}
-.lab-finish-card>img{width:100%;height:auto;display:block;border-radius:5px}
-.lab-finish-card>.lab-share-menu{position:absolute;top:10px;right:10px}
-.lab-card-placeholder{position:absolute;inset:0;padding:24px;text-align:left;color:var(--ink-2);font:17px var(--font-serif)}
-.lab-card-placeholder>span{font-size:26px}
-.lab-card-placeholder>ol{padding:16px 0 0 20px;font-family:var(--font-sans);font-size:13px;line-height:2}
-.lab-card-placeholder button{text-decoration:underline}
-.lab-finish-comparison{width:100%;font:11.5px/1.6 var(--font-sans);text-align:left;color:var(--ink-2);margin:12px 0 0}
-.lab-finish-comparison strong{font-weight:500;color:var(--ink)}
-.lab-share-status{font-size:12px;text-align:left;width:100%;margin:10px 0 0;color:var(--ink-2)}
-.lab-finish-cta{margin-top:20px;animation:none!important;justify-content:space-between}
 .index-lab-bar{position:sticky;top:0;z-index:60;display:flex;gap:14px;align-items:center;flex-wrap:wrap;padding:10px 24px;border-bottom:1px dashed var(--hair);background:var(--bone);font-size:12px}
 .index-lab-bar>a{color:var(--indigo)}
 .index-lab-bar .ob-lab-options{margin-left:auto}

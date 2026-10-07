@@ -5,7 +5,8 @@ import { mergeImports } from "@/lib/import";
 import type { Profile } from "@/components/page/IndexPage";
 import { encodeIndex } from "@/lib/url";
 import { cookies } from "next/headers";
-import { loadSnapshot } from "@/data/load";
+import { loadMixLibrary, loadSnapshot } from "@/data/load";
+import { rankingEvidence } from "@/onboarding/evidence";
 import { Onboarding } from "@/onboarding/Onboarding";
 import { PageTransition } from "@/components/PageTransition";
 import { onboardingSnapshot } from "@/data/client-snapshot";
@@ -38,8 +39,9 @@ export default async function Rank() {
   }
   const lineup = defaultLineup(snapshot, 16, mix ?? undefined);
   const quality = benchmarkQuality(snapshot);
-  const count = await rankedCount();
+  const [count, library] = await Promise.all([rankedCount(), loadMixLibrary(snapshot.date)]);
+  const evidence = rankingEvidence(snapshot, library, lineup);
   const variantModels = new Map(snapshot.variants.map((v) => [v.id, v.modelId]));
   const observedModelIds = [...new Set(snapshot.observations.map((o) => variantModels.get(o.variantId)).filter((id): id is string => !!id))];
-  return <PageTransition><Onboarding snapshot={onboardingSnapshot(snapshot)} lineup={lineup} quality={quality} observedModelIds={observedModelIds} hasSavedMix={!!mix} seeds={lineup} rankedCount={count} /></PageTransition>;
+  return <PageTransition><Onboarding snapshot={onboardingSnapshot(snapshot)} lineup={lineup} quality={quality} observedModelIds={observedModelIds} hasSavedMix={!!mix} seeds={lineup} rankedCount={count} evidence={evidence} /></PageTransition>;
 }

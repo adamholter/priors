@@ -4,8 +4,9 @@ import { IconArrowRight, IconX } from "@tabler/icons-react";
 import type { IndexConfig } from "@/engine";
 import { encodeIndices } from "@/lib/url";
 import { useTheme } from "@/components/Theme";
-import { LabShareMenu } from "./LabShareMenu";
+import { ShareMenu } from "@/components/ShareMenu";
 import "./sharing-lab.css";
+import "@/components/share-menu.css";
 
 export type PublishPlacement = "inline" | "rail" | "dock";
 export function IndexLabActions({ active, date, top, placement }: { active: IndexConfig; date: string; top: string[]; placement: PublishPlacement }) {
@@ -18,8 +19,8 @@ export function IndexLabActions({ active, date, top, placement }: { active: Inde
  const image = `/og?${query}`;
  return <>
   <section className={`lab-publish-panel ${placement}`} aria-label="Publish and share your index">
-   <div><h3>Make this index yours.</h3><p>Publish your page on Explore.</p>{message && <p className="lab-share-status" role="status">{message}</p>}</div>
-   <div className="lab-publish-actions"><LabShareMenu imageUrl={image} link={publicUrl} top={top} label="Share" onMessage={setMessage} /><button type="button" className="lab-publish-primary" onClick={() => { setPreview(false); dialog.current?.showModal(); }}>Publish to Explore <IconArrowRight size={16} /></button></div>
+   <div><h3>Make this index yours.</h3><p>Publish your page on Explore.</p>{message && <p className="share-status" role="status">{message}</p>}</div>
+   <div className="lab-publish-actions"><ShareMenu imageUrl={image} link={publicUrl} top={top} label="Share" onMessage={setMessage} /><button type="button" className="lab-publish-primary" onClick={() => { setPreview(false); dialog.current?.showModal(); }}>Publish to Explore <IconArrowRight size={16} /></button></div>
   </section>
   <dialog ref={dialog} className="lab-publish-dialog" aria-labelledby={`publish-${placement}`} onClick={e => { if (e.target === e.currentTarget) dialog.current?.close(); }}>
    <div className="dialog-heading"><h2 id={`publish-${placement}`}>{preview ? `@${handle}` : "Claim your page."}</h2><button type="button" aria-label="Close publishing preview" onClick={() => dialog.current?.close()}><IconX size={18} /></button></div>

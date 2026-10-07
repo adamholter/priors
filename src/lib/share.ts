@@ -68,7 +68,7 @@ export function stashForPublish(indices: IndexConfig[]) {
 }
 
 /** A published page the visitor came from, so their result can be compared with it. */
-export type Via = { handle: string; name: string; top: string[] };
+export type Via = { handle: string; name: string; top: string[]; /** Their full ranking as model ids, for the solver-weighted similarity. */ ids?: string[] };
 export const VIA_KEY = "priors:via";
 export function readVia(): Via | null {
   try { const v = JSON.parse(localStorage.getItem(VIA_KEY) ?? "null") as Via | null; return v?.handle && Array.isArray(v.top) ? v : null; } catch { return null; }

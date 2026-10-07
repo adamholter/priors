@@ -2,9 +2,9 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { IconBrandX, IconCopy, IconDownload, IconLink, IconShare } from "@tabler/icons-react";
 import { copyCardImage, shareCardToX, shareText } from "@/lib/share";
-import "./sharing-lab.css";
+import "@/components/share-menu.css";
 
-export function LabShareMenu({ imageUrl, link, top, label, onMessage }: { imageUrl: string; link: string; top: string[]; label?: string; onMessage: (text: string) => void }) {
+export function ShareMenu({ imageUrl, link, top, label, onMessage }: { imageUrl: string; link: string; top: string[]; label?: string; onMessage: (text: string) => void }) {
  const [open, setOpen] = useState(false);
  const root = useRef<HTMLDivElement>(null), trigger = useRef<HTMLButtonElement>(null), menu = useRef<HTMLDivElement>(null);
  const id = useId();
@@ -16,9 +16,9 @@ export function LabShareMenu({ imageUrl, link, top, label, onMessage }: { imageU
   return () => document.removeEventListener("pointerdown", outside);
  }, [open]);
  const close = () => { setOpen(false); trigger.current?.focus(); };
- return <div ref={root} className="lab-share-menu">
-  <button ref={trigger} type="button" className={`lab-share-trigger ${label ? "with-label" : ""}`} aria-label="Share your index" aria-haspopup="menu" aria-expanded={open} aria-controls={id} onClick={() => setOpen(v => !v)}><IconShare size={18} stroke={1.6} />{label}</button>
-  {open && <div ref={menu} id={id} role="menu" aria-label="Share options" className="lab-share-options" onKeyDown={e => {
+ return <div ref={root} className="share-menu">
+  <button ref={trigger} type="button" className={`share-trigger ${label ? "with-label" : ""}`} aria-label="Share your index" aria-haspopup="menu" aria-expanded={open} aria-controls={id} onClick={() => setOpen(v => !v)}><IconShare size={18} stroke={1.6} />{label}</button>
+  {open && <div ref={menu} id={id} role="menu" aria-label="Share options" className="share-options" onKeyDown={e => {
    if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); close(); }
    if (["ArrowDown", "ArrowUp", "Home", "End"].includes(e.key)) {
     e.preventDefault(); const items = [...e.currentTarget.querySelectorAll<HTMLElement>("[role=menuitem]")], i = items.indexOf(document.activeElement as HTMLElement);

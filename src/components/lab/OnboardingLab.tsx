@@ -9,9 +9,9 @@ import "./onboarding-lab.css";
 
 type Variant = { id: string; name: string; note: string; cap: number; adaptive: boolean; flow: OnboardingFlow };
 const VARIANTS: Variant[] = [
- { id: "smart", name: "A · Smart sprint", note: "Uncertainty first, up to 6 calls", cap: 6, adaptive: true, flow: { ...LIVE_FLOW, bracket: { cap: 6 } } },
- { id: "short", name: "B · Short sprint", note: "Same selection, up to 4 calls", cap: 4, adaptive: true, flow: { ...LIVE_FLOW, bracket: { cap: 4 } } },
- { id: "previous", name: "C · Previous sprint", note: "Original pair selection, up to 6 calls", cap: 6, adaptive: false, flow: { ...LIVE_FLOW, bracket: { top: 4, challengers: 3, cap: 6 } } },
+ { id: "smart", name: "A · Smart sprint (live)", note: "Uncertainty first, up to 6 calls", cap: 6, adaptive: true, flow: LIVE_FLOW },
+ { id: "short", name: "B · Short sprint", note: "Same selection, up to 4 calls", cap: 4, adaptive: true, flow: { ...LIVE_FLOW, adaptiveCap: 4 } },
+ { id: "previous", name: "C · Previous sprint", note: "Original pair selection, up to 6 calls", cap: 6, adaptive: false, flow: { ...LIVE_FLOW, adaptiveCap: undefined, bracket: { top: 4, challengers: 3, cap: 6 } } },
 ];
 
 export function OnboardingLab({ snapshot, lineup, quality, observedModelIds, rankedCount, evidence }: { snapshot: Snapshot; lineup: string[]; quality: BenchmarkQuality[]; observedModelIds: string[]; rankedCount: number; evidence: RankingEvidence[] }) {
@@ -22,8 +22,8 @@ export function OnboardingLab({ snapshot, lineup, quality, observedModelIds, ran
   const reference = [...lineup];
   const a = comparison === "winner" ? 0 : 10, b = comparison === "winner" ? 2 : 11;
   if (reference.length > b) [reference[a], reference[b]] = [reference[b], reference[a]];
-  return { adaptive: variant.adaptive ? { evidence, cap: variant.cap } : undefined, reference: comparison === "none" ? undefined : reference };
- }, [lineup, evidence, variant, comparison]);
+  return { reference: comparison === "none" ? undefined : reference };
+ }, [lineup, comparison]);
  const models = useMemo(() => new Map(snapshot.models.map(m => [m.id, m])), [snapshot]);
  const assumptions = useMemo(() => versionAssumptions(lineup.flatMap(id => models.get(id) ? [models.get(id)!] : [])), [lineup, models]);
  return <div className="ob-lab">
@@ -42,6 +42,6 @@ export function OnboardingLab({ snapshot, lineup, quality, observedModelIds, ran
    <details className="ob-lab-diagnostics"><summary>Question logic</summary><div><p>{evidence.length} rankings from this snapshot. Same-family versions and transitive answers are skipped. Remaining questions favor uncertainty near the top, using the solver&apos;s rank weighting. The sprint can finish before its cap.</p><ul>{assumptions.map(e => <li key={`${e.above}-${e.below}`}>{models.get(e.above)?.name} above {models.get(e.below)?.name}</li>)}</ul><p>Assumptions can be changed in the ranking list. Similarity reuses the solver&apos;s weighted pair score across the full lineup, averaged in both directions. Score margins and benchmark-count penalties are excluded.</p></div></details>
   </div>
   <Onboarding key={`${variant.id}-${run}`} snapshot={snapshot} lineup={lineup} seeds={lineup} quality={quality} observedModelIds={observedModelIds} hasSavedMix={false} rankedCount={rankedCount}
-   labMode={{ label: "Rank in pairs", placement: "board-top" }} flow={variant.flow} labExperience={experience} />
+   labMode={{ label: "Rank in pairs", placement: "board-top" }} flow={variant.flow} evidence={evidence} labReference={experience.reference} />
  </div>;
 }

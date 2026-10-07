@@ -60,7 +60,10 @@ export function IndexPage({ profile, snapshot, edit }: { profile: Profile; snaps
   const [selected, setSelected] = useState<string | null>(null);
   const firstIndex = p.indices[0];
   const firstResult = firstIndex ? results.get(firstIndex.id) : undefined;
+  const topIds = useMemo(() => firstIndex && firstResult ? [...new Set(selectVariants(firstResult.ranked, chartVariantMode(firstIndex, "ranking")).map((r) => r.model.id))].slice(0, 20) : [], [firstIndex, firstResult]);
   const topNames = useMemo(() => firstIndex && firstResult ? [...new Set(selectVariants(firstResult.ranked, chartVariantMode(firstIndex, "ranking")).map((r) => r.model.name))].slice(0, 5) : [], [firstIndex, firstResult]);
+  const footerMix = useMemo(() => firstResult ? [...firstResult.benchmarks].sort((a, b) => b.share - a.share).map((b) => ({ id: b.benchmark.id, name: b.benchmark.shortName ?? b.benchmark.name, share: b.share })) : [], [firstResult]);
+  const footerSources = useMemo(() => [...new Set(snapshot.benchmarks.map((b) => b.sourceId))].sort(), [snapshot]);
   // Visitors see whose ranking this is and how to make their own; the owner, just after publishing, sees it went live.
   const [viewer, setViewer] = useState<{ owner: boolean; published: boolean } | null>(null);
   useEffect(() => {
@@ -68,10 +71,10 @@ export function IndexPage({ profile, snapshot, edit }: { profile: Profile; snaps
       let owner = false;
       try { owner = localStorage.getItem("priors:handle") === p.handle; } catch { /* storage can be disabled */ }
       setViewer({ owner, published: owner && new URLSearchParams(window.location.search).get("published") === "1" });
-      if (!owner && topNames.length) try { localStorage.setItem(VIA_KEY, JSON.stringify({ handle: p.handle, name: p.displayName, top: topNames })); } catch { /* ignore */ }
+      if (!owner && topNames.length) try { localStorage.setItem(VIA_KEY, JSON.stringify({ handle: p.handle, name: p.displayName, top: topNames, ids: topIds })); } catch { /* ignore */ }
     });
     return () => cancelAnimationFrame(id);
-  }, [p.handle, p.displayName, topNames]);
+  }, [p.handle, p.displayName, topNames, topIds]);
   const [paretoView, setParetoView] = useScatterView("page-pareto");
   const [speedView, setSpeedView] = useScatterView("page-speed");
   // Owner-controlled theme: preset fields become scoped rules, `css` is a raw
@@ -179,9 +182,23 @@ export function IndexPage({ profile, snapshot, edit }: { profile: Profile; snaps
           return null;
         })}
 
-        <footer className="border-t hairline pt-6 flex items-baseline justify-between text-[12.5px] text-grey">
-          <span>Data as of {snapshot.date}. Sources: {[...new Set(snapshot.benchmarks.map((b) => b.sourceId))].join(", ")}.</span>
-          <Link href="/rank" className="hover:text-ink">Build your own</Link>
+        {/* Bottom padding clears the fixed assistant composer so nothing here sits under it. */}
+        <footer className="border-t hairline pt-8 pb-28 grid gap-6">
+          <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
+            <div className="grid gap-1 min-w-0">
+              <p className="text-[16px] text-ink">{viewer?.owner ? "Try a different take" : "What would your ranking look like?"}</p>
+              <p className="text-[13px] text-ink-2 max-w-[56ch]">Rank a few models head to head and Priors finds the benchmark mix that agrees with you. About a minute, no sign-in.</p>
+            </div>
+            <Link href="/rank" className="btn shrink-0">Build your own</Link>
+          </div>
+          {footerMix.length > 0 && <div className="grid gap-2 min-w-0">
+            <p className="cap">{firstIndex?.name ?? "This index"} · {footerMix.length} benchmark{footerMix.length === 1 ? "" : "s"}</p>
+            <ul className="flex flex-wrap gap-1.5">{footerMix.map((b) => <li key={b.id} className="text-[12px] border hairline rounded-sm px-2 py-0.5 text-ink-2"><span className="text-ink">{b.name}</span> <span className="num">{Math.round(b.share)}%</span></li>)}</ul>
+          </div>}
+          <details className="text-[12px] text-grey">
+            <summary className="cursor-pointer hover:text-ink w-fit">Data as of {snapshot.date} · {footerSources.length} sources</summary>
+            <p className="mt-2 leading-relaxed max-w-[110ch]">{footerSources.join(" · ")}</p>
+          </details>
         </footer>
       </main>
       {p.indices[0] && <MixAssistant config={p.indices[0]} date={snapshot.date} handle={p.handle} onApply={(next) => setP({ ...p, indices: p.indices.map((x) => x.id === next.id ? next : x) })} />}
