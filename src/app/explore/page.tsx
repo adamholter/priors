@@ -57,6 +57,7 @@ export default async function Explore() {
         </div>
         <div className="flex flex-wrap gap-2">
           <Link href="/rank" className="btn">Rank models · 1 min</Link>
+          <Link href="/model-finder" className="btn-quiet">Model finder</Link>
           <Link href="/builder" className="btn-quiet">Publish yours</Link>
         </div>
       </div>
