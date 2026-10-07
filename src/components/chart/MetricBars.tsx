@@ -38,7 +38,7 @@ export function MetricBars({ pts: allPoints, labs, better, xName, formatValue, h
   const [narrow, setNarrow] = useState(false);
   useEffect(() => { const el = wrap.current; if (!el) return; const ro = new ResizeObserver(([e]) => setNarrow(e.contentRect.width < 560)); ro.observe(el); return () => ro.disconnect(); }, []);
   const expand = useChartExpand(exportName);
-  const cap = expand.expanded ? (narrow ? 20 : Math.max(limit, 40)) : narrow ? Math.min(12, limit) : limit;
+  const cap = Math.max(new Set(pts.map((p) => p.r.model.id)).size, expand.expanded ? (narrow ? 20 : Math.max(limit, 40)) : narrow ? Math.min(12, limit) : limit);
   const pal = useChartPalette();
   const hl = useHighlight();
   const highlight = hl?.items;
@@ -63,7 +63,7 @@ export function MetricBars({ pts: allPoints, labs, better, xName, formatValue, h
         const lab = labs.find((l) => l.id === p.r.model.labId), c = markColor(lab?.color, LIGHT_PALETTE, p.r.model.labId), d = markColor(lab?.color, DARK_PALETTE, p.r.model.labId);
         return {
           n: chartLabel(p.r), v: value(p), c, d, dc: dimColor(c, LIGHT_PALETTE), dd: dimColor(d, DARK_PALETTE),
-          m: p.r.model.id, id: p.r.variant.id, e: p.r.variant.effort,
+          m: p.r.model.id, mn: p.r.model.name, id: p.r.variant.id, e: p.r.variant.effort,
           h: focusedModels.has(p.r.model.id), a: featured.has(p.r.variant.id),
           t: `<b>${chartLabel(p.r)}</b><div style="font-family:'JetBrains Mono',monospace;margin-top:4px">${compact(formatValue)(value(p))} · index ${p.r.score.toFixed(1)}</div>`,
         };

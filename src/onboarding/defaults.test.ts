@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Snapshot } from "../data/types";
-import { DEFAULT_PRIORS_MIX, LEGACY_DEFAULTS, defaultLineup, savedLineup, savedMix } from "./defaults";
+import { DEFAULT_PRIORS_MIX, defaultPriorsMix, LEGACY_DEFAULTS, defaultLineup, savedLineup, savedMix } from "./defaults";
 import { encodeIndex } from "../lib/url";
 
 const benchmarkIds = Object.keys(DEFAULT_PRIORS_MIX.weights);
@@ -21,9 +21,9 @@ function snapshot(n: number): Snapshot {
 describe("defaultLineup", () => {
   it("returns n unique model ids in the mix's rank order", () => {
     const lineup = defaultLineup(snapshot(20));
-    expect(lineup).toHaveLength(14);
-    expect(new Set(lineup).size).toBe(14);
-    expect(lineup).toEqual(Array.from({ length: 14 }, (_, i) => `m${i}`));
+    expect(lineup).toHaveLength(16);
+    expect(new Set(lineup).size).toBe(16);
+    expect(lineup).toEqual(Array.from({ length: 16 }, (_, i) => `m${i}`));
   });
 
   it("respects a smaller n", () => {
@@ -39,6 +39,27 @@ describe("defaultLineup", () => {
     expect(mix).not.toBeNull();
     expect(defaultLineup(before, 5, mix!)).toEqual(["m0", "m1", "m2", "m3", "m4"]);
     expect(defaultLineup(after, 5, mix!)).toEqual(["new-model", "m0", "m1", "m2", "m3"]);
+  });
+  it("uses the newest AA composite and never fills the lineup with an unmeasured Pro model", () => {
+    const s = snapshot(20);
+    s.benchmarks.push({ ...s.benchmarks[0], id: "aa-intelligence-index-v4.10" });
+    s.observations.push(...s.models.map((m, i) => ({ ...s.observations[0], benchmarkId: "aa-intelligence-index-v4.10", variantId: `${m.id}@max`, value: i })));
+    s.models.push({ ...s.models[0], id: "gpt-6-pro" });
+    s.variants.push({ id: "gpt-6-pro@max", modelId: "gpt-6-pro", effort: "max" });
+    expect(defaultPriorsMix(s).weights).toEqual({ "aa-intelligence-index-v4.10": 100 });
+    expect(defaultPriorsMix(s).strictness).toBe(50);
+    expect(defaultLineup(s)).toEqual(Array.from({ length: 16 }, (_, i) => `m${19 - i}`));
+  });
+  it("respects a saved coverage floor and counts each model once even with all efforts", () => {
+    const s = snapshot(20);
+    s.benchmarks.push({ ...s.benchmarks[0], id: "second" });
+    s.variants.push({ id: "m0@low", modelId: "m0", effort: "low" });
+    s.observations.push({ ...s.observations[0], variantId: "m0@low", value: 99 });
+    const mix = { ...DEFAULT_PRIORS_MIX, weights: { [benchmarkIds[0]]: 49, second: 51 }, rankingVariants: "all" as const, strictness: 50 };
+    expect(defaultLineup(s, 16, mix)).toEqual([]);
+    const loose = defaultLineup(s, 16, { ...mix, strictness: 0 });
+    expect(loose).toHaveLength(16);
+    expect(new Set(loose).size).toBe(16);
   });
 });
 

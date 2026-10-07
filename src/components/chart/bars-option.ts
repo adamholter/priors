@@ -8,6 +8,61 @@ import { labelScale as normalizeLabelScale } from "./label-size";
 
 const value = (p: ScatterPoint) => p.raw ?? p.x;
 
+export type BarLayoutLabel = { modelId: string; modelName: string; effort: string; label: string };
+const effortLabel = (effort: string) => ({ none: "N", minimal: "Min", low: "L", medium: "M", high: "H", xhigh: "X", max: "Mx", default: "B" }[effort] ?? effort);
+
+/** Axis rows for model groups: efforts stay on the first row, one model name sits under each group. */
+export function barLayout<T extends BarLayoutLabel>(bars: T[]): { entries: (T | null)[]; effortLabels: string[]; modelLabels: string[] } {
+  const entries: (T | null)[] = [], effortLabels: string[] = [], modelLabels: string[] = [];
+  for (let start = 0; start < bars.length;) {
+    let end = start + 1;
+    while (end < bars.length && bars[end].modelId === bars[start].modelId) end++;
+    const group = bars.slice(start, end);
+    if (entries.length) { entries.push(null); effortLabels.push(""); modelLabels.push(""); }
+    const center = entries.length + Math.floor((group.length - 1) / 2);
+    for (const bar of group) {
+      entries.push(bar);
+      const repeatedEffort = group.filter((item) => item.effort === bar.effort).length > 1;
+      effortLabels.push(group.length === 1 ? "" : repeatedEffort ? bar.label : effortLabel(bar.effort));
+      modelLabels.push("");
+    }
+    modelLabels[center] = group[0].modelName;
+    start = end;
+  }
+  return { entries, effortLabels, modelLabels };
+}
+
+/** Models with any Pareto-optimal effort, plus the index's top `topCount` distinct models. */
+export function defaultBarModels(points: ScatterPoint[], better: "lower" | "higher", ranked: ScatterPoint["r"][] = points.map((p) => p.r), topCount = 3): Set<string> {
+  const visible = new Set<string>();
+  const ordered = points.filter((p) => Number.isFinite(value(p)) && Number.isFinite(p.r.score))
+    .sort((a, b) => (better === "lower" ? value(a) - value(b) : value(b) - value(a)) || b.r.score - a.r.score);
+  let bestScore = -Infinity;
+  for (let start = 0; start < ordered.length;) {
+    let end = start + 1;
+    while (end < ordered.length && value(ordered[end]) === value(ordered[start])) end++;
+    const group = ordered.slice(start, end), groupBest = Math.max(...group.map((p) => p.r.score));
+    if (groupBest > bestScore) for (const p of group) if (p.r.score === groupBest) visible.add(p.r.model.id);
+    bestScore = Math.max(bestScore, groupBest);
+    start = end;
+  }
+
+  const bestByModel = new Map<string, ScatterPoint["r"]>();
+  for (const r of ranked) {
+    const current = bestByModel.get(r.model.id);
+    if (!current || r.score > current.score || (r.score === current.score && r.rank < current.rank)) bestByModel.set(r.model.id, r);
+  }
+  [...bestByModel.values()]
+    .sort((a, b) => b.score - a.score || a.rank - b.rank || a.model.id.localeCompare(b.model.id))
+    .slice(0, Math.max(0, topCount))
+    .forEach((r) => visible.add(r.model.id));
+  return visible;
+}
+
+export function filterBarModels(points: ScatterPoint[], visibleModels: Set<string>): ScatterPoint[] {
+  return points.filter((p) => visibleModels.has(p.r.model.id));
+}
+
 /** Bar labels: round to what a reader compares (189 s, 45.2%, 0.83 s), keeping the metric's unit. */
 export const compact = (format: (x: number) => string) => (v: number) => {
   const unit = format(1).replace(/^[$]?[\d.,]+/, ""), dollar = format(1).startsWith("$");
@@ -15,12 +70,27 @@ export const compact = (format: (x: number) => string) => (v: number) => {
   return `${dollar ? "$" : ""}${n}${unit.replace(/^k(?=\s|$)/, "")}`;
 };
 
-/** Top `cap` points by index score, drawn in metric order. The caller's effort mode applies. */
-export function selectBars(pts: ScatterPoint[], better: "lower" | "higher", cap: number, highlight: string[] = []): ScatterPoint[] {
-  const featured = featuredPoints(pts, highlight), pinned = new Set(featured.map((p) => p.r.variant.id));
-  const top = [...pts].sort((a, b) => b.r.score - a.r.score);
-  const kept = [...featured, ...top.filter((p) => !pinned.has(p.r.variant.id)).slice(0, Math.max(0, cap - featured.length))];
-  return kept.sort((a, b) => better === "lower" ? value(a) - value(b) : value(b) - value(a));
+/** Keep complete model groups, cap by model score, then draw groups and bars in ascending metric order. */
+export function selectBars(pts: ScatterPoint[], _better: "lower" | "higher", modelCap: number, highlight: string[] = []): ScatterPoint[] {
+  const featured = featuredPoints(pts, highlight), pinned = new Set(featured.map((p) => p.r.model.id));
+  const groups = new Map<string, ScatterPoint[]>();
+  for (const p of pts) (groups.get(p.r.model.id) ?? groups.set(p.r.model.id, []).get(p.r.model.id)!).push(p);
+  const top = [...groups.entries()].sort(([, a], [, b]) =>
+    Math.max(...b.map((p) => p.r.score)) - Math.max(...a.map((p) => p.r.score)) ||
+    Math.min(...a.map((p) => p.r.rank)) - Math.min(...b.map((p) => p.r.rank)) ||
+    a[0].r.model.id.localeCompare(b[0].r.model.id),
+  );
+  const keptModels = new Set(pinned);
+  for (const [id] of top) {
+    if (keptModels.size >= Math.max(0, modelCap) && !keptModels.has(id)) continue;
+    keptModels.add(id);
+  }
+  const kept = [...groups.entries()].filter(([id]) => keptModels.has(id));
+  kept.sort(([, a], [, b]) => {
+    const maxA = Math.max(...a.map(value)), maxB = Math.max(...b.map(value));
+    return maxA - maxB || a[0].r.model.name.localeCompare(b[0].r.model.name) || a[0].r.model.id.localeCompare(b[0].r.model.id);
+  });
+  return kept.flatMap(([, group]) => [...group].sort((a, b) => value(a) - value(b) || b.r.score - a.r.score || a.r.variant.id.localeCompare(b.r.variant.id)));
 }
 
 /** The ECharts option behind MetricBars — shared verbatim by the browser chart and /og rasterizer. */
@@ -30,15 +100,19 @@ export function barsOption({ bars, labs, xName, formatValue, pal, narrow, highli
   const fontScale = normalizeLabelScale(labelScale);
   const hl = highlightedModels(highlight ?? []), on = hl.size > 0, featured = new Set(featuredPoints(bars, highlight ?? []).map((p) => p.r.variant.id));
   const color = new Map(labs.map((l) => [l.id, l.color]));
+  const layout = barLayout(bars.map((p) => ({ modelId: p.r.model.id, modelName: p.r.model.name, effort: p.r.variant.effort, label: chartLabel(p.r), point: p })));
   return {
-    grid: { left: 52, right: 16, top: 52, bottom: 96, ...CONTAIN_AXIS_LABELS },
-    xAxis: { type: "category", data: bars.map((p) => on && featured.has(p.r.variant.id) ? { value: chartLabel(p.r), textStyle: { color: pal.ink, fontWeight: 600 } } : chartLabel(p.r)), axisLabel: { rotate: 45, interval: 0, fontSize: 10.5 * fontScale, color: pal.ink2, fontFamily: "var(--font-inter), Inter, sans-serif", width: 110 * fontScale, overflow: "truncate" }, axisTick: { show: false } },
+    grid: { left: 52, right: 16, top: 52, bottom: 100, ...CONTAIN_AXIS_LABELS },
+    xAxis: [
+      { type: "category", data: layout.effortLabels.map((label, i) => on && layout.entries[i] && featured.has(layout.entries[i]!.point.r.variant.id) ? { value: label, textStyle: { color: pal.ink, fontWeight: 600 } } : label), axisLabel: { rotate: 0, interval: 0, hideOverlap: true, fontSize: 9.5 * fontScale, color: pal.ink2, fontFamily: "var(--font-inter), Inter, sans-serif", width: 84 * fontScale, overflow: "truncate" }, axisTick: { show: false }, axisLine: { show: false } },
+      { type: "category", data: layout.modelLabels.map((label, i) => { const p = layout.entries[i]?.point, featuredModel = p && bars.some((bar) => bar.r.model.id === p.r.model.id && featured.has(bar.r.variant.id)); return on && label && p && (hl.has(p.r.model.id) || featuredModel) ? { value: label, textStyle: { color: pal.ink, fontWeight: 600 } } : label; }), position: "bottom", offset: 32, axisLabel: { rotate: 0, interval: 0, hideOverlap: true, margin: 4, fontSize: 9.5 * fontScale, color: pal.ink, fontWeight: 500, fontFamily: "var(--font-inter), Inter, sans-serif", width: 100 * fontScale, overflow: "truncate" }, axisTick: { show: false }, axisLine: { show: false } },
+    ],
     yAxis: { type: "value", name: xName, nameTextStyle: { color: pal.grey, fontSize: 11, align: "left", padding: [0, 0, 0, -30] }, axisLabel: { formatter: (v: number) => compact(formatValue)(v) } },
-    tooltip: { trigger: "item", confine: true, formatter: (p: unknown) => { const d = bars[(p as { dataIndex: number }).dataIndex]; return d ? `<div style="font-weight:600">${chartLabel(d.r)}</div><div style="font-family:var(--font-jetbrains);margin-top:4px">${formatValue(value(d))} · index ${d.r.score.toFixed(1)}</div>` : ""; } },
+    tooltip: { trigger: "item", confine: true, formatter: (p: unknown) => { const d = (p as { data?: { point?: ScatterPoint } }).data?.point; return d ? `<div style="font-weight:600">${chartLabel(d.r)}</div><div style="font-family:var(--font-jetbrains);margin-top:4px">${formatValue(value(d))} · index ${d.r.score.toFixed(1)}</div>` : ""; } },
     series: [{
       type: "bar", id: "bars", barMaxWidth: 28,
-      data: bars.map((p) => { const c = markColor(color.get(p.r.model.labId), pal, p.r.model.labId), dim = on && !hl.has(p.r.model.id); return { value: value(p), extra: p, itemStyle: { color: dim ? dimColor(c, pal) : c, opacity: dim ? 0.6 : 1, borderRadius: [2, 2, 0, 0] }, label: dim ? { color: pal.grey } : on && featured.has(p.r.variant.id) ? { fontWeight: 700 } : undefined }; }),
-      label: { show: true, position: "top", fontSize: (narrow ? 9 : 10) * fontScale, color: pal.ink, fontFamily: "var(--font-jetbrains), monospace", formatter: (p: { value?: unknown }) => compact(formatValue)(Number(p.value)) },
+      data: layout.entries.map((entry) => { if (!entry) return { value: null, itemStyle: { color: "transparent" } }; const p = entry.point, c = markColor(color.get(p.r.model.labId), pal, p.r.model.labId), dim = on && !hl.has(p.r.model.id); return { value: value(p), point: p, extra: p, itemStyle: { color: dim ? dimColor(c, pal) : c, opacity: dim ? 0.6 : 1, borderRadius: [2, 2, 0, 0] }, label: dim ? { color: pal.grey } : on && featured.has(p.r.variant.id) ? { fontWeight: 700 } : undefined }; }),
+      label: { show: true, position: "top", fontSize: (narrow ? 9 : 10) * fontScale, color: pal.ink, fontFamily: "var(--font-jetbrains), monospace", formatter: (p: { value?: unknown }) => compact(formatValue)(Number(p.value)) }, labelLayout: { hideOverlap: true },
       animationDurationUpdate: 350,
     }],
   };

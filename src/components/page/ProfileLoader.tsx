@@ -9,8 +9,8 @@ import { Wordmark } from "../Wordmark";
 import { IndexPage, type Profile } from "./IndexPage";
 
 /** Render the profile identity immediately, then load calculation rows for its charts. */
-export function ProfileLoader({ profile, date, version, dates, edit, leaders }: {
-  profile: Profile; date: string; version: string; dates: string[]; edit: boolean;
+export function ProfileLoader({ profile, version, edit, leaders }: {
+  profile: Profile; version: string; edit: boolean;
   leaders: { name: string; score: number }[];
 }) {
   const { dark: siteDark } = useTheme();
@@ -19,20 +19,20 @@ export function ProfileLoader({ profile, date, version, dates, edit, leaders }: 
   const [retry, setRetry] = useState(0);
   useEffect(() => {
     const controller = new AbortController();
-    fetch(`/api/snapshot?view=core&date=${encodeURIComponent(date)}&version=${encodeURIComponent(version)}`, { signal: controller.signal })
+    fetch(`/api/snapshot?view=core&version=${encodeURIComponent(version)}`, { signal: controller.signal })
       .then(async (response) => {
         if (!response.ok) throw new Error("Could not load benchmark data.");
         const payload = await response.json();
         return payload.snapshot as Snapshot;
       })
       .then((data) => {
-        if (data.date !== date) throw new Error("Benchmark data changed. Please reload the page.");
+        if (data.generatedAt !== version) throw new Error("Benchmark data changed. Please reload the page.");
         if (!controller.signal.aborted) setSnapshot(mergeImports(data, profile.imports ?? []).snapshot);
       })
       .catch((cause) => { if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : "Could not load benchmark data."); });
     return () => controller.abort();
-  }, [date, version, profile.imports, retry]);
-  if (snapshot) return <IndexPage profile={profile} snapshot={snapshot} dates={dates} edit={edit} />;
+  }, [version, profile.imports, retry]);
+  if (snapshot) return <IndexPage profile={profile} snapshot={snapshot} edit={edit} />;
   const preset = resolvePreset(profile.theme, siteDark);
   const surface = preset.bg;
   return <div className="page-root min-h-screen" data-dark={preset.dark || undefined} style={presetStyle(preset, resolveAccent(profile.theme, preset)) as React.CSSProperties}>

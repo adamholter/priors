@@ -29,7 +29,7 @@ function CloseIcon() {
   return <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="m6 6 12 12M18 6 6 18" /></svg>;
 }
 
-type ShareProps = { indices: IndexConfig[]; active: IndexConfig; date: string; profile?: { handle: string; displayName: string }; /** Personal pages share their own URL, not a mix deep link. */ pageUrl?: string; defaultDesign?: string; /** One share icon that opens the card dialog (mobile headers). */ compact?: boolean; /** Top models by name, for the post text. */ top?: string[]; /** Show a one-time hint beside the button. */ hint?: boolean; onOpen?: () => void };
+type ShareProps = { indices: IndexConfig[]; active: IndexConfig; profile?: { handle: string; displayName: string }; /** Personal pages share their own URL, not a mix deep link. */ pageUrl?: string; defaultDesign?: string; /** One share icon that opens the card dialog (mobile headers). */ compact?: boolean; /** Top models by name, for the post text. */ top?: string[]; /** Show a one-time hint beside the button. */ hint?: boolean; onOpen?: () => void };
 export function ShareCards(props: ShareProps) {
   return authEnabled && !props.profile ? <SignedShareCards {...props} /> : <ShareCardsContent {...props} />;
 }
@@ -38,7 +38,7 @@ function SignedShareCards(props: ShareProps) {
   const mine = useQuery(api.profiles.mine, isAuthenticated ? {} : "skip");
   return <ShareCardsContent {...props} profile={mine ?? undefined} publishHref={!isAuthenticated ? "/sign-in" : mine === null ? "/claim" : undefined} />;
 }
-function ShareCardsContent({ indices, active, date, profile, pageUrl, defaultDesign, compact, top, hint, onOpen, publishHref }: ShareProps & { publishHref?: "/sign-in" | "/claim" }) {
+function ShareCardsContent({ indices, active, profile, pageUrl, defaultDesign, compact, top, hint, onOpen, publishHref }: ShareProps & { publishHref?: "/sign-in" | "/claim" }) {
   const [viewer, setViewer] = useState("");
   useEffect(() => { const id = requestAnimationFrame(() => setViewer(localStorage.getItem("priors:handle") ?? "")); return () => cancelAnimationFrame(id); }, []);
   const dialog = useRef<HTMLDialogElement>(null);
@@ -71,20 +71,17 @@ function ShareCardsContent({ indices, active, date, profile, pageUrl, defaultDes
     return () => clearTimeout(t);
   }, [open, primed]);
   const params = encodeIndices([active, ...indices.filter((i) => i.id !== active.id)]);
-  params.set("date", date);
   params.set("design", design);
   if (scheme === "dark") params.set("scheme", "dark");
   if (profile) params.set("handle", profile.handle);
   const shareUrl = pageUrl ?? `${origin}/builder?${params}`;
   // The posted link carries only the active index (+ design, so the preview matches the chosen card).
   const postParams = encodeIndices([active]);
-  postParams.set("date", date);
   postParams.set("design", design);
   if (scheme === "dark") postParams.set("scheme", "dark");
   if (profile) postParams.set("handle", profile.handle);
   const postUrl = pageUrl ?? `${origin}/builder?${postParams}`;
   const imageParams = encodeIndices([active]);
-  imageParams.set("date", date);
   if (scheme === "dark") imageParams.set("scheme", "dark");
   if (profile) imageParams.set("handle", profile.handle);
   const imageUrl = (id: string) => `/og?${imageParams}&design=${encodeURIComponent(id)}`;

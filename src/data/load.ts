@@ -1,4 +1,4 @@
-import { readFile, readdir } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { gunzipSync } from "node:zlib";
 import type { Snapshot } from "./types";
@@ -6,14 +6,6 @@ import type { MixLibrary } from "../onboarding/library";
 import { canonicalizeSnapshot } from "./canonical-snapshot";
 
 const SNAP_DIR = path.resolve(process.cwd(), "data/snapshots");
-
-/** List available snapshot dates (newest first). */
-export async function listSnapshotDates(): Promise<string[]> {
-  try {
-    const files = await readdir(SNAP_DIR);
-    return files.filter((f) => /^\d{4}-\d{2}-\d{2}\.json\.gz$/.test(f)).map((f) => f.slice(0, 10)).sort().reverse();
-  } catch { return []; }
-}
 
 /** Load a snapshot by date, or the latest. Memoized: the gzip+JSON.parse is
  *  significant and /og renders a dozen card designs per open. */

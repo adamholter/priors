@@ -11,7 +11,7 @@ import { computeIndex, selectVariants, type IndexConfig } from "../../src/engine
 import { benchmarkQuality, affinity } from "../../src/onboarding/quality";
 import { FOCUSES } from "../../src/onboarding/focus";
 import type { LibraryFit, MixLibrary } from "../../src/onboarding/library";
-import { DEFAULT_PRIORS_MIX, defaultLineup } from "../../src/onboarding/defaults";
+import { defaultPriorsMix, defaultLineup } from "../../src/onboarding/defaults";
 import { fitPriors, settingsKey, LEVELS } from "../../src/onboarding/optimizer";
 
 const args = process.argv.slice(2);
@@ -88,11 +88,12 @@ async function priorFits(): Promise<LibraryFit[]> {
 
 /** Exact-verified fits for the default lineup (every focus) and popular lineups, so those resolve instantly. */
 async function buildFits(snapshot: Snapshot, library: MixLibrary, quality: Record<string, number>, llmIds: Set<string>): Promise<LibraryFit[]> {
+  const defaultMix = defaultPriorsMix(snapshot);
   const lineup = defaultLineup(snapshot).filter((id) => llmIds.has(id));
   const known = await priorFits();
   // The mix that defines the default lineup orders it exactly — seed it so the capabilities
   // fit resolves immediately instead of depending on search luck.
-  known.push({ lineup, focus: "capabilities", weights: { ...DEFAULT_PRIORS_MIX.weights }, settings: { strictness: DEFAULT_PRIORS_MIX.strictness ?? 50, estimateMissing: DEFAULT_PRIORS_MIX.estimateMissing, effortMatching: DEFAULT_PRIORS_MIX.effortMatching ?? "calibrated" }, exact: true, fitScore: 100 });
+  known.push({ lineup, focus: "capabilities", weights: { ...defaultMix.weights }, settings: { strictness: defaultMix.strictness ?? 50, estimateMissing: defaultMix.estimateMissing, effortMatching: defaultMix.effortMatching ?? "calibrated" }, exact: true, fitScore: 100 });
   const fits: LibraryFit[] = [];
   const targets: { lineup: string[]; focus: FocusId; budget: number }[] = FOCUSES.map((f) => ({ lineup, focus: f.id, budget: 45_000 }));
   for (const f of FOCUSES) for (const lineup of await topLineups(f.id)) targets.push({ lineup: lineup.filter((id) => llmIds.has(id)), focus: f.id, budget: 20_000 });

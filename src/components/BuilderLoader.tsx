@@ -6,16 +6,14 @@ import { Wordmark } from "./Wordmark";
 import { Builder } from "./Builder";
 
 /** Keep the large calculation dataset out of the HTML response. */
-export function BuilderLoader({ date, dates, initialIndices }: { date?: string; dates: string[]; initialIndices: IndexConfig[] }) {
+export function BuilderLoader({ initialIndices }: { initialIndices: IndexConfig[] }) {
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [error, setError] = useState("");
   const [retry, setRetry] = useState(0);
   const load = useCallback(() => { setError(""); setRetry((n) => n + 1); }, []);
   useEffect(() => {
     const controller = new AbortController();
-    const query = new URLSearchParams({ view: "core" });
-    if (date) query.set("date", date);
-    fetch(`/api/snapshot?${query}`, { signal: controller.signal })
+    fetch("/api/snapshot?view=core", { signal: controller.signal })
       .then(async (response) => {
         if (!response.ok) throw new Error("Could not load benchmark data.");
         const payload = await response.json();
@@ -24,8 +22,8 @@ export function BuilderLoader({ date, dates, initialIndices }: { date?: string; 
       .then((data) => { if (!controller.signal.aborted) setSnapshot(data); })
       .catch((cause) => { if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : "Could not load benchmark data."); });
     return () => controller.abort();
-  }, [date, retry]);
-  if (snapshot) return <Builder snapshot={snapshot} dates={dates} initialIndices={initialIndices} />;
+  }, [retry]);
+  if (snapshot) return <Builder snapshot={snapshot} initialIndices={initialIndices} />;
   return <div className="min-h-screen">
     <header className="flex items-center px-4 sm:px-8 h-14 border-b hairline"><Wordmark /></header>
     <main className="grid grid-cols-1 lg:grid-cols-[360px_minmax(0,1fr)] gap-10 px-4 sm:px-8 py-8 max-w-[1500px]" aria-busy={!error}>

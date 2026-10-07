@@ -1,5 +1,5 @@
 import type { Snapshot } from "../data/types";
-import { chartVariantMode, computeIndex, selectVariants, type IndexConfig } from "../engine";
+import { computeIndex, selectVariants, type IndexConfig } from "../engine";
 import { decodeIndex } from "../lib/url";
 
 export const PRIORS_MIX_COOKIE = "priors:mix";
@@ -13,29 +13,28 @@ export const LEGACY_DEFAULTS = [
   ["claude-opus-5.5", "gpt-6-astra", "claude-fable-5.1", "claude-fable-5", "gpt-6-sol", "claude-opus-5", "grok-4.7", "gpt-6-luna", "glm-5.3", "gpt-5.6-terra", "gemini-3.8-flash", "grok-4.6", "gemini-3.7-flash", "claude-sonnet-5"],
 ];
 
-/**
- * The mix that defines the default lineup — the owner's "My priors" index. New models join the
- * default automatically when they climb into its top ranks; nobody edits a list by hand.
- */
+/** First-time ranking uses Artificial Analysis' measured composite, not a custom mix. */
 export const DEFAULT_PRIORS_MIX: IndexConfig = decodeIndex(
-  "My priors|aa-artificial-analysis-long-context-reasoning:55.4,aa-automationbench-aa:55.4,aa-briefcase:21.6,aa-gdp-pdf:100,aa-omniscience:59.9,aa-omniscience-non-hallucination:9.5,aa-scicode:87.8,aa-terminalbench-v4-0:60.8|strict=50|bars=best|est=0|var=best|effort=strict|focus=capabilities",
+  "Artificial Analysis|aa-intelligence-index-v4.3.2:100|strict=50|bars=best|est=0|var=best|effort=strict|focus=capabilities",
   "default-priors",
 )!;
 
+export function defaultPriorsMix(snapshot: Snapshot): IndexConfig {
+  const latest = snapshot.benchmarks.filter(b => b.id.startsWith("aa-intelligence-index"))
+    .sort((a, b) => b.id.localeCompare(a.id, undefined, { numeric: true }))[0];
+  return { ...DEFAULT_PRIORS_MIX, weights: latest ? { [latest.id]: 100 } : {} };
+}
+
 const lineupCache = new WeakMap<Snapshot, string[]>();
-/** The first `n` models under a mix on the current snapshot. */
-export function defaultLineup(snapshot: Snapshot, n = 14, mix: IndexConfig = DEFAULT_PRIORS_MIX): string[] {
-  if (mix !== DEFAULT_PRIORS_MIX) {
-    const r = computeIndex(snapshot, { ...mix, variants: "all" });
-    return selectVariants(r.ranked, chartVariantMode(mix, "ranking")).slice(0, n).map((x) => x.model.id);
+/** Top n distinct models, using the saved mix's eligibility and strictness unchanged. */
+export function defaultLineup(snapshot: Snapshot, n = 16, mix?: IndexConfig): string[] {
+  if (mix) return selectVariants(computeIndex(snapshot, { ...mix, variants: "all" }).ranked, "best").slice(0, n).map(x => x.model.id);
+  let lineup = lineupCache.get(snapshot);
+  if (!lineup) {
+    lineup = selectVariants(computeIndex(snapshot, { ...defaultPriorsMix(snapshot), variants: "all" }).ranked, "best").map(x => x.model.id);
+    lineupCache.set(snapshot, lineup);
   }
-  let l = lineupCache.get(snapshot);
-  if (!l) {
-    const r = computeIndex(snapshot, { ...DEFAULT_PRIORS_MIX, variants: "all" });
-    l = selectVariants(r.ranked, chartVariantMode(DEFAULT_PRIORS_MIX, "ranking")).map((x) => x.model.id);
-    lineupCache.set(snapshot, l);
-  }
-  return l.slice(0, n);
+  return lineup.slice(0, n);
 }
 
 /** A completed fit is a mix, never a frozen list of model IDs. */

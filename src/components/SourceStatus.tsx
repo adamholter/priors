@@ -18,7 +18,7 @@ export function SourceStatus({ snapshot, onSnapshot }: { snapshot: Snapshot; onS
         setError("");
         setCanRefresh(data.canRefresh);
         setBusy(data.refreshing);
-        if (!new URLSearchParams(window.location.search).has("date") && data.generatedAt !== snapshot.generatedAt) {
+        if (data.generatedAt !== snapshot.generatedAt) {
           const updated = await fetch(`/api/snapshot?view=core&version=${encodeURIComponent(data.generatedAt)}`, { cache: "no-store" });
           if (!updated.ok) throw new Error("Could not load updated data.");
           const payload = await updated.json();
@@ -37,7 +37,7 @@ export function SourceStatus({ snapshot, onSnapshot }: { snapshot: Snapshot; onS
       const response = await fetch("/api/snapshot", { method: "POST", headers: { "x-priors-refresh": "1" } });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error);
-      if (data.snapshot && !new URLSearchParams(window.location.search).has("date")) onSnapshot(data.snapshot);
+      if (data.snapshot) onSnapshot(data.snapshot);
     } catch (e) { setError(e instanceof Error ? e.message : "Refresh failed."); }
     finally { setBusy(false); }
   };
@@ -46,7 +46,7 @@ export function SourceStatus({ snapshot, onSnapshot }: { snapshot: Snapshot; onS
       <summary className="cap cursor-pointer">Sources · {checked || snapshot.date}</summary>
       <div className="grid gap-2 mt-3">
         {canRefresh && <button className="btn-quiet" disabled={busy} onClick={refresh}>{busy ? "Scraping live sources…" : "Refresh sources"}</button>}
-        <p className="cap">Local scrapers check the source sites. Open pages check for new snapshots every minute; historical dates stay fixed.</p>
+        <p className="cap">Local scrapers check the source sites. Open pages check for new snapshots every minute.</p>
         {error && <p role="alert">{error}</p>}
         {snapshot.sources.map((s) => <div key={s.sourceId} className="grid gap-0.5">
           <span>{s.sourceId} · {s.status} · {s.rowCount} source rows</span>

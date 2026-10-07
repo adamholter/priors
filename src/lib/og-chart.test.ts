@@ -32,6 +32,19 @@ const index = (highlight: string[]): IndexConfig => ({
 });
 
 describe("share-card chart highlights", () => {
+  it("applies metric-bar defaults at model level while scatter specs retain all eligible points", () => {
+    const candidates = [
+      ranked("best", "Best", "anthropic", "high", 100, 0.12), ranked("best", "Best", "anthropic", "low", 90, 0.08),
+      ranked("second", "Second", "openai", "high", 95, 0.14), ranked("third", "Third", "openai", "high", 90, 0.16),
+      ranked("frontier", "Frontier", "anthropic", "high", 80, 0.02), ranked("hidden", "Hidden", "openai", "high", 60, 0.3),
+    ];
+    const spec = scatterSpec({} as Snapshot, candidates, index([]), "cost", "all")!;
+    expect(spec.pts).toHaveLength(6);
+    expect(spec.barPts?.map((p) => p.r.variant.id)).toEqual([
+      "best@high", "best@low", "second@high", "third@high", "frontier@high",
+    ]);
+  });
+
   it("renders dense charts without passing clipped labels to the PNG renderer", async () => {
     const dense = Array.from({ length: 80 }, (_, i) => ranked(`model-${i}`, `Model ${i}`, "anthropic", "high", 80, 0.1));
     const spec = scatterSpec({} as Snapshot, dense, index([]), "cost", "all")!;

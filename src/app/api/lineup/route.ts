@@ -27,5 +27,5 @@ export async function GET(req: Request) {
     }
   }
   if (!mix) return NextResponse.json({ error: "Saved mix unavailable." }, { status: 400 });
-  return NextResponse.json({ lineup: defaultLineup(data, 14, mix), mix: encodeIndex(mix) }, { headers: { "Cache-Control": "private, no-store" } });
+  return NextResponse.json({ lineup: defaultLineup(data, 16, mix), mix: encodeIndex(mix) }, { headers: { "Cache-Control": "private, no-store" } });
 }

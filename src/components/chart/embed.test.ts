@@ -35,14 +35,14 @@ const bars: BarSpec = {
   highlight: ["claude-opus-5.5@high"],
   bars: [{
     n: "Claude Opus 5.5 high", v: 2.4, c: "#EA8A73", d: "#EA8A73", dc: "#D7ACA2", dd: "#A77872",
-    m: "claude-opus-5.5", id: "claude-opus-5.5@high", e: "high", h: true, a: true, t: "<b>Claude Opus 5.5 high</b>",
+    m: "claude-opus-5.5", mn: "Claude Opus 5.5", id: "claude-opus-5.5@high", e: "high", h: true, a: true, t: "<b>Claude Opus 5.5 high</b>",
   }],
 };
 
 type EmbedOption = {
   series: { z?: number; data?: { id?: string; label?: Record<string, unknown>; itemStyle?: Record<string, unknown> }[] }[];
   graphic?: { children: { type: string }[] }[];
-  xAxis?: { data: (string | { value: string; textStyle?: Record<string, unknown> })[] };
+  xAxis?: { data: (string | { value: string; textStyle?: Record<string, unknown> })[]; axisLabel?: { fontSize: number } }[];
 };
 
 function inlineScript(html: string) {
@@ -101,10 +101,12 @@ describe("standalone chart exports", () => {
     const calls = runEmbed(inlineScript(barsHtml({
       ...bars,
       highlight: ["claude-opus-5.5@high"],
-      bars: [...bars.bars, { ...bars.bars[0], n: "Other model", m: "other", id: "other@default", h: false, a: false, c: "#2F4FB0", d: "#9AABF5", dc: "#B8B8D0", dd: "#8B8B8F" }],
+      bars: [...bars.bars, { ...bars.bars[0], n: "Other model", m: "other", mn: "Other model", id: "other@default", h: false, a: false, c: "#2F4FB0", d: "#9AABF5", dc: "#B8B8D0", dd: "#8B8B8F" }],
     })));
-    const option = calls[0].option as unknown as EmbedOption, [selected, dimmed] = option.series[0].data!;
-    expect(option.xAxis?.data[0]).toMatchObject({ value: "Claude Opus 5.5 high", textStyle: { fontWeight: 600 } });
+    const option = calls[0].option as unknown as EmbedOption, data = option.series[0].data!;
+    const selected = data.find((item) => item.id === "claude-opus-5.5@high")!, dimmed = data.find((item) => item.id === "other@default")!;
+    expect(option.xAxis?.[1].data[0]).toMatchObject({ value: "Claude Opus 5.5", textStyle: { fontWeight: 600 } });
+    expect(option.xAxis?.[1].data[1]).toBe("");
     expect(selected.itemStyle?.color).toBe("#EA8A73");
     expect(dimmed.itemStyle).toMatchObject({ color: "#B8B8D0", opacity: 0.6 });
   });
@@ -114,6 +116,6 @@ it("uses the selected label size in executable scatter and bar embeds", () => {
   const scatterOption = runEmbed(inlineScript(scatterHtml({ ...scatter, labelScale: 1.5 })))[0].option;
   const barsOption = runEmbed(inlineScript(barsHtml({ ...bars, labelScale: 1.5 })))[0].option;
   expect((scatterOption.series as { label: { fontSize: number } }[]).at(-1)!.label.fontSize).toBe(17.25);
-  expect((barsOption.xAxis as { axisLabel: { fontSize: number } }).axisLabel.fontSize).toBe(15.75);
+  expect((barsOption.xAxis as { axisLabel: { fontSize: number } }[])[0].axisLabel.fontSize).toBe(14.25);
   expect((barsOption.series as { label: { fontSize: number } }[])[0].label.fontSize).toBe(15);
 });

@@ -6,7 +6,7 @@ import type { RankedVariant, IndexConfig } from "../engine";
 import { chartVariantMode } from "../engine";
 import { echarts, themeFor, paletteFor, markColor, DARK_PALETTE, SANS_STATIC, MONO_STATIC, type ChartPalette } from "../components/chart/theme";
 import { scatterOption, DEFAULT_VIEW, guidePoints, type Highlight, type ScatterPoint } from "../components/chart/scatter-option";
-import { barsOption, selectBars } from "../components/chart/bars-option";
+import { barsOption, defaultBarModels, filterBarModels, selectBars } from "../components/chart/bars-option";
 import { frameSvg } from "../components/chart/export-frame";
 import { chartKind, chartTitle, costChart, pickPoints, type MetricChart } from "./metrics";
 import { presetOf } from "./page-presets";
@@ -19,6 +19,8 @@ export interface ChartSpec {
   title: string;
   chart: MetricChart;
   pts: ScatterPoint[];
+  /** Vertical bars use chart-local defaults; scatter keeps the full index-filtered set. */
+  barPts?: ScatterPoint[];
   hasTitle: boolean;
   /** Highlighted model ids or exact variant ids from the shared index URL. */
   highlight?: string[];
@@ -31,7 +33,16 @@ export interface ChartSpec {
  */
 export function scatterSpec(snapshot: Snapshot, ranked: RankedVariant[], index: IndexConfig, c: string | undefined, cm?: string, cs?: string, hidden: ChartHidden = EMPTY_HIDDEN, labelScale?: number): ChartSpec | null {
   const mode = cm === "best" || cm === "all" ? cm : chartVariantMode(index, "pareto");
-  const from = (chart: MetricChart, title: string, hasTitle: boolean): ChartSpec => ({ title, hasTitle, labelScale: normalizeLabelScale(labelScale), chart: chart.scale === "log" && cs === "linear" ? { ...chart, scale: "linear", xName: chart.xName.replace(/, log| \(log\)/g, "") } : chart, pts: visiblePoints(pickPoints(chart, ranked, mode), hidden), highlight: index.highlight?.length ? [...index.highlight] : undefined });
+  const from = (chart: MetricChart, title: string, hasTitle: boolean): ChartSpec => {
+    const metricPoints = chart.points(ranked), defaults = defaultBarModels(metricPoints, chart.better, ranked);
+    return {
+      title, hasTitle, labelScale: normalizeLabelScale(labelScale),
+      chart: chart.scale === "log" && cs === "linear" ? { ...chart, scale: "linear", xName: chart.xName.replace(/, log| \(log\)/g, "") } : chart,
+      pts: visiblePoints(pickPoints(chart, ranked, mode), hidden),
+      barPts: visiblePoints(filterBarModels(pickPoints(chart, ranked, mode), defaults), hidden),
+      highlight: index.highlight?.length ? [...index.highlight] : undefined,
+    };
+  };
   if (c === "cost") return from(costChart, "Score vs cost per task", true);
   const ck = chartKind(snapshot, ranked, c, index.timeSource);
   if (ck?.kind !== "metric") return null;
@@ -120,7 +131,9 @@ export async function renderChartPng(spec: ChartSpec, labs: Lab[], pal: ChartPal
   const kind = cv === "bars" || cv === "scatter" ? cv : spec.chart.defaultKind ?? "scatter";
   const highlight = spec.highlight?.length ? spec.highlight : undefined;
   if (kind === "bars" && spec.chart.scale !== "time") {
-    const bars = selectBars(spec.pts, spec.chart.better, 24, highlight);
+    const barPts = spec.barPts ?? spec.pts;
+    const modelCount = new Set(barPts.map((p) => p.r.model.id)).size;
+    const bars = selectBars(barPts, spec.chart.better, Math.max(24, modelCount), highlight);
     if (!bars.length) return null;
     const opt = barsOption({ bars, labs, xName: spec.chart.xName.replace(", log", ""), formatValue: spec.chart.xLabel === costChart.xLabel ? costChart.formatX : spec.chart.formatValue ?? spec.chart.formatX, pal, narrow: false, highlight, labelScale: spec.labelScale });
     // Rotated category labels need deep bottom margin; keep them clear of X's bottom-left pill (~y550).

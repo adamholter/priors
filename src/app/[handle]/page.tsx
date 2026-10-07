@@ -4,7 +4,7 @@ import { cache } from "react";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { api } from "../../../convex/_generated/api";
-import { listSnapshotDates, loadSnapshot } from "@/data/load";
+import { loadSnapshot } from "@/data/load";
 import { mergeImports } from "@/lib/import";
 import type { Profile } from "@/components/page/IndexPage";
 import { IndexPage } from "@/components/page/IndexPage";
@@ -56,7 +56,7 @@ export async function generateMetadata({ params, searchParams }: PageProps<"/[ha
     ? { url: `/og?handle=${handle}&i=${encodeURIComponent(encodeIndex(index))}${chart ? `&c=${encodeURIComponent(typeof sp.c === "string" ? sp.c : chart)}` : ""}${viewParams}${radarQuery}${hiddenParams}`, width: 1200, height: 630, alt: title }
     : { url: `/${handle}/opengraph-image?v=${Math.round((p as { updatedAt?: number }).updatedAt ?? 0)}`, width: 1200, height: 630, alt: title };
   const query = new URLSearchParams();
-  for (const key of ["c", "cv", "cm", "cs", "ls", "ch", "date", "hl", "hi", ...RADAR_PARAM_KEYS]) {
+  for (const key of ["c", "cv", "cm", "cs", "ls", "ch", "hl", "hi", ...RADAR_PARAM_KEYS]) {
     const value = sp[key];
     for (const item of Array.isArray(value) ? value : typeof value === "string" ? [value] : []) query.append(key, item);
   }
@@ -73,18 +73,17 @@ export default async function Page({ params, searchParams }: PageProps<"/[handle
     // Link-preview crawlers cap response size — give them the tags plus a tiny body, not the app.
     const { title, description } = profileCard(p, sp);
     const query = new URLSearchParams();
-    for (const key of ["c", "cv", "cm", "cs", "ls", "ch", "date", "hl", "hi", ...RADAR_PARAM_KEYS]) {
+    for (const key of ["c", "cv", "cm", "cs", "ls", "ch", "hl", "hi", ...RADAR_PARAM_KEYS]) {
       const value = sp[key];
       for (const item of Array.isArray(value) ? value : typeof value === "string" ? [value] : []) query.append(key, item);
     }
     return <PreviewPage title={title} description={description} href={`/${handle}${query.size ? `?${query}` : ""}`} />;
   }
-  const date = typeof sp.date === "string" ? sp.date : undefined;
-  const [snap, dates] = await Promise.all([loadSnapshot(date), listSnapshotDates()]);
+  const snap = await loadSnapshot();
   if (!snap) notFound();
   const { snapshot } = mergeImports(snap, p.imports ?? []);
-  if (await isSearchBot()) return <PageTransition><IndexPage profile={p} snapshot={clientSnapshot(snapshot)} dates={dates} edit={false} /></PageTransition>;
+  if (await isSearchBot()) return <PageTransition><IndexPage profile={p} snapshot={clientSnapshot(snapshot)} edit={false} /></PageTransition>;
   const first = p.indices[0];
   const leaders = first ? selectVariants(computeIndex(snapshot, { ...first, variants: "all" }).ranked, chartVariantMode(first, "ranking")).slice(0, 10).map((r) => ({ name: r.model.name, score: r.score })) : [];
-  return <PageTransition><ProfileLoader key={`${p.handle}-${snapshot.generatedAt}`} profile={p} date={snapshot.date} version={snapshot.generatedAt} dates={dates} edit={sp.edit === "1"} leaders={leaders} /></PageTransition>;
+  return <PageTransition><ProfileLoader key={`${p.handle}-${snapshot.generatedAt}`} profile={p} version={snapshot.generatedAt} edit={sp.edit === "1"} leaders={leaders} /></PageTransition>;
 }

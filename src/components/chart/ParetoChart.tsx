@@ -5,6 +5,7 @@ import type { Lab } from "@/data/types";
 import type { RankedVariant } from "@/engine";
 import { ScoreScatter, type ScatterView } from "./ScoreScatter";
 import { costChart, pickPoints } from "@/lib/metrics";
+import { useBarModelVisibility, type BarModelPicker } from "./bar-model-visibility";
 
 import { linkedLabelScale } from "./label-size";
 
@@ -14,7 +15,7 @@ export function variantLabel(r: RankedVariant) {
 }
 
 /** Index score vs measured cost per task (log x), with the Pareto frontier traced in ink. */
-export function ParetoChart({ ranked, mode = "all", labs, height = 460, title, actions, view, onView, anchor, description }: { ranked: RankedVariant[]; mode?: "all" | "best"; labs: Lab[]; height?: number; title?: ReactNode; actions?: ReactNode; view: ScatterView; onView: (view: ScatterView, persist?: boolean) => void; anchor?: string; description?: string }) {
+export function ParetoChart({ ranked, mode = "all", labs, height = 460, title, actions, view, onView, anchor, description }: { ranked: RankedVariant[]; mode?: "all" | "best"; labs: Lab[]; height?: number; title?: ReactNode; actions?: ReactNode | ((barModels?: BarModelPicker) => ReactNode); view: ScatterView; onView: (view: ScatterView, persist?: boolean) => void; anchor?: string; description?: string }) {
   const [linkedKind, setLinkedKind] = useState<"bars" | "scatter">();
   useEffect(() => {
     if (!anchor) return;
@@ -38,10 +39,14 @@ export function ParetoChart({ ranked, mode = "all", labs, height = 460, title, a
       window.history.replaceState(null, "", url.toString());
     }
   };
+  const allPoints = costChart.points(ranked), pts = pickPoints(costChart, ranked, mode);
+  const barVisibility = useBarModelVisibility({ metricPoints: allPoints, points: pts, better: costChart.better, ranked });
+  const scatterActions = typeof actions === "function" ? actions() : actions;
+  const barActions = typeof actions === "function" ? actions(barVisibility.picker) : actions;
   const controls = <><div className="seg" role="group" aria-label="Cost chart type">
     <button type="button" aria-pressed={!bars} title="Score vs cost" onClick={() => changeKind("scatter")}><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><circle cx="4" cy="11" r="1.6" /><circle cx="8" cy="6" r="1.6" /><circle cx="12.5" cy="4" r="1.6" /><circle cx="10" cy="10" r="1.6" /></svg></button>
     <button type="button" aria-pressed={bars} title="Bar chart" onClick={() => changeKind("bars")}><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><rect x="2" y="3" width="3" height="11" /><rect x="6.5" y="6" width="3" height="8" /><rect x="11" y="9" width="3" height="5" /></svg></button>
-  </div>{actions}</>;
+  </div>{bars ? barActions : scatterActions}</>;
   const linkParams = { cv: bars ? "bars" as const : undefined, cs: !bars ? view.scale : undefined };
   useEffect(() => {
     if (!anchor) return;
@@ -51,9 +56,8 @@ export function ParetoChart({ ranked, mode = "all", labs, height = 460, title, a
     else if (bars) url.searchParams.delete("cs");
     window.history.replaceState(null, "", url.toString());
   }, [anchor, bars, view.scale]);
-  const pts = pickPoints(costChart, ranked, mode);
   const heading = <div>{bars ? <h2 className="text-[22px]">Cost per task</h2> : title}{description && <p className="cap mt-1">{description}</p>}</div>;
-  if (bars) return <MetricBars labelScale={view.labelScale} pts={pts} labs={labs} better={costChart.better} xName="Cost per task ($)" formatValue={costChart.formatX} height={height} aria="Cost per task by model" title={heading} actions={controls} anchor={anchor} linkParams={linkParams} exportName="Cost per task" />;
+  if (bars) return <MetricBars labelScale={view.labelScale} pts={barVisibility.points} labs={labs} better={costChart.better} xName="Cost per task ($)" formatValue={costChart.formatX} height={height} aria="Cost per task by model" title={heading} actions={controls} anchor={anchor} linkParams={linkParams} exportName="Cost per task" />;
   return <ScoreScatter pts={pts} labs={labs} better={costChart.better} xName={costChart.xName} xShort={costChart.xShort} scale={costChart.scale} formatX={costChart.formatX} formatValue={costChart.formatValue} height={height} aria={costChart.aria} title={heading} actions={controls} linkParams={linkParams} view={view} anchor={anchor} exportName="Score vs cost per task"
     tooltipExtra={(p) => p.r.speed ? ` · ${Math.round(p.r.speed)} tok/s` : ""} extraRows={(p) => ({ speed_toks: p.r.speed ?? null, coverage: p.r.coverage })} />;
 }

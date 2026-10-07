@@ -3,7 +3,7 @@ import { BuilderLoader } from "@/components/BuilderLoader";
 import { Builder } from "@/components/Builder";
 import { clientSnapshot } from "@/data/client-snapshot";
 import { PageTransition } from "@/components/PageTransition";
-import { listSnapshotDates, loadSnapshot } from "@/data/load";
+import { loadSnapshot } from "@/data/load";
 import { decodeIndices } from "@/lib/url";
 import { chartTitle } from "@/lib/metrics";
 import { RADAR_PARAM_KEYS } from "@/components/chart/radar-view";
@@ -13,9 +13,9 @@ import { isPreviewBot, isSearchBot, PreviewPage } from "@/lib/link-preview";
 export const dynamic = "force-dynamic";
 
 /** "GPT-6 Sol 60.3 · GPT-5.6 Sol 59.2 — 6 benchmarks: Humanity's Last Exam 29%, …" */
-async function describe(index: Parameters<typeof computeIndex>[1], date?: string): Promise<string | undefined> {
+async function describe(index: Parameters<typeof computeIndex>[1]): Promise<string | undefined> {
   try {
-    const snapshot = await loadSnapshot(date);
+    const snapshot = await loadSnapshot();
     if (!snapshot) return undefined;
     const r = computeIndex(snapshot, { ...index, variants: "all" });
     const rows = selectVariants(r.ranked, chartVariantMode(index, "ranking"));
@@ -32,7 +32,7 @@ type SP = Record<string, string | string[] | undefined>;
 
 async function cardFor(sp: SP) {
   const query = new URLSearchParams();
-  for (const key of ["i", "date", "design", "handle", "c", "cv", "cm", "cs", "ls", "ch", "scheme", ...RADAR_PARAM_KEYS]) {
+  for (const key of ["i", "design", "handle", "c", "cv", "cm", "cs", "ls", "ch", "scheme", ...RADAR_PARAM_KEYS]) {
     const value = sp[key];
     for (const item of Array.isArray(value) ? value : value ? [value] : []) query.append(key, item);
   }
@@ -40,7 +40,7 @@ async function cardFor(sp: SP) {
   const ct = chartTitle(typeof sp.c === "string" ? sp.c : undefined);
   const base = index?.name ?? "priors";
   const title = ct ? `${base} · ${ct}` : base;
-  const description = index ? await describe(index, typeof sp.date === "string" ? sp.date : undefined) : undefined;
+  const description = index ? await describe(index) : undefined;
   const desc = description ? (ct ? `${ct}: ${description}` : description) : undefined;
   return { query, title, desc };
 }
@@ -58,14 +58,11 @@ export default async function Home({ searchParams }: PageProps<"/builder">) {
     const { query, title, desc } = await cardFor(sp);
     return <PreviewPage title={title} description={desc} href={`/builder?${query}`} />;
   }
-  const date = typeof sp.date === "string" ? sp.date : undefined;
-  const dates = await listSnapshotDates();
-  if (!dates.length || (date && !dates.includes(date))) return <main className="p-10"><h1 className="text-3xl">priors</h1><p className="mt-3 text-ink-2">No snapshot yet. Run <code className="mono">npm run scrape</code>.</p></main>;
   const i = sp.i == null ? [] : Array.isArray(sp.i) ? sp.i : [sp.i];
   if (await isSearchBot()) {
-    const snapshot = await loadSnapshot(date);
+    const snapshot = await loadSnapshot();
     if (!snapshot) return <main className="p-10">No benchmark snapshot available.</main>;
-    return <PageTransition><Builder snapshot={clientSnapshot(snapshot)} dates={dates} initialIndices={decodeIndices(i)} /></PageTransition>;
+    return <PageTransition><Builder snapshot={clientSnapshot(snapshot)} initialIndices={decodeIndices(i)} /></PageTransition>;
   }
-  return <PageTransition><BuilderLoader key={date ?? "latest"} date={date} dates={dates} initialIndices={decodeIndices(i)} /></PageTransition>;
+  return <PageTransition><BuilderLoader initialIndices={decodeIndices(i)} /></PageTransition>;
 }

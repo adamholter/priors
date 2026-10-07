@@ -1,3 +1,9 @@
+import { auth } from "@clerk/nextjs/server";
+import { ConvexHttpClient } from "convex/browser";
+import { api } from "../../../convex/_generated/api";
+import { mergeImports } from "@/lib/import";
+import type { Profile } from "@/components/page/IndexPage";
+import { encodeIndex } from "@/lib/url";
 import { cookies } from "next/headers";
 import { loadSnapshot } from "@/data/load";
 import { Onboarding } from "@/onboarding/Onboarding";
@@ -11,9 +17,25 @@ export const metadata = { title: "What are your priors?" };
 
 /** The ranking onboarding. Always reachable here; `/` sends returning visitors to the builder instead. */
 export default async function Rank() {
-  const snapshot = await loadSnapshot();
+  let snapshot = await loadSnapshot();
   if (!snapshot) return <main className="p-10">No benchmark snapshot available.</main>;
-  const mix = savedMix((await cookies()).get(PRIORS_MIX_COOKIE)?.value, snapshot);
+  let mix = savedMix((await cookies()).get(PRIORS_MIX_COOKIE)?.value, snapshot);
+  // A returning account may have no saved browser cookie on this device.
+  if (!mix && process.env.NEXT_PUBLIC_CONVEX_URL && process.env.CLERK_SECRET_KEY && process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY) {
+    try {
+      const { userId, getToken } = await auth();
+      const token = userId ? await getToken({ template: "convex" }) : null;
+      if (token) {
+        const client = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL);
+        client.setAuth(token);
+        const profile = await client.query(api.profiles.mine, {}) as Profile | null;
+        if (profile?.indices[0]) {
+          snapshot = mergeImports(snapshot, profile.imports ?? []).snapshot;
+          mix = savedMix(encodeURIComponent(encodeIndex(profile.indices[0])), snapshot);
+        }
+      }
+    } catch { /* Cookie or AA default remains available when account lookup fails. */ }
+  }
   const lineup = defaultLineup(snapshot, 16, mix ?? undefined);
   const quality = benchmarkQuality(snapshot);
   const count = await rankedCount();

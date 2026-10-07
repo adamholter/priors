@@ -17,7 +17,6 @@ import { ParetoChart } from "../chart/ParetoChart";
 import { useScatterView } from "../chart/ScoreScatter";
 import { SpeedChart } from "../chart/SpeedChart";
 import { BenchmarkTable } from "./BenchmarkTable";
-import { DatePicker } from "../DatePicker";
 import { MetricGallery } from "./MetricGallery";
 import { authEnabled } from "@/app/providers";
 import { PageEditor } from "./PageEditor";
@@ -40,7 +39,7 @@ export interface Profile {
   imports?: { benchmark: Snapshot["benchmarks"][0]; rows: import("@/data/types").RawRow[] }[];
 }
 
-export function IndexPage({ profile, snapshot, dates, edit }: { profile: Profile; snapshot: Snapshot; dates: string[]; edit: boolean }) {
+export function IndexPage({ profile, snapshot, edit }: { profile: Profile; snapshot: Snapshot; edit: boolean }) {
   const [p, setPState] = useState(profile);
   const [prevProfile, setPrevProfile] = useState(profile);
   if (profile !== prevProfile) { setPrevProfile(profile); setPState(profile); }
@@ -94,17 +93,15 @@ export function IndexPage({ profile, snapshot, dates, edit }: { profile: Profile
         <span className="text-grey text-[13px] max-sm:hidden">/ {p.handle}</span>
         <span className="max-sm:hidden"><SiteNav /></span>
         <div className="ml-auto hidden sm:flex flex-wrap items-center justify-end gap-3">
-          <DatePicker current={snapshot.date} dates={dates} />
-          {p.indices[0] && <ShareCards indices={p.indices} active={p.indices[0]} date={snapshot.date} profile={p} pageUrl={pageUrl.toString()} defaultDesign={p.theme?.cardDesign} top={topNames} />}
+          {p.indices[0] && <ShareCards indices={p.indices} active={p.indices[0]} profile={p} pageUrl={pageUrl.toString()} defaultDesign={p.theme?.cardDesign} top={topNames} />}
           <Link href={builderHref as "/"} className="btn-quiet">Open in builder</Link>
           {authEnabled && <PageEditor profile={p} onChange={setP} snapshot={snapshot} editing={edit} />}
           {followsSite && <ThemeToggle />}
         </div>
         <div className="ml-auto flex sm:hidden items-center gap-1">
-          {p.indices[0] && <ShareCards compact indices={p.indices} active={p.indices[0]} date={snapshot.date} profile={p} pageUrl={pageUrl.toString()} defaultDesign={p.theme?.cardDesign} top={topNames} />}
+          {p.indices[0] && <ShareCards compact indices={p.indices} active={p.indices[0]} profile={p} pageUrl={pageUrl.toString()} defaultDesign={p.theme?.cardDesign} top={topNames} />}
           {followsSite && <ThemeToggle />}
           <MobileMenu>
-            <DatePicker current={snapshot.date} dates={dates} />
             <Link href={builderHref as "/"} className="btn-quiet text-center">Open in builder</Link>
             <Link href="/explore" className="btn-quiet text-center">Explore rankings</Link>
             <Link href="/rank" className="btn-quiet text-center">Rank models</Link>
@@ -119,7 +116,7 @@ export function IndexPage({ profile, snapshot, dates, edit }: { profile: Profile
       </div>}
       {viewer?.published && <div className="border-b hairline px-4 sm:px-8 py-3 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-[13px]" style={{ background: surface }} role="status">
         <span><span className="text-ink">Your page is live</span> <span className="text-ink-2">at mypriors.com/{p.handle} and listed on Explore.</span></span>
-        {p.indices[0] && <ShareCards indices={p.indices} active={p.indices[0]} date={snapshot.date} profile={p} pageUrl={pageUrl.toString()} defaultDesign={p.theme?.cardDesign} top={topNames} />}
+        {p.indices[0] && <ShareCards indices={p.indices} active={p.indices[0]} profile={p} pageUrl={pageUrl.toString()} defaultDesign={p.theme?.cardDesign} top={topNames} />}
         <Link href={`/${p.handle}?edit=1` as "/"} className="btn-quiet">Customize page</Link>
         <Link href="/explore" className="btn-quiet">See Explore</Link>
       </div>}
@@ -137,7 +134,7 @@ export function IndexPage({ profile, snapshot, dates, edit }: { profile: Profile
           </div>
         </section>
 
-        {(p.sections.some((s) => s.kind === "gallery") ? p.sections : [...p.sections, { id: "gallery-auto", kind: "gallery" as const, indexId: p.indices[0]?.id }]).filter((s) => !s.hidden).map((s) => {
+        {(p.sections.some((s) => s.kind === "gallery") ? p.sections : [...p.sections, { id: "gallery-auto", kind: "gallery" as const, indexId: p.indices[0]?.id }]).filter((s) => !s.hidden && s.kind !== "history").map((s) => {
           const idx = (s.indexId ? p.indices.find((i) => i.id === s.indexId) : undefined) ?? (s.kind === "gallery" ? p.indices[0] : undefined);
           const r = idx ? results.get(idx.id) : undefined;
           const title = s.title ?? defaultTitle(s, idx?.name);
@@ -171,9 +168,14 @@ export function IndexPage({ profile, snapshot, dates, edit }: { profile: Profile
               <Rankings anchor={anchorOf(title)} title={<h2 className="text-[21px] sm:text-[24px]">{title}</h2>} actions={settings("Ranking", rankingMode, "rankingVariants")} ranked={selectVariants(r.ranked, rankingMode)} showEffort={rankingMode === "all"} labs={snapshot.labs} limit={25} selected={selected} onSelect={(x) => setSelected(x?.variant.id ?? null)} />
             </section>
           );
-          if (s.kind === "pareto") return wrap(<section key={s.id} className="chart-panel"><ParetoChart description={taskMetricDescription(idx.costSource ?? "aa", "cost")} anchor={anchorOf(title)} ranked={r.ranked} mode={paretoMode} labs={snapshot.labs} height={440} view={paretoView} onView={setParetoView} title={<h2 className="text-[21px] sm:text-[24px]">{title}</h2>} actions={<ChartSettings anchor={anchorOf(title)} defaultScale="log" dataSource={{ value: idx.costSource ?? "aa", options: taskMetricOptions(snapshot, "cost"), onChange: (costSource) => updateIndex({ costSource }) }} label="Pareto" mode={paretoMode} onChange={(v) => updateIndex({ paretoVariants: v })} view={paretoView} onView={setParetoView} releasedAfter={idx.releasedAfter} onChangeReleased={(v) => updateIndex({ releasedAfter: v })} models={pickerModels} excluded={excludedIds} onToggleModel={toggleModel} onShowAllModels={() => updateIndex(SHOW_ALL)} onHideAllModels={() => updateIndex({ excludeModels: pickerIds, onlyModels: undefined })} />} /></section>);
+          if (s.kind === "pareto") return wrap(<section key={s.id} className="chart-panel"><ParetoChart description={taskMetricDescription(idx.costSource ?? "aa", "cost")} anchor={anchorOf(title)} ranked={r.ranked} mode={paretoMode} labs={snapshot.labs} height={440} view={paretoView} onView={setParetoView} title={<h2 className="text-[21px] sm:text-[24px]">{title}</h2>} actions={(barModels) => {
+            const models = barModels?.models ?? pickerModels, excluded = barModels?.excluded ?? excludedIds;
+            const onToggleModel = barModels?.onToggleModel ?? toggleModel;
+            const onShowAllModels = barModels?.onShowAllModels ?? (() => updateIndex(SHOW_ALL));
+            const onHideAllModels = barModels?.onHideAllModels ?? (() => updateIndex({ excludeModels: pickerIds, onlyModels: undefined }));
+            return <ChartSettings anchor={anchorOf(title)} defaultScale="log" dataSource={{ value: idx.costSource ?? "aa", options: taskMetricOptions(snapshot, "cost"), onChange: (costSource) => updateIndex({ costSource }) }} label="Pareto" mode={paretoMode} onChange={(v) => updateIndex({ paretoVariants: v })} view={paretoView} onView={setParetoView} releasedAfter={idx.releasedAfter} onChangeReleased={(v) => updateIndex({ releasedAfter: v })} models={models} excluded={excluded} onToggleModel={onToggleModel} onShowAllModels={onShowAllModels} onHideAllModels={onHideAllModels} />;
+          }} /></section>);
           if (s.kind === "speed") return wrap(<section key={s.id} className="chart-panel"><SpeedChart onView={setSpeedView} anchor={anchorOf(title)} pts={pickPoints(speedChart, r.ranked, paretoMode)} labs={snapshot.labs} view={speedView} title={<h2 className="text-[21px] sm:text-[24px]">{title}</h2>} actions={<ChartSettings anchor={anchorOf(title)} label="Speed" mode={paretoMode} onChange={(v) => updateIndex({ paretoVariants: v })} view={speedView} onView={setSpeedView} releasedAfter={idx.releasedAfter} onChangeReleased={(v) => updateIndex({ releasedAfter: v })} {...modelPicker} />} /></section>);
-          if (s.kind === "history") return <section key={s.id}><h2 className="text-[21px] sm:text-[24px] mb-2">{title}</h2><p className="cap">Use the date picker above to view this page as of any earlier snapshot.</p></section>;
           return null;
         })}
 
@@ -213,7 +215,6 @@ function defaultTitle(s: Section, indexName?: string) {
     case "rankings": return indexName ?? "Rankings";
     case "pareto": return `${indexName ?? "Score"} vs cost per task`;
     case "speed": return `${indexName ?? "Score"} vs speed`;
-    case "history": return `${indexName ?? "Frontier"} over time`;
     case "gallery": return "More metrics";
     case "benchmark": return "Benchmark";
     case "links": return "Links";

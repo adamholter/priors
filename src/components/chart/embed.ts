@@ -1,5 +1,6 @@
 /** Standalone, interactive HTML exports: ECharts from a pinned CDN build plus the chart's data baked in. */
 import { scatterLabelLayout } from "./scatter-label-layout";
+import { barLayout } from "./bars-option";
 
 import { labelScale } from "./label-size";
 
@@ -93,17 +94,18 @@ label:{position:"right",formatter:"{b}",fontSize:11.5*fontScale,color:P.ink,dist
 guides();`, 520);
 }
 
-export type BarSpec = { title: string; date?: string; labelScale?: number; yName: string; unit: { prefix: string; suffix: string }; highlight: string[]; bars: { n: string; v: number; c: string; d: string; dc: string; dd: string; m: string; id: string; e: string; h: boolean; a: boolean; t: string }[] };
+export type BarSpec = { title: string; date?: string; labelScale?: number; yName: string; unit: { prefix: string; suffix: string }; highlight: string[]; bars: { n: string; v: number; c: string; d: string; dc: string; dd: string; m: string; mn: string; id: string; e: string; h: boolean; a: boolean; t: string }[] };
 
 export function barsHtml(spec: BarSpec) {
-  return page(spec.title, spec.date ?? "", `const S=${json({ ...spec, labelScale: labelScale(spec.labelScale) })};
+  const layout = barLayout(spec.bars.map((bar) => ({ bar, modelId: bar.m, modelName: bar.mn, effort: bar.e, label: bar.n })));
+  return page(spec.title, spec.date ?? "", `const S=${json({ ...spec, layout: { entries: layout.entries.map((entry) => entry?.bar ?? null), effortLabels: layout.effortLabels, modelLabels: layout.modelLabels }, labelScale: labelScale(spec.labelScale) })};
 const fontScale=S.labelScale;
 const fmt=compact(S.unit);
 const active=S.highlight.length>0,dim=(o)=>D?o.dd:o.dc;
-chart.setOption({textStyle:{fontFamily:"Inter,system-ui,sans-serif",color:P.ink},grid:{left:52,right:16,top:34,bottom:100,...CONTAIN},tooltip:{...tip,trigger:"item",formatter:(p)=>S.bars[p.dataIndex].t},
-xAxis:{...axis,type:"category",data:S.bars.map((b)=>active&&b.a?{value:b.n,textStyle:{color:P.ink,fontWeight:600}}:b.n),axisLabel:{...axis.axisLabel,fontFamily:"Inter,system-ui,sans-serif",color:P.ink2,rotate:45,interval:0,fontSize:10.5*fontScale,width:110*fontScale,overflow:"truncate"}},
+chart.setOption({textStyle:{fontFamily:"Inter,system-ui,sans-serif",color:P.ink},grid:{left:52,right:16,top:34,bottom:100,...CONTAIN},tooltip:{...tip,trigger:"item",formatter:(p)=>p.data&&p.data.t||""},
+xAxis:[{...axis,type:"category",data:S.layout.effortLabels,axisTick:{show:false},axisLine:{show:false},axisLabel:{...axis.axisLabel,fontFamily:"Inter,system-ui,sans-serif",color:P.ink2,rotate:0,interval:0,hideOverlap:true,fontSize:9.5*fontScale,width:84*fontScale,overflow:"truncate"}},{...axis,type:"category",data:S.layout.modelLabels.map((name,i)=>{const b=S.layout.entries[i];return active&&name&&b&&(b.h||S.bars.some(x=>x.m===b.m&&x.a))?{value:name,textStyle:{color:P.ink,fontWeight:600}}:name}),position:"bottom",offset:32,axisTick:{show:false},axisLine:{show:false},axisLabel:{...axis.axisLabel,fontFamily:"Inter,system-ui,sans-serif",color:P.ink,rotate:0,margin:4,interval:0,hideOverlap:true,fontSize:9.5*fontScale,width:100*fontScale,overflow:"truncate"}}],
 yAxis:{...axis,type:"value",name:S.yName,nameTextStyle:{color:GREY,fontSize:11,align:"left",padding:[0,0,0,-30]},axisLabel:{...axis.axisLabel,formatter:fmt}},
-series:[{type:"bar",barMaxWidth:28,data:S.bars.map((b)=>({value:b.v,itemStyle:{color:active&&!b.h?dim(b):lab(b),opacity:active&&!b.h ? .6 : 1,borderRadius:[2,2,0,0]},label:active&&!b.h?{color:GREY}:active&&b.a?{fontWeight:700}:undefined})),label:{show:true,position:"top",fontSize:10*fontScale,fontFamily:MONO,color:P.ink,formatter:(p)=>fmt(p.value)}}]},true);`, 460);
+series:[{type:"bar",barMaxWidth:28,data:S.layout.entries.map((b)=>b?{id:b.id,value:b.v,t:b.t,itemStyle:{color:active&&!b.h?dim(b):lab(b),opacity:active&&!b.h ? .6 : 1,borderRadius:[2,2,0,0]},label:active&&!b.h?{color:GREY}:active&&b.a?{fontWeight:700}:undefined}:{value:null,itemStyle:{color:"transparent"}}),label:{show:true,position:"top",fontSize:10*fontScale,fontFamily:MONO,color:P.ink,formatter:(p)=>fmt(p.value)},labelLayout:{hideOverlap:true}}]},true);`, 460);
 }
 
 /** Standalone radar embed: the same static SVG in both schemes (native hover titles on every point),

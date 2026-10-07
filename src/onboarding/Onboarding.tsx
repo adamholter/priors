@@ -77,7 +77,8 @@ export function Onboarding({ snapshot, lineup, seeds, quality, observedModelIds,
   const labColor = useLabColor();
   const colors = useMemo(() => new Map(snapshot.labs.map(l => [l.id, labColor(l.id, l.color)])), [snapshot, labColor]);
   const labs = useMemo(() => new Map(snapshot.labs.map(l => [l.id, { ...l, color: labColor(l.id, l.color) }])), [snapshot, labColor]);
-  const bracketSeeds = useMemo(() => seeds.filter(id => models.has(id)), [seeds, models]);
+  const [resolvedSeeds, setResolvedSeeds] = useState(seeds);
+  const bracketSeeds = useMemo(() => resolvedSeeds.filter(id => models.has(id)), [resolvedSeeds, models]);
   const qMap = useMemo(() => new Map(quality.map(q => [q.id, q])), [quality]);
   const observedModels = useMemo(() => new Set(observedModelIds), [observedModelIds]);
   const original = useMemo(() => lineup.filter(id => models.has(id)), [lineup, models]);
@@ -91,25 +92,25 @@ export function Onboarding({ snapshot, lineup, seeds, quality, observedModelIds,
     if (inLab) { restored.current = true; return; }
     const raf = requestAnimationFrame(() => {
       restored.current = true;
-      if (!hasSavedMix) {
+      {
         try {
           const indices = decodeIndices(JSON.parse(localStorage.getItem("priors:indices") ?? "[]") as string[]);
-          const fit = indices.find((i) => i.name === "My priors");
+          const fit = indices[0];
           const handle = localStorage.getItem("priors:handle");
           if (fit || handle) {
             const encoded = fit ? encodeURIComponent(encodeIndex({ ...fit, onlyModels: undefined, excludeModels: undefined })) : "";
             if (encoded.length > 2048) return;
             const url = fit ? `/api/lineup?mix=${encoded}` : `/api/lineup?handle=${encodeURIComponent(handle!)}`;
-            fetch(url).then((r) => r.ok ? r.json() : null).then((data) => {
+            fetch(url, { cache: "no-store" }).then((r) => r.ok ? r.json() : null).then((data) => {
               const ids = (data?.lineup as string[] | undefined)?.filter((id) => models.has(id));
-              if (ids?.length) { setOrder(ids); orderRef.current = ids; edited.current = false; localStorage.removeItem("priors:lineup"); document.cookie = `${PRIORS_MIX_COOKIE}=${encodeURIComponent(data.mix)}; Path=/; Max-Age=31536000; SameSite=Lax`; }
+              if (ids) { setResolvedSeeds(ids); setStage("order"); setOrder(ids); orderRef.current = ids; edited.current = false; localStorage.removeItem("priors:lineup"); document.cookie = `${PRIORS_MIX_COOKIE}=${encodeURIComponent(data.mix)}; Path=/; Max-Age=31536000; SameSite=Lax${location.protocol === "https:" ? "; Secure" : ""}`; }
             }).catch(() => {});
             return;
           }
         } catch { /* use the earlier unfinished lineup below */ }
       }
-      const saved = hasSavedMix ? null : savedLineup(localStorage.getItem("priors:lineup"), (id) => models.has(id));
-      if (saved) { setOrder(saved); orderRef.current = saved; edited.current = true; }
+      const saved = hasSavedMix ? null : savedLineup(localStorage.getItem("priors:lineup"), (id) => bracketSeeds.includes(id));
+      if (saved) { const resumed = [...saved, ...bracketSeeds.filter(id => !saved.includes(id))].slice(0, 16); setOrder(resumed); orderRef.current = resumed; edited.current = true; }
     });
     return () => cancelAnimationFrame(raf);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -274,7 +275,7 @@ export function Onboarding({ snapshot, lineup, seeds, quality, observedModelIds,
         setLogs(l => l.at(-1)?.text === text ? l : [...l.slice(-2), entry]);
         setHistory(h => [...h.slice(-23), u.fitScore]);
         if (u.phase === "complete") {
-          if (!inLab) try { document.cookie = `${PRIORS_MIX_COOKIE}=${encodeURIComponent(encodeIndex(u.config))}; Path=/; Max-Age=31536000; SameSite=Lax`; } catch { /* storage can be disabled */ }
+          if (!inLab) try { document.cookie = `${PRIORS_MIX_COOKIE}=${encodeURIComponent(encodeIndex(u.config))}; Path=/; Max-Age=31536000; SameSite=Lax${location.protocol === "https:" ? "; Secure" : ""}`; } catch { /* storage can be disabled */ }
           setAnnouncement(`Search complete. ${u.exactMatch ? "Your full order matches." : "No matching configuration found."} ${u.matchedPositions} of ${target.length} models are in their requested positions.`);
           recordLineup.current?.({ focus, lineup: target, weights: u.weights, strictness: u.config.strictness ?? 50, fitScore: u.fitScore, exact: u.exactMatch, snapshotDate: snapshot.date });
         }

@@ -7,7 +7,8 @@ import Link from "next/link";
 import type { Snapshot } from "@/data/types";
 import { chartVariantMode, computeIndex, defaultConfig, selectVariants, type IndexConfig } from "@/engine";
 import { ShareCards } from "./ShareCards";
-import { encodeIndices, decodeIndices } from "@/lib/url";
+import { encodeIndex, encodeIndices, decodeIndices } from "@/lib/url";
+import { PRIORS_MIX_COOKIE } from "@/onboarding/defaults";
 import { hiddenIds, toggleVisibility, SHOW_ALL, type Vis } from "@/lib/model-visibility";
 import { WeightsPanel } from "./WeightsPanel";
 import { Rankings } from "./Rankings";
@@ -20,13 +21,12 @@ import { IndexTabs } from "./IndexTabs";
 import { CalculationSettings, type CalculationSettingsHandle } from "./CalculationSettings";
 import { ChartSettings } from "./chart/ChartSettings";
 import { HeaderAuth } from "./HeaderAuth";
-import { DatePicker } from "./DatePicker";
 import { mergeImports, type ImportPayload } from "@/lib/import";
 import { SourceStatus } from "./SourceStatus";
 import { taskMetricOptions, taskMetricDescription } from "@/data/task-metrics";
 import { MetricGallery } from "./page/MetricGallery";
 
-export function Builder({ snapshot: base, dates, initialIndices }: { snapshot: Snapshot; dates: string[]; initialIndices: IndexConfig[] }) {
+export function Builder({ snapshot: base, initialIndices }: { snapshot: Snapshot; initialIndices: IndexConfig[] }) {
   // Benchmarks imported in this browser (via /import without an account) are merged client-side.
   const calculations = useRef<CalculationSettingsHandle>(null);
   const [local, setLocal] = useState<ImportPayload[]>([]);
@@ -99,8 +99,13 @@ export function Builder({ snapshot: base, dates, initialIndices }: { snapshot: S
       const p = encodeIndices([active, ...indices.filter((i) => i.id !== active.id)]); const url = new URL(window.location.href);
       url.searchParams.delete("i");
       p.getAll("i").forEach((value) => url.searchParams.append("i", value));
+      url.searchParams.delete("date");
       window.history.replaceState(null, "", url.toString());
-      try { localStorage.setItem("priors:indices", JSON.stringify(p.getAll("i"))); } catch { /* ignore */ }
+      try {
+        localStorage.setItem("priors:indices", JSON.stringify(p.getAll("i")));
+        const encoded = encodeIndex({ ...active, onlyModels: undefined, excludeModels: undefined });
+        if (encoded.length <= 2048) document.cookie = `${PRIORS_MIX_COOKIE}=${encodeURIComponent(encoded)}; Path=/; Max-Age=31536000; SameSite=Lax${location.protocol === "https:" ? "; Secure" : ""}`;
+      } catch { /* ignore */ }
     }, 150);
     return () => { if (t.current) window.clearTimeout(t.current); };
   }, [indices, active]);
@@ -119,8 +124,8 @@ export function Builder({ snapshot: base, dates, initialIndices }: { snapshot: S
         </div>
         <div className="col-span-3 row-start-2 lg:w-auto lg:ml-auto flex flex-wrap items-center gap-2 shrink-0">
           <span className="sm:hidden mr-auto"><SiteNav /></span>
-          <DatePicker current={snapshot.date} dates={[...new Set([snapshot.date, ...dates])].sort().reverse()} />
-          <ShareCards indices={indices} active={active} date={snapshot.date} top={topNames} hint={shareHint} onOpen={() => setShareHint(false)} />
+          <span className="cap">Data as of {snapshot.date}</span>
+          <ShareCards indices={indices} active={active} top={topNames} hint={shareHint} onOpen={() => setShareHint(false)} />
           <HeaderAuth indices={indices} />
         </div>
         <div className="col-start-3 row-start-1 shrink-0"><ThemeToggle /></div>
@@ -151,7 +156,7 @@ export function Builder({ snapshot: base, dates, initialIndices }: { snapshot: S
           </div>
           <div>
             <ParetoChart description={taskMetricDescription(active.costSource ?? "aa", "cost")} anchor="cost" ranked={result.ranked} mode={paretoMode} labs={snapshot.labs} view={paretoView} onView={setParetoView} title={<h2 className="text-[22px]">Score vs cost per task</h2>}
-              actions={<ChartSettings anchor="cost" defaultScale="log" dataSource={{ value: active.costSource ?? "aa", options: taskMetricOptions(snapshot, "cost"), onChange: (costSource) => update({ ...active, costSource }) }} label="Pareto" mode={paretoMode} onChange={(paretoVariants) => update({ ...active, paretoVariants })} view={paretoView} onView={setParetoView} {...releaseProps} {...modelPicker} />} />
+              actions={(barModels) => <ChartSettings anchor="cost" defaultScale="log" dataSource={{ value: active.costSource ?? "aa", options: taskMetricOptions(snapshot, "cost"), onChange: (costSource) => update({ ...active, costSource }) }} label="Pareto" mode={paretoMode} onChange={(paretoVariants) => update({ ...active, paretoVariants })} view={paretoView} onView={setParetoView} {...releaseProps} {...modelPicker} {...(barModels ?? {})} />} />
           </div>
           <div>
             <h2 className="text-[22px] mb-1">More metrics</h2>

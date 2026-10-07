@@ -4,6 +4,7 @@ import { taskMetricOptions, type TaskMetricSource } from "@/data/task-metrics";
 import type { Snapshot, Lab } from "@/data/types";
 import type { IndexConfig, IndexResult, RankedVariant } from "@/engine";
 import { metricPanels, pickPoints, speedChart, type MetricChart } from "@/lib/metrics";
+import { useBarModelVisibility } from "../chart/bar-model-visibility";
 import { MetricScatter } from "../chart/MetricScatter";
 import { SpeedChart } from "../chart/SpeedChart";
 import { ChartSettings } from "../chart/ChartSettings";
@@ -40,6 +41,7 @@ function GalleryChart({ id, anchor, title, chart, speed, ranked, defaultMode, la
   const defaultKind = metric?.scale === "time" ? "scatter" : metric?.defaultKind ?? "scatter";
   const [view, setView] = useScatterView(`gallery-${id}`, defaultKind, metric?.defaultFrontier ?? true);
   const bars = view.kind === "bars" && chart?.scale !== "time";
+  const allMetricPoints = useMemo(() => metric?.points(ranked) ?? [], [metric, ranked]);
   // Deep links carry the chart view (`cv=bars`, `cm=best|all`). Captured once per mount —
   // mirror effects may rewrite the URL before init effects run (and StrictMode mounts twice).
   const linked = useMemo(() => {
@@ -73,13 +75,15 @@ function GalleryChart({ id, anchor, title, chart, speed, ranked, defaultMode, la
   const kind = bars ? ("bars" as const) : ("scatter" as const);
   const linkParams = { cv: kind !== defaultKind ? kind : undefined, cm: mode !== defaultMode ? mode : undefined, cs: !bars && metric?.scale === "log" ? view.scale : undefined };
   const pts = useMemo(() => (metric ? pickPoints(metric, ranked, mode) : []), [metric, ranked, mode]);
+  const barVisibility = useBarModelVisibility({ metricPoints: allMetricPoints, points: pts, better: metric?.better ?? "higher", ranked, modelOptions: settings?.models });
+  const chartModelSettings = bars ? barVisibility.picker : {};
   const toggle = <div className="seg" role="group" aria-label={`${title} chart type`}>
     <button type="button" aria-pressed={!bars} title="Score vs metric" onClick={() => setView({ ...view, kind: "scatter" })}><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><circle cx="4" cy="11" r="1.6" /><circle cx="8" cy="6" r="1.6" /><circle cx="12.5" cy="4" r="1.6" /><circle cx="10" cy="10" r="1.6" /></svg></button>
     <button type="button" aria-pressed={bars} title="Bar chart" onClick={() => setView({ ...view, kind: "bars" })}><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><rect x="2" y="3" width="3" height="11" /><rect x="6.5" y="6" width="3" height="8" /><rect x="11" y="9" width="3" height="5" /></svg></button>
   </div>;
-  const actions = <>{chart?.scale !== "time" && toggle}<ChartSettings anchor={anchor} defaultScale={metric?.scale === "log" ? "log" : undefined} dataSource={dataSource} label={title} mode={mode} onChange={setMode} view={view} onView={setView} {...settings} /></>;
+  const actions = <>{chart?.scale !== "time" && toggle}<ChartSettings anchor={anchor} defaultScale={metric?.scale === "log" ? "log" : undefined} dataSource={dataSource} label={title} mode={mode} onChange={setMode} view={view} onView={setView} {...settings} {...chartModelSettings} /></>;
   if (!metric) return null;
-  if (bars) return <MetricBars labelScale={view.labelScale} pts={pts} labs={labs} better={metric.better} xName={metric.xName} formatValue={metric.formatValue ?? metric.formatX} aria={metric.aria.replace("Index score versus", "By model:")} actions={actions} exportName={title} anchor={anchor} linkParams={linkParams} />;
+  if (bars) return <MetricBars labelScale={view.labelScale} pts={barVisibility.points} labs={labs} better={metric.better} xName={metric.xName} formatValue={metric.formatValue ?? metric.formatX} aria={metric.aria.replace("Index score versus", "By model:")} actions={actions} exportName={title} anchor={anchor} linkParams={linkParams} />;
   if (speed) return <SpeedChart pts={pts} labs={labs} view={view} actions={actions} anchor={anchor} linkParams={linkParams} />;
   return <MetricScatter pts={pts} labs={labs} better={metric.better} xLabel={metric.xLabel} xName={metric.xName} scale={metric.scale} formatX={metric.formatX} formatValue={metric.formatValue} aria={metric.aria} view={view} actions={actions} exportName={title} anchor={anchor} linkParams={linkParams} />;
 }
