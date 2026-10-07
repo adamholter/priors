@@ -4,9 +4,20 @@ import { ChartPaletteContext, DARK_PALETTE, LIGHT_PALETTE } from "./chart/echart
 
 export type ThemeMode = "system" | "light" | "dark";
 export const THEME_KEY = "priors:theme";
+export const THEME_COOKIE = "priors_theme";
+
+function savedMode(): ThemeMode {
+  try { const saved = localStorage.getItem(THEME_KEY); if (saved === "light" || saved === "dark") return saved; } catch { /* use the preference cookie */ }
+  try { const saved = document.cookie.match(/(?:^|;\s*)priors_theme=(light|dark)(?:;|$)/)?.[1]; if (saved === "light" || saved === "dark") return saved; } catch { /* use the system preference */ }
+  return "system";
+}
+
+function saveCookie(mode: ThemeMode) {
+  try { document.cookie = `${THEME_COOKIE}=${mode === "system" ? "" : mode}; Path=/; Max-Age=${mode === "system" ? 0 : 31536000}; SameSite=Lax${location.protocol === "https:" ? "; Secure" : ""}`; } catch { /* browser storage can still remember the choice */ }
+}
 
 /** Runs in <head> before first paint so the page never flashes the wrong scheme. */
-export const THEME_SCRIPT = `(function(){try{var m=localStorage.getItem("${THEME_KEY}");var d=m==="dark"||(m!=="light"&&matchMedia("(prefers-color-scheme: dark)").matches);var r=document.documentElement;r.dataset.theme=d?"dark":"light";r.style.colorScheme=d?"dark":"light"}catch(e){}})()`;
+export const THEME_SCRIPT = `(function(){var m;try{m=localStorage.getItem("${THEME_KEY}")}catch(e){}if(m!=="light"&&m!=="dark"){try{var c=document.cookie.match(/(?:^|;\\s*)${THEME_COOKIE}=(light|dark)(?:;|$)/);m=c&&c[1]}catch(e){}}var d=m==="dark"||(m!=="light"&&matchMedia("(prefers-color-scheme: dark)").matches);var r=document.documentElement;r.dataset.theme=d?"dark":"light";r.style.colorScheme=d?"dark":"light"})()`;
 
 const ThemeContext = createContext<{ mode: ThemeMode; dark: boolean; setMode: (m: ThemeMode) => void }>({ mode: "system", dark: false, setMode: () => {} });
 export const useTheme = () => useContext(ThemeContext);
@@ -33,8 +44,8 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const dark = useSyncExternalStore(subscribe, readDark, () => false);
   const [mode, setModeState] = useState<ThemeMode>("system");
   useEffect(() => {
-    let m: ThemeMode = "system";
-    try { const saved = localStorage.getItem(THEME_KEY); if (saved === "light" || saved === "dark") m = saved; } catch { /* ignore */ }
+    const m = savedMode();
+    if (m !== "system") saveCookie(m);
     // eslint-disable-next-line react-hooks/set-state-in-effect -- localStorage is client-only
     setModeState(m);
     // A hydration error makes React re-render <html> and drop the attribute the head script set; restore it.
@@ -51,6 +62,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const setMode = useCallback((m: ThemeMode) => {
     setModeState(m);
     try { if (m === "system") localStorage.removeItem(THEME_KEY); else localStorage.setItem(THEME_KEY, m); } catch { /* ignore */ }
+    saveCookie(m);
     apply(m === "dark" || (m === "system" && matchMedia("(prefers-color-scheme: dark)").matches));
   }, []);
   const value = useMemo(() => ({ mode, dark, setMode }), [mode, dark, setMode]);

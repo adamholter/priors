@@ -17,8 +17,8 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className={`${newsreader.variable} ${inter.variable} ${jetbrains.variable} h-full antialiased`} suppressHydrationWarning>
+      <head><script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} suppressHydrationWarning /></head>
       <body className="min-h-full flex flex-col">
-        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} suppressHydrationWarning />
         <Providers>{children}</Providers>
       </body>
     </html>
