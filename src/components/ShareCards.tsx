@@ -8,6 +8,7 @@ import { api } from "../../convex/_generated/api";
 import { authEnabled } from "@/app/providers";
 import { SHARE_DESIGNS } from "@/lib/share-designs";
 import { useTheme } from "./Theme";
+import { THEME_CHOICES, presetOf } from "@/lib/page-presets";
 import Link from "next/link";
 import { shareCardToX, shareText, stashForPublish } from "@/lib/share";
 
@@ -29,7 +30,7 @@ function CloseIcon() {
   return <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="m6 6 12 12M18 6 6 18" /></svg>;
 }
 
-type ShareProps = { indices: IndexConfig[]; active: IndexConfig; profile?: { handle: string; displayName: string }; /** Personal pages share their own URL, not a mix deep link. */ pageUrl?: string; defaultDesign?: string; /** One share icon that opens the card dialog (mobile headers). */ compact?: boolean; /** Top models by name, for the post text. */ top?: string[]; /** Show a one-time hint beside the button. */ hint?: boolean; onOpen?: () => void };
+type ShareProps = { indices: IndexConfig[]; active: IndexConfig; profile?: { handle: string; displayName: string }; /** Personal pages share their own URL, not a mix deep link. */ pageUrl?: string; defaultDesign?: string; /** One share icon that opens the card dialog (mobile headers). */ compact?: boolean; /** Top models by name, for the post text. */ top?: string[]; /** Show a one-time hint beside the button. */ hint?: boolean; /** The page's theme preset; cards default to it. */ pageTheme?: string; onOpen?: () => void };
 export function ShareCards(props: ShareProps) {
   return authEnabled && !props.profile ? <SignedShareCards {...props} /> : <ShareCardsContent {...props} />;
 }
@@ -38,7 +39,7 @@ function SignedShareCards(props: ShareProps) {
   const mine = useQuery(api.profiles.mine, isAuthenticated ? {} : "skip");
   return <ShareCardsContent {...props} profile={mine ?? undefined} publishHref={!isAuthenticated ? "/sign-in" : mine === null ? "/claim" : undefined} />;
 }
-function ShareCardsContent({ indices, active, profile, pageUrl, defaultDesign, compact, top, hint, onOpen, publishHref }: ShareProps & { publishHref?: "/sign-in" | "/claim" }) {
+function ShareCardsContent({ indices, active, profile, pageUrl, defaultDesign, compact, top, hint, onOpen, publishHref, pageTheme }: ShareProps & { publishHref?: "/sign-in" | "/claim" }) {
   const [viewer, setViewer] = useState("");
   useEffect(() => { const id = requestAnimationFrame(() => setViewer(localStorage.getItem("priors:handle") ?? "")); return () => cancelAnimationFrame(id); }, []);
   const dialog = useRef<HTMLDialogElement>(null);
@@ -47,7 +48,12 @@ function ShareCardsContent({ indices, active, profile, pageUrl, defaultDesign, c
   // Cards follow the site theme unless the sharer picks the other scheme for this card.
   const { dark: siteDark } = useTheme();
   const [schemeChoice, setScheme] = useState<"light" | "dark" | null>(null);
-  const scheme = schemeChoice ?? (siteDark ? "dark" : "light");
+  // Cards follow the page theme; the dialog can try any other. Paired themes then pick light or dark.
+  const [themeChoice, setThemeChoice] = useState<string | null>(null);
+  const cardThemeId = themeChoice ?? pageTheme ?? "bone";
+  const cardThemeDef = presetOf({ preset: cardThemeId });
+  const scheme = schemeChoice ?? (cardThemeDef.family === "aa" || cardThemeDef.family === "slop" ? (cardThemeDef.dark ? "dark" : "light") : siteDark ? "dark" : "light");
+  const themeParam = (q: URLSearchParams) => { if (cardThemeId !== "bone" && cardThemeId !== "night") { q.set("theme", cardThemeId); q.set("scheme", scheme); } else if (scheme === "dark") q.set("scheme", "dark"); };
   const [design, setDesign] = useState<string>(SHARE_DESIGNS.some((d) => d.id === defaultDesign) ? defaultDesign! : SHARE_DESIGNS[0].id);
   const [message, setMessage] = useState("");
   const [origin, setOrigin] = useState("");
@@ -72,17 +78,17 @@ function ShareCardsContent({ indices, active, profile, pageUrl, defaultDesign, c
   }, [open, primed]);
   const params = encodeIndices([active, ...indices.filter((i) => i.id !== active.id)]);
   params.set("design", design);
-  if (scheme === "dark") params.set("scheme", "dark");
+  themeParam(params);
   if (profile) params.set("handle", profile.handle);
   const shareUrl = pageUrl ?? `${origin}/builder?${params}`;
   // The posted link carries only the active index (+ design, so the preview matches the chosen card).
   const postParams = encodeIndices([active]);
   postParams.set("design", design);
-  if (scheme === "dark") postParams.set("scheme", "dark");
+  themeParam(postParams);
   if (profile) postParams.set("handle", profile.handle);
   const postUrl = pageUrl ?? `${origin}/builder?${postParams}`;
   const imageParams = encodeIndices([active]);
-  if (scheme === "dark") imageParams.set("scheme", "dark");
+  themeParam(imageParams);
   if (profile) imageParams.set("handle", profile.handle);
   const imageUrl = (id: string) => `/og?${imageParams}&design=${encodeURIComponent(id)}`;
   const selectedUrl = `${imageUrl(design)}${retry ? `&retry=${retry}` : ""}`;
@@ -128,7 +134,7 @@ function ShareCardsContent({ indices, active, profile, pageUrl, defaultDesign, c
         <div className="my-4 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <p className="text-sm">{String(SHARE_DESIGNS.findIndex((d) => d.id === design) + 1).padStart(2, "0")} / {selected.name}</p>
-            <div className="seg" role="group" aria-label="Card colors">{(["light", "dark"] as const).map((k) => <button key={k} type="button" aria-pressed={scheme === k} className="!px-2.5 text-[12px]" onClick={() => { setScheme(k); setMessage(""); }}>{k === "light" ? "Light" : "Dark"}</button>)}</div>
+            <label className="inline-flex items-center gap-1.5 text-[12px] text-ink-2">Theme <select className="inp !w-auto !py-1 !text-[12px]" value={THEME_CHOICES.find((t) => t.id === cardThemeId || t.pair === cardThemeId)?.id ?? "bone"} onChange={(e) => { setThemeChoice(e.target.value); setScheme(null); setMessage(""); }}>{THEME_CHOICES.map((t) => <option key={t.id} value={t.id}>{t.name}{t.id === (THEME_CHOICES.find((x) => x.id === pageTheme || x.pair === pageTheme)?.id ?? "bone") ? " (page)" : ""}</option>)}</select></label><div className="seg" role="group" aria-label="Card colors">{(["light", "dark"] as const).map((k) => <button key={k} type="button" aria-pressed={scheme === k} className="!px-2.5 text-[12px]" onClick={() => { setScheme(k); setMessage(""); }}>{k === "light" ? "Light" : "Dark"}</button>)}</div>
           </div>
           <div className="flex flex-wrap gap-2">
             <button type="button" className="btn-quiet inline-flex items-center gap-1.5 !border-black !bg-black !text-[#fff] hover:opacity-85" onClick={shareToX}><XLogo />Share on X</button>

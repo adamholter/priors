@@ -105,7 +105,7 @@ curl -s https://mypriors.com/api/agent -H "Authorization: Bearer $PRIORS_TOKEN" 
   -H 'Content-Type: application/json' -d '{"action":"page","payload":{ ...fields... }}'
 ```
 
-**`sections`** is the ordered page layout. Each: `{ id, kind, title?, indexId?, benchmarkId?, body?, links?, hidden? }` with `kind` one of:
+**`sections`** is the ordered page layout. Each: `{ id, kind, title?, indexId?, benchmarkId?, body?, links?, hidden?, view?, metrics? }` with `kind` one of:
 
 - `rankings` — ranked bars for `indexId`
 - `pareto` — score vs cost-per-task for `indexId`
@@ -115,6 +115,12 @@ curl -s https://mypriors.com/api/agent -H "Authorization: Bearer $PRIORS_TOKEN" 
 - `gallery` — collapsed expandable charts for `indexId` (time per task — open by default — plus output speed, latency, release date, OpenRouter uptime). Every page gets one automatically if absent — add `{kind:"gallery", hidden:true}` only if the user asks to remove it.
 - `text` — a paragraph (`body`)
 - `links` — a list of links (`links`)
+
+Chart defaults (what visitors see first; their own tweaks stay in their browser):
+
+- `view` on `pareto`/`speed`: `{ kind?: "scatter"|"bars", scale?: "log"|"linear", frontier?: boolean, links?: boolean, labelScale?: number }`.
+- `metrics` on `gallery`: ordered `[{ id, hidden?, open?, view? }]` over `tpt` (time per task), `strengths` (radar), `speed`, `latency`, `tokens`, `date`, `uptime`, `usage`. Metrics left out of a saved list stay hidden, so include every one you want shown. `view.mode` (`"best"|"all"`) sets that chart's effort mode.
+- Never store model lists for visibility; hide models with the index's `excludeModels` so new models still appear.
 
 Start from the current `sections`, modify, send the whole array back. Keep titles short; no slogans, no emoji.
 
@@ -126,7 +132,9 @@ Done when: `whoami` shows the new sections in order and the page renders them.
 
 | field | effect |
 |---|---|
-| `accent` | hex color — accent, links, chart highlights, wordmark `i` (default `#2F4FB0` indigo) |
+| `preset` | whole-page theme: `bone` (Priors Light), `night` (Priors Dark), `aa` / `aa-dark` (Analysis: Artificial Analysis-style cards, serif section heads with square markers, AA lab colors, green quadrant), `slop` / `slop-light` (Slopalytics-style: black, DM Sans, flat sections), or classic `paper`, `sand`, `graphite`, `midnight`, `forest`. Themes restyle fonts, charts, lab colors and share cards. |
+| `mode` | `"fixed"` keeps the chosen light/dark version; default follows the visitor's light/dark setting (paired themes only) |
+| `accent` | hex color — accent, links, chart highlights, wordmark `i` (default: the theme's accent) |
 | `surface` | `"bone"` (default `#FBFBF9`) or `"white"` page background |
 | `serif` | font name for display headings — e.g. `"Georgia"` or a loaded webfont |
 | `mono` | font name for data/numbers — e.g. `"Menlo"` |
@@ -145,8 +153,8 @@ Everything in `css` is scoped by convention to `.page-root` — prefix every sel
 - Custom properties: `--bone #FBFBF9` · `--white` · `--ink #1A1A1A` · `--ink-2 #4A4A46` · `--grey #8A8A80` · `--hair #DDDBD4` (hairlines) · `--hair-2 #ECEAE3` · `--indigo #2F4FB0` · `--indigo-soft #E8ECF8`. Redefining a property inside `.page-root` cascades everywhere it applies.
 - Fonts: Newsreader (display serif — `h1,h2,h3,.serif`), Inter (body — default), JetBrains Mono (numbers — `.mono,.num`). `serif`/`mono` theme fields override just those slots; loading a webfont needs `@import` inside `css`.
 - Classes to target: `.page-root` (whole page), `section`, `.cap` (small mono labels), `.btn`, `.btn-quiet`, `header` (sticky top bar), `footer`, `.serif`, `.mono`.
-- Charts are canvas-rendered (ECharts); CSS reaches the page around them but not inside. Lab/model colors come from data, not theme.
-- The share card honors `accent` + `surface` automatically; `css` doesn't reach it.
+- Charts are canvas-rendered (ECharts); CSS reaches the page around them but not inside. Lab/model colors come from data, except that the Analysis and Slop themes swap in those sites' lab colors.
+- The share card follows `preset` (and `accent` + `surface`) automatically; `css` doesn't reach it.
 
 **Brand judgment:**
 

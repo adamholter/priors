@@ -1,11 +1,11 @@
 import * as echarts from "echarts/core";
 import { LineChart, ScatterChart, BarChart } from "echarts/charts";
-import { GridComponent, TooltipComponent, DatasetComponent, MarkLineComponent, GraphicComponent, DataZoomComponent } from "echarts/components";
+import { GridComponent, TooltipComponent, DatasetComponent, MarkLineComponent, MarkAreaComponent, GraphicComponent, DataZoomComponent } from "echarts/components";
 import { SVGRenderer } from "echarts/renderers";
 import { LabelLayout, UniversalTransition } from "echarts/features";
-import type { PagePreset } from "@/lib/page-presets";
+import type { ChartStyle, PagePreset } from "@/lib/page-presets";
 
-echarts.use([LineChart, ScatterChart, BarChart, GridComponent, TooltipComponent, DatasetComponent, MarkLineComponent, GraphicComponent, DataZoomComponent, SVGRenderer, LabelLayout, UniversalTransition]);
+echarts.use([LineChart, ScatterChart, BarChart, GridComponent, TooltipComponent, DatasetComponent, MarkLineComponent, MarkAreaComponent, GraphicComponent, DataZoomComponent, SVGRenderer, LabelLayout, UniversalTransition]);
 
 export const INK = "#1A1A1A", GREY = "#8A8A80", HAIR = "#ECEAE3", BONE = "#FBFBF9", INDIGO = "#2F4FB0";
 const SANS = "var(--font-inter), Inter, system-ui, sans-serif";
@@ -15,7 +15,11 @@ export const SANS_STATIC = "Inter, system-ui, sans-serif";
 export const MONO_STATIC = "'JetBrains Mono', Menlo, monospace";
 
 /** Colors every chart reads: the site's light palette by default, a page's scheme when it provides one. */
-export interface ChartPalette { dark: boolean; ink: string; ink2: string; grey: string; hair: string; bg: string; tipBg: string; tipBorder: string }
+export interface ChartPalette {
+  dark: boolean; ink: string; ink2: string; grey: string; hair: string; bg: string; tipBg: string; tipBorder: string;
+  /** Page-theme overrides: chart fonts, per-lab mark colors, and chart treatment (grid, frontier, quadrant, bar labels). */
+  fonts?: { sans: string; mono: string }; labColors?: Record<string, string>; style?: ChartStyle;
+}
 export const LIGHT_PALETTE: ChartPalette = { dark: false, ink: INK, ink2: "#595B53", grey: GREY, hair: HAIR, bg: BONE, tipBg: "#FFFFFF", tipBorder: "#DDDBD4" };
 /** Site dark mode: warm near-black page, off-white ink, gridlines just above the background. */
 export const DARK_PALETTE: ChartPalette = { dark: true, ink: "#EDECE6", ink2: "#C2C1B9", grey: "#8C8B83", hair: "#262624", bg: "#141413", tipBg: "#1F1F1C", tipBorder: "#3A3A35" };
@@ -53,6 +57,13 @@ export function paletteFor(preset: PagePreset): ChartPalette {
   let p = chartPalettes.get(preset.id);
   // Night is the site's dark mode on a raised panel: same chart palette, gridlines tuned to the panel.
   if (!p && preset.id === "night") { p = { ...DARK_PALETTE, bg: preset.hair2, hair: "#2B2B28", tipBg: "#242422" }; chartPalettes.set(preset.id, p); }
+  if (!p && (preset.family === "aa" || preset.family === "slop")) {
+    // Lookalike themes restyle charts completely: their fonts, lab colors, grids and frontier treatment.
+    const surface = preset.surface ?? preset.bg;
+    p = { dark: preset.dark, ink: preset.ink, ink2: preset.ink2, grey: preset.grey, hair: preset.dark ? preset.hair : preset.hair, bg: surface, tipBg: preset.dark ? preset.hair2 : "#FFFFFF", tipBorder: preset.hair,
+      fonts: preset.fonts && { sans: preset.fonts.sans, mono: preset.fonts.mono }, labColors: preset.labColors, style: preset.chart };
+    chartPalettes.set(preset.id, p);
+  }
   if (!p) { p = preset.dark ? { dark: true, ink: preset.ink, ink2: preset.ink2, grey: preset.grey, hair: preset.hair, bg: preset.hair2, tipBg: preset.bg, tipBorder: preset.hair } : { ...LIGHT_PALETTE, bg: preset.bg }; chartPalettes.set(preset.id, p); }
   return p;
 }
@@ -61,6 +72,8 @@ const luminance = (hex: string) => { const m = hex.replace("#", "").match(/.{2}/
 /** A lab's mark color for this palette: the tuned dark variant on dark pages; unknown labs fall back
  *  to their light color, with near-black ones switched to the palette's soft ink so they don't vanish. */
 export function markColor(color: string | undefined, pal: ChartPalette, labId?: string) {
+  const themed = labId && pal.labColors ? pal.labColors[labId] ?? pal.labColors.other : undefined;
+  if (themed) return themed;
   const c = color ?? "#A3A39B";
   if (!pal.dark) return c;
   return (labId && DARK_LAB_COLORS[labId]) ?? (luminance(c) < 0.06 ? pal.ink2 : c);
@@ -99,8 +112,8 @@ export const MARK_LABEL = markLabel(LIGHT_PALETTE);
 
 const registered = new Set<string>();
 export function themeFor(pal: ChartPalette, fonts?: { sans?: string; mono?: string }) {
-  const sans = fonts?.sans ?? SANS, mono = fonts?.mono ?? MONO;
-  const name = `priors-${[pal.ink, pal.grey, pal.hair, pal.tipBg, sans, mono].join("").replace(/[#\s]/g, "")}`;
+  const sans = fonts?.sans ?? pal.fonts?.sans ?? SANS, mono = fonts?.mono ?? pal.fonts?.mono ?? MONO, grid = pal.style?.grid === "dotted" ? "dotted" : "solid";
+  const name = `priors-${[pal.ink, pal.grey, pal.hair, pal.tipBg, sans, mono, grid].join("").replace(/[^a-z0-9]/gi, "")}`;
   if (!registered.has(name)) {
     registered.add(name);
     const axis = { axisLine: { show: false }, axisTick: { show: false }, axisLabel: { color: pal.grey, fontFamily: mono, fontSize: 11 } };
@@ -108,9 +121,9 @@ export function themeFor(pal: ChartPalette, fonts?: { sans?: string; mono?: stri
       backgroundColor: "transparent",
       textStyle: { fontFamily: sans, color: pal.ink },
       categoryAxis: { ...axis, splitLine: { show: false } },
-      valueAxis: { ...axis, splitLine: { lineStyle: { color: pal.hair } } },
-      logAxis: { ...axis, splitLine: { lineStyle: { color: pal.hair } } },
-      timeAxis: { ...axis, splitLine: { lineStyle: { color: pal.hair } } },
+      valueAxis: { ...axis, splitLine: { lineStyle: { color: pal.hair, type: grid } } },
+      logAxis: { ...axis, splitLine: { lineStyle: { color: pal.hair, type: grid } } },
+      timeAxis: { ...axis, splitLine: { lineStyle: { color: pal.hair, type: grid } } },
       tooltip: { confine: true, backgroundColor: pal.tipBg, borderColor: pal.tipBorder, borderWidth: 1, textStyle: { color: pal.ink, fontSize: 12, fontFamily: sans }, extraCssText: "box-shadow:none;border-radius:4px;padding:8px 10px" },
     });
   }

@@ -31,6 +31,25 @@ export const indexConfig = v.object({
   focus: v.optional(v.union(v.literal("capabilities"), v.literal("knowledge"), v.literal("problem-solving"), v.literal("general"))),
 });
 
+/**
+ * An owner's default for one chart. Visitors start from it; their own tweaks stay in their browser.
+ * Model membership is never stored here (the model list stays live as new models arrive).
+ */
+export const chartView = v.object({
+  kind: v.optional(v.union(v.literal("scatter"), v.literal("bars"))),
+  mode: v.optional(v.union(v.literal("all"), v.literal("best"))),
+  scale: v.optional(v.union(v.literal("log"), v.literal("linear"))),
+  frontier: v.optional(v.boolean()),
+  links: v.optional(v.boolean()),
+  guides: v.optional(v.boolean()),
+  density: v.optional(v.number()),
+  labelScale: v.optional(v.number()),
+});
+export type ChartViewDefault = Infer<typeof chartView>;
+/** One More-metrics panel: shown or hidden, open by default, and its chart default. Order is array order. */
+export const galleryMetric = v.object({ id: v.string(), hidden: v.optional(v.boolean()), open: v.optional(v.boolean()), view: v.optional(chartView) });
+export type GalleryMetric = Infer<typeof galleryMetric>;
+
 /** A page is a list of sections; the editor and the agent skill both manipulate this. */
 export const section = v.object({
   id: v.string(),
@@ -44,11 +63,15 @@ export const section = v.object({
   body: v.optional(v.string()), // text (markdown-lite)
   links: v.optional(v.array(v.object({ label: v.string(), url: v.string() }))),
   hidden: v.optional(v.boolean()),
+  /** pareto/speed: the owner's default chart view. */
+  view: v.optional(chartView),
+  /** gallery: which metrics show, in what order, open or not. Metrics missing from the list are new and stay hidden. */
+  metrics: v.optional(v.array(galleryMetric)),
 });
 export type Section = Infer<typeof section>;
 
 /** Owner-chosen page appearance. */
-export const profileTheme = v.object({ accent: v.optional(v.string()), surface: v.optional(v.union(v.literal("bone"), v.literal("white"))), preset: v.optional(v.string()), cardDesign: v.optional(v.string()), serif: v.optional(v.string()), mono: v.optional(v.string()), css: v.optional(v.string()) });
+export const profileTheme = v.object({ accent: v.optional(v.string()), surface: v.optional(v.union(v.literal("bone"), v.literal("white"))), preset: v.optional(v.string()), /** "fixed" locks the chosen light/dark version; default follows the visitor. */ mode: v.optional(v.union(v.literal("auto"), v.literal("fixed"))), cardDesign: v.optional(v.string()), serif: v.optional(v.string()), mono: v.optional(v.string()), css: v.optional(v.string()) });
 export type ProfileTheme = Infer<typeof profileTheme>;
 
 /** Field names the database stores; used to drop transient client-only keys before saving. */

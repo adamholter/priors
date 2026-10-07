@@ -9,7 +9,7 @@ import { scatterOption, DEFAULT_VIEW, guidePoints, type Highlight, type ScatterP
 import { barsOption, defaultBarModels, filterBarModels, selectBars } from "../components/chart/bars-option";
 import { frameSvg } from "../components/chart/export-frame";
 import { chartKind, chartTitle, costChart, pickPoints, type MetricChart } from "./metrics";
-import { presetOf } from "./page-presets";
+import { presetOf, themeById, type PagePreset } from "./page-presets";
 import { EMPTY_HIDDEN, visiblePoints, type ChartHidden } from "../components/chart/chart-visibility";
 
 import { labelScale as normalizeLabelScale } from "../components/chart/label-size";
@@ -50,7 +50,17 @@ export function scatterSpec(snapshot: Snapshot, ranked: RankedVariant[], index: 
 }
 
 /** Chart palette for a share card: the profile's scheme, else the site default. */
+/** Lookalike themes (Analysis, Slop) restyle whole cards. A requested scheme picks that theme's light or dark version. */
+export function cardTheme(theme?: { preset?: string; surface?: "bone" | "white" }, scheme?: "light" | "dark"): PagePreset | null {
+  const preset = presetOf(theme);
+  if (preset.family !== "aa" && preset.family !== "slop") return null;
+  if (!scheme || preset.dark === (scheme === "dark")) return preset;
+  return themeById(preset.pair) ?? preset;
+}
+
 export function cardPalette(theme?: { preset?: string; surface?: "bone" | "white" }, scheme?: "light" | "dark"): ChartPalette {
+  const themed = cardTheme(theme, scheme);
+  if (themed) return paletteFor(themed);
   // A dark card renders a Bone (default) scheme with the site's dark palette; explicit presets keep their own.
   const preset = presetOf(theme);
   return scheme === "dark" && preset.id === "bone" ? DARK_PALETTE : paletteFor(preset);

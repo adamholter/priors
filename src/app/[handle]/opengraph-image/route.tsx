@@ -17,6 +17,6 @@ export async function GET(_req: Request, { params }: { params: Promise<{ handle:
   const { snapshot } = mergeImports(snap, p.imports ?? []);
   // Cards stay light; dark page schemes contribute their panel accent so the card still matches.
   const preset = presetOf(p.theme);
-  const res = await renderShareCard(snapshot, p.indices[0], { name: p.displayName, handle: p.handle, avatarUrl: p.avatarUrl }, { design: p.theme?.cardDesign ?? "board", accent: preset.dark ? preset.panelAccent : p.theme?.accent ?? preset.accent, surface: preset.dark ? undefined : preset.bg });
+  const res = await renderShareCard(snapshot, p.indices[0], { name: p.displayName, handle: p.handle, avatarUrl: p.avatarUrl }, { design: p.theme?.cardDesign ?? "board", accent: preset.dark ? preset.panelAccent : p.theme?.accent ?? preset.accent, surface: preset.dark ? undefined : preset.bg, theme: p.theme ? { preset: p.theme.preset, surface: p.theme.surface } : undefined });
   return new Response(res.body, { status: res.status, headers: { "content-type": "image/png", "cache-control": "public, max-age=300, s-maxage=600, stale-while-revalidate=86400" } });
 }

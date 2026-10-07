@@ -18,20 +18,47 @@ export { chartLabel, pickLabels, frontierOf, DEFAULT_VIEW };
 export type { Highlight, ScatterPoint, ScatterView };
 
 /** Per-chart display preferences (label density, frontier, effort lines), remembered in localStorage. */
-export function useScatterView(key: string, defaultKind: "bars" | "scatter" = "scatter", defaultFrontier = true): [ScatterView, (v: ScatterView, persist?: boolean) => void] {
-  const [view, setView] = useState<ScatterView>(() => restoreScatterView(defaultKind, defaultFrontier));
+/** An owner default as a saved view: an explicit kind/frontier counts as chosen, so chart defaults don't override it. */
+export function ownerBase(owner?: OwnerView | null): ScatterView | null {
+  if (!owner) return null;
+  const { mode: _mode, ...v } = owner; void _mode;
+  return { ...DEFAULT_VIEW, ...v, ...(v.kind ? { kindChosen: true } : {}), ...(v.frontier != null ? { frontierChosen: true } : {}) } as ScatterView;
+}
+/** Only the fields an owner default stores. */
+export function toOwnerView(v: ScatterView, mode?: "all" | "best"): OwnerView {
+  const out: OwnerView = { kind: v.kind, scale: v.scale, frontier: v.frontier, links: v.links, guides: v.guides, density: v.density, labelScale: v.labelScale, ...(mode ? { mode } : {}) };
+  for (const k of Object.keys(out) as (keyof OwnerView)[]) if (out[k] === undefined) delete out[k];
+  return out;
+}
+export type OwnerView = { kind?: "scatter" | "bars"; mode?: "all" | "best"; scale?: "log" | "linear"; frontier?: boolean; links?: boolean; guides?: boolean; density?: number; labelScale?: number };
+
+/**
+ * A chart's view state. Visitors start from the page owner's default (`owner`) and keep their own
+ * tweaks in localStorage. While the owner edits (`onOwner` set), changes become the page default
+ * instead, and the owner's own local override is cleared so they see what visitors see.
+ */
+export function useScatterView(key: string, defaultKind: "bars" | "scatter" = "scatter", defaultFrontier = true, owner?: OwnerView | null, onOwner?: (v: ScatterView) => void): [ScatterView, (v: ScatterView, persist?: boolean) => void] {
+  const base = ownerBase(owner);
+  const [view, setView] = useState<ScatterView>(() => restoreScatterView(defaultKind, defaultFrontier, base));
+  const editing = !!onOwner;
+  const baseKey = JSON.stringify(owner ?? null);
   useEffect(() => {
     const raf = requestAnimationFrame(() => {
+      const b = ownerBase(owner);
+      if (editing) { setView(restoreScatterView(defaultKind, defaultFrontier, b)); return; }
       try {
         const s = JSON.parse(localStorage.getItem(`priors:chart:${key}`) ?? "null") as ScatterView | null;
-        if (s) setView(current => ({ ...restoreScatterView(defaultKind, defaultFrontier, s), ...(current.scale ? { scale: current.scale } : {}), ...(current.labelScale != null ? { labelScale: current.labelScale } : {}), ...(current.kindChosen ? { kind: current.kind, kindChosen: true } : {}) }));
+        const saved = s ? { ...b, ...s } : b;
+        if (saved) setView(current => ({ ...restoreScatterView(defaultKind, defaultFrontier, saved), ...(current.scale && !b?.scale ? { scale: current.scale } : {}), ...(current.labelScale != null && b?.labelScale == null ? { labelScale: current.labelScale } : {}), ...(current.kindChosen && !b?.kind ? { kind: current.kind, kindChosen: true } : {}) }));
       } catch { /* ignore */ }
     });
     return () => cancelAnimationFrame(raf);
-  }, [key, defaultKind, defaultFrontier]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key, defaultKind, defaultFrontier, baseKey, editing]);
   return [view, (v, persist = true) => {
     const next = v.kind !== view.kind ? { ...v, kindChosen: true } : v;
     setView(next);
+    if (onOwner) { onOwner(next); try { localStorage.removeItem(`priors:chart:${key}`); } catch { /* ignore */ } return; }
     if (persist) try { localStorage.setItem(`priors:chart:${key}`, JSON.stringify(next)); } catch { /* ignore */ }
   }];
 }

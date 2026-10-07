@@ -47,7 +47,7 @@ export function ChartExport({ name, getSvg, getRows, getHtml, frame, className =
       const raw = getSvg();
       if (!raw) throw new Error("Chart is still loading. Try again.");
       // Exports cannot inherit the page's CSS variables.
-      const clean = raw.replace(/var\(--font-inter\),?\s*/g, "").replace(/var\(--font-jetbrains\),?\s*/g, "");
+      const clean = raw.replace(/var\(--font-[a-z0-9-]+\),?\s*/g, "");
       const svg = frame ? frameSvg(clean, name, undefined, pal) : clean;
       let blob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
       if (format === "png") {

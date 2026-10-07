@@ -94,6 +94,13 @@ function escapeHtml(s: string) { return s.replace(/[&<>"']/g, (c) => ({ "&": "&a
  * server-side share-card rasterizer. `hasTitle` mirrors the page's title row (gallery
  * panels are untitled and float their controls over the plot's empty top margin).
  */
+/** The "most attractive quadrant": from the better axis edge to the median metric, and from the median score up. */
+function quadrantArea(pts: ScatterPoint[], better: "lower" | "higher", scale: "linear" | "log" | "time") {
+  const median = (v: number[]) => { const s = [...v].sort((a, b) => a - b), m = s.length >> 1; return s.length % 2 ? s[m] : scale === "log" ? Math.sqrt(s[m - 1] * s[m]) : (s[m - 1] + s[m]) / 2; };
+  const mx = median(pts.map((p) => p.x)), my = median(pts.map((p) => p.r.score));
+  return [{ xAxis: better === "lower" ? "min" : mx, yAxis: my }, { xAxis: better === "lower" ? mx : "max", yAxis: "max" }] as [{ xAxis: number | string; yAxis: number | string }, { xAxis: number | string; yAxis: number | string }];
+}
+
 export function scatterOption({ pts, labs, better, xName, xShort, xUnit = "", scale = "linear", formatX, formatValue, view, pal, narrow, hasTitle = false, tooltipExtra, width, height, highlight }: {
   pts: ScatterPoint[]; labs: Lab[]; better: "lower" | "higher"; xName: string; xShort?: string; xUnit?: string;
   scale?: "linear" | "log" | "time"; formatX: (x: number) => string; formatValue?: (x: number) => string;
@@ -134,7 +141,7 @@ export function scatterOption({ pts, labs, better, xName, xShort, xUnit = "", sc
   const marks = drawOrder.map((p) => ({ name: chartLabel(p.r), value: [p.x, p.r.score], id: p.r.variant.id, extra: p, ...markOf(p) }));
   const series: EChartsOption["series"] = [
     ...links.map((v) => { const mine = hl.has(v[0].r.model.id), c = color.get(v[0].r.model.labId); return { type: "line" as const, id: `link-${v[0].r.model.id}`, data: v.map((p) => ({ id: p.r.variant.id, value: [p.x, p.r.score] })), showSymbol: false, lineStyle: { color: on && !mine ? dimColor(c, pal) : c, width: mine ? 2 : 1, opacity: mine ? 1 : on ? 0.25 : pal.dark ? 0.45 : 0.35 }, silent: true, animationDuration: 500, z: mine ? 4 : 1 }; }),
-    ...(view.frontier && frontier.length > 1 ? [{ type: "line" as const, id: "frontier", data: frontier.map((p) => ({ id: p.r.variant.id, value: [p.x, p.r.score] })), showSymbol: false, lineStyle: { color: pal.ink, width: 1.4, opacity: on ? 0.3 : 1 }, silent: true, animationDuration: 500, z: 2 }] : []),
+    ...(view.frontier && frontier.length > 1 ? [{ type: "line" as const, id: "frontier", data: frontier.map((p) => ({ id: p.r.variant.id, value: [p.x, p.r.score] })), showSymbol: false, lineStyle: { color: pal.style?.frontierColor ?? pal.ink, width: pal.style?.frontier === "dotted" ? 1.6 : 1.4, type: (pal.style?.frontier === "dotted" ? [2, 3] : "solid") as number[] | "solid", opacity: on ? 0.3 : 1 }, silent: true, animationDuration: 500, z: 2 }] : []),
     {
       // Keep marks and their label backgrounds above highlighted effort links (z: 4).
       type: "scatter", id: "marks", z: 5,
@@ -143,6 +150,8 @@ export function scatterOption({ pts, labs, better, xName, xShort, xUnit = "", sc
       labelLayout: scatterLabelLayout(width ?? (() => undefined), height ?? (() => undefined), marks.map(p => p.label.show)),
       emphasis: { scale: 1.4, label: { show: true, fontWeight: 600 } },
       clip: true, universalTransition: { enabled: false },
+      // AA-style themes shade the better corner: better-than-median metric and above-median score.
+      ...(pal.style?.quadrant && scale !== "time" && pts.length >= 4 ? { markArea: { silent: true, z: 0, itemStyle: { color: pal.style.quadrant }, label: { show: false }, data: [quadrantArea(pts, better, scale)] } } : {}),
       animationDurationUpdate: 350, animationEasingUpdate: "cubicOut",
     },
   ];

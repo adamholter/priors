@@ -1,0 +1,97 @@
+/* ───────────── Edit mode chrome ───────────── */
+.edit-bar { position: sticky; top: 56px; z-index: 9; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 9px 16px; margin: 0; border-bottom: 1px solid var(--hair); background: color-mix(in srgb, var(--indigo) 7%, var(--bone)); font-size: 12.5px; }
+@media (max-width: 639px) { .edit-bar { top: 0; } }
+.edit-bar-title { font-weight: 500; color: var(--ink); }
+.edit-bar-status { color: var(--grey); margin-right: auto; }
+.edit-frame { position: relative; border: 1px dashed color-mix(in srgb, var(--indigo) 38%, var(--hair)); border-radius: calc(var(--page-radius, 4px) + 4px); padding: 38px 14px 14px; transition: border-color .15s, background .15s; }
+.edit-frame:hover, .edit-frame:focus-within { border-color: var(--indigo); }
+.edit-frame, .edit-body { min-width: 0; }
+@media (max-width: 639px) { .edit-frame { padding: 38px 6px 8px; margin: 0 -6px; } .edit-toolbar { left: 4px; right: 4px; } .metric-tools { margin-left: 0; } }
+.edit-frame.is-over { background: var(--indigo-soft); border-style: solid; }
+.edit-frame.is-hidden > .edit-body { opacity: .4; }
+.edit-toolbar { position: absolute; top: 7px; left: 10px; right: 10px; display: flex; align-items: center; gap: 4px; font-size: 11.5px; color: var(--grey); }
+.edit-handle { cursor: grab; padding: 3px 5px; color: var(--grey); border-radius: 3px; }
+.edit-handle:hover { color: var(--ink); background: var(--hair-2); }
+.edit-kind { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .03em; text-transform: uppercase; margin-right: auto; }
+.edit-icon { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 4px; color: var(--ink-2); background: transparent; border: 0; font-size: 13px; }
+.edit-icon:hover:not(:disabled) { background: var(--hair-2); color: var(--ink); }
+.edit-icon:disabled { opacity: .3; }
+.edit-chip { font-size: 11px; padding: 2px 8px; border-radius: 99px; border: 1px solid var(--hair); color: var(--grey); background: transparent; white-space: nowrap; }
+.edit-chip[aria-pressed="true"] { border-color: var(--indigo); color: var(--indigo); background: var(--indigo-soft); }
+.edit-chip:disabled { opacity: .4; }
+.edit-insert { position: relative; display: flex; justify-content: center; margin: -22px 0; z-index: 2; }
+.edit-insert::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; border-top: 1px dashed transparent; transition: border-color .15s; }
+.edit-insert:hover::before { border-top-color: var(--indigo); }
+.edit-insert-btn { position: relative; font-size: 11.5px; padding: 3px 10px; border-radius: 99px; border: 1px solid var(--hair); background: var(--bone); color: var(--grey); opacity: .65; transition: opacity .15s, color .15s, border-color .15s; }
+.edit-insert:hover .edit-insert-btn, .edit-insert-btn[aria-expanded="true"] { opacity: 1; color: var(--indigo); border-color: var(--indigo); }
+.edit-insert-menu { position: absolute; top: calc(100% + 4px); z-index: 20; display: grid; min-width: 180px; padding: 4px; background: var(--white); border: 1px solid var(--hair); border-radius: 6px; box-shadow: 0 14px 34px -16px var(--shadow); }
+.edit-insert-menu > button { text-align: left; padding: 7px 10px; border-radius: 4px; font-size: 13px; }
+.edit-insert-menu > button:hover { background: var(--indigo-soft); }
+.inline-edit { font: inherit; color: inherit; letter-spacing: inherit; background: transparent; border: 0; border-bottom: 1px dashed color-mix(in srgb, var(--indigo) 55%, transparent); padding: 0 2px; margin: 0 -2px; max-width: 100%; resize: vertical; }
+.inline-edit:focus { outline: none; border-bottom: 1px solid var(--indigo); background: var(--indigo-soft); }
+.inline-edit::placeholder { color: var(--grey); opacity: .8; }
+textarea.inline-edit { display: block; border: 1px dashed color-mix(in srgb, var(--indigo) 45%, transparent); border-radius: 4px; padding: 6px 8px; margin: 0; }
+.metric-tools { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-left: auto; margin-right: 8px; }
+.is-editing .gallery-panel summary { padding-right: 28px; }
+
+/* Theme picker cards in Page settings. */
+.theme-swatch { position: relative; display: grid; gap: 8px; padding: 10px; text-align: left; border: 1px solid var(--hair); overflow: hidden; }
+.theme-swatch.is-on { box-shadow: 0 0 0 2px var(--ink); }
+.theme-swatch-card { display: flex; align-items: flex-end; justify-content: space-between; height: 54px; padding: 8px; border: 1px solid; }
+.theme-swatch-type { font-size: 22px; line-height: 1; }
+.theme-swatch-bars { display: flex; align-items: flex-end; gap: 3px; height: 36px; }
+.theme-swatch-bars i { width: 7px; display: block; }
+.theme-swatch-name { font-size: 12px; }
+.theme-swatch-name em { font-style: normal; opacity: .55; font-size: 11px; }
+.theme-swatch-accent { position: absolute; top: 10px; right: 10px; width: 8px; height: 8px; border-radius: 50%; }
+
+/* ───────────── Analysis theme (Artificial Analysis look) ───────────── */
+.page-root[data-family="aa"] { font-size: 15px; }
+.page-root[data-family="aa"] header { background: var(--bone) !important; backdrop-filter: none !important; border-bottom-color: transparent; padding-top: 14px; padding-bottom: 14px; }
+.page-root[data-family="aa"] h1, .page-root[data-family="aa"] h2, .page-root[data-family="aa"] h3 { font-family: var(--font-serif); font-weight: 400; letter-spacing: -0.012em; }
+.page-root[data-family="aa"] h1 { font-size: 40px !important; }
+.page-root[data-family="aa"] main > section > h2, .page-root[data-family="aa"] .chart-panel h2 { font-size: 26px !important; line-height: 1.2; }
+/* Section headings carry AA's black square marker. */
+.page-root[data-family="aa"] .chart-panel h2::before, .page-root[data-family="aa"] main > section > h2::before { content: ""; display: inline-block; width: 18px; height: 18px; margin-right: 12px; background: var(--ink); vertical-align: -1px; }
+.page-root[data-family="aa"] .chart-panel { background: var(--white); border: 1px solid var(--hair); border-radius: var(--page-radius); padding: 28px 32px 30px; }
+@media (max-width: 639px) { .page-root[data-family="aa"] .chart-panel { padding: 18px 14px 20px; } }
+.page-root[data-family="aa"] .cap { font-family: var(--font-sans); font-size: 12px; color: var(--grey); letter-spacing: 0; }
+.page-root[data-family="aa"] .mono, .page-root[data-family="aa"] .num { font-family: var(--font-sans); }
+.page-root[data-family="aa"] .btn { border-radius: 999px; background: var(--ink); color: var(--bone); border-color: var(--ink); font-size: 14px; padding: 7px 16px; font-weight: 500; }
+.page-root[data-family="aa"] .btn:hover { opacity: .85; background: var(--ink); color: var(--bone); }
+.page-root[data-family="aa"] .btn-quiet { border-radius: 999px; border-color: transparent; background: color-mix(in srgb, var(--ink) 9%, var(--bone)); color: var(--ink); font-size: 14px; padding: 7px 16px; }
+.page-root[data-family="aa"] .btn-quiet:hover { background: color-mix(in srgb, var(--ink) 15%, var(--bone)); border-color: transparent; }
+.page-root[data-family="aa"] .seg { border-radius: 8px; border-color: var(--hair); }
+.page-root[data-family="aa"] .seg > button[aria-pressed="true"] { background: color-mix(in srgb, var(--ink) 8%, var(--bone)); }
+.page-root[data-family="aa"] .gallery-panel { border-color: var(--hair); }
+.page-root[data-family="aa"] .gallery-title { font-family: var(--font-serif); font-size: 19px; font-weight: 400; }
+.page-root[data-family="aa"] .ranking-list .bar-fill { border-radius: 3px; }
+.page-root[data-family="aa"] main { gap: 40px; }
+.page-root[data-family="aa"] footer { font-size: 14px; }
+
+/* ───────────── Slop theme (Slopalytics look) ───────────── */
+.page-root[data-family="slop"] { font-size: 13px; line-height: 1.5; }
+.page-root[data-family="slop"] header { background: var(--bone) !important; backdrop-filter: none !important; min-height: 60px; border-bottom-color: var(--hair); }
+.page-root[data-family="slop"] h1, .page-root[data-family="slop"] h2, .page-root[data-family="slop"] h3, .page-root[data-family="slop"] .serif, .page-root[data-family="slop"] .wm { font-family: var(--font-sans); letter-spacing: -0.01em; }
+.page-root[data-family="slop"] h1 { font-size: 24px !important; font-weight: 500; }
+.page-root[data-family="slop"] h2 { font-size: 16px !important; font-weight: 500; }
+.page-root[data-family="slop"] .wm { font-weight: 600; }
+.page-root[data-family="slop"] main { max-width: 1240px; gap: 0; padding-top: 24px; }
+.page-root[data-family="slop"] main > section, .page-root[data-family="slop"] main > .edit-frame { padding-top: 28px; padding-bottom: 28px; }
+.page-root[data-family="slop"] main > section + section { border-top: 1px solid var(--hair); }
+.page-root[data-family="slop"] .chart-panel { background: transparent !important; border: 0; padding: 28px 0 !important; border-radius: 0; margin: 0 !important; }
+.page-root[data-family="slop"] .cap { font-family: var(--font-sans); font-size: 11px; color: var(--grey); letter-spacing: 0; }
+.page-root[data-family="slop"] .mono, .page-root[data-family="slop"] .num { font-family: var(--font-sans); font-variant-numeric: tabular-nums; }
+.page-root[data-family="slop"] .btn { border-radius: 2px; font-size: 12px; padding: 5px 10px; background: transparent; color: var(--ink); border-color: var(--hair-3); }
+.page-root[data-family="slop"] .btn:hover { background: var(--hair); color: var(--ink); }
+.page-root[data-family="slop"] .btn-quiet { border-radius: 2px; font-size: 12px; padding: 5px 8px; border-color: transparent; color: var(--ink-2); }
+.page-root[data-family="slop"] .btn-quiet:hover { color: var(--ink); border-color: transparent; text-decoration: underline; text-underline-offset: 6px; text-decoration-color: var(--indigo); }
+.page-root[data-family="slop"] .seg { border: 0; gap: 10px; }
+.page-root[data-family="slop"] .seg > button { padding: 4px 0; border: 0 !important; color: var(--grey); font-size: 12px; }
+.page-root[data-family="slop"] .seg > button[aria-pressed="true"] { background: transparent; color: var(--ink); box-shadow: inset 0 -1px 0 var(--indigo); }
+.page-root[data-family="slop"] .gallery-panel { border-color: var(--hair); }
+.page-root[data-family="slop"] .gallery-title { font-size: 13px; font-weight: 500; }
+.page-root[data-family="slop"] .ranking-list .bar-fill, .page-root[data-family="slop"] .ranking-list .rounded-\[2px\] { border-radius: 1px; }
+.page-root[data-family="slop"] .ranking-list .bg-hair-2 { background: var(--hair); }
+.page-root[data-family="slop"] footer { border-top-color: var(--hair); }
+.page-root.is-editing main { grid-template-columns: minmax(0, 1fr); }

@@ -31,6 +31,15 @@ Personal benchmark index builder. Anyone weights AI-model benchmarks, sees ranki
 - `convex/` — profiles (handle, indices, sections, theme, agent token hash) + imports. Clerk JWT via `CLERK_JWT_ISSUER_DOMAIN` env in Convex.
 - `src/app/` — `/` onboarding→builder redirect, `/builder` explorer (generateMetadata emits the og card per URL), `/[handle]` public page (+ `opengraph-image`), `/og` anonymous share card, `/skill`, `/import`, `/claim`, `/sign-in`, `/api/agent`, `/api/benchmarks`.
 
+## Page themes and editing
+
+- Themes live in `src/lib/page-presets.ts`: colors, fonts, lab colors, card radius and chart style per theme; `family` (`priors`, `aa`, `slop`, `classic`) switches the scoped stylesheet `src/components/page/page-themes.css`. Paired themes (`bone`/`night`, `aa`/`aa-dark`, `slop`/`slop-light`) follow the visitor's light/dark unless `theme.mode` is `fixed`. Ids `bone`/`night` are kept for stored pages (shown as Priors Light/Dark).
+- Analysis uses Switzer (Fontshare, free commercial license, vendored in `src/app/fonts` and `src/lib/og-fonts`) as the free stand-in for AA's licensed Suisse Int'l, and Source Serif 4 for its serif. Slop uses DM Sans. Lab colors come from each site's own palette (AA creator colors; Slopalytics `light-dark()` pairs).
+- Charts read theme style through `ChartPalette` (`fonts`, `labColors`, `style`: dotted grid, dotted frontier, AA "most attractive quadrant" `markArea` from the median metric/score, bar labels inside bars). Share cards (`/og?theme=&scheme=`) load the theme's font files under the components' font names; the share dialog can pick another theme.
+- Owner edit mode is inline on the page (`IndexPage` + `PageEdit.tsx`): section frames (drag, move, hide, remove), "+ Add section" between sections, inline name/bio/titles/text, More metrics layout (`section.metrics`: order, shown, starts open, per-chart `view`), and per-chart owner defaults (`section.view`) through `useScatterView(key, …, owner, onOwner)`. Edits autosave (debounced `profiles.update`) with undo. The Page settings drawer holds theme presets, light/dark lock, accent, share card, links, photo/banner and agent token.
+- Model lists are never stored by the editor: hiding models writes `excludeModels` only, so new models appear automatically.
+- `/lab/themes` previews every theme and edit mode without signing in; lab edits never save.
+
 ## Mix assistant
 
 - Signed-in users adjust the active index in plain language from a composer bar on `/builder` and profile pages (`src/components/MixAssistant.tsx`; `/` focuses it; can dock as a right panel). It acts first (applies the change with Undo), then explains and, for vague asks, asks where exactly the user wants things.
