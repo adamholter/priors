@@ -8,7 +8,9 @@ import { maxMarginMix, sparseMixes } from "./lp";
 import { sgdCandidates } from "./sgd";
 
 export { PREFERRED };
-export type FitPriorities = { baseline?: string[] };
+import { selectedPairAgreement, fitScore, type FitPriorities } from "./ranking-metric";
+export { selectedPairAgreement, fitScore } from "./ranking-metric";
+export type { FitPriorities } from "./ranking-metric";
 export type FitOptions = { focus?: FocusId; library?: MixLibrary; budgetMs?: { soft: number; hard: number }; extraFits?: MixLibrary["fits"] };
 export type FitUpdate = { exactMatch:boolean; matchedPositions:number; priorityMatched:number; priorityTotal:number; phase:"preparing"|"searching"|"simplifying"|"complete"; iteration:number; tested:number; agreement:number; matchedPairs:number; totalPairs:number; closeness:number; fitScore:number; provisional:boolean; weights:Record<string,number>; ranking:Array<{modelId:string;score:number;variantId:string;coverage:number}>; config:IndexConfig; benchmarkCount:number; quality:number; mismatches:Array<{above:string;below:string}>; log:string; estimatedShare:number; intruders?:string[] };
 type Settings=Pick<IndexConfig,"strictness"|"estimateMissing"|"effortMatching">;
@@ -25,55 +27,9 @@ function config(snapshot:Snapshot,target:string[],raw:Record<string,number>,s:Se
 /** The lineup exclusion is a search accelerator — the published index ranks everyone. */
 function publishable(cfg:IndexConfig):IndexConfig{return{...cfg,excludeModels:undefined,onlyModels:undefined}}
 function eligible(snapshot:Snapshot,id:string,target:Set<string>){const b=snapshot.benchmarks.find(x=>x.id===id);if(!b||b.proxy||["cost","speed","composite","reliability"].includes(b.category)||/arena|image|subjective|price|cost|speed/i.test(`${b.id} ${b.name} ${b.description}`))return false;const modelByVariant=new Map(snapshot.variants.map(v=>[v.id,v.modelId]));const seen=new Set(snapshot.observations.filter(o=>o.benchmarkId===id).map(o=>modelByVariant.get(o.variantId)));let n=0;for(const m of target)if(seen.has(m))n++;return n>=Math.min(2,target.size)&&n/target.size>=.45}
-export function selectedPairAgreement(target:string[],scores:Map<string,number>,priorities:FitPriorities={}){
- // A correctly ordered pair earns full credit only when separated by MARGIN index points —
- // enough of a gap that small benchmark changes won't flip it. Thin margins give partial
- // credit, so the score keeps climbing while the search widens gaps after the order is right.
- const MARGIN=3;
- let matched=0,missing=0,weightedErrors=0,weightedTotal=0,priorityMatched=0,priorityTotal=0,closenessNum=0;
- const mismatches:Array<{above:string;below:string}>=[], priorityErrors=target.map(()=>0), rankErrors=target.map(()=>0);
- const baseline=new Map((priorities.baseline??target).map((id,i)=>[id,i]));
- for(const id of target)if(!scores.has(id))missing++;
- for(let i=0;i<target.length;i++)for(let j=i+1;j<target.length;j++){
-  const above=target[i],below=target[j],a=scores.get(above),b=scores.get(below);
-  const finite=a!=null&&b!=null&&Number.isFinite(a)&&Number.isFinite(b);
-  const ok=finite&&a!-b!>1e-7;
-  const explicit=!baseline.has(above)||!baseline.has(below)||baseline.get(above)!>baseline.get(below)!;
-  const weight=1/((i+1)*(i+1));weightedTotal+=weight;
-  if(explicit){priorityTotal++;if(ok)priorityMatched++;else priorityErrors[i]++;}
-  if(ok)matched++;else{weightedErrors+=weight;rankErrors[i]++;mismatches.push({above,below});}
-  const gap=finite?a!-b!:NaN;
-  closenessNum+=weight*(Number.isFinite(gap)?(gap>=0?Math.min(1,gap/MARGIN):Math.max(-.5,gap/MARGIN)):0);
- }
- const ranked=target.filter(id=>scores.has(id)).sort((a,b)=>scores.get(b)!-scores.get(a)!);
- const matchedPositions=target.filter((id,i)=>ranked[i]===id&& !mismatches.some(p=>(p.above===id||p.below===id)&&scores.get(p.above)===scores.get(p.below))).length;
- return{matched,missing,mismatches,total:target.length*(target.length-1)/2,priorityErrors,rankErrors,priorityMatched,priorityTotal,weightedErrors,weightedTotal,matchedPositions,closeness:weightedTotal?Math.max(0,100*closenessNum/weightedTotal):100};
-}
+
 function rankingLoss(p:ReturnType<typeof selectedPairAgreement>){return[p.missing,...p.priorityErrors,p.weightedErrors,p.total-p.matched]}
 const rankingLossLength=(n:number)=>n+3;
-
-/** Displayed fit: rank-weighted penalty for wrong pairs, plus small penalties for thin
- *  margins and extra benchmarks. A model missing from the ranking counts as wrong
- *  against every other model. */
-export function fitScore(target:string[],scores:Map<string,number>,benchCount:number){
- // Rank-weighted pair agreement mapped like Kendall's tau (a random order ≈ 0, perfect = 1), then
- // curved so getting most pairs right reads as partial credit rather than near-perfect.
- let right=0,total=0,thin=0,wSum=0;
- for(let i=0;i<target.length;i++)for(let j=i+1;j<target.length;j++){
-  const a=scores.get(target[i]),b=scores.get(target[j]),w=1/Math.pow(i+1,.7);total+=w;
-  if(a!=null&&b!=null&&Number.isFinite(a)&&Number.isFinite(b)&&a-b>1e-7)right+=w;
- }
- const tau=total?Math.max(0,2*right/total-1):1,wrong=100*(1-Math.pow(tau,2.5));
- // Thin margins between neighboring ranks cost a little; deep gaps are free.
- for(let i=0;i+1<target.length;i++){
-  const a=scores.get(target[i]),b=scores.get(target[i+1]);
-  if(a==null||b==null||!Number.isFinite(a)||!Number.isFinite(b)||a-b<=1e-7)continue;
-  const w=1/(i+1);wSum+=w;thin+=w*Math.max(0,1-(a-b)/3);
- }
- const thinScore=wSum?5*thin/wSum:0,complexity=5*Math.min(1,Math.max(0,(benchCount-4)/8));
- return Math.max(0,Math.min(100,100-wrong-thinScore-complexity));
-}
-
 
 function preference(raw:Record<string,number>,quality:Record<string,number>,aff:Record<string,number>){const e=Object.entries(raw).filter(([,w])=>w>0),sum=e.reduce((n,[,w])=>n+w,0)||1;return{quality:e.reduce((n,[id,w])=>n+(Number.isFinite(quality[id])?quality[id]:50)*w,0)/sum,penalty:e.reduce((n,[id,w])=>n+(w/sum)*(1-(aff[id]??0)),0)}}
 /** Surrogate score map for the target lineup: models below the measured-share floor count as missing. */

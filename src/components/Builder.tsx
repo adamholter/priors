@@ -25,8 +25,9 @@ import { mergeImports, type ImportPayload } from "@/lib/import";
 import { SourceStatus } from "./SourceStatus";
 import { taskMetricOptions, taskMetricDescription } from "@/data/task-metrics";
 import { MetricGallery } from "./page/MetricGallery";
+import { IndexLabActions, type PublishPlacement } from "./lab/IndexLabActions";
 
-export function Builder({ snapshot: base, initialIndices }: { snapshot: Snapshot; initialIndices: IndexConfig[] }) {
+export function Builder({ snapshot: base, initialIndices, labPlacement }: { snapshot: Snapshot; initialIndices: IndexConfig[]; labPlacement?: PublishPlacement }) {
   // Benchmarks imported in this browser (via /import without an account) are merged client-side.
   const calculations = useRef<CalculationSettingsHandle>(null);
   const [local, setLocal] = useState<ImportPayload[]>([]);
@@ -40,7 +41,7 @@ export function Builder({ snapshot: base, initialIndices }: { snapshot: Snapshot
   // Restore the last edited indices when the URL carries none, and persist
   // edits so returning to /builder picks up where you left off.
   useEffect(() => {
-    if (initialIndices.length) return;
+    if (labPlacement || initialIndices.length) return;
     const id = requestAnimationFrame(() => {
       try { const saved = localStorage.getItem("priors:indices"); if (saved) { const list = decodeIndices(JSON.parse(saved) as string[]); if (list.length) setIndices(list); } } catch { /* ignore */ }
     });
@@ -80,10 +81,10 @@ export function Builder({ snapshot: base, initialIndices }: { snapshot: Snapshot
   const [shareHint, setShareHint] = useState(false);
   const edits = useRef({ count: 0, first: active });
   useEffect(() => {
-    if (active === edits.current.first || ++edits.current.count !== 4) return;
+    if (labPlacement || active === edits.current.first || ++edits.current.count !== 4) return;
     const id = requestAnimationFrame(() => { try { if (!localStorage.getItem("priors:share-hint")) { localStorage.setItem("priors:share-hint", "1"); setShareHint(true); } } catch { /* ignore */ } });
     return () => cancelAnimationFrame(id);
-  }, [active]);
+  }, [active, labPlacement]);
   useEffect(() => {
     if (!shareHint) return;
     const off = setTimeout(() => setShareHint(false), 9000);
@@ -101,14 +102,14 @@ export function Builder({ snapshot: base, initialIndices }: { snapshot: Snapshot
       p.getAll("i").forEach((value) => url.searchParams.append("i", value));
       url.searchParams.delete("date");
       window.history.replaceState(null, "", url.toString());
-      try {
+      if (!labPlacement) try {
         localStorage.setItem("priors:indices", JSON.stringify(p.getAll("i")));
         const encoded = encodeIndex({ ...active, onlyModels: undefined, excludeModels: undefined });
         if (encoded.length <= 2048) document.cookie = `${PRIORS_MIX_COOKIE}=${encodeURIComponent(encoded)}; Path=/; Max-Age=31536000; SameSite=Lax${location.protocol === "https:" ? "; Secure" : ""}`;
       } catch { /* ignore */ }
     }, 150);
     return () => { if (t.current) window.clearTimeout(t.current); };
-  }, [indices, active]);
+  }, [indices, active, labPlacement]);
 
   const update = useCallback((c: IndexConfig) => setIndices((list) => list.map((i) => (i.id === c.id ? c : i))), []);
   const highlightState = useMemo(() => ({ items: active.highlight ?? [], set: (h: string[]) => update({ ...active, highlight: h.length ? h : undefined }), models: pickerModels, linkIndices: [active, ...indices.filter((i) => i.id !== active.id)] }), [active, indices, update, pickerModels]);
@@ -125,15 +126,15 @@ export function Builder({ snapshot: base, initialIndices }: { snapshot: Snapshot
         <div className="col-span-3 row-start-2 lg:w-auto lg:ml-auto flex flex-wrap items-center gap-2 shrink-0">
           <span className="sm:hidden mr-auto"><SiteNav /></span>
           <span className="cap">Data as of {snapshot.date}</span>
-          <ShareCards indices={indices} active={active} top={topNames} hint={shareHint} onOpen={() => setShareHint(false)} />
-          <HeaderAuth indices={indices} />
+          {!labPlacement && <><ShareCards indices={indices} active={active} top={topNames} hint={shareHint} onOpen={() => setShareHint(false)} /><HeaderAuth indices={indices} /></>}
         </div>
         <div className="col-start-3 row-start-1 shrink-0"><ThemeToggle /></div>
       </header>
 
       <HighlightContext.Provider value={highlightState}>
-      <main className="grid grid-cols-1 lg:grid-cols-[360px_minmax(0,1fr)] gap-10 px-4 sm:px-8 pt-5 lg:pt-8 pb-8 max-w-[1500px] items-start">
+      <main className={`grid grid-cols-1 lg:grid-cols-[360px_minmax(0,1fr)] gap-10 px-4 sm:px-8 pt-5 lg:pt-8 pb-8 max-w-[1500px] items-start ${labPlacement && labPlacement !== "rail" ? "[&>aside]:order-2 [&>section]:order-1 lg:[&>aside]:order-1 lg:[&>section]:order-2" : ""}`}>
         <aside aria-label="Index controls" className="relative z-30 flex flex-col gap-5 min-h-0 lg:sticky lg:top-[88px] lg:h-[calc(100dvh-120px)]">
+          {labPlacement === "rail" && <IndexLabActions active={active} date={snapshot.date} top={topNames} placement="rail" />}
           <section aria-label="Benchmarks and eligibility" className="min-h-0 min-w-0 lg:flex-1 lg:overflow-y-auto lg:overflow-x-hidden lg:overscroll-contain pr-2 pb-2">
             <h2 className="text-[22px] mb-1">Your mix</h2>
             <p className="cap mb-4">{result.benchmarks.length} benchmarks · {new Set(result.ranked.map((r) => r.model.id)).size} models</p>
@@ -152,8 +153,9 @@ export function Builder({ snapshot: base, initialIndices }: { snapshot: Snapshot
         {/* Keep the assistant clearance inside this column so the sidebar stays below the header at the page bottom. */}
         <section className="grid gap-10 min-w-0 content-start pb-20 [&>div]:min-w-0">
           <div>
-            <Rankings anchor="rankings" title={<h2 className="text-[26px]">{active.name}</h2>} actions={<ChartSettings label="Ranking" mode={rankingMode} onChange={(rankingVariants) => update({ ...active, rankingVariants })} {...releaseProps} {...modelPicker} />} onSelect={(r) => { if (r) calculations.current?.inspect(r.variant.id); }} ranked={rankingRows} labs={snapshot.labs} showEffort={rankingMode === "all"} />
+            <Rankings anchor="rankings" limit={labPlacement ? 10 : undefined} title={<h2 className="text-[26px]">{active.name}</h2>} actions={<ChartSettings label="Ranking" mode={rankingMode} onChange={(rankingVariants) => update({ ...active, rankingVariants })} {...releaseProps} {...modelPicker} />} onSelect={(r) => { if (r) calculations.current?.inspect(r.variant.id); }} ranked={rankingRows} labs={snapshot.labs} showEffort={rankingMode === "all"} />
           </div>
+          {labPlacement === "inline" && <IndexLabActions active={active} date={snapshot.date} top={topNames} placement="inline" />}
           <div>
             <ParetoChart description={taskMetricDescription(active.costSource ?? "aa", "cost")} anchor="cost" ranked={result.ranked} mode={paretoMode} labs={snapshot.labs} view={paretoView} onView={setParetoView} title={<h2 className="text-[22px]">Score vs cost per task</h2>}
               actions={(barModels) => <ChartSettings anchor="cost" defaultScale="log" dataSource={{ value: active.costSource ?? "aa", options: taskMetricOptions(snapshot, "cost"), onChange: (costSource) => update({ ...active, costSource }) }} label="Pareto" mode={paretoMode} onChange={(paretoVariants) => update({ ...active, paretoVariants })} view={paretoView} onView={setParetoView} {...releaseProps} {...modelPicker} {...(barModels ?? {})} />} />
@@ -165,7 +167,8 @@ export function Builder({ snapshot: base, initialIndices }: { snapshot: Snapshot
         </section>
       </main>
       </HighlightContext.Provider>
-      <MixAssistant config={active} onApply={update} date={snapshot.date} />
+      {labPlacement === "dock" && <IndexLabActions active={active} date={snapshot.date} top={topNames} placement="dock" />}
+      {!labPlacement && <MixAssistant config={active} onApply={update} date={snapshot.date} />}
     </div>
   );
 }
