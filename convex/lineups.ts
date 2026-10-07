@@ -47,3 +47,10 @@ export const top = query({
       .slice(0, limit ?? 10);
   },
 });
+
+/** Finished rankings, capped at 1,000. The UI labels the ceiling as 1,000+. */
+export const count = query({
+  args: {},
+  returns: v.number(),
+  handler: async (ctx) => (await ctx.db.query("lineups").take(1000)).length,
+});

@@ -75,6 +75,20 @@ export function Builder({ snapshot: base, dates, initialIndices }: { snapshot: S
   // Legacy allowlists are converted when the user changes model visibility.
   const modelPicker = { models: pickerModels, excluded: excludedIds, onToggleModel: toggleModel, onShowAllModels: () => setVisibility(SHOW_ALL), onHideAllModels: () => setVisibility({ excludeModels: pickerIds, onlyModels: undefined }) };
   const [paretoView, setParetoView] = useScatterView("pareto");
+  const topNames = useMemo(() => [...new Set(rankingRows.map((r) => r.model.name))].slice(0, 3), [rankingRows]);
+  // After a few real edits, one gentle hint beside Share. Never a pop-up, never twice.
+  const [shareHint, setShareHint] = useState(false);
+  const edits = useRef({ count: 0, first: active });
+  useEffect(() => {
+    if (active === edits.current.first || ++edits.current.count !== 4) return;
+    const id = requestAnimationFrame(() => { try { if (!localStorage.getItem("priors:share-hint")) { localStorage.setItem("priors:share-hint", "1"); setShareHint(true); } } catch { /* ignore */ } });
+    return () => cancelAnimationFrame(id);
+  }, [active]);
+  useEffect(() => {
+    if (!shareHint) return;
+    const off = setTimeout(() => setShareHint(false), 9000);
+    return () => clearTimeout(off);
+  }, [shareHint]);
   const releaseProps = { releasedAfter: active.releasedAfter, onChangeReleased: (v: string) => update({ ...active, releasedAfter: v }) };
 
   // write URL (debounced) when indices change
@@ -106,7 +120,7 @@ export function Builder({ snapshot: base, dates, initialIndices }: { snapshot: S
         <div className="col-span-3 row-start-2 lg:w-auto lg:ml-auto flex flex-wrap items-center gap-2 shrink-0">
           <span className="sm:hidden mr-auto"><SiteNav /></span>
           <DatePicker current={snapshot.date} dates={[...new Set([snapshot.date, ...dates])].sort().reverse()} />
-          <ShareCards indices={indices} active={active} date={snapshot.date} />
+          <ShareCards indices={indices} active={active} date={snapshot.date} top={topNames} hint={shareHint} onOpen={() => setShareHint(false)} />
           <HeaderAuth indices={indices} />
         </div>
         <div className="col-start-3 row-start-1 shrink-0"><ThemeToggle /></div>

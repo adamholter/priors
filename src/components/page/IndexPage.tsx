@@ -29,6 +29,7 @@ import { anchorOf } from "../chart/ChartLink";
 import { ChartPaletteContext, markColor, paletteFor } from "../chart/echarts";
 import { HighlightContext } from "../chart/highlight";
 import { setHighlightParams } from "@/lib/highlight-link";
+import { VIA_KEY } from "@/lib/share";
 
 /** Stored shapes come from the Convex validators, so the page and the database can't disagree. */
 export type { Section };
@@ -58,6 +59,20 @@ export function IndexPage({ profile, snapshot, dates, edit }: { profile: Profile
   const pageUrl = new URL(`${origin || "https://mypriors.com"}/${p.handle}`);
   if (p.indices[0]) setHighlightParams(pageUrl, p.indices[0].id, p.indices[0].highlight ?? []);
   const [selected, setSelected] = useState<string | null>(null);
+  const firstIndex = p.indices[0];
+  const firstResult = firstIndex ? results.get(firstIndex.id) : undefined;
+  const topNames = useMemo(() => firstIndex && firstResult ? [...new Set(selectVariants(firstResult.ranked, chartVariantMode(firstIndex, "ranking")).map((r) => r.model.name))].slice(0, 5) : [], [firstIndex, firstResult]);
+  // Visitors see whose ranking this is and how to make their own; the owner, just after publishing, sees it went live.
+  const [viewer, setViewer] = useState<{ owner: boolean; published: boolean } | null>(null);
+  useEffect(() => {
+    const id = requestAnimationFrame(() => {
+      let owner = false;
+      try { owner = localStorage.getItem("priors:handle") === p.handle; } catch { /* storage can be disabled */ }
+      setViewer({ owner, published: owner && new URLSearchParams(window.location.search).get("published") === "1" });
+      if (!owner && topNames.length) try { localStorage.setItem(VIA_KEY, JSON.stringify({ handle: p.handle, name: p.displayName, top: topNames })); } catch { /* ignore */ }
+    });
+    return () => cancelAnimationFrame(id);
+  }, [p.handle, p.displayName, topNames]);
   const [paretoView, setParetoView] = useScatterView("page-pareto");
   const [speedView, setSpeedView] = useScatterView("page-speed");
   // Owner-controlled theme: preset fields become scoped rules, `css` is a raw
@@ -80,13 +95,13 @@ export function IndexPage({ profile, snapshot, dates, edit }: { profile: Profile
         <span className="max-sm:hidden"><SiteNav /></span>
         <div className="ml-auto hidden sm:flex flex-wrap items-center justify-end gap-3">
           <DatePicker current={snapshot.date} dates={dates} />
-          {p.indices[0] && <ShareCards indices={p.indices} active={p.indices[0]} date={snapshot.date} profile={p} pageUrl={pageUrl.toString()} defaultDesign={p.theme?.cardDesign} />}
+          {p.indices[0] && <ShareCards indices={p.indices} active={p.indices[0]} date={snapshot.date} profile={p} pageUrl={pageUrl.toString()} defaultDesign={p.theme?.cardDesign} top={topNames} />}
           <Link href={builderHref as "/"} className="btn-quiet">Open in builder</Link>
           {authEnabled && <PageEditor profile={p} onChange={setP} snapshot={snapshot} editing={edit} />}
           {followsSite && <ThemeToggle />}
         </div>
         <div className="ml-auto flex sm:hidden items-center gap-1">
-          {p.indices[0] && <ShareCards compact indices={p.indices} active={p.indices[0]} date={snapshot.date} profile={p} pageUrl={pageUrl.toString()} defaultDesign={p.theme?.cardDesign} />}
+          {p.indices[0] && <ShareCards compact indices={p.indices} active={p.indices[0]} date={snapshot.date} profile={p} pageUrl={pageUrl.toString()} defaultDesign={p.theme?.cardDesign} top={topNames} />}
           {followsSite && <ThemeToggle />}
           <MobileMenu>
             <DatePicker current={snapshot.date} dates={dates} />
@@ -98,6 +113,16 @@ export function IndexPage({ profile, snapshot, dates, edit }: { profile: Profile
         </div>
       </header>
 
+      {viewer && !viewer.owner && !edit && <div className="border-b hairline px-4 sm:px-8 py-2.5 flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5 text-[13px]" style={{ background: surface }}>
+        <span className="text-ink-2">This is <span className="text-ink">{p.displayName}</span>’s ranking of AI models. What’s yours?</span>
+        <Link href="/rank" className="btn !py-1 !text-[12.5px]">Rank models · 1 min</Link>
+      </div>}
+      {viewer?.published && <div className="border-b hairline px-4 sm:px-8 py-3 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-[13px]" style={{ background: surface }} role="status">
+        <span><span className="text-ink">Your page is live</span> <span className="text-ink-2">at mypriors.com/{p.handle} and listed on Explore.</span></span>
+        {p.indices[0] && <ShareCards indices={p.indices} active={p.indices[0]} date={snapshot.date} profile={p} pageUrl={pageUrl.toString()} defaultDesign={p.theme?.cardDesign} top={topNames} />}
+        <Link href={`/${p.handle}?edit=1` as "/"} className="btn-quiet">Customize page</Link>
+        <Link href="/explore" className="btn-quiet">See Explore</Link>
+      </div>}
       {p.bannerUrl && <div className="page-banner-frame"><img src={p.bannerUrl} alt="" className="page-banner" /></div>}
       <main className={`max-w-[1100px] mx-auto px-5 sm:px-8 grid gap-10 sm:gap-14 ${p.bannerUrl ? "pb-12" : "py-8 sm:py-12"}`}>
         <section className={`flex items-start gap-4 sm:gap-5 ${p.bannerUrl ? "-mt-8 sm:-mt-10" : ""}`}>
@@ -154,7 +179,7 @@ export function IndexPage({ profile, snapshot, dates, edit }: { profile: Profile
 
         <footer className="border-t hairline pt-6 flex items-baseline justify-between text-[12.5px] text-grey">
           <span>Data as of {snapshot.date}. Sources: {[...new Set(snapshot.benchmarks.map((b) => b.sourceId))].join(", ")}.</span>
-          <Link href="/" className="hover:text-ink">Build your own</Link>
+          <Link href="/rank" className="hover:text-ink">Build your own</Link>
         </footer>
       </main>
       {p.indices[0] && <MixAssistant config={p.indices[0]} date={snapshot.date} handle={p.handle} onApply={(next) => setP({ ...p, indices: p.indices.map((x) => x.id === next.id ? next : x) })} />}

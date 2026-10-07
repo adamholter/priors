@@ -64,19 +64,19 @@ function Claim() {
     <main className="min-h-screen grid place-items-center p-8">
       <form className="grid gap-5 w-full max-w-[380px]" onSubmit={async (e) => {
         e.preventDefault(); setBusy(true); setErr(null);
-        try { await claim({ handle, displayName: user.fullName || [user.firstName, user.lastName].filter(Boolean).join(" ") || user.username || user.primaryEmailAddress?.emailAddress.split("@")[0] || handle, avatarUrl: user.externalAccounts.find((a) => /google/.test(a.provider))?.imageUrl || (user.hasImage ? user.imageUrl : undefined), indices: pending.map(storableIndex) }); localStorage.removeItem("priors:pending"); sessionStorage.removeItem("priors:pending"); localStorage.setItem("priors:handle", handle); track("profile_claimed", { handle }); router.replace(`/${handle}?edit=1`); }
+        try { await claim({ handle, displayName: user.fullName || [user.firstName, user.lastName].filter(Boolean).join(" ") || user.username || user.primaryEmailAddress?.emailAddress.split("@")[0] || handle, avatarUrl: user.externalAccounts.find((a) => /google/.test(a.provider))?.imageUrl || (user.hasImage ? user.imageUrl : undefined), indices: pending.map(storableIndex) }); localStorage.removeItem("priors:pending"); sessionStorage.removeItem("priors:pending"); localStorage.setItem("priors:handle", handle); track("profile_claimed", { handle }); router.replace(`/${handle}?published=1`); }
         catch (x) { setErr((x as Error).message.replace(/^[\s\S]*Uncaught Error:\s*/, "").split("\n")[0]); setBusy(false); }
       }}>
         <Wordmark size={30} />
-        <h1 className="text-[28px]">Pick your handle</h1>
+        <h1 className="text-[28px]">Publish your ranking</h1>
         <label className="grid gap-1.5 text-[13px]">
-          <span className="text-ink-2">Your page will live at</span>
+          <span className="text-ink-2">Your page will live at this address and appear on Explore</span>
           <span className="flex items-center gap-0 border hairline rounded-sm bg-white px-3 h-10 focus-within:border-ink"><span className="text-grey mono">mypriors.com/</span><input autoFocus value={handle} onChange={(e) => setHandle(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "").slice(0, 30))} aria-label="Your handle" className="handle-input min-w-0 flex-1 bg-transparent outline-none mono" placeholder="adam" /></span>
           <span className="cap h-4">{handle.length >= 2 && available === false ? "taken or not allowed" : handle.length >= 2 && available ? "available" : ""}</span>
         </label>
         {pending.length > 0 && <p className="text-[12.5px] text-ink-2">Your {pending.length === 1 ? "index" : `${pending.length} indices`} ({pending.map((p) => p.name).join(", ")}) will be saved to the page.</p>}
         {err && <p className="text-[12.5px]" style={{ color: "#A0403A" }}>{err}</p>}
-        <button className="btn" disabled={busy || !available}>{busy ? "Creating…" : "Create my page"}</button>
+        <button className="btn" disabled={busy || !available}>{busy ? "Publishing…" : "Publish"}</button>
       </form>
     </main>
   );

@@ -8,6 +8,8 @@ import { api } from "../../convex/_generated/api";
 import { authEnabled } from "@/app/providers";
 import { SHARE_DESIGNS } from "@/lib/share-designs";
 import { useTheme } from "./Theme";
+import Link from "next/link";
+import { shareCardToX, shareText, stashForPublish } from "@/lib/share";
 
 const iconClass = "h-3.5 w-3.5 shrink-0";
 
@@ -27,16 +29,18 @@ function CloseIcon() {
   return <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="m6 6 12 12M18 6 6 18" /></svg>;
 }
 
-type ShareProps = { indices: IndexConfig[]; active: IndexConfig; date: string; profile?: { handle: string; displayName: string }; /** Personal pages share their own URL, not a mix deep link. */ pageUrl?: string; defaultDesign?: string; /** One share icon that opens the card dialog (mobile headers). */ compact?: boolean };
+type ShareProps = { indices: IndexConfig[]; active: IndexConfig; date: string; profile?: { handle: string; displayName: string }; /** Personal pages share their own URL, not a mix deep link. */ pageUrl?: string; defaultDesign?: string; /** One share icon that opens the card dialog (mobile headers). */ compact?: boolean; /** Top models by name, for the post text. */ top?: string[]; /** Show a one-time hint beside the button. */ hint?: boolean; onOpen?: () => void };
 export function ShareCards(props: ShareProps) {
   return authEnabled && !props.profile ? <SignedShareCards {...props} /> : <ShareCardsContent {...props} />;
 }
 function SignedShareCards(props: ShareProps) {
   const { isAuthenticated } = useConvexAuth();
   const mine = useQuery(api.profiles.mine, isAuthenticated ? {} : "skip");
-  return <ShareCardsContent {...props} profile={mine ?? undefined} />;
+  return <ShareCardsContent {...props} profile={mine ?? undefined} publishHref={!isAuthenticated ? "/sign-in" : mine === null ? "/claim" : undefined} />;
 }
-function ShareCardsContent({ indices, active, date, profile, pageUrl, defaultDesign, compact }: ShareProps) {
+function ShareCardsContent({ indices, active, date, profile, pageUrl, defaultDesign, compact, top, hint, onOpen, publishHref }: ShareProps & { publishHref?: "/sign-in" | "/claim" }) {
+  const [viewer, setViewer] = useState("");
+  useEffect(() => { const id = requestAnimationFrame(() => setViewer(localStorage.getItem("priors:handle") ?? "")); return () => cancelAnimationFrame(id); }, []);
   const dialog = useRef<HTMLDialogElement>(null);
   const heading = useId();
   const [open, setOpen] = useState(false);
@@ -87,33 +91,12 @@ function ShareCardsContent({ indices, active, date, profile, pageUrl, defaultDes
   const selectedUrl = `${imageUrl(design)}${retry ? `&retry=${retry}` : ""}`;
   const selected = SHARE_DESIGNS.find((d) => d.id === design) ?? SHARE_DESIGNS[0];
   const local = !origin || /^https?:\/\/(localhost|127\.|\[::1\])/.test(origin);
-  const postText = `${active.name} on Priors`;
-  const xParams = new URLSearchParams({ text: postText });
-  if (!local) xParams.set("url", postUrl);
+  // Someone else's page reads as theirs; your own index or page reads as yours.
+  const postText = shareText(top ?? [], profile && pageUrl && viewer !== profile.handle ? `@${profile.handle}` : undefined);
   const coarse = typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches;
-  const pasteKey = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform || "") ? "⌘V" : "Ctrl+V";
   const shareToX = () => {
     track("share_card_shared", { design, scheme, target: "x" });
-    const intent = `https://x.com/intent/post?${xParams}`;
-    const card = fetch(selectedUrl).then((r) => r.blob());
-    if (coarse) {
-      // Mobile share sheet: attach the PNG when the target accepts files.
-      card.then((blob) => {
-        const file = new File([blob], `priors-${design}.png`, { type: "image/png" });
-        if (navigator.canShare?.({ files: [file] })) {
-          navigator.share({ files: [file], text: `${postText} ${postUrl}` }).catch((e) => { if ((e as Error).name !== "AbortError") setMessage("Couldn't share the card — use Download and attach it."); });
-        } else {
-          window.open(intent, "_blank", "noopener");
-          setMessage("This device can't attach the card — use Download and add it to the draft.");
-        }
-      }).catch(() => setMessage("Couldn't load the card image — use Download and attach it."));
-      return;
-    }
-    window.open(intent, "_blank", "noopener");
-    if (typeof ClipboardItem === "undefined" || !navigator.clipboard?.write) { setMessage("Couldn't copy the image — use Download and attach it."); return; }
-    navigator.clipboard.write([new ClipboardItem({ "image/png": card })])
-      .then(() => setMessage(`Card copied. Press ${pasteKey} in the X draft to attach it.`))
-      .catch(() => setMessage("Couldn't copy the image — use Download and attach it."));
+    void shareCardToX({ imageUrl: selectedUrl, text: postText, url: local ? undefined : postUrl, fileName: `priors-${design}.png` }).then(setMessage);
   };
   const copy = async () => {
     try { await navigator.clipboard.writeText(pageUrl ?? `${window.location.origin}/builder?${params}`); setMessage("Link copied"); }
@@ -123,18 +106,19 @@ function ShareCardsContent({ indices, active, date, profile, pageUrl, defaultDes
     const r = dialog.current?.getBoundingClientRect();
     return !!r && (x < r.left || x > r.right || y < r.top || y > r.bottom);
   };
-  const openCard = () => { const saved = new URLSearchParams(window.location.search).get("design"); if (!openedBefore.current && SHARE_DESIGNS.some((d) => d.id === saved)) setDesign(saved!); openedBefore.current = true; setOrigin(window.location.origin); setMessage(""); dialog.current?.showModal(); setOpen(true); track("share_card_opened"); };
+  const openCard = () => { onOpen?.(); const saved = new URLSearchParams(window.location.search).get("design"); if (!openedBefore.current && SHARE_DESIGNS.some((d) => d.id === saved)) setDesign(saved!); openedBefore.current = true; setOrigin(window.location.origin); setMessage(""); dialog.current?.showModal(); setOpen(true); track("share_card_opened"); };
   return <>
     {compact ? <button type="button" className="icon-btn" onClick={openCard} aria-label="Share" title="Share"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v12M7.5 7.5 12 3l4.5 4.5M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7" /></svg></button> : <>
-    <button type="button" className="btn-quiet inline-flex items-center gap-1.5" onClick={copy} title="Copy link" aria-label="Copy link">{message === "Link copied" && !open ? "Link copied" : <><CopyIcon /><span className="hidden sm:inline">Copy link</span></>}</button>
-    {!open && message.startsWith("Copy failed") && <span role="alert" className="text-xs">Copy failed. Open Card for the link.</span>}
-    <button type="button" className="btn-quiet" onClick={openCard}>Card</button></>}
+    <span className="relative inline-flex items-center">
+      <button type="button" className="btn-quiet inline-flex items-center gap-1.5" onClick={openCard}><svg aria-hidden="true" className={iconClass} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v12M7.5 7.5 12 3l4.5 4.5M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7" /></svg>Share</button>
+      {hint && <span role="status" className="share-hint">Like this mix? Share it</span>}
+    </span></>}
     <dialog ref={dialog} aria-labelledby={heading} onClose={() => setOpen(false)}
       onPointerDown={(e) => { backdrop.current = e.target === e.currentTarget && outside(e.clientX, e.clientY); }}
       onClick={(e) => { if (backdrop.current && e.target === e.currentTarget && outside(e.clientX, e.clientY)) dialog.current?.close(); backdrop.current = false; }}
       className="m-auto w-[min(1160px,calc(100vw-24px))] max-h-[92dvh] overflow-y-auto rounded-md border hairline bg-bone p-4 sm:p-6 text-ink backdrop:bg-black/35">
       <div className="mb-4 flex items-center justify-between gap-4">
-        <div><h2 id={heading} className="text-2xl">Share card</h2><p className="text-sm text-ink-2">{active.name} · {SHARE_DESIGNS.length} designs</p></div>
+        <div><h2 id={heading} className="text-2xl">Share</h2><p className="text-sm text-ink-2">{active.name} · pick a card, post it, or copy the link</p></div>
         <button type="button" className="btn-quiet inline-flex items-center justify-center p-2" aria-label="Close share card" onClick={() => dialog.current?.close()}><CloseIcon /></button>
       </div>
       {open && <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_270px]">
@@ -155,6 +139,10 @@ function ShareCardsContent({ indices, active, date, profile, pageUrl, defaultDes
             <a className="btn-quiet inline-flex items-center gap-1.5" href={selectedUrl} download={`priors-${design}.png`}><DownloadIcon />Download</a>
           </div>
         </div>
+        {publishHref && !profile && <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-sm border hairline bg-white px-3 py-2.5">
+          <p className="text-[13px]"><span className="text-ink">Publish to Explore.</span> <span className="text-ink-2">Get mypriors.com/you and list this ranking where others can find it.</span></p>
+          <Link href={publishHref} className="btn" onClick={() => { track("publish_clicked", { from: "share" }); stashForPublish(indices); }}>Publish</Link>
+        </div>}
         <p className="mb-4 text-xs text-ink-2">{local ? "Download the PNG to attach to your X draft. This local preview has no public link." : coarse ? "Share on X opens your share sheet with the card attached." : "Share on X copies the card image and opens a draft — paste it in."}</p>
         {message && <div className="mb-4 text-sm" role="status">{message}{message.startsWith("Copy failed") && <input aria-label="Share link" className="inp mt-2 w-full" value={shareUrl} readOnly onFocus={(e) => e.currentTarget.select()} />}</div>}
         </section>

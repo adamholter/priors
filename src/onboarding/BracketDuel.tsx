@@ -1,7 +1,8 @@
 "use client";
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
 import type { Lab, Model } from "@/data/types";
-import { QUICK, finishWithIndex, pairKey, runBracket, type Answer, type BracketStep } from "./bracket";
+import { QUICK, finishWithIndex, pairKey, runBracket, type Answer, type BracketOptions, type BracketStep } from "./bracket";
+import { track } from "@/lib/analytics";
 
 const KEY = "priors:bracket";
 const SWIPE = 72;
@@ -27,9 +28,11 @@ export function undoSavedCall() {
   } catch { /* ignore */ }
 }
 
-export function Bracket({ seeds, models, labs, onFinish, onList, storageKey = KEY }: { seeds: string[]; models: Map<string, Model>; labs: Map<string, Lab>; onFinish: (step: BracketStep) => void; onList: () => void; storageKey?: string | null }) {
+export function Bracket({ seeds, models, labs, onFinish, onList, options, storageKey = KEY }: { seeds: string[]; models: Map<string, Model>; labs: Map<string, Lab>; onFinish: (step: BracketStep) => void; onList: () => void; options?: BracketOptions; storageKey?: string | null }) {
   const [answers, setAnswers] = useState<Answer[]>([]);
-  const step = useMemo(() => runBracket(seeds, answers), [seeds, answers]);
+  const step = useMemo(() => runBracket(seeds, answers, options), [seeds, answers, options]);
+  // Saved answers replay only against the same seeds and bracket shape.
+  const shape = `${seeds.join()}|${JSON.stringify(options ?? {})}`;
   const [leaving, setLeaving] = useState<Side | null>(null);
   const [offset, setOffset] = useState<{ x: number; y: number } | null>(null);
   const [announcement, setAnnouncement] = useState("");
@@ -44,13 +47,13 @@ export function Bracket({ seeds, models, labs, onFinish, onList, storageKey = KE
     const raf = requestAnimationFrame(() => {
       try {
         const saved = JSON.parse(storageKey ? localStorage.getItem(storageKey) ?? "null" : "null") as { v?: number; seeds?: string; answers?: Answer[] } | null;
-        if (saved?.v === 1 && saved.seeds === seeds.join() && Array.isArray(saved.answers)) setAnswers(saved.answers);
+        if (saved?.v === 2 && saved.seeds === shape && Array.isArray(saved.answers)) setAnswers(saved.answers);
       } catch { /* start fresh */ }
       restored.current = true;
     });
     return () => cancelAnimationFrame(raf);
-  }, [seeds, storageKey]);
-  useEffect(() => { if (restored.current && storageKey) try { localStorage.setItem(storageKey, JSON.stringify({ v: 1, seeds: seeds.join(), answers })); } catch { /* ignore */ } }, [answers, seeds, storageKey]);
+  }, [shape, storageKey]);
+  useEffect(() => { if (restored.current && storageKey) try { localStorage.setItem(storageKey, JSON.stringify({ v: 2, seeds: shape, answers })); } catch { /* ignore */ } }, [answers, shape, storageKey]);
   useEffect(() => () => { if (timer.current) clearTimeout(timer.current); gesture.current?.cleanup(); }, []);
   // A finished bracket goes straight to the full ranking for review.
   const finish = useRef(onFinish);
@@ -64,6 +67,7 @@ export function Bracket({ seeds, models, labs, onFinish, onList, storageKey = KE
     const winner = side === "left" ? l : side === "right" ? r : null;
     const commit = () => {
       timer.current = null; setLeaving(null); setOffset(null);
+      if (!s.asked) track("onboarding_started", { mode: "pairs", first: winner ? "pick" : "unsure" });
       setAnswers((a) => [...a, { a: l, b: r, winner, check: s.check }]);
       setAnnouncement(winner ? `${models.get(winner)?.name} is better.` : "Not sure. The index decides this one.");
     };
@@ -76,7 +80,7 @@ export function Bracket({ seeds, models, labs, onFinish, onList, storageKey = KE
     setAnswers((a) => { let i = a.length - 1; while (i >= 0 && a[i].auto) i--; return i < 0 ? a : a.slice(0, i); });
     setAnnouncement("Last call undone.");
   }
-  function finishRest() { setAnswers((a) => finishWithIndex(seeds, a)); }
+  function finishRest() { setAnswers((a) => finishWithIndex(seeds, a, options)); }
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -149,7 +153,7 @@ export function Bracket({ seeds, models, labs, onFinish, onList, storageKey = KE
   return <div className="bracket" data-done={step.done || undefined}>
     <section className="bracket-main" aria-label="Head-to-head matchups">
       {step.done ? null : <>
-        <div className="bracket-meta"><span className="bracket-round">{step.round}</span><span>Call {String(step.asked + 1).padStart(2, "0")} · up to {QUICK.cap}</span></div>
+        <div className="bracket-meta"><span className="bracket-round">{step.round}</span><span>Call {String(step.asked + 1).padStart(2, "0")} · up to {options?.cap ?? QUICK.cap}</span></div>
         <div className="bracket-progress" role="progressbar" aria-label="Bracket progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(step.progress * 100)}><i style={{ transform: `scaleX(${step.progress})` }} /></div>
         {step.check && <p className="check-note">Quick check: this one follows from your earlier calls.</p>}
         <div className={`duel ${offset ? "dragging" : ""} ${leaving ? `leaving-${leaving}` : ""} ${answers.length === 0 && !offset && !leaving ? "first" : ""}`} onPointerDown={down}>

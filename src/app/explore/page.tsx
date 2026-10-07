@@ -8,6 +8,8 @@ import type { Snapshot } from "@/data/types";
 import { Wordmark } from "@/components/Wordmark";
 import { SiteNav } from "@/components/SiteNav";
 import { ThemeToggle } from "@/components/Theme";
+import { encodeIndices } from "@/lib/url";
+import { rankedCount } from "@/lib/ranked-count";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Explore rankings", description: "AI model rankings people have built and published on Priors." };
@@ -33,9 +35,10 @@ const ago = (t: number) => {
 
 export default async function Explore() {
   const url = process.env.NEXT_PUBLIC_CONVEX_URL;
-  const [snapshot, pages] = await Promise.all([
+  const [snapshot, pages, ranked] = await Promise.all([
     loadSnapshot(),
     url ? new ConvexHttpClient(url).query(api.profiles.explore, {}).catch(() => [] as Published[]) : Promise.resolve([] as Published[]),
+    rankedCount(),
   ]);
   const colors = new Map(snapshot?.labs.map((l) => [l.id, l.color]) ?? []);
 
@@ -49,17 +52,21 @@ export default async function Explore() {
       <div className="flex flex-wrap items-end justify-between gap-4 mb-8">
         <div>
           <h1 className="text-[36px] leading-tight">Explore</h1>
-          <p className="text-ink-2 text-[14px] mt-1">Rankings people have built and published. Open one to see the full page and every chart.</p>
+          <p className="text-ink-2 text-[14px] mt-1">Rankings people have built and published. Open one to see the full page and every chart, or start from it and make it yours.</p>
+          {ranked > 20 && <p className="cap mt-2">{ranked.toLocaleString()}{ranked >= 1000 ? "+" : ""} rankings made · {pages.length} published</p>}
         </div>
-        <Link href="/builder" className="btn">Publish yours</Link>
+        <div className="flex flex-wrap gap-2">
+          <Link href="/rank" className="btn">Rank models · 1 min</Link>
+          <Link href="/builder" className="btn-quiet">Publish yours</Link>
+        </div>
       </div>
       {!pages.length ? <p className="cap py-16 text-center">No published pages yet. Build an index and claim your page to be the first.</p> :
       <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {pages.map((p) => {
           const index = p.indices[0];
           const s = snapshot && index ? summary(snapshot, index) : null;
-          return <li key={p.handle}>
-            <Link href={`/${p.handle}` as "/"} className="explore-card group grid gap-3 h-full p-4 border hairline rounded-md bg-white hover:border-[color:var(--hair-3)] transition-colors">
+          return <li key={p.handle} className="grid grid-rows-[1fr_auto] border hairline rounded-md bg-white overflow-hidden">
+            <Link href={`/${p.handle}` as "/"} className="explore-card group grid gap-3 p-4 hover:bg-hair-2 transition-colors">
               <div className="flex items-center gap-3 min-w-0">
                 {p.avatarUrl
                   // eslint-disable-next-line @next/next/no-img-element
@@ -80,6 +87,7 @@ export default async function Explore() {
               </ol> : <p className="cap">No ranked models on today&apos;s data.</p>}
               {s && s.count > 0 && <p className="cap leading-relaxed mt-auto">{s.count} benchmark{s.count === 1 ? "" : "s"} · {s.benches.map((b) => `${b.benchmark.shortName ?? b.benchmark.name} ${Math.round(b.share)}%`).join(", ")}</p>}
             </Link>
+            {index && <Link href={`/builder?${encodeIndices([{ ...index, name: `From @${p.handle}` }])}` as "/builder"} title={`Open @${p.handle}'s mix in the builder as your own copy`} className="border-t hairline px-4 py-2.5 text-[12px] text-ink-2 hover:text-indigo hover:bg-hair-2 transition-colors">Start from this</Link>}
           </li>;
         })}
       </ul>}
