@@ -2034,6 +2034,82 @@
         "canonical": true
       },
       "legacyVariantId": "qwen-3.8-27b@xhigh~aa-qwen3-8-27b-b01dee41"
+    },
+    {
+      "id": "aa/nex-derived",
+      "kind": "aa",
+      "record": {
+        "id": "3b5ba264-ad25-429b-a460-4d8698205f0d",
+        "slug": "nex-n2-pro",
+        "name": "Nex-N2-Pro (Based on Qwen3.5-397B-A17B)",
+        "isReasoning": true
+      },
+      "expected": {
+        "modelId": "nex-n2-pro",
+        "effort": "default",
+        "canonical": true
+      },
+      "legacyVariantId": "nex-n2-pro@default~aa-nex-n2-pro-3b5ba264"
+    },
+    {
+      "id": "aa/nex-own",
+      "kind": "aa",
+      "record": {
+        "id": "3b5ba264-ad25-429b-a460-4d8698205f0d",
+        "slug": "nex-n2-pro",
+        "name": "Nex-N2-Pro",
+        "isReasoning": true
+      },
+      "expected": {
+        "modelId": "nex-n2-pro",
+        "effort": "default",
+        "canonical": true
+      },
+      "legacyVariantId": "nex-n2-pro@default~aa-nex-n2-pro-3b5ba264"
+    },
+    {
+      "id": "aa/qwen-base",
+      "kind": "aa",
+      "record": {
+        "id": "0e66bae9-41f1-42fc-9276-ce8cb6f72919",
+        "slug": "qwen3-5-397b-a17b",
+        "name": "Qwen3.5 397B A17B (Reasoning)",
+        "isReasoning": true
+      },
+      "expected": {
+        "modelId": "qwen-3.5-397b-a17b",
+        "effort": "default",
+        "canonical": true
+      },
+      "legacyVariantId": "qwen-3.5-397b-a17b@default~aa-qwen3-5-397b-a17b-0e66bae9"
+    },
+    {
+      "id": "label/unknown-derived",
+      "kind": "label",
+      "record": {
+        "modelLabel": "Unknown Fine Tune (Based on Qwen3.5-397B-A17B)",
+        "effort": "default"
+      },
+      "expected": {
+        "modelId": "unresolved",
+        "effort": "default",
+        "canonical": false
+      },
+      "legacyVariantId": "unresolved"
+    },
+    {
+      "id": "label/unknown-derived-brackets",
+      "kind": "label",
+      "record": {
+        "modelLabel": "Unknown Fine Tune [Based on GPT-6 Astra]",
+        "effort": "default"
+      },
+      "expected": {
+        "modelId": "unresolved",
+        "effort": "default",
+        "canonical": false
+      },
+      "legacyVariantId": "unresolved"
     }
   ]
 }

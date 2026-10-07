@@ -24,7 +24,8 @@ export function isBaselineVariant(modelId: string, effort: Effort, sourceKey: st
 
   // Even with a plain key, the display name may specify an evaluated configuration.
   // Remove only documented mode words after the full release name has matched.
-  const name = slug(label.split("/").at(-1) ?? label);
+  const identityLabel = label.replace(/\([^)]*\bbased\s+on\b[^)]*\)|\[[^\]]*\bbased\s+on\b[^\]]*\]/gi, " ");
+  const name = slug(identityLabel.split("/").at(-1) ?? label);
   const prefixes = bases.sort((a, b) => b.length - a.length);
   const prefix = prefixes.find(p => name === p || name.startsWith(`${p}-`));
   if (!prefix) return false;

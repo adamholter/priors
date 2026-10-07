@@ -23,9 +23,9 @@ function resolveCase(c: Case): string {
   if (c.kind === "aa") return resolveAAIdentity(c.record as AAModelRecord).variantId;
   const label = c.record.modelLabel as string, effort = c.record.effort as Effort;
   const n = normalizeLabel(label, effort);
+  if (c.kind === "label") return n.ok ? `${n.modelId}@${n.effort ?? "default"}` : "unresolved";
   const key = c.record.sourceModelId as string;
   const modelId = n.ok ? n.modelId : `vals-model-${createHash("sha256").update(key).digest("hex").slice(0, 12)}`;
-  if (c.kind === "label") return n.ok ? `${modelId}@${n.effort ?? "default"}` : "unresolved";
   const variant: Variant = { id: c.legacyVariantId, modelId, effort,
     configuration: `VALS model key: ${key}`, sourceModel: { id: key, slug: key, name: label, url: "https://www.vals.ai" } };
   return canonicalizeSnapshot({ variants: [variant], observations: [], series: [] } as unknown as Snapshot).variants[0].id;

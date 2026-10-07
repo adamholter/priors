@@ -44,6 +44,8 @@ const cap = (w: string) => w[0].toUpperCase() + w.slice(1);
 
 /** family regex -> canonical id + display name + lab. Order matters (most specific first). */
 const FAMILIES: { re: RegExp; id: (m: RegExpMatchArray) => string; name: (m: RegExpMatchArray) => string; lab: string; reasoning?: boolean }[] = [
+  // Derived releases retain their own identity, independent of the base-model note.
+  { re: /\bnex[\s-]*n2[\s-]*pro\b/, id: () => "nex-n2-pro", name: () => "Nex-N2-Pro", lab: "other", reasoning: true },
   // Anthropic
   { re: /\b(?:claude[\s-]*)?fable[\s-]*(\d+(?:\.\d+)?)\b/, id: (m) => `claude-fable-${m[1]}`, name: (m) => `Fable ${m[1]}`, lab: "anthropic", reasoning: true },
   { re: /\b(?:claude[\s-]*)?opus[\s-]*(\d+(?:\.\d+)?)\b/, id: (m) => `claude-opus-${m[1]}`, name: (m) => `Opus ${m[1]}`, lab: "anthropic", reasoning: true },
@@ -214,6 +216,7 @@ const PROVIDER_PREFIX = /^(anthropic|openai|google|meta|meta-llama|xai|x-ai|deep
 
 export function cleanLabel(label: string): string {
   return label
+    .replace(/\([^)]*\bbased\s+on\b[^)]*\)|\[[^\]]*\bbased\s+on\b[^\]]*\]/gi, " ")
     .toLowerCase()
     .replace(PROVIDER_PREFIX, "")
     .replace(/[_/]+/g, " ")

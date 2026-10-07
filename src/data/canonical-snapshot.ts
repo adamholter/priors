@@ -1,3 +1,4 @@
+import { normalizeLabel } from "./normalize";
 import { isBaselineVariant } from "./variant-identity";
 import type { Snapshot, Variant } from "./types";
 
@@ -6,6 +7,34 @@ import type { Snapshot, Variant } from "./types";
  * Unknown configurations and conflicting same-benchmark measurements remain separate.
  */
 export function canonicalizeSnapshot(snapshot: Snapshot): Snapshot {
+  // Older AA snapshots may have matched the base model inside a derived release's
+  // description. Repair those identities before merging ordinary source aliases.
+  const repairs = new Map<string, string>();
+  const models = [...snapshot.models ?? []];
+  const inputVariants = snapshot.variants.map(v => {
+    const source = v.sourceModel;
+    if (!source?.url.startsWith("https://artificialanalysis.ai/") || !/\bbased\s+on\b/i.test(source.name)) return v;
+    const n = normalizeLabel(source.name, v.effort);
+    const modelId = n.ok ? n.modelId : `aa-${source.slug}`;
+    if (modelId === v.modelId) return v;
+    const base = `${modelId}@${v.effort}`;
+    const configuration = isBaselineVariant(modelId, v.effort, source.slug, source.name) ? undefined : v.configuration;
+    const id = `${base}${configuration ? `~${configuration}` : ""}`;
+    repairs.set(v.id, id);
+    if (!models.some(m => m.id === modelId)) models.push({ id: modelId,
+      name: n.ok ? n.modelName : source.name.replace(/\s*\([^)]*\bbased\s+on\b[^)]*\)/gi, ""),
+      labId: n.ok ? n.labId : "other", kind: "llm", reasoning: source.metadata?.isReasoning === true,
+      aliases: [source.name.toLowerCase()],
+      ...(typeof source.metadata?.releaseDate === "string" ? { releaseDate: source.metadata.releaseDate } : {}),
+    });
+    return { ...v, id, modelId, configuration, aliases: [...new Set([...v.aliases ?? [], v.id])] };
+  });
+  const repaired = (id: string) => repairs.get(id) ?? id;
+  snapshot = { ...snapshot, models, variants: inputVariants,
+    observations: snapshot.observations.map(o => ({ ...o, variantId: repaired(o.variantId) })),
+    series: snapshot.series.map(s => ({ ...s, variantId: repaired(s.variantId) })),
+    ...(snapshot.estimates ? { estimates: snapshot.estimates.map(e => ({ ...e, variantId: repaired(e.variantId), ...(e.sourceVariantId ? { sourceVariantId: repaired(e.sourceVariantId) } : {}) })) } : {}),
+  };
   const proposed = new Map(snapshot.variants.map(v => [v.id,
     v.sourceModel && isBaselineVariant(v.modelId, v.effort, v.sourceModel.slug, v.sourceModel.name)
       ? `${v.modelId}@${v.effort}` : v.id,

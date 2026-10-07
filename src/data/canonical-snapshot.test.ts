@@ -10,6 +10,22 @@ const original = JSON.parse(gunzipSync(readFileSync("scripts/benchmarks/fixtures
 const weights = { "aa-omniscience": 10, "frontiercode-1.1-extended": 10, "vals-vcb-1-100": 10, "vals-vibe-code-v1-1": 10 };
 
 describe("canonical snapshot identities", () => {
+  it("repairs a derived release mislabeled as its Qwen base, preserving measurements and links", () => {
+    const before = JSON.parse(gunzipSync(readFileSync("scripts/benchmarks/fixtures/qwen-derived-2026-10-07.json.gz")).toString()) as Snapshot;
+    const after = canonicalizeSnapshot(before);
+    const nex = after.variants.find(v => v.modelId === "nex-n2-pro")!;
+    expect(nex.id).toBe("nex-n2-pro@default");
+    expect(nex.aliases).toContain("qwen-3.5-397b-a17b@default~aa-nex-n2-pro-3b5ba264");
+    expect(after.models.find(m => m.id === nex.modelId)?.name).toBe("Nex-N2-Pro");
+    expect(after.observations.map(({ variantId: _, ...o }) => { void _; return o; }))
+      .toEqual(before.observations.map(({ variantId: _, ...o }) => { void _; return o; }));
+    expect(after.observations.find(o => o.variantId === nex.id && o.benchmarkId === "aa-omniscience")?.value).toBe(-27.05);
+    expect(after.observations.find(o => o.variantId === "qwen-3.5-397b-a17b@default" && o.benchmarkId === "aa-omniscience")?.value).toBe(-30.75);
+    const ranked = computeIndex(after, { ...defaultConfig(after), weights, strictness: 0, variants: "all" }).ranked;
+    expect(ranked.filter(r => r.model.id === "qwen-3.5-397b-a17b").map(r => r.variant.effort).sort()).toEqual(["default", "none"]);
+    expect(ranked.filter(r => r.model.id === "nex-n2-pro")).toHaveLength(1);
+    expect(canonicalizeSnapshot(after)).toEqual(after);
+  });
   it("joins measured scores across sources instead of hiding duplicate ranking rows", () => {
     const snapshot = canonicalizeSnapshot(original);
     const result = computeIndex(snapshot, { ...defaultConfig(snapshot), weights, strictness: 0,

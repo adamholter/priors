@@ -5,3 +5,5 @@ The reviewed dataset covers AA structured records, VALS catalog keys, cross-sour
 For a new parsing defect, add the source label/key and independently reviewed expected identity to `fixtures/identity-cases.json`. Keep the original source ID in `legacyVariantId`. Add both a matching alias and a nearby name that must stay separate. Do not change expected groups to match the parser's output.
 
 `src/data/canonical-snapshot.test.ts` also checks measured-score arithmetic, preservation of every observation field, source lineage, conflicting measurements, legacy highlights and repeat normalization.
+
+The October 7 Qwen regression adds derived-release labels, plain Nex-N2-Pro aliases and unknown derivatives. `qwen-derived-2026-10-07.json.gz` freezes the mislabeled AA records; CI verifies separate Nex and Qwen rankings, unchanged measurements and old highlight IDs. The identity corpus now has 117 cases.
