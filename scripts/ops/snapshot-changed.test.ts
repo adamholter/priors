@@ -3,6 +3,7 @@ import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { gzipSync } from "node:zlib";
+import { randomBytes } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import type { Snapshot } from "../../src/data/types";
 import { snapshotChanged } from "./snapshot-changed";
@@ -73,6 +74,12 @@ describe("scheduled snapshot change gate", () => {
       writeFileSync(file, gzipSync(JSON.stringify(next)));
       expect(run()).toBe(10);
       expect(run()).toBe(10); // Compare to HEAD, never the last local refresh.
+      // Published snapshots can exceed execFileSync's default 1 MiB buffer.
+      next.observations[0].details = { payload: randomBytes(1500000).toString("base64") };
+      writeFileSync(file, gzipSync(JSON.stringify(next)));
+      execFileSync("git", ["add", "."], { cwd });
+      execFileSync("git", ["-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "-qm", "large snapshot"], { cwd });
+      expect(run()).toBe(0);
       writeFileSync(file, "invalid gzip");
       expect(run()).toBe(1);
     } finally { rmSync(cwd, { recursive: true, force: true }); }

@@ -38,7 +38,7 @@ if (process.argv[1]?.endsWith("snapshot-changed.ts")) {
     const decode = (bytes: Buffer): Snapshot => JSON.parse(gunzipSync(bytes).toString("utf8"));
     const current = decode(readFileSync(file));
     const tracked = execFileSync("git", ["ls-tree", "HEAD", "--", file], { encoding: "utf8" });
-    const changed = !tracked.trim() || snapshotChanged(decode(execFileSync("git", ["show", `HEAD:${file}`])), current);
+    const changed = !tracked.trim() || snapshotChanged(decode(execFileSync("git", ["show", `HEAD:${file}`], { maxBuffer: 64 * 1024 * 1024 })), current);
     console.log(changed ? "Snapshot data changed; publishing update." : "No new snapshot data; skipping commit and push.");
     process.exitCode = changed ? 10 : 0;
   } catch (error) {
