@@ -17,7 +17,8 @@ import { convexEnabled } from "@/app/providers";
 import { Intro, INTRO_KEY } from "./Intro";
 import { PRIORS_MIX_COOKIE, savedLineup } from "./defaults";
 import { Bracket, resetSavedBracket, undoSavedCall } from "./BracketDuel";
-import type { BracketOptions, BracketStep } from "./bracket";
+import type { Answer, BracketOptions, BracketStep } from "./bracket";
+import { SearchMonitor, type MonitorVariant } from "./SearchMonitor";
 import { readVia, type Via } from "@/lib/share";
 import { TopPicker } from "./TopPicker";
 import type { RankingEvidence } from "./adaptive";
@@ -40,11 +41,12 @@ function searchMessage(u: FitUpdate, snapshot: Snapshot) {
   return "Refining the remaining disagreements.";
 }
 type LineupArgs = { focus: string; lineup: string[]; weights: Record<string, number>; strictness: number; fitScore: number; exact: boolean; snapshotDate: string };
-export type OnboardingLabOptions = { label: string; placement: "heading" | "board-heading" | "board-top" };
+export type OnboardingLabOptions = { label: string; placement: "heading" | "board-heading" | "board-top"; /** Search lab: start searching on load, replay when done, no completion dialog. */ search?: boolean };
 /**
  * How the onboarding runs. Production uses LIVE_FLOW; /lab/onboarding swaps in variants.
  * start: first screen (pairwise duel, the drag list, or tap-your-top-3). autoFit: finishing the
- * duel/picker starts the search straight away instead of stopping at the review list.
+ * duel/picker starts the search straight away instead of stopping at the review list. Live stops
+ * at the review list: a short sprint cannot ask every matchup, so the ranking is confirmed first.
  * done: the completion dialog (share card first, the old stats-only one, or share + comparison).
  */
 export type OnboardingFlow = {
@@ -57,10 +59,14 @@ export type OnboardingFlow = {
   /** Smart sprint: ask the pairs the benchmark evidence is least sure about, at most this many. Falls back to `bracket` without evidence. */
   adaptiveCap?: number;
   pickCount?: number;
+  /** Look of the search-in-progress panel. */
+  monitor?: MonitorVariant;
 };
+/** Extra calls each time the review list reopens the matchups. */
+const MORE_CALLS = 6;
 /** About 9 calls when you agree with the index, never more than 10; seeds 11–16 keep index order. */
 /** Smart sprint, at most 6 calls; without ranking evidence, the plain bracket at most 10. */
-export const LIVE_FLOW: OnboardingFlow = { start: "compare", bracket: { challengers: 5, cap: 10 }, adaptiveCap: 6, autoFit: true, intro: false, focus: "compact", done: "share" };
+export const LIVE_FLOW: OnboardingFlow = { start: "compare", bracket: { challengers: 5, cap: 10 }, adaptiveCap: 6, autoFit: false, intro: false, focus: "compact", done: "share" };
 /** Registers the Convex mutation on a stable ref; mounted only when Convex is configured. */
 function LineupRecorder({ onRegister }: { onRegister: (fn: ((a: LineupArgs) => void) | null) => void }) {
   const record = useMutation(api.lineups.record);
@@ -69,10 +75,6 @@ function LineupRecorder({ onRegister }: { onRegister: (fn: ((a: LineupArgs) => v
     return () => onRegister(null);
   }, [record, onRegister]);
   return null;
-}
-function Trace({ values }: { values: number[] }) {
-  const path = values.map((v, i) => `${i ? "L" : "M"}${i / Math.max(1, values.length - 1) * 300},${68 - v * .6}`).join(" ");
-  return <svg className="fit-trace" viewBox="0 0 300 76" role="img" aria-label="How closely the search matches your requested order"><path d="M0 68H300M0 38H300M0 8H300" style={{ stroke: "var(--hair)" }} strokeWidth=".5" /><path d={path} fill="none" style={{ stroke: "var(--indigo)" }} strokeWidth="1.5" vectorEffect="non-scaling-stroke" />{values.length > 0 && <circle cx="300" cy={68 - values[values.length - 1] * .6} r="3" style={{ fill: "var(--indigo)" }} />}</svg>;
 }
 
 export function Onboarding({ snapshot, lineup, seeds, quality, observedModelIds, hasSavedMix, labMode, flow = LIVE_FLOW, rankedCount = 0, evidence, labReference }: { snapshot: Snapshot; lineup: string[]; seeds: string[]; quality: BenchmarkQuality[]; observedModelIds: string[]; hasSavedMix: boolean; labMode?: OnboardingLabOptions; flow?: OnboardingFlow; rankedCount?: number; /** Rankings from today's benchmark mixes; they steer the smart sprint. */ evidence?: RankingEvidence[]; /** Lab only: a ranking to compare the result with. */ labReference?: string[] }) {
@@ -85,6 +87,7 @@ export function Onboarding({ snapshot, lineup, seeds, quality, observedModelIds,
   const labs = useMemo(() => new Map(snapshot.labs.map(l => [l.id, { ...l, color: labColor(l.id, l.color) }])), [snapshot, labColor]);
   const [resolvedSeeds, setResolvedSeeds] = useState(seeds);
   const bracketSeeds = useMemo(() => resolvedSeeds.filter(id => models.has(id)), [resolvedSeeds, models]);
+  const searchable = useMemo(() => snapshot.benchmarks.filter(b => !b.proxy && !["cost", "speed", "composite", "reliability"].includes(b.category)).map(b => ({ id: b.id, name: b.shortName ?? b.name })), [snapshot]);
   const qMap = useMemo(() => new Map(quality.map(q => [q.id, q])), [quality]);
   const observedModels = useMemo(() => new Set(observedModelIds), [observedModelIds]);
   const original = useMemo(() => lineup.filter(id => models.has(id)), [lineup, models]);
@@ -125,8 +128,21 @@ export function Onboarding({ snapshot, lineup, seeds, quality, observedModelIds,
   const [stage, setStage] = useState<"compare" | "pick" | "order" | "fit">(hasSavedMix && !inLab ? "order" : flow.start);
   const [bracket, setBracket] = useState<BracketStep | null>(null);
   // The finished bracket's ranking is the review list; going back reopens the last call so there's something to change.
+  const [calls, setCalls] = useState<Answer[]>();
+  const [extra, setExtra] = useState(0);
   function backToMatchups() { if (bracket) undoSavedCall(); setStage("compare"); }
-  function finishBracket(step: BracketStep) {
+  /** Reopen the matchups from the review list for pairs that never came up. Drag edits survive as settled calls. */
+  function compareMore() {
+    release();
+    const pos = new Map((bracket?.order ?? []).map((id, i) => [id, i]));
+    const kept = orderRef.current.flatMap((id, i, all): Answer[] => { const next = all[i + 1]; return next && pos.has(id) && pos.has(next) && pos.get(id)! > pos.get(next)! ? [{ a: id, b: next, winner: id, auto: true }] : []; });
+    if (orderRef.current.length !== bracketSeeds.length || orderRef.current.some(id => !bracketSeeds.includes(id))) setResolvedSeeds(orderRef.current);
+    setCalls([...(calls ?? []), ...kept]); setExtra(n => n + MORE_CALLS);
+    track("onboarding_compare_more", { calls: bracket?.asked ?? 0 });
+    setStage("compare"); window.scrollTo({ top: 0 });
+  }
+  function finishBracket(step: BracketStep, answers: Answer[]) {
+    setCalls(answers);
     setBracket(step); setOrder(step.order); orderRef.current = step.order; edited.current = true;
     track("onboarding_bracket_done", { calls: step.asked });
     if (flow.autoFit) { void start(step.order, "pairs"); return; }
@@ -240,7 +256,7 @@ export function Onboarding({ snapshot, lineup, seeds, quality, observedModelIds,
   }
   function openPairwise() {
     release();
-    setBracket(null);
+    setBracket(null); setCalls(undefined); setExtra(0);
     if (!inLab) resetSavedBracket();
     setStage("compare");
     window.scrollTo({ top: 0, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth" });
@@ -307,7 +323,11 @@ export function Onboarding({ snapshot, lineup, seeds, quality, observedModelIds,
   const maxScore = Math.max(1, ...[...liveScores.values()].map(r => r.score));
   const activeWeights = Object.entries(update?.weights ?? {}).filter(([, w]) => w > 0).sort((a, b) => { const ai = PREFERRED.indexOf(a[0] as typeof PREFERRED[number]), bi = PREFERRED.indexOf(b[0] as typeof PREFERRED[number]); return (ai < 0 ? 100 : ai) - (bi < 0 ? 100 : bi) || a[0].localeCompare(b[0]); });
   const totalWeight = activeWeights.reduce((sum, [, w]) => sum + w, 0) || 1;
-  useEffect(() => { if (complete && stage === "fit" && !done.current?.open) { const t = setTimeout(() => { done.current?.showModal(); if (flow.done !== "classic") track("share_card_opened", { from: "onboarding" }); }, 450); return () => clearTimeout(t); } }, [complete, stage, flow.done]);
+  useEffect(() => { if (complete && stage === "fit" && !done.current?.open && !labMode?.search) { const t = setTimeout(() => { done.current?.showModal(); if (flow.done !== "classic") track("share_card_opened", { from: "onboarding" }); }, 450); return () => clearTimeout(t); } }, [complete, stage, flow.done, labMode?.search]);
+  // Search lab: run on load and replay a few seconds after each result.
+  const replay = useRef(start);
+  useEffect(() => { replay.current = start; });
+  useEffect(() => { if (!labMode?.search || (stage === "fit" && !complete)) return; const t = setTimeout(() => void replay.current(), stage === "fit" ? 6000 : 300); return () => clearTimeout(t); }, [labMode?.search, stage, complete]);
   const resultQuery = update ? encodeIndices([{ ...update.config, name: "My priors", focus }]) : new URLSearchParams();
   if (inLab) resultQuery.set("date", snapshot.date);
   const resultUrl = update ? `${inLab ? "/lab/index" : "/builder"}?${resultQuery}` : "";
@@ -320,7 +340,7 @@ export function Onboarding({ snapshot, lineup, seeds, quality, observedModelIds,
   const rankedLabel = `${rankedCount.toLocaleString()}${rankedCount >= 1000 ? "+" : ""}`;
   useEffect(() => { if (inLab) return; const id = requestAnimationFrame(() => setVia(readVia())); return () => cancelAnimationFrame(id); }, [inLab]);
   const pairwiseAction = () => <button type="button" className={inLab ? "lab-pairwise-action" : "production-pairwise-action"} onClick={openPairwise} aria-label={`${labMode?.label ?? "Rank in pairs"}, compare the models in pairs`}><span>{labMode?.label ?? "Rank in pairs"}</span><Arrow /></button>;
-  const introTitle = <h1>{stage === "compare" ? <>Which is <em>better?</em></> : stage === "pick" ? <>Who are your <em>top {flow.pickCount ?? 3}?</em></> : stage === "order" ? bracket ? <>Your ranking, <em>from your calls.</em></> : <>What are your <em>priors?</em></> : complete ? update?.exactMatch ? <>Your priors, <em>in numbers.</em></> : <>The closest <em>we found.</em></> : <>Putting your priors<br className="mobile-break" /> <em>to the test.</em></>}</h1>;
+  const introTitle = <h1>{stage === "compare" ? <>Which is <em>better?</em></> : stage === "pick" ? <>Who are your <em>top {flow.pickCount ?? 3}?</em></> : stage === "order" ? bracket ? <>Does this look <em>right?</em></> : <>What are your <em>priors?</em></> : complete ? update?.exactMatch ? <>Your priors, <em>in numbers.</em></> : <>The closest <em>we found.</em></> : <>Putting your priors<br className="mobile-break" /> <em>to the test.</em></>}</h1>;
 
   return <div className={`onboarding stage-${stage} ${running ? "is-running" : ""} ${inLab ? "lab-mode" : ""}`}>
     {!inLab && convexEnabled && <LineupRecorder onRegister={(fn) => { recordLineup.current = fn; }} />}
@@ -329,11 +349,11 @@ export function Onboarding({ snapshot, lineup, seeds, quality, observedModelIds,
       <div className="step-line"><span className={stage === "compare" ? "current" : "passed"}>01 <span>Your calls</span></span><i /><span className={stage === "order" ? "current" : stage === "fit" ? "passed" : ""}>02 <span>Your ranking</span></span><i /><span className={stage === "fit" ? "current" : ""}>03 <span>The evidence</span></span></div>
       <div className="onboard-intro" key={stage}>
         {labMode?.placement === "heading" && stage === "order" ? <div className="lab-onboard-title">{introTitle}{pairwiseAction()}</div> : introTitle}
-        <p>{stage === "compare" ? <>Tap the better model, {adaptive?.cap ?? flow.bracket?.cap ?? 15} quick calls at most. We find the benchmarks that agree with you. <span className="intro-proof">About a minute · no sign-in{rankedCount > 20 ? ` · ${rankedLabel} rankings so far` : ""}</span></> : stage === "pick" ? <>Tap them in order, best first. We find the benchmarks that agree with you. <span className="intro-proof">Takes seconds · no sign-in{rankedCount > 20 ? ` · ${rankedLabel} rankings so far` : ""}</span></> : stage === "order" ? bracket ? `Built from ${bracket.asked} head-to-head ${bracket.asked === 1 ? "call" : "calls"}. Drag to make final adjustments.` : "You have a sense of which models are better. Put them in order." : complete ? update?.exactMatch ? "A compact benchmark mix that matches your full order." : "Your closest benchmark mix. You can inspect the remaining disagreements below." : "Trying the benchmarks. Adjusting the weights. Keeping only what helps."}</p>
+        <p>{stage === "compare" ? <>Tap the better model, {extra && adaptive ? `up to ${MORE_CALLS} more calls` : `${adaptive?.cap ?? flow.bracket?.cap ?? 15} quick calls at most`}. We find the benchmarks that agree with you. <span className="intro-proof">{extra ? "Your earlier calls are kept" : <>About a minute · no sign-in{rankedCount > 20 ? ` · ${rankedLabel} rankings so far` : ""}</>}</span></> : stage === "pick" ? <>Tap them in order, best first. We find the benchmarks that agree with you. <span className="intro-proof">Takes seconds · no sign-in{rankedCount > 20 ? ` · ${rankedLabel} rankings so far` : ""}</span></> : stage === "order" ? bracket ? `${bracket.asked ? `Built from your ${bracket.asked} ${bracket.asked === 1 ? "call" : "calls"} and today's benchmarks.` : "Built from today's benchmarks."} Not every matchup came up, so check it before the search starts.` : "You have a sense of which models are better. Put them in order." : complete ? update?.exactMatch ? "A compact benchmark mix that matches your full order." : "Your closest benchmark mix. You can inspect the remaining disagreements below." : "Trying the benchmarks. Adjusting the weights. Keeping only what helps."}</p>
       </div>
-      {stage === "compare" ? <Bracket seeds={bracketSeeds} models={models} labs={labs} options={flow.bracket} adaptive={adaptive} storageKey={inLab ? null : undefined} onFinish={finishBracket} onList={step => { if (adaptive) { setBracket(step); setOrder(step.order); orderRef.current = step.order; } setStage("order"); }} /> : stage === "pick" ? <TopPicker seeds={bracketSeeds} models={models} labs={labs} count={flow.pickCount ?? 3} onFinish={finishPick} onList={() => setStage("order")} /> : <div className={`experiment-grid ${inLab ? "lab-mode-grid" : ""}`}>
+      {stage === "compare" ? <Bracket seeds={bracketSeeds} models={models} labs={labs} options={flow.bracket} adaptive={adaptive} storageKey={inLab ? null : undefined} initial={extra ? calls : undefined} extra={extra} onFinish={finishBracket} onList={(step, answers) => { if (adaptive) { setCalls(answers); setBracket(step); setOrder(step.order); orderRef.current = step.order; } setStage("order"); }} /> : stage === "pick" ? <TopPicker seeds={bracketSeeds} models={models} labs={labs} count={flow.pickCount ?? 3} onFinish={finishPick} onList={() => setStage("order")} /> : <div className={`experiment-grid ${inLab ? "lab-mode-grid" : ""}`}>
         <section className="order-board" aria-label={stage === "order" ? "Your model preferences" : "Fitted model ranking"}>
-          {stage === "order" && (!inLab || labMode?.placement === "board-top") && <div className={inLab ? "lab-pairwise-top" : "production-pairwise-top"}>{pairwiseAction()}</div>}
+          {stage === "order" && !bracket && (!inLab || labMode?.placement === "board-top") && <div className={inLab ? "lab-pairwise-top" : "production-pairwise-top"}>{pairwiseAction()}</div>}
           <div className="board-heading"><span>{stage === "order" ? "YOUR ORDER" : "BEST FIT · YOUR SELECTED MODELS"}</span>{labMode?.placement === "board-heading" && stage === "order" ? <div className="lab-board-heading-action">{pairwiseAction() }<span>BEST FIRST</span></div> : <span>{stage === "order" ? "BEST FIRST" : "SCORE / YOUR ORDER"}</span>}</div>
           {stage === "order" && <div className={`focus-picker ${flow.focus === "compact" ? "compact" : ""}`}>
             <span className="focus-label">Focus</span>
@@ -354,26 +374,23 @@ export function Onboarding({ snapshot, lineup, seeds, quality, observedModelIds,
               </div>;
             })}
           </div>
-          <div className="board-foot">{stage === "order" ? <><span id="drag-help">Drag a handle, or use the arrows.</span>{!inLab && bracket && <button className="text-control" onClick={backToMatchups}>Back to the matchups</button>}<button className="text-control" onClick={() => openDialog("models")}>Choose models <span aria-hidden="true">+</span></button></> : <><span>Relative order within your lineup.</span><button className="text-control" onClick={edit}>{running ? "Stop & reorder" : "Change my order"}</button></>}</div>
+          <div className="board-foot">{stage === "order" ? <><span id="drag-help">Drag a handle, or use the arrows.</span>{!inLab && bracket && !adaptive && <button className="text-control" onClick={backToMatchups}>Back to the matchups</button>}<button className="text-control" onClick={() => openDialog("models")}>Choose models <span aria-hidden="true">+</span></button></> : <><span>Relative order within your lineup.</span><button className="text-control" onClick={edit}>{running ? "Stop & reorder" : "Change my order"}</button></>}</div>
         </section>
         <aside className="experiment-side">
-          {stage === "order" ? <div className="setup-note">
-            <div className="equal-bars" aria-hidden="true">{([["openai", "#282828"], ["anthropic", "#CE7155"], ["anthropic", "#CE7155"], ["google", "#397ACC"], ["meta", "#24A38B"]] as const).map(([lab, c], i) => <i key={i} style={{ background: labColor(lab, c), animationDelay: `${i * 65}ms` }} />)}</div>
-            <h2>Intuition first.<br />Evidence next.</h2>
-            <p>Your top choices lead the search. Changes you make and models you add get extra priority.</p>
-            <div className="preference-note"><span className="tiny-star" aria-hidden="true">✳</span><p>Your focus biases the search toward high-quality benchmarks in that area. Newer, less saturated, more objective tests get more weight when choosing between similar fits.</p></div>
-            <button className="primary-action" onClick={() => start()} disabled={order.length < 3}>Find my index <Arrow /></button>
-            <span className="action-note">{order.length} models · up to 12 benchmarks</span>
-            <button className="text-control evidence-link" onClick={() => openDialog("quality")}>See benchmark preferences <Arrow /></button>
-          </div> : <>
-            <div className="solver-monitor" role="region" aria-label="Optimization monitor">
-              <span className="sr-only" role="status" aria-label={error ? "Search error" : complete ? "Search complete" : "Search running"}>{error ? "Search stopped" : complete ? "Search complete" : "Searching benchmark combinations"}</span>
-              <div className="monitor-top"><span><i className={running ? "pulse" : ""} />{error ? "SEARCH STOPPED" : complete ? "SEARCH COMPLETE" : "SEARCH IN PROGRESS"}</span><span>{elapsed.toFixed(1)}s</span></div>
-              <div className="agreement"><strong>{Math.round(update?.fitScore ?? 0)}<span>%</span></strong><span>fit to your lineup<br /><small>{update?.matchedPositions ?? 0}/{order.length} in place{update?.priorityTotal ? update.priorityMatched === update.priorityTotal ? " · your edits are preserved" : " · some edits unresolved" : ""}</small>{update?.provisional && !complete && <small className="checking">checking…</small>}</span></div>
-              <Trace values={history} />
-              <div className="monitor-metrics"><span>{(update?.tested ?? 0).toLocaleString()} <small>combinations</small></span><span>{update?.benchmarkCount ?? "—"} <small>benchmarks</small></span></div>
-              <div className="terminal-log" aria-hidden="true">{logs.length ? logs.map(log => <div key={log.id}><span aria-hidden="true">·</span>{log.text}</div>) : <div><span aria-hidden="true">·</span>Reading the benchmark evidence.</div>}</div>
+          {stage === "order" ? <div className="review-side">
+            <div className="review-cta">
+              {!bracket && <h2>Intuition first.<br />Evidence next.</h2>}
+              <button className="primary-action" onClick={() => start(orderRef.current, bracket ? "review" : "list")} disabled={order.length < 3}>{bracket ? "Looks right, find my index" : "Find my index"} <Arrow /></button>
+              <span className="action-note">{order.length} models · up to 12 benchmarks</span>
             </div>
+            {bracket && <div className="review-adjust"><span>Something off?</span>{adaptive ? <button className="text-control" onClick={compareMore}>Compare more pairs <Arrow /></button> : <button className="text-control" onClick={openPairwise}>Start the matchups over <Arrow /></button>}<span>Or drag a model in the list.</span></div>}
+            <div className="setup-note">
+              <p>Your top choices lead the search. Changes you make and models you add get extra priority.</p>
+              <div className="preference-note"><span className="tiny-star" aria-hidden="true">✳</span><p>Your focus biases the search toward high-quality benchmarks in that area. Newer, less saturated, more objective tests get more weight when choosing between similar fits.</p></div>
+              <button className="text-control evidence-link" onClick={() => openDialog("quality")}>See benchmark preferences <Arrow /></button>
+            </div>
+          </div> : <>
+            <SearchMonitor variant={flow.monitor ?? "trace"} update={update} wanted={order} history={history} logs={logs} elapsed={elapsed} running={running} complete={complete} error={!!error} benchmarks={searchable} />
             {error && <div className="fit-error" role="alert"><p>{error}</p><button className="text-control" onClick={() => start()}>Try again <Arrow /></button></div>}
             <div className="mix-panel"><div className="mix-heading"><h2>{complete ? `${FOCUSES.find(f => f.id === focus)?.name ?? ""} fit · ${update?.benchmarkCount ?? 0} benchmarks` : update ? phaseNames[update.phase] : "Reading the evidence"}</h2><span className="phase-mark">{complete ? update?.exactMatch ? "✓" : "≈" : "⋯"}</span></div>
               {activeWeights.length ? <div className="mix-rows">{activeWeights.map(([id, w]) => { const q = qMap.get(id); return <button key={id} className="mix-row" onClick={() => openDialog("quality")} title={q?.reason}><span className="mix-name">{q?.preferred && <span className="preferred-star" aria-label="Preferred benchmark">✳</span>}{q?.name ?? snapshot.benchmarks.find(b => b.id === id)?.name ?? id}</span><span className="mix-percent">{(w / totalWeight * 100).toFixed(1)}%</span><span className="mix-weight-track"><i style={{ width: `${w / totalWeight * 100}%` }} /></span></button>; })}</div> : <div className="mix-empty">Checking coverage across your models<span className="cursor">_</span></div>}

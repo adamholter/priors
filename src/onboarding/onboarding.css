@@ -280,3 +280,43 @@ body:has(.done-dialog[open]){overflow:hidden}
 @media(max-width:520px){.header-links a[href="/privacy"]{display:none}}
 
 @media(max-width:520px){.done-share-row{grid-template-columns:1fr 1fr}.done-share-row .done-x{grid-column:1/-1}.done-dl{justify-content:center}}
+/* Review step: the confirm button leads, adjustments follow. */
+.review-side{padding:0 0 0 28px;border-left:1px solid var(--ob-dddbd4);position:sticky;top:30px}
+.review-cta h2{font-size:34px;line-height:1.06;letter-spacing:-.025em;margin:0 0 22px}
+.review-adjust{display:grid;justify-items:start;gap:2px;margin-top:22px;padding-top:18px;border-top:1px solid var(--ob-dddbd4);font-size:12px;line-height:1.7;color:var(--ob-676a61)}
+.review-adjust .text-control{font-size:13px;color:var(--ob-1a1a1a);text-decoration:underline;text-decoration-color:var(--ob-dddbd4);text-underline-offset:5px}
+.review-adjust .text-control:hover{color:var(--indigo);text-decoration-color:var(--indigo)}
+.review-side .setup-note{position:static;border-left:0;border-top:1px solid var(--ob-dddbd4);padding:22px 0 0;margin-top:22px}
+.review-side .setup-note>p{margin-bottom:20px}.review-side .preference-note{margin-bottom:0}
+@media(max-width:1000px){.review-side{padding-left:22px}.review-cta h2{font-size:30px}}
+@media(max-width:740px){.stage-order .experiment-side,.review-side{display:contents}.review-cta{order:-1}.review-cta .action-note{margin-top:14px}.review-adjust{margin-top:0}.review-cta h2{font-size:28px;margin-bottom:16px}.review-side .setup-note{display:block;margin-top:0}.review-side .setup-note>p{font-size:11px;margin-bottom:14px}.review-side .evidence-link{margin-top:14px}}
+/* Search monitor variants (compared in /lab/search). */
+.monitor-line{display:flex;gap:10px;align-items:center;min-height:34px;margin-top:12px;font:11px/1.4 var(--font-sans);color:var(--indigo)}
+.monitor-line>span{flex:none;width:12px;font:10px var(--font-mono)}
+.pair-map{display:block;width:100%;margin:16px 0 12px}
+.pair-map rect{fill:none;stroke:var(--ob-dddbd4);stroke-width:1;transition:fill .45s,stroke .45s}
+.pair-map rect.ok{fill:var(--indigo);stroke:var(--indigo)}
+.pair-map rect.off{stroke:var(--ob-1a1a1a)}
+.pair-map.is-live rect.off{animation:pulse 1.3s ease-in-out infinite}
+.dial{display:flex;align-items:center;gap:22px;margin:18px 0 6px}
+.dial svg{flex:none;width:148px;height:148px}
+.dial-track{fill:none;stroke:var(--ob-dddbd4);stroke-width:1}
+.dial-arc{fill:none;stroke:var(--indigo);stroke-width:5;transition:stroke-dashoffset .6s cubic-bezier(.22,1,.36,1)}
+.dial-tick{stroke:var(--ob-dddbd4);stroke-width:1.5;transition:stroke .4s}.dial-tick.on{stroke:var(--ob-1a1a1a)}
+.dial-orbit{transform-origin:80px 80px;animation:dial-orbit 2.4s linear infinite}.dial-orbit circle{fill:var(--indigo)}
+.dial-number{font:44px var(--font-serif);letter-spacing:-.03em;fill:var(--ob-1a1a1a);font-variant-numeric:tabular-nums}.dial-unit{font-size:16px;fill:var(--ob-777970)}
+.dial dl{display:grid;gap:12px;margin:0}.dial dt{font:15px var(--font-mono);color:var(--ob-1a1a1a);font-variant-numeric:tabular-nums}.dial dd{margin:0;font-size:10px;color:var(--ob-777970)}
+@keyframes dial-orbit{to{transform:rotate(360deg)}}
+.bench-grid{display:grid;grid-template-columns:repeat(12,1fr);gap:4px;margin:18px 0 6px}
+.bench-grid i{display:block;height:14px;border:1px solid var(--ob-dddbd4);transition:background .5s,border-color .5s}
+.bench-grid i.on{border-color:var(--indigo);background:color-mix(in srgb,var(--indigo) calc(var(--share)*100%),transparent)}
+.bench-grid i.trying{border-color:var(--ob-1a1a1a);box-shadow:0 0 0 1px var(--ob-1a1a1a)}
+.quiet{padding:26px 0 20px}
+.quiet-line{font:24px/1.25 var(--font-serif);letter-spacing:-.015em;margin:0;min-height:92px;color:var(--ob-1a1a1a);animation:arrive .45s both}
+.quiet-track{position:relative;height:2px;margin-top:18px;background:var(--ob-dddbd4);overflow:hidden}
+.quiet-track i{position:absolute;inset:0;background:var(--indigo);transform-origin:left;transition:transform .7s cubic-bezier(.22,1,.36,1)}
+.quiet-track b{position:absolute;top:0;bottom:0;left:0;width:36px;background:var(--ob-1a1a1a);opacity:0}
+.quiet-track.is-live b{opacity:1;animation:quiet-sweep 1.8s cubic-bezier(.45,0,.55,1) infinite}
+@keyframes quiet-sweep{from{transform:translateX(-36px)}to{transform:translateX(340px)}}
+.quiet-steps{display:flex;justify-content:space-between;list-style:none;padding:0;margin:10px 0 0;font:10px var(--font-mono);text-transform:uppercase;letter-spacing:.04em;color:var(--ob-87897f)}
+.quiet-steps .passed{color:var(--ob-1a1a1a)}.quiet-steps .current{color:var(--indigo)}

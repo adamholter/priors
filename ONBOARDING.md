@@ -52,3 +52,9 @@ The experiment imports Timothy’s `share/real-index-dataset-2026-09-08` handoff
 Run `node data/real-index-handoff-2026-09-08/verify.mjs` to reproduce the source handoff. Namespaced benchmark IDs round-trip through shared builder URLs.
 
 Search pipeline per settings row (`SETTINGS`): build single-benchmark surrogate columns (from the library when available, else live), screen affinity-seeded restarts, then verify the top finalists plus every seed mix against the full engine. Exact-stage annealing runs next — it accepts temporary setbacks, cools and reheats, and restarts from distinct verified basins — followed by fine-weight polishing at 0.1 precision (matching URL serialization), per-settings refinement, a full-engine coordinate pass, and final simplification that drops benchmarks which no longer help. The displayed incumbent remains the best verified fit throughout. Exact candidates are always evaluated against the full model pool, so the published index reproduces the displayed ranking.
+
+## Review before the search
+
+The live smart sprint asks at most 6 pairs and never asks same-family versions, so most matchups never come up. Finishing the calls therefore stops at the review list (`autoFit: false`) under "Does this look right?". The primary button, top of the right column (first on mobile), is "Looks right, find my index". Below it, "Compare more pairs" reopens the matchups with the earlier calls kept and up to 6 more (`extra` on `Bracket`; any unsettled pair may be asked, and drag edits carry over as settled calls). Dragging the list still works.
+
+The search-in-progress panel is `SearchMonitor.tsx`. `flow.monitor` picks its look; `trace` is live and `/lab/search` compares the others against a real, replaying search.

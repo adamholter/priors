@@ -29,10 +29,13 @@ export function undoSavedCall() {
   } catch { /* ignore */ }
 }
 
-export function Bracket({ seeds, models, labs, onFinish, onList, options, adaptive, storageKey = KEY }: { seeds: string[]; models: Map<string, Model>; labs: Map<string, Lab>; onFinish: (step: BracketStep) => void; onList: (step: BracketStep) => void; options?: BracketOptions; adaptive?: AdaptiveOptions; storageKey?: string | null }) {
-  const [answers, setAnswers] = useState<Answer[]>([]);
+/** `initial` and `extra` reopen a finished smart sprint from the review list: the earlier calls stay and `extra` more may be asked. */
+export function Bracket({ seeds, models, labs, onFinish, onList, options, adaptive, storageKey = KEY, initial, extra = 0 }: { seeds: string[]; models: Map<string, Model>; labs: Map<string, Lab>; onFinish: (step: BracketStep, answers: Answer[]) => void; onList: (step: BracketStep, answers: Answer[]) => void; options?: BracketOptions; adaptive?: AdaptiveOptions; storageKey?: string | null; initial?: Answer[]; extra?: number }) {
+  const [answers, setAnswers] = useState<Answer[]>(initial ?? []);
   const [finishedEarly, setFinishedEarly] = useState(false);
-  const step = useMemo(() => adaptive ? runAdaptive(seeds, models, answers, adaptive, finishedEarly) : runBracket(seeds, answers, options), [seeds, models, answers, options, adaptive, finishedEarly]);
+  const cap = (adaptive?.cap ?? options?.cap ?? QUICK.cap) + extra;
+  // Past the first sprint every unsettled pair is fair game, not only the high-value ones.
+  const step = useMemo(() => adaptive ? runAdaptive(seeds, models, answers, { ...adaptive, cap, threshold: extra ? 0 : adaptive.threshold }, finishedEarly) : runBracket(seeds, answers, options), [seeds, models, answers, options, adaptive, finishedEarly, cap, extra]);
   // Saved answers replay only against the same seeds and bracket shape.
   const shape = `${seeds.join()}|${JSON.stringify(options ?? {})}|${adaptive ? `smart${adaptive.cap}` : ""}`;
   const [leaving, setLeaving] = useState<Side | null>(null);
@@ -49,18 +52,19 @@ export function Bracket({ seeds, models, labs, onFinish, onList, options, adapti
     const raf = requestAnimationFrame(() => {
       try {
         const saved = JSON.parse(storageKey ? localStorage.getItem(storageKey) ?? "null" : "null") as { v?: number; seeds?: string; answers?: Answer[] } | null;
-        if (saved?.v === 2 && saved.seeds === shape && Array.isArray(saved.answers)) setAnswers(saved.answers);
+        if (!initial && saved?.v === 2 && saved.seeds === shape && Array.isArray(saved.answers)) setAnswers(saved.answers);
       } catch { /* start fresh */ }
       restored.current = true;
     });
     return () => cancelAnimationFrame(raf);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shape, storageKey]);
   useEffect(() => { if (restored.current && storageKey) try { localStorage.setItem(storageKey, JSON.stringify({ v: 2, seeds: shape, answers })); } catch { /* ignore */ } }, [answers, shape, storageKey]);
   useEffect(() => () => { if (timer.current) clearTimeout(timer.current); gesture.current?.cleanup(); }, []);
   // A finished bracket goes straight to the full ranking for review.
   const finish = useRef(onFinish);
   useEffect(() => { finish.current = onFinish; }, [onFinish]);
-  useEffect(() => { if (step.done && step.order.length) finish.current(step); }, [step]);
+  useEffect(() => { if (step.done && step.order.length) finish.current(step, answers); }, [step, answers]);
 
   function choose(side: Side) {
     const s = stepRef.current;
@@ -155,7 +159,7 @@ export function Bracket({ seeds, models, labs, onFinish, onList, options, adapti
   return <div className="bracket" data-done={step.done || undefined}>
     <section className="bracket-main" aria-label="Head-to-head matchups">
       {step.done ? null : <>
-        <div className="bracket-meta"><span className="bracket-round">{step.round}</span><span>Call {String(step.asked + 1).padStart(2, "0")} · up to {adaptive?.cap ?? options?.cap ?? QUICK.cap}</span></div>
+        <div className="bracket-meta"><span className="bracket-round">{step.round}</span><span>Call {String(step.asked + 1).padStart(2, "0")} · up to {cap}</span></div>
         <div className="bracket-progress" role="progressbar" aria-label="Bracket progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(step.progress * 100)}><i style={{ transform: `scaleX(${step.progress})` }} /></div>
         {step.check && <p className="check-note">Quick check: this one follows from your earlier calls.</p>}
         <div className={`duel ${offset ? "dragging" : ""} ${leaving ? `leaving-${leaving}` : ""} ${answers.length === 0 && !offset && !leaving ? "first" : ""}`} onPointerDown={down}>
@@ -175,14 +179,14 @@ export function Bracket({ seeds, models, labs, onFinish, onList, options, adapti
         </div>
         <div className="duel-foot">
           <button className="text-control" onClick={undo} disabled={!answers.some((a) => !a.auto)}>Undo</button>
-          <button className="text-control" onClick={finishRest}>Let the index decide the rest</button>
+          <button className="text-control" onClick={finishRest}>{extra ? "Done, back to my ranking" : "Let the index decide the rest"}</button>
         </div>
       </>}
     </section>
     <aside className="bracket-side" aria-label="Ranking so far">
       <div className="board-heading"><span>TAKING SHAPE</span><span>BEST FIRST</span></div>
       <ol className="shape-list">{step.blocks.flatMap((block, bi) => block.map((id, i) => { const m = models.get(id); return <li key={id} className={`${i === 0 && bi > 0 ? "group-start" : ""} ${live.has(id) ? "live" : ""}`} style={{ "--lab": labs.get(m?.labId ?? "")?.color ?? "#8A8A80" } as CSSProperties}><i aria-hidden="true" /><span>{m?.name ?? id}</span></li>; }))}</ol>
-      <button className="text-control" onClick={() => onList(step)}>Rank the list instead <Arrow /></button>
+      <button className="text-control" onClick={() => onList(step, answers)}>Rank the list instead <Arrow /></button>
     </aside>
     <span className="sr-only" aria-live="polite">{announcement}</span>
   </div>;
