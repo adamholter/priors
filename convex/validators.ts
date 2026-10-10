@@ -21,6 +21,7 @@ export const indexConfig = v.object({
   optional: v.optional(v.array(v.string())),
   rankingVariants: v.optional(v.union(v.literal("all"), v.literal("best"))),
   costSource: v.optional(taskMetricSource),
+  costBasis: v.optional(v.union(v.literal("api"), v.literal("subscription"))),
   timeSource: v.optional(taskMetricSource),
   paretoVariants: v.optional(v.union(v.literal("all"), v.literal("best"))),
   labs: v.optional(v.array(v.string())),

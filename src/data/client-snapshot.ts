@@ -1,3 +1,4 @@
+import { SUBSCRIPTION_BENCHMARK } from "./subscription";
 import type { Observation, Snapshot } from "./types";
 
 /** Keep every field used by charting, calculation, imports, and source inspection.
@@ -7,7 +8,7 @@ export function clientSnapshot(snapshot: Snapshot): Snapshot {
     ...snapshot,
     observations: snapshot.observations.map((observation): Observation => {
       const details = observation.details;
-      if (!details) return observation;
+      if (!details || observation.benchmarkId === SUBSCRIPTION_BENCHMARK) return observation;
       const usedDetails = {
         ...(details.priorsEstimate !== undefined && { priorsEstimate: details.priorsEstimate }),
         ...(details.estimatedDecodeSecondsPerTask !== undefined && { estimatedDecodeSecondsPerTask: details.estimatedDecodeSecondsPerTask }),

@@ -1,3 +1,4 @@
+import { isCostBasis } from "../data/subscription";
 import { isTaskMetricSource } from "../data/task-metrics";
 import { DEFAULT_CUTOFF, type IndexConfig } from "../engine";
 import { FOCUS_IDS, type FocusId } from "../data/types";
@@ -23,6 +24,7 @@ export function encodeIndex(c: IndexConfig): string {
   if (c.onlyModels !== undefined) parts.push(`only=${c.onlyModels.join(",")}`);
   if (c.releasedAfter !== undefined) parts.push(`after=${c.releasedAfter}`);
   if (c.costSource && c.costSource !== "aa") parts.push(`costsrc=${c.costSource}`);
+  if (c.costBasis && c.costBasis !== "api") parts.push(`costbasis=${c.costBasis}`);
   if (c.timeSource && c.timeSource !== "aa") parts.push(`timesrc=${c.timeSource}`);
   if (c.focus) parts.push(`focus=${c.focus}`);
   if (c.highlight?.length) parts.push(`hl=${c.highlight.join(",")}`);
@@ -70,6 +72,7 @@ export function decodeIndex(s: string, id: string): IndexConfig | null {
     else if (k === "only") c.onlyModels = v.split(",").filter(Boolean);
     else if (k === "after") c.releasedAfter = v;
     else if (k === "costsrc" && isTaskMetricSource(v)) c.costSource = v;
+    else if (k === "costbasis" && isCostBasis(v)) c.costBasis = v;
     else if (k === "timesrc" && isTaskMetricSource(v)) c.timeSource = v;
     else if (k === "focus" && FOCUS_IDS.includes(v as FocusId)) c.focus = v as FocusId;
     else if (k === "hl") c.highlight = v.split(",").filter(Boolean).slice(0, 12);

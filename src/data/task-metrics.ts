@@ -1,3 +1,4 @@
+import { SUBSCRIPTION_BENCHMARK, type CostBasis } from "./subscription";
 import type { Observation, Snapshot } from "./types";
 
 export type TaskMetricSource = "aa" | "terminalbench-4" | "deepswe-1.1" | "frontierswe-v2";
@@ -27,6 +28,15 @@ export function taskMetricDescription(source: TaskMetricSource, metric: TaskMetr
     ? "Artificial Analysis · measured task costs, weighted by your mix when available"
     : "Artificial Analysis · estimated decode time per Intelligence Index task, excluding first-token wait and overhead";
 }
+
+/** Cost chart caption: the measurement, then how it is priced when not at API list prices. */
+export function costDescription(source: TaskMetricSource, basis: CostBasis = "api"): string {
+  const measured = taskMetricDescription(source, "cost");
+  return basis === "subscription" ? `${measured} · subscription-priced where plan data exists (Real API Pricing, full allowance used)` : measured;
+}
+
+/** The subscription view needs the plan-price source, which older snapshots predate. */
+export const hasSubscriptionPrices = (snapshot: Snapshot) => snapshot.benchmarks.some((b) => b.id === SUBSCRIPTION_BENCHMARK);
 
 /** Measurements only. Match the same model, effort and configuration, including legacy aliases. */
 export function taskMetricData(snapshot: Snapshot, source: TaskMetricSource, metric: TaskMetric) {

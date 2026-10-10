@@ -8,7 +8,7 @@ import { echarts, themeFor, paletteFor, markColor, DARK_PALETTE, SANS_STATIC, MO
 import { scatterOption, DEFAULT_VIEW, guidePoints, type Highlight, type ScatterPoint } from "../components/chart/scatter-option";
 import { barsOption, defaultBarModels, filterBarModels, selectBars } from "../components/chart/bars-option";
 import { frameSvg } from "../components/chart/export-frame";
-import { chartKind, chartTitle, costChart, pickPoints, type MetricChart } from "./metrics";
+import { chartKind, chartTitle, costChart, costChartFor, pickPoints, type MetricChart } from "./metrics";
 import { presetOf, themeById, type PagePreset } from "./page-presets";
 import { EMPTY_HIDDEN, visiblePoints, type ChartHidden } from "../components/chart/chart-visibility";
 
@@ -43,7 +43,7 @@ export function scatterSpec(snapshot: Snapshot, ranked: RankedVariant[], index: 
       highlight: index.highlight?.length ? [...index.highlight] : undefined,
     };
   };
-  if (c === "cost") return from(costChart, "Score vs cost per task", true);
+  if (c === "cost") return from(costChartFor(index.costBasis), index.costBasis === "subscription" ? "Score vs subscription cost per task" : "Score vs cost per task", true);
   const ck = chartKind(snapshot, ranked, c, index.timeSource);
   if (ck?.kind !== "metric") return null;
   return from(ck.chart, chartTitle(c) ?? ck.chart.xName, false);
