@@ -9,7 +9,7 @@ import "./onboarding-lab.css";
 
 /** The real search step with a switchable in-progress panel. The search runs for real and replays when it ends. */
 export function SearchLab({ snapshot, lineup, quality, observedModelIds }: { snapshot: Snapshot; lineup: string[]; quality: BenchmarkQuality[]; observedModelIds: string[] }) {
-  const [variant, setVariant] = useState<MonitorVariant>("pairs");
+  const [variant, setVariant] = useState<MonitorVariant>("ladder");
   const [run, setRun] = useState(0);
   return <div className="ob-lab">
     <div className="ob-lab-bar">
