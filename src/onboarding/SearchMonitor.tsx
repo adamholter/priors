@@ -2,11 +2,11 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import type { FitUpdate } from "./optimizer";
 
-/** Looks for the search-in-progress panel. "trace" is live; the rest are compared in /lab/search. */
+/** Looks for the search-in-progress panel. "ladder" is live; the rest are compared in /lab/search. */
 export type MonitorVariant = "trace" | "ladder" | "strips" | "skyline" | "quiet";
 export const MONITOR_VARIANTS: { id: MonitorVariant; name: string; note: string }[] = [
-  { id: "trace", name: "A · Trace (live)", note: "Fit line and a running log" },
-  { id: "ladder", name: "B · Ladder + board", note: "Mini leaderboard beside the tests" },
+  { id: "trace", name: "A · Trace (previous)", note: "Fit line and a running log" },
+  { id: "ladder", name: "B · Ladder + board (live)", note: "Mini leaderboard beside the tests" },
   { id: "strips", name: "C · Two strips", note: "A row of slots over a row of tests" },
   { id: "skyline", name: "D · Skyline", note: "Score columns over the tests" },
   { id: "quiet", name: "E · Quiet", note: "One sentence and a progress line" },

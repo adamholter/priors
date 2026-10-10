@@ -293,8 +293,8 @@ body:has(.done-dialog[open]){overflow:hidden}
 /* Search monitor variants (compared in /lab/search). */
 .ticker{position:relative;margin:14px 0 0;min-height:34px;overflow:hidden;font:12px/1.4 var(--font-sans);color:var(--indigo)}
 .ticker span{display:block}
-.ticker .tick-in{animation:tick-in .5s .14s cubic-bezier(.22,1,.36,1) both}
-.ticker .tick-out{position:absolute;inset:0 0 auto;opacity:0;animation:tick-out .3s ease-in both}
+.ticker .tick-in{animation:tick-in .45s .26s cubic-bezier(.22,1,.36,1) both}
+.ticker .tick-out{position:absolute;inset:0 0 auto;opacity:0;animation:tick-out .26s ease-in both}
 .ticker.large{margin:0;min-height:92px;font:24px/1.25 var(--font-serif);letter-spacing:-.015em;color:var(--ob-1a1a1a)}
 @keyframes tick-in{from{opacity:0;transform:translateY(10px)}}
 @keyframes tick-out{from{opacity:1;transform:none}to{opacity:0;transform:translateY(-10px)}}
