@@ -2,9 +2,10 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { MetricBars } from "./MetricBars";
 import type { Lab } from "@/data/types";
-import type { RankedVariant } from "@/engine";
+import { subscriptionShare, type RankedVariant } from "@/engine";
 import { ScoreScatter, type ScatterView } from "./ScoreScatter";
-import { costChart, pickPoints } from "@/lib/metrics";
+import { costChartFor, pickPoints } from "@/lib/metrics";
+import type { CostBasis } from "@/data/subscription";
 import { useBarModelVisibility, type BarModelPicker } from "./bar-model-visibility";
 
 import { linkedLabelScale } from "./label-size";
@@ -15,7 +16,7 @@ export function variantLabel(r: RankedVariant) {
 }
 
 /** Index score vs measured cost per task (log x), with the Pareto frontier traced in ink. */
-export function ParetoChart({ ranked, mode = "all", labs, height = 460, title, actions, view, onView, anchor, description }: { ranked: RankedVariant[]; mode?: "all" | "best"; labs: Lab[]; height?: number; title?: ReactNode; actions?: ReactNode | ((barModels?: BarModelPicker) => ReactNode); view: ScatterView; onView: (view: ScatterView, persist?: boolean) => void; anchor?: string; description?: string }) {
+export function ParetoChart({ ranked, mode = "all", labs, height = 460, title, actions, view, onView, anchor, description, basis = "api" }: { basis?: CostBasis; ranked: RankedVariant[]; mode?: "all" | "best"; labs: Lab[]; height?: number; title?: ReactNode; actions?: ReactNode | ((barModels?: BarModelPicker) => ReactNode); view: ScatterView; onView: (view: ScatterView, persist?: boolean) => void; anchor?: string; description?: string }) {
   const [linkedKind, setLinkedKind] = useState<"bars" | "scatter">();
   useEffect(() => {
     if (!anchor) return;
@@ -39,6 +40,7 @@ export function ParetoChart({ ranked, mode = "all", labs, height = 460, title, a
       window.history.replaceState(null, "", url.toString());
     }
   };
+  const costChart = costChartFor(basis), subscription = basis === "subscription";
   const allPoints = costChart.points(ranked), pts = pickPoints(costChart, ranked, mode);
   const barVisibility = useBarModelVisibility({ metricPoints: allPoints, points: pts, better: costChart.better, ranked });
   const scatterActions = typeof actions === "function" ? actions() : actions;
@@ -56,8 +58,9 @@ export function ParetoChart({ ranked, mode = "all", labs, height = 460, title, a
     else if (bars) url.searchParams.delete("cs");
     window.history.replaceState(null, "", url.toString());
   }, [anchor, bars, view.scale]);
-  const heading = <div>{bars ? <h2 className="text-[22px]">Cost per task</h2> : title}{description && <p className="cap mt-1">{description}</p>}</div>;
-  if (bars) return <MetricBars labelScale={view.labelScale} pts={barVisibility.points} labs={labs} better={costChart.better} xName="Cost per task ($)" formatValue={costChart.formatX} height={height} aria="Cost per task by model" title={heading} actions={controls} anchor={anchor} linkParams={linkParams} exportName="Cost per task" />;
-  return <ScoreScatter pts={pts} labs={labs} better={costChart.better} xName={costChart.xName} xShort={costChart.xShort} scale={costChart.scale} formatX={costChart.formatX} formatValue={costChart.formatValue} height={height} aria={costChart.aria} title={heading} actions={controls} linkParams={linkParams} view={view} anchor={anchor} exportName="Score vs cost per task"
-    tooltipExtra={(p) => p.r.speed ? ` · ${Math.round(p.r.speed)} tok/s` : ""} extraRows={(p) => ({ speed_toks: p.r.speed ?? null, coverage: p.r.coverage })} />;
+  const heading = <div>{bars ? <h2 className="text-[22px]">{subscription ? "Subscription cost per task" : "Cost per task"}</h2> : title}{description && <p className="cap mt-1">{description}</p>}</div>;
+  if (bars) return <MetricBars labelScale={view.labelScale} pts={barVisibility.points} labs={labs} better={costChart.better} xName={subscription ? "Subscription cost per task ($)" : "Cost per task ($)"} formatValue={costChart.formatX} height={height} aria={subscription ? "Subscription cost per task by model" : "Cost per task by model"} title={heading} actions={controls} anchor={anchor} linkParams={linkParams} exportName={subscription ? "Subscription cost per task" : "Cost per task"} />;
+  return <ScoreScatter pts={pts} labs={labs} better={costChart.better} xName={costChart.xName} xShort={costChart.xShort} scale={costChart.scale} formatX={costChart.formatX} formatValue={costChart.formatValue} height={height} aria={costChart.aria} title={heading} actions={controls} linkParams={linkParams} view={view} anchor={anchor} exportName={subscription ? "Score vs subscription cost per task" : "Score vs cost per task"}
+    tooltipExtra={(p) => `${p.r.speed ? ` · ${Math.round(p.r.speed)} tok/s` : ""}${subscription ? ` · ${p.r.costPlan ? `${p.r.costPlan.plan}, ${subscriptionShare(p.r.costPlan.ratio)} of API price` : "API price, no plan data"}` : ""}`}
+    extraRows={(p) => ({ speed_toks: p.r.speed ?? null, coverage: p.r.coverage, ...(subscription ? { subscription_plan: p.r.costPlan?.plan ?? null, share_of_api_price: p.r.costPlan?.ratio ?? null } : {}) })} />;
 }

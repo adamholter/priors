@@ -170,7 +170,8 @@ function ScatterCard({c,subtitle,pts,better,scale,formatX,xTitle,secsAxis,moneyA
 
 function Constellation({c}:{c:Ctx}){
  const pts:MetricPoint[]=c.pts.map(r=>({x:r.costUsd!,r}));
- return <ScatterCard c={c} subtitle="Score vs cost per task" pts={pts} better="lower" scale="log" formatX={tickMoney} xTitle="Cost per task, USD · log scale" moneyAxis/>;
+ const sub=c.index.costBasis==="subscription";
+ return <ScatterCard c={c} subtitle={sub?"Score vs subscription cost per task":"Score vs cost per task"} pts={pts} better="lower" scale="log" formatX={tickMoney} xTitle={sub?"Subscription cost per task, USD · log scale":"Cost per task, USD · log scale"} moneyAxis/>;
 }
 function Empty({c}:{c:Ctx}){return <div style={{padding:68,width:"100%",display:"flex",flexDirection:"column",justifyContent:"space-between"}}><Identity c={c}/><div style={{display:"flex",flexDirection:"column"}}><div style={{fontFamily:"Newsreader",fontSize:64,display:"flex"}}>{c.index.name}</div><div style={{fontSize:21,color:c.muted,marginTop:15,display:"flex"}}>No models meet this index&apos;s current requirements.</div></div><div style={{width:550,borderTop:`1px solid ${c.line}`,display:"flex"}}/></div>}
 const cache=new Map<string,Promise<ArrayBuffer>>();
@@ -191,7 +192,7 @@ function Matchup({c}:{c:Ctx}){
  const rows:{label:string;sub:string;lower?:boolean;vals:(x:RankedVariant)=>{txt:string;num?:number;est?:boolean}}[]=[
   ...benches.map(b=>({label:b.name,sub:`${Math.round(b.share)}%`,vals:(x:RankedVariant)=>{const v=valOf(x,b.id);return v?{txt:v.value.toFixed(1),num:v.value,est:v.estimated}:{txt:"–"};}})),
  ];
- if(models.some(x=>x.costUsd!=null))rows.push({label:"Cost per task",sub:"measured",lower:true,vals:(x)=>x.costUsd!=null?{txt:money(x.costUsd),num:x.costUsd}:{txt:"–"}});
+ if(models.some(x=>x.costUsd!=null))rows.push({label:"Cost per task",sub:models.some(x=>x.costPlan)?"subscription":"measured",lower:true,vals:(x)=>x.costUsd!=null?{txt:money(x.costUsd),num:x.costUsd}:{txt:"–"}});
  if(models.some(x=>x.speed!=null))rows.push({label:"Output speed",sub:"tok/s",vals:(x)=>x.speed!=null?{txt:`${Math.round(x.speed)}`,num:x.speed}:{txt:"–"}});
  return <div style={{padding:"38px 58px",width:"100%",display:"flex",flexDirection:"column"}}>
   <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:30}}>

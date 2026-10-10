@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
 import { IconAdjustmentsHorizontal, IconStar, IconStarFilled, IconX } from "@tabler/icons-react";
+import { COST_BASES, type CostBasis } from "@/data/subscription";
 import type { TaskMetricSource } from "@/data/task-metrics";
 import { useLightDismiss } from "@/hooks/useLightDismiss";
 import { isHighlighted, toggleModel, useHighlight } from "./highlight";
@@ -9,7 +10,9 @@ import { labelScale } from "./label-size";
 import { chartLinkUrl } from "@/lib/highlight-link";
 import styles from "./ChartSettings.module.css";
 
-export function ChartSettings({ label, mode, onChange, releasedAfter, onChangeReleased, models = [], excluded, onToggleModel, onShowAllModels, onHideAllModels, view, onView, dataSource, defaultScale, anchor }: {
+export function ChartSettings({ label, mode, onChange, releasedAfter, onChangeReleased, models = [], excluded, onToggleModel, onShowAllModels, onHideAllModels, view, onView, dataSource, costBasis, defaultScale, anchor }: {
+  /** Cost charts: price tasks at API list prices or at each lab's subscription plan. */
+  costBasis?: { value: CostBasis; onChange: (basis: CostBasis) => void };
   anchor?: string;
   /** Default metric scale, when the chart supports switching to linear. */
   defaultScale?: "log" | "linear";
@@ -72,6 +75,7 @@ export function ChartSettings({ label, mode, onChange, releasedAfter, onChangeRe
       {dataSource && <div className={styles.dataField}><label htmlFor={`${id}-source`}>Data source</label><select aria-label={`${label} data source`} id={`${id}-source`} value={dataSource.value} onChange={e => dataSource.onChange(e.target.value as TaskMetricSource)}>{dataSource.options.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></div>}
       {onChangeReleased && <div className={styles.dataField}><label htmlFor={`${id}-release`}>Released</label><select aria-label={`${label} release window`} id={`${id}-release`} value={releaseValue} onChange={e => onChangeReleased?.(e.target.value === "all" ? "" : releaseDate(+e.target.value))}><option value="6">Last 6 months</option><option value="12">Last year</option><option value="24">Last 2 years</option><option value="all">All time</option>{releaseValue === "custom" && <option value="custom" disabled>Custom</option>}</select></div>}
     </div>}
+    {costBasis && <div className={styles.row}><span id={`${id}-basis-label`}>Pricing</span><div className={styles.choice} role="group" aria-labelledby={`${id}-basis-label`}>{COST_BASES.map(b => <button key={b.id} type="button" aria-pressed={costBasis.value === b.id} onClick={() => costBasis.onChange(b.id)}>{b.name}</button>)}</div></div>}
     {defaultScale && view && onView && view.kind !== "bars" && <div className={styles.row}><span id={`${id}-scale-label`}>Scale</span><div className={styles.choice} role="group" aria-labelledby={`${id}-scale-label`}>{(["log", "linear"] as const).map(value => <button key={value} type="button" aria-pressed={(view.scale ?? defaultScale) === value} onClick={() => onView({ ...view, scale: value })}>{value === "log" ? "Log" : "Linear"}</button>)}</div></div>}
     <div className={styles.row}><label htmlFor={`${id}-effort`}>Reasoning efforts</label><select aria-label={`${label} reasoning efforts`} id={`${id}-effort`} value={mode} onChange={e => onChange(e.target.value as "all" | "best")}><option value="all">All efforts</option><option value="best">Best per model</option></select></div>
     {view && onView && view.kind !== "bars" && <>

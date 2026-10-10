@@ -1,3 +1,4 @@
+import { subscriptionPrices, type CostBasis, type SubscriptionPrice } from "../data/subscription";
 import { taskMetricData, taskMetricDescription, type TaskMetricSource } from "../data/task-metrics";
 import type { Benchmark, FocusId, Model, Observation, Snapshot, Variant } from "../data/types";
 
@@ -24,6 +25,8 @@ export interface IndexConfig {
   rankingVariants?: "all" | "best";
   paretoVariants?: "all" | "best";
   costSource?: TaskMetricSource;
+  /** Price cost per task at API list prices (default) or at the lab's subscription plan. */
+  costBasis?: CostBasis;
   timeSource?: TaskMetricSource;
   /** Optional filters */
   labs?: string[]; // include only these labIds
@@ -138,6 +141,8 @@ export interface RankedVariant {
   /** measured cost per task, when known */
   costUsd?: number;
   costSource?: string;
+  /** Set when `costUsd` is priced at this subscription plan instead of the API. */
+  costPlan?: SubscriptionPrice;
   /** output speed tok/s when known */
   speed?: number;
   onFrontier: boolean;
@@ -297,6 +302,9 @@ function makeNormalizer(b: Benchmark, values: number[]): (v: number) => number {
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
+/** "1.5%" / "12%" — a plan's cost as a share of API price. */
+export const subscriptionShare = (ratio: number) => `${(ratio * 100).toFixed(ratio < 0.1 ? 1 : 0).replace(/\.0$/, "")}%`;
+
 export const COST_BENCHMARK_PREFERENCE = ["aa-cost-per-task-index"];
 export const SPEED_BENCHMARK = "aa-output-speed";
 
@@ -305,6 +313,7 @@ export function computeIndex(snapshot: Snapshot, config: IndexConfig): IndexResu
   const models = new Map(snapshot.models.map((m) => [m.id, m]));
   const idx = indexObservations(snapshot);
   const costData = taskMetricData(snapshot, config.costSource ?? "aa", "cost");
+  const plans = config.costBasis === "subscription" ? subscriptionPrices(snapshot) : undefined;
 
   const used = Object.entries(config.weights).filter(([id, w]) => w > 0 && benches.has(id));
   const total = used.reduce((a, [, w]) => a + w, 0);
@@ -386,8 +395,12 @@ export function computeIndex(snapshot: Snapshot, config: IndexConfig): IndexResu
     const weightedAaCost = aaCosts.length && aaCosts.every(({ observation: o }) => o?.sourceModelId && o.costUsd != null && Number.isFinite(o.costUsd) && o.costUsd >= 0)
       ? aaCosts.reduce((sum, { share, observation: o }) => sum + o!.costUsd! * share / 100, 0) : undefined;
     const cost = weightedAaCost != null ? { usd: weightedAaCost, source: "AA measured task costs, weighted by this mix" } : measuredCost ? { usd: measuredCost.value, source: taskMetricDescription(config.costSource ?? "aa", "cost") + (measuredCost.observation.harness ? ` · ${measuredCost.observation.harness}` : "") } : undefined;
+    // Subscription basis: the measured API cost scaled by the share of API price the plan works out to.
+    // Models without a first-party plan keep their API cost — that is what they cost to use.
+    const plan = cost && plans?.get(model.id);
+    if (cost && plan) { cost.usd *= plan.ratio; cost.source += ` · ${plan.plan}, ${subscriptionShare(plan.ratio)} of API price at full use`; }
     const speedObs = idx.get(SPEED_BENCHMARK)?.get(v.id);
-    ranked.push({ variant: v, model, score: num / den, coverage: Math.min(1, Math.round(covered * 1e4) / 1e6), measuredShare, values, mixedEfforts: values.some((value) => value.estimateKind === "effort"), costUsd: cost?.usd, costSource: cost?.source, speed: speedObs && speedObs.value > 0 ? speedObs.value : undefined, onFrontier: false, rank: 0 });
+    ranked.push({ variant: v, model, score: num / den, coverage: Math.min(1, Math.round(covered * 1e4) / 1e6), measuredShare, values, mixedEfforts: values.some((value) => value.estimateKind === "effort"), costUsd: cost?.usd, costSource: cost?.source, costPlan: plan || undefined, speed: speedObs && speedObs.value > 0 ? speedObs.value : undefined, onFrontier: false, rank: 0 });
   }
 
   let out = ranked;

@@ -1,4 +1,5 @@
 "use client";
+import { costChart } from "@/lib/metrics";
 import type { Snapshot } from "@/data/types";
 import type { IndexResult, RankedVariant } from "@/engine";
 import Link from "next/link";
@@ -39,7 +40,7 @@ export function ModelDetail({ r, snapshot, result, onClose }: { r: RankedVariant
         <div className="grid gap-1 content-start">
           <div className="flex justify-between"><span className="text-grey">Index score</span><span className="num">{r.score.toFixed(1)}</span></div>
           <div className="flex justify-between"><span className="text-grey">Measured share of weight</span><span className="num">{Math.round(r.measuredShare * 100)}%</span></div>
-          {r.costUsd != null && <div className="flex justify-between"><span className="text-grey">Cost per task</span><span className="num">${r.costUsd.toFixed(2)} <span className="cap">{r.costSource === "aa-cost-to-run-index" ? "AA" : ""}</span></span></div>}
+          {r.costUsd != null && <div className="flex justify-between"><span className="text-grey">{r.costPlan ? "Subscription cost per task" : "Cost per task"}</span><span className="num">{costChart.formatX(r.costUsd)} <span className="cap">{r.costPlan ? r.costPlan.plan : r.costSource === "aa-cost-to-run-index" ? "AA" : ""}</span></span></div>}
           {r.speed && <div className="flex justify-between"><span className="text-grey">Output speed</span><span className="num">{Math.round(r.speed)} tok/s</span></div>}
           <div className="flex justify-between"><span className="text-grey">Pareto frontier</span><span>{r.onFrontier ? "yes" : "no"}</span></div>
           {r.variant.sourceModel?.metadata && <details className="mt-2"><summary className="cursor-pointer cap">Source model metadata</summary><pre className="text-[11px] whitespace-pre-wrap break-all mt-2">{JSON.stringify(r.variant.sourceModel.metadata, null, 2)}</pre></details>}

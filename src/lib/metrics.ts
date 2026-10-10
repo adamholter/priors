@@ -1,3 +1,4 @@
+import type { CostBasis } from "../data/subscription";
 import { taskMetricData, taskMetricDescription, type TaskMetricSource } from "../data/task-metrics";
 import type { Observation, Snapshot } from "@/data/types";
 import type { RankedVariant } from "@/engine";
@@ -121,9 +122,14 @@ export const costChart: MetricChart & { xShort: string } = {
   xShort: "$ / task (log)",
   scale: "log",
   formatX: money,
-  formatValue: (v) => `$${v.toFixed(v < 0.1 ? 3 : 2)}/task`,
+  formatValue: (v) => `$${v < 0.01 ? v.toPrecision(2) : v.toFixed(v < 0.1 ? 3 : 2)}/task`,
   aria: "Index score versus cost per task",
 };
+
+/** The cost chart for a pricing basis: same points (the engine already priced `costUsd`), axis named for what it shows. */
+export const costChartFor = (basis: CostBasis = "api"): typeof costChart => basis === "subscription"
+  ? { ...costChart, xName: "Subscription cost per task ($, log)", xShort: "$ / task, subscription (log)", aria: "Index score versus subscription cost per task" }
+  : costChart;
 
 /** Output speed as a metric chart (from RankedVariant.speed, not observations). */
 export const speedChart: MetricChart = {

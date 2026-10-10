@@ -11,7 +11,7 @@ const unknownKeys = (c: object) => Object.keys(c).filter((k) => !fields.has(k));
 
 const maximal: IndexConfig = {
   id: "i0", name: "Everything", weights: { "deepswe-1.1": 40, simplebench: 60 }, required: ["deepswe-1.1"], optional: [], cutoff: 5, estimateMissing: false,
-  variants: "all", effortMatching: "strict", strictness: 70, rankingVariants: "all", paretoVariants: "best", costSource: "terminalbench-4", timeSource: "deepswe-1.1",
+  variants: "all", effortMatching: "strict", strictness: 70, rankingVariants: "all", paretoVariants: "best", costSource: "terminalbench-4", costBasis: "subscription", timeSource: "deepswe-1.1",
   labs: ["openai"], excludeModels: ["gpt-5.5"], releasedAfter: "", focus: "knowledge", highlight: ["claude-opus-5", "gpt-6-astra@low"],
 };
 
