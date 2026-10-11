@@ -8,9 +8,12 @@ import { isHighlighted, toggleModel, useHighlight } from "./highlight";
 import type { ScatterView } from "./ScoreScatter";
 import { labelScale } from "./label-size";
 import { chartLinkUrl } from "@/lib/highlight-link";
+import { FormulaEditor, type FormulaSettings } from "./formula-chart";
 import styles from "./ChartSettings.module.css";
 
-export function ChartSettings({ label, mode, onChange, releasedAfter, onChangeReleased, models = [], excluded, onToggleModel, onShowAllModels, onHideAllModels, view, onView, dataSource, costBasis, defaultScale, anchor }: {
+export function ChartSettings({ label, mode, onChange, releasedAfter, onChangeReleased, models = [], excluded, onToggleModel, onShowAllModels, onHideAllModels, view, onView, dataSource, costBasis, defaultScale, anchor, formula }: {
+  /** Advanced: a custom formula for this chart's metric. Omitted where a chart has no formula support. */
+  formula?: FormulaSettings;
   /** Cost charts: price tasks at API list prices or at each lab's subscription plan. */
   costBasis?: { value: CostBasis; onChange: (basis: CostBasis) => void };
   anchor?: string;
@@ -32,7 +35,7 @@ export function ChartSettings({ label, mode, onChange, releasedAfter, onChangeRe
   onView?: (view: ScatterView, persist?: boolean) => void;
 }) {
   const id = useId(), root = useRef<HTMLDetailsElement>(null), trigger = useRef<HTMLElement>(null);
-  const [open, setOpen] = useState(false), [tab, setTab] = useState<"models" | "settings">(models.length && onToggleModel ? "models" : "settings"), [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false), [tab, setTab] = useState<"models" | "settings">(models.length && onToggleModel ? "models" : "settings"), [query, setQuery] = useState(""), [advanced, setAdvanced] = useState(false);
   const [placement, setPlacement] = useState({ height: 620, above: false });
   useEffect(() => {
     if (!open) return;
@@ -96,6 +99,10 @@ export function ChartSettings({ label, mode, onChange, releasedAfter, onChangeRe
         {!!hl?.items.length && <label><span>Highlight guides</span><input type="checkbox" checked={view.guides !== false} onChange={e => onView({ ...view, guides: e.target.checked })} /></label>}
       </div>
     </>}
+    {formula && view && onView && <details className={styles.advanced} open={advanced} onToggle={e => setAdvanced(e.currentTarget.open)}>
+      <summary>Advanced{view.formula?.trim() && <em>formula on</em>}</summary>
+      {advanced && <FormulaEditor id={id} label={label} formula={formula} view={view} onView={onView} />}
+    </details>}
   </>;
   return <details ref={root} open={open} className={styles.picker} name="chart-settings">
     <summary ref={trigger} aria-label={`${label} settings`} title={`${label} settings`} onClick={e => { e.preventDefault(); if (!open) setTab(hasModels ? "models" : "settings"); setOpen(!open); }}><IconAdjustmentsHorizontal size={16} stroke={1.5} aria-hidden="true" /></summary>

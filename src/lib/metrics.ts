@@ -2,6 +2,7 @@ import type { CostBasis } from "../data/subscription";
 import { taskMetricData, taskMetricDescription, type TaskMetricSource } from "../data/task-metrics";
 import type { Observation, Snapshot } from "@/data/types";
 import type { RankedVariant } from "@/engine";
+import { compileFormula, type FormulaVars } from "./formula";
 
 /** Anchor slug for chart titles — shared with ChartLink deep links. */
 export const anchorOf = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
@@ -166,4 +167,73 @@ export function chartKind(snapshot: Snapshot, ranked: RankedVariant[], c: string
   if (c === "output-speed") return ranked.some((r) => r.speed) ? { kind: "metric", chart: speedChart } : null;
   const panel = metricPanels(snapshot, ranked, timeSource).find((p) => anchorOf(p.title) === c && p.chart);
   return panel?.chart ? { kind: "metric", chart: panel.chart } : null;
+}
+
+/** What a custom formula can read for one ranked variant, and which of those this snapshot actually has. */
+export interface FormulaInputs { get: () => { variables: { name: string; label: string }[]; of: (r: RankedVariant) => FormulaVars } }
+const PANEL_VARIABLES: [panel: string, name: string, label: string][] = [["tpt", "time", "Time per task (s)"], ["latency", "latency", "Time to first token (s)"], ["tokens", "tokens", "Output tokens per task"], ["uptime", "uptime", "Uptime (%)"], ["usage", "usage", "Share of T3 Code turns (%)"]];
+
+const inputsCache = new WeakMap<RankedVariant[], Map<string, FormulaInputs>>();
+/**
+ * Formula variables for an index. Built on first use (opening a chart's Advanced settings, or
+ * drawing a chart that has a formula), so charts without one never pay for it. `panels` reuses a
+ * gallery's already-computed metric panels.
+ */
+export function formulaInputs(snapshot: Snapshot, ranked: RankedVariant[], timeSource: TaskMetricSource = "aa", panels?: MetricPanel[]): FormulaInputs {
+  // One per ranking and time source, so callers can ask on every render and get the same object back.
+  const cached = inputsCache.get(ranked)?.get(timeSource);
+  if (cached) return cached;
+  let built: ReturnType<FormulaInputs["get"]> | undefined;
+  const inputs: FormulaInputs = { get: () => built ??= (() => {
+    const byPanel = new Map((panels ?? metricPanels(snapshot, ranked, timeSource)).map((p) => [p.id, p]));
+    const columns: { name: string; label: string; of: (r: RankedVariant) => number | undefined }[] = [
+      { name: "score", label: "Index score", of: (r) => r.score },
+      { name: "cost", label: "Cost per task ($)", of: (r) => (r.costUsd != null && r.costUsd > 0 ? r.costUsd : undefined) },
+      { name: "speed", label: "Output speed (tok/s)", of: (r) => (r.speed && r.speed > 0 ? r.speed : undefined) },
+    ];
+    for (const [id, name, label] of PANEL_VARIABLES) {
+      const chart = byPanel.get(id)?.chart; if (!chart) continue;
+      const pts = chart.points(ranked);
+      // Usage is measured per model, plotted on one effort; a formula may read it from any effort.
+      const byModel = id === "usage", values = new Map(pts.map((p) => [byModel ? p.r.model.id : p.r.variant.id, p.raw ?? p.x]));
+      columns.push({ name, label, of: (r) => values.get(byModel ? r.model.id : r.variant.id) });
+    }
+    const now = Date.parse(snapshot.date) || Date.now();
+    columns.push({ name: "age", label: "Days since release", of: (r) => { const t = r.model.releaseDate ? Date.parse(r.model.releaseDate) : NaN; return Number.isFinite(t) ? Math.max(0, Math.round((now - t) / 86400000)) : undefined; } });
+    const present = columns.filter((c) => ranked.some((r) => c.of(r) !== undefined));
+    return { variables: present.map(({ name, label }) => ({ name, label })), of: (r) => Object.fromEntries(present.map((c) => [c.name, c.of(r)])) };
+  })() };
+  (inputsCache.get(ranked) ?? inputsCache.set(ranked, new Map()).get(ranked)!).set(timeSource, inputs);
+  return inputs;
+}
+
+/** Compact number for a computed value of any size or sign. */
+export function formatComputed(v: number): string {
+  const a = Math.abs(v);
+  if (a === 0) return "0";
+  if (a >= 1e15 || a < 1e-4) return v.toExponential(1).replace(/\.0e/, "e").replace("e+", "e");
+  for (const [limit, suffix] of [[1e12, "T"], [1e9, "B"], [1e6, "M"], [1e3, "k"]] as const) if (a >= limit) return `${parseFloat((v / limit).toPrecision(3))}${suffix}`;
+  return `${parseFloat(a >= 100 ? v.toFixed(0) : v.toPrecision(3))}`;
+}
+
+export type FormulaChart = MetricChart & { source: string; /** Every value is positive, so a log axis is possible. */ logOk: boolean; /** Distinct models with a value, of those ranked. */ count: number; total: number };
+/**
+ * A chart whose metric is a formula over `inputs`, plus `value`: the base chart's own metric.
+ * Models missing an input, or whose result is not a finite number, are left off.
+ */
+export function formulaChart(base: MetricChart, source: string, better: "lower" | "higher", inputs: FormulaInputs, ranked: RankedVariant[]): FormulaChart | { error: string } {
+  const { variables, of } = inputs.get();
+  const f = compileFormula(source, [...variables.map((v) => v.name), "value"]);
+  if (!f.ok) return { error: f.error };
+  const points = (rows: RankedVariant[]): MetricPoint[] => {
+    const own = f.uses.includes("value") ? new Map(base.points(rows).map((p) => [p.r.variant.id, p.raw ?? p.x])) : undefined;
+    return rows.flatMap((r) => { const x = f.evaluate({ ...of(r), value: own?.get(r.variant.id) }); return x === undefined ? [] : [{ x, r }]; });
+  };
+  const all = points(ranked), xs = all.map((p) => p.x), min = Math.min(...xs), max = Math.max(...xs), logOk = xs.length > 0 && min > 0;
+  return {
+    source: f.source, better, points, xLabel: "", xName: f.source.length > 48 ? `${f.source.slice(0, 47)}…` : f.source,
+    // A log axis only when it helps: positive values spread over more than a couple of orders of magnitude.
+    scale: logOk && max / min >= 50 ? "log" : "linear", logOk, formatX: formatComputed, aria: `Index score versus ${f.source}`,
+    count: new Set(all.map((p) => p.r.model.id)).size, total: new Set(ranked.map((r) => r.model.id)).size,
+  };
 }

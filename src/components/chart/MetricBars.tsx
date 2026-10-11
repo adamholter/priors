@@ -23,7 +23,9 @@ const value = (p: ScatterPoint) => p.raw ?? p.x;
  * applies: best mode shows one bar per model, all mode shows every effort. Capped at `limit`
  * points by index score so the axis stays readable.
  */
-export function MetricBars({ pts: allPoints, labs, better, xName, formatValue, height = 400, aria, title, actions, limit = 24, exportName, anchor, linkParams, labelScale }: {
+export function MetricBars({ pts: allPoints, labs, better, xName, formatValue, height = 400, aria, title, actions, limit = 24, exportName, anchor, linkParams, labelScale, bestFirst }: {
+  /** Custom formulas: draw the best value first (descending when higher is better) rather than always ascending. */
+  bestFirst?: boolean;
   pts: ScatterPoint[]; labs: Lab[]; better: "lower" | "higher"; xName: string; formatValue: (x: number) => string;
   labelScale?: number; height?: number; aria: string; title?: ReactNode; actions?: ReactNode; limit?: number; exportName: string; anchor?: string; linkParams?: ChartLinkParams;
 }) {
@@ -42,7 +44,7 @@ export function MetricBars({ pts: allPoints, labs, better, xName, formatValue, h
   const pal = useChartPalette();
   const hl = useHighlight();
   const highlight = hl?.items;
-  const bars = useMemo(() => selectBars(pts, better, cap, highlight), [pts, better, cap, highlight]);
+  const bars = useMemo(() => { const ordered = selectBars(pts, better, cap, highlight); return bestFirst && better === "higher" ? ordered.reverse() : ordered; }, [pts, better, cap, highlight, bestFirst]);
   const option = useMemo<EChartsOption>(() => barsOption({ bars, labs, xName, formatValue, pal, narrow, highlight, labelScale: fontScale }), [bars, labs, xName, formatValue, narrow, pal, highlight, fontScale]);
   const pick = useRef<(p: ScatterPoint) => void>(() => {});
   useEffect(() => { pick.current = (p) => { if (hl) hl.set(togglePoint(hl.items, pts, p)); }; }, [hl, pts]);

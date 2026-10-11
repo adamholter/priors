@@ -24,6 +24,7 @@ import { HeaderAuth } from "./HeaderAuth";
 import { mergeImports, type ImportPayload } from "@/lib/import";
 import { SourceStatus } from "./SourceStatus";
 import { costDescription, hasSubscriptionPrices, taskMetricOptions } from "@/data/task-metrics";
+import { formulaInputs } from "@/lib/metrics";
 import { MetricGallery } from "./page/MetricGallery";
 import { IndexLabActions, type PublishPlacement } from "./lab/IndexLabActions";
 
@@ -157,7 +158,7 @@ export function Builder({ snapshot: base, initialIndices, labPlacement }: { snap
           </div>
           {labPlacement === "inline" && <IndexLabActions active={active} date={snapshot.date} top={topNames} placement="inline" />}
           <div>
-            <ParetoChart basis={active.costBasis} description={costDescription(active.costSource ?? "aa", active.costBasis)} anchor="cost" ranked={result.ranked} mode={paretoMode} labs={snapshot.labs} view={paretoView} onView={setParetoView} title={<h2 className="text-[22px]">{active.costBasis === "subscription" ? "Score vs subscription cost per task" : "Score vs cost per task"}</h2>}
+            <ParetoChart formulaInputs={formulaInputs(snapshot, result.ranked, active.timeSource)} basis={active.costBasis} description={costDescription(active.costSource ?? "aa", active.costBasis)} anchor="cost" ranked={result.ranked} mode={paretoMode} labs={snapshot.labs} view={paretoView} onView={setParetoView} title={<h2 className="text-[22px]">{active.costBasis === "subscription" ? "Score vs subscription cost per task" : "Score vs cost per task"}</h2>}
               actions={(barModels) => <ChartSettings anchor="cost" defaultScale="log" dataSource={{ value: active.costSource ?? "aa", options: taskMetricOptions(snapshot, "cost"), onChange: (costSource) => update({ ...active, costSource }) }} costBasis={hasSubscriptionPrices(snapshot) ? { value: active.costBasis ?? "api", onChange: (basis) => update({ ...active, costBasis: basis === "api" ? undefined : basis }) } : undefined} label="Pareto" mode={paretoMode} onChange={(paretoVariants) => update({ ...active, paretoVariants })} view={paretoView} onView={setParetoView} {...releaseProps} {...modelPicker} {...(barModels ?? {})} />} />
           </div>
           <div>
