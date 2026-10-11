@@ -47,3 +47,21 @@
   .menu[data-above="true"] { top: 50dvh; bottom: auto; }
   .modelList { max-height: min(330px, 45dvh); }
 }
+.advanced { border-top: 1px solid var(--hair); margin-top: 8px; }
+.advanced > summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 38px; padding: 0; list-style: none; cursor: pointer; color: var(--ink-2); background: none !important; border-radius: 0; }
+.advanced > summary::-webkit-details-marker { display: none; }
+.advanced > summary::after { content: "⌄"; color: var(--grey); transition: transform .2s; }
+.advanced[open] > summary::after { transform: rotate(180deg); }
+.advanced > summary em { margin-left: auto; font: normal 11px var(--font-mono); color: var(--indigo); }
+.formula { padding-bottom: 4px; }
+.formula > label { display: block; color: var(--ink); }
+.formula > p { margin: 4px 0 8px; color: var(--grey); font-size: 11.5px; line-height: 1.45; }
+.formula > p.formulaError { color: #B4532A; }
+.formulaInput { position: relative; }
+.formulaInput input { width: 100%; padding: 7px 52px 7px 8px; font: 12px var(--font-mono); background: var(--bone); border: 1px solid var(--hair); border-radius: 3px; color: var(--ink); }
+.formulaInput input[aria-invalid="true"] { border-color: #B4532A; }
+.formulaInput button { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); padding: 3px 6px; font-size: 11px; color: var(--grey); }
+.formulaInput button:hover { color: var(--ink); }
+.variables { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+.variables button { padding: 2px 7px; font: 11px var(--font-mono); color: var(--ink-2); background: var(--bone); border: 1px solid var(--hair); border-radius: 99px; }
+.variables button:hover { color: var(--indigo); border-color: var(--indigo); }

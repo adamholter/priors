@@ -45,6 +45,9 @@ export const chartView = v.object({
   guides: v.optional(v.boolean()),
   density: v.optional(v.number()),
   labelScale: v.optional(v.number()),
+  /** Custom formula replacing the chart's metric, and whether higher or lower is better. */
+  formula: v.optional(v.string()),
+  formulaBetter: v.optional(v.union(v.literal("higher"), v.literal("lower"))),
 });
 export type ChartViewDefault = Infer<typeof chartView>;
 /** One More-metrics panel: shown or hidden, open by default, and its chart default. Order is array order. */

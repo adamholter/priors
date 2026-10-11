@@ -15,6 +15,7 @@ import { dimColor } from "./theme";
 import { labelScale } from "./label-size";
 import { ChartContextMenu, useChartContextMenu, useChartVisibility } from "./ChartContextMenu";
 import { useGravity } from "@/lib/konami";
+import { FORMULA_MAX } from "@/lib/formula";
 import type { FallingDot } from "./GravityLayer";
 
 const GravityLayer = dynamic(() => import("./GravityLayer"), { ssr: false });
@@ -31,11 +32,11 @@ export function ownerBase(owner?: OwnerView | null): ScatterView | null {
 }
 /** Only the fields an owner default stores. */
 export function toOwnerView(v: ScatterView, mode?: "all" | "best"): OwnerView {
-  const out: OwnerView = { kind: v.kind, scale: v.scale, frontier: v.frontier, links: v.links, guides: v.guides, density: v.density, labelScale: v.labelScale, ...(mode ? { mode } : {}) };
+  const out: OwnerView = { kind: v.kind, scale: v.scale, frontier: v.frontier, links: v.links, guides: v.guides, density: v.density, labelScale: v.labelScale, formula: v.formula?.trim().slice(0, FORMULA_MAX) || undefined, formulaBetter: v.formula?.trim() ? v.formulaBetter : undefined, ...(mode ? { mode } : {}) };
   for (const k of Object.keys(out) as (keyof OwnerView)[]) if (out[k] === undefined) delete out[k];
   return out;
 }
-export type OwnerView = { kind?: "scatter" | "bars"; mode?: "all" | "best"; scale?: "log" | "linear"; frontier?: boolean; links?: boolean; guides?: boolean; density?: number; labelScale?: number };
+export type OwnerView = { kind?: "scatter" | "bars"; mode?: "all" | "best"; scale?: "log" | "linear"; frontier?: boolean; links?: boolean; guides?: boolean; density?: number; labelScale?: number; formula?: string; formulaBetter?: "higher" | "lower" };
 
 /**
  * A chart's view state. Visitors start from the page owner's default (`owner`) and keep their own

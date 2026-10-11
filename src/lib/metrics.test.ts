@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { RankedVariant } from "@/engine";
 import type { Snapshot } from "@/data/types";
-import { metricPanels, pickPoints, type MetricChart } from "./metrics";
+import { formatComputed, formulaChart, formulaInputs, metricPanels, pickPoints, type MetricChart } from "./metrics";
 import { selectBars } from "../components/chart/bars-option";
 
 const rv = (model: string, variant: string, score: number, metric?: number) =>
@@ -61,5 +61,37 @@ describe("selectBars", () => {
     ];
     const bars = selectBars(pts, "lower", 2);
     expect(bars.map((b) => b.r.model.id)).toEqual(["b", "c"]); // top-2 by score, drawn in metric order
+  });
+});
+
+describe("custom formulas", () => {
+  const variant = (id: string, score: number, costUsd?: number, speed?: number, releaseDate?: string) =>
+    ({ model: { id: id.split("@")[0], name: id.split("@")[0], labId: "lab", releaseDate }, variant: { id, effort: id.split("@")[1] ?? "default" }, score, costUsd, speed }) as unknown as RankedVariant;
+  const rows = [variant("a@high", 80, 4, 50, "2026-09-01"), variant("a@low", 60, 1, 100, "2026-09-01"), variant("b", 50, 0.5), variant("c", 40, undefined, 200)];
+  const snapshot = { date: "2026-10-01", benchmarks: [], observations: [], variants: [] } as unknown as Snapshot;
+  const base: MetricChart = { better: "lower", points: (r) => r.flatMap((x) => (x.costUsd ? [{ x: x.costUsd * 100, r: x }] : [])), xLabel: "", xName: "Cents", formatX: String, aria: "" };
+  const build = (source: string) => { const c = formulaChart(base, source, "higher", formulaInputs(snapshot, rows), rows); if ("error" in c) throw new Error(c.error); return c; };
+
+  it("offers only the variables this ranking has, and leaves off models missing an input", () => {
+    expect(formulaInputs(snapshot, rows).get().variables.map((v) => v.name)).toEqual(["score", "cost", "speed", "age"]);
+    const chart = build("score / cost");
+    expect(chart.points(rows).map((p) => [p.r.variant.id, p.x])).toEqual([["a@high", 20], ["a@low", 60], ["b", 100]]);
+    expect([chart.count, chart.total]).toEqual([2, 3]);
+    expect(build("score * speed / age").points(rows).map((p) => p.r.variant.id)).toEqual(["a@high", "a@low"]);
+  });
+  it("reads the chart's own metric as `value`", () => {
+    expect(build("value / 100 - cost").points(rows).map((p) => p.x)).toEqual([0, 0, 0]);
+  });
+  it("uses a log axis only for positive values with a wide spread", () => {
+    expect(build("score / cost")).toMatchObject({ scale: "linear", logOk: true });
+    expect(build("10 ^ (score / 20)")).toMatchObject({ scale: "log", logOk: true });
+    expect(build("cost - 1")).toMatchObject({ scale: "linear", logOk: false });
+  });
+  it("reports formula errors and empty results", () => {
+    expect(formulaChart(base, "score / nope", "higher", formulaInputs(snapshot, rows), rows)).toMatchObject({ error: expect.stringContaining("Unknown variable") });
+    expect(build("score / (cost - cost)").count).toBe(0);
+  });
+  it("formats computed values of any size", () => {
+    expect([0, 0.00001234, 0.0123, 1.5, 12.345, 403.2, 1234, 5_600_000, -42.5, 2e16].map(formatComputed)).toEqual(["0", "1.2e-5", "0.0123", "1.5", "12.3", "403", "1.23k", "5.6M", "-42.5", "2e16"]);
   });
 });
