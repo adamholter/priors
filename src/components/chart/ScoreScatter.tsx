@@ -1,6 +1,7 @@
 "use client";
 import { ChartExport, type ExportRow, type ChartExportHandle } from "./ChartExport";
 import type { EChartsOption } from "echarts";
+import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Lab } from "@/data/types";
 import { DARK_PALETTE, LIGHT_PALETTE, markColor, useChartPalette, useEChart } from "./echarts";
@@ -13,6 +14,10 @@ import { scatterOption, frontierOf, featuredPoints, guidePoints, highlightedMode
 import { dimColor } from "./theme";
 import { labelScale } from "./label-size";
 import { ChartContextMenu, useChartContextMenu, useChartVisibility } from "./ChartContextMenu";
+import { useGravity } from "@/lib/konami";
+import type { FallingDot } from "./GravityLayer";
+
+const GravityLayer = dynamic(() => import("./GravityLayer"), { ssr: false });
 
 export { chartLabel, pickLabels, frontierOf, DEFAULT_VIEW };
 export type { Highlight, ScatterPoint, ScatterView };
@@ -104,8 +109,11 @@ export function ScoreScatter({ pts: allPoints, labs, better, xName: baseXName, x
   const hl = useHighlight();
   const hlItems = hl?.items;
   const highlight = useMemo<Highlight | undefined>(() => hlItems?.length ? { items: hlItems, guides: view.guides !== false } : undefined, [hlItems, view.guides]);
-  const option = useMemo<EChartsOption>(() => scatterOption({ pts, labs, better, xName, xShort, xUnit, scale, formatX, formatValue, view, pal, narrow, hasTitle: !!title, tooltipExtra, width: plotWidth, height: plotHeight, highlight }),
-    [pts, labs, better, view, narrow, xName, xShort, xUnit, scale, formatX, formatValue, tooltipExtra, title, pal, plotWidth, plotHeight, highlight]);
+  // Easter egg (Konami code): marks off the frontier drop to the x-axis. See GravityLayer.
+  const gravity = useGravity() && !!view.frontier;
+  const fallen = useMemo(() => { if (!gravity) return undefined; const on = new Set(frontier.map((p) => p.r.variant.id)); return new Set(pts.filter((p) => !on.has(p.r.variant.id)).map((p) => p.r.variant.id)); }, [gravity, pts, frontier]);
+  const option = useMemo<EChartsOption>(() => scatterOption({ pts, labs, better, xName, xShort, xUnit, scale, formatX, formatValue, view, pal, narrow, hasTitle: !!title, tooltipExtra, width: plotWidth, height: plotHeight, highlight, fallen }),
+    [pts, labs, better, view, narrow, xName, xShort, xUnit, scale, formatX, formatValue, tooltipExtra, title, pal, plotWidth, plotHeight, highlight, fallen]);
   // Clicking a mark toggles that exact effort's highlight (several efforts per model are allowed).
   const pick = useRef<(p: ScatterPoint) => void>(() => {});
   useEffect(() => { pick.current = (p) => { if (hl) hl.set(togglePoint(hl.items, pts, p)); }; }, [hl, pts]);
@@ -166,6 +174,25 @@ export function ScoreScatter({ pts: allPoints, labs, better, xName: baseXName, x
     c.on("finished", scheduleDraw);
     return () => { cancelAnimationFrame(frame); c.off("finished", scheduleDraw); };
   }, [guides, labs, pal, formatX, chart, option]);
+  // Where each dropped mark starts, measured from the laid-out chart. The least Pareto-optimal
+  // (furthest below the frontier at its position) lets go first.
+  const [fall, setFall] = useState<{ dots: FallingDot[]; width: number; height: number; floor: number; left: number; right: number; run: number } | null>(null);
+  useEffect(() => {
+    if (!fallen?.size) return;
+    let second = 0;
+    const first = requestAnimationFrame(() => { second = requestAnimationFrame(() => {
+      const c = chart.current; if (!c) return;
+      const grid = ((c as unknown as { getModel: () => unknown }).getModel() as { getComponent: (t: string, i: number) => { coordinateSystem?: { getRect: () => { x: number; y: number; width: number; height: number } } } | undefined }).getComponent("grid", 0)?.coordinateSystem?.getRect();
+      if (!grid) return;
+      const colorOf = new Map(labs.map((l) => [l.id, markColor(l.color, pal, l.id)]));
+      const gap = (p: ScatterPoint) => Math.max(0, ...frontier.filter((f) => (better === "lower" ? f.x <= p.x : f.x >= p.x)).map((f) => f.r.score - p.r.score));
+      const placed = pts.filter((p) => fallen.has(p.r.variant.id)).map((p) => ({ p, gap: gap(p), px: c.convertToPixel({ seriesId: "marks" }, [p.x, p.r.score]) as unknown as number[] | undefined }))
+        .filter((d): d is { p: ScatterPoint; gap: number; px: number[] } => !!d.px && Number.isFinite(d.px[0]) && Number.isFinite(d.px[1])).sort((a, b) => b.gap - a.gap);
+      const every = Math.min(45, 1800 / Math.max(1, placed.length));
+      setFall((prev) => ({ dots: placed.map(({ p, px }, i) => ({ x: px[0], y: px[1], r: 4.5, color: colorOf.get(p.r.model.labId) ?? pal.ink, delay: 250 + i * every })), width: c.getWidth(), height: c.getHeight(), floor: grid.y + grid.height, left: grid.x, right: grid.x + grid.width, run: (prev?.run ?? 0) + 1 }));
+    }); });
+    return () => { cancelAnimationFrame(first); cancelAnimationFrame(second); };
+  }, [fallen, pts, frontier, better, labs, pal, chart, plotW, plotH, scale]);
   const expand = useChartExpand(exportName);
   const onFrontierIds = useMemo(() => new Set(frontier.map((p) => p.r.variant.id)), [frontier]);
   const getHtml = () => {
@@ -209,6 +236,7 @@ export function ScoreScatter({ pts: allPoints, labs, better, xName: baseXName, x
       </div>
       <div className={`relative ${expand.expanded ? "flex-1 min-h-0" : ""}`}>
         <div ref={ref} role="img" aria-label={aria} tabIndex={0} onContextMenu={context.onContextMenu} onKeyDown={context.onKeyDown} style={{ width: "100%", height: expand.expanded ? "100%" : height, overflow: "hidden", position: "relative", isolation: "isolate" }} />
+        {fall && !!fallen?.size && <GravityLayer key={fall.run} dots={fall.dots} width={fall.width} height={fall.height} floor={fall.floor} left={fall.left} right={fall.right} stroke={pal.bg} />}
         {!pts.length && <p className="cap absolute inset-0 grid place-items-center">No model in this view has this metric.</p>}
       </div>
       <ChartContextMenu exportControl={exportControl} state={context.menu} close={context.close} name={exportName} points={pts} visibility={visibility} chart={chart} wrap={wrapRef} expanded={expand.expanded} anchor={anchor} />

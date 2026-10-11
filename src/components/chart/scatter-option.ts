@@ -101,7 +101,7 @@ function quadrantArea(pts: ScatterPoint[], better: "lower" | "higher", scale: "l
   return [{ xAxis: better === "lower" ? "min" : mx, yAxis: my }, { xAxis: better === "lower" ? mx : "max", yAxis: "max" }] as [{ xAxis: number | string; yAxis: number | string }, { xAxis: number | string; yAxis: number | string }];
 }
 
-export function scatterOption({ pts, labs, better, xName, xShort, xUnit = "", scale = "linear", formatX, formatValue, view, pal, narrow, hasTitle = false, tooltipExtra, width, height, highlight }: {
+export function scatterOption({ pts, labs, better, xName, xShort, xUnit = "", scale = "linear", formatX, formatValue, view, pal, narrow, hasTitle = false, tooltipExtra, width, height, highlight, fallen }: {
   pts: ScatterPoint[]; labs: Lab[]; better: "lower" | "higher"; xName: string; xShort?: string; xUnit?: string;
   scale?: "linear" | "log" | "time"; formatX: (x: number) => string; formatValue?: (x: number) => string;
   view: ScatterView; pal: ChartPalette; narrow: boolean; hasTitle?: boolean; tooltipExtra?: (p: ScatterPoint) => string;
@@ -109,6 +109,8 @@ export function scatterOption({ pts, labs, better, xName, xShort, xUnit = "", sc
   width?: () => number | undefined;
   height?: () => number | undefined;
   highlight?: Highlight;
+  /** Marks the gravity easter egg has dropped: kept in the data so the axes hold still, drawn by GravityLayer instead. */
+  fallen?: Set<string>;
 }): EChartsOption {
   const frontier = frontierOf(pts, better);
   const fontScale = labelScale(view.labelScale);
@@ -117,7 +119,7 @@ export function scatterOption({ pts, labs, better, xName, xShort, xUnit = "", sc
   const labeled = pickLabels(pts, better, narrow ? view.density ** 2 : view.density);
   const byModel = new Map<string, ScatterPoint[]>();
   for (const p of pts) (byModel.get(p.r.model.id) ?? byModel.set(p.r.model.id, []).get(p.r.model.id)!).push(p);
-  const links = view.links ? [...byModel.values()].filter((v) => v.length > 1).map((v) => [...v].sort((a, b) => a.x - b.x)) : [];
+  const links = view.links && !fallen?.size ? [...byModel.values()].filter((v) => v.length > 1).map((v) => [...v].sort((a, b) => a.x - b.x)) : [];
   const ys = pts.map((p) => p.r.score);
   const yMin = Math.max(0, Math.floor((Math.min(...ys, 100) - 6) / 5) * 5), yMax = Math.min(100, Math.ceil((Math.max(...ys, 0) + 4) / 5) * 5);
   // ECharts resolves equal-sized overlapping labels in data order. Give the chosen labels their
@@ -128,6 +130,7 @@ export function scatterOption({ pts, labs, better, xName, xShort, xUnit = "", sc
   const featured = new Set(featuredPoints(pts, highlight?.items ?? []).map((p) => p.r.variant.id));
   const markOf = (p: ScatterPoint) => {
     const id = p.r.variant.id, c = color.get(p.r.model.labId), front = view.frontier && onFrontier.has(id);
+    if (fallen?.has(id)) return { itemStyle: { opacity: 0 }, symbolSize: 0, label: { show: false }, silent: true };
     if (!on) { const show = labeled.has(id); return { itemStyle: { color: c, borderColor: front ? pal.ink : pal.bg, borderWidth: 1.5, opacity: show || front ? 1 : 0.8 }, symbolSize: front ? 11 : 9, label: { show } }; }
     if (!hl.has(p.r.model.id)) return { itemStyle: { color: dimColor(c, pal), borderColor: pal.bg, borderWidth: 1, opacity: pal.dark ? 0.55 : 0.6 }, symbolSize: 7, label: { show: false }, emphasis: { label: { show: true } } };
     const isBest = featured.has(p.r.variant.id);
