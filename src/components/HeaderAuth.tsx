@@ -10,6 +10,7 @@ import type { IndexConfig } from "@/engine";
 import { encodeIndices } from "@/lib/url";
 import { authEnabled } from "@/app/providers";
 import { track } from "@/lib/analytics";
+import { forgetResume } from "@/components/ResumeSignIn";
 
 export function HeaderAuth({ indices }: { indices: IndexConfig[] }) {
   if (!authEnabled) return <span className="btn-quiet opacity-60" title="Sign-in not configured yet">Claim your page</span>;
@@ -38,7 +39,7 @@ function Inner({ indices }: { indices: IndexConfig[] }) {
       <button type="button" className="btn" disabled={saving} onClick={async () => { setSaving(true); setError(""); try { await update({ patch: { indices: indices.map(storableIndex) } }); setSaved(true); setTimeout(() => setSaved(false), 1400); } catch (e) { console.error("Save to page failed", e); setError(e instanceof ConvexError ? String(e.data) : "Save failed. Please try again."); } finally { setSaving(false); } }}>{saving ? "Saving…" : saved ? "Saved" : "Save to my page"}</button>
       <Link href={`/${mine.handle}`} transitionTypes={["nav-forward"]} className="flex items-center gap-2 btn-quiet">{(mine.avatarUrl ?? user?.imageUrl) && <img src={mine.avatarUrl ?? user?.imageUrl} alt="" className="w-5 h-5 rounded-full object-cover" />}<span>@{mine.handle}</span></Link>
       {error && <span role="alert" className="text-xs">{error}</span>}
-      <SignOutButton><button type="button" className="cap hover:text-ink">sign out</button></SignOutButton>
+      <SignOutButton><button type="button" className="cap hover:text-ink" onClick={forgetResume}>sign out</button></SignOutButton>
     </div>
   );
 }

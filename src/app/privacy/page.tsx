@@ -22,7 +22,7 @@ export default function PrivacyPage() {
         </section>
         <section className="grid gap-2">
           <h2 className="text-[22px] text-ink">With an account</h2>
-          <p>Sign-in is handled by Clerk. If you sign in with Google, we receive your name, email address, and profile picture. We use them to create your public page at mypriors.com/&lt;handle&gt; and show your name and picture there. We store your handle, display name, avatar, bio, links, indices, page sections, theme, benchmark imports, and a hashed agent token, which lets your own agent edit your page.</p>
+          <p>Sign-in is handled by Clerk. If you sign in with Google, we receive your name, email address, and profile picture. We use them to create your public page at mypriors.com/&lt;handle&gt; and show your name and picture there. We store your handle, display name, avatar, bio, links, indices, page sections, theme, benchmark imports, and a hashed agent token, which lets your own agent edit your page. If you sign in with Google, your browser also remembers which Google account you used, so we can sign you back in when your session ends. Signing out clears it.</p>
           <p>Your public page and its share cards are visible to anyone. Your email address is never shown publicly.</p>
         </section>
         <section className="grid gap-2">
