@@ -50,12 +50,23 @@ export function scatterSpec(snapshot: Snapshot, ranked: RankedVariant[], index: 
 }
 
 /** Chart palette for a share card: the profile's scheme, else the site default. */
+/** The page theme a card is drawn in. A requested scheme picks a paired theme's light or dark version; with none, the theme keeps its own mode. */
+export function cardPreset(theme?: { preset?: string; surface?: "bone" | "white" }, scheme?: "light" | "dark"): PagePreset {
+  const preset = presetOf(theme);
+  if (!scheme || !preset.pair || preset.dark === (scheme === "dark")) return preset;
+  return themeById(preset.pair) ?? preset;
+}
+
 /** Lookalike themes (Analysis, Slop) restyle whole cards. A requested scheme picks that theme's light or dark version. */
 export function cardTheme(theme?: { preset?: string; surface?: "bone" | "white" }, scheme?: "light" | "dark"): PagePreset | null {
+  const preset = cardPreset(theme, scheme);
+  return preset.family === "aa" || preset.family === "slop" ? preset : null;
+}
+
+/** Card options for a saved page theme, so a profile's link previews look like its page (dark pages get dark cards). */
+export function profileCardLook(theme?: { preset?: string; surface?: "bone" | "white"; accent?: string }) {
   const preset = presetOf(theme);
-  if (preset.family !== "aa" && preset.family !== "slop") return null;
-  if (!scheme || preset.dark === (scheme === "dark")) return preset;
-  return themeById(preset.pair) ?? preset;
+  return { theme: theme ? { preset: theme.preset, surface: theme.surface } : undefined, accent: theme?.accent, surface: preset.dark ? undefined : preset.bg };
 }
 
 export function cardPalette(theme?: { preset?: string; surface?: "bone" | "white" }, scheme?: "light" | "dark"): ChartPalette {

@@ -12,7 +12,7 @@ import { markColor } from "@/components/chart/theme";
 import type { ChartHidden } from "@/components/chart/chart-visibility";
 import QRCode from "qrcode";
 import { DARK_LAB_COLORS } from "@/components/chart/theme";
-import { cardTheme } from "@/lib/og-chart";
+import { cardPreset, cardTheme } from "@/lib/og-chart";
 
 type Ctx = { index: IndexConfig; who: { name: string; handle?: string; avatarUrl?: string }; top: RankedVariant[]; board: RankedVariant[]; pts: RankedVariant[]; ranked: RankedVariant[]; pareto: RankedVariant[]; benches: { id: string; name: string; share: number }[]; colors: Map<string,string>; accent: string; bg: string; date: string; dark: boolean; ink: string; muted: string; line: string; pale: string; onBar: string; panel: string; onPanel: string; panelMuted: string; qr: string; snapshot: Snapshot };
 /** Card schemes. Dark mirrors the site's dark mode: warm near-black, off-white ink, dark-tuned lab colors,
@@ -30,12 +30,15 @@ const ctxCache=new Map<string,Promise<Ctx>>();
 function ctxFor(snapshot:Snapshot,index:IndexConfig,who:Ctx["who"],opts?:{accent?:string;surface?:string;scheme?:CardScheme;theme?:{preset?:string;surface?:"bone"|"white"}}):Promise<Ctx>{
  // The index computation is design-independent — share it across all card variants of a config.
  // Lookalike page themes (Analysis, Slop) restyle the whole card: colors, lab colors and fonts.
- const themed=cardTheme(opts?.theme,opts?.scheme);
- const scheme=themed?(themed.dark?"dark":"light"):opts?.scheme==="dark"?"dark":"light";
+ // Dark classic themes (Graphite, Midnight, Forest) take their colors from the theme too, unless a light card is asked for.
+ const preset=cardPreset(opts?.theme,opts?.scheme);
+ const themed=cardTheme(opts?.theme,opts?.scheme)??(preset.family==="classic"&&preset.dark&&opts?.scheme!=="light"?preset:null);
+ // With no scheme asked for, the card takes the theme's own mode: a page fixed to Priors Dark gets a dark card.
+ const scheme=themed?(themed.dark?"dark":"light"):(opts?.scheme?opts.scheme==="dark":preset.dark)?"dark":"light";
  const k=themed?{bg:themed.surface??themed.bg,ink:themed.ink,muted:themed.grey,line:themed.hair,pale:themed.dark?themed.hair:themed.hair2,onBar:themed.dark?themed.bg:"#FFFFFF",panel:themed.dark?themed.hair2:themed.ink,onPanel:themed.dark?themed.ink:themed.bg,panelMuted:themed.grey,accent:themed.accent}:SCHEMES[scheme];
  const key=`${snapshot.date}|${who.name}|${who.handle??""}|${opts?.accent??""}|${opts?.surface??""}|${scheme}|${themed?.id??""}|${JSON.stringify(index)}`;
  let p=ctxCache.get(key);
- if(!p){p=(async()=>{const r=computeIndex(snapshot,{...index,variants:"all"}),mode=chartVariantMode(index,"ranking"),list=selectVariants(r.ranked,mode),pareto=selectVariants(r.ranked,chartVariantMode(index,"pareto")),link=`https://mypriors.com${who.handle?`/${who.handle}`:""}`;return{...k,index,who,top:list.slice(0,5),board:list.slice(0,10),pts:pareto.filter(x=>!!x.costUsd&&x.costUsd>0),ranked:r.ranked,pareto,benches:r.benchmarks.map(b=>({id:b.benchmark.id,name:b.benchmark.shortName??b.benchmark.name,share:b.share})),colors:new Map(snapshot.labs.map(l=>[l.id,themed?.labColors?themed.labColors[l.id]??themed.labColors.other??l.color:scheme==="dark"?DARK_LAB_COLORS[l.id]??l.color:l.color])),accent:themed?opts?.accent??k.accent:scheme==="dark"?(opts?.accent&&opts.accent.toLowerCase()!=="#2f4fb0"?mixHex(opts.accent,"#ffffff",0.38):k.accent):opts?.accent??k.accent,bg:themed||scheme==="dark"?k.bg:opts?.surface??k.bg,dark:scheme==="dark",date:snapshot.date,qr:await QRCode.toDataURL(link,{margin:0,width:300,color:{dark:themed?.dark?"#EDECE6":"#1A1A1A",light:"#00000000"}}),snapshot}})();ctxCache.set(key,p);if(ctxCache.size>24)ctxCache.delete(ctxCache.keys().next().value!);}
+ if(!p){p=(async()=>{const r=computeIndex(snapshot,{...index,variants:"all"}),mode=chartVariantMode(index,"ranking"),list=selectVariants(r.ranked,mode),pareto=selectVariants(r.ranked,chartVariantMode(index,"pareto")),link=`https://mypriors.com${who.handle?`/${who.handle}`:""}`;return{...k,index,who,top:list.slice(0,5),board:list.slice(0,10),pts:pareto.filter(x=>!!x.costUsd&&x.costUsd>0),ranked:r.ranked,pareto,benches:r.benchmarks.map(b=>({id:b.benchmark.id,name:b.benchmark.shortName??b.benchmark.name,share:b.share})),colors:new Map(snapshot.labs.map(l=>[l.id,themed?.labColors?themed.labColors[l.id]??themed.labColors.other??l.color:scheme==="dark"?DARK_LAB_COLORS[l.id]??l.color:l.color])),accent:themed?opts?.accent??k.accent:scheme==="dark"?(opts?.accent&&opts.accent.toLowerCase()!=="#2f4fb0"?mixHex(opts.accent,"#ffffff",0.38):k.accent):opts?.accent??k.accent,bg:themed||scheme==="dark"?k.bg:opts?.surface??k.bg,dark:scheme==="dark",date:snapshot.date,qr:await QRCode.toDataURL(link,{margin:0,width:300,color:{dark:"#1A1A1A",light:"#00000000"}}),snapshot}})();ctxCache.set(key,p);if(ctxCache.size>24)ctxCache.delete(ctxCache.keys().next().value!);}
  return p;
 }
 export async function renderShareCard(snapshot: Snapshot,index:IndexConfig,who:{name:string;handle?:string;avatarUrl?:string},opts?:{accent?:string;surface?:string;design?:string;chart?:string;cv?:string;cm?:string;cs?:string;hidden?:ChartHidden;labelScale?:number;scheme?:CardScheme;theme?:{preset?:string;surface?:"bone"|"white"};radar?:RadarSettings}) {

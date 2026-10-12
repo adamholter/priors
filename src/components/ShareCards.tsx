@@ -55,8 +55,10 @@ function ShareCardsContent({ indices, active, profile, pageUrl, defaultDesign, c
   const lookalike = cardThemeDef.family === "aa" || cardThemeDef.family === "slop";
   // A lookalike theme with one mode (Slop is dark only) has no other scheme to offer.
   const oneScheme = lookalike && !cardThemeDef.pair;
-  const scheme = oneScheme ? (cardThemeDef.dark ? "dark" : "light") : schemeChoice ?? (lookalike ? (cardThemeDef.dark ? "dark" : "light") : siteDark ? "dark" : "light");
-  const themeParam = (q: URLSearchParams) => { if (cardThemeId !== "bone" && cardThemeId !== "night") { q.set("theme", cardThemeId); q.set("scheme", scheme); } else if (scheme === "dark") q.set("scheme", "dark"); };
+  // Priors Light follows the site; every other theme starts in its own mode (a page fixed to Priors Dark starts dark).
+  const scheme = oneScheme ? (cardThemeDef.dark ? "dark" : "light") : schemeChoice ?? ((cardThemeId === "bone" ? siteDark : cardThemeDef.dark) ? "dark" : "light");
+  // A light card for a dark page has to be asked for: with no scheme, a profile's card takes the page's mode.
+  const themeParam = (q: URLSearchParams) => { if (cardThemeId !== "bone" && cardThemeId !== "night") { q.set("theme", cardThemeId); q.set("scheme", scheme); } else if (scheme === "dark" || cardThemeId === "night") q.set("scheme", scheme); };
   const [design, setDesign] = useState<string>(SHARE_DESIGNS.some((d) => d.id === defaultDesign) ? defaultDesign! : SHARE_DESIGNS[0].id);
   const [message, setMessage] = useState("");
   const [origin, setOrigin] = useState("");

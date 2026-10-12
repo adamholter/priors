@@ -3,7 +3,7 @@ import type { Lab, Snapshot } from "../data/types";
 import type { IndexConfig, RankedVariant } from "../engine";
 import { LIGHT_PALETTE } from "../components/chart/theme";
 import { costChart } from "./metrics";
-import { renderChartPng, scatterSpec } from "./og-chart";
+import { cardPalette, cardPreset, profileCardLook, renderChartPng, scatterSpec } from "./og-chart";
 
 const labs: Lab[] = [
   { id: "anthropic", name: "Anthropic", color: "#C76B55" },
@@ -106,4 +106,24 @@ it("renders the linked label size in scatter and bar share previews", async () =
     expect(scaled?.subarray(0, 8).toString("hex")).toBe("89504e470d0a1a0a");
     expect(scaled && plain && Buffer.compare(scaled, plain)).not.toBe(0);
   }
+});
+
+describe("link previews follow the page theme", () => {
+  it("draws a theme in its own mode when no scheme is asked for", () => {
+    for (const [preset, dark] of [["bone", false], ["night", true], ["aa", false], ["aa-dark", true], ["slop", true], ["slop-light", false], ["sand", false], ["graphite", true]] as const) {
+      expect(cardPreset({ preset }).dark, preset).toBe(dark);
+      expect(cardPalette({ preset }).dark, preset).toBe(dark);
+    }
+  });
+  it("lets a requested scheme pick a paired theme's other version", () => {
+    expect(cardPreset({ preset: "slop" }, "light").id).toBe("slop-light");
+    expect(cardPreset({ preset: "night" }, "light").id).toBe("bone");
+    expect(cardPreset({ preset: "bone" }, "dark").id).toBe("night");
+    expect(cardPreset({ preset: "graphite" }, "light").id).toBe("graphite");
+  });
+  it("passes a saved page theme through whole, with the page background only on light themes", () => {
+    expect(profileCardLook({ preset: "slop", accent: "#C5AC98" })).toEqual({ theme: { preset: "slop", surface: undefined }, accent: "#C5AC98", surface: undefined });
+    expect(profileCardLook({ preset: "sand" }).surface).toBe("#F4EFE6");
+    expect(profileCardLook(undefined)).toEqual({ theme: undefined, accent: undefined, surface: "#FBFBF9" });
+  });
 });
