@@ -73,11 +73,3 @@ export const VIA_KEY = "priors:via";
 export function readVia(): Via | null {
   try { const v = JSON.parse(localStorage.getItem(VIA_KEY) ?? "null") as Via | null; return v?.handle && Array.isArray(v.top) ? v : null; } catch { return null; }
 }
-
-/** One line comparing two top lists by model name. */
-export function compareTops(mine: string[], theirs: string[], who: string) {
-  const a = mine.slice(0, 5), b = theirs.slice(0, 5);
-  const shared = a.filter((n) => b.includes(n)).length;
-  const first = a[0] && a[0] === b[0] ? `You and ${who} both put ${a[0]} at #1.` : b[0] ? `${who} has ${b[0]} at #1. You have ${a[0]}.` : "";
-  return { first, shared, of: Math.min(a.length, b.length) };
-}

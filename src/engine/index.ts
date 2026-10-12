@@ -46,12 +46,6 @@ export function strictnessOf(config: IndexConfig): number {
   return Math.min(100, Math.max(0, config.strictness ?? (config.cutoff <= 0 ? 100 : 50 * Math.log10(50 / config.cutoff))));
 }
 
-export function cutoffOf(config: IndexConfig): number {
-  if (config.strictness == null) return config.cutoff;
-  const s = strictnessOf(config);
-  return s === 100 ? 0 : 50 * Math.pow(0.1, s / 50);
-}
-
 export function isBenchmarkRequired(config: IndexConfig, id: string): boolean {
   return config.required.includes(id);
 }
@@ -74,19 +68,6 @@ export function selectVariants(ranked: RankedVariant[], mode: "all" | "best"): R
   }).map((r, i) => ({ ...r, rank: i + 1, onFrontier: false }));
   markFrontier(out);
   return out;
-}
-
-/** Models that matter right now: the top of the newest AA intelligence index (fallback: most-observed models). */
-export function frontierModels(snapshot: Snapshot, n = 30): Set<string> {
-  const ii = snapshot.benchmarks.filter((b) => b.id.startsWith("aa-intelligence-index")).sort((a, b) => b.id.localeCompare(a.id))[0];
-  if (ii) {
-    const top = snapshot.observations.filter((o) => o.benchmarkId === ii.id).sort((a, b) => b.value - a.value).slice(0, n);
-    const set = new Set(top.map((o) => o.variantId.split("@")[0]));
-    if (set.size >= 8) return set;
-  }
-  const count = new Map<string, number>();
-  for (const o of snapshot.observations) { const m = o.variantId.split("@")[0]; count.set(m, (count.get(m) ?? 0) + 1); }
-  return new Set([...count.entries()].sort((a, b) => b[1] - a[1]).slice(0, n).map(([m]) => m));
 }
 
 /** First-visit mix, matching the shared General frontier configuration. */
@@ -305,7 +286,6 @@ const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v
 /** "1.5%" / "12%" — a plan's cost as a share of API price. */
 export const subscriptionShare = (ratio: number) => `${(ratio * 100).toFixed(ratio < 0.1 ? 1 : 0).replace(/\.0$/, "")}%`;
 
-export const COST_BENCHMARK_PREFERENCE = ["aa-cost-per-task-index"];
 export const SPEED_BENCHMARK = "aa-output-speed";
 
 export function computeIndex(snapshot: Snapshot, config: IndexConfig): IndexResult {
@@ -457,14 +437,4 @@ export function markFrontier(ranked: RankedVariant[]) {
   const pts = ranked.filter((r) => r.costUsd != null).sort((a, b) => a.costUsd! - b.costUsd! || b.score - a.score);
   let best = -Infinity;
   for (const p of pts) { p.onFrontier = p.score > best; if (p.onFrontier) best = p.score; }
-}
-
-/* ------------------------------------------------------------------ */
-/* Default view: benchmarks with high coverage of currently relevant models */
-/* ------------------------------------------------------------------ */
-
-export function coverageOf(snapshot: Snapshot, benchmarkId: string, relevant: Set<string>): number {
-  const have = new Set(snapshot.observations.filter((o) => o.benchmarkId === benchmarkId).map((o) => o.variantId.split("@")[0]));
-  let n = 0; for (const m of relevant) if (have.has(m)) n++;
-  return relevant.size ? n / relevant.size : 0;
 }

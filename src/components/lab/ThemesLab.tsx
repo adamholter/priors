@@ -3,7 +3,7 @@ import { useState } from "react";
 import type { Snapshot } from "@/data/types";
 import { IndexPage, type Profile } from "@/components/page/IndexPage";
 import { THEME_CHOICES } from "@/lib/page-presets";
-import "./onboarding-lab.css";
+import "./lab.css";
 
 /** Every page theme on a sample page, with edit mode available without signing in. Nothing saves. */
 export function ThemesLab({ profile: initial, snapshot }: { profile: Profile; snapshot: Snapshot }) {

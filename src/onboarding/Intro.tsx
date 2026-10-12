@@ -7,7 +7,6 @@ import type { Snapshot } from "@/data/types";
 import { defaultConfig } from "@/engine";
 import { INTRO_CARDS } from "@/lib/share-designs";
 
-export const INTRO_KEY = "priors:intro-seen";
 const STEP_MS = [3200, 3400, 5200];
 const STEPS = [
   { n: "01", title: "Pick the better model", body: "Two at a time. Swipe or tap. Skip any you don’t know." },
@@ -18,7 +17,7 @@ const STEPS = [
 function Arrow() { return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="M4 12h15m-6-6 6 6-6 6" /></svg>; }
 function Cross() { return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg>; }
 
-export function Intro({ snapshot, lineup, dialogRef, onClose }: { snapshot: Snapshot; lineup: string[]; dialogRef: React.RefObject<HTMLDialogElement | null>; onClose: () => void }) {
+export function Intro({ snapshot, lineup, dialogRef }: { snapshot: Snapshot; lineup: string[]; dialogRef: React.RefObject<HTMLDialogElement | null> }) {
   const [step, setStep] = useState(2);
   const [open, setOpen] = useState(false);
   const [reduced, setReduced] = useState(false);
@@ -50,7 +49,7 @@ export function Intro({ snapshot, lineup, dialogRef, onClose }: { snapshot: Snap
   }, [open, step, reduced]);
   const shown = reduced ? 2 : step;
 
-  return <dialog ref={dialogRef} className="intro-dialog" aria-labelledby="intro-heading" onClose={onClose} onClick={e => { if (e.target === e.currentTarget) dialogRef.current?.close(); }}>
+  return <dialog ref={dialogRef} className="intro-dialog" aria-labelledby="intro-heading" onClick={e => { if (e.target === e.currentTarget) dialogRef.current?.close(); }}>
     <div className="intro-shell" tabIndex={-1} autoFocus>
       <div className={`intro-stage step-${shown}`} aria-hidden="true" key={open ? "open" : "closed"}>
         <div className="intro-scene scene-rank">

@@ -37,7 +37,6 @@ export function ParetoChart({ ranked, mode = "all", labs, height = 460, title, a
   }, [anchor]);
   const bars = (linkedKind ?? savedView.kind) === "bars";
   const changeKind = (kind: "bars" | "scatter") => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- apply chart deep link after hydration
     setLinkedKind(kind);
     onView({ ...savedView, kind });
     const url = new URL(window.location.href);

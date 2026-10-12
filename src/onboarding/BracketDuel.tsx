@@ -30,7 +30,7 @@ export function undoSavedCall() {
 }
 
 /** `initial` and `extra` reopen a finished smart sprint from the review list: the earlier calls stay and `extra` more may be asked. */
-export function Bracket({ seeds, models, labs, onFinish, onList, options, adaptive, storageKey = KEY, initial, extra = 0 }: { seeds: string[]; models: Map<string, Model>; labs: Map<string, Lab>; onFinish: (step: BracketStep, answers: Answer[]) => void; onList: (step: BracketStep, answers: Answer[]) => void; options?: BracketOptions; adaptive?: AdaptiveOptions; storageKey?: string | null; initial?: Answer[]; extra?: number }) {
+export function Bracket({ seeds, models, labs, onFinish, onList, options, adaptive, initial, extra = 0 }: { seeds: string[]; models: Map<string, Model>; labs: Map<string, Lab>; onFinish: (step: BracketStep, answers: Answer[]) => void; onList: (step: BracketStep, answers: Answer[]) => void; options?: BracketOptions; adaptive?: AdaptiveOptions; initial?: Answer[]; extra?: number }) {
   const [answers, setAnswers] = useState<Answer[]>(initial ?? []);
   const [finishedEarly, setFinishedEarly] = useState(false);
   const cap = (adaptive?.cap ?? options?.cap ?? QUICK.cap) + extra;
@@ -51,15 +51,15 @@ export function Bracket({ seeds, models, labs, onFinish, onList, options, adapti
   useEffect(() => {
     const raf = requestAnimationFrame(() => {
       try {
-        const saved = JSON.parse(storageKey ? localStorage.getItem(storageKey) ?? "null" : "null") as { v?: number; seeds?: string; answers?: Answer[] } | null;
+        const saved = JSON.parse(localStorage.getItem(KEY) ?? "null") as { v?: number; seeds?: string; answers?: Answer[] } | null;
         if (!initial && saved?.v === 2 && saved.seeds === shape && Array.isArray(saved.answers)) setAnswers(saved.answers);
       } catch { /* start fresh */ }
       restored.current = true;
     });
     return () => cancelAnimationFrame(raf);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shape, storageKey]);
-  useEffect(() => { if (restored.current && storageKey) try { localStorage.setItem(storageKey, JSON.stringify({ v: 2, seeds: shape, answers })); } catch { /* ignore */ } }, [answers, shape, storageKey]);
+  }, [shape]);
+  useEffect(() => { if (restored.current) try { localStorage.setItem(KEY, JSON.stringify({ v: 2, seeds: shape, answers })); } catch { /* ignore */ } }, [answers, shape]);
   useEffect(() => () => { if (timer.current) clearTimeout(timer.current); gesture.current?.cleanup(); }, []);
   // A finished bracket goes straight to the full ranking for review.
   const finish = useRef(onFinish);

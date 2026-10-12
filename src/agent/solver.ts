@@ -145,24 +145,6 @@ export function exactRanking(snapshot: Snapshot, config: IndexConfig) {
 }
 
 const MARGIN = 0.3;
-/** How far a ranking is from satisfying the goal's moves (0 = satisfied). Continuous, in index points. */
-export function goalGap(goal: Goal, scores: Map<string, number>): number {
-  let gap = 0;
-  for (const m of goal.moves ?? []) {
-    const sm = scores.get(m.model);
-    if (sm == null) { gap += 50; continue; }
-    const others = [...scores.entries()].filter(([id]) => id !== m.model).sort((a, b) => b[1] - a[1]);
-    const below = (x?: number) => { if (x != null) gap += Math.max(0, sm - x + MARGIN); };
-    const above = (x?: number) => { if (x != null) gap += Math.max(0, x - sm + MARGIN); };
-    if (m.below) below(scores.get(m.below) ?? undefined);
-    if (m.above) above(scores.get(m.above) ?? undefined);
-    const lo = m.rank ?? m.minRank, hi = m.rank ?? m.maxRank;
-    if (lo && lo > 1) below(others[lo - 2]?.[1]); // the model that should sit just above it
-    if (hi) above(others[hi - 1]?.[1]); // the model that should sit just below it
-  }
-  return gap;
-}
-
 /** Rank churn among everyone except the moved models, weighted toward the top of the original order. */
 export function churn(before: string[], after: string[], ignore: Set<string>, depth = 20) {
   const b = before.filter((m) => !ignore.has(m)), a = after.filter((m) => !ignore.has(m));

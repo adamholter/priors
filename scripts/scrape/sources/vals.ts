@@ -219,16 +219,6 @@ export function parseValsBenchmarkPage(html: string, expectedSlug: string, loade
   };
 }
 
-export function extractConstantsImport(componentModule: string): string {
-  const imports = new Set<string>();
-  const pattern = /from\s*["']([^"']*constants\.[^"']+\.js)["']/g;
-  for (const match of componentModule.matchAll(pattern)) imports.add(match[1]);
-  if (imports.size !== 1) {
-    throw new Error("VALS BenchmarkView module must import one constants bundle, found " + imports.size);
-  }
-  return [...imports][0];
-}
-
 export interface ValsModelName {
   company: string;
   country: string;

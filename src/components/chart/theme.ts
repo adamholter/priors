@@ -7,7 +7,7 @@ import type { ChartStyle, PagePreset } from "@/lib/page-presets";
 
 echarts.use([LineChart, ScatterChart, BarChart, GridComponent, TooltipComponent, DatasetComponent, MarkLineComponent, MarkAreaComponent, GraphicComponent, DataZoomComponent, SVGRenderer, LabelLayout, UniversalTransition]);
 
-export const INK = "#1A1A1A", GREY = "#8A8A80", HAIR = "#ECEAE3", BONE = "#FBFBF9", INDIGO = "#2F4FB0";
+export const INK = "#1A1A1A", GREY = "#8A8A80", HAIR = "#ECEAE3", BONE = "#FBFBF9";
 const SANS = "var(--font-inter), Inter, system-ui, sans-serif";
 const MONO = "var(--font-jetbrains), 'JetBrains Mono', Menlo, monospace";
 /** Font stacks without CSS variables — for SSR rasterization, where var() cannot resolve. */
@@ -108,7 +108,6 @@ export function dimColor(color: string | undefined, pal: ChartPalette, amount = 
 }
 
 export const markLabel = (pal: ChartPalette) => ({ show: true, position: "right" as const, formatter: "{b}", fontSize: 11.5, color: pal.ink, opacity: 1, distance: 7, backgroundColor: pal.bg + "B8", padding: [2, 3], borderRadius: 2, textBorderColor: pal.bg + "D9", textBorderWidth: 2 });
-export const MARK_LABEL = markLabel(LIGHT_PALETTE);
 
 const registered = new Set<string>();
 export function themeFor(pal: ChartPalette, fonts?: { sans?: string; mono?: string }) {

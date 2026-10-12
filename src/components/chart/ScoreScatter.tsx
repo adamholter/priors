@@ -20,7 +20,7 @@ import type { FallingDot } from "./GravityLayer";
 
 const GravityLayer = dynamic(() => import("./GravityLayer"), { ssr: false });
 
-export { chartLabel, pickLabels, frontierOf, DEFAULT_VIEW };
+export { chartLabel };
 export type { Highlight, ScatterPoint, ScatterView };
 
 /** Per-chart display preferences (label density, frontier, effort lines), remembered in localStorage. */

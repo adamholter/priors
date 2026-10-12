@@ -5,7 +5,7 @@ import { useChartPalette } from "./echarts";
 import { escapeSvg, frameSvg } from "./export-frame";
 import { ChartDownloadIcon } from "./ChartIcons";
 
-export { escapeSvg, frameSvg };
+export { escapeSvg };
 
 export type ExportRow = Record<string, string | number | boolean | null | undefined>;
 export type ChartExportFormat = "png" | "svg" | "csv" | "json" | "html";

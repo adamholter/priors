@@ -1,4 +1,4 @@
-.ob-lab{min-height:100dvh;background:var(--ob-fbfbf9);color:var(--ob-1a1a1a)}
+
 .ob-lab-bar{position:sticky;top:0;z-index:60;display:flex;flex-wrap:wrap;gap:10px 28px;padding:10px 5vw;background:color-mix(in srgb,var(--ob-fbfbf9) 92%,transparent);backdrop-filter:blur(8px);border-bottom:1px dashed var(--ob-cdcec3)}
 .ob-lab-group{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
 .ob-lab-label{font:9px var(--font-mono);letter-spacing:.05em;text-transform:uppercase;color:var(--ob-777970)}
@@ -11,11 +11,7 @@
 .ob-lab-check input{accent-color:var(--indigo)}
 .ob-lab-restart{font-size:11.5px;border:1px solid var(--ob-dddbd4);border-radius:4px;padding:6px 10px;background:none;cursor:pointer}
 .ob-lab-restart:hover{border-color:var(--indigo);color:var(--indigo)}
-.ob-lab .onboarding{min-height:auto}
+
 .ob-lab-check select{max-width:145px;padding:5px 7px;border:1px solid var(--hair);border-radius:4px;background:var(--bone);color:var(--ink);font-size:11px}
-.ob-lab-diagnostics{font-size:11px;position:relative;align-self:center;color:var(--ink-2)}
-.ob-lab-diagnostics>summary{cursor:pointer}
-.ob-lab-diagnostics>div{position:absolute;right:0;top:calc(100% + 12px);width:min(440px,85vw);max-height:60dvh;overflow:auto;background:var(--white);border:1px solid var(--hair);border-radius:5px;padding:16px;box-shadow:0 8px 24px var(--shadow)}
-.ob-lab-diagnostics p{margin:0 0 10px;font-size:12px;line-height:1.6}
-.ob-lab-diagnostics ul{list-style:disc;margin:0 0 14px;padding-left:18px}
-@media(max-width:640px){.ob-lab-bar{position:relative;padding:10px 16px;gap:8px}.ob-lab-options{flex-wrap:nowrap;overflow:auto;width:100%}.ob-lab-options button{min-width:130px}.ob-lab-group:first-child{width:100%}.ob-lab-diagnostics>div{right:auto;left:0}}
+
+@media(max-width:640px){.ob-lab-bar{position:relative;padding:10px 16px;gap:8px}.ob-lab-options{flex-wrap:nowrap;overflow:auto;width:100%}.ob-lab-options button{min-width:130px}.ob-lab-group:first-child{width:100%}}

@@ -13,7 +13,7 @@
 .lab-publish-panel.rail{flex-direction:column;align-items:stretch;flex-shrink:0}
 .lab-publish-panel.rail .lab-publish-actions{justify-content:space-between}
 .lab-publish-panel.dock{position:fixed;bottom:16px;left:max(16px,calc((100vw - 900px)/2));right:max(16px,calc((100vw - 900px)/2));z-index:45;box-shadow:0 8px 30px var(--shadow)}
-.lab-publish-panel.dock .lab-share-options{top:auto;bottom:calc(100% + 6px)}
+
 .lab-publish-dialog{width:min(490px,calc(100vw - 24px));padding:28px;border:1px solid var(--hair);border-radius:8px;background:var(--bone);color:var(--ink);margin:auto;max-height:calc(100dvh - 24px);overflow:auto}
 .lab-publish-dialog::backdrop{background:var(--backdrop);backdrop-filter:blur(3px)}
 .lab-publish-dialog .dialog-heading{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
@@ -26,5 +26,5 @@
 .lab-publish-dialog .lab-publish-primary{width:100%;margin-top:20px}
 .lab-publish-preview{margin-top:20px;border:1px solid var(--hair);padding:16px;border-radius:5px}
 .lab-publish-preview ol{margin-top:12px;font-size:13px;line-height:2;list-style:decimal;padding-left:20px}
-.lab-publish-dialog .lab-share-status{margin-top:16px}
-@media(max-width:640px){.lab-finish{padding:28px 16px 18px}.lab-finish h2{font-size:28px}.lab-finish-card>.lab-share-menu{right:7px;top:7px}.lab-share-trigger{width:32px;height:32px}.index-lab-bar{padding:10px 16px;gap:8px}.index-lab-bar .ob-lab-options{margin-left:0;width:100%}.lab-publish-panel{padding:16px;flex-direction:column;align-items:stretch;gap:14px}.lab-publish-panel h3{font-size:22px}.lab-publish-actions{justify-content:space-between}.lab-publish-panel.dock{left:12px;right:12px;bottom:12px;gap:8px}.lab-publish-panel.dock p{display:none}.lab-publish-panel.dock h3{font-size:20px}.lab-publish-dialog{padding:24px 20px}}
+
+@media(max-width:640px){.index-lab-bar{padding:10px 16px;gap:8px}.index-lab-bar .ob-lab-options{margin-left:0;width:100%}.lab-publish-panel{padding:16px;flex-direction:column;align-items:stretch;gap:14px}.lab-publish-panel h3{font-size:22px}.lab-publish-actions{justify-content:space-between}.lab-publish-panel.dock{left:12px;right:12px;bottom:12px;gap:8px}.lab-publish-panel.dock p{display:none}.lab-publish-panel.dock h3{font-size:20px}.lab-publish-dialog{padding:24px 20px}}
