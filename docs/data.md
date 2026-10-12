@@ -45,7 +45,7 @@ Notes on sources whose behavior is not obvious from the file:
 | `osworld` | 2.0 official results (newest release, full set, default steps) plus the Verified xlsx, read with `xlsxRows`/`unzip` in the harness. General models only. |
 | `scale`, `scale-hss` | SWE Atlas-QnA and Humanity's Sixth Sense, both from RSC page payloads (`_rsc.ts`). |
 | `zapier`, `roboflow`, `terminalbench`, `andonlabs` | Headless page (`ctx.withPage`). Zapier clicks "See N more". |
-| `voxelbench`, `minebench` | Human-vote ratings. Creative category, `defaultWeight: 0`. |
+| `voxelbench`, `minebench`, `threejseval` | Human-vote ratings. Creative category, `defaultWeight: 0`. threejseval's cost is the site's estimate from token usage, so it is kept in `details`, not `costUsd`. |
 | `slopalytics` | T3 Code's own telemetry. `t3-usage-share` is each model's share of all turns in the file's trailing window. Model-level; catch-all buckets count toward the total but are never ranked. Not a quality measure, `defaultWeight: 0`. |
 | `realapipricing` | Feeds the subscription cost view, see below. |
 | `vals*` | Vals benchmarks. Shared parsing in `_vals.ts` and `vals.ts`. |
