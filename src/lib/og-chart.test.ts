@@ -110,13 +110,14 @@ it("renders the linked label size in scatter and bar share previews", async () =
 
 describe("link previews follow the page theme", () => {
   it("draws a theme in its own mode when no scheme is asked for", () => {
-    for (const [preset, dark] of [["bone", false], ["night", true], ["aa", false], ["aa-dark", true], ["slop", true], ["slop-light", false], ["sand", false], ["graphite", true]] as const) {
+    for (const [preset, dark] of [["bone", false], ["night", true], ["aa", false], ["aa-dark", true], ["slop", true], ["slop-light", true], ["sand", false], ["graphite", true]] as const) {
       expect(cardPreset({ preset }).dark, preset).toBe(dark);
       expect(cardPalette({ preset }).dark, preset).toBe(dark);
     }
   });
   it("lets a requested scheme pick a paired theme's other version", () => {
-    expect(cardPreset({ preset: "slop" }, "light").id).toBe("slop-light");
+    expect(cardPreset({ preset: "aa" }, "dark").id).toBe("aa-dark");
+    expect(cardPreset({ preset: "slop" }, "light").id).toBe("slop");
     expect(cardPreset({ preset: "night" }, "light").id).toBe("bone");
     expect(cardPreset({ preset: "bone" }, "dark").id).toBe("night");
     expect(cardPreset({ preset: "graphite" }, "light").id).toBe("graphite");
