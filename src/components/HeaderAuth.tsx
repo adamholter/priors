@@ -10,7 +10,7 @@ import type { IndexConfig } from "@/engine";
 import { encodeIndices } from "@/lib/url";
 import { authEnabled } from "@/app/providers";
 import { track } from "@/lib/analytics";
-import { forgetResume } from "@/components/ResumeSignIn";
+import { useForgetResume } from "@/components/ResumeSignIn";
 
 export function HeaderAuth({ indices }: { indices: IndexConfig[] }) {
   if (!authEnabled) return <span className="btn-quiet opacity-60" title="Sign-in not configured yet">Claim your page</span>;
@@ -22,6 +22,7 @@ function Inner({ indices }: { indices: IndexConfig[] }) {
   const { isAuthenticated } = useConvexAuth();
   const mine = useQuery(api.profiles.mine, isAuthenticated ? {} : "skip");
   const update = useMutation(api.profiles.update);
+  const forgetResume = useForgetResume();
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");

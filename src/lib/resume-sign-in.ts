@@ -12,6 +12,14 @@ export function resumeHint(accounts: Account[]): string | null {
   return google ? GOOGLE + google.providerUserId : null;
 }
 
+/** Stored when the user signs out of a session, so nothing re-arms the resume while that session winds down. A later sign-in is a new session and arms it again. */
+export const signedOutMark = (sessionId: string | null | undefined) => `off:${sessionId ?? ""}`;
+
+/** What the key should hold while signed in: the Google hint, unless this very session was just signed out by hand. */
+export function resumeWhileSignedIn(stored: string | null, sessionId: string | null | undefined, accounts: Account[]): string | null {
+  return stored === signedOutMark(sessionId) ? stored : resumeHint(accounts);
+}
+
 /** The Google account id to ask for, or null when there is nothing to resume. */
 export function resumeTarget(stored: string | null): string | null {
   return stored?.startsWith(GOOGLE) ? stored.slice(GOOGLE.length) || null : null;
