@@ -4,7 +4,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import { IconAdjustmentsHorizontal, IconX } from "@tabler/icons-react";
 import type { Lab, Snapshot } from "@/data/types";
 import type { IndexConfig, IndexResult, RankedVariant } from "@/engine";
-import { useLightDismiss } from "@/hooks/useLightDismiss";
+import { useLightDismiss } from "@/lib/useLightDismiss";
 import { BenchmarkInfo } from "../BenchmarkInfo";
 import { DARK_PALETTE, LIGHT_PALETTE, markColor, useChartPalette, useLabColor } from "./echarts";
 import { ChartExport } from "./ChartExport";

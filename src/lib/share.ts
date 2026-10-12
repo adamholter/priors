@@ -59,12 +59,15 @@ export async function shareCardToX({ imageUrl, text, url, fileName = "priors.png
   } catch { return "Couldn't copy the image. Use Download and attach it."; }
 }
 
-/** Saves the indices to publish across the sign-in hop (OAuth leaves the origin, so localStorage). */
+/** Remembers the page to come back to after sign-in. localStorage, not sessionStorage: OAuth leaves the origin and drops session state. */
+export function stashReturn() {
+  try { localStorage.setItem("priors:return", window.location.pathname + window.location.search); } catch { /* private mode */ }
+}
+
+/** Saves the indices to publish, and the page to return to, across the sign-in hop. */
 export function stashForPublish(indices: IndexConfig[]) {
-  try {
-    localStorage.setItem("priors:pending", encodeIndices(indices).toString());
-    localStorage.setItem("priors:return", window.location.pathname + window.location.search);
-  } catch { /* private mode */ }
+  try { localStorage.setItem("priors:pending", encodeIndices(indices).toString()); } catch { /* private mode */ }
+  stashReturn();
 }
 
 /** A published page the visitor came from, so their result can be compared with it. */

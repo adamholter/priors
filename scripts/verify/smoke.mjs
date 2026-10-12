@@ -51,7 +51,8 @@ try {
   watch(rank);
   await rank.goto(`${BASE}/rank`, { waitUntil: "domcontentloaded" });
   await rank.getByRole("region", { name: "Head-to-head matchups" }).waitFor();
-  await rank.getByRole("button", { name: "How it works" }).click();
+  // The page is server-rendered: a click before hydration does nothing, so retry until the dialog opens.
+  for (let tries = 0; tries < 10 && !await rank.locator(".intro-dialog[open]").isVisible(); tries++) { await rank.getByRole("button", { name: "How it works" }).click(); await rank.waitForTimeout(800); }
   await rank.locator(".intro-dialog[open]").waitFor();
   await rank.keyboard.press("Escape");
   const left = rank.getByRole("button", { name: "Left is better" });

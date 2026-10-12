@@ -7,7 +7,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { api } from "../../convex/_generated/api";
 import type { IndexConfig } from "@/engine";
-import { encodeIndices } from "@/lib/url";
+import { stashForPublish } from "@/lib/share";
 import { authEnabled } from "@/app/providers";
 import { track } from "@/lib/analytics";
 import { useForgetResume } from "@/components/ResumeSignIn";
@@ -29,8 +29,7 @@ function Inner({ indices }: { indices: IndexConfig[] }) {
   const [knownHandle, setKnownHandle] = useState("");
   useEffect(() => { const id = requestAnimationFrame(() => setKnownHandle(localStorage.getItem("priors:handle") ?? "")); return () => cancelAnimationFrame(id); }, []);
   useEffect(() => { if (mine?.handle) localStorage.setItem("priors:handle", mine.handle); }, [mine?.handle]);
-  // localStorage, not sessionStorage: OAuth sign-in hops through another origin and drops session state.
-  const stash = () => { try { localStorage.setItem("priors:pending", encodeIndices(indices).toString()); localStorage.setItem("priors:return", window.location.pathname + window.location.search); } catch { /* private mode */ } };
+  const stash = () => stashForPublish(indices);
   if (!isLoaded) return <span className="text-xs text-grey">Loading account…</span>;
   if (!isSignedIn) return <div className="flex items-center gap-2">{knownHandle && <Link href={`/${knownHandle}`} transitionTypes={["nav-forward"]} className="btn-quiet">@{knownHandle}</Link>}<Link href="/sign-in" onClick={stash} transitionTypes={["nav-forward"]} className="btn-quiet max-sm:hidden">Sign in</Link><Link href="/sign-in" onClick={() => { track("publish_clicked", { from: "header" }); stash(); }} transitionTypes={["nav-forward"]} className="btn"><span className="sm:hidden">Publish</span><span className="hidden sm:inline">Publish to Explore</span></Link></div>;
   if (mine === undefined) return null;

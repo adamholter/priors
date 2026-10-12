@@ -223,7 +223,7 @@ body:has(.done-dialog[open]){overflow:hidden}
 .review-side .setup-note>p{margin-bottom:20px}.review-side .preference-note{margin-bottom:0}
 @media(max-width:1000px){.review-side{padding-left:22px}.review-cta h2{font-size:30px}}
 @media(max-width:740px){.stage-order .experiment-side,.review-side{display:contents}.review-cta{order:-1}.review-cta .action-note{margin-top:14px}.review-adjust{margin-top:0}.review-cta h2{font-size:28px;margin-bottom:16px}.review-side .setup-note{display:block;margin-top:0}.review-side .setup-note>p{font-size:11px;margin-bottom:14px}.review-side .evidence-link{margin-top:14px}}
-/* Search monitor variants (compared in /lab/search). */
+/* Search monitor. */
 .ticker{position:relative;margin:14px 0 0;min-height:34px;overflow:hidden;font:12px/1.4 var(--font-sans);color:var(--indigo)}
 .ticker span{display:block}
 .ticker .tick-in{animation:tick-in .45s .26s cubic-bezier(.22,1,.36,1) both}

@@ -1,15 +1,15 @@
-/** After `npm run scrape -- --only scale-hss`, run `npx tsx scripts/verify-hss.ts`.
- * Set TEST_URL=https://mypriors.com to verify the published benchmark and builder.
+/** After `npm run scrape -- --only scale-hss`, run `npx tsx scripts/verify/hss.ts`.
+ * Set BASE=https://mypriors.com to verify the published benchmark and builder.
  */
 import assert from "node:assert/strict";
 import { chromium } from "playwright";
-import type { Snapshot } from "../src/data/types";
-import { normalizeLabel } from "../src/data/normalize";
-import source, { HSS_ID, HSS_PAGE } from "./scrape/sources/scale-hss";
-import { makeContext } from "./scrape/harness";
+import type { Snapshot } from "../../src/data/types";
+import { normalizeLabel } from "../../src/data/normalize";
+import source, { HSS_ID, HSS_PAGE } from "../scrape/sources/scale-hss";
+import { makeContext } from "../scrape/harness";
 
 async function main() {
-  const base = process.env.TEST_URL ?? "http://127.0.0.1:48740";
+  const base = process.env.BASE ?? "http://127.0.0.1:48740";
   const live = await source.scrape(makeContext(source.id));
   const response = await fetch(`${base}/api/snapshot`);
   assert(response.ok, `Snapshot returned ${response.status}`);

@@ -13,7 +13,8 @@
     "benchmark:identity": "tsx scripts/benchmarks/run-identity.ts",
     "typecheck": "tsc --noEmit",
     "validate": "npm run ci && npm run build",
-    "ci": "next typegen && vitest run && tsc --noEmit && eslint src scripts convex"
+    "ci": "next typegen && vitest run && tsc --noEmit && eslint src scripts convex",
+    "smoke": "node scripts/verify/smoke.mjs"
   },
   "dependencies": {
     "@clerk/nextjs": "^7.9.1",

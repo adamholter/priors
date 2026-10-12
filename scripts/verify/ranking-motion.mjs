@@ -1,13 +1,16 @@
+// Ranking rows under rapid slider drags and scrolling: rows stay inside the list, motion is interpolated, reduced motion is honored, no mobile overflow.
+//   BASE=http://localhost:48740 node scripts/verify/ranking-motion.mjs
 import assert from "node:assert/strict";
 import { chromium } from "playwright";
 
+const BASE = process.env.BASE ?? "http://localhost:48740";
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 1440, height: 950 } });
 const errors = [];
 page.on("pageerror", (e) => errors.push(e.message));
 const mix = "General%20frontier|aa-gdpval-aa:15,aa-terminalbench-v2-1:15,deepswe-1.1:15,terminalbench-4:10,arc-agi-3:10|cut=50";
 try {
-  await page.goto(`http://127.0.0.1:48740/?${new URLSearchParams({ i: mix })}`, { waitUntil: "networkidle" });
+  await page.goto(`${BASE}/?${new URLSearchParams({ i: mix })}`, { waitUntil: "networkidle" });
   await page.waitForTimeout(600);
   await page.evaluate(() => {
     window.motionSamples = [];

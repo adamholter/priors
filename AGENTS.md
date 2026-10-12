@@ -10,98 +10,67 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 # Priors
 
-Personal benchmark index builder. Anyone weights AI-model benchmarks, sees rankings + Pareto charts change live, shares by URL, and (signed in) publishes `mypriors.com/<handle>` with an editable page. One agent skill (`public/skill/SKILL.md`) lets a user's own agent add benchmarks and edit the page through `/api/agent`.
+Personal AI-model benchmark index, live at mypriors.com. A visitor ranks a lineup of models, gets benchmark weights fitted to that ranking, then explores the leaderboard and charts as the weights change. Indices share by URL. Signed-in users publish an editable page at `mypriors.com/<handle>`. An agent skill (`public/skill/SKILL.md`) lets a user's own agent add benchmarks and edit their page through `/api/agent`.
 
-## Layout
+Stack: Next.js App Router, React, TypeScript, Tailwind, ECharts, Convex, Clerk, Vitest, Playwright, and a `tsx` scraper pipeline.
 
-- `src/data/types.ts` — the data contract (Snapshot, Model, Variant, Benchmark, Observation, RawRow, Source). Read first.
-- `src/data/normalize.ts` — model label → canonical id/effort. Regex families + exact `ALIASES`. Unknown labels are excluded, never guessed. Tests in `normalize.test.ts`.
-- `src/engine/index.ts` — index math: shares, coverage floor (measured share vs strictness), peer estimation for small gaps, min-max for non-percent units (log for usd and seconds), Pareto frontier, `defaultConfig`. Tests in `index.test.ts`.
-- `src/lib/url.ts` — URL codec for anonymous indices: `?i=name|bench:w,...|req=|opt=|strict=|bars=|pareto=|cut=|est=|var=|effort=|labs=|ex=|only=|after=` (multiple `i` params = multiple indices).
-- `src/lib/import.ts` — zod schema for agent/user JSON imports + merge into a snapshot.
-- `src/lib/og.tsx` — all 13 share-card designs (`SHARE_DESIGNS` in `share-designs.ts`; "Leaderboard" is the default, "qr" embeds a QR via the `qrcode` package). Every card footer reads `mypriors.com · <date>`.
-- `src/components/page/MetricGallery.tsx` — collapsed extra-metric panels (Time per task open by default; Output speed, Latency, Release date, Uptime, Usage collapsed). Usage (T3 Code share) is model-level: one point per model on its best-scoring ranked variant. Looks up per-variant detail fields on the index observation; source-qualified variant ids (`@effort~source-conf`) resolve to their base effort id, same as engine substitution. Uptime plots `-log10(downtime)` so 90/99/99.9% spread evenly; tooltips/export show raw %.
-- `src/components/chart/ChartSettings.tsx` — per-chart gear menu: effort mode (best/all) + model-visibility checkboxes that toggle `excludeModels`.
-- `src/onboarding/bracket.ts` — pairwise onboarding: merge-sort bracket over the index top 16 (left/right/not sure), pure replay of answers, loop resolution. UI `BracketDuel.tsx` (not `Bracket.tsx` — case clash on macOS). See ONBOARDING.md.
-- `src/onboarding/optimizer.ts` — fits benchmark weights from a user-ranked lineup. Search-time exclusions are internal only; the returned config never carries lineup-derived `excludeModels` — the lineup picks weights, not membership.
-- `scripts/scrape/` — local scraper pipeline. `build.ts` runs every `sources/*.ts`, normalizes, writes `data/snapshots/<date>.json.gz` + `latest.json.gz`. Raw payloads in `data/raw/` (gitignored). Sources: aa (Artificial Analysis, encrypted RSC payloads), openrouter (operational metrics — uptime, providers, throughput, latency, tool-call errors; `defaultWeight: 0`), deepswe, frontierswe, frontiercode (static JSON at cognition.com/data/frontiercode-leaderboard/data.json — per-effort rows, Main + Extended subsets), terminalbench, bsbench, arena, simplebench, simpleqa, arcagi, frontiermath, andonlabs, exploitbench, posttrainbench, weirdml, voxelbench (public JSON API `voxelbench.ai/api/leaderboard?type=text|image`; Glicko-2 human-vote ratings, two benchmarks, creative, `defaultWeight: 0`), minebench (public JSON `minebench.ai/api/leaderboard`; human-vote Minecraft builds, value = conservative `rankScore`, creative, `defaultWeight: 0`), slopalytics (`slopalytics.com/data/t3-usage.json`, T3 Code's own telemetry: `t3-usage-share` = each model's % of all turns in the file's trailing window; model-level, catch-all buckets count toward the total but are never ranked; per-turn completion/interrupt/duration/tokens/est. $ in details; `defaultWeight: 0`, not a quality measure). Partial `--only` runs seed effort attribution from the prior snapshot. Also: weirdml (v2 CSV + v3 from `assets/data/weirdml_v3.json`, best harness per model/effort, excluded/synthetic models skipped), osworld (2.0 official-results.json — newest release, full set, default steps; Verified xlsx via `xlsxRows`/`unzip` in harness — general models only), scale (SWE Atlas-QnA entries from the RSC payload), zapier (AutomationBench; headless page, clicks "See N more"), roboflow (Visual Reasoning table; headless page), arena (incl. Text Multi-Turn). Every benchmark comes from a live scraper — no frozen datasets are merged at load time (the Sept 2026 Real Index import was removed; `liveBenchmarkId` in url.ts maps its old `real-index:*` ids in shared links to the live benchmarks).
-- Subscription cost view: `sources/realapipricing.ts` reads github.com/FeiZhuLulu/real-api-pricing (`derived/points.json`) into the proxy benchmark `subscription-token-price` — fee ÷ monthly tokens on the lab's own plan (median first-party plan; resellers like Cursor/Droid excluded; `low`-confidence rows only as a last resort). `src/data/subscription.ts` divides it by the API list price at the same workload to get each model's share of API price. `IndexConfig.costBasis: "subscription"` (URL `costbasis=subscription`, Pricing toggle in the cost chart's settings) multiplies measured cost per task by that share; models without plan data keep API cost. It is a lower bound (full allowance used). The toggle only shows when the snapshot has the benchmark.
-- Custom chart formulas: a chart's settings have a collapsed Advanced section where a formula (e.g. `score / (cost * time)`) replaces that chart's metric. The parser is `src/lib/formula.ts` (no `eval`); variables and the derived chart are `formulaInputs` / `formulaChart` in `src/lib/metrics.ts`; the formula lives in the chart view (`formula`, `formulaBetter`), so it follows localStorage, owner page defaults (`convex/validators.ts` `chartView`) and chart links (`cf`, `cb`).
-- Furniture Assembly (`sources/epoch-furniture.ts`, id `epoch-furniture-assembly`) reads the same Epoch CSV (task `Furniture Assembly`): IKEA-build spatial reasoning, mean score as percent, latest successful run per model/effort, reasoning category, `defaultWeight: 0`.
-- FrontierMath reads Epoch AI's live `https://epoch.ai/data/benchmarks.csv`: private Tiers 1–3 (v2), Tier 4 (v2), and Erdős. Public sample questions and obsolete v1 sets are excluded; raw CSV is retained. CSV standard errors are preserved as notes, not mislabeled as confidence intervals. Billable token totals are not treated as per-task usage/cost. `node scripts/verify-frontiermath.mjs` verifies search, adding, scores, responsive charts, and the 28px header wordmark.
-- Preserve `none`, `minimal`, and `low` as distinct efforts. Explicit model sizes (e.g. Qwen 27B versus 35B-A3B), Instant variants, and dated DeepSeek revisions also remain distinct.
-- `convex/` — profiles (handle, indices, sections, theme, agent token hash) + imports. Clerk JWT via `CLERK_JWT_ISSUER_DOMAIN` env in Convex.
-- `src/app/` — `/` onboarding→builder redirect, `/builder` explorer (generateMetadata emits the og card per URL), `/[handle]` public page (+ `opengraph-image`), `/og` anonymous share card, `/skill`, `/import`, `/claim`, `/sign-in`, `/api/agent`, `/api/benchmarks`.
+## Map
 
-## Page themes and editing
+| Path | What lives there |
+| --- | --- |
+| `src/data/` | The data contract (`types.ts`, read first), model-label normalization, snapshot loading, cost and time sources |
+| `src/engine/index.ts` | Index math: shares, coverage floor, effort matching, peer estimation, Pareto frontier |
+| `src/lib/` | Pure helpers: URL codec (`url.ts`), chart metrics, formulas, page themes, share cards (`og.tsx`, `og-chart.ts`), imports |
+| `src/onboarding/` | The ranking onboarding: matchups, review list, and the weight search (worker, optimizer, quality) |
+| `src/agent/` | The mix assistant: tool loop, tools, edit solver |
+| `src/components/` | UI. `chart/` charts and their option builders, `page/` profile pages and editing, `model/`, `model-finder/`, `lab/` |
+| `src/app/` | Routes. Pages are thin: load a snapshot, render a component |
+| `convex/` | Profiles, imports, recorded lineups, assistant budget. `validators.ts` defines every stored shape |
+| `scripts/scrape/` | Scrapers (`sources/`), snapshot build, mix library |
+| `scripts/verify/` | Browser checks against a running dev server |
+| `scripts/ops/` | The scheduled scrape job |
+| `data/snapshots/` | One committed snapshot per day, plus `latest` |
 
-- Themes live in `src/lib/page-presets.ts`: colors, fonts, lab colors, card radius and chart style per theme; `family` (`priors`, `aa`, `slop`, `classic`) switches the scoped stylesheet `src/components/page/page-themes.css`. Paired themes (`bone`/`night`, `aa`/`aa-dark`, `slop`/`slop-light`) follow the visitor's light/dark unless `theme.mode` is `fixed`. Ids `bone`/`night` are kept for stored pages (shown as Priors Light/Dark).
-- Analysis uses Switzer (Fontshare, free commercial license, vendored in `src/app/fonts` and `src/lib/og-fonts`) as the free stand-in for AA's licensed Suisse Int'l, and Source Serif 4 for its serif. Slop uses DM Sans. Lab colors come from each site's own palette (AA creator colors; Slopalytics `light-dark()` pairs).
-- Charts read theme style through `ChartPalette` (`fonts`, `labColors`, `style`: dotted grid, dotted frontier, AA "most attractive quadrant" `markArea` from the median metric/score, bar labels inside bars). Share cards (`/og?theme=&scheme=`) load the theme's font files under the components' font names; the share dialog can pick another theme.
-- Owner edit mode is inline on the page (`IndexPage` + `PageEdit.tsx`): section frames (drag, move, hide, remove), "+ Add section" between sections, inline name/bio/titles/text, More metrics layout (`section.metrics`: order, shown, starts open, per-chart `view`), and per-chart owner defaults (`section.view`) through `useScatterView(key, …, owner, onOwner)`. Edits autosave (debounced `profiles.update`) with undo. The Page settings drawer holds theme presets, light/dark lock, accent, share card, links, photo/banner and agent token.
-- Model lists are never stored by the editor: hiding models writes `excludeModels` only, so new models appear automatically.
-- `/lab/themes` previews every theme and edit mode without signing in; lab edits never save.
+## Docs
 
-## Mix assistant
+Read the one for the area you are changing. Update it in the same change when behavior moves.
 
-- Signed-in users adjust the active index in plain language from a composer bar on `/builder` and profile pages (`src/components/MixAssistant.tsx`; `/` focuses it; can dock as a right panel). It acts first (applies the change with Undo), then explains and, for vague asks, asks where exactly the user wants things.
-- `POST /api/assistant` (Clerk `auth()` required) streams NDJSON steps then a proposal. Loop in `src/agent/agent.ts` on OpenRouter `openai/gpt-6-luna` (verify id/price live if changing). Tools in `src/agent/tools.ts`: get_mix, explain_model, find_benchmarks, search_benchmarks, solve_edit, fit_ranking (the onboarding quality-aware fitter), try_mix, propose.
-- `src/agent/solver.ts`: edit solver. Smallest change to the mix that satisfies moves (pairwise against models from the original order, so newly ranked models can't satisfy a "drop"), minimizing weight moved + rank churn (new top-20 entrants penalized) + mix complexity (few benchmarks, even shares, soft 5–40% band — never hard caps). Fast surrogate (single-benchmark engine columns) screens candidates; the exact engine verifies. Excluding a benchmark excludes its mirrors/versions (`withFamilies`). Auto-adds skip price/speed/arena/vision/creative boards.
-- Spend safety: `convex/agentBudget.ts` enforces a hard daily USD cap (`AGENT_DAILY_USD_CAP`, default 3) and per-user daily requests (`AGENT_USER_DAILY_REQUESTS`, default 40) transactionally; every model call reserves its worst case first and settles with OpenRouter's reported cost. Mutations require `AGENT_SERVER_SECRET` (Convex env on dev+prod and Vercel env; never client-side). `OPENROUTER_API_KEY` lives only in Vercel/`.env.local`.
-- Offline try: `npx tsx scripts/try-assistant.mts "Gemini 4 is too high"`.
+- `docs/data.md`: data contract, model identity, scrapers, index math, URL and stored configs.
+- `docs/charts.md`: rankings, chart kinds and settings, highlights, the no-clipping rule, exports.
+- `docs/pages-and-sharing.md`: routes, profile pages and editing, themes, share cards, link previews, labs.
+- `docs/onboarding.md`: the matchups, the review list, the weight search and its scoring.
+- `docs/assistant.md`: mix assistant, edit solver, spend caps, the agent API and skill.
+- `docs/design.md`: tokens, type, light and dark, copy and style rules.
+- `docs/operations.md`: environments, checks and deploys, the scrape job, sign-in, analytics, browser storage.
 
-## Stored shapes and checks
+## Rules that must hold
 
-- `convex/validators.ts` is the single definition of stored profile shapes (`indexConfig`, `section`, `profileTheme`). `Section`/`ProfileTheme` types are inferred from it; `IndexConfig` (engine) is asserted *exactly equal* to the validator at compile time, so adding a field to either side without the other fails `tsc`. Mutation args use these validators (never `v.any()` for indices/sections); every write passes configs through `storableIndex()` (drops transient keys). `src/lib/stored-index.test.ts` checks every config producer.
-- Deploys are gated: `vercel.json` runs `npm run ci` (vitest + tsc incl. convex/ + eslint) before `next build`; a failing check blocks the deploy. GitHub Actions runs the same on push/PR. If `CONVEX_DEPLOY_KEY` is set in Vercel, the build also deploys Convex functions so backend and app can't drift; until then run `npx convex deploy` before pushing schema changes.
+- A variant (model + reasoning effort) is the ranked unit. Unknown model labels are excluded, never guessed.
+- Scores are used as published. Nothing is stretched so the leader reads 100.
+- Cost means measured cost per task, never token price.
+- Every benchmark comes from a live scraper. No frozen datasets.
+- The lineup fit only sets benchmark weights. It never excludes models, and an unlisted model must never land in the top 5.
+- Pages never store model lists. Hiding models writes `excludeModels`, so new models appear on their own.
+- `convex/validators.ts` is the one definition of stored shapes, and every write goes through `storableIndex()`.
+- Chart text never clips. See `docs/charts.md` before touching grids or labels.
+- Never hardcode a hex color in a component. No taglines, pills, chips or gradients. No em dashes in copy.
+- OpenRouter is called server-side only, behind the spend caps in `convex/agentBudget.ts`.
+- Do not move `scripts/ops/daily-scrape.sh`: a launchd job runs it by path.
 
 ## Commands
 
-- `npm run dev` (dev on 48740 in this workspace: `npx next dev -p 48740`)
-- `npm test` — vitest (normalizer + engine)
-- `node scripts/verify-motion.mjs` — rapid slider interruptions plus scrolling; checks row containment, interpolated motion, reduced motion, mobile overflow, and captures chart-label screenshots in `/tmp/priors-labels-*.png`.
-- `npm run typecheck`, `npx eslint src scripts`
-- With the local server running: `node scripts/verify-builder.mjs` checks sidebar, effort diagnostics, and snapshot updates; `node scripts/verify-effort-matching.mjs` checks the six-benchmark mix, calibrated/strict matching, independent chart modes, manual requirement overrides, advanced provenance, URL reload, and share cards. `TEST_REFRESH=1 node scripts/verify-builder.mjs` also runs a full live scrape through the browser button.
-- `npm run scrape -- --date YYYY-MM-DD [--only aa,deepswe]` — full run takes ~2–3 min (terminalbench uses headless Chromium)
-- `npx convex dev --once` — push schema/functions (deployment `canny-ferret-545`)
-- Scrape: launchd `com.adam.priors-scrape` every 2 hours (xx:30) → `scripts/ops/daily-scrape.sh` → `build.ts` + `npm run library` → commits + pushes `data/snapshots` (main auto-deploys) and raises a macOS notification on scrape/source/library failures. Log: `logs/scrape.log`.
+- `npm run dev`: dev server. The main checkout uses port 48740 (`npx next dev -p 48740`); give each worktree its own port.
+- `npm test`: Vitest (engine, normalizer, optimizer, solver, scrapers, share cards).
+- `npm run ci`: route types, tests, `tsc`, ESLint. This is the deploy gate.
+- `npm run validate`: `ci` plus a production build. Run it before handoff.
+- `BASE=http://localhost:<port> node scripts/verify/smoke.mjs`: every route plus the onboarding end to end, in a headless browser. Other checks in `scripts/verify/` take the same `BASE`.
+- `npm run scrape -- --date YYYY-MM-DD [--only aa,openrouter]`: build a snapshot.
+- `npm run library -- --date YYYY-MM-DD`: rebuild the mix library.
+- `npx convex dev --once`: push schema and functions to the dev deployment.
 
-## Rules of the data
+## Working here
 
-- Variant (model + reasoning effort) is the ranked unit. Effort unspecified by a source → attributed to the model's max known effort.
-- Default effort matching is calibrated (`nearest` remains a legacy alias). Exact results win. Missing efforts use the nearest measured effort adjusted by same-model target/source ratios on other measured benchmarks; category matches count twice, and extreme 20% tails are trimmed with 5+ comparisons. Insufficient paired evidence remains missing. Never copy a maximum score unchanged as a lower-effort estimate. Preserve donor value, source variant/URL, multiplier and evidence in advanced Calculation settings; no estimate markers in the main charts. Cost/speed are never effort-substituted.
-- Strictness 0–100 is the measured-coverage floor: a variant is ranked only when measured values (observed or effort-substituted; peer estimates never count) cover at least strictness% of the index's weight — 0 → anything with a value, 100 → fully measured. Strictness also controls minimum effort-comparison count, allowed effort distance and peer release window; 100 disables inference. `required` entries are explicit hard per-benchmark gates; `optional` is legacy and no longer affects ranking. `cutoff` remains supported for legacy URLs (derives strictness).
-- Chart modes are independent: `rankingVariants` defaults to `best`, `paretoVariants` to `all`. Always compute the full variant set for the UI, then call `selectVariants` per chart. Calculation controls live in the advanced dialog; chart effort toggles live in each chart's settings icon.
-- Cost means measured cost per task (`aa-cost-per-task-index`, benchmark `costUsd`), never token price. `aa-price-blended` is `proxy: true`.
-- Logical benchmarks: `versionPolicy.fallback` (DeepSWE 1.1 → 1) or `fresh` (AA index versions).
-- Percent and fixed-scale scores are used as published (`FIXED_SCALES` in the engine covers snapshots without `normalization`). Nothing is min-max stretched so the leader reads 100: Elo becomes win rate vs the pool's median model; other open-ended units use a logistic around the pool median scaled by spread (usd in log space).
-- Missing values beyond the floor are estimated from peers (release window / price tier) and marked, or renormalized when estimation is off. At strictness ≥50 a model needs ≥2 measured benchmarks to seed estimates and peers need ≥2 shared benchmarks; the peer offset shrinks as `off/(n+1)`.
-- Defaults: strictness 50, and `releasedAfter` undefined → the engine filters to models released in the six months before the snapshot date — `""` (empty `after=` URL param) means all time, and models with unknown release dates are never age-filtered. The chart-settings gear's "Models released" select controls it.
-
-## Product decisions
-
-- Lineup fit only determines benchmark weights — it must never silently exclude non-lineup models from exploration. But an unlisted model must never land in the overall top 5: the fit's loss ranks top-5 intruders above any order error, and a fit with intruders is not an exact match.
-- Default lineup (`src/onboarding/defaults.ts`) is the current snapshot's top 14 models under `DEFAULT_PRIORS_MIX` — computed from the mix, never a hand-edited list. `npm run library` seeds that mix and pre-fits the lineup (and popular lineups) into `fits` in the library so the default fit stays exact; the client verifies stored fits first and stops searching once exact. Fits carry forward between builds; `--seed <json>` bootstraps one. The scrape notifies on `DEFAULT_FIT_MISSING`. Intro share cards are pre-rendered to `public/intro/` by `scripts/scrape/intro-cards.ts`. Explicit `excludeModels` is a user choice: excluded models can be re-checked in the chart-settings model picker. Model visibility is stored as whichever is shorter: `excludeModels` or an `onlyModels` allowlist (hiding more than half the picker switches to allowlist; new models then stay hidden).
-- Leaderboard shows top 30 (25 on profile pages) with a single "Show all" toggle — a staged 15→35→all expansion was tried and rejected; keep it simple.
-- Weight sliders control benchmark *share* (0–70%), not raw weight, so the range is identical for every benchmark regardless of fitted weights.
-- Share links point at `/builder?i=...` directly; `/builder` sets og/twitter meta to `/og?...` so X link unfurls show the card. X web intent cannot attach an image — Download the PNG for that.
-- Metric gallery exists on both `/builder` and profile pages; Time per task is the default-open panel.
-- Highlights (`src/components/chart/highlight.tsx`): `IndexConfig.highlight` holds model ids (best effort) or variant ids (that exact effort; several per model allowed), URL `hl=`. Builder/profile wrap charts in `HighlightContext`; every ScoreScatter/MetricBars reads it: star menu in the chart header, stars in the settings model list (starred pin to top), removable list under the title, click a point to toggle that effort. Others desaturate/fade; featured efforts get name labels, other efforts effort tags; guide lines (per-chart `view.guides`, a settings checkbox) are drawn as ECharts `graphic` in pixel space so they end at the axes, badges slide apart along the axis and never leave the canvas; exports include them. `node scripts/verify-highlight.mjs`.
-- Chart text must never clip. Grids use fixed pixel margins and the chart div clips overflow, so every grid spreads `CONTAIN_AXIS_LABELS` (ECharts 6 `outerBounds`, shrinks the plot when rotated/long axis labels or axis names would leave the canvas) and every scatter with point labels uses `insideLabels(width)` (flips a label to the left of its mark at the right edge). Embeds inline the same rules. `node scripts/verify-chart-labels.mjs` checks every builder chart (both views, expanded), model pages, desktop/tablet/mobile, light/dark.
-- Not every chart defaults to a Pareto scatter: `MetricChart.defaultKind` makes Output speed, Latency, Output tokens and Uptime open as bars; cost and time per task stay scatter (real trade-offs); release date is time-scale scatter only. A user's explicit toggle is remembered (`kindChosen`); deep links carry `cv=bars|scatter` only when it differs from the default. Every scatter/bars chart has an expand button (`ChartExpand.tsx`) that fills ~95% of the viewport; Escape or the backdrop closes it.
-
-## Design
-
-Bone `#FBFBF9`, ink `#1A1A1A`, one indigo `#2F4FB0` (the i in the wordmark), warm grey, hairlines. Dark mode (`:root[data-theme="dark"]` in `globals.css`): warm near-black `#141413`, raised surfaces `#1C1C1A` (`--white`), ink `#EDECE6`, accent text `#9AABF5` (`--indigo`) vs button fill `#3E5BC2` (`--indigo-fill`, text `--on-accent`), wordmark i `--brand-i`. Never hardcode hex in components — use the tokens; onboarding.css literals live in generated `--ob-*` vars (light = original literal, dark = mapped). Theme: `src/components/Theme.tsx` (no-flash script first in `<body>` — not in `<head>`, which caused a hydration error on static pages; system default, toggle pins `localStorage["priors:theme"]`; root `ChartPaletteContext` switches LIGHT/DARK_PALETTE). Lab colors: `DARK_LAB_COLORS` in `chart/theme.ts`, applied by `markColor(color, pal, labId)` for charts and `useLabColor()` for DOM — never read `lab.color` directly for display. Profile pages: Bone (or unset) follows the site theme as the `night` preset; other presets keep the owner's choice. Link previews for a profile (`/[handle]/opengraph-image` and `/og?handle=`) take the saved page theme in its own mode through `profileCardLook` (`src/lib/og-chart.ts`): a page fixed to dark, or a dark theme, unfurls dark; a page that follows the visitor unfurls in the theme's signature mode (Priors and Analysis light, Slop dark). Share cards have a `scheme=dark` variant (`SCHEMES` in `src/lib/og.tsx`: dark-tuned lab colors, dark text inside bars, indigo spotlight/winner panel, QR on a light tile); the share dialog defaults to the site theme with a Light/Dark switch and carries `scheme` into the posted link so the unfurl matches. Intro cards are pre-rendered in both (`public/intro/<d>-dark.png`). HTML embeds ship both palettes and follow the viewer's `prefers-color-scheme` (override `?theme=` or `#dark`). PNG/SVG exports follow the current palette. `node scripts/verify-dark-mode.mjs` checks it. Newsreader (display/serif) + Inter + JetBrains Mono for numbers. Lab colors live in `LABS` in normalize.ts (same lab, same color everywhere). No taglines, no pills/chips, no gradients. Charts: ECharts with the `priors` theme in `src/components/chart/echarts.ts`; rankings are keyed DOM rows transitioning between list-local absolute positions, inside a paint-contained/clipped list. Avoid reintroducing viewport-coordinate FLIP measurements: they compound in-flight transforms during slider drags and scrolling. Brand boards: `~/priors-brand/index.html`.
-
-## Production
-
-- Live at `mypriors.com` (Vercel project `priors`, domain registered at Porkbun). `www` redirects to apex. Deploys on push to `main`; `npx vercel --prod` works too.
-- Convex prod deployment `small-eel-326` (`npx convex deploy`); dev stays on `canny-ferret-545`. `CLERK_JWT_ISSUER_DOMAIN=clerk.mypriors.com` set on prod.
-- Clerk production instance with custom domain `clerk.mypriors.com` (CNAMEs at Porkbun). Local `.env.local` still uses the dev instance (`pk_test`/`sk_test`, issuer `trusty-escargot-8963.clerk.accounts.dev`).
-- `NEXT_PUBLIC_SITE_URL=https://mypriors.com` set in Vercel production for absolute OG URLs.
-- Clerk free plan ends sessions after 7 days. `ResumeSignIn` (in `providers.tsx`) keeps a signed-in Google user's Google id in `localStorage["priors:resume"]` and, on a signed-out arrival, asks Google once with `prompt=none` and that id, returning to the same URL. One try per expiry; the header sign-out clears the key. Password users sign in by hand.
-
-## Ranking logic diagram
-
-`docs/ranking-logic.svg` — the eligibility/scoring flow (age filter → exclusions → measured share → Required gate → coverage floor → estimation → score). Regenerate when the engine's gates change.
+- `main` moves all day: a scheduled job commits data snapshots to it from `~/priors`. Work in a worktree and rebase before shipping.
+- Do not deploy or push unless Adam asks.
+- A design question gets a lab: three or four switchable variants on the real page under `/lab/`. When it is settled, ship the winner and delete the lab and the losing variants.
+- Code style is dense on purpose. Match the file you are in.

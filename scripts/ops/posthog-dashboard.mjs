@@ -2,12 +2,12 @@
 /**
  * Creates (or recreates) the "Priors" PostHog dashboard via the API.
  * Keys come from the macOS keychain: posthog-personal-api-key (personal, dashboard/insight write).
- * Usage: node scripts/posthog-dashboard.mjs <project_id> [host]
+ * Usage: node scripts/ops/posthog-dashboard.mjs <project_id> [host]
  */
 import { execFileSync } from "node:child_process";
 
 const [projectId, host = "https://us.posthog.com"] = process.argv.slice(2);
-if (!projectId) { console.error("usage: node scripts/posthog-dashboard.mjs <project_id> [host]"); process.exit(1); }
+if (!projectId) { console.error("usage: node scripts/ops/posthog-dashboard.mjs <project_id> [host]"); process.exit(1); }
 const key = execFileSync("security", ["find-generic-password", "-s", "posthog-personal-api-key", "-w"]).toString().trim();
 const api = async (path, body, method = "POST") => {
   const res = await fetch(`${host}/api/projects/${projectId}${path}`, { method, headers: { authorization: `Bearer ${key}`, "content-type": "application/json" }, body: body ? JSON.stringify(body) : undefined });

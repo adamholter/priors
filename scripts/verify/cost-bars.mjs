@@ -1,6 +1,8 @@
+// Cost chart as bars: render, labels, persistence, scatter toggle, deep link, mobile overflow.
+//   BASE=http://localhost:48740 node scripts/verify/cost-bars.mjs
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
-const base = process.env.TEST_URL ?? 'http://localhost:48740';
+const base = process.env.BASE ?? 'http://localhost:48740';
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
 const errors = [];

@@ -3,7 +3,7 @@ import { useId, useMemo, useState, useRef, useCallback } from "react";
 import type { Benchmark, Snapshot } from "@/data/types";
 import { strictnessOf, type IndexConfig, type IndexResult } from "@/engine";
 
-import { useLightDismiss } from "@/hooks/useLightDismiss";
+import { useLightDismiss } from "@/lib/useLightDismiss";
 import { BenchmarkInfo, InfoIcon } from "./BenchmarkInfo";
 
 const CATS: Record<string, string> = { coding: "Coding", agentic: "Agentic", reasoning: "Reasoning", knowledge: "Knowledge", math: "Math", "long-context": "Long context", instruction: "Instruction following", creative: "Creative", safety: "Safety", economics: "Economics", composite: "Composite indices", speed: "Speed", cost: "Cost", other: "Other" };

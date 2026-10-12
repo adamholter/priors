@@ -3,7 +3,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState, type CSSPrope
 import { IconAdjustmentsHorizontal, IconStar, IconStarFilled, IconX } from "@tabler/icons-react";
 import { COST_BASES, type CostBasis } from "@/data/subscription";
 import type { TaskMetricSource } from "@/data/task-metrics";
-import { useLightDismiss } from "@/hooks/useLightDismiss";
+import { useLightDismiss } from "@/lib/useLightDismiss";
 import { isHighlighted, toggleModel, useHighlight } from "./highlight";
 import type { ScatterView } from "./ScoreScatter";
 import { labelScale } from "./label-size";

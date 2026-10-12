@@ -18,7 +18,7 @@ export default function PrivacyPage() {
         <p>Priors (mypriors.com) lets you weight AI benchmarks into your own index. You can use it without an account. This page explains what we collect and why.</p>
         <section className="grid gap-2">
           <h2 className="text-[22px] text-ink">Without an account</h2>
-          <p>Your indices live in the page address and in your browser&rsquo;s local storage (your lineup, focus, chart preferences, and whether you have seen the intro). When you finish the ranking experiment we record the lineup, focus, fitted benchmark weights and fit score, with no name, email, or account attached, to improve the starting mixes for everyone.</p>
+          <p>Your indices live in the page address and in your browser&rsquo;s local storage (your lineup, focus, and chart preferences). When you finish the ranking experiment we record the lineup, focus, fitted benchmark weights and fit score, with no name, email, or account attached, to improve the starting mixes for everyone.</p>
         </section>
         <section className="grid gap-2">
           <h2 className="text-[22px] text-ink">With an account</h2>

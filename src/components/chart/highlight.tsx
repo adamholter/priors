@@ -1,6 +1,6 @@
 "use client";
 import { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
-import { useLightDismiss } from "@/hooks/useLightDismiss";
+import { useLightDismiss } from "@/lib/useLightDismiss";
 import { featuredPoints, type ScatterPoint } from "./scatter-option";
 import type { IndexConfig } from "@/engine";
 import { matchesVariantId } from "@/data/variant-identity";

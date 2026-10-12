@@ -1,4 +1,5 @@
 // Dark mode: system default, toggle + persistence, charts and lab colors re-theme, no hydration errors.
+//   BASE=http://localhost:48740 node scripts/verify/dark-mode.mjs
 import { chromium } from 'playwright';
 import assert from 'node:assert/strict';
 
