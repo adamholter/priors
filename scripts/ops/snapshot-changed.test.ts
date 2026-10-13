@@ -104,14 +104,21 @@ describe("scheduled snapshot change gate", () => {
         npx() { if [[ "$*" == "tsx scripts/ops/snapshot-changed.ts" ]]; then "$GATE_NODE" --import "$GATE_LOADER" "$GATE_CLI"; fi; }
         npm() { return 0; }
         git() { if [[ "$1" == "push" ]]; then echo push >> "$PUSH_LOG"; else command git "$@"; fi; }
-        export -f npx npm git
-        bash scripts/ops/daily-scrape.sh
+        osascript() { return 0; }
+        export -f npx npm git osascript
+        bash scripts/ops/daily-scrape.sh $SCRAPE_ARGS
       `;
-      const run = () => spawnSync("bash", ["-c", command], { cwd, encoding: "utf8", env: {
+      // --synced is the scrape itself; the step before it resets the checkout to origin/main.
+      const run = (args = "--synced") => spawnSync("bash", ["-c", command], { cwd, encoding: "utf8", env: {
+        SCRAPE_ARGS: args,
         ...process.env, GATE_NODE: process.execPath, GATE_LOADER: path.resolve("node_modules/tsx/dist/loader.mjs"),
         GATE_CLI: path.resolve("scripts/ops/snapshot-changed.ts"), PUSH_LOG: path.join(cwd, "push.log"),
       } });
       const initial = git("rev-parse", "HEAD");
+      // Outside the marked scrape checkout the job refuses before touching anything.
+      expect(run("").status).toBe(1);
+      expect(git("rev-parse", "HEAD")).toBe(initial);
+      expect(git("diff", "--cached", "--name-only")).toBe("app-edit.txt\n");
       const noop = run();
       expect(noop.status, noop.stderr).toBe(0);
       expect(git("rev-parse", "HEAD")).toBe(initial);
