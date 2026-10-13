@@ -21,8 +21,11 @@ export default defineSchema({
     agentTokenHash: v.optional(v.string()),
     updatedAt: v.number(),
   }).index("by_clerk", ["clerkId"]).index("by_handle", ["handle"]).index("by_token", ["agentTokenHash"])
-    // Which page shows a stored file: an upload belongs to the one page that points at it (see fileTaken in profiles.ts).
+    // Which page shows a stored file, for images attached before `uploads` recorded their owner (fileTaken in profiles.ts).
     .index("by_avatar", ["avatarStorageId"]).index("by_banner", ["bannerStorageId"]),
+
+  /** Who uploaded a stored image: written when a page first attaches it, checked ever after (claimFile in profiles.ts). */
+  uploads: defineTable({ storageId: v.id("_storage"), profileId: v.id("profiles") }).index("by_storage", ["storageId"]).index("by_profile", ["profileId"]),
 
   /** User-imported benchmark data (from the skill / JSON upload). Merged into the snapshot at render time. */
   imports: defineTable({
