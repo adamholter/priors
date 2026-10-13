@@ -1,11 +1,13 @@
 import type { IndexConfig } from "../engine";
 import { encodeIndices } from "./url";
+import { findTab } from "./page-layout";
 import { setChartHidden, type ChartHidden } from "../components/chart/chart-visibility";
 
-/** Profile links override the selection on one index without changing the saved page. */
+/** Profile links override the selection on one index (`hi`: its id or name slug) without changing the saved page. */
 export function linkedHighlights(indices: IndexConfig[], params: URLSearchParams): IndexConfig[] {
   if (!params.has("hl")) return indices;
-  const id = params.get("hi") ?? indices[0]?.id;
+  // A link that names an index that is gone changes nothing; one that names none means the first.
+  const id = (params.has("hi") ? findTab(indices, params.get("hi")) : indices[0])?.id;
   const highlight = (params.get("hl") ?? "").split(",").filter(Boolean).slice(0, 12);
   return indices.map((index) => index.id === id ? { ...index, highlight: highlight.length ? highlight : undefined } : index);
 }

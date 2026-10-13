@@ -9,7 +9,7 @@ import { ACCENTS, THEME_CHOICES, presetOf, themeById, type PagePreset } from "@/
 import { SHARE_DESIGNS } from "@/lib/share-designs";
 import { api } from "../../../convex/_generated/api";
 import type { Profile } from "./IndexPage";
-import { encodeIndices } from "@/lib/url";
+import { encodeIndices, prettyQuery } from "@/lib/url";
 import { authEnabled } from "@/app/providers";
 
 /** A miniature of the theme: its surface, a card, accent, two lab marks and its type. */
@@ -81,9 +81,38 @@ export function PageSettings({ profile, set, open, onClose, lab }: { profile: Pr
 
       <Group title="Indices">
         <p className="text-ink-2">Weights and benchmarks are edited in the builder; saving there updates this page.</p>
-        <a className="btn-quiet inline-block w-fit" href={`/builder?${encodeIndices(profile.indices).toString()}`}>Open in builder</a>
+        <a className="btn-quiet inline-block w-fit" href={`/builder?${prettyQuery(encodeIndices(profile.indices.map((i) => ({ ...i, page: `${profile.handle}.${i.id}` })), true))}`}>Open in builder</a>
       </Group>
+
+      {authEnabled && !lab && <DeletePage handle={profile.handle} />}
     </aside>, document.body);
+}
+
+/** Deleting is for good, so the owner types the handle first. Talks to Convex, so it only mounts for the signed-in owner. */
+function DeletePage({ handle }: { handle: string }) {
+  const remove = useMutation(api.profiles.remove);
+  const [typed, setTyped] = useState("");
+  const [state, setState] = useState<"idle" | "busy" | "error">("idle");
+  const sure = typed.trim().toLowerCase() === handle;
+  const run = async () => {
+    setState("busy");
+    try {
+      await remove({ handle });
+      try { localStorage.removeItem("priors:handle"); } catch { /* storage can be disabled */ }
+      // A full load: every open query still points at the page that is gone.
+      window.location.assign("/builder");
+    } catch (e) { console.error("Page delete failed", e); setState("error"); }
+  };
+  return <Group title="Delete page">
+    <p className="text-ink-2">This removes your page, its imported benchmarks and its images for good, and takes it off Explore. mypriors.com/{handle} becomes free for anyone to claim.</p>
+    <Field label={`Type ${handle} to confirm`}>
+      <div className="flex flex-wrap items-center gap-2">
+        <input value={typed} onChange={(e) => setTyped(e.target.value)} className="inp w-44" aria-label={`Type ${handle} to confirm`} autoComplete="off" spellCheck={false} />
+        <button type="button" className="btn-quiet" disabled={!sure || state === "busy"} onClick={run}>{state === "busy" ? "Deleting…" : "Delete page"}</button>
+      </div>
+    </Field>
+    {state === "error" && <p role="alert">Couldn’t delete the page. Try again.</p>}
+  </Group>;
 }
 
 /** Uploads and the agent token talk to Convex directly, so they only mount for the signed-in owner. */

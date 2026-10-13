@@ -31,8 +31,9 @@ launchd job `com.adam.priors-scrape` runs `scripts/ops/daily-scrape.sh` every 2 
 - **The checkout holds nothing but `origin/main`.** Each run starts with `git checkout -f --detach origin/main`, so it always scrapes with the newest code and can always push. It installs packages again when `package-lock.json` changes. Never work in `~/priors-scrape`: local changes there are thrown away.
 - **The marker file.** The script refuses to run unless `.scrape-checkout` exists in the checkout root, so the reset can never hit a checkout someone works in.
 - **What it does.** It runs `build.ts`, `npm run library` and `intro-cards.ts`, then `scripts/ops/snapshot-changed.ts` decides whether anything meaningful changed. If so it commits only `data/snapshots` and `public/intro` and pushes to `main`, which deploys. If `main` moved during the scrape it rebases the snapshot commit and pushes again.
+- **It has a test.** `scripts/ops/snapshot-changed.test.ts` runs the real script in a throwaway repo. Run `npm run ci` after touching the script: a failing check blocks every deploy, the job's own included.
 - **Alerts and log.** It raises a macOS notification on a scrape, source, library or push failure, and when the default lineup has no exact fit. Log: `~/priors/logs/scrape.log`.
-- **Setting it up again.** `git worktree add --detach ~/priors-scrape origin/main`, `touch ~/priors-scrape/.scrape-checkout`, `npm ci` there, and a `.env.local` with the `NEXT_PUBLIC_CONVEX_URL` line (the mix library reads recorded lineups).
+- **Setting it up again.** `git worktree add --detach ~/priors-scrape origin/main`, `touch ~/priors-scrape/.scrape-checkout`, `npm ci` there, and a `.env.local` holding only `NEXT_PUBLIC_CONVEX_URL` set to the production deployment (the mix library reads the lineups real visitors recorded).
 
 The job pushes to `main` all day, so do feature work in a worktree and expect `main` to move.
 

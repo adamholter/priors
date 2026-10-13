@@ -9,13 +9,15 @@ import type { Snapshot } from "@/data/types";
 import { Wordmark } from "@/components/Wordmark";
 import { SiteNav } from "@/components/SiteNav";
 import { ThemeToggle } from "@/components/Theme";
-import { encodeIndices } from "@/lib/url";
+import { encodeIndices, prettyQuery } from "@/lib/url";
 import { rankedCount } from "@/lib/ranked-count";
+import { pageMeta } from "@/lib/site-meta";
 
 export const dynamic = "force-dynamic";
-export const metadata: Metadata = { title: "Explore rankings", description: "AI model rankings people have built and published on Priors." };
+export const metadata: Metadata = pageMeta({ title: "Explore rankings", description: "AI model rankings people have built and published on Priors.", path: "/explore" });
 
-type Published = { handle: string; displayName: string; bio?: string; avatarUrl?: string; updatedAt: number; indices: IndexConfig[] };
+/** `indices` holds the main index only; the page's other tabs come as names. */
+type Published = { handle: string; displayName: string; bio?: string; avatarUrl?: string; updatedAt: number; indices: IndexConfig[]; others: string[]; more: number };
 
 /** Leaders and biggest weights of a page's first index, computed against the current snapshot. */
 function summary(snapshot: Snapshot, index: IndexConfig) {
@@ -79,7 +81,10 @@ export default async function Explore() {
                   <div className="cap truncate">@{p.handle} · {ago(p.updatedAt)}</div>
                 </div>
               </div>
-              <div className="text-[19px] leading-snug text-ink group-hover:text-indigo" style={{ fontFamily: "var(--font-newsreader), Newsreader, Georgia, serif" }}>{index?.name ?? "Rankings"}</div>
+              <div className="grid gap-1">
+                <div className="text-[19px] leading-snug text-ink group-hover:text-indigo" style={{ fontFamily: "var(--font-newsreader), Newsreader, Georgia, serif" }}>{index?.name ?? "Rankings"}</div>
+                {p.more > 0 && <p className="cap truncate" title={p.others.join(", ")}>Also {p.others.join(", ")}{p.more > p.others.length ? ` and ${p.more - p.others.length} more` : ""}</p>}
+              </div>
               {s?.top.length ? <ol className="grid gap-1.5">
                 {s.top.map((r, i) => <li key={r.variant.id} className="grid grid-cols-[16px_minmax(0,1fr)_auto] items-center gap-2 text-[13px]">
                   <span className="cap text-right">{i + 1}</span>
@@ -89,7 +94,7 @@ export default async function Explore() {
               </ol> : <p className="cap">No ranked models on today&apos;s data.</p>}
               {s && s.count > 0 && <p className="cap leading-relaxed mt-auto">{s.count} benchmark{s.count === 1 ? "" : "s"} · {s.benches.map((b) => `${b.benchmark.shortName ?? b.benchmark.name} ${Math.round(b.share)}%`).join(", ")}</p>}
             </Link>
-            {index && <Link href={`/builder?${encodeIndices([{ ...index, name: `From @${p.handle}` }])}` as "/builder"} title={`Open @${p.handle}'s mix in the builder as your own copy`} className="border-t hairline px-4 py-2.5 text-[12px] text-ink-2 hover:text-indigo hover:bg-hair-2 transition-colors">Start from this</Link>}
+            {index && <Link href={`/builder?${prettyQuery(encodeIndices([{ ...index, name: `From @${p.handle}` }]))}` as "/builder"} title={`Open @${p.handle}'s mix in the builder as your own copy`} className="border-t hairline px-4 py-2.5 text-[12px] text-ink-2 hover:text-indigo hover:bg-hair-2 transition-colors">Start from this</Link>}
           </li>;
         })}
       </ul>}

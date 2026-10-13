@@ -13,6 +13,8 @@
 | `/claim`, `/sign-in` | Pick a handle; Clerk sign-in. |
 | `/import`, `/skill` | Benchmark import; the agent skill. |
 | `/og`, `/[handle]/opengraph-image` | Share card and link-preview images. |
+| `/sitemap.xml`, `/robots.txt` | The fixed routes, every model page and every published page, rebuilt hourly. |
+| anything else | `src/app/not-found.tsx`, for a mistyped handle, a model that left the data, or a broken link. |
 | `/lab/*` | Design labs, not indexed. See below. |
 | `/api/agent`, `/api/assistant` | See `docs/assistant.md`. |
 | `/api/benchmarks`, `/api/snapshot`, `/api/library`, `/api/lineup` | Data for agents, the onboarding search, and returning visitors. |
@@ -24,9 +26,13 @@
 - `src/components/page/IndexPage.tsx` renders the page from `sections` (rankings, pareto, gallery, speed, text and so on).
 - **Editing is inline.** The owner edits on the page itself (`IndexPage` plus `PageEdit.tsx`): section frames (drag, move, hide, remove), "+ Add section" between sections, inline name, bio, titles and text, the More metrics layout (`section.metrics`: order, shown, starts open, per-chart `view`) and per-chart owner defaults (`section.view`). Edits autosave through a debounced `profiles.update`, with undo.
 - The Page settings drawer (`PageEditor.tsx`) holds theme presets, the light/dark lock, accent, share card design, links, photo and banner, and the agent token.
-- **Several indices are tabs.** A page with more than one index shows them as tabs under the header, in stored order (`PageTabs` in `PageEdit.tsx`). The first is the page's main index: link preview, Explore, and the ranking a visitor is compared with. `?hi=<index id>` opens a tab, and share, chart and highlight links carry it.
-- **A section belongs to the tab of its `indexId`.** Text, links and benchmark tables with no `indexId` sit on every tab. `src/lib/page-layout.ts` holds the rules, including the sections a page shows without saving them: a tab with no charts copies the first tab's layout, and every tab gets More metrics. While editing, the open tab can be renamed, moved or removed, and a new section joins the open tab.
-- **"Save to my page" in the builder never drops an index** (`saveToPage`). A builder index updates the page index of the same name and keeps its id; any other one joins the page as a new tab. Builder ids are positional and change on every URL round trip, so they are never used to match. An index is removed on the page itself.
+- **Several indices are tabs.** A page with more than one index shows them as tabs under the header, in stored order (`PageTabs` in `PageEdit.tsx`). The first is the page's main index: link preview, Explore card, and the ranking a visitor is compared with. Explore lists the other tabs by name.
+- **Tab links.** `?hi=` opens a tab. Links write the index name as a slug (`?hi=adams-capabilities-index`) and fall back to the id when the slug is empty or shared; `findTab` accepts either, so older `?hi=i1` links still open. Share, chart and highlight links carry it.
+- **Tab keys and the Konami code.** With a tab focused, left and right (and Home and End) move between tabs. A press that is the next step of the Konami code (`midCode` in `src/lib/konami.ts`) is left alone, so entering the code never switches tabs, and the tab handler never stops the key on its way to the code's listener.
+- **A section belongs to the tab of its `indexId`.** Text, links and benchmark tables with no `indexId` sit on every tab. `src/lib/page-layout.ts` holds the rules, including the sections a page shows without saving them: a tab with no charts copies the first tab's layout, and every tab gets More metrics. While editing, the open tab can be renamed, moved, made the main index or removed, and a new section joins the open tab.
+- **"Save to my page" in the builder never drops an index** (`saveToPage`). "Open in builder" tags each index with the page index it came from (`page=handle.id` in the builder's address, never stored), and saving updates that one, so a rename keeps its tab. Without the tag an index updates the page index of the same name. Anything else joins the page as a new tab. Builder ids are positional and change on every URL round trip, so they are never used to match. An index is removed on the page itself.
+- **Deleting a page** is under Theme & settings: the owner types the handle, and `profiles.remove` deletes the profile, its imports and its uploaded images. The handle is free to claim again.
+- **The share link is the bare page address** unless it has to name another tab (`hi`) or a selection that differs from the saved one (`hl`).
 - **Model lists are never stored by the editor.** Hiding models writes `excludeModels` only, so new models appear automatically.
 - Ownership on the client is a hint (`localStorage["priors:handle"]`) confirmed by `OwnerProbe`; Convex mutations enforce it.
 
@@ -53,10 +59,13 @@
 
 ## Link previews
 
-- A share link points at `/builder?i=...`. `/builder` sets its og and twitter image to `/og?...`, so the link unfurls as the card.
-- A profile link (`/[handle]`) unfurls through `/[handle]/opengraph-image`; a chart or highlight link from a profile (`?c=`, `?hl=`) goes through `/og?handle=`.
+- **Every route has a full preview.** `pageMeta` in `src/lib/site-meta.ts` builds title, description, canonical address, site name and a large image for a route. Use it for any new route: a route's `openGraph` replaces the layout's whole, so a bare `title` would unfurl with the site's default title. Routes with no card of their own show `/og`, the default leaderboard on today's data.
+- **Builder links.** A share link points at `/builder?i=...` and unfurls as its card through `/og?...`. The description names the top three models and the benchmark mix (`indexSummary`).
+- **Profile links.** `/[handle]` unfurls through `/[handle]/opengraph-image`. A link to a chart, a selection or another tab (`?c=`, `?hl=`, `?hi=`) goes through `/og?handle=&hi=<index id>`, which names the index instead of spelling it out, so the image address stays short. The title names the tab and chart; the description is the bio, then the open index's top three models.
+- **Caching.** Profile image addresses carry `v=<updatedAt>`, so a cached preview never outlives an edit.
 - Both take the saved page theme in its own mode through `profileCardLook` in `og-chart.ts`. A page locked to dark, or on a dark theme, unfurls dark. A page set to follow the visitor unfurls in the theme's signature mode (Priors and Analysis light, Slop dark), because a crawler has no light or dark preference.
 - An explicit `theme=` or `scheme=` on `/og` wins over the saved theme.
+- **Readable addresses.** `prettyQuery` in `src/lib/url.ts` writes builder links with `:`, `,` and `=` unescaped and `+` for spaces. The `|` between fields stays escaped, because chat apps cut a link at a bare pipe.
 
 ## Labs
 

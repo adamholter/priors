@@ -1,6 +1,6 @@
 import type { Effort, Snapshot } from "../data/types";
 import { computeIndex, defaultConfig, type IndexConfig } from "../engine";
-import { encodeIndex } from "./url";
+import { encodeIndex, prettyQuery } from "./url";
 
 export interface ModelFinderVariant {
   id: string;
@@ -214,7 +214,7 @@ export function buildModelFinder(snapshot: Snapshot): ModelFinderData {
         description: definition.description,
         benchmarks,
         variants,
-        builderUrl: `/builder?${builder.toString()}`,
+        builderUrl: `/builder?${prettyQuery(builder)}`,
       };
     }),
   }));

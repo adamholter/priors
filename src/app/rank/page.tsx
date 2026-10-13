@@ -13,8 +13,9 @@ import { onboardingSnapshot } from "@/data/client-snapshot";
 import { defaultLineup, PRIORS_MIX_COOKIE, savedMix } from "@/onboarding/defaults";
 import { benchmarkQuality } from "@/onboarding/quality";
 import { rankedCount } from "@/lib/ranked-count";
+import { pageMeta, RANK_DESCRIPTION } from "@/lib/site-meta";
 export const dynamic = "force-dynamic";
-export const metadata = { title: "What are your priors?" };
+export const metadata = pageMeta({ title: "What are your priors?", description: RANK_DESCRIPTION, path: "/rank" });
 
 /** The ranking onboarding. Always reachable here; `/` sends returning visitors to the builder instead. */
 export default async function Rank() {

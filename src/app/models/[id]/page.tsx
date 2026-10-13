@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { loadSnapshot } from "@/data/load";
 import { ModelPage } from "@/components/model/ModelPage";
 import { isPreviewBot, PreviewPage } from "@/lib/link-preview";
+import { pageMeta } from "@/lib/site-meta";
 
 export const dynamic = "force-dynamic";
 
@@ -10,9 +11,8 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   const { id } = await params;
   const snap = await loadSnapshot();
   const m = snap?.models.find((x) => x.id === id);
-  if (!m) return {};
-  const title = `${m.name} · benchmarks`;
-  return { title, description: `How ${m.name} scores on every benchmark Priors tracks, by reasoning effort.` };
+  if (!m) return { title: "Page not found" };
+  return pageMeta({ title: `${m.name} · benchmarks`, description: `How ${m.name} scores on every benchmark Priors tracks, by reasoning effort.`, path: `/models/${id}` });
 }
 
 export default async function Page({ params }: { params: Promise<{ id: string }> }) {

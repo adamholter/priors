@@ -4,29 +4,13 @@ import { Builder } from "@/components/Builder";
 import { clientSnapshot } from "@/data/client-snapshot";
 import { PageTransition } from "@/components/PageTransition";
 import { loadSnapshot } from "@/data/load";
-import { decodeIndices } from "@/lib/url";
+import { decodeIndices, prettyQuery } from "@/lib/url";
+import { indexSummary, pageMeta, previewText } from "@/lib/site-meta";
 import { chartTitle } from "@/lib/metrics";
 import { RADAR_PARAM_KEYS } from "@/components/chart/radar-view";
-import { chartVariantMode, computeIndex, selectVariants } from "@/engine";
 import { isPreviewBot, isSearchBot, PreviewPage } from "@/lib/link-preview";
 
 export const dynamic = "force-dynamic";
-
-/** "GPT-6 Sol 60.3 · GPT-5.6 Sol 59.2 — 6 benchmarks: Humanity's Last Exam 29%, …" */
-async function describe(index: Parameters<typeof computeIndex>[1]): Promise<string | undefined> {
-  try {
-    const snapshot = await loadSnapshot();
-    if (!snapshot) return undefined;
-    const r = computeIndex(snapshot, { ...index, variants: "all" });
-    const rows = selectVariants(r.ranked, chartVariantMode(index, "ranking"));
-    if (!rows.length) return undefined;
-    const leaders = rows.slice(0, 3).map((x) => `${x.model.name} ${x.score.toFixed(1)}`).join(" · ");
-    const benches = [...r.benchmarks].sort((a, b) => b.share - a.share).slice(0, 3).map((b) => `${b.benchmark.name} ${Math.round(b.share)}%`).join(", ");
-    return `${leaders} — ${r.benchmarks.length} benchmarks: ${benches}`.slice(0, 200);
-  } catch {
-    return undefined;
-  }
-}
 
 type SP = Record<string, string | string[] | undefined>;
 
@@ -38,17 +22,19 @@ async function cardFor(sp: SP) {
   }
   const index = decodeIndices(query)[0];
   const ct = chartTitle(typeof sp.c === "string" ? sp.c : undefined);
-  const base = index?.name ?? "priors";
+  // No index in the link: the builder itself, on the default mix.
+  const base = index?.name ?? "Builder";
   const title = ct ? `${base} · ${ct}` : base;
-  const description = index ? await describe(index) : undefined;
-  const desc = description ? (ct ? `${ct}: ${description}` : description) : undefined;
+  const snapshot = index ? await loadSnapshot() : null;
+  const summary = index && snapshot ? indexSummary(snapshot, index) : undefined;
+  const desc = summary ? previewText([ct ? `${ct}: ${summary}` : summary]) : undefined;
   return { query, title, desc };
 }
 
 export async function generateMetadata({ searchParams }: PageProps<"/builder">): Promise<Metadata> {
   const { query, title, desc } = await cardFor(await searchParams);
-  const image = { url: `/og?${query}`, width: 1200, height: 630, alt: `${title} model rankings` };
-  return { title, description: desc, openGraph: { title, description: desc, images: [image] }, twitter: { card: "summary_large_image", title, description: desc, images: [image] } };
+  const image = { url: query.size ? `/og?${query}` : "/og", width: 1200, height: 630, alt: `${title} model rankings` };
+  return pageMeta({ title, description: desc, path: "/builder", share: query.size ? `/builder?${prettyQuery(query)}` : "/builder", image });
 }
 
 export default async function Home({ searchParams }: PageProps<"/builder">) {
@@ -56,7 +42,7 @@ export default async function Home({ searchParams }: PageProps<"/builder">) {
   if (await isPreviewBot()) {
     // Link-preview crawlers cap response size — give them the tags plus a tiny body, not the app.
     const { query, title, desc } = await cardFor(sp);
-    return <PreviewPage title={title} description={desc} href={`/builder?${query}`} />;
+    return <PreviewPage title={title} description={desc} href={query.size ? `/builder?${prettyQuery(query)}` : "/builder"} />;
   }
   const i = sp.i == null ? [] : Array.isArray(sp.i) ? sp.i : [sp.i];
   if (await isSearchBot()) {

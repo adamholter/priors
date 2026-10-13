@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { api } from "../../../convex/_generated/api";
 import { storableIndex, type Section } from "../../../convex/validators";
 import type { Profile } from "./IndexPage";
+import { midCode } from "@/lib/konami";
 
 /** Reports whether the signed-in user owns this page. Mounted only when auth is configured. */
 export function OwnerProbe({ handle, onOwner }: { handle: string; onOwner: (owner: boolean) => void }) {
@@ -62,22 +63,37 @@ export function SectionFrame({ section, index, count, label, onMove, onPatch, on
   </div>;
 }
 
-/** The page's indices as tabs. While editing, the open tab can be renamed, moved (the first is the page's main index) or removed. */
+/**
+ * The page's indices as tabs. Left and right move between them while a tab has focus, except for a
+ * press that belongs to the Konami code. While editing, the open tab can be renamed, moved (the first
+ * is the page's main index) or removed.
+ */
 export function PageTabs({ indices, activeId, accent, editing, onSelect, onRename, onMove, onRemove }: {
   indices: { id: string; name: string }[]; activeId: string; accent: string; editing: boolean;
   onSelect: (id: string) => void; onRename: (id: string, name: string) => void; onMove: (id: string, by: number) => void; onRemove: (id: string) => void;
 }) {
   const at = indices.findIndex((i) => i.id === activeId);
+  const list = useRef<HTMLDivElement>(null);
+  const onKey = (e: React.KeyboardEvent) => {
+    if (!(e.target as HTMLElement).matches("button[role=tab]") || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey || midCode(e.key)) return;
+    const to = e.key === "ArrowRight" ? (at + 1) % indices.length : e.key === "ArrowLeft" ? (at - 1 + indices.length) % indices.length : e.key === "Home" ? 0 : e.key === "End" ? indices.length - 1 : -1;
+    if (to < 0 || to === at) return;
+    e.preventDefault();
+    onSelect(indices[to].id);
+    // Focus follows the open tab once it has rendered as the selected one.
+    requestAnimationFrame(() => list.current?.querySelector<HTMLElement>("[aria-selected=true]")?.focus());
+  };
   return <div className="page-tabs">
-    <div className="page-tabs-list" role="tablist" aria-label="Indices">
+    <div ref={list} className="page-tabs-list" role="tablist" aria-label="Indices" onKeyDown={onKey}>
       {indices.map((i) => {
         const on = i.id === activeId;
         return on && editing
           ? <span key={i.id} className="page-tab serif" aria-current="true" style={{ borderColor: accent }}><InlineText editing label="Index name" value={i.name} placeholder="Index name" onChange={(name) => onRename(i.id, name)} /></span>
-          : <button key={i.id} type="button" role="tab" aria-selected={on} className="page-tab serif" style={on ? { borderColor: accent } : undefined} onClick={() => onSelect(i.id)}>{i.name || "Untitled"}</button>;
+          : <button key={i.id} type="button" role="tab" aria-selected={on} tabIndex={on || editing ? 0 : -1} className="page-tab serif" style={on ? { borderColor: accent } : undefined} onClick={() => onSelect(i.id)}>{i.name || "Untitled"}</button>;
       })}
     </div>
     {editing && <div className="page-tabs-tools" role="toolbar" aria-label="This index">
+      {at > 0 && <button type="button" className="edit-chip" title="The main index leads the page, its link preview and its Explore card" onClick={() => onMove(activeId, -at)}>Make main</button>}
       <button type="button" className="edit-icon" aria-label="Move index left" disabled={at <= 0} onClick={() => onMove(activeId, -1)}>←</button>
       <button type="button" className="edit-icon" aria-label="Move index right" disabled={at === indices.length - 1} onClick={() => onMove(activeId, 1)}>→</button>
       <button type="button" className="edit-icon" aria-label="Remove index from page" onClick={() => onRemove(activeId)}>×</button>

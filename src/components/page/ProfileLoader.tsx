@@ -3,14 +3,15 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { Snapshot } from "@/data/types";
 import { mergeImports } from "@/lib/import";
+import { findTab } from "@/lib/page-layout";
 import { presetStyle, resolveAccent, resolvePreset } from "@/lib/page-presets";
 import { useTheme } from "../Theme";
 import { Wordmark } from "../Wordmark";
 import { IndexPage, type Profile } from "./IndexPage";
 
 /** Render the profile identity immediately, then load calculation rows for its charts. */
-export function ProfileLoader({ profile, version, edit, tab, leaders }: {
-  profile: Profile; version: string; edit: boolean; tab?: string;
+export function ProfileLoader({ profile, version, edit, tab, linkedHighlight, leaders }: {
+  profile: Profile; version: string; edit: boolean; tab?: string; linkedHighlight?: string;
   leaders: { name: string; score: number }[];
 }) {
   const { dark: siteDark } = useTheme();
@@ -32,7 +33,7 @@ export function ProfileLoader({ profile, version, edit, tab, leaders }: {
       .catch((cause) => { if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : "Could not load benchmark data."); });
     return () => controller.abort();
   }, [version, profile.imports, retry]);
-  if (snapshot) return <IndexPage profile={profile} snapshot={snapshot} edit={edit} tab={tab} />;
+  if (snapshot) return <IndexPage profile={profile} snapshot={snapshot} edit={edit} tab={tab} linkedHighlight={linkedHighlight} />;
   const preset = resolvePreset(profile.theme, siteDark);
   const surface = preset.bg;
   return <div className="page-root min-h-screen" data-dark={preset.dark || undefined} style={presetStyle(preset, resolveAccent(profile.theme, preset)) as React.CSSProperties}>
@@ -43,7 +44,7 @@ export function ProfileLoader({ profile, version, edit, tab, leaders }: {
         {profile.avatarUrl ? <img src={profile.avatarUrl} alt="" className="w-16 h-16 sm:w-20 sm:h-20 rounded-full object-cover shrink-0" style={{ boxShadow: `0 0 0 4px ${surface}` }} /> : <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-hair-2 grid place-items-center serif text-3xl text-ink-2 shrink-0" style={{ boxShadow: `0 0 0 4px ${surface}` }}>{profile.displayName[0]}</div>}
         <div className={`grid gap-1 min-w-0 ${profile.bannerUrl ? "pt-9 sm:pt-11" : ""}`}><h1 className="text-[28px] sm:text-[34px] leading-tight">{profile.displayName}</h1><p className="text-[13px] text-grey">mypriors.com/{profile.handle}</p>{profile.bio && <p className="text-[15px] text-ink-2 mt-1">{profile.bio}</p>}</div>
       </section>
-      <section><div className="flex items-center justify-between gap-3 mb-4"><h2 className="text-[21px] sm:text-[24px]">{(profile.indices.find((i) => i.id === tab) ?? profile.indices[0])?.name ?? "Rankings"}</h2><Link href="/" className="text-[12px] text-ink-2 underline">Build your own</Link></div>
+      <section><div className="flex items-center justify-between gap-3 mb-4"><h2 className="text-[21px] sm:text-[24px]">{(findTab(profile.indices, tab) ?? profile.indices[0])?.name ?? "Rankings"}</h2><Link href="/" className="text-[12px] text-ink-2 underline">Build your own</Link></div>
         {leaders.length ? <ol className="grid gap-2 text-[13px]">{leaders.map((r, i) => <li key={`${i}-${r.name}`} className="grid grid-cols-[28px_minmax(0,1fr)_48px] gap-3"><span className="cap text-right">{i + 1}</span><span className="truncate">{r.name}</span><span className="num text-right">{r.score.toFixed(1)}</span></li>)}</ol> : <div className="load-bar w-full h-48" />}
       </section>
       <div className="load-bar w-full h-48" />

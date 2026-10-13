@@ -2,7 +2,7 @@
 import { track } from "@/lib/analytics";
 import { useEffect, useId, useRef, useState } from "react";
 import type { IndexConfig } from "@/engine";
-import { encodeIndices } from "@/lib/url";
+import { encodeIndices, prettyQuery } from "@/lib/url";
 import { useConvexAuth, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { authEnabled } from "@/app/providers";
@@ -85,13 +85,13 @@ function ShareCardsContent({ indices, active, profile, pageUrl, defaultDesign, c
   params.set("design", design);
   themeParam(params);
   if (profile) params.set("handle", profile.handle);
-  const shareUrl = pageUrl ?? `${origin}/builder?${params}`;
+  const shareUrl = pageUrl ?? `${origin}/builder?${prettyQuery(params)}`;
   // The posted link carries only the active index (+ design, so the preview matches the chosen card).
   const postParams = encodeIndices([active]);
   postParams.set("design", design);
   themeParam(postParams);
   if (profile) postParams.set("handle", profile.handle);
-  const postUrl = pageUrl ?? `${origin}/builder?${postParams}`;
+  const postUrl = pageUrl ?? `${origin}/builder?${prettyQuery(postParams)}`;
   const imageParams = encodeIndices([active]);
   themeParam(imageParams);
   if (profile) imageParams.set("handle", profile.handle);
@@ -107,7 +107,7 @@ function ShareCardsContent({ indices, active, profile, pageUrl, defaultDesign, c
     void shareCardToX({ imageUrl: selectedUrl, text: postText, url: local ? undefined : postUrl, fileName: `priors-${design}.png` }).then(setMessage);
   };
   const copy = async () => {
-    try { await navigator.clipboard.writeText(pageUrl ?? `${window.location.origin}/builder?${params}`); setMessage("Link copied"); }
+    try { await navigator.clipboard.writeText(pageUrl ?? `${window.location.origin}/builder?${prettyQuery(params)}`); setMessage("Link copied"); }
     catch { setMessage("Copy failed. Select the link below to copy it manually."); }
   };
   const outside = (x: number, y: number) => {

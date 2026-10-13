@@ -5,6 +5,7 @@ import { mergeImports } from "@/lib/import";
 import { loadSnapshot } from "@/data/load";
 import { decodeIndices } from "@/lib/url";
 import { linkedHighlights } from "@/lib/highlight-link";
+import { findTab } from "@/lib/page-layout";
 import { renderShareCard } from "@/lib/og";
 import { profileCardLook } from "@/lib/og-chart";
 import { defaultConfig } from "@/engine";
@@ -49,7 +50,7 @@ export async function GET(req: Request) {
   const snapshot = profile ? mergeImports(snap, profile.imports).snapshot : snap;
   const list = decodeIndices(u.searchParams);
   const indices = linkedHighlights(list.length ? list : profile?.indices.length ? profile.indices : [defaultConfig(snapshot)], u.searchParams);
-  const index = indices.find((i) => i.id === u.searchParams.get("hi")) ?? indices[0];
+  const index = findTab(indices, u.searchParams.get("hi")) ?? indices[0];
   const chart = profile ? resolveProfileChart(profile as Profile, u.searchParams.get("c")) : u.searchParams.get("c") ?? undefined;
   // `theme` picks a page theme for this card (the share dialog lets people try others); `scheme` its light or dark version.
   // With neither, a profile's card takes its page theme in the mode the owner chose.

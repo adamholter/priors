@@ -9,7 +9,7 @@ import type { Snapshot } from "@/data/types";
 import { chartVariantMode, computeIndex, selectVariants, type IndexConfig } from "@/engine";
 import { costDescription, hasSubscriptionPrices, taskMetricOptions } from "@/data/task-metrics";
 import { formulaInputs, pickPoints, speedChart } from "@/lib/metrics";
-import { encodeIndices } from "@/lib/url";
+import { encodeIndices, prettyQuery } from "@/lib/url";
 import { ShareCards } from "../ShareCards";
 import { Wordmark } from "../Wordmark";
 import { SiteNav } from "../SiteNav";
@@ -22,7 +22,7 @@ import { MetricGallery } from "./MetricGallery";
 import { authEnabled } from "@/app/providers";
 import { PageSettings } from "./PageEditor";
 import { AddSection, Autosave, InlineText, OwnerProbe, PageTabs, SECTION_KINDS, SectionFrame, type SaveState } from "./PageEdit";
-import { pageLayout, removeIndex, sectionTab, tabSections } from "@/lib/page-layout";
+import { findTab, pageLayout, removeIndex, sectionTab, tabKey, tabSections } from "@/lib/page-layout";
 import { ChartSettings } from "../chart/ChartSettings";
 import { presetOf, presetStyle, resolveAccent, resolvePreset } from "@/lib/page-presets";
 import { useTheme } from "../Theme";
@@ -43,7 +43,7 @@ export interface Profile {
   imports?: { benchmark: Snapshot["benchmarks"][0]; rows: import("@/data/types").RawRow[] }[];
 }
 
-export function IndexPage({ profile, snapshot, edit, tab: linkedTab, lab, onProfileChange }: { profile: Profile; snapshot: Snapshot; edit: boolean; /** The index a link opens on (`hi`). */ tab?: string; /** Lab preview: act as the owner, never save. */ lab?: boolean; /** Lab: mirror edits outward so the theme switcher keeps them. */ onProfileChange?: (p: Profile) => void }) {
+export function IndexPage({ profile, snapshot, edit, tab: linkedTab, linkedHighlight, lab, onProfileChange }: { profile: Profile; snapshot: Snapshot; edit: boolean; /** The index a link opens on (`hi`: an id or a name slug). */ tab?: string; /** The id of the index whose selection came from the link (`hl`) rather than the saved page. */ linkedHighlight?: string; /** Lab preview: act as the owner, never save. */ lab?: boolean; /** Lab: mirror edits outward so the theme switcher keeps them. */ onProfileChange?: (p: Profile) => void }) {
   const [p, setPState] = useState(profile);
   const [prevProfile, setPrevProfile] = useState(profile);
   if (profile !== prevProfile) { setPrevProfile(profile); setPState(profile); }
@@ -61,14 +61,17 @@ export function IndexPage({ profile, snapshot, edit, tab: linkedTab, lab, onProf
   useEffect(() => { const id = requestAnimationFrame(() => setOrigin(window.location.origin)); return () => cancelAnimationFrame(id); }, []);
   const [selected, setSelected] = useState<string | null>(null);
   // A page with several indices shows one at a time; the tab is the index everything below describes.
-  const [tab, setTab] = useState(linkedTab);
+  const [tab, setTab] = useState(() => findTab(profile.indices, linkedTab)?.id);
   const active = p.indices.find((i) => i.id === tab) ?? p.indices[0];
+  // The selection each index shows on a plain link, so a share link only spells out one that differs.
+  const [savedHighlights] = useState(() => new Map(profile.indices.filter((i) => i.id !== linkedHighlight).map((i) => [i.id, (i.highlight ?? []).join(",")])));
   const activeResult = active ? results.get(active.id) : undefined;
   const openTab = (id: string) => {
     setTab(id); setSelected(null);
     const url = new URL(window.location.href);
     for (const key of ["hl", "c"]) url.searchParams.delete(key);
-    if (id === p.indices[0]?.id) url.searchParams.delete("hi"); else url.searchParams.set("hi", id);
+    const index = p.indices.find((i) => i.id === id);
+    if (!index || index === p.indices[0]) url.searchParams.delete("hi"); else url.searchParams.set("hi", tabKey(p.indices, index));
     url.hash = "";
     window.history.replaceState(null, "", url.toString());
   };
@@ -79,9 +82,12 @@ export function IndexPage({ profile, snapshot, edit, tab: linkedTab, lab, onProf
   const viaNames = useMemo(() => firstIndex && firstResult ? [...new Set(selectVariants(firstResult.ranked, chartVariantMode(firstIndex, "ranking")).map((r) => r.model.name))].slice(0, 5) : [], [firstIndex, firstResult]);
   const topNames = useMemo(() => active && activeResult ? [...new Set(selectVariants(activeResult.ranked, chartVariantMode(active, "ranking")).map((r) => r.model.name))].slice(0, 5) : [], [active, activeResult]);
   const footerMix = useMemo(() => activeResult ? [...activeResult.benchmarks].sort((a, b) => b.share - a.share).map((b) => ({ id: b.benchmark.id, name: b.benchmark.shortName ?? b.benchmark.name, share: b.share })) : [], [activeResult]);
-  const builderHref = `/?${encodeIndices(active ? [active, ...p.indices.filter((i) => i.id !== active.id)] : []).toString()}`;
+  // Each index remembers the page index it came from, so saving from the builder updates that one even after a rename.
+  const builderHref = `/?${prettyQuery(encodeIndices((active ? [active, ...p.indices.filter((i) => i.id !== active.id)] : []).map((i) => ({ ...i, page: `${p.handle}.${i.id}` })), true))}`;
+  // The link people share: the bare page address unless it has to name another tab or a changed selection.
   const pageUrl = new URL(`${origin || "https://mypriors.com"}/${p.handle}`);
-  if (active) setHighlightParams(pageUrl, active.id, active.highlight ?? []);
+  if (active && active !== p.indices[0]) pageUrl.searchParams.set("hi", tabKey(p.indices, active));
+  if (active && savedHighlights.get(active.id) !== (active.highlight ?? []).join(",")) pageUrl.searchParams.set("hl", (active.highlight ?? []).join(","));
   const footerSources = useMemo(() => [...new Set(snapshot.benchmarks.map((b) => b.sourceId))].sort(), [snapshot]);
   // Visitors see whose ranking this is and how to make their own; the owner, just after publishing, sees it went live.
   const [viewer, setViewer] = useState<{ owner: boolean; published: boolean } | null>(null);
@@ -160,9 +166,9 @@ export function IndexPage({ profile, snapshot, edit, tab: linkedTab, lab, onProf
           const excludedIds = hiddenIds(idx, pickerIds);
           const toggleModel = (id: string) => updateIndex(toggleVisibility(idx, id, pickerIds));
           const modelPicker = { models: pickerModels, excluded: excludedIds, onToggleModel: toggleModel, onShowAllModels: () => updateIndex(SHOW_ALL), onHideAllModels: () => updateIndex({ excludeModels: pickerIds, onlyModels: undefined }) };
-          const wrap = (el: React.ReactNode) => <HighlightContext.Provider key={s.id} value={{ items: idx.highlight ?? [], indexId: idx.id, set: (h) => {
+          const wrap = (el: React.ReactNode) => <HighlightContext.Provider key={s.id} value={{ items: idx.highlight ?? [], indexId: tabKey(p.indices, idx), set: (h) => {
             updateIndex({ highlight: h.length ? h : undefined });
-            window.history.replaceState(null, "", setHighlightParams(new URL(window.location.href), idx.id, h).toString());
+            window.history.replaceState(null, "", setHighlightParams(new URL(window.location.href), tabKey(p.indices, idx), h).toString());
           }, models: pickerModels }}>{el}</HighlightContext.Provider>;
           if (s.kind === "gallery") return wrap(<section key={s.id} className="chart-panel">{heading(s, title, "text-[21px] sm:text-[24px] mb-1")}{!editing && <p className="cap mb-3">More metrics · expand a row</p>}<MetricGallery layout={s.metrics} editing={editing} onLayout={(metrics) => patchSection(s.id, { metrics })} timeSource={idx.timeSource} onTimeSourceChange={(timeSource) => updateIndex({ timeSource })} ranked={r.ranked} mode={paretoMode} snapshot={snapshot} labs={snapshot.labs} benchmarks={r.benchmarks} config={idx} settings={{ releasedAfter: idx.releasedAfter, onChangeReleased: (v) => updateIndex({ releasedAfter: v }), ...modelPicker }} /></section>);
           const settings = (label: string, mode: "all" | "best", key: "rankingVariants" | "paretoVariants") => <ChartSettings label={label} mode={mode} onChange={(v) => updateIndex({ [key]: v })} releasedAfter={idx.releasedAfter} onChangeReleased={(v) => updateIndex({ releasedAfter: v })} models={pickerModels} excluded={excludedIds} onToggleModel={toggleModel} onShowAllModels={() => updateIndex(SHOW_ALL)} onHideAllModels={() => updateIndex({ excludeModels: pickerIds, onlyModels: undefined })} />;

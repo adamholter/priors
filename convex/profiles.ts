@@ -45,7 +45,8 @@ export const explore = query({
     const list = await Promise.all(rows.map(async (p) => ({
       handle: p.handle, displayName: p.displayName, bio: p.bio, updatedAt: p.updatedAt, createdAt: p._creationTime,
       avatarUrl: (p.avatarStorageId ? await ctx.storage.getUrl(p.avatarStorageId) : p.avatarUrl) ?? undefined,
-      indices: p.indices.slice(0, 3),
+      // The card ranks the main index; the page's other tabs are listed by name.
+      indices: p.indices.slice(0, 1), others: p.indices.slice(1, 4).map((i) => i.name), more: Math.max(0, p.indices.length - 1),
     })));
     return list.filter((p) => p.indices.length).sort((a, b) => b.updatedAt - a.updatedAt);
   },
@@ -95,6 +96,24 @@ export const update = mutation({
     // A new avatar URL (e.g. "use my Google photo") replaces an uploaded one; null clears the banner.
     const { bannerStorageId, ...rest } = patch;
     await ctx.db.patch(m.profile._id, { ...rest, ...(rest.avatarUrl ? { avatarStorageId: undefined } : {}), ...(bannerStorageId !== undefined ? { bannerStorageId: bannerStorageId ?? undefined } : {}), updatedAt: Date.now() });
+  },
+});
+
+/**
+ * Deletes the signed-in user's page for good: the profile, its imported benchmarks and its uploaded
+ * images. The caller repeats the handle, so a stray call can never take a page down. The handle is
+ * free to claim again afterwards.
+ */
+export const remove = mutation({
+  args: { handle: v.string() },
+  handler: async (ctx, { handle }) => {
+    const m = await me(ctx);
+    if (!m?.profile) throw new ConvexError("No page to delete");
+    if (handle.trim().toLowerCase() !== m.profile.handle) throw new ConvexError("That is not your handle");
+    for (const row of await ctx.db.query("imports").withIndex("by_profile", (q) => q.eq("profileId", m.profile!._id)).collect()) await ctx.db.delete(row._id);
+    for (const file of [m.profile.avatarStorageId, m.profile.bannerStorageId]) if (file) await ctx.storage.delete(file);
+    await ctx.db.delete(m.profile._id);
+    return { handle: m.profile.handle };
   },
 });
 

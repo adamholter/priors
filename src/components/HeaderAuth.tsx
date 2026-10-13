@@ -7,6 +7,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { api } from "../../convex/_generated/api";
 import type { IndexConfig } from "@/engine";
+import type { FromPage } from "@/lib/url";
 import { stashForPublish } from "@/lib/share";
 import { saveToPage } from "@/lib/page-layout";
 import { authEnabled } from "@/app/providers";
@@ -17,6 +18,9 @@ export function HeaderAuth({ indices }: { indices: IndexConfig[] }) {
   if (!authEnabled) return <span className="btn-quiet opacity-60" title="Sign-in not configured yet">Claim your page</span>;
   return <Inner indices={indices} />;
 }
+
+/** The id of my page's index this builder index was opened from, if it came from my page. */
+const pageIndexId = (i: FromPage, handle: string) => i.page?.startsWith(`${handle}.`) ? i.page.slice(handle.length + 1) : undefined;
 
 function Inner({ indices }: { indices: IndexConfig[] }) {
   const { isSignedIn, isLoaded, user } = useUser();
@@ -37,7 +41,7 @@ function Inner({ indices }: { indices: IndexConfig[] }) {
   if (!mine) return <Link href="/claim" onClick={stash} transitionTypes={["nav-forward"]} className="btn">Publish to Explore</Link>;
   return (
     <div className="flex items-center gap-2">
-      <button type="button" className="btn" disabled={saving} onClick={async () => { setSaving(true); setError(""); try { const next = saveToPage(mine.indices, indices.map(storableIndex)); await update({ patch: { indices: next.indices } }); setSaved(next.added.length ? "Added to your page" : "Saved"); setTimeout(() => setSaved(""), next.added.length ? 2600 : 1400); } catch (e) { console.error("Save to page failed", e); setError(e instanceof ConvexError ? String(e.data) : "Save failed. Please try again."); } finally { setSaving(false); } }}>{saving ? "Saving…" : saved || "Save to my page"}</button>
+      <button type="button" className="btn" disabled={saving} onClick={async () => { setSaving(true); setError(""); try { const next = saveToPage(mine.indices, indices.map(storableIndex), { from: indices.map((i) => pageIndexId(i, mine.handle)) }); await update({ patch: { indices: next.indices } }); setSaved(next.added.length ? "Added to your page" : "Saved"); setTimeout(() => setSaved(""), next.added.length ? 2600 : 1400); } catch (e) { console.error("Save to page failed", e); setError(e instanceof ConvexError ? String(e.data) : "Save failed. Please try again."); } finally { setSaving(false); } }}>{saving ? "Saving…" : saved || "Save to my page"}</button>
       <Link href={`/${mine.handle}`} transitionTypes={["nav-forward"]} className="flex items-center gap-2 btn-quiet">{(mine.avatarUrl ?? user?.imageUrl) && <img src={mine.avatarUrl ?? user?.imageUrl} alt="" className="w-5 h-5 rounded-full object-cover" />}<span>@{mine.handle}</span></Link>
       {error && <span role="alert" className="text-xs">{error}</span>}
       <SignOutButton><button type="button" className="cap hover:text-ink" onClick={forgetResume}>sign out</button></SignOutButton>

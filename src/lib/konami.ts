@@ -6,6 +6,13 @@ const CODE = ["ArrowUp", "ArrowUp", "ArrowDown", "ArrowDown", "ArrowLeft", "Arro
 let on = false, at = 0;
 const subs = new Set<() => void>();
 
+/**
+ * True when this key is the next step of a code already past its ups and downs. Anything else that
+ * listens for left and right (the page tabs) stands down for that press, so entering the code never
+ * also switches tabs. The listener below still counts the key: nobody stops it on the way to window.
+ */
+export const midCode = (key: string) => at >= 4 && key === CODE[at];
+
 function onKey(e: KeyboardEvent) {
   const t = e.target as HTMLElement | null;
   if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) { at = 0; return; }

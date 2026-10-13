@@ -1,7 +1,7 @@
 import { defaultConfig } from "../engine";
 import type { Snapshot } from "../data/types";
 import { describe, expect, it } from "vitest";
-import { decodeIndex, encodeIndex } from "./url";
+import { decodeIndex, decodeIndices, encodeIndex, encodeIndices, prettyQuery, type FromPage } from "./url";
 
 describe("effort matching URL state", () => {
   it("round trips strictness, both requirement overrides, and independent chart modes", () => {
@@ -55,5 +55,24 @@ describe("model visibility params", () => {
   });
   it("still decodes legacy excludeModels", () => {
     expect(decodeIndex("General|swe:50|ex=a,b", "a")?.excludeModels).toEqual(["a", "b"]);
+  });
+});
+
+describe("readable links", () => {
+  const index = { ...decodeIndex("x|a:1", "i0")!, name: "Adam's 50% / Capabilities, v2 | test", weights: { "aa-scicode": 10, "vals:rsi": 2.5 }, required: ["aa-scicode"], excludeModels: ["m-1", "m-2"] };
+  it("keeps colons, commas and equals signs readable and parses back to the same index", () => {
+    const pretty = prettyQuery(encodeIndices([index, { ...index, name: "Second one" }]));
+    expect(pretty).toContain("aa-scicode:10,vals:rsi:2.5");
+    expect(pretty).toContain("req=aa-scicode");
+    expect(pretty).toContain("i=Second+one%7C");
+    expect(pretty).not.toMatch(/%3A|%2C|%3D|%2520|\|/);
+    const back = decodeIndices(new URLSearchParams(pretty));
+    expect(back).toEqual([{ ...index, id: "i0" }, { ...index, id: "i1", name: "Second one" }]);
+  });
+  it("carries the page an index came from only when asked", () => {
+    const from: FromPage = { ...index, page: "adamholter.i-9f2c" };
+    expect(encodeIndex(from)).not.toContain("page=");
+    const back = decodeIndices(new URLSearchParams(prettyQuery(encodeIndices([from], true))))[0] as FromPage;
+    expect(back.page).toBe("adamholter.i-9f2c");
   });
 });

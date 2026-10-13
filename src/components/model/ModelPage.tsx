@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { EChartsOption } from "echarts";
 import type { Benchmark, Snapshot } from "@/data/types";
 import { computeIndex, defaultConfig, type IndexConfig, type RankedVariant } from "@/engine";
-import { decodeIndices, encodeIndices } from "@/lib/url";
+import { decodeIndices, encodeIndices, prettyQuery } from "@/lib/url";
 import { Wordmark } from "../Wordmark";
 import { CONTAIN_AXIS_LABELS, insideLabels, markColor, useChartPalette, useEChart } from "../chart/echarts";
 import { BenchmarkInfo, InfoIcon } from "../BenchmarkInfo";
@@ -70,7 +70,7 @@ export function ModelPage({ snapshot, modelId }: { snapshot: Snapshot; modelId: 
 
   return (
     <main className="min-h-screen">
-      <header className="flex items-center gap-6 px-4 sm:px-8 h-14 border-b hairline"><Wordmark /><Link href={`/builder?${encodeIndices([mix])}` as "/builder"} className="text-grey text-[13px] hover:text-ink">Builder</Link><span className="ml-auto flex items-center gap-2"><SignInLink /><ThemeToggle /></span></header>
+      <header className="flex items-center gap-6 px-4 sm:px-8 h-14 border-b hairline"><Wordmark /><Link href={`/builder?${prettyQuery(encodeIndices([mix]))}` as "/builder"} className="text-grey text-[13px] hover:text-ink">Builder</Link><span className="ml-auto flex items-center gap-2"><SignInLink /><ThemeToggle /></span></header>
       <div className="max-w-[1100px] mx-auto px-5 sm:px-8 py-10 grid gap-12">
         <section className="grid gap-5 sm:grid-cols-[1fr_auto] items-end">
           <div>

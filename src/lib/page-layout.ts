@@ -30,26 +30,46 @@ export function pageLayout(indices: Named[], sections: Section[]): Section[] {
   return out;
 }
 
+/** "Adam's Capabilities Index" -> "adams-capabilities-index". */
+export const tabSlug = (name: string) => name.toLowerCase().replace(/['’]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+
+/** What a link calls a tab (`?hi=`): its name as a slug, or its id when the slug is empty or not its alone. */
+export function tabKey(indices: Named[], index: Named): string {
+  const slug = tabSlug(index.name);
+  return slug && indices.every((i) => i === index || (tabSlug(i.name) !== slug && i.id !== slug)) ? slug : index.id;
+}
+
+/** The index a link names, by id (older links, and ids always win) or by slug. */
+export function findTab<T extends Named>(indices: T[], key: string | null | undefined): T | undefined {
+  if (!key) return undefined;
+  return indices.find((i) => i.id === key) ?? indices.find((i) => tabSlug(i.name) === key);
+}
+
 /** The sections one tab shows, in page order. */
 export function tabSections(layout: Section[], indices: Named[], activeId: string | undefined): Section[] {
   return layout.filter((s) => { const tab = sectionTab(s, indices); return tab === undefined || tab === activeId; });
 }
 
 /**
- * "Save to my page" from the builder. An index updates the page index of the same name and keeps its
- * id, so the page's sections and links still point at it. Any other index joins the page as a new
- * tab. Nothing already on the page is dropped: an index is removed on the page itself.
+ * "Save to my page" from the builder. An index updates the page index it was opened from (`from`, a
+ * page index id), or else the one of the same name, and keeps that id, so the page's sections and
+ * links still point at it. Any other index joins the page as a new tab. Nothing already on the page
+ * is dropped: an index is removed on the page itself.
  */
-export function saveToPage<T extends Named>(page: T[], built: T[], newId: () => string = () => `i-${crypto.randomUUID().slice(0, 8)}`): { indices: T[]; added: string[] } {
+export function saveToPage<T extends Named>(page: T[], built: T[], opts: { from?: (string | undefined)[]; newId?: () => string } = {}): { indices: T[]; added: string[] } {
+  const newId = opts.newId ?? (() => `i-${crypto.randomUUID().slice(0, 8)}`);
   const indices = [...page], used = new Set<number>(), added: string[] = [];
   const key = (name: string) => name.trim().toLowerCase();
-  for (const b of built) {
-    const at = indices.findIndex((p, n) => !used.has(n) && key(p.name) === key(b.name));
-    if (at >= 0) { used.add(at); indices[at] = { ...b, id: indices[at].id }; continue; }
+  const free = (test: (p: T) => boolean) => indices.findIndex((p, n) => n < page.length && !used.has(n) && test(p));
+  // Ids first for every index, so a renamed one keeps its tab even when another builder index now has its old name.
+  const at = built.map((_, n) => { const hit = opts.from?.[n] ? free((p) => p.id === opts.from![n]) : -1; if (hit >= 0) used.add(hit); return hit; });
+  built.forEach((b, n) => {
+    if (at[n] < 0) { at[n] = free((p) => key(p.name) === key(b.name)); if (at[n] >= 0) used.add(at[n]); }
+    if (at[n] >= 0) { indices[at[n]] = { ...b, id: indices[at[n]].id }; return; }
     let id = newId();
     while (indices.some((p) => p.id === id)) id = newId();
-    used.add(indices.length); indices.push({ ...b, id }); added.push(b.name);
-  }
+    indices.push({ ...b, id }); added.push(b.name);
+  });
   return { indices, added };
 }
 

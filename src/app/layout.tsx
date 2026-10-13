@@ -4,6 +4,7 @@ import localFont from "next/font/local";
 import "./globals.css";
 import { Providers } from "./providers";
 import { THEME_SCRIPT } from "@/components/Theme";
+import { SITE_DESCRIPTION, SITE_IMAGE, SITE_NAME } from "@/lib/site-meta";
 
 const newsreader = Newsreader({ variable: "--font-newsreader", subsets: ["latin"], style: ["normal", "italic"], axes: ["opsz"] });
 const inter = Inter({ variable: "--font-inter", subsets: ["latin"] });
@@ -13,10 +14,13 @@ const switzer = localFont({ variable: "--font-switzer", preload: false, display:
 const dmSans = DM_Sans({ variable: "--font-dm-sans", subsets: ["latin"], preload: false });
 const sourceSerif = Source_Serif_4({ variable: "--font-source-serif", subsets: ["latin"], preload: false });
 
+// Routes set their own preview through pageMeta; this is what a link shows when one doesn't.
 export const metadata: Metadata = {
   title: { default: "priors", template: "%s · priors" },
-  description: "Build your own index of AI models. Pick the benchmarks that matter to you, weight them, and share the ranking.",
+  description: SITE_DESCRIPTION,
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:48740"),
+  openGraph: { siteName: SITE_NAME, type: "website", title: SITE_NAME, description: SITE_DESCRIPTION, images: [SITE_IMAGE] },
+  twitter: { card: "summary_large_image", title: SITE_NAME, description: SITE_DESCRIPTION, images: [{ url: SITE_IMAGE.url, alt: SITE_IMAGE.alt }] },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

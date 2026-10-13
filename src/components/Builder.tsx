@@ -7,7 +7,7 @@ import Link from "next/link";
 import type { Snapshot } from "@/data/types";
 import { chartVariantMode, computeIndex, defaultConfig, selectVariants, type IndexConfig } from "@/engine";
 import { ShareCards } from "./ShareCards";
-import { encodeIndex, encodeIndices, decodeIndices } from "@/lib/url";
+import { encodeIndex, encodeIndices, decodeIndices, prettyQuery } from "@/lib/url";
 import { PRIORS_MIX_COOKIE } from "@/onboarding/defaults";
 import { hiddenIds, toggleVisibility, SHOW_ALL, type Vis } from "@/lib/model-visibility";
 import { WeightsPanel } from "./WeightsPanel";
@@ -98,10 +98,11 @@ export function Builder({ snapshot: base, initialIndices, labPlacement }: { snap
   useEffect(() => {
     if (t.current) window.clearTimeout(t.current);
     t.current = window.setTimeout(() => {
-      const p = encodeIndices([active, ...indices.filter((i) => i.id !== active.id)]); const url = new URL(window.location.href);
+      const p = encodeIndices([active, ...indices.filter((i) => i.id !== active.id)], true); const url = new URL(window.location.href);
       url.searchParams.delete("i");
       p.getAll("i").forEach((value) => url.searchParams.append("i", value));
       url.searchParams.delete("date");
+      url.search = prettyQuery(url.searchParams);
       window.history.replaceState(null, "", url.toString());
       if (!labPlacement) try {
         localStorage.setItem("priors:indices", JSON.stringify(p.getAll("i")));

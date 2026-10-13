@@ -8,7 +8,10 @@ import { FOCUS_IDS, type FocusId } from "../data/types";
  *   ?i=General%20frontier|frontierswe-v2:25,terminalbench-4:25,deepswe-1.1:10|req=deepswe-1.1|cut=5|est=1|var=all
  * Fields after the weights are optional. Names are URL-encoded; benchmark IDs may include a source namespace separated by a colon.
  */
-export function encodeIndex(c: IndexConfig): string {
+/** Builder only: the published page index a config was opened from, as "handle.id". It rides along at runtime and is never stored. */
+export type FromPage = IndexConfig & { page?: string };
+
+export function encodeIndex(c: FromPage, keepPage = false): string {
   const parts = [encodeURIComponent(c.name), Object.entries(c.weights).filter(([, w]) => w > 0).map(([k, w]) => `${k}:${round(w)}`).join(",")];
   if (c.required.length) parts.push(`req=${c.required.join(",")}`);
   if (c.optional?.length) parts.push(`opt=${c.optional.join(",")}`);
@@ -28,6 +31,7 @@ export function encodeIndex(c: IndexConfig): string {
   if (c.timeSource && c.timeSource !== "aa") parts.push(`timesrc=${c.timeSource}`);
   if (c.focus) parts.push(`focus=${c.focus}`);
   if (c.highlight?.length) parts.push(`hl=${c.highlight.join(",")}`);
+  if (keepPage && c.page) parts.push(`page=${c.page}`);
   return parts.join("|");
 }
 
@@ -76,14 +80,25 @@ export function decodeIndex(s: string, id: string): IndexConfig | null {
     else if (k === "timesrc" && isTaskMetricSource(v)) c.timeSource = v;
     else if (k === "focus" && FOCUS_IDS.includes(v as FocusId)) c.focus = v as FocusId;
     else if (k === "hl") c.highlight = v.split(",").filter(Boolean).slice(0, 12);
+    else if (k === "page" && v) (c as FromPage).page = v;
   }
   return c;
 }
 
-export function encodeIndices(list: IndexConfig[]): URLSearchParams {
+/** `keepPage` keeps each index's link back to the page it came from: only for the builder's own address and "Open in builder". */
+export function encodeIndices(list: FromPage[], keepPage = false): URLSearchParams {
   const p = new URLSearchParams();
-  list.forEach((c) => p.append("i", encodeIndex(c)));
+  list.forEach((c) => p.append("i", encodeIndex(c, keepPage)));
   return p;
+}
+
+/**
+ * A query string a person can read: `:`, `,` and `=` stay as typed and a space in a name is `+`,
+ * where URLSearchParams would write %3A, %2C, %3D and %2520. It parses back to the same params.
+ * The `|` between fields stays escaped, because chat apps cut a link at a bare pipe.
+ */
+export function prettyQuery(params: URLSearchParams | string): string {
+  return params.toString().replace(/%3A/g, ":").replace(/%2C/g, ",").replace(/%3D/g, "=").replace(/%2520/g, "+");
 }
 
 export function decodeIndices(params: URLSearchParams | string[]): IndexConfig[] {

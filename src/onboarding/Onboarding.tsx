@@ -6,7 +6,7 @@ import { ThemeToggle, useTheme } from "@/components/Theme";
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent } from "react";
 import type { Snapshot } from "@/data/types";
 import { Wordmark } from "@/components/Wordmark";
-import { decodeIndices, encodeIndex, encodeIndices } from "@/lib/url";
+import { decodeIndices, encodeIndex, encodeIndices, prettyQuery } from "@/lib/url";
 import { PREFERRED, type BenchmarkQuality } from "./quality";
 import type { FitUpdate } from "./optimizer";
 import { DEFAULT_FOCUS, FOCUSES, FOCUS_IDS, type FocusId } from "./focus";
@@ -291,7 +291,7 @@ export function Onboarding({ snapshot, lineup, seeds, quality, observedModelIds,
   const totalWeight = activeWeights.reduce((sum, [, w]) => sum + w, 0) || 1;
   useEffect(() => { if (complete && stage === "fit" && !done.current?.open) { const t = setTimeout(() => { done.current?.showModal(); track("share_card_opened", { from: "onboarding" }); }, 450); return () => clearTimeout(t); } }, [complete, stage]);
   const resultQuery = update ? encodeIndices([{ ...update.config, name: "My priors", focus }]) : new URLSearchParams();
-  const resultUrl = update ? `/builder?${resultQuery}` : "";
+  const resultUrl = update ? `/builder?${prettyQuery(resultQuery)}` : "";
   async function copy() { try { await navigator.clipboard.writeText(`${location.origin}${resultUrl}`); setCopied(true); } catch { setError("Couldn't copy. Use Explore this index, then copy its address."); } }
   const modelOptions = snapshot.models.filter(m => m.kind === "llm" && m.name.toLowerCase().includes(query.toLowerCase()) && observedModels.has(m.id)).sort((a, b) => Number(order.includes(b.id)) - Number(order.includes(a.id)) || a.name.localeCompare(b.name));
   const fittedIndex = update ? { ...update.config, name: "My priors", focus } : null;
@@ -363,7 +363,7 @@ export function Onboarding({ snapshot, lineup, seeds, quality, observedModelIds,
     </main>
     <span className="sr-only" aria-live="polite">{announcement}</span>
     <dialog ref={done} className="done-dialog wide" aria-labelledby="done-heading" onClick={e => { if (e.target === e.currentTarget) done.current?.close(); }}>
-      {complete && update && <Finish update={update} models={models} cardUrl={cardUrl} resultUrl={resultUrl} publicUrl={`https://mypriors.com/builder?${resultQuery}`} reference={via?.ids} referenceLabel={via ? `@${via.handle}` : undefined} onClose={() => done.current?.close()} />}
+      {complete && update && <Finish update={update} models={models} cardUrl={cardUrl} resultUrl={resultUrl} publicUrl={`https://mypriors.com${resultUrl}`} reference={via?.ids} referenceLabel={via ? `@${via.handle}` : undefined} onClose={() => done.current?.close()} />}
     </dialog>
     <Intro snapshot={snapshot} lineup={order} dialogRef={intro} />
     <dialog ref={dialog} className="evidence-dialog" aria-labelledby="dialog-heading" onClick={e => { if (e.target === e.currentTarget) { const r = e.currentTarget.getBoundingClientRect(); if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) dialog.current?.close(); } }}>

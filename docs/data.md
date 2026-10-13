@@ -73,6 +73,7 @@ Notes on sources whose behavior is not obvious from the file:
 ## Index configs and URLs
 
 - `IndexConfig` is defined in the engine. `src/lib/url.ts` encodes it into one `i` query param per index: `?i=name|bench:w,...|req=|strict=|bars=|pareto=|est=|var=|effort=|labs=|ex=|only=|after=`. Several `i` params mean several indices.
+- Links are written through `prettyQuery`, which keeps `:`, `,` and `=` readable; both forms decode the same. `page=handle.id` marks the published page index a builder index was opened from. It is written only to the builder's own address and "Open in builder" links, rides along at runtime (`FromPage`) and is never stored.
 - Stored configs (profiles) are validated by `convex/validators.ts`. `IndexConfig` is asserted exactly equal to the validator at compile time, so adding a field on one side without the other fails `tsc`. Every write goes through `storableIndex()`, which drops transient keys. `src/lib/stored-index.test.ts` checks every config producer.
 - Model visibility is stored as whichever is shorter: `excludeModels`, or an `onlyModels` allowlist once more than half the picker is hidden (new models then stay hidden). Hiding a model is the user's choice and reversible: excluded models can be re-checked in the chart-settings model picker.
 - `src/lib/import.ts` is the zod schema for user and agent benchmark imports, and merges them into a snapshot.

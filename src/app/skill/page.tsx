@@ -5,8 +5,9 @@ import Link from "next/link";
 import { Wordmark } from "@/components/Wordmark";
 import { PageTransition } from "@/components/PageTransition";
 import { CopySkill } from "./CopySkill";
+import { pageMeta } from "@/lib/site-meta";
 
-export const metadata = { title: "Agent skill" };
+export const metadata = pageMeta({ title: "Agent skill", description: "A skill that lets your own agent add benchmarks to Priors and edit your page.", path: "/skill" });
 
 export default async function SkillPage() {
   const md = await readFile(path.join(process.cwd(), "public/skill/SKILL.md"), "utf8");

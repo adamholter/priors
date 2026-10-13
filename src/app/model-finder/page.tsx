@@ -6,12 +6,14 @@ import { buildModelFinder } from "@/lib/model-finder";
 import { ModelFinder } from "@/components/model-finder/ModelFinder";
 import { Wordmark } from "@/components/Wordmark";
 import { ThemeToggle } from "@/components/Theme";
+import { pageMeta } from "@/lib/site-meta";
 
 export const dynamic = "force-dynamic";
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMeta({
   title: "Model finder",
   description: "Find an AI model for your budget, using measured benchmarks for coding, knowledge, multimodal tasks, and overall ability.",
-};
+  path: "/model-finder",
+});
 
 export default async function ModelFinderPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const [snapshot, params] = await Promise.all([loadSnapshot(), searchParams]);

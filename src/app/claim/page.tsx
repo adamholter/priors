@@ -37,12 +37,15 @@ function Claim() {
 
   useEffect(() => {
     if (isLoaded && !user) router.replace("/sign-in");
-    else if (mine) {
+    // Someone who already has a page goes back to where they signed in from. A claim in progress sends
+    // them to the new page itself: without the `busy` check this ran too and took them back to the builder.
+    else if (mine && !busy) {
       localStorage.setItem("priors:handle", mine.handle);
       const ret = localStorage.getItem("priors:return");
+      localStorage.removeItem("priors:return");
       router.replace(ret && ret.startsWith("/") && !ret.startsWith("//") && !ret.startsWith("/claim") && !ret.startsWith("/sign-in") ? ret as Route : `/${mine.handle}`);
     }
-  }, [mine, router, isLoaded, user]);
+  }, [mine, router, isLoaded, user, busy]);
 
   if (!isLoaded || !user || authLoading || mine === undefined) return (
     <main className="min-h-screen grid place-items-center p-8" role="status">
@@ -64,7 +67,7 @@ function Claim() {
     <main className="min-h-screen grid place-items-center p-8">
       <form className="grid gap-5 w-full max-w-[380px]" onSubmit={async (e) => {
         e.preventDefault(); setBusy(true); setErr(null);
-        try { await claim({ handle, displayName: user.fullName || [user.firstName, user.lastName].filter(Boolean).join(" ") || user.username || user.primaryEmailAddress?.emailAddress.split("@")[0] || handle, avatarUrl: user.externalAccounts.find((a) => /google/.test(a.provider))?.imageUrl || (user.hasImage ? user.imageUrl : undefined), indices: pending.map(storableIndex) }); localStorage.removeItem("priors:pending"); sessionStorage.removeItem("priors:pending"); localStorage.setItem("priors:handle", handle); track("profile_claimed", { handle }); router.replace(`/${handle}?published=1`); }
+        try { await claim({ handle, displayName: user.fullName || [user.firstName, user.lastName].filter(Boolean).join(" ") || user.username || user.primaryEmailAddress?.emailAddress.split("@")[0] || handle, avatarUrl: user.externalAccounts.find((a) => /google/.test(a.provider))?.imageUrl || (user.hasImage ? user.imageUrl : undefined), indices: pending.map(storableIndex) }); localStorage.removeItem("priors:pending"); sessionStorage.removeItem("priors:pending"); localStorage.removeItem("priors:return"); localStorage.setItem("priors:handle", handle); track("profile_claimed", { handle }); router.replace(`/${handle}?published=1`); }
         catch (x) { setErr((x as Error).message.replace(/^[\s\S]*Uncaught Error:\s*/, "").split("\n")[0]); setBusy(false); }
       }}>
         <Wordmark size={30} />

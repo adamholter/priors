@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { ThemeToggle } from "@/components/Theme";
 import { Wordmark } from "@/components/Wordmark";
+import { pageMeta } from "@/lib/site-meta";
 
-export const metadata = { title: "Privacy" };
+export const metadata = pageMeta({ title: "Privacy", description: "What Priors stores, what it measures and how to have it removed.", path: "/privacy" });
 
-const UPDATED = "October 6, 2026";
+const UPDATED = "October 13, 2026";
 
 export default function PrivacyPage() {
   return (
@@ -35,7 +36,7 @@ export default function PrivacyPage() {
         </section>
         <section className="grid gap-2">
           <h2 className="text-[22px] text-ink">Your choices</h2>
-          <p>You can edit or clear your page at any time. To delete your account and profile data, email <a className="text-indigo" href="mailto:adamholter@gmail.com">adamholter@gmail.com</a> from the address you signed in with, and we will remove it. Clearing your browser storage removes the local preferences above.</p>
+          <p>You can edit your page at any time, and delete it for good under Theme &amp; settings on the page: that removes the page, its imported benchmarks and its images. To delete your sign-in account as well, email <a className="text-indigo" href="mailto:adamholter@gmail.com">adamholter@gmail.com</a> from the address you signed in with, and we will remove it. Clearing your browser storage removes the local preferences above.</p>
         </section>
         <section className="grid gap-2">
           <h2 className="text-[22px] text-ink">Contact</h2>
