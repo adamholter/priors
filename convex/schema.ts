@@ -12,6 +12,9 @@ export default defineSchema({
     avatarUrl: v.optional(v.string()),
     avatarStorageId: v.optional(v.id("_storage")),
     bannerStorageId: v.optional(v.id("_storage")),
+    /** Upload links handed out on `uploadDay` (UTC), for the daily cap in generateUploadUrl. */
+    uploadDay: v.optional(v.string()),
+    uploadCount: v.optional(v.number()),
     bio: v.optional(v.string()),
     socials: v.optional(v.array(v.object({ label: v.string(), url: v.string() }))),
     indices: v.array(indexConfig),
