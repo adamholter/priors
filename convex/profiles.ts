@@ -24,6 +24,13 @@ async function fileTaken(ctx: QueryCtx | MutationCtx, file: Id<"_storage">, self
 }
 
 const FRESH_UPLOAD_MS = 15 * 60_000;
+/**
+ * The image types a page may show: an exact list, raster only. Storage serves a file back with the
+ * type its uploader declared, so "starts with image/" is not enough: image/svg+xml is a document that
+ * can carry script. Declared as one of these, a file is only ever handed to the browser as a picture.
+ */
+const IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/webp", "image/gif", "image/avif"]);
+const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 
 /**
  * Lets a page show a stored image, or throws. A storage id arrives from the client with no owner
@@ -39,7 +46,8 @@ async function claimFile(ctx: MutationCtx, file: Id<"_storage">, self: Doc<"prof
   if (file !== self.avatarStorageId && file !== self.bannerStorageId) {
     const meta = await ctx.db.system.get(file);
     if (!meta || Date.now() - meta._creationTime > FRESH_UPLOAD_MS) throw new ConvexError("Upload the image again");
-    if (!meta.contentType?.startsWith("image/")) throw new ConvexError("That file is not an image");
+    if (!IMAGE_TYPES.has(meta.contentType?.split(";")[0].trim().toLowerCase() ?? "")) throw new ConvexError("Use a PNG, JPEG, WebP, GIF or AVIF image");
+    if (meta.size > MAX_IMAGE_BYTES) throw new ConvexError("That image is over 8 MB");
   }
   await ctx.db.insert("uploads", { storageId: file, profileId: self._id });
 }

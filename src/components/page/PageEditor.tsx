@@ -1,5 +1,6 @@
 "use client";
 import { useMutation } from "convex/react";
+import { ConvexError } from "convex/values";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
@@ -117,6 +118,9 @@ function DeletePage({ handle }: { handle: string }) {
   </Group>;
 }
 
+/** What the picker offers; convex/profiles.ts holds the list that is enforced. */
+const IMAGE_ACCEPT = "image/png,image/jpeg,image/webp,image/gif,image/avif";
+
 /** Uploads and the agent token talk to Convex directly, so they only mount for the signed-in owner. */
 function MediaFields({ profile, set }: { profile: Profile; set: (patch: Partial<Profile>) => void }) {
   const update = useMutation(api.profiles.update);
@@ -129,9 +133,13 @@ function MediaFields({ profile, set }: { profile: Profile; set: (patch: Partial<
   const bannerRef = useRef<HTMLInputElement>(null);
   const googleName = user ? (user.fullName || [user.firstName, user.lastName].filter(Boolean).join(" ")) : "";
   const googlePhoto = user?.externalAccounts.find((a) => /google/.test(a.provider))?.imageUrl || (user?.hasImage ? user.imageUrl : undefined);
+  const [uploadError, setUploadError] = useState("");
   const upload = async (file: File, field: "avatarStorageId" | "bannerStorageId" = "avatarStorageId") => {
-    const url = await uploadUrl(); const res = await fetch(url, { method: "POST", headers: { "Content-Type": file.type }, body: file });
-    const { storageId } = await res.json(); await update({ patch: { [field]: storageId } }); router.refresh();
+    setUploadError("");
+    try {
+      const url = await uploadUrl(); const res = await fetch(url, { method: "POST", headers: { "Content-Type": file.type }, body: file });
+      const { storageId } = await res.json(); await update({ patch: { [field]: storageId } }); router.refresh();
+    } catch (e) { setUploadError(e instanceof ConvexError && typeof e.data === "string" ? e.data : "Couldn’t upload that image. Try again."); }
   };
   return <>
     {googleName && googleName !== profile.displayName && <button type="button" className="cap text-left hover:text-ink" onClick={() => set({ displayName: googleName })}>Use the name {googleName}</button>}
@@ -140,15 +148,16 @@ function MediaFields({ profile, set }: { profile: Profile; set: (patch: Partial<
       {profile.avatarUrl && <img src={profile.avatarUrl} alt="" className="w-10 h-10 rounded-full object-cover" />}
       {googlePhoto && googlePhoto !== profile.avatarUrl && <button type="button" className="btn-quiet" onClick={async () => { set({ avatarUrl: googlePhoto }); await update({ patch: { avatarUrl: googlePhoto } }); router.refresh(); }}>Use Google photo</button>}
       <button type="button" className="btn-quiet" onClick={() => fileRef.current?.click()}>Upload</button>
-      <input ref={fileRef} type="file" accept="image/*" hidden onChange={(e) => e.target.files?.[0] && upload(e.target.files[0])} />
+      <input ref={fileRef} type="file" accept={IMAGE_ACCEPT} hidden onChange={(e) => e.target.files?.[0] && upload(e.target.files[0])} />
     </div></Field>
     <Field label="Banner"><div className="flex flex-wrap items-center gap-2">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       {profile.bannerUrl && <img src={profile.bannerUrl} alt="" className="h-10 w-40 rounded-sm object-cover" />}
       <button type="button" className="btn-quiet" onClick={() => bannerRef.current?.click()}>{profile.bannerUrl ? "Replace" : "Upload"}</button>
       {profile.bannerUrl && <button type="button" className="btn-quiet" onClick={async () => { await update({ patch: { bannerStorageId: null } }); router.refresh(); }}>Remove</button>}
-      <input ref={bannerRef} type="file" accept="image/*" hidden onChange={(e) => e.target.files?.[0] && upload(e.target.files[0], "bannerStorageId")} />
+      <input ref={bannerRef} type="file" accept={IMAGE_ACCEPT} hidden onChange={(e) => e.target.files?.[0] && upload(e.target.files[0], "bannerStorageId")} />
     </div></Field>
+    {uploadError && <p role="alert">{uploadError}</p>}
     <Field label="Agent access">
       <p className="text-ink-2 mb-1.5">Give your agent the <Link href="/skill" className="text-indigo">Priors skill</Link> and this token. It can add benchmarks, change weights, and edit this page for you.</p>
       {token ? <code className="ph-no-capture mono block break-all bg-bone border hairline rounded-sm p-2 text-[11.5px]">{token}</code> : <button type="button" className="btn-quiet w-fit" onClick={async () => setToken(await mint())}>Mint token</button>}
