@@ -35,7 +35,7 @@ export function PageSettings({ profile, set, open, onClose, lab }: { profile: Pr
   const [mounted, setMounted] = useState(false);
   useEffect(() => { const id = requestAnimationFrame(() => setMounted(true)); return () => cancelAnimationFrame(id); }, []);
   // "Open in builder" marks each index with its page index, good for this tab only (see FromPage in url.ts).
-  const [pageKey] = useState(() => crypto.randomUUID().slice(0, 8));
+  const [pageKey] = useState(() => crypto.randomUUID().replace(/-/g, ""));
   if (!open || !mounted) return null;
   const chosen = presetOf(profile.theme);
   const family = THEME_CHOICES.find((t) => t.id === chosen.id || t.pair === chosen.id) ?? chosen;

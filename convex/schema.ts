@@ -20,7 +20,9 @@ export default defineSchema({
     /** API token hash for agent writes (skill). */
     agentTokenHash: v.optional(v.string()),
     updatedAt: v.number(),
-  }).index("by_clerk", ["clerkId"]).index("by_handle", ["handle"]).index("by_token", ["agentTokenHash"]),
+  }).index("by_clerk", ["clerkId"]).index("by_handle", ["handle"]).index("by_token", ["agentTokenHash"])
+    // Which page shows a stored file: an upload belongs to the one page that points at it (see fileTaken in profiles.ts).
+    .index("by_avatar", ["avatarStorageId"]).index("by_banner", ["bannerStorageId"]),
 
   /** User-imported benchmark data (from the skill / JSON upload). Merged into the snapshot at render time. */
   imports: defineTable({

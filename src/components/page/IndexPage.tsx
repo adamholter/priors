@@ -86,7 +86,7 @@ export function IndexPage({ profile, snapshot, edit, tab: linkedTab, linkedHighl
   const onOwner = useCallback((o: boolean) => setIsOwner(o || !!lab), [lab]);
   // For the owner, each index remembers the page index it came from, so saving from the builder updates that one
   // even after a rename. The key makes the reference good for this tab only (see FromPage); visitors get a plain link.
-  const [pageKey] = useState(() => crypto.randomUUID().slice(0, 8));
+  const [pageKey] = useState(() => crypto.randomUUID().replace(/-/g, ""));
   const inBuilder = active ? [active, ...p.indices.filter((i) => i.id !== active.id)] : [];
   const builderHref = `/?${prettyQuery(encodeIndices(isOwner && !lab ? inBuilder.map((i) => ({ ...i, page: pageRef(p.handle, i.id, pageKey) })) : inBuilder, true))}`;
   const keepPageKey = () => { try { sessionStorage.setItem(PAGE_KEY, pageKey); } catch { /* storage can be disabled */ } };

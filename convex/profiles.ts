@@ -2,6 +2,7 @@ import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/s
 import { indexConfig, profileTheme, section, storableIndex } from "./validators";
 import { ConvexError, v } from "convex/values";
 import type { IndexConfig } from "../src/engine";
+import type { Id } from "./_generated/dataModel";
 
 const HANDLE = /^[a-z0-9][a-z0-9-]{1,29}$/;
 const RESERVED = new Set(["sign-in", "sign-up", "api", "skill", "import", "me", "og", "about", "admin", "priors", "u", "settings", "privacy", "terms", "builder", "claim", "models", "explore", "rank"]);
@@ -11,6 +12,19 @@ async function me(ctx: QueryCtx | MutationCtx) {
   if (!identity) return null;
   const profile = await ctx.db.query("profiles").withIndex("by_clerk", (q) => q.eq("clerkId", identity.subject)).unique();
   return { identity, profile };
+}
+
+/**
+ * True when another page already shows this stored file. A storage id comes from the client and
+ * carries no owner, so a file belongs to the page that points at it: no other page may take it, and
+ * deleting a page never deletes a file another page shows. Two index lookups, however many pages exist.
+ */
+async function fileTaken(ctx: QueryCtx | MutationCtx, file: Id<"_storage">, self: Id<"profiles">) {
+  const [avatar, banner] = await Promise.all([
+    ctx.db.query("profiles").withIndex("by_avatar", (q) => q.eq("avatarStorageId", file)).take(2),
+    ctx.db.query("profiles").withIndex("by_banner", (q) => q.eq("bannerStorageId", file)).take(2),
+  ]);
+  return [...avatar, ...banner].some((p) => p._id !== self);
 }
 
 export const mine = query({
@@ -32,7 +46,8 @@ export const byHandle = query({
     const imports = await ctx.db.query("imports").withIndex("by_profile", (q) => q.eq("profileId", p._id)).collect();
     const avatarUrl = p.avatarStorageId ? await ctx.storage.getUrl(p.avatarStorageId) : p.avatarUrl;
     const bannerUrl = p.bannerStorageId ? await ctx.storage.getUrl(p.bannerStorageId) : null;
-    const { agentTokenHash: _h, ...rest } = p; void _h;
+    // Public: never the account id, the token hash or the storage ids (a storage id is what lets a page claim a file).
+    const { agentTokenHash: _h, clerkId: _c, avatarStorageId: _a, bannerStorageId: _b, ...rest } = p; void _h; void _c; void _a; void _b;
     return { ...rest, avatarUrl: avatarUrl ?? undefined, bannerUrl: bannerUrl ?? undefined, imports: imports.map((i) => ({ benchmark: i.benchmark, rows: i.rows })) };
   },
 });
@@ -95,6 +110,7 @@ export const update = mutation({
     if (!m?.profile) throw new Error("No profile");
     // A new avatar URL (e.g. "use my Google photo") replaces an uploaded one; null clears the banner.
     const { bannerStorageId, ...rest } = patch;
+    for (const file of [rest.avatarStorageId, bannerStorageId]) if (file && await fileTaken(ctx, file, m.profile._id)) throw new ConvexError("That image belongs to another page");
     await ctx.db.patch(m.profile._id, { ...rest, ...(rest.avatarUrl ? { avatarStorageId: undefined } : {}), ...(bannerStorageId !== undefined ? { bannerStorageId: bannerStorageId ?? undefined } : {}), updatedAt: Date.now() });
   },
 });
@@ -111,11 +127,7 @@ export const remove = mutation({
     if (!m?.profile) throw new ConvexError("No page to delete");
     if (handle.trim().toLowerCase() !== m.profile.handle) throw new ConvexError("That is not your handle");
     for (const row of await ctx.db.query("imports").withIndex("by_profile", (q) => q.eq("profileId", m.profile!._id)).collect()) await ctx.db.delete(row._id);
-    // `update` takes a storage id from the client and cannot tell whose upload it is, so a page could
-    // point at someone else's image. Only delete a file that no other page shows.
-    const others = (await ctx.db.query("profiles").collect()).filter((p) => p._id !== m.profile!._id);
-    const inUse = new Set(others.flatMap((p) => [p.avatarStorageId, p.bannerStorageId]));
-    for (const file of new Set([m.profile.avatarStorageId, m.profile.bannerStorageId])) if (file && !inUse.has(file)) await ctx.storage.delete(file);
+    for (const file of new Set([m.profile.avatarStorageId, m.profile.bannerStorageId])) if (file && !(await fileTaken(ctx, file, m.profile._id))) await ctx.storage.delete(file);
     await ctx.db.delete(m.profile._id);
     return { handle: m.profile.handle };
   },
