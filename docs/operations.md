@@ -26,11 +26,15 @@ Environment variables:
 
 ## The scrape job
 
-launchd job `com.adam.priors-scrape` runs `scripts/ops/daily-scrape.sh` from the main checkout (`~/priors`) every 2 hours at half past. The plist points at that path, so do not move or rename the script.
+launchd job `com.adam.priors-scrape` runs `scripts/ops/daily-scrape.sh` every 2 hours at half past, from its own checkout at `~/priors-scrape`. The plist points at that path, so do not move or rename the script.
 
-It runs `build.ts`, `npm run library` and `intro-cards.ts`, then `scripts/ops/snapshot-changed.ts` decides whether anything meaningful changed. If so it commits only `data/snapshots` and `public/intro` and pushes `main`, which deploys. It raises a macOS notification on a scrape, source or library failure, and when the default lineup has no exact fit. Log: `logs/scrape.log`.
+- **The checkout holds nothing but `origin/main`.** Each run starts with `git checkout -f --detach origin/main`, so it always scrapes with the newest code and can always push. It installs packages again when `package-lock.json` changes. Never work in `~/priors-scrape`: local changes there are thrown away.
+- **The marker file.** The script refuses to run unless `.scrape-checkout` exists in the checkout root, so the reset can never hit a checkout someone works in.
+- **What it does.** It runs `build.ts`, `npm run library` and `intro-cards.ts`, then `scripts/ops/snapshot-changed.ts` decides whether anything meaningful changed. If so it commits only `data/snapshots` and `public/intro` and pushes to `main`, which deploys. If `main` moved during the scrape it rebases the snapshot commit and pushes again.
+- **Alerts and log.** It raises a macOS notification on a scrape, source, library or push failure, and when the default lineup has no exact fit. Log: `~/priors/logs/scrape.log`.
+- **Setting it up again.** `git worktree add --detach ~/priors-scrape origin/main`, `touch ~/priors-scrape/.scrape-checkout`, `npm ci` there, and a `.env.local` with the `NEXT_PUBLIC_CONVEX_URL` line (the mix library reads recorded lineups).
 
-Because that job commits to `main` in `~/priors` all day, do feature work in a worktree and expect `main` to move.
+The job pushes to `main` all day, so do feature work in a worktree and expect `main` to move.
 
 ## Sign-in
 
