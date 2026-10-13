@@ -111,7 +111,11 @@ export const remove = mutation({
     if (!m?.profile) throw new ConvexError("No page to delete");
     if (handle.trim().toLowerCase() !== m.profile.handle) throw new ConvexError("That is not your handle");
     for (const row of await ctx.db.query("imports").withIndex("by_profile", (q) => q.eq("profileId", m.profile!._id)).collect()) await ctx.db.delete(row._id);
-    for (const file of [m.profile.avatarStorageId, m.profile.bannerStorageId]) if (file) await ctx.storage.delete(file);
+    // `update` takes a storage id from the client and cannot tell whose upload it is, so a page could
+    // point at someone else's image. Only delete a file that no other page shows.
+    const others = (await ctx.db.query("profiles").collect()).filter((p) => p._id !== m.profile!._id);
+    const inUse = new Set(others.flatMap((p) => [p.avatarStorageId, p.bannerStorageId]));
+    for (const file of new Set([m.profile.avatarStorageId, m.profile.bannerStorageId])) if (file && !inUse.has(file)) await ctx.storage.delete(file);
     await ctx.db.delete(m.profile._id);
     return { handle: m.profile.handle };
   },

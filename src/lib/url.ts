@@ -8,8 +8,22 @@ import { FOCUS_IDS, type FocusId } from "../data/types";
  *   ?i=General%20frontier|frontierswe-v2:25,terminalbench-4:25,deepswe-1.1:10|req=deepswe-1.1|cut=5|est=1|var=all
  * Fields after the weights are optional. Names are URL-encoded; benchmark IDs may include a source namespace separated by a colon.
  */
-/** Builder only: the published page index a config was opened from, as "handle.id". It rides along at runtime and is never stored. */
+/**
+ * Builder only: the published page index a config was opened from, as "handle.id.key". It rides along
+ * at runtime and is never stored. Anyone can write a link, so the builder only trusts a reference whose
+ * key is the one this browser tab made when the owner clicked "Open in builder" on their page
+ * (`PAGE_KEY` in sessionStorage). A link from someone else carries no such key and falls back to
+ * matching by name, like any other index.
+ */
 export type FromPage = IndexConfig & { page?: string };
+export const PAGE_KEY = "priors:page-key";
+export const pageRef = (handle: string, id: string, key: string) => `${handle}.${id}.${key}`;
+/** The id of the page index this builder index came from, when the reference is for this page and carries this tab's key. */
+export function pageIndexId(index: FromPage, handle: string, key: string | null | undefined): string | undefined {
+  const ref = index.page;
+  if (!ref || !key || !ref.startsWith(`${handle}.`) || !ref.endsWith(`.${key}`)) return undefined;
+  return ref.slice(handle.length + 1, -(key.length + 1)) || undefined;
+}
 
 export function encodeIndex(c: FromPage, keepPage = false): string {
   const parts = [encodeURIComponent(c.name), Object.entries(c.weights).filter(([, w]) => w > 0).map(([k, w]) => `${k}:${round(w)}`).join(",")];

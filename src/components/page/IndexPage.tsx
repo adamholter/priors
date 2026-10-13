@@ -9,7 +9,7 @@ import type { Snapshot } from "@/data/types";
 import { chartVariantMode, computeIndex, selectVariants, type IndexConfig } from "@/engine";
 import { costDescription, hasSubscriptionPrices, taskMetricOptions } from "@/data/task-metrics";
 import { formulaInputs, pickPoints, speedChart } from "@/lib/metrics";
-import { encodeIndices, prettyQuery } from "@/lib/url";
+import { encodeIndices, PAGE_KEY, pageRef, prettyQuery } from "@/lib/url";
 import { ShareCards } from "../ShareCards";
 import { Wordmark } from "../Wordmark";
 import { SiteNav } from "../SiteNav";
@@ -82,8 +82,14 @@ export function IndexPage({ profile, snapshot, edit, tab: linkedTab, linkedHighl
   const viaNames = useMemo(() => firstIndex && firstResult ? [...new Set(selectVariants(firstResult.ranked, chartVariantMode(firstIndex, "ranking")).map((r) => r.model.name))].slice(0, 5) : [], [firstIndex, firstResult]);
   const topNames = useMemo(() => active && activeResult ? [...new Set(selectVariants(activeResult.ranked, chartVariantMode(active, "ranking")).map((r) => r.model.name))].slice(0, 5) : [], [active, activeResult]);
   const footerMix = useMemo(() => activeResult ? [...activeResult.benchmarks].sort((a, b) => b.share - a.share).map((b) => ({ id: b.benchmark.id, name: b.benchmark.shortName ?? b.benchmark.name, share: b.share })) : [], [activeResult]);
-  // Each index remembers the page index it came from, so saving from the builder updates that one even after a rename.
-  const builderHref = `/?${prettyQuery(encodeIndices((active ? [active, ...p.indices.filter((i) => i.id !== active.id)] : []).map((i) => ({ ...i, page: `${p.handle}.${i.id}` })), true))}`;
+  const [isOwner, setIsOwner] = useState(!!lab);
+  const onOwner = useCallback((o: boolean) => setIsOwner(o || !!lab), [lab]);
+  // For the owner, each index remembers the page index it came from, so saving from the builder updates that one
+  // even after a rename. The key makes the reference good for this tab only (see FromPage); visitors get a plain link.
+  const [pageKey] = useState(() => crypto.randomUUID().slice(0, 8));
+  const inBuilder = active ? [active, ...p.indices.filter((i) => i.id !== active.id)] : [];
+  const builderHref = `/?${prettyQuery(encodeIndices(isOwner && !lab ? inBuilder.map((i) => ({ ...i, page: pageRef(p.handle, i.id, pageKey) })) : inBuilder, true))}`;
+  const keepPageKey = () => { try { sessionStorage.setItem(PAGE_KEY, pageKey); } catch { /* storage can be disabled */ } };
   // The link people share: the bare page address unless it has to name another tab or a changed selection.
   const pageUrl = new URL(`${origin || "https://mypriors.com"}/${p.handle}`);
   if (active && active !== p.indices[0]) pageUrl.searchParams.set("hi", tabKey(p.indices, active));
@@ -101,8 +107,6 @@ export function IndexPage({ profile, snapshot, edit, tab: linkedTab, linkedHighl
     return () => cancelAnimationFrame(id);
   }, [p.handle, p.displayName, viaNames, topIds, lab]);
   // Edit mode: the owner edits the page in place; changes autosave (lab previews never save).
-  const [isOwner, setIsOwner] = useState(!!lab);
-  const onOwner = useCallback((o: boolean) => setIsOwner(o || !!lab), [lab]);
   const [editing, setEditing] = useState(edit && !!lab);
   useEffect(() => { if (edit && isOwner) { const id = requestAnimationFrame(() => setEditing(true)); return () => cancelAnimationFrame(id); } }, [edit, isOwner]);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -198,7 +202,7 @@ export function IndexPage({ profile, snapshot, edit, tab: linkedTab, linkedHighl
         <span className="max-sm:hidden"><SiteNav /></span>
         <div className="ml-auto hidden sm:flex flex-wrap items-center justify-end gap-3">
           {active && <ShareCards indices={p.indices} active={active} profile={p} pageUrl={pageUrl.toString()} defaultDesign={p.theme?.cardDesign} top={topNames} pageTheme={p.theme?.preset} />}
-          <Link href={builderHref as "/"} className="btn-quiet">Open in builder</Link>
+          <Link href={builderHref as "/"} onClick={keepPageKey} className="btn-quiet">Open in builder</Link>
           {isOwner && <button type="button" className="btn" onClick={() => setEditing(!editing)}>{editing ? "Done editing" : "Edit page"}</button>}
           <SignInLink />
           {followsSite && <ThemeToggle />}
@@ -207,7 +211,7 @@ export function IndexPage({ profile, snapshot, edit, tab: linkedTab, linkedHighl
           {active && <ShareCards compact indices={p.indices} active={active} profile={p} pageUrl={pageUrl.toString()} defaultDesign={p.theme?.cardDesign} top={topNames} pageTheme={p.theme?.preset} />}
           {followsSite && <ThemeToggle />}
           <MobileMenu>
-            <Link href={builderHref as "/"} className="btn-quiet text-center">Open in builder</Link>
+            <Link href={builderHref as "/"} onClick={keepPageKey} className="btn-quiet text-center">Open in builder</Link>
             <Link href="/explore" className="btn-quiet text-center">Explore rankings</Link>
             <Link href="/rank" className="btn-quiet text-center">Rank models</Link>
             {isOwner && <button type="button" className="btn text-center" onClick={() => setEditing(!editing)}>{editing ? "Done editing" : "Edit page"}</button>}

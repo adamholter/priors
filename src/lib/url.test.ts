@@ -1,7 +1,7 @@
 import { defaultConfig } from "../engine";
 import type { Snapshot } from "../data/types";
 import { describe, expect, it } from "vitest";
-import { decodeIndex, decodeIndices, encodeIndex, encodeIndices, prettyQuery, type FromPage } from "./url";
+import { decodeIndex, decodeIndices, encodeIndex, encodeIndices, pageIndexId, pageRef, prettyQuery, type FromPage } from "./url";
 
 describe("effort matching URL state", () => {
   it("round trips strictness, both requirement overrides, and independent chart modes", () => {
@@ -70,9 +70,22 @@ describe("readable links", () => {
     expect(back).toEqual([{ ...index, id: "i0" }, { ...index, id: "i1", name: "Second one" }]);
   });
   it("carries the page an index came from only when asked", () => {
-    const from: FromPage = { ...index, page: "adamholter.i-9f2c" };
+    const from: FromPage = { ...index, page: pageRef("adamholter", "i-9f2c", "k3y") };
     expect(encodeIndex(from)).not.toContain("page=");
     const back = decodeIndices(new URLSearchParams(prettyQuery(encodeIndices([from], true))))[0] as FromPage;
-    expect(back.page).toBe("adamholter.i-9f2c");
+    expect(pageIndexId(back, "adamholter", "k3y")).toBe("i-9f2c");
+  });
+  it("trusts a page reference only with this tab's key and for this page", () => {
+    const ref = (page: string): FromPage => ({ ...index, page });
+    expect(pageIndexId(ref("adamholter.i.with.dots.k3y"), "adamholter", "k3y")).toBe("i.with.dots");
+    // A link someone else wrote: no key, a guessed key, or no key stored in this tab.
+    expect(pageIndexId(ref("adamholter.i0"), "adamholter", "k3y")).toBeUndefined();
+    expect(pageIndexId(ref("adamholter.i0.guess"), "adamholter", "k3y")).toBeUndefined();
+    expect(pageIndexId(ref("adamholter.i0.k3y"), "adamholter", null)).toBeUndefined();
+    expect(pageIndexId(ref("adamholter.i0."), "adamholter", "")).toBeUndefined();
+    // Another person's page, or a handle that only starts the same.
+    expect(pageIndexId(ref("adam.i0.k3y"), "adamholter", "k3y")).toBeUndefined();
+    expect(pageIndexId(ref("adamholter2.i0.k3y"), "adamholter", "k3y")).toBeUndefined();
+    expect(pageIndexId(index, "adamholter", "k3y")).toBeUndefined();
   });
 });

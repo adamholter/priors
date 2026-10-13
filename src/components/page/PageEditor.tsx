@@ -9,7 +9,7 @@ import { ACCENTS, THEME_CHOICES, presetOf, themeById, type PagePreset } from "@/
 import { SHARE_DESIGNS } from "@/lib/share-designs";
 import { api } from "../../../convex/_generated/api";
 import type { Profile } from "./IndexPage";
-import { encodeIndices, prettyQuery } from "@/lib/url";
+import { encodeIndices, PAGE_KEY, pageRef, prettyQuery } from "@/lib/url";
 import { authEnabled } from "@/app/providers";
 
 /** A miniature of the theme: its surface, a card, accent, two lab marks and its type. */
@@ -34,6 +34,8 @@ export function ThemeSwatch({ theme, selected, onClick }: { theme: PagePreset; s
 export function PageSettings({ profile, set, open, onClose, lab }: { profile: Profile; set: (patch: Partial<Profile>) => void; open: boolean; onClose: () => void; lab?: boolean }) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => { const id = requestAnimationFrame(() => setMounted(true)); return () => cancelAnimationFrame(id); }, []);
+  // "Open in builder" marks each index with its page index, good for this tab only (see FromPage in url.ts).
+  const [pageKey] = useState(() => crypto.randomUUID().slice(0, 8));
   if (!open || !mounted) return null;
   const chosen = presetOf(profile.theme);
   const family = THEME_CHOICES.find((t) => t.id === chosen.id || t.pair === chosen.id) ?? chosen;
@@ -81,7 +83,7 @@ export function PageSettings({ profile, set, open, onClose, lab }: { profile: Pr
 
       <Group title="Indices">
         <p className="text-ink-2">Weights and benchmarks are edited in the builder; saving there updates this page.</p>
-        <a className="btn-quiet inline-block w-fit" href={`/builder?${prettyQuery(encodeIndices(profile.indices.map((i) => ({ ...i, page: `${profile.handle}.${i.id}` })), true))}`}>Open in builder</a>
+        <a className="btn-quiet inline-block w-fit" href={`/builder?${prettyQuery(encodeIndices(lab ? profile.indices : profile.indices.map((i) => ({ ...i, page: pageRef(profile.handle, i.id, pageKey) })), true))}`} onClick={() => { try { sessionStorage.setItem(PAGE_KEY, pageKey); } catch { /* storage can be disabled */ } }}>Open in builder</a>
       </Group>
 
       {authEnabled && !lab && <DeletePage handle={profile.handle} />}
