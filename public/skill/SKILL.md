@@ -70,7 +70,7 @@ If the source is unreachable or paywalled, say so and stop.
 
 ## Task B — retune the mix and rankings
 
-The `indices` action replaces the **whole** IndexConfig array. Start from `whoami.indices`, preserve every field you aren't changing, send the full array:
+The `indices` action replaces the **whole** IndexConfig array. Start from `whoami.indices`, preserve every field you aren't changing, send the full array. To add an index, append it with a new `id`; never drop or overwrite an index the user did not ask you to change. A page with more than one index shows them as tabs in array order, and the first is the page's main index (link preview, Explore).
 
 ```bash
 curl -s https://mypriors.com/api/agent -H "Authorization: Bearer $PRIORS_TOKEN" \
@@ -115,6 +115,8 @@ curl -s https://mypriors.com/api/agent -H "Authorization: Bearer $PRIORS_TOKEN" 
 - `gallery` — collapsed expandable charts for `indexId` (time per task — open by default — plus output speed, latency, release date, OpenRouter uptime). Every page gets one automatically if absent — add `{kind:"gallery", hidden:true}` only if the user asks to remove it.
 - `text` — a paragraph (`body`)
 - `links` — a list of links (`links`)
+
+On a page with several indices, a section appears on the tab of its `indexId`. `text`, `links` and `benchmark` sections with no `indexId` appear on every tab. An index with no chart sections of its own shows the same layout as the first tab, so a new index needs no sections unless the user wants a different layout for it.
 
 Chart defaults (what visitors see first; their own tweaks stay in their browser):
 

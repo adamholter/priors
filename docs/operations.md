@@ -22,7 +22,7 @@ Environment variables:
 - `npm run ci` runs `next typegen`, Vitest, `tsc` (including `convex/`) and ESLint. `npm run validate` adds a production build.
 - A push to `main` deploys. `vercel.json` runs `npm run ci` before `next build`, so a failing check blocks the deploy. GitHub Actions runs the same on pushes and pull requests.
 - If `CONVEX_DEPLOY_KEY` is set in Vercel, the build also deploys Convex functions. Until then, run `npx convex deploy` before pushing a schema change. `npx convex dev --once` pushes to the dev deployment.
-- Do not deploy or push unless Adam asks.
+- A fix or change Adam asks for ships without a second request: verify, push to `main`, confirm it live. See "Working here" in `AGENTS.md`.
 
 ## The scrape job
 

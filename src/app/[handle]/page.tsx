@@ -52,7 +52,8 @@ export async function generateMetadata({ params, searchParams }: PageProps<"/[ha
   const radarQuery = RADAR_PARAM_KEYS.map((key) => typeof sp[key] === "string" ? `&${key}=${encodeURIComponent(sp[key] as string)}` : "").join("");
   const hiddenParams = (Array.isArray(sp.ch) ? sp.ch : typeof sp.ch === "string" ? [sp.ch] : []).map(value => `&ch=${encodeURIComponent(value)}`).join("");
   const index = p.indices.find((i) => i.id === sp.hi) ?? p.indices[0];
-  const image = (chart || typeof sp.hl === "string") && index
+  // A link to a chart, a highlight or another tab unfurls as that index; the plain page link as the first.
+  const image = (chart || typeof sp.hl === "string" || index !== p.indices[0]) && index
     ? { url: `/og?handle=${handle}&i=${encodeURIComponent(encodeIndex(index))}${chart ? `&c=${encodeURIComponent(typeof sp.c === "string" ? sp.c : chart)}` : ""}${viewParams}${radarQuery}${hiddenParams}`, width: 1200, height: 630, alt: title }
     : { url: `/${handle}/opengraph-image?v=${Math.round((p as { updatedAt?: number }).updatedAt ?? 0)}`, width: 1200, height: 630, alt: title };
   const query = new URLSearchParams();
@@ -82,8 +83,9 @@ export default async function Page({ params, searchParams }: PageProps<"/[handle
   const snap = await loadSnapshot();
   if (!snap) notFound();
   const { snapshot } = mergeImports(snap, p.imports ?? []);
-  if (await isSearchBot()) return <PageTransition><IndexPage profile={p} snapshot={clientSnapshot(snapshot)} edit={false} /></PageTransition>;
-  const first = p.indices[0];
+  const tab = typeof sp.hi === "string" ? sp.hi : undefined;
+  if (await isSearchBot()) return <PageTransition><IndexPage profile={p} snapshot={clientSnapshot(snapshot)} edit={false} tab={tab} /></PageTransition>;
+  const first = p.indices.find((i) => i.id === tab) ?? p.indices[0];
   const leaders = first ? selectVariants(computeIndex(snapshot, { ...first, variants: "all" }).ranked, chartVariantMode(first, "ranking")).slice(0, 10).map((r) => ({ name: r.model.name, score: r.score })) : [];
-  return <PageTransition><ProfileLoader key={`${p.handle}-${snapshot.generatedAt}`} profile={p} version={snapshot.generatedAt} edit={sp.edit === "1"} leaders={leaders} /></PageTransition>;
+  return <PageTransition><ProfileLoader key={`${p.handle}-${snapshot.generatedAt}`} profile={p} version={snapshot.generatedAt} edit={sp.edit === "1"} tab={tab} leaders={leaders} /></PageTransition>;
 }

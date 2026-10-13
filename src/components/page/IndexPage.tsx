@@ -21,7 +21,8 @@ import { BenchmarkTable } from "./BenchmarkTable";
 import { MetricGallery } from "./MetricGallery";
 import { authEnabled } from "@/app/providers";
 import { PageSettings } from "./PageEditor";
-import { AddSection, Autosave, InlineText, OwnerProbe, SECTION_KINDS, SectionFrame, type SaveState } from "./PageEdit";
+import { AddSection, Autosave, InlineText, OwnerProbe, PageTabs, SECTION_KINDS, SectionFrame, type SaveState } from "./PageEdit";
+import { pageLayout, removeIndex, sectionTab, tabSections } from "@/lib/page-layout";
 import { ChartSettings } from "../chart/ChartSettings";
 import { presetOf, presetStyle, resolveAccent, resolvePreset } from "@/lib/page-presets";
 import { useTheme } from "../Theme";
@@ -42,7 +43,7 @@ export interface Profile {
   imports?: { benchmark: Snapshot["benchmarks"][0]; rows: import("@/data/types").RawRow[] }[];
 }
 
-export function IndexPage({ profile, snapshot, edit, lab, onProfileChange }: { profile: Profile; snapshot: Snapshot; edit: boolean; /** Lab preview: act as the owner, never save. */ lab?: boolean; /** Lab: mirror edits outward so the theme switcher keeps them. */ onProfileChange?: (p: Profile) => void }) {
+export function IndexPage({ profile, snapshot, edit, tab: linkedTab, lab, onProfileChange }: { profile: Profile; snapshot: Snapshot; edit: boolean; /** The index a link opens on (`hi`). */ tab?: string; /** Lab preview: act as the owner, never save. */ lab?: boolean; /** Lab: mirror edits outward so the theme switcher keeps them. */ onProfileChange?: (p: Profile) => void }) {
   const [p, setPState] = useState(profile);
   const [prevProfile, setPrevProfile] = useState(profile);
   if (profile !== prevProfile) { setPrevProfile(profile); setPState(profile); }
@@ -58,15 +59,29 @@ export function IndexPage({ profile, snapshot, edit, lab, onProfileChange }: { p
   const palette = paletteFor(preset);
   const [origin, setOrigin] = useState("");
   useEffect(() => { const id = requestAnimationFrame(() => setOrigin(window.location.origin)); return () => cancelAnimationFrame(id); }, []);
-  const builderHref = `/?${encodeIndices(p.indices).toString()}`;
-  const pageUrl = new URL(`${origin || "https://mypriors.com"}/${p.handle}`);
-  if (p.indices[0]) setHighlightParams(pageUrl, p.indices[0].id, p.indices[0].highlight ?? []);
   const [selected, setSelected] = useState<string | null>(null);
+  // A page with several indices shows one at a time; the tab is the index everything below describes.
+  const [tab, setTab] = useState(linkedTab);
+  const active = p.indices.find((i) => i.id === tab) ?? p.indices[0];
+  const activeResult = active ? results.get(active.id) : undefined;
+  const openTab = (id: string) => {
+    setTab(id); setSelected(null);
+    const url = new URL(window.location.href);
+    for (const key of ["hl", "c"]) url.searchParams.delete(key);
+    if (id === p.indices[0]?.id) url.searchParams.delete("hi"); else url.searchParams.set("hi", id);
+    url.hash = "";
+    window.history.replaceState(null, "", url.toString());
+  };
+  // The comparison a visitor carries away is with the page's first index, whichever tab is open.
   const firstIndex = p.indices[0];
   const firstResult = firstIndex ? results.get(firstIndex.id) : undefined;
   const topIds = useMemo(() => firstIndex && firstResult ? [...new Set(selectVariants(firstResult.ranked, chartVariantMode(firstIndex, "ranking")).map((r) => r.model.id))].slice(0, 20) : [], [firstIndex, firstResult]);
-  const topNames = useMemo(() => firstIndex && firstResult ? [...new Set(selectVariants(firstResult.ranked, chartVariantMode(firstIndex, "ranking")).map((r) => r.model.name))].slice(0, 5) : [], [firstIndex, firstResult]);
-  const footerMix = useMemo(() => firstResult ? [...firstResult.benchmarks].sort((a, b) => b.share - a.share).map((b) => ({ id: b.benchmark.id, name: b.benchmark.shortName ?? b.benchmark.name, share: b.share })) : [], [firstResult]);
+  const viaNames = useMemo(() => firstIndex && firstResult ? [...new Set(selectVariants(firstResult.ranked, chartVariantMode(firstIndex, "ranking")).map((r) => r.model.name))].slice(0, 5) : [], [firstIndex, firstResult]);
+  const topNames = useMemo(() => active && activeResult ? [...new Set(selectVariants(activeResult.ranked, chartVariantMode(active, "ranking")).map((r) => r.model.name))].slice(0, 5) : [], [active, activeResult]);
+  const footerMix = useMemo(() => activeResult ? [...activeResult.benchmarks].sort((a, b) => b.share - a.share).map((b) => ({ id: b.benchmark.id, name: b.benchmark.shortName ?? b.benchmark.name, share: b.share })) : [], [activeResult]);
+  const builderHref = `/?${encodeIndices(active ? [active, ...p.indices.filter((i) => i.id !== active.id)] : []).toString()}`;
+  const pageUrl = new URL(`${origin || "https://mypriors.com"}/${p.handle}`);
+  if (active) setHighlightParams(pageUrl, active.id, active.highlight ?? []);
   const footerSources = useMemo(() => [...new Set(snapshot.benchmarks.map((b) => b.sourceId))].sort(), [snapshot]);
   // Visitors see whose ranking this is and how to make their own; the owner, just after publishing, sees it went live.
   const [viewer, setViewer] = useState<{ owner: boolean; published: boolean } | null>(null);
@@ -75,10 +90,10 @@ export function IndexPage({ profile, snapshot, edit, lab, onProfileChange }: { p
       let owner = false;
       try { owner = !!lab || localStorage.getItem("priors:handle") === p.handle; } catch { /* storage can be disabled */ }
       setViewer({ owner, published: owner && new URLSearchParams(window.location.search).get("published") === "1" });
-      if (!owner && topNames.length) try { localStorage.setItem(VIA_KEY, JSON.stringify({ handle: p.handle, name: p.displayName, top: topNames, ids: topIds })); } catch { /* ignore */ }
+      if (!owner && viaNames.length) try { localStorage.setItem(VIA_KEY, JSON.stringify({ handle: p.handle, name: p.displayName, top: viaNames, ids: topIds })); } catch { /* ignore */ }
     });
     return () => cancelAnimationFrame(id);
-  }, [p.handle, p.displayName, topNames, topIds, lab]);
+  }, [p.handle, p.displayName, viaNames, topIds, lab]);
   // Edit mode: the owner edits the page in place; changes autosave (lab previews never save).
   const [isOwner, setIsOwner] = useState(!!lab);
   const onOwner = useCallback((o: boolean) => setIsOwner(o || !!lab), [lab]);
@@ -94,16 +109,21 @@ export function IndexPage({ profile, snapshot, edit, lab, onProfileChange }: { p
     const onKey = (e: KeyboardEvent) => { if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z" && !e.shiftKey && !(e.target as HTMLElement)?.closest("input,textarea")) { e.preventDefault(); undo(); } };
     window.addEventListener("keydown", onKey); return () => window.removeEventListener("keydown", onKey);
   }, [editing, undo]);
-  // Pages without a saved gallery show one automatically; editing makes it a real, movable section.
-  const pageSections = useMemo(() => p.sections.some((s) => s.kind === "gallery") ? p.sections : [...p.sections, { id: "gallery-auto", kind: "gallery" as const, indexId: p.indices[0]?.id }], [p.sections, p.indices]);
+  // Pages show some sections without saving them (see pageLayout); editing makes them real, movable sections.
+  const pageSections = useMemo(() => pageLayout(p.indices, p.sections), [p.sections, p.indices]);
+  const shownSections = tabSections(pageSections, p.indices, active?.id);
   const setSections = (sections: Section[]) => change({ ...p, sections });
   const patchSection = (id: string, patch: Partial<Section>) => setSections(pageSections.map((x) => x.id === id ? { ...x, ...patch } : x));
   const moveSection = (from: number, to: number) => { if (from === to || from < 0 || to < 0) return; const next = [...pageSections]; const [m] = next.splice(from, 1); next.splice(to, 0, m); setSections(next); };
   const addSection = (kind: Exclude<Section["kind"], "history">, at: number) => {
     const next = [...pageSections];
-    next.splice(at, 0, { id: `${kind}-${crypto.randomUUID().slice(0, 8)}`, kind, ...(kind === "rankings" || kind === "pareto" || kind === "speed" || kind === "gallery" ? { indexId: p.indices[0]?.id } : {}), ...(kind === "benchmark" ? { benchmarkId: firstResult?.benchmarks[0]?.benchmark.id } : {}) });
+    // With several indices a new section belongs to the open tab; on a one-index page text and tables stay page-wide.
+    next.splice(at, 0, { id: `${kind}-${crypto.randomUUID().slice(0, 8)}`, kind, ...(kind === "rankings" || kind === "pareto" || kind === "speed" || kind === "gallery" || p.indices.length > 1 ? { indexId: active?.id } : {}), ...(kind === "benchmark" ? { benchmarkId: activeResult?.benchmarks[0]?.benchmark.id } : {}) });
     setSections(next);
   };
+  const patchIndex = (id: string, patch: Partial<IndexConfig>) => change({ ...p, indices: p.indices.map((i) => i.id === id ? { ...i, ...patch } : i) });
+  const moveIndex = (id: string, by: number) => { const from = p.indices.findIndex((i) => i.id === id), to = from + by; if (from < 0 || to < 0 || to >= p.indices.length) return; const indices = [...p.indices]; indices.splice(to, 0, ...indices.splice(from, 1)); change({ ...p, indices }); };
+  const dropIndex = (id: string) => { if (p.indices.length < 2) return; const next = removeIndex(p.indices, pageSections, id); change({ ...p, ...next }); setTab(next.indices[0].id); };
   const heading = (s: Section, fallback: string, className: string) => editing
     ? <h2 className={className}><InlineText editing label="Section title" value={s.title ?? ""} placeholder={fallback} onChange={(title) => patchSection(s.id, { title: title || undefined })} /></h2>
     : <h2 className={className}>{s.title ?? fallback}</h2>;
@@ -117,7 +137,7 @@ export function IndexPage({ profile, snapshot, edit, lab, onProfileChange }: { p
   ].filter(Boolean).join("\n")), [themeSerif, themeMono, themeCss]);
 
   const renderSection = (s: Section): React.ReactNode => {
-          const idx = (s.indexId ? p.indices.find((i) => i.id === s.indexId) : undefined) ?? (s.kind === "gallery" ? p.indices[0] : undefined);
+          const idx = p.indices.find((i) => i.id === sectionTab(s, p.indices));
           const r = idx ? results.get(idx.id) : undefined;
           const title = s.title ?? defaultTitle(s, idx?.name);
           if (s.kind === "text") return <section key={s.id} className="max-w-[68ch]">{(s.title || editing) && heading(s, "Title (optional)", "text-[21px] sm:text-[24px] mb-3")}{editing ? <InlineText editing multiline label="Text" value={s.body ?? ""} placeholder="Write something." className="text-[15.5px] leading-[1.7] w-full" onChange={(body) => patchSection(s.id, { body })} /> : <p className="text-[15.5px] leading-[1.7] text-ink-2 whitespace-pre-wrap">{s.body}</p>}</section>;
@@ -171,14 +191,14 @@ export function IndexPage({ profile, snapshot, edit, lab, onProfileChange }: { p
         <span className="text-grey text-[13px] max-sm:hidden">/ {p.handle}</span>
         <span className="max-sm:hidden"><SiteNav /></span>
         <div className="ml-auto hidden sm:flex flex-wrap items-center justify-end gap-3">
-          {p.indices[0] && <ShareCards indices={p.indices} active={p.indices[0]} profile={p} pageUrl={pageUrl.toString()} defaultDesign={p.theme?.cardDesign} top={topNames} pageTheme={p.theme?.preset} />}
+          {active && <ShareCards indices={p.indices} active={active} profile={p} pageUrl={pageUrl.toString()} defaultDesign={p.theme?.cardDesign} top={topNames} pageTheme={p.theme?.preset} />}
           <Link href={builderHref as "/"} className="btn-quiet">Open in builder</Link>
           {isOwner && <button type="button" className="btn" onClick={() => setEditing(!editing)}>{editing ? "Done editing" : "Edit page"}</button>}
           <SignInLink />
           {followsSite && <ThemeToggle />}
         </div>
         <div className="ml-auto flex sm:hidden items-center gap-1">
-          {p.indices[0] && <ShareCards compact indices={p.indices} active={p.indices[0]} profile={p} pageUrl={pageUrl.toString()} defaultDesign={p.theme?.cardDesign} top={topNames} pageTheme={p.theme?.preset} />}
+          {active && <ShareCards compact indices={p.indices} active={active} profile={p} pageUrl={pageUrl.toString()} defaultDesign={p.theme?.cardDesign} top={topNames} pageTheme={p.theme?.preset} />}
           {followsSite && <ThemeToggle />}
           <MobileMenu>
             <Link href={builderHref as "/"} className="btn-quiet text-center">Open in builder</Link>
@@ -205,7 +225,7 @@ export function IndexPage({ profile, snapshot, edit, lab, onProfileChange }: { p
       </div>}
       {viewer?.published && <div className="border-b hairline px-4 sm:px-8 py-3 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-[13px]" style={{ background: surface }} role="status">
         <span><span className="text-ink">Your page is live</span> <span className="text-ink-2">at mypriors.com/{p.handle} and listed on Explore.</span></span>
-        {p.indices[0] && <ShareCards indices={p.indices} active={p.indices[0]} profile={p} pageUrl={pageUrl.toString()} defaultDesign={p.theme?.cardDesign} top={topNames} pageTheme={p.theme?.preset} />}
+        {active && <ShareCards indices={p.indices} active={active} profile={p} pageUrl={pageUrl.toString()} defaultDesign={p.theme?.cardDesign} top={topNames} pageTheme={p.theme?.preset} />}
         <Link href={`/${p.handle}?edit=1` as "/"} className="btn-quiet">Customize page</Link>
         <Link href="/explore" className="btn-quiet">See Explore</Link>
       </div>}
@@ -223,7 +243,9 @@ export function IndexPage({ profile, snapshot, edit, lab, onProfileChange }: { p
           </div>
         </section>
 
-        {pageSections.filter((s) => editing || !s.hidden).map((s, i, list) => {
+        {p.indices.length > 1 && active && <PageTabs indices={p.indices} activeId={active.id} accent={accent} editing={editing} onSelect={openTab} onRename={(id, name) => patchIndex(id, { name })} onMove={moveIndex} onRemove={dropIndex} />}
+
+        {shownSections.filter((s) => editing || !s.hidden).map((s, i, list) => {
           const el = renderSection(s);
           if (!editing) return el;
           const at = pageSections.indexOf(s);
@@ -232,7 +254,6 @@ export function IndexPage({ profile, snapshot, edit, lab, onProfileChange }: { p
             <SectionFrame section={s} index={i} count={list.length} label={SECTION_KINDS.find((k) => k.kind === s.kind)?.label ?? s.kind}
               onMove={(to) => moveSection(at, pageSections.indexOf(list[to]))} onDrop={(from) => moveSection(pageSections.indexOf(list[from]), at)}
               onPatch={(change) => patchSection(s.id, change)} onRemove={() => setSections(pageSections.filter((x) => x.id !== s.id))}>
-              {p.indices.length > 1 && s.kind !== "text" && s.kind !== "links" && s.kind !== "benchmark" && <select className="inp mb-3 w-fit" aria-label="Index" value={s.indexId ?? p.indices[0].id} onChange={(e) => patchSection(s.id, { indexId: e.target.value })}>{p.indices.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select>}
               {el ?? <p className="cap py-6">Nothing to show for this section yet.</p>}
             </SectionFrame>
           </Fragment>;
@@ -249,7 +270,7 @@ export function IndexPage({ profile, snapshot, edit, lab, onProfileChange }: { p
             <Link href="/rank" className="btn shrink-0">Build your own</Link>
           </div>
           {footerMix.length > 0 && <div className="grid gap-2 min-w-0">
-            <p className="cap">{firstIndex?.name ?? "This index"} · {footerMix.length} benchmark{footerMix.length === 1 ? "" : "s"}</p>
+            <p className="cap">{active?.name ?? "This index"} · {footerMix.length} benchmark{footerMix.length === 1 ? "" : "s"}</p>
             <ul className="flex flex-wrap gap-1.5">{footerMix.map((b) => <li key={b.id} className="text-[12px] border hairline rounded-sm px-2 py-0.5 text-ink-2"><span className="text-ink">{b.name}</span> <span className="num">{Math.round(b.share)}%</span></li>)}</ul>
           </div>}
           <details className="text-[12px] text-grey">
@@ -258,7 +279,7 @@ export function IndexPage({ profile, snapshot, edit, lab, onProfileChange }: { p
           </details>
         </footer>
       </main>
-      {p.indices[0] && <MixAssistant config={p.indices[0]} date={snapshot.date} handle={p.handle} onApply={(next) => setP({ ...p, indices: p.indices.map((x) => x.id === next.id ? next : x) })} />}
+      {active && <MixAssistant config={active} date={snapshot.date} handle={p.handle} onApply={(next) => setP({ ...p, indices: p.indices.map((x) => x.id === next.id ? next : x) })} />}
     </div>
     </ChartPaletteContext.Provider>
   );

@@ -62,6 +62,29 @@ export function SectionFrame({ section, index, count, label, onMove, onPatch, on
   </div>;
 }
 
+/** The page's indices as tabs. While editing, the open tab can be renamed, moved (the first is the page's main index) or removed. */
+export function PageTabs({ indices, activeId, accent, editing, onSelect, onRename, onMove, onRemove }: {
+  indices: { id: string; name: string }[]; activeId: string; accent: string; editing: boolean;
+  onSelect: (id: string) => void; onRename: (id: string, name: string) => void; onMove: (id: string, by: number) => void; onRemove: (id: string) => void;
+}) {
+  const at = indices.findIndex((i) => i.id === activeId);
+  return <div className="page-tabs">
+    <div className="page-tabs-list" role="tablist" aria-label="Indices">
+      {indices.map((i) => {
+        const on = i.id === activeId;
+        return on && editing
+          ? <span key={i.id} className="page-tab serif" aria-current="true" style={{ borderColor: accent }}><InlineText editing label="Index name" value={i.name} placeholder="Index name" onChange={(name) => onRename(i.id, name)} /></span>
+          : <button key={i.id} type="button" role="tab" aria-selected={on} className="page-tab serif" style={on ? { borderColor: accent } : undefined} onClick={() => onSelect(i.id)}>{i.name || "Untitled"}</button>;
+      })}
+    </div>
+    {editing && <div className="page-tabs-tools" role="toolbar" aria-label="This index">
+      <button type="button" className="edit-icon" aria-label="Move index left" disabled={at <= 0} onClick={() => onMove(activeId, -1)}>←</button>
+      <button type="button" className="edit-icon" aria-label="Move index right" disabled={at === indices.length - 1} onClick={() => onMove(activeId, 1)}>→</button>
+      <button type="button" className="edit-icon" aria-label="Remove index from page" onClick={() => onRemove(activeId)}>×</button>
+    </div>}
+  </div>;
+}
+
 export const SECTION_KINDS: { kind: Exclude<Section["kind"], "history">; label: string }[] = [
   { kind: "rankings", label: "Leaderboard" }, { kind: "pareto", label: "Score vs cost" }, { kind: "speed", label: "Score vs speed" },
   { kind: "gallery", label: "More metrics" }, { kind: "benchmark", label: "Benchmark table" }, { kind: "text", label: "Text" }, { kind: "links", label: "Links" },
