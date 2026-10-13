@@ -1,11 +1,10 @@
 "use client";
-import { useAction, useMutation } from "convex/react";
-import { ConvexError } from "convex/values";
+import { useMutation } from "convex/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { useUser } from "@clerk/nextjs";
+import { useAuth, useUser } from "@clerk/nextjs";
 import { ACCENTS, THEME_CHOICES, presetOf, themeById, type PagePreset } from "@/lib/page-presets";
 import { SHARE_DESIGNS } from "@/lib/share-designs";
 import { api } from "../../../convex/_generated/api";
@@ -118,14 +117,16 @@ function DeletePage({ handle }: { handle: string }) {
   </Group>;
 }
 
-/** What the picker offers; convex/profiles.ts holds the list that is enforced. */
+/** What the picker offers; the upload endpoint (convex/http.ts) decides by the file's bytes. */
 const IMAGE_ACCEPT = "image/png,image/jpeg,image/webp,image/gif,image/avif";
+const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+/** Convex serves HTTP endpoints from the deployment's .convex.site address. */
+const UPLOAD_URL = `${(process.env.NEXT_PUBLIC_CONVEX_URL ?? "").replace(/\.convex\.cloud\/?$/, ".convex.site")}/upload`;
 
 /** Uploads and the agent token talk to Convex directly, so they only mount for the signed-in owner. */
 function MediaFields({ profile, set }: { profile: Profile; set: (patch: Partial<Profile>) => void }) {
   const update = useMutation(api.profiles.update);
   const mint = useMutation(api.profiles.mintAgentToken);
-  const uploadUrl = useMutation(api.profiles.generateUploadUrl);
   const router = useRouter();
   const { user } = useUser();
   const [token, setToken] = useState<string | null>(null);
@@ -134,13 +135,18 @@ function MediaFields({ profile, set }: { profile: Profile; set: (patch: Partial<
   const googleName = user ? (user.fullName || [user.firstName, user.lastName].filter(Boolean).join(" ")) : "";
   const googlePhoto = user?.externalAccounts.find((a) => /google/.test(a.provider))?.imageUrl || (user?.hasImage ? user.imageUrl : undefined);
   const [uploadError, setUploadError] = useState("");
-  const attach = useAction(api.profiles.attachImage);
+  const { getToken, sessionClaims } = useAuth();
+  // The same token Convex's own provider sends: the session token when Clerk issues it for Convex, else the "convex" template.
+  const convexToken = () => sessionClaims?.aud === "convex" ? getToken() : getToken({ template: "convex" });
+  // The image goes straight to the backend's upload endpoint, which checks and stores it (convex/http.ts).
   const upload = async (file: File, field: "avatar" | "banner" = "avatar") => {
     setUploadError("");
     try {
-      const url = await uploadUrl(); const res = await fetch(url, { method: "POST", headers: { "Content-Type": file.type }, body: file });
-      const { storageId } = await res.json(); await attach({ field, storageId }); router.refresh();
-    } catch (e) { setUploadError(e instanceof ConvexError && typeof e.data === "string" ? e.data : "Couldn’t upload that image. Try again."); }
+      if (file.size > MAX_IMAGE_BYTES) throw new Error("That image is over 8 MB");
+      const res = await fetch(`${UPLOAD_URL}?field=${field}`, { method: "POST", headers: { Authorization: `Bearer ${await convexToken()}`, "Content-Type": file.type || "application/octet-stream" }, body: file });
+      if (!res.ok) throw new Error(((await res.json().catch(() => null)) as { error?: string } | null)?.error ?? "");
+      router.refresh();
+    } catch (e) { setUploadError(e instanceof Error && e.message && e.message !== "Failed to fetch" ? e.message : "Couldn’t upload that image. Try again."); }
   };
   return <>
     {googleName && googleName !== profile.displayName && <button type="button" className="cap text-left hover:text-ink" onClick={() => set({ displayName: googleName })}>Use the name {googleName}</button>}

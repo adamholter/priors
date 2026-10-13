@@ -1,9 +1,8 @@
-import { action, internalMutation, internalQuery, mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
-import { internal } from "./_generated/api";
+import { internalMutation, mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
 import { indexConfig, profileTheme, section, storableIndex } from "./validators";
 import { ConvexError, v } from "convex/values";
 import type { IndexConfig } from "../src/engine";
-import type { Doc, Id } from "./_generated/dataModel";
+import type { Id } from "./_generated/dataModel";
 
 const HANDLE = /^[a-z0-9][a-z0-9-]{1,29}$/;
 const RESERVED = new Set(["sign-in", "sign-up", "api", "skill", "import", "me", "og", "about", "admin", "priors", "u", "settings", "privacy", "terms", "builder", "claim", "models", "explore", "rank"]);
@@ -15,8 +14,8 @@ async function me(ctx: QueryCtx | MutationCtx) {
   return { identity, profile };
 }
 
-/** True when another page (any page, with no `self`) already shows this stored file. Two index lookups, however many pages exist. */
-async function fileTaken(ctx: QueryCtx | MutationCtx, file: Id<"_storage">, self?: Id<"profiles">) {
+/** True when another page shows this stored file. Two index lookups, however many pages exist. */
+async function fileTaken(ctx: QueryCtx | MutationCtx, file: Id<"_storage">, self: Id<"profiles">) {
   const [avatar, banner] = await Promise.all([
     ctx.db.query("profiles").withIndex("by_avatar", (q) => q.eq("avatarStorageId", file)).take(2),
     ctx.db.query("profiles").withIndex("by_banner", (q) => q.eq("bannerStorageId", file)).take(2),
@@ -24,50 +23,20 @@ async function fileTaken(ctx: QueryCtx | MutationCtx, file: Id<"_storage">, self
   return [...avatar, ...banner].some((p) => p._id !== self);
 }
 
-const FRESH_UPLOAD_MS = 15 * 60_000;
 /**
- * The image types a page may show: an exact list, raster only. Storage serves a file back with the
- * type its uploader declared, so that type is compared whole, with no parsing of our own that could
- * read it differently from a browser, and image/svg+xml (a document that can carry script) is out.
+ * Deletes a stored image a page no longer shows, if it is that page's to delete. Every image stored
+ * since uploads went through `/upload` (convex/http.ts) has an owner on record. One stored before
+ * that has none, and counts as this page's unless another page shows it.
  */
-const IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/webp", "image/gif", "image/avif"]);
-const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
-/** Upload links one page may ask for in a day. A link lets a file into storage before anything can check it, so the links are what gets rationed. */
-const MAX_UPLOADS_PER_DAY = 40;
-const BAD_IMAGE = "Use a PNG, JPEG, WebP, GIF or AVIF image";
-
-/** What a file really is, from its first bytes. The declared type is only a claim; this is the check that the bytes are a picture. */
-function sniffImage(b: Uint8Array): string | undefined {
-  const at = (from: number, text: string) => [...text].every((c, i) => b[from + i] === c.charCodeAt(0));
-  if ([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a].every((v, i) => b[i] === v)) return "image/png";
-  if (b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return "image/jpeg";
-  if (at(0, "GIF87a") || at(0, "GIF89a")) return "image/gif";
-  if (at(0, "RIFF") && at(8, "WEBP")) return "image/webp";
-  if (at(4, "ftyp") && (at(8, "avif") || at(8, "avis"))) return "image/avif";
-  return undefined;
-}
-
-/**
- * Decides whether a page may show a stored image, and throws when it may not. A storage id arrives
- * from the client with no owner attached, so ownership is written down the first time a page attaches
- * a file and enforced from then on: a recorded file only ever goes back onto the page that uploaded
- * it. A file with no record must be one this page already shows (attached before records existed) or
- * an image uploaded in the last few minutes that no page shows, which is what a real upload looks
- * like. Everything here comes from the file's metadata, so it runs before any of the file is read.
- * Returns true when the file still needs its ownership record.
- */
-async function vetFile(ctx: QueryCtx | MutationCtx, file: Id<"_storage">, self: Doc<"profiles">): Promise<boolean> {
+async function dropFile(ctx: MutationCtx, file: Id<"_storage">, self: Id<"profiles">) {
   const record = await ctx.db.query("uploads").withIndex("by_storage", (q) => q.eq("storageId", file)).unique();
-  if (record) { if (record.profileId !== self._id) throw new ConvexError("That image belongs to another page"); return false; }
-  if (await fileTaken(ctx, file, self._id)) throw new ConvexError("That image belongs to another page");
-  if (file !== self.avatarStorageId && file !== self.bannerStorageId) {
-    const meta = await ctx.db.system.get(file);
-    if (!meta || Date.now() - meta._creationTime > FRESH_UPLOAD_MS) throw new ConvexError("Upload the image again");
-    if (meta.size > MAX_IMAGE_BYTES) throw new ConvexError("That image is over 8 MB");
-    if (!IMAGE_TYPES.has(meta.contentType ?? "")) throw new ConvexError(BAD_IMAGE);
-  }
-  return true;
+  if (record ? record.profileId !== self : await fileTaken(ctx, file, self)) return;
+  if (await ctx.db.system.get(file)) await ctx.storage.delete(file);
+  if (record) await ctx.db.delete(record._id);
 }
+
+/** Uploads one signed-in account may make in a day (UTC). Counted per account, so deleting a page and claiming again does not reset it. */
+const MAX_UPLOADS_PER_DAY = 40;
 
 export const mine = query({
   args: {},
@@ -89,7 +58,7 @@ export const byHandle = query({
     const avatarUrl = p.avatarStorageId ? await ctx.storage.getUrl(p.avatarStorageId) : p.avatarUrl;
     const bannerUrl = p.bannerStorageId ? await ctx.storage.getUrl(p.bannerStorageId) : null;
     // Public: never the account id, the token hash or the storage ids (a storage id is what lets a page claim a file).
-    const { agentTokenHash: _h, clerkId: _c, avatarStorageId: _a, bannerStorageId: _b, uploadDay: _d, uploadCount: _n, ...rest } = p; void _h; void _c; void _a; void _b; void _d; void _n;
+    const { agentTokenHash: _h, clerkId: _c, avatarStorageId: _a, bannerStorageId: _b, ...rest } = p; void _h; void _c; void _a; void _b;
     return { ...rest, avatarUrl: avatarUrl ?? undefined, bannerUrl: bannerUrl ?? undefined, imports: imports.map((i) => ({ benchmark: i.benchmark, rows: i.rows })) };
   },
 });
@@ -141,7 +110,7 @@ export const claim = mutation({
 export const update = mutation({
   args: {
     patch: v.object({
-      // Images are attached through attachImage, which checks the file. Here a banner can only be cleared (null).
+      // Images arrive through the `/upload` endpoint (convex/http.ts), which checks the file. Here a banner can only be cleared (null).
       displayName: v.optional(v.string()), bio: v.optional(v.string()), avatarUrl: v.optional(v.string()), bannerStorageId: v.optional(v.null()),
       socials: v.optional(v.array(v.object({ label: v.string(), url: v.string() }))),
       indices: v.optional(v.array(indexConfig)), sections: v.optional(v.array(section)),
@@ -153,7 +122,10 @@ export const update = mutation({
     if (!m?.profile) throw new Error("No profile");
     // A new avatar URL (e.g. "use my Google photo") replaces an uploaded one; null clears the banner.
     const { bannerStorageId, ...rest } = patch;
-    await ctx.db.patch(m.profile._id, { ...rest, ...(rest.avatarUrl ? { avatarStorageId: undefined } : {}), ...(bannerStorageId !== undefined ? { bannerStorageId: bannerStorageId ?? undefined } : {}), updatedAt: Date.now() });
+    const avatar = rest.avatarUrl ? undefined : m.profile.avatarStorageId, banner = bannerStorageId === null ? undefined : m.profile.bannerStorageId;
+    await ctx.db.patch(m.profile._id, { ...rest, avatarStorageId: avatar, bannerStorageId: banner, updatedAt: Date.now() });
+    // An image the page stopped showing is deleted, so nothing lingers at its old address.
+    for (const old of new Set([m.profile.avatarStorageId, m.profile.bannerStorageId])) if (old && old !== avatar && old !== banner) await dropFile(ctx, old, m.profile._id);
   },
 });
 
@@ -169,91 +141,47 @@ export const remove = mutation({
     if (!m?.profile) throw new ConvexError("No page to delete");
     if (handle.trim().toLowerCase() !== m.profile.handle) throw new ConvexError("That is not your handle");
     for (const row of await ctx.db.query("imports").withIndex("by_profile", (q) => q.eq("profileId", m.profile!._id)).collect()) await ctx.db.delete(row._id);
-    // Every image this page uploaded, including ones it has since replaced.
-    const records = await ctx.db.query("uploads").withIndex("by_profile", (q) => q.eq("profileId", m.profile!._id)).take(500);
-    const files = new Set(records.map((r) => r.storageId));
-    // Images attached before uploads were recorded: its own unless another page's record or page says otherwise.
-    for (const file of [m.profile.avatarStorageId, m.profile.bannerStorageId]) {
-      if (!file || files.has(file)) continue;
-      const record = await ctx.db.query("uploads").withIndex("by_storage", (q) => q.eq("storageId", file)).unique();
-      if (!record && !(await fileTaken(ctx, file, m.profile._id))) files.add(file);
+    for (const file of new Set([m.profile.avatarStorageId, m.profile.bannerStorageId])) if (file) await dropFile(ctx, file, m.profile._id);
+    // Anything else on record as this page's (there should be none: a replaced image is deleted when it is replaced).
+    for (const r of await ctx.db.query("uploads").withIndex("by_profile", (q) => q.eq("profileId", m.profile!._id)).take(100)) {
+      if (await ctx.db.system.get(r.storageId)) await ctx.storage.delete(r.storageId);
+      await ctx.db.delete(r._id);
     }
-    for (const file of files) if (await ctx.db.system.get(file)) await ctx.storage.delete(file);
-    for (const r of records) await ctx.db.delete(r._id);
     await ctx.db.delete(m.profile._id);
     return { handle: m.profile.handle };
   },
 });
 
 /**
- * Puts an uploaded image on the signed-in user's page as its photo or banner. This is the only way a
- * stored file reaches a page. Cheapest checks first: owner, size and declared type from metadata
- * (vetUpload), and only then the file's first bytes, to confirm it really is a raster image. A file
- * that fails is removed from storage again (discardUpload).
+ * Counts one upload against the signed-in account's day, before the upload's body is read, and says
+ * whether it may go ahead. Internal: called by the `/upload` endpoint in convex/http.ts.
  */
-export const attachImage = action({
-  args: { field: v.union(v.literal("avatar"), v.literal("banner")), storageId: v.id("_storage") },
-  handler: async (ctx, { field, storageId }) => {
-    if (!(await ctx.auth.getUserIdentity())) throw new ConvexError("Sign in first");
-    try {
-      await ctx.runQuery(internal.profiles.vetUpload, { storageId });
-      const blob = await ctx.storage.get(storageId);
-      if (!blob || !sniffImage(new Uint8Array(await blob.slice(0, 16).arrayBuffer()))) throw new ConvexError(BAD_IMAGE);
-    } catch (e) {
-      await ctx.runMutation(internal.profiles.discardUpload, { storageId });
-      throw new ConvexError(e instanceof ConvexError && typeof e.data === "string" ? e.data : "Couldn’t use that image");
-    }
-    await ctx.runMutation(internal.profiles.setImage, { field, storageId });
-  },
-});
-
-/** The metadata half of attachImage's checks. */
-export const vetUpload = internalQuery({
-  args: { storageId: v.id("_storage") },
-  handler: async (ctx, { storageId }) => {
+export const reserveUpload = internalMutation({
+  args: {},
+  handler: async (ctx) => {
     const m = await me(ctx);
-    if (!m?.profile) throw new ConvexError("No profile");
-    await vetFile(ctx, storageId, m.profile);
-  },
-});
-
-/** The write half of attachImage. Internal: only that action, which has looked inside the file, can call it. */
-export const setImage = internalMutation({
-  args: { field: v.union(v.literal("avatar"), v.literal("banner")), storageId: v.id("_storage") },
-  handler: async (ctx, { field, storageId }) => {
-    const m = await me(ctx);
-    if (!m?.profile) throw new ConvexError("No profile");
-    if (await vetFile(ctx, storageId, m.profile)) await ctx.db.insert("uploads", { storageId, profileId: m.profile._id });
-    await ctx.db.patch(m.profile._id, { [field === "avatar" ? "avatarStorageId" : "bannerStorageId"]: storageId, updatedAt: Date.now() });
+    if (!m?.profile) throw new ConvexError("Claim your page first");
+    const day = new Date().toISOString().slice(0, 10), userId = m.identity.subject;
+    const row = await ctx.db.query("uploadUsage").withIndex("by_user_day", (q) => q.eq("userId", userId).eq("day", day)).unique();
+    if ((row?.count ?? 0) >= MAX_UPLOADS_PER_DAY) throw new ConvexError("Too many uploads today. Try again tomorrow.");
+    if (row) await ctx.db.patch(row._id, { count: row.count + 1 }); else await ctx.db.insert("uploadUsage", { userId, day, count: 1 });
   },
 });
 
 /**
- * Removes an upload that attachImage refused, so refused files do not pile up in storage. It only ever
- * deletes what a just-refused upload looks like: a file from the last few minutes that has no owner on
- * record and that no page shows. Anything else is left alone, whatever the reason it was refused.
+ * Puts an image the `/upload` endpoint has just checked and stored onto the signed-in user's page, and
+ * records the page as its owner. Internal: a file id never comes from a browser. The image it replaces
+ * is deleted, so a page holds at most one photo and one banner.
  */
-export const discardUpload = internalMutation({
-  args: { storageId: v.id("_storage") },
-  handler: async (ctx, { storageId }) => {
-    const meta = await ctx.db.system.get(storageId);
-    if (!meta || Date.now() - meta._creationTime > FRESH_UPLOAD_MS) return;
-    if (await ctx.db.query("uploads").withIndex("by_storage", (q) => q.eq("storageId", storageId)).unique()) return;
-    if (await fileTaken(ctx, storageId)) return;
-    await ctx.storage.delete(storageId);
-  },
-});
-
-export const generateUploadUrl = mutation({
-  args: {},
-  handler: async (ctx) => {
+export const setImage = internalMutation({
+  args: { field: v.union(v.literal("avatar"), v.literal("banner")), storageId: v.id("_storage") },
+  handler: async (ctx, { field, storageId }) => {
     const m = await me(ctx);
-    if (!m?.profile) throw new ConvexError("No profile");
-    const day = new Date().toISOString().slice(0, 10);
-    const used = m.profile.uploadDay === day ? m.profile.uploadCount ?? 0 : 0;
-    if (used >= MAX_UPLOADS_PER_DAY) throw new ConvexError("Too many uploads today. Try again tomorrow.");
-    await ctx.db.patch(m.profile._id, { uploadDay: day, uploadCount: used + 1 });
-    return ctx.storage.generateUploadUrl();
+    if (!m?.profile) throw new ConvexError("Claim your page first");
+    const key = field === "avatar" ? "avatarStorageId" : "bannerStorageId", old = m.profile[key];
+    await ctx.db.insert("uploads", { storageId, profileId: m.profile._id });
+    await ctx.db.patch(m.profile._id, { [key]: storageId, updatedAt: Date.now() });
+    if (old && old !== m.profile[field === "avatar" ? "bannerStorageId" : "avatarStorageId"]) await dropFile(ctx, old, m.profile._id);
   },
 });
 

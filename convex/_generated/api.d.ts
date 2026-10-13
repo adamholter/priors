@@ -10,6 +10,7 @@
 
 import type * as agentBudget from "../agentBudget.js";
 import type * as dev from "../dev.js";
+import type * as http from "../http.js";
 import type * as lineups from "../lineups.js";
 import type * as profiles from "../profiles.js";
 import type * as validators from "../validators.js";
@@ -23,6 +24,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   agentBudget: typeof agentBudget;
   dev: typeof dev;
+  http: typeof http;
   lineups: typeof lineups;
   profiles: typeof profiles;
   validators: typeof validators;

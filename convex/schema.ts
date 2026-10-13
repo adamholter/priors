@@ -12,9 +12,6 @@ export default defineSchema({
     avatarUrl: v.optional(v.string()),
     avatarStorageId: v.optional(v.id("_storage")),
     bannerStorageId: v.optional(v.id("_storage")),
-    /** Upload links handed out on `uploadDay` (UTC), for the daily cap in generateUploadUrl. */
-    uploadDay: v.optional(v.string()),
-    uploadCount: v.optional(v.number()),
     bio: v.optional(v.string()),
     socials: v.optional(v.array(v.object({ label: v.string(), url: v.string() }))),
     indices: v.array(indexConfig),
@@ -24,10 +21,12 @@ export default defineSchema({
     agentTokenHash: v.optional(v.string()),
     updatedAt: v.number(),
   }).index("by_clerk", ["clerkId"]).index("by_handle", ["handle"]).index("by_token", ["agentTokenHash"])
-    // Which page shows a stored file, for images attached before `uploads` recorded their owner (fileTaken in profiles.ts).
+    // Which page shows a stored file, for images stored before `uploads` recorded their owner (fileTaken in profiles.ts).
     .index("by_avatar", ["avatarStorageId"]).index("by_banner", ["bannerStorageId"]),
 
-  /** Who uploaded a stored image: written when a page first attaches it, checked ever after (claimFile in profiles.ts). */
+  /** Image uploads per signed-in account per UTC day, for the daily cap (reserveUpload in profiles.ts). */
+  uploadUsage: defineTable({ userId: v.string(), day: v.string(), count: v.number() }).index("by_user_day", ["userId", "day"]),
+  /** Which page a stored image belongs to: written by the `/upload` endpoint when it stores one (setImage in profiles.ts). */
   uploads: defineTable({ storageId: v.id("_storage"), profileId: v.id("profiles") }).index("by_storage", ["storageId"]).index("by_profile", ["profileId"]),
 
   /** User-imported benchmark data (from the skill / JSON upload). Merged into the snapshot at render time. */
