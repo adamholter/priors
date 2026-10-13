@@ -1,4 +1,5 @@
-import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
+import { action, internalMutation, mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
+import { internal } from "./_generated/api";
 import { indexConfig, profileTheme, section, storableIndex } from "./validators";
 import { ConvexError, v } from "convex/values";
 import type { IndexConfig } from "../src/engine";
@@ -26,11 +27,23 @@ async function fileTaken(ctx: QueryCtx | MutationCtx, file: Id<"_storage">, self
 const FRESH_UPLOAD_MS = 15 * 60_000;
 /**
  * The image types a page may show: an exact list, raster only. Storage serves a file back with the
- * type its uploader declared, so "starts with image/" is not enough: image/svg+xml is a document that
- * can carry script. Declared as one of these, a file is only ever handed to the browser as a picture.
+ * type its uploader declared, so that type is compared whole, with no parsing of our own that could
+ * read it differently from a browser, and image/svg+xml (a document that can carry script) is out.
  */
 const IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/webp", "image/gif", "image/avif"]);
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+const BAD_IMAGE = "Use a PNG, JPEG, WebP, GIF or AVIF image";
+
+/** What a file really is, from its first bytes. The declared type is only a claim; this is the check that the bytes are a picture. */
+function sniffImage(b: Uint8Array): string | undefined {
+  const at = (from: number, text: string) => [...text].every((c, i) => b[from + i] === c.charCodeAt(0));
+  if ([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a].every((v, i) => b[i] === v)) return "image/png";
+  if (b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return "image/jpeg";
+  if (at(0, "GIF87a") || at(0, "GIF89a")) return "image/gif";
+  if (at(0, "RIFF") && at(8, "WEBP")) return "image/webp";
+  if (at(4, "ftyp") && (at(8, "avif") || at(8, "avis"))) return "image/avif";
+  return undefined;
+}
 
 /**
  * Lets a page show a stored image, or throws. A storage id arrives from the client with no owner
@@ -46,7 +59,7 @@ async function claimFile(ctx: MutationCtx, file: Id<"_storage">, self: Doc<"prof
   if (file !== self.avatarStorageId && file !== self.bannerStorageId) {
     const meta = await ctx.db.system.get(file);
     if (!meta || Date.now() - meta._creationTime > FRESH_UPLOAD_MS) throw new ConvexError("Upload the image again");
-    if (!IMAGE_TYPES.has(meta.contentType?.split(";")[0].trim().toLowerCase() ?? "")) throw new ConvexError("Use a PNG, JPEG, WebP, GIF or AVIF image");
+    if (!IMAGE_TYPES.has(meta.contentType ?? "")) throw new ConvexError(BAD_IMAGE);
     if (meta.size > MAX_IMAGE_BYTES) throw new ConvexError("That image is over 8 MB");
   }
   await ctx.db.insert("uploads", { storageId: file, profileId: self._id });
@@ -124,7 +137,8 @@ export const claim = mutation({
 export const update = mutation({
   args: {
     patch: v.object({
-      displayName: v.optional(v.string()), bio: v.optional(v.string()), avatarUrl: v.optional(v.string()), avatarStorageId: v.optional(v.id("_storage")), bannerStorageId: v.optional(v.union(v.id("_storage"), v.null())),
+      // Images are attached through attachImage, which checks the file. Here a banner can only be cleared (null).
+      displayName: v.optional(v.string()), bio: v.optional(v.string()), avatarUrl: v.optional(v.string()), bannerStorageId: v.optional(v.null()),
       socials: v.optional(v.array(v.object({ label: v.string(), url: v.string() }))),
       indices: v.optional(v.array(indexConfig)), sections: v.optional(v.array(section)),
       theme: v.optional(profileTheme),
@@ -135,7 +149,6 @@ export const update = mutation({
     if (!m?.profile) throw new Error("No profile");
     // A new avatar URL (e.g. "use my Google photo") replaces an uploaded one; null clears the banner.
     const { bannerStorageId, ...rest } = patch;
-    for (const file of [rest.avatarStorageId, bannerStorageId]) if (file) await claimFile(ctx, file, m.profile);
     await ctx.db.patch(m.profile._id, { ...rest, ...(rest.avatarUrl ? { avatarStorageId: undefined } : {}), ...(bannerStorageId !== undefined ? { bannerStorageId: bannerStorageId ?? undefined } : {}), updatedAt: Date.now() });
   },
 });
@@ -165,6 +178,33 @@ export const remove = mutation({
     for (const r of records) await ctx.db.delete(r._id);
     await ctx.db.delete(m.profile._id);
     return { handle: m.profile.handle };
+  },
+});
+
+/**
+ * Puts an uploaded image on the signed-in user's page as its photo or banner. This is the only way a
+ * stored file reaches a page: it reads the file's first bytes to confirm it is a raster image, then
+ * setImage checks whose file it is, its declared type and its size.
+ */
+export const attachImage = action({
+  args: { field: v.union(v.literal("avatar"), v.literal("banner")), storageId: v.id("_storage") },
+  handler: async (ctx, { field, storageId }) => {
+    if (!(await ctx.auth.getUserIdentity())) throw new ConvexError("Sign in first");
+    const blob = await ctx.storage.get(storageId);
+    if (!blob) throw new ConvexError("Upload the image again");
+    if (!sniffImage(new Uint8Array(await blob.slice(0, 16).arrayBuffer()))) throw new ConvexError(BAD_IMAGE);
+    await ctx.runMutation(internal.profiles.setImage, { field, storageId });
+  },
+});
+
+/** The write half of attachImage. Internal: only that action, which has looked inside the file, can call it. */
+export const setImage = internalMutation({
+  args: { field: v.union(v.literal("avatar"), v.literal("banner")), storageId: v.id("_storage") },
+  handler: async (ctx, { field, storageId }) => {
+    const m = await me(ctx);
+    if (!m?.profile) throw new ConvexError("No profile");
+    await claimFile(ctx, storageId, m.profile);
+    await ctx.db.patch(m.profile._id, { [field === "avatar" ? "avatarStorageId" : "bannerStorageId"]: storageId, updatedAt: Date.now() });
   },
 });
 

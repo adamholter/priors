@@ -1,5 +1,5 @@
 "use client";
-import { useMutation } from "convex/react";
+import { useAction, useMutation } from "convex/react";
 import { ConvexError } from "convex/values";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -134,11 +134,12 @@ function MediaFields({ profile, set }: { profile: Profile; set: (patch: Partial<
   const googleName = user ? (user.fullName || [user.firstName, user.lastName].filter(Boolean).join(" ")) : "";
   const googlePhoto = user?.externalAccounts.find((a) => /google/.test(a.provider))?.imageUrl || (user?.hasImage ? user.imageUrl : undefined);
   const [uploadError, setUploadError] = useState("");
-  const upload = async (file: File, field: "avatarStorageId" | "bannerStorageId" = "avatarStorageId") => {
+  const attach = useAction(api.profiles.attachImage);
+  const upload = async (file: File, field: "avatar" | "banner" = "avatar") => {
     setUploadError("");
     try {
       const url = await uploadUrl(); const res = await fetch(url, { method: "POST", headers: { "Content-Type": file.type }, body: file });
-      const { storageId } = await res.json(); await update({ patch: { [field]: storageId } }); router.refresh();
+      const { storageId } = await res.json(); await attach({ field, storageId }); router.refresh();
     } catch (e) { setUploadError(e instanceof ConvexError && typeof e.data === "string" ? e.data : "Couldn’t upload that image. Try again."); }
   };
   return <>
@@ -155,7 +156,7 @@ function MediaFields({ profile, set }: { profile: Profile; set: (patch: Partial<
       {profile.bannerUrl && <img src={profile.bannerUrl} alt="" className="h-10 w-40 rounded-sm object-cover" />}
       <button type="button" className="btn-quiet" onClick={() => bannerRef.current?.click()}>{profile.bannerUrl ? "Replace" : "Upload"}</button>
       {profile.bannerUrl && <button type="button" className="btn-quiet" onClick={async () => { await update({ patch: { bannerStorageId: null } }); router.refresh(); }}>Remove</button>}
-      <input ref={bannerRef} type="file" accept={IMAGE_ACCEPT} hidden onChange={(e) => e.target.files?.[0] && upload(e.target.files[0], "bannerStorageId")} />
+      <input ref={bannerRef} type="file" accept={IMAGE_ACCEPT} hidden onChange={(e) => e.target.files?.[0] && upload(e.target.files[0], "banner")} />
     </div></Field>
     {uploadError && <p role="alert">{uploadError}</p>}
     <Field label="Agent access">
