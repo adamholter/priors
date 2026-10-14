@@ -16,10 +16,11 @@ const body = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   handle: z.string().regex(/^[a-z0-9][a-z0-9-]{1,29}$/i).optional(),
   messages: z.array(z.object({ role: z.enum(["user", "assistant"]), content: z.string().min(1).max(4000) })).min(1).max(20),
+  view: z.object({ page: z.enum(["builder", "page"]), theme: z.string().max(40), mode: z.enum(["system", "light", "dark"]) }).optional(),
 });
 
 /**
- * Mix assistant. Signed-in only. Streams NDJSON events: {type:"step"} progress lines, then one
+ * The assistant (questions, charts, mix changes, highlights, theme). Signed-in only. Streams NDJSON events: {type:"step"} progress lines, then one
  * {type:"done"} with the proposal (or {type:"error"}). The OpenRouter key and the budget secret stay
  * on the server; every model call is pre-authorized against the Convex daily cap.
  */
@@ -30,7 +31,7 @@ export async function POST(req: Request) {
   if (!key || !secret || !convexUrl) return Response.json({ error: "The assistant isn't configured." }, { status: 503 });
   const parsed = body.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return Response.json({ error: "Invalid request." }, { status: 400 });
-  const { index, date, handle, messages } = parsed.data;
+  const { index, date, handle, messages, view } = parsed.data;
   if (messages[messages.length - 1].role !== "user") return Response.json({ error: "Invalid request." }, { status: 400 });
 
   const convex = new ConvexHttpClient(convexUrl);
@@ -52,7 +53,7 @@ export async function POST(req: Request) {
       const emit = (e: AgentEvent) => controller.enqueue(encoder.encode(JSON.stringify(e) + "\n"));
       try {
         await runAgent({
-          snapshot: snapshot!, config, history: messages, apiKey: key, signal: req.signal, referer: new URL(req.url).origin, emit,
+          snapshot: snapshot!, config, history: messages, view, apiKey: key, signal: req.signal, referer: new URL(req.url).origin, emit,
           budget: {
             reserve: (estimateUsd) => convex.mutation(api.agentBudget.reserve, { secret, estimateUsd }),
             settle: async (estimateUsd, actualUsd) => { await convex.mutation(api.agentBudget.settle, { secret, userId, estimateUsd, actualUsd }); },
