@@ -34,7 +34,12 @@ describe("Real API Pricing subscriptions", () => {
   const computed = rows.filter((r) => !(r.details as { source?: string }).source);
   it("keeps one row per model on its lab's own plans: no resellers, metered APIs or unmetered promos", () => {
     expect(computed.map((r) => r.modelLabel)).toEqual(["GPT 5.6 Sol", "Claude Opus 5.5", "Claude Fable 5", "GLM 5.3", "Qwen3.8 Max"]);
-    expect(row("GPT 5.6 Sol").details).toMatchObject({ plans: [{ plan: "ChatGPT Pro 20x" }, { plan: "ChatGPT Plus" }, { plan: "ChatGPT Pro 5x" }] });
+    expect(row("GPT 5.6 Sol").details).toMatchObject({ plans: [{ plan: "ChatGPT Pro 10x" }, { plan: "ChatGPT Plus" }, { plan: "ChatGPT Pro 5x" }] });
+  });
+  it("prices plans measured before an allowance cut at the allowance they sell with now", () => {
+    const sol = (row("GPT 5.6 Sol").details as { plans: { plan: string; usdPerMtok: number }[] }).plans;
+    expect(sol.find((p) => p.plan === "ChatGPT Pro 10x")!.usdPerMtok).toBeCloseTo(0.031);
+    expect(sol.some((p) => p.plan === "ChatGPT Pro 20x")).toBe(false);
   });
   it("falls back to the best medium-confidence reseller plan when a model has no first-party plan", () => {
     expect(row("Qwen3.8 Max")).toMatchObject({ value: 0.04, details: { plan: "Droid Max", confidence: "medium" } });

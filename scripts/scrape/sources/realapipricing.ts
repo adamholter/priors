@@ -14,7 +14,7 @@
 import type { Source, ScrapeResult, RawRow } from "../../../src/data/types";
 import { normalizeLabel } from "../../../src/data/normalize";
 import { SUBSCRIPTION_BENCHMARK, type SubscriptionDetails, type TokenMix } from "../../../src/data/subscription";
-import { SUBSIDY_OVERRIDES } from "./subscription-overrides";
+import { PLAN_CUTS, SUBSIDY_OVERRIDES } from "./subscription-overrides";
 
 const SITE = "https://realapipricing.com";
 const REPO = "https://github.com/FeiZhuLulu/real-api-pricing";
@@ -38,7 +38,8 @@ export function parseSubscriptions(json: Points, conventions: Conventions, chann
     ? { cache: conventions.anthropicTokenMix.cache, input: 0, cacheWrite: conventions.anthropicTokenMix.cacheWrite, output: conventions.anthropicTokenMix.output }
     : workload === "lowCache" ? pickMix(conventions.lowCacheTokenMix) : pickMix(conventions.standardTokenMix);
   const byModel = new Map<string, Point[]>(), resold = new Map<string, Point[]>();
-  for (const p of json.points) {
+  for (const raw of json.points) {
+    const p = cut(raw);
     if (p.billing !== "subscription" || p.unmetered || !(p.real_usd_per_mtok > 0)) continue;
     const group = channelOf(p.id) === p.vendor ? byModel : resold;
     (group.get(p.model) ?? group.set(p.model, []).get(p.model)!).push(p);
@@ -91,6 +92,14 @@ export function parseSubscriptions(json: Points, conventions: Conventions, chann
     });
   }
   return rows;
+}
+
+/** A point measured before a plan's allowance was cut, priced at the allowance it sells with now. */
+export function cut(p: Point): Point {
+  const c = PLAN_CUTS.find((c) => p.id.startsWith(`${c.planId}::`));
+  const measured = p.data_date?.split("~").pop();
+  if (!c || (measured && measured >= c.until)) return p;
+  return { ...p, plan: c.plan, plan_en: c.plan, real_usd_per_mtok: p.real_usd_per_mtok * c.factor };
 }
 
 const pickMix = (m: TokenMix): TokenMix => ({ cache: m.cache, input: m.input, output: m.output });
