@@ -199,6 +199,7 @@ body:has(.done-dialog[open]){overflow:hidden}
 .production-pairwise-action:focus-visible{outline:2px solid var(--indigo);outline-offset:3px}
 .production-pairwise-action svg{width:18px;height:18px}
 /* Social proof under the stage intro. */
+.skip-onboarding{display:inline-flex;align-items:center;gap:6px;margin-top:14px}
 .intro-proof{display:block;margin-top:8px;font:10.5px var(--font-mono);letter-spacing:.03em;color:var(--ob-87897f)}
 /* Compact focus: names only, no blurbs, so it reads as a setting rather than a decision. */
 .focus-picker.compact{align-items:center;padding-bottom:12px}

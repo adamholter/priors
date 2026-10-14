@@ -3,14 +3,14 @@ import { ConvexHttpClient } from "convex/browser";
 import { api } from "../../../convex/_generated/api";
 import { mergeImports } from "@/lib/import";
 import type { Profile } from "@/components/page/IndexPage";
-import { encodeIndex } from "@/lib/url";
+import { encodeIndex, encodeIndices, prettyQuery } from "@/lib/url";
 import { cookies } from "next/headers";
 import { loadMixLibrary, loadSnapshot } from "@/data/load";
 import { rankingEvidence } from "@/onboarding/evidence";
 import { Onboarding } from "@/onboarding/Onboarding";
 import { PageTransition } from "@/components/PageTransition";
 import { onboardingSnapshot } from "@/data/client-snapshot";
-import { defaultLineup, PRIORS_MIX_COOKIE, savedMix } from "@/onboarding/defaults";
+import { defaultLineup, defaultPriorsMix, PRIORS_MIX_COOKIE, savedMix } from "@/onboarding/defaults";
 import { benchmarkQuality } from "@/onboarding/quality";
 import { rankedCount } from "@/lib/ranked-count";
 import { pageMeta, RANK_DESCRIPTION } from "@/lib/site-meta";
@@ -43,6 +43,8 @@ export default async function Rank() {
   const [count, library] = await Promise.all([rankedCount(), loadMixLibrary(snapshot.date)]);
   const evidence = rankingEvidence(snapshot, library, lineup);
   const variantModels = new Map(snapshot.variants.map((v) => [v.id, v.modelId]));
+  // Skipping the ranking opens the builder on Artificial Analysis' composite, the first-time default.
+  const skipHref = `/builder?${prettyQuery(encodeIndices([defaultPriorsMix(snapshot)]))}`;
   const observedModelIds = [...new Set(snapshot.observations.map((o) => variantModels.get(o.variantId)).filter((id): id is string => !!id))];
-  return <PageTransition><Onboarding snapshot={onboardingSnapshot(snapshot)} lineup={lineup} quality={quality} observedModelIds={observedModelIds} hasSavedMix={!!mix} seeds={lineup} rankedCount={count} evidence={evidence} /></PageTransition>;
+  return <PageTransition><Onboarding snapshot={onboardingSnapshot(snapshot)} lineup={lineup} quality={quality} observedModelIds={observedModelIds} hasSavedMix={!!mix} seeds={lineup} rankedCount={count} evidence={evidence} skipHref={skipHref} /></PageTransition>;
 }

@@ -61,7 +61,7 @@ Search pipeline per settings row (`SETTINGS`): build single-benchmark surrogate 
 
 ## The result
 
-The completion dialog (`Finish.tsx`) shows the ranking card with a share menu and "Explore your index". Visitors arriving from a published profile also see how similar their ranking is to that page's. Returning visitors at `/` go straight to the builder.
+The completion dialog (`Finish.tsx`) shows the ranking card with a share menu and "Explore your index". Visitors arriving from a published profile also see how similar their ranking is to that page's. Returning visitors at `/` go straight to the builder. "Skip to the data", under the first screen's intro, opens the builder on the Artificial Analysis mix (`defaultPriorsMix`) without ranking; the builder then saves the mix cookie, so `/` skips the onboarding from then on.
 
 ## The search panel
 

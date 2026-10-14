@@ -60,7 +60,7 @@ function LineupRecorder({ onRegister }: { onRegister: (fn: ((a: LineupArgs) => v
  * The ranking onboarding: a short pairwise sprint, a review list to confirm (the sprint cannot ask
  * every matchup), then the search for the benchmark mix that agrees with the list.
  */
-export function Onboarding({ snapshot, lineup, seeds, quality, observedModelIds, hasSavedMix, rankedCount = 0, evidence }: { snapshot: Snapshot; lineup: string[]; seeds: string[]; quality: BenchmarkQuality[]; observedModelIds: string[]; hasSavedMix: boolean; rankedCount?: number; /** Rankings from today's benchmark mixes; they steer the smart sprint. */ evidence?: RankingEvidence[] }) {
+export function Onboarding({ snapshot, lineup, seeds, quality, observedModelIds, hasSavedMix, rankedCount = 0, evidence, skipHref }: { snapshot: Snapshot; /** The builder on the default mix, for visitors who want the data without ranking. */ skipHref?: string; lineup: string[]; seeds: string[]; quality: BenchmarkQuality[]; observedModelIds: string[]; hasSavedMix: boolean; rankedCount?: number; /** Rankings from today's benchmark mixes; they steer the smart sprint. */ evidence?: RankingEvidence[] }) {
   const adaptive = useMemo(() => evidence?.length ? { evidence, cap: SMART_CALLS } : undefined, [evidence]);
   const { dark } = useTheme();
   const models = useMemo(() => new Map(snapshot.models.map(m => [m.id, m])), [snapshot]);
@@ -310,6 +310,7 @@ export function Onboarding({ snapshot, lineup, seeds, quality, observedModelIds,
       <div className="onboard-intro" key={stage}>
         {introTitle}
         <p>{stage === "compare" ? <>Tap the better model, {extra && adaptive ? `up to ${MORE_CALLS} more calls` : `${adaptive?.cap ?? BRACKET.cap} quick calls at most`}. We find the benchmarks that agree with you. <span className="intro-proof">{extra ? "Your earlier calls are kept" : <>About a minute · no sign-in{rankedCount > 20 ? ` · ${rankedLabel} rankings so far` : ""}</>}</span></> : stage === "order" ? bracket ? `${bracket.asked ? `Built from your ${bracket.asked} ${bracket.asked === 1 ? "call" : "calls"} and today's benchmarks.` : "Built from today's benchmarks."} Not every matchup came up, so check it before the search starts.` : "You have a sense of which models are better. Put them in order." : complete ? update?.exactMatch ? "A compact benchmark mix that matches your full order." : "Your closest benchmark mix. You can inspect the remaining disagreements below." : "Trying the benchmarks. Adjusting the weights. Keeping only what helps."}</p>
+        {stage === "compare" && !extra && skipHref && <Link className="text-control skip-onboarding" href={skipHref as "/builder"} transitionTypes={["nav-forward"]} onClick={() => track("onboarding_skipped")}>Skip to the data <Arrow /></Link>}
       </div>
       {stage === "compare" ? <Bracket seeds={bracketSeeds} models={models} labs={labs} options={BRACKET} adaptive={adaptive} initial={extra ? calls : undefined} extra={extra} onFinish={finishBracket} onList={(step, answers) => { if (adaptive) { setCalls(answers); setBracket(step); setOrder(step.order); orderRef.current = step.order; } setStage("order"); }} /> : <div className="experiment-grid">
         <section className="order-board" aria-label={stage === "order" ? "Your model preferences" : "Fitted model ranking"}>
