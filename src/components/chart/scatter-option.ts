@@ -1,7 +1,7 @@
 import type { EChartsOption } from "echarts";
 import type { Lab } from "../../data/types";
 import type { RankedVariant } from "../../engine";
-import { CONTAIN_AXIS_LABELS, dimColor, markColor, markLabel, type ChartPalette } from "./theme";
+import { CONTAIN_AXIS_LABELS, dimColor, markColor, markLabel, markSize, textSize, type ChartPalette } from "./theme";
 import { scatterLabelLayout } from "./scatter-label-layout";
 import { chartLabel } from "../../lib/metrics";
 import { labelScale } from "./label-size";
@@ -113,7 +113,7 @@ export function scatterOption({ pts, labs, better, xName, xShort, xUnit = "", sc
   fallen?: Set<string>;
 }): EChartsOption {
   const frontier = frontierOf(pts, better);
-  const fontScale = labelScale(view.labelScale);
+  const t = textSize(pal), m = markSize(pal), fontScale = labelScale(view.labelScale) * t;
   const color = new Map(labs.map((l) => [l.id, markColor(l.color, pal, l.id)]));
   const onFrontier = new Set(frontier.map((p) => p.r.variant.id));
   const labeled = pickLabels(pts, better, narrow ? view.density ** 2 : view.density);
@@ -131,13 +131,13 @@ export function scatterOption({ pts, labs, better, xName, xShort, xUnit = "", sc
   const markOf = (p: ScatterPoint) => {
     const id = p.r.variant.id, c = color.get(p.r.model.labId), front = view.frontier && onFrontier.has(id);
     if (fallen?.has(id)) return { itemStyle: { opacity: 0 }, symbolSize: 0, label: { show: false }, silent: true };
-    if (!on) { const show = labeled.has(id); return { itemStyle: { color: c, borderColor: front ? pal.ink : pal.bg, borderWidth: 1.5, opacity: show || front ? 1 : 0.8 }, symbolSize: front ? 11 : 9, label: { show } }; }
-    if (!hl.has(p.r.model.id)) return { itemStyle: { color: dimColor(c, pal), borderColor: pal.bg, borderWidth: 1, opacity: pal.dark ? 0.55 : 0.6 }, symbolSize: 7, label: { show: false }, emphasis: { label: { show: true } } };
+    if (!on) { const show = labeled.has(id); return { itemStyle: { color: c, borderColor: front ? pal.ink : pal.bg, borderWidth: 1.5, opacity: show || front ? 1 : 0.8 }, symbolSize: (front ? 11 : 9) * m, label: { show } }; }
+    if (!hl.has(p.r.model.id)) return { itemStyle: { color: dimColor(c, pal), borderColor: pal.bg, borderWidth: 1, opacity: pal.dark ? 0.55 : 0.6 }, symbolSize: 7 * m, label: { show: false }, emphasis: { label: { show: true } } };
     const isBest = featured.has(p.r.variant.id);
     const label = isBest
       ? { show: true, fontWeight: 600, color: pal.ink }
       : { show: p.r.variant.effort !== "default", formatter: p.r.variant.effort.toUpperCase(), fontSize: 9 * fontScale, color: pal.grey, backgroundColor: "transparent", textBorderColor: pal.bg, textBorderWidth: 3, distance: 5 };
-    return { itemStyle: { color: c, borderColor: pal.ink, borderWidth: isBest ? 1.8 : 1.2, opacity: 1 }, symbolSize: isBest ? 12 : 9, label, z: 10 };
+    return { itemStyle: { color: c, borderColor: pal.ink, borderWidth: isBest ? 1.8 : 1.2, opacity: 1 }, symbolSize: (isBest ? 12 : 9) * m, label, z: 10 };
   };
   // Chosen marks draw last so they sit on top and win label overlap.
   const drawOrder = on ? [...ordered].sort((a, b) => Number(hl.has(a.r.model.id)) - Number(hl.has(b.r.model.id))) : ordered;
@@ -161,20 +161,20 @@ export function scatterOption({ pts, labs, better, xName, xShort, xUnit = "", sc
   const name = narrow && xShort ? xShort : xName;
   return {
     animation: true,
-    grid: { ...(narrow ? { left: 38, right: 12, top: hasTitle ? 24 : 48, bottom: 40 } : { left: 48, right: 130, top: hasTitle ? 24 : 48, bottom: 44 }), ...CONTAIN_AXIS_LABELS },
+    grid: { ...(narrow ? { left: 38 * t, right: 12, top: hasTitle ? 24 : 48, bottom: 40 * t } : { left: 48 * t, right: 130 * t, top: hasTitle ? 24 * t : 48, bottom: 44 * t }), ...CONTAIN_AXIS_LABELS },
     xAxis: {
       type: scale === "linear" ? "value" : scale, name, nameLocation: "end", nameGap: 8, scale: scale === "linear",
-      nameTextStyle: { color: pal.grey, fontSize: 11, align: "right", verticalAlign: "top", padding: [26, 0, 0, 0] },
+      nameTextStyle: { color: pal.grey, fontSize: 11 * t, align: "right", verticalAlign: "top", padding: [26 * t, 0, 0, 0] },
       // Log/time axes otherwise print odd extent values ($0.007, 12.78s) that collide with round ticks.
       axisLabel: scale === "time" ? { hideOverlap: true, showMinLabel: false, showMaxLabel: false } : { formatter: (v: number) => formatX(v), hideOverlap: true, showMinLabel: scale !== "log", showMaxLabel: scale !== "log" },
       ...(scale === "log" ? { min: (e: { min: number }) => e.min / 1.5, max: (e: { max: number }) => e.max * 1.8 } : {}),
     } as EChartsOption["xAxis"],
-    yAxis: { type: "value", name: "Index score", nameTextStyle: { color: pal.grey, fontSize: 11, align: "left", padding: [0, 0, 0, narrow ? -22 : -30] }, min: yMin, max: yMax },
+    yAxis: { type: "value", name: "Index score", nameTextStyle: { color: pal.grey, fontSize: 11 * t, align: "left", padding: [0, 0, 0, (narrow ? -22 : -30) * t] }, min: yMin, max: yMax },
     tooltip: {
       trigger: "item", confine: true, formatter: (p: unknown) => {
         const d = (p as { data?: { extra?: ScatterPoint } }).data?.extra; if (!d) return "";
         const lab = labs.find((l) => l.id === d.r.model.labId)?.name ?? d.r.model.labId;
-        return `<div style="font-weight:600">${escapeHtml(d.r.variant.sourceModel?.name ?? chartLabel(d.r))}</div><div style="color:${pal.grey};font-size:11px">${escapeHtml(lab)}${view.frontier && onFrontier.has(d.r.variant.id) ? " · on the frontier" : ""}</div><div style="font-family:var(--font-jetbrains);margin-top:4px">${d.r.score.toFixed(1)} · ${escapeHtml((formatValue ?? formatX)(d.raw ?? d.x))}${xUnit ? ` ${xUnit}` : ""}${tooltipExtra ? escapeHtml(tooltipExtra(d)) : ""}</div>`;
+        return `<div style="font-weight:600">${escapeHtml(d.r.variant.sourceModel?.name ?? chartLabel(d.r))}</div><div style="color:${pal.grey};font-size:${11 * t}px">${escapeHtml(lab)}${view.frontier && onFrontier.has(d.r.variant.id) ? " · on the frontier" : ""}</div><div style="font-family:var(--font-jetbrains);margin-top:4px">${d.r.score.toFixed(1)} · ${escapeHtml((formatValue ?? formatX)(d.raw ?? d.x))}${xUnit ? ` ${xUnit}` : ""}${tooltipExtra ? escapeHtml(tooltipExtra(d)) : ""}</div>`;
       },
     },
     series,

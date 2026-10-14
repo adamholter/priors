@@ -19,7 +19,12 @@ export interface ChartPalette {
   dark: boolean; ink: string; ink2: string; grey: string; hair: string; bg: string; tipBg: string; tipBorder: string;
   /** Page-theme overrides: chart fonts, per-lab mark colors, and chart treatment (grid, frontier, quadrant, bar labels). */
   fonts?: { sans: string; mono: string }; labColors?: Record<string, string>; style?: ChartStyle;
+  /** Chart scale: text, marks, plot height and ranking row pitch, as multipliers (default 1). */
+  size?: ChartSize;
 }
+export interface ChartSize { text?: number; mark?: number; height?: number; row?: number }
+export const textSize = (pal: ChartPalette) => pal.size?.text ?? 1;
+export const markSize = (pal: ChartPalette) => pal.size?.mark ?? 1;
 export const LIGHT_PALETTE: ChartPalette = { dark: false, ink: INK, ink2: "#595B53", grey: GREY, hair: HAIR, bg: BONE, tipBg: "#FFFFFF", tipBorder: "#DDDBD4" };
 /** Site dark mode: warm near-black page, off-white ink, gridlines just above the background. */
 export const DARK_PALETTE: ChartPalette = { dark: true, ink: "#EDECE6", ink2: "#C2C1B9", grey: "#8C8B83", hair: "#262624", bg: "#141413", tipBg: "#1F1F1C", tipBorder: "#3A3A35" };
@@ -112,10 +117,10 @@ export const markLabel = (pal: ChartPalette) => ({ show: true, position: "right"
 const registered = new Set<string>();
 export function themeFor(pal: ChartPalette, fonts?: { sans?: string; mono?: string }) {
   const sans = fonts?.sans ?? pal.fonts?.sans ?? SANS, mono = fonts?.mono ?? pal.fonts?.mono ?? MONO, grid = pal.style?.grid === "dotted" ? "dotted" : "solid";
-  const name = `priors-${[pal.ink, pal.grey, pal.hair, pal.tipBg, sans, mono, grid].join("").replace(/[^a-z0-9]/gi, "")}`;
+  const t = textSize(pal), name = `priors-${[pal.ink, pal.grey, pal.hair, pal.tipBg, sans, mono, grid, t === 1 ? "" : t].join("").replace(/[^a-z0-9]/gi, "")}`;
   if (!registered.has(name)) {
     registered.add(name);
-    const axis = { axisLine: { show: false }, axisTick: { show: false }, axisLabel: { color: pal.grey, fontFamily: mono, fontSize: 11 } };
+    const axis = { axisLine: { show: false }, axisTick: { show: false }, axisLabel: { color: pal.grey, fontFamily: mono, fontSize: 11 * t } };
     echarts.registerTheme(name, {
       backgroundColor: "transparent",
       textStyle: { fontFamily: sans, color: pal.ink },
@@ -123,7 +128,7 @@ export function themeFor(pal: ChartPalette, fonts?: { sans?: string; mono?: stri
       valueAxis: { ...axis, splitLine: { lineStyle: { color: pal.hair, type: grid } } },
       logAxis: { ...axis, splitLine: { lineStyle: { color: pal.hair, type: grid } } },
       timeAxis: { ...axis, splitLine: { lineStyle: { color: pal.hair, type: grid } } },
-      tooltip: { confine: true, backgroundColor: pal.tipBg, borderColor: pal.tipBorder, borderWidth: 1, textStyle: { color: pal.ink, fontSize: 12, fontFamily: sans }, extraCssText: "box-shadow:none;border-radius:4px;padding:8px 10px" },
+      tooltip: { confine: true, backgroundColor: pal.tipBg, borderColor: pal.tipBorder, borderWidth: 1, textStyle: { color: pal.ink, fontSize: 12 * t, fontFamily: sans }, extraCssText: "box-shadow:none;border-radius:4px;padding:8px 10px" },
     });
   }
   return name;

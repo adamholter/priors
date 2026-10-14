@@ -14,6 +14,7 @@ export function Rankings({ ranked, labs, limit = 30, onSelect, selected, showEff
   const [expanded, setExpanded] = useState(false);
   const rows = expanded ? ranked : ranked.slice(0, limit);
   const max = Math.max(...rows.map((r) => r.score), 1);
+  const pitch = Math.round(30 * (pal.size?.row ?? 1));
 
   const head = (exp: ReactNode) => <div id={anchor} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 mb-3 min-h-8 scroll-mt-20"><div className="min-w-0">{title}</div><div className="flex items-center gap-1 ml-auto">{actions}{anchor && <ChartLink id={anchor} name="Rankings" />}{exp}</div></div>;
   if (!rows.length) return <>{head(null)}<p className="cap py-6">No model has enough measured data for this index. Loosen a requirement, lower a weight, or reduce strictness.</p></>;
@@ -27,10 +28,10 @@ export function Rankings({ ranked, labs, limit = 30, onSelect, selected, showEff
         return `<text x="30" y="${y}" font-size="14" fill="${pal.grey}">${i + 1}</text><text x="70" y="${y}" font-size="15">${escapeSvg(label)}</text><rect x="330" y="${y - 13}" width="1120" height="14" fill="${pal.dark ? "#262624" : "#ECEAE3"}"/><rect x="330" y="${y - 13}" width="${r.score / max * 1120}" height="14" fill="${escapeSvg(color.get(r.model.labId) ?? '#A3A39B')}"/><text x="1550" y="${y}" text-anchor="end" font-size="16">${r.score.toFixed(1)}</text>`;
       }).join('')}</g></svg>`;
     }} />)}
-    <div className="ranking-list relative overflow-hidden isolate" style={{ height: Math.max(0, rows.length * 30 - 4), contain: "layout paint" }}>
+    <div className="ranking-list relative overflow-hidden isolate" style={{ height: Math.max(0, rows.length * pitch - 4), contain: "layout paint" }}>
       {rows.map((r, index) => (
         <button type="button" key={showEffort ? r.variant.id : r.model.id} title={r.variant.sourceModel?.name ?? variantLabel(r)} aria-label={`${r.variant.sourceModel?.name ?? variantLabel(r)}, ${r.score.toFixed(1)}`} data-k={r.variant.id} data-mixed={r.mixedEfforts || undefined} onClick={() => onSelect?.(selected === r.variant.id ? null : r)}
-          style={{ transform: `translateY(${index * 30}px)` }}
+          style={{ transform: `translateY(${index * pitch}px)`, ...(pitch !== 30 ? { height: pitch - 4 } : {}) }}
           className={`row-move absolute top-0 left-0 w-full grid grid-cols-[28px_minmax(0,140px)_minmax(0,1fr)_48px] sm:grid-cols-[28px_minmax(120px,210px)_minmax(0,1fr)_48px] items-center gap-2.5 h-[26px] text-left text-[12.5px] rounded-sm px-1 focus-visible:outline-offset-[-2px] ${selected === r.variant.id ? "bg-white" : "hover:bg-white/60"}`}>
           <span className="cap text-right">{r.rank}</span>
           <span className="truncate">{r.model.name}{showEffort && r.variant.effort !== "default" && <em className="not-italic cap ml-1.5">{r.variant.effort}</em>}</span>

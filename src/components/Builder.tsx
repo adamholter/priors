@@ -13,7 +13,9 @@ import { hiddenIds, toggleVisibility, SHOW_ALL, type Vis } from "@/lib/model-vis
 import { WeightsPanel } from "./WeightsPanel";
 import { Rankings } from "./Rankings";
 import { ParetoChart } from "./chart/ParetoChart";
-import { useLabColor } from "./chart/echarts";
+import { ChartPaletteContext, useChartPalette, useLabColor } from "./chart/echarts";
+import { useBuilderSize } from "./builder-size";
+import "./builder.css";
 import { useScatterView } from "./chart/ScoreScatter";
 import { Wordmark } from "./Wordmark";
 import { SiteNav } from "./SiteNav";
@@ -58,6 +60,8 @@ export function Builder({ snapshot: base, initialIndices, labPlacement }: { snap
   // of the candidate pool, then any excluded ids resolved from the catalog so
   // they can be re-checked.
   const labColor = useLabColor();
+  const basePalette = useChartPalette(), size = useBuilderSize();
+  const palette = useMemo(() => ({ ...basePalette, size }), [basePalette, size]);
   const pickerModels = useMemo(() => {
     const col = new Map(snapshot.labs.map((l) => [l.id, labColor(l.id, l.color)]));
     const seen = new Map<string, { id: string; name: string; color?: string }>();
@@ -119,8 +123,9 @@ export function Builder({ snapshot: base, initialIndices, labPlacement }: { snap
   const remove = (id: string) => { setIndices((l) => { const n = l.filter((i) => i.id !== id); if (!n.length) n.push(defaultConfig(snapshot)); if (activeId === id) setActiveId(n[0].id); return n; }); };
 
   return (
-    <div className="min-h-dvh">
-      <header className="grid grid-cols-[auto_minmax(0,1fr)_auto] lg:flex items-center gap-x-4 gap-y-2 px-4 sm:px-8 py-2 lg:py-0 lg:h-14 border-b hairline lg:sticky top-0 bg-bone z-40">
+    <ChartPaletteContext.Provider value={palette}>
+    <div className="builder min-h-dvh">
+      <header className="builder-header grid grid-cols-[auto_minmax(0,1fr)_auto] lg:flex items-center gap-x-4 gap-y-2 px-4 sm:px-8 py-2 lg:py-0 lg:h-14 border-b hairline lg:sticky top-0 bg-bone z-40">
         <div className="shrink-0 flex items-center gap-5"><Wordmark transitionTypes={["nav-back"]} /><span className="max-sm:hidden"><SiteNav /></span></div>
         <div className="min-w-0 flex-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <IndexTabs indices={indices} activeId={active.id} onSelect={setActiveId} onRename={(id, name) => update({ ...indices.find((i) => i.id === id)!, name })} onAdd={add} onRemove={remove} />
@@ -134,8 +139,8 @@ export function Builder({ snapshot: base, initialIndices, labPlacement }: { snap
       </header>
 
       <HighlightContext.Provider value={highlightState}>
-      <main className={`grid grid-cols-1 lg:grid-cols-[360px_minmax(0,1fr)] gap-10 px-4 sm:px-8 pt-5 lg:pt-8 pb-8 max-w-[1500px] items-start ${labPlacement && labPlacement !== "rail" ? "[&>aside]:order-2 [&>section]:order-1 lg:[&>aside]:order-1 lg:[&>section]:order-2" : ""}`}>
-        <aside aria-label="Index controls" className="relative z-30 flex flex-col gap-5 min-h-0 lg:sticky lg:top-[88px] lg:h-[calc(100dvh-120px)]">
+      <main className={`builder-main grid grid-cols-1 lg:grid-cols-[360px_minmax(0,1fr)] gap-10 px-4 sm:px-8 pt-5 lg:pt-8 pb-8 max-w-[1500px] items-start ${labPlacement && labPlacement !== "rail" ? "[&>aside]:order-2 [&>section]:order-1 lg:[&>aside]:order-1 lg:[&>section]:order-2" : ""}`}>
+        <aside aria-label="Index controls" className="builder-aside relative z-30 flex flex-col gap-5 min-h-0 lg:sticky lg:top-[88px] lg:h-[calc(100dvh-120px)]">
           {labPlacement === "rail" && <IndexLabActions active={active} date={snapshot.date} top={topNames} placement="rail" />}
           <section aria-label="Benchmarks and eligibility" className="min-h-0 min-w-0 lg:flex-1 lg:overflow-y-auto lg:overflow-x-hidden lg:overscroll-contain pr-2 pb-2">
             <h2 className="text-[22px] mb-1">Your mix</h2>
@@ -153,16 +158,16 @@ export function Builder({ snapshot: base, initialIndices, labPlacement }: { snap
         </aside>
 
         {/* Keep the assistant clearance inside this column so the sidebar stays below the header at the page bottom. */}
-        <section className="grid gap-10 min-w-0 content-start pb-20 [&>div]:min-w-0">
-          <div>
+        <section className="builder-charts grid gap-10 min-w-0 content-start pb-20 [&>div]:min-w-0">
+          <div className="builder-rank">
             <Rankings anchor="rankings" limit={labPlacement ? 10 : undefined} title={<h2 className="text-[26px]">{active.name}</h2>} actions={<ChartSettings label="Ranking" mode={rankingMode} onChange={(rankingVariants) => update({ ...active, rankingVariants })} {...releaseProps} {...modelPicker} />} onSelect={(r) => { if (r) calculations.current?.inspect(r.variant.id); }} ranked={rankingRows} labs={snapshot.labs} showEffort={rankingMode === "all"} />
           </div>
           {labPlacement === "inline" && <IndexLabActions active={active} date={snapshot.date} top={topNames} placement="inline" />}
-          <div>
+          <div className="builder-cost">
             <ParetoChart formulaInputs={formulaInputs(snapshot, result.ranked, active.timeSource)} basis={active.costBasis} description={costDescription(active.costSource ?? "aa", active.costBasis)} anchor="cost" ranked={result.ranked} mode={paretoMode} labs={snapshot.labs} view={paretoView} onView={setParetoView} title={<h2 className="text-[22px]">{active.costBasis === "subscription" ? "Score vs subscription cost per task" : "Score vs cost per task"}</h2>}
               actions={(barModels) => <ChartSettings anchor="cost" defaultScale="log" dataSource={{ value: active.costSource ?? "aa", options: taskMetricOptions(snapshot, "cost"), onChange: (costSource) => update({ ...active, costSource }) }} costBasis={hasSubscriptionPrices(snapshot) ? { value: active.costBasis ?? "api", onChange: (basis) => update({ ...active, costBasis: basis === "api" ? undefined : basis }) } : undefined} label="Pareto" mode={paretoMode} onChange={(paretoVariants) => update({ ...active, paretoVariants })} view={paretoView} onView={setParetoView} {...releaseProps} {...modelPicker} {...(barModels ?? {})} />} />
           </div>
-          <div>
+          <div className="builder-more">
             <h2 className="text-[22px] mb-1">More metrics</h2>
             <MetricGallery timeSource={active.timeSource} onTimeSourceChange={(timeSource) => update({ ...active, timeSource })} ranked={result.ranked} mode={paretoMode} snapshot={snapshot} labs={snapshot.labs} benchmarks={result.benchmarks} config={active} settings={{ ...releaseProps, ...modelPicker }} />
           </div>
@@ -172,5 +177,6 @@ export function Builder({ snapshot: base, initialIndices, labPlacement }: { snap
       {labPlacement === "dock" && <IndexLabActions active={active} date={snapshot.date} top={topNames} placement="dock" />}
       {!labPlacement && <MixAssistant config={active} onApply={update} date={snapshot.date} />}
     </div>
+    </ChartPaletteContext.Provider>
   );
 }

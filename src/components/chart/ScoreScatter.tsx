@@ -141,7 +141,7 @@ export function ScoreScatter({ pts: allPoints, labs, better, xName: baseXName, x
       const grid = ((c as unknown as { getModel: () => unknown }).getModel() as { getComponent: (t: string, i: number) => { coordinateSystem?: { getRect: () => { x: number; y: number; width: number; height: number } } } | undefined }).getComponent("grid", 0)?.coordinateSystem?.getRect();
       if (!grid) return;
       const bottom = grid.y + grid.height, on = pal.dark ? "#141413" : "#FFFFFF";
-      const badge = { fontSize: 10.5, fontFamily: "JetBrains Mono, Menlo, monospace", fill: on, padding: [2, 4], borderRadius: 2 };
+      const badge = { fontSize: 10.5 * (pal.size?.text ?? 1), fontFamily: "JetBrains Mono, Menlo, monospace", fill: on, padding: [2, 4], borderRadius: 2 };
       // Badges that would collide slide apart along their axis (never off the canvas): x badges stay in
       // one row under the axis, y badges in one column left of it, each still tinted like its line.
       const placed = guides.map((p) => ({ p, px: c.convertToPixel({ seriesId: "marks" }, [p.x, p.r.score]) as unknown as number[] | undefined })).filter((g): g is { p: ScatterPoint; px: number[] } => !!g.px && Number.isFinite(g.px[0]) && Number.isFinite(g.px[1]));
@@ -236,7 +236,7 @@ export function ScoreScatter({ pts: allPoints, labs, better, xName: baseXName, x
         </div>
       </div>
       <div className={`relative ${expand.expanded ? "flex-1 min-h-0" : ""}`}>
-        <div ref={ref} role="img" aria-label={aria} tabIndex={0} onContextMenu={context.onContextMenu} onKeyDown={context.onKeyDown} style={{ width: "100%", height: expand.expanded ? "100%" : height, overflow: "hidden", position: "relative", isolation: "isolate" }} />
+        <div ref={ref} role="img" aria-label={aria} tabIndex={0} onContextMenu={context.onContextMenu} onKeyDown={context.onKeyDown} style={{ width: "100%", height: expand.expanded ? "100%" : Math.round(height * (pal.size?.height ?? 1)), overflow: "hidden", position: "relative", isolation: "isolate" }} />
         {fall && !!fallen?.size && <GravityLayer key={fall.run} dots={fall.dots} width={fall.width} height={fall.height} floor={fall.floor} left={fall.left} right={fall.right} stroke={pal.bg} />}
         {!pts.length && <p className="cap absolute inset-0 grid place-items-center">No model in this view has this metric.</p>}
       </div>

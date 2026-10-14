@@ -29,6 +29,10 @@ Plus warm grey, hairlines, and `--brand-i` for the wordmark's i.
 
 Newsreader (display and serif), Inter (text), JetBrains Mono (numbers). Themed pages bring their own: see `docs/pages-and-sharing.md`.
 
+## Large screens
+
+The builder grows with the screen (`src/components/builder.css`, `builder-size.ts`). From 1024px it centers within 1720px. From 1280px text, ranking rows and the sidebar scale 1.1×, from 1600px 1.2×. The header and sidebar use CSS `zoom`, and dialogs and the benchmark sheet opened from them undo it so they still fit the screen. Charts never sit under a zoom (ECharts misreads the pointer there): they take the same scale through `ChartPalette.size` (text, marks, plot height, ranking row pitch), which is 1 everywhere else. Phones keep their layout, with slightly larger chart dots.
+
 ## Light and dark
 
 `src/components/Theme.tsx`. System default; the toggle pins `localStorage["priors:theme"]` (mirrored in the `priors_theme` cookie).
