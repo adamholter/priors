@@ -5,7 +5,7 @@ import type { RadarAxis } from "./radar-data";
 describe("radar view", () => {
   it("round-trips non-default settings through link params and omits defaults", () => {
     expect(Object.values(radarParams(DEFAULT_RADAR)).filter(Boolean)).toEqual([]);
-    const s = { norm: "rank" as const, compare: "median" as const, colors: "distinct" as const, median: false, models: ["a", "b"] };
+    const s = { norm: "rank" as const, compare: "median" as const, colors: "distinct" as const, median: false, view: "bars" as const, models: ["a", "b"] };
     const url = new URLSearchParams(Object.entries(radarParams(s)).filter(([, v]) => v) as [string, string][]);
     expect(readRadarParams(url)).toEqual(s);
     expect(readRadarParams(new URLSearchParams("rs=bogus"))).toEqual({ ...DEFAULT_RADAR, models: undefined });

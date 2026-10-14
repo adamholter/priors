@@ -11,9 +11,12 @@ export interface RadarSeries { id: string; name: string; color: string; dash?: s
 export type RadarCompare = "leader" | "median";
 export type RadarColors = "lab" | "distinct";
 /** `models` is a user pick; undefined follows the live top 4. */
-export interface RadarSettings { norm: RadarNorm; compare: RadarCompare; colors: RadarColors; median: boolean; models?: string[] }
-export const DEFAULT_RADAR: RadarSettings = { norm: "field", compare: "leader", colors: "lab", median: true };
+export type RadarView = "radar" | "bars";
+export interface RadarSettings { norm: RadarNorm; compare: RadarCompare; colors: RadarColors; median: boolean; view: RadarView; models?: string[] }
+export const DEFAULT_RADAR: RadarSettings = { norm: "field", compare: "leader", colors: "lab", median: true, view: "radar" };
 export const RADAR_TOP = 4;
+/** Per-benchmark bar charts have room for more models than overlaid shapes do. */
+export const BARS_TOP = 8;
 export const RADAR_ANCHOR = "strengths";
 
 export const RADAR_NORMS: { id: RadarNorm; label: string; hint: string }[] = [
@@ -27,8 +30,8 @@ const DASHES = [undefined, "7 4", "2 3", "10 3 2 3"];
 
 /* ---------------- URL params ---------------- */
 
-/** Radar params carried by `?c=strengths` links: rm (models), rs (scale), rc (small radars vs), rk (colors), rmed=0 (no median). */
-export const RADAR_PARAM_KEYS = ["rm", "rs", "rc", "rk", "rmed"] as const;
+/** Radar params carried by `?c=strengths` links: rm (models), rs (scale), rc (small radars vs), rk (colors), rmed=0 (no median), rv=bars (a bar chart per benchmark). */
+export const RADAR_PARAM_KEYS = ["rm", "rs", "rc", "rk", "rmed", "rv"] as const;
 
 export function readRadarParams(params: URLSearchParams): RadarSettings {
   const rs = params.get("rs"), rc = params.get("rc"), rk = params.get("rk"), rm = params.get("rm");
@@ -37,6 +40,7 @@ export function readRadarParams(params: URLSearchParams): RadarSettings {
     compare: rc === "median" ? "median" : "leader",
     colors: rk === "distinct" ? "distinct" : "lab",
     median: params.get("rmed") !== "0",
+    view: params.get("rv") === "bars" ? "bars" : "radar",
     models: rm == null ? undefined : rm.split(",").filter(Boolean).slice(0, 12),
   };
 }
@@ -49,6 +53,7 @@ export function radarParams(s: RadarSettings): Record<(typeof RADAR_PARAM_KEYS)[
     rc: s.compare !== DEFAULT_RADAR.compare ? s.compare : undefined,
     rk: s.colors !== DEFAULT_RADAR.colors ? s.colors : undefined,
     rmed: s.median ? undefined : "0",
+    rv: s.view !== DEFAULT_RADAR.view ? s.view : undefined,
   };
 }
 

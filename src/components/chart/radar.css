@@ -99,3 +99,14 @@
 .rl-axis-link:focus { outline: none; }
 .rl-axis-link:focus-visible .rl-label { fill: var(--indigo); text-decoration: underline; }
 .rl-axis-link:hover .rl-label { text-decoration: underline; text-underline-offset: 2px; }
+
+/* Bar charts, one per benchmark */
+.rl-bench-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); gap: 28px 28px; margin-top: 14px; }
+.rl-strengths-expanded + .rl-bench-grid, .chart-expanded .rl-bench-grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr)); }
+.rl-bench { min-width: 0; }
+.rl-bench-head { display: grid; gap: 1px; width: 100%; padding: 0; border: 0; background: none; color: inherit; text-align: left; cursor: pointer; }
+.rl-bench-head:focus-visible { outline: 2px solid var(--indigo); outline-offset: 2px; }
+.rl-bench-name { font-size: 14px; font-weight: 600; color: var(--ink); }
+.rl-bench-head:hover .rl-bench-name { text-decoration: underline; text-underline-offset: 2px; }
+.rl-bench-chart { width: 100%; height: 250px; overflow: hidden; position: relative; isolation: isolate; }
+.rl-bench-empty { padding: 28px 0; }

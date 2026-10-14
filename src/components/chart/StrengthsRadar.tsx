@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { BenchBars, benchSheetSvg } from "./BenchBars";
 import { IconAdjustmentsHorizontal, IconX } from "@tabler/icons-react";
 import type { Lab, Snapshot } from "@/data/types";
 import type { IndexConfig, IndexResult, RankedVariant } from "@/engine";
@@ -14,7 +15,7 @@ import { radarHtml } from "./embed";
 import { Radar, RadarSwatch } from "./Radar";
 import { RadarModal } from "./RadarModal";
 import { formatValue, RADAR_MIN_AXES, type RadarModel, type RadarNorm } from "./radar-data";
-import { DEFAULT_RADAR, RADAR_ANCHOR, RADAR_NORMS, RADAR_PALETTES, RADAR_TOP, radarModelsFor, radarParams, radarRows, radarSeries, radarSvg, readRadarParams, selectedModels, type RadarColors, type RadarCompare, type RadarSeries, type RadarSettings } from "./radar-view";
+import { BARS_TOP, DEFAULT_RADAR, RADAR_ANCHOR, RADAR_NORMS, RADAR_PALETTES, RADAR_TOP, radarModelsFor, radarParams, radarRows, radarSeries, radarSvg, readRadarParams, selectedModels, type RadarColors, type RadarCompare, type RadarSeries, type RadarSettings, type RadarView } from "./radar-view";
 import styles from "./ChartSettings.module.css";
 import "./radar.css";
 
@@ -44,13 +45,16 @@ export function StrengthsRadar({ ranked, benchmarks, labs, snapshot, config, anc
   const pal = useChartPalette();
   const labColor = useLabColor();
   const expand = useChartExpand("Strengths");
-  const { norm, compare, colors, median: showMedian } = settings;
+  const { norm, compare, colors, median: showMedian, view } = settings;
+  const sheets = useRef(new Map<string, () => string | undefined>());
+  const register = useCallback((id: string, svg: (() => string | undefined) | null) => { if (svg) sheets.current.set(id, svg); else sheets.current.delete(id); }, []);
   const update = (patch: Partial<RadarSettings>) => setSettings((s) => ({ ...s, ...patch }));
 
   const rows = useMemo(() => radarRows(snapshot, config, ranked, benchmarks), [snapshot, config, ranked, benchmarks]);
   const { axes, models, median } = useMemo(() => radarModelsFor(rows, benchmarks, norm), [rows, benchmarks, norm]);
   const byId = useMemo(() => new Map(models.map((m) => [m.id, m])), [models]);
-  const selected = useMemo(() => selectedModels(models, settings.models), [models, settings.models]);
+  // Until the user picks models, the radar follows the top 4 and the bar charts the top 8.
+  const selected = useMemo(() => view === "bars" && !settings.models ? models.slice(0, BARS_TOP).map((m) => m.id) : selectedModels(models, settings.models), [models, settings.models, view]);
   const labOf = useMemo(() => new Map(labs.map((l) => [l.id, l])), [labs]);
   const colorOfLab = useCallback((m: RadarModel) => labColor(m.labId, labOf.get(m.labId)?.color), [labColor, labOf]);
   const slotOf = useCallback((id: string) => settings.models ? slots[id] ?? 0 : selected.indexOf(id), [settings.models, slots, selected]);
@@ -101,17 +105,22 @@ export function StrengthsRadar({ ranked, benchmarks, labs, snapshot, config, anc
     <div className="chart-toolbar rl-panel-head">
       <ul className="rl-legend" aria-label="Models on the radar">
         {series.map((s) => <li key={s.id} onMouseEnter={() => setFocus(s.id)} onMouseLeave={() => setFocus(null)}><RadarSwatch color={s.color} dash={s.dash} />{s.name}</li>)}
-        {showMedian && <li className="rl-legend-median"><i aria-hidden="true" />Field median</li>}
+        {showMedian && view === "radar" && <li className="rl-legend-median"><i aria-hidden="true" />Field median</li>}
       </ul>
       <div className="flex items-center gap-1 ml-auto">
-        <RadarSettingsMenu models={models} series={series} selected={selected} onToggle={toggle} onTop={() => setAll(undefined)} onNone={() => setAll([])} labColor={colorOfLab}
+        <div className="seg" role="group" aria-label="Strengths view">
+          <button type="button" aria-pressed={view === "radar"} title="Radar" onClick={() => update({ view: "radar" })}><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" aria-hidden="true"><path d="M8 1.5 14 6l-2.3 7.5H4.3L2 6z" /><path d="M8 5.5 10.6 7.4 9.6 10.5H6.4l-1-3.1z" /></svg></button>
+          <button type="button" aria-pressed={view === "bars"} title="A bar chart per benchmark" onClick={() => update({ view: "bars" })}><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><rect x="2" y="3" width="3" height="11" /><rect x="6.5" y="6" width="3" height="8" /><rect x="11" y="9" width="3" height="5" /></svg></button>
+        </div>
+        <RadarSettingsMenu view={view} topN={view === "bars" ? BARS_TOP : RADAR_TOP} models={models} series={series} selected={selected} onToggle={toggle} onTop={() => setAll(undefined)} onNone={() => setAll([])} labColor={colorOfLab}
           norm={norm} onNorm={(n) => update({ norm: n })} colorMode={colors} onColorMode={(c) => update({ colors: c })} showMedian={showMedian} onShowMedian={(v) => update({ median: v })} compare={compare} onCompare={(c) => update({ compare: c })} />
         <ChartLink id={anchor} name="Strengths" params={{ extra: params }} />
-        <ChartExport name="Strengths" frame getSvg={() => staticSvg(pal.dark)} getRows={exportRows} getHtml={() => radarHtml({ title, date: snapshot.date, light: staticSvg(false), dark: staticSvg(true) })} />
+        <ChartExport name="Strengths" frame getSvg={() => view === "bars" ? benchSheetSvg(axes, sheets.current, RADAR_PALETTES[pal.dark ? "dark" : "light"], title) : staticSvg(pal.dark)} getRows={exportRows} getHtml={view === "radar" ? () => radarHtml({ title, date: snapshot.date, light: staticSvg(false), dark: staticSvg(true) }) : undefined} />
         {expand.button}
       </div>
     </div>
-    {!series.length ? <p className="cap py-10 text-center">No models selected. Pick some in the chart settings.</p> :
+    {!series.length ? <p className="cap py-10 text-center">No models selected. Pick some in the chart settings.</p> : view === "bars" ?
+    <BenchBars axes={axes} series={series} focus={focus} onInfo={setInfo} register={register} /> :
     <div className={`rl-strengths${expand.expanded ? " rl-strengths-expanded" : ""}`}>
       <div className="rl-main">
         <Radar axes={axes} series={series} ghost={showMedian ? median : undefined} norm={norm} size={380} focus={focus} hoverAxis={axis} onHoverAxis={setAxis} onAxisClick={setInfo}
@@ -142,7 +151,8 @@ export function StrengthsRadar({ ranked, benchmarks, labs, snapshot, config, anc
   </div>;
 }
 
-function RadarSettingsMenu({ models, series, selected, onToggle, onTop, onNone, labColor, norm, onNorm, colorMode, onColorMode, showMedian, onShowMedian, compare, onCompare }: {
+function RadarSettingsMenu({ view, topN, models, series, selected, onToggle, onTop, onNone, labColor, norm, onNorm, colorMode, onColorMode, showMedian, onShowMedian, compare, onCompare }: {
+  view: RadarView; topN: number;
   models: RadarModel[]; series: RadarSeries[]; selected: string[]; onToggle: (id: string) => void; onTop: () => void; onNone: () => void; labColor: (m: RadarModel) => string;
   norm: RadarNorm; onNorm: (n: RadarNorm) => void; colorMode: RadarColors; onColorMode: (c: RadarColors) => void;
   showMedian: boolean; onShowMedian: (v: boolean) => void; compare: RadarCompare; onCompare: (v: RadarCompare) => void;
@@ -164,25 +174,25 @@ function RadarSettingsMenu({ models, series, selected, onToggle, onTop, onNone, 
       </div>
       <div className={styles.body} role="tabpanel" aria-labelledby={`${id}-${tab}-tab`}>
         {tab === "models" ? <>
-          <div className={styles.modelCount}><span>{selected.length} of {models.length} on the radar</span><button type="button" onClick={onTop}>Top {RADAR_TOP}</button><button type="button" onClick={onNone}>None</button></div>
+          <div className={styles.modelCount}><span>{selected.length} of {models.length} {view === "bars" ? "charted" : "on the radar"}</span><button type="button" onClick={onTop}>Top {topN}</button><button type="button" onClick={onNone}>None</button></div>
           <input type="search" className={styles.search} aria-label="Search models" placeholder="Search models" value={query} onChange={(e) => setQuery(e.target.value)} />
-          {selected.length > 6 && <p className="rl-menu-warn">More than 6 overlaid shapes get hard to read. The small radars still show each one.</p>}
+          {view === "radar" && selected.length > 6 && <p className="rl-menu-warn">More than 6 overlaid shapes get hard to read. The small radars still show each one.</p>}
           <div className={styles.modelList}>{list.map((m) => { const s = seriesOf.get(m.id);
             return <div key={m.id} className={styles.model}><label><input type="checkbox" checked={!!s} onChange={() => onToggle(m.id)} />
               {s ? <RadarSwatch color={s.color} dash={s.dash} /> : <i aria-hidden="true" style={{ background: labColor(m) }} />}
               <span>{m.name}</span><span className="cap rl-menu-rank">#{m.rank}</span></label></div>; })}
             {!list.length && <p>No matching models.</p>}</div>
         </> : <>
-          <div className={styles.row}><span id={`${id}-norm`}>Scale</span><div className={styles.choice} role="group" aria-labelledby={`${id}-norm`}>
+          {view === "radar" && <><div className={styles.row}><span id={`${id}-norm`}>Scale</span><div className={styles.choice} role="group" aria-labelledby={`${id}-norm`}>
             {RADAR_NORMS.map((n) => <button key={n.id} type="button" aria-pressed={norm === n.id} title={n.hint} onClick={() => onNorm(n.id)}>{n.label}</button>)}</div></div>
           <p className="rl-menu-hint">{RADAR_NORMS.find((n) => n.id === norm)!.hint}</p>
           <div className={styles.row}><label htmlFor={`${id}-compare`}>Small radars vs</label><select id={`${id}-compare`} value={compare} onChange={(e) => onCompare(e.target.value as RadarCompare)}>
-            <option value="leader">Leader</option><option value="median">Field median</option></select></div>
+            <option value="leader">Leader</option><option value="median">Field median</option></select></div></>}
           <div className={styles.row}><label htmlFor={`${id}-colors`}>Colors</label><select id={`${id}-colors`} value={colorMode} onChange={(e) => onColorMode(e.target.value as RadarColors)}>
             <option value="lab">Lab color</option><option value="distinct">One per model</option></select></div>
-          <div className={styles.toggles}>
+          {view === "radar" && <div className={styles.toggles}>
             <label><span>Field median</span><input type="checkbox" checked={showMedian} onChange={(e) => onShowMedian(e.target.checked)} /></label>
-          </div>
+          </div>}
         </>}
       </div>
     </div>
