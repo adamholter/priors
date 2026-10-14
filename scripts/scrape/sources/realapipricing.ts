@@ -14,6 +14,7 @@
 import type { Source, ScrapeResult, RawRow } from "../../../src/data/types";
 import { normalizeLabel } from "../../../src/data/normalize";
 import { SUBSCRIPTION_BENCHMARK, type SubscriptionDetails, type TokenMix } from "../../../src/data/subscription";
+import { SUBSIDY_OVERRIDES } from "./subscription-overrides";
 
 const SITE = "https://realapipricing.com";
 const REPO = "https://github.com/FeiZhuLulu/real-api-pricing";
@@ -36,36 +37,57 @@ export function parseSubscriptions(json: Points, conventions: Conventions, chann
   const mixOf = (workload?: string): TokenMix => workload === "anthropic"
     ? { cache: conventions.anthropicTokenMix.cache, input: 0, cacheWrite: conventions.anthropicTokenMix.cacheWrite, output: conventions.anthropicTokenMix.output }
     : workload === "lowCache" ? pickMix(conventions.lowCacheTokenMix) : pickMix(conventions.standardTokenMix);
-  const byModel = new Map<string, Point[]>();
+  const byModel = new Map<string, Point[]>(), resold = new Map<string, Point[]>();
   for (const p of json.points) {
-    if (p.billing !== "subscription" || p.unmetered || !(p.real_usd_per_mtok > 0) || channelOf(p.id) !== p.vendor) continue;
-    (byModel.get(p.model) ?? byModel.set(p.model, []).get(p.model)!).push(p);
+    if (p.billing !== "subscription" || p.unmetered || !(p.real_usd_per_mtok > 0)) continue;
+    const group = channelOf(p.id) === p.vendor ? byModel : resold;
+    (group.get(p.model) ?? group.set(p.model, []).get(p.model)!).push(p);
   }
   const rows: RawRow[] = [];
   const taken = new Set<string>();
-  for (const [slug, all] of byModel) {
-    // Speed tiers and previews ("-fast", "-flashx", "-preview") normalize onto their base model; a
-    // price for one must not be shown as the other's, so the label has to survive normalization whole.
+  // "(9/14+)" marks which generation of a plan's limits was measured; it is not part of the plan's name.
+  const name = (p: Point) => (p.plan_en || p.plan).replace(/\s*\(\d+\/\d+\+\)$/, "");
+  const add = (all: Point[], pick: Point, note: string) => {
     const label = all[0].model_display.replace(/\s*\(v\d+\)$/, "");
-    const n = normalizeLabel(label);
-    if (!n.ok || squash(n.modelId) !== squash(slug) || taken.has(n.modelId)) continue;
-    taken.add(n.modelId);
-    const graded = all.filter((p) => p.confidence !== "low");
-    const pool = (graded.length ? graded : all).sort((a, b) => a.real_usd_per_mtok - b.real_usd_per_mtok);
-    const pick = pool[Math.floor(pool.length / 2)];
-    // "(9/14+)" marks which generation of a plan's limits was measured; it is not part of the plan's name.
-    const name = (p: Point) => (p.plan_en || p.plan).replace(/\s*\(\d+\/\d+\+\)$/, "");
     const list = pick.list_price;
     const rate = list?.currency === "CNY" ? conventions.usdPerCny : 1;
     const details: SubscriptionDetails = {
       plan: name(pick), feeUsd: pick.price_usd ?? undefined, confidence: pick.confidence, mix: mixOf(pick.workload), dataDate: pick.data_date ?? undefined,
       ...(list ? { listPrice: { cached: list.cached / rate, input: list.input / rate, output: list.output / rate } } : {}),
-      plans: all.sort((a, b) => a.real_usd_per_mtok - b.real_usd_per_mtok).map((p) => ({ plan: name(p), feeUsd: p.price_usd ?? undefined, usdPerMtok: p.real_usd_per_mtok, confidence: p.confidence })),
+      plans: [...all].sort((a, b) => a.real_usd_per_mtok - b.real_usd_per_mtok).map((p) => ({ plan: name(p), feeUsd: p.price_usd ?? undefined, usdPerMtok: p.real_usd_per_mtok, confidence: p.confidence })),
     };
+    rows.push({ benchmarkId: SUBSCRIPTION_BENCHMARK, modelLabel: label, value: pick.real_usd_per_mtok, sourceUrl: SITE, note: `${name(pick)}${pick.price_usd ? `, $${pick.price_usd}/month` : ""}; ${pick.confidence} confidence; ${note}`, details: details as unknown as Record<string, unknown> });
+  };
+  // Speed tiers and previews ("-fast", "-flashx", "-preview") normalize onto their base model; a
+  // price for one must not be shown as the other's, so the label has to survive normalization whole.
+  const claim = (all: Point[]) => {
+    const n = normalizeLabel(all[0].model_display.replace(/\s*\(v\d+\)$/, ""));
+    if (!n.ok || squash(n.modelId) !== squash(all[0].model) || taken.has(n.modelId)) return false;
+    taken.add(n.modelId);
+    return true;
+  };
+  for (const all of byModel.values()) {
+    if (!claim(all)) continue;
+    const graded = all.filter((p) => p.confidence !== "low");
+    const pool = (graded.length ? graded : all).sort((a, b) => a.real_usd_per_mtok - b.real_usd_per_mtok);
+    add(all, pool[Math.floor(pool.length / 2)], `median of ${pool.length} first-party plan${pool.length === 1 ? "" : "s"}`);
+  }
+  // Models with no first-party plan: the best subsidy a reseller or harness offers (lowest token price,
+  // medium confidence or better). Same list price at every plan, so the cheapest tokens are the biggest subsidy.
+  for (const all of resold.values()) {
+    const graded = all.filter((p) => p.confidence !== "low").sort((a, b) => a.real_usd_per_mtok - b.real_usd_per_mtok);
+    if (!graded.length || !claim(all)) continue;
+    add(all, graded[0], `best of ${graded.length} reseller plan${graded.length === 1 ? "" : "s"} (no first-party plan)`);
+  }
+  // Curated figures from published plan allowances replace anything computed for the same model.
+  for (const o of SUBSIDY_OVERRIDES) {
+    const idOf = (r: RawRow) => { if (r.identity) return r.identity.modelId; const n = normalizeLabel(r.modelLabel); return n.ok ? n.modelId : undefined; };
+    const at = rows.findIndex((r) => idOf(r) === o.modelId);
+    if (at >= 0) rows.splice(at, 1);
     rows.push({
-      benchmarkId: SUBSCRIPTION_BENCHMARK, modelLabel: label, value: pick.real_usd_per_mtok, sourceUrl: SITE,
-      note: `${name(pick)}${pick.price_usd ? `, $${pick.price_usd}/month` : ""}; ${pick.confidence} confidence; median of ${pool.length} first-party plan${pool.length === 1 ? "" : "s"}`,
-      details: details as unknown as Record<string, unknown>,
+      benchmarkId: SUBSCRIPTION_BENCHMARK, modelLabel: o.label, value: o.ratio, sourceUrl: o.source, note: `${o.plan}, $${o.feeUsd}/month: ${o.note}`,
+      ...(o.identity ? { identity: o.identity } : {}),
+      details: { plan: o.plan, feeUsd: o.feeUsd, confidence: o.confidence, ratio: o.ratio, source: o.source, dataDate: o.checked, plans: [] } as unknown as Record<string, unknown>,
     });
   }
   return rows;
@@ -84,7 +106,7 @@ const source: Source = {
     const json = JSON.parse(points) as Points;
     if (!Array.isArray(json.points) || !json.points.length) throw new Error("Real API Pricing: unexpected points payload");
     const rows = parseSubscriptions(json, JSON.parse(conventions) as Conventions, JSON.parse(channels) as Channels);
-    if (!rows.length) throw new Error("Real API Pricing: no first-party subscription rows");
+    if (!rows.length) throw new Error("Real API Pricing: no subscription rows");
     return {
       benchmarks: [{
         id: SUBSCRIPTION_BENCHMARK, name: "Subscription token price (USD per 1M tokens)", shortName: "Subscription price", sourceId: this.id, url: REPO, lastUpdated: json.generatedAt,
@@ -93,7 +115,7 @@ const source: Source = {
       }],
       rows,
       raw: { "points.json": points, "conventions.json": conventions, "channel-colors.json": channels },
-      notes: [`${rows.length} models with a first-party plan, snapshot ${json.generatedAt}`],
+      notes: [`${rows.length} models with a subscription price (first-party plans, reseller fallback, curated overrides), snapshot ${json.generatedAt}`],
     };
   },
 };

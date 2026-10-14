@@ -22,15 +22,28 @@ const payload: Points = { generatedAt: "2026-10-08", points: [
   point("claude_max_20x::claude-fable-5", "Claude Max 20x", "Anthropic", 0.16, { model_display: "Claude Fable 5", confidence: "low" }),
   point("glm_coding_pro::glm-5.3", "GLM Coding Pro", "Zhipu", 0.03, { model_display: "GLM 5.3 (v3)", list_price: { cached: 1.6, input: 8, output: 32, currency: "CNY" } }),
   point("glm_coding_pro::glm-5.3-flashx", "GLM Coding Pro", "Zhipu", 0.01, { model_display: "GLM 5.3 FlashX" }),
+  point("opencode_go::qwen3.8-max", "OpenCode Go", "Alibaba", 0.2, { model_display: "Qwen3.8 Max", price_usd: 10 }),
+  point("droid_max::qwen3.8-max", "Droid Max", "Alibaba", 0.04, { model_display: "Qwen3.8 Max", price_usd: 200 }),
+  point("scam_plan::qwen3.8-max", "Cheap Plan", "Alibaba", 0.001, { model_display: "Qwen3.8 Max", confidence: "low" }),
   point("devin_pro::swe-2", "Devin Pro", "Cognition", 0, { model_display: "SWE-2", unmetered: true }),
 ] };
 
 describe("Real API Pricing subscriptions", () => {
   const rows = parseSubscriptions(payload, conventions, channels);
   const row = (label: string) => rows.find((r) => r.modelLabel === label)!;
+  const computed = rows.filter((r) => !(r.details as { source?: string }).source);
   it("keeps one row per model on its lab's own plans: no resellers, metered APIs or unmetered promos", () => {
-    expect(rows.map((r) => r.modelLabel)).toEqual(["GPT 5.6 Sol", "Claude Opus 5.5", "Claude Fable 5", "GLM 5.3"]);
+    expect(computed.map((r) => r.modelLabel)).toEqual(["GPT 5.6 Sol", "Claude Opus 5.5", "Claude Fable 5", "GLM 5.3", "Qwen3.8 Max"]);
     expect(row("GPT 5.6 Sol").details).toMatchObject({ plans: [{ plan: "ChatGPT Pro 20x" }, { plan: "ChatGPT Plus" }, { plan: "ChatGPT Pro 5x" }] });
+  });
+  it("falls back to the best medium-confidence reseller plan when a model has no first-party plan", () => {
+    expect(row("Qwen3.8 Max")).toMatchObject({ value: 0.04, details: { plan: "Droid Max", confidence: "medium" } });
+    expect(row("Qwen3.8 Max").note).toContain("best of 2 reseller plans");
+  });
+  it("lets a curated published allowance replace a computed row, as a direct share of API price", () => {
+    expect(rows.filter((r) => r.modelLabel === "Gemini 4 Argon")).toHaveLength(1);
+    expect(row("Gemini 4 Argon")).toMatchObject({ details: { ratio: 10 / 60, plan: expect.stringContaining("OpenCode Go") } });
+    expect(row("Muse Wonder (Max)")).toMatchObject({ identity: { modelId: "aa-muse-wonder" }, details: { ratio: 100 / 150 } });
   });
   it("takes the median plan rather than the cheapest, and low-confidence rows only as a last resort", () => {
     expect(row("GPT 5.6 Sol")).toMatchObject({ value: 0.0325, details: { plan: "ChatGPT Plus", feeUsd: 20, confidence: "medium" } });
@@ -50,7 +63,7 @@ describe("Real API Pricing subscriptions", () => {
     const ctx = { fetchText: async (url: string) => JSON.stringify(files[url.split("/").pop()!]) } as unknown as Parameters<typeof source.scrape>[0];
     const r = await source.scrape(ctx);
     expect(r.benchmarks[0]).toMatchObject({ id: SUBSCRIPTION_BENCHMARK, unit: "usd", proxy: true, defaultWeight: 0, eligibleForDefault: false, lastUpdated: "2026-10-08" });
-    expect(r.rows).toHaveLength(4);
+    expect(r.rows).toHaveLength(7);
     expect(Object.keys(r.raw)).toEqual(["points.json", "conventions.json", "channel-colors.json"]);
   });
 });

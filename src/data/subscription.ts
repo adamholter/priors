@@ -15,6 +15,10 @@ export interface TokenMix { cache: number; input: number; output: number; cacheW
 
 export interface SubscriptionDetails {
   plan: string;
+  /** Set when the share of API price is known directly (a published plan allowance), instead of derived from `mix` and a list price. */
+  ratio?: number;
+  /** Where a curated figure came from. */
+  source?: string;
   feeUsd?: number;
   confidence: string;
   mix: TokenMix;
@@ -60,6 +64,7 @@ export function subscriptionPrices(snapshot: Snapshot): Map<string, Subscription
     if (o.benchmarkId !== SUBSCRIPTION_BENCHMARK || !positive(o.value)) continue;
     const d = o.details as unknown as SubscriptionDetails | undefined;
     const modelId = variants.get(o.variantId)?.modelId ?? o.variantId.split("@")[0];
+    if (positive(d?.ratio)) { out.set(modelId, { ratio: d.ratio, plan: d.plan, feeUsd: d.feeUsd, confidence: d.confidence }); continue; }
     const prices = d?.listPrice ?? aaPrices.get(modelId);
     if (!d?.mix || !prices) continue;
     const api = blendedApiPrice(prices, d.mix);
