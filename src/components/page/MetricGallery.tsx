@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
+import { IconArrowDown, IconArrowUp, IconEye, IconEyeOff, IconSquare, IconSquareCheck } from "@tabler/icons-react";
 import { taskMetricOptions, type TaskMetricSource } from "@/data/task-metrics";
 import type { Snapshot, Lab } from "@/data/types";
 import type { IndexConfig, IndexResult, RankedVariant } from "@/engine";
@@ -47,10 +48,10 @@ export function MetricGallery({ ranked, mode = "all", snapshot, labs, settings, 
         const anchor = `${anchorPrefix}${anchorOf(p.title)}`;
         const chart = metricList.find((m) => m.id === p.id);
         const tools = editing && <span className="metric-tools" onClick={(e) => e.preventDefault()}>
-          <button type="button" className="edit-chip" aria-pressed={!p.hidden} onClick={() => patch(p.id, { hidden: !p.hidden })}>{p.hidden ? "Hidden" : "Shown"}</button>
-          <button type="button" className="edit-chip" aria-pressed={p.open} disabled={p.hidden} onClick={() => patch(p.id, { open: !p.open })}>{p.open ? "Starts open" : "Starts closed"}</button>
-          <button type="button" className="edit-icon" aria-label={`Move ${p.title} up`} disabled={i === 0} onClick={() => move(p.id, -1)}>↑</button>
-          <button type="button" className="edit-icon" aria-label={`Move ${p.title} down`} disabled={i === shown.length - 1} onClick={() => move(p.id, 1)}>↓</button>
+          <button type="button" className="edit-btn" aria-pressed={p.open} disabled={p.hidden} title="Whether visitors see this chart expanded" onClick={() => patch(p.id, { open: !p.open })}>{p.open ? <IconSquareCheck size={15} /> : <IconSquare size={15} />}Starts open</button>
+          <button type="button" className="edit-btn" onClick={() => patch(p.id, { hidden: !p.hidden })}>{p.hidden ? <IconEye size={15} /> : <IconEyeOff size={15} />}{p.hidden ? "Show" : "Hide"}</button>
+          <button type="button" className="edit-icon" aria-label={`Move ${p.title} up`} title="Move up" disabled={i === 0} onClick={() => move(p.id, -1)}><IconArrowUp size={16} /></button>
+          <button type="button" className="edit-icon" aria-label={`Move ${p.title} down`} title="Move down" disabled={i === shown.length - 1} onClick={() => move(p.id, 1)}><IconArrowDown size={16} /></button>
         </span>;
         const body = p.id === "strengths"
           ? <div id={anchor} className="scroll-mt-20"><StrengthsRadar ranked={ranked} benchmarks={benchmarks!} labs={labs} snapshot={snapshot} config={config!} /></div>
@@ -132,7 +133,7 @@ function Panel({ anchor, title, desc, defaultOpen, dim, tools, children }: { anc
   // A deep link to a collapsed panel opens it.
   useHashTarget(anchor, () => { setOpen(true); setMounted(true); });
   return (
-    <details className={`gallery-panel border-b hairline ${dim ? "opacity-45" : ""}`} open={open} onToggle={(e) => { const o = e.currentTarget.open; setOpen(o); if (o) setMounted(true); }}>
+    <details className={`gallery-panel border-b hairline ${dim ? "is-dim" : ""}`} open={open} onToggle={(e) => { const o = e.currentTarget.open; setOpen(o); if (o) setMounted(true); }}>
       <summary className="flex flex-wrap items-baseline gap-x-4 gap-y-0.5 py-3.5 pr-6 relative cursor-pointer select-none list-none [&::-webkit-details-marker]:hidden">
         <span className="gallery-title text-[15px] font-medium whitespace-nowrap">{title}</span>
         <span className="cap text-grey">{desc}</span>

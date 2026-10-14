@@ -3,36 +3,49 @@
 @media (max-width: 639px) { .edit-bar { top: 0; } }
 .edit-bar-title { font-weight: 500; color: var(--ink); }
 .edit-bar-status { color: var(--grey); margin-right: auto; }
-.edit-frame { position: relative; border: 1px dashed color-mix(in srgb, var(--indigo) 38%, var(--hair)); border-radius: calc(var(--page-radius, 4px) + 4px); padding: 38px 14px 14px; transition: border-color .15s, background .15s; }
-.edit-frame:hover, .edit-frame:focus-within { border-color: var(--indigo); }
+/* Section frames: a toolbar row above the live section. Edit chrome always takes its own space (no
+   negative margins, no overlays), so no theme's spacing can stack one control on top of another. */
+.edit-frame { position: relative; border: 1px solid color-mix(in srgb, var(--indigo) 22%, var(--hair)); border-radius: calc(var(--page-radius, 4px) + 4px); transition: border-color .15s, background .15s; }
+.edit-frame:hover, .edit-frame:focus-within { border-color: color-mix(in srgb, var(--indigo) 65%, var(--hair)); }
 .edit-frame, .edit-body { min-width: 0; }
-@media (max-width: 639px) { .edit-frame { padding: 38px 6px 8px; margin: 0 -6px; } .edit-toolbar { left: 4px; right: 4px; } .metric-tools { margin-left: 0; } }
-.edit-frame.is-over { background: var(--indigo-soft); border-style: solid; }
-.edit-frame.is-hidden > .edit-body { opacity: .4; }
-.edit-toolbar { position: absolute; top: 7px; left: 10px; right: 10px; display: flex; align-items: center; gap: 4px; font-size: 11.5px; color: var(--grey); }
-.edit-handle { cursor: grab; padding: 3px 5px; color: var(--grey); border-radius: 3px; }
+.edit-frame.is-over { background: var(--indigo-soft); border-color: var(--indigo); }
+.edit-frame.is-hidden > .edit-body { opacity: .45; }
+.edit-body { padding: 16px 18px 18px; }
+.edit-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-height: 44px; padding: 6px 8px 6px 6px; font: 12.5px/1.3 var(--font-sans); color: var(--grey); }
+.edit-frame > .edit-toolbar { border-bottom: 1px solid var(--hair); border-radius: calc(var(--page-radius, 4px) + 3px) calc(var(--page-radius, 4px) + 3px) 0 0; background: color-mix(in srgb, var(--indigo) 5%, transparent); }
+.edit-handle { display: inline-grid; place-items: center; width: 26px; height: 30px; cursor: grab; color: var(--grey); border-radius: 5px; }
 .edit-handle:hover { color: var(--ink); background: var(--hair-2); }
-.edit-kind { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .03em; text-transform: uppercase; margin-right: auto; }
-.edit-icon { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 4px; color: var(--ink-2); background: transparent; border: 0; font-size: 13px; }
+.edit-kind { font-weight: 500; color: var(--ink); }
+.edit-note { color: var(--grey); }
+.edit-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-left: auto; }
+.edit-icon { display: inline-grid; place-items: center; width: 30px; height: 30px; border-radius: 5px; color: var(--ink-2); background: transparent; border: 0; }
 .edit-icon:hover:not(:disabled) { background: var(--hair-2); color: var(--ink); }
 .edit-icon:disabled { opacity: .3; }
-.edit-chip { font-size: 11px; padding: 2px 8px; border-radius: 99px; border: 1px solid var(--hair); color: var(--grey); background: transparent; white-space: nowrap; }
-.edit-chip[aria-pressed="true"] { border-color: var(--indigo); color: var(--indigo); background: var(--indigo-soft); }
-.edit-chip:disabled { opacity: .4; }
-.edit-insert { position: relative; display: flex; justify-content: center; margin: -22px 0; z-index: 2; }
-.edit-insert::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; border-top: 1px dashed transparent; transition: border-color .15s; }
-.edit-insert:hover::before { border-top-color: var(--indigo); }
-.edit-insert-btn { position: relative; font-size: 11.5px; padding: 3px 10px; border-radius: 99px; border: 1px solid var(--hair); background: var(--bone); color: var(--grey); opacity: .65; transition: opacity .15s, color .15s, border-color .15s; }
-.edit-insert:hover .edit-insert-btn, .edit-insert-btn[aria-expanded="true"] { opacity: 1; color: var(--indigo); border-color: var(--indigo); }
-.edit-insert-menu { position: absolute; top: calc(100% + 4px); z-index: 20; display: grid; min-width: 180px; padding: 4px; background: var(--white); border: 1px solid var(--hair); border-radius: 6px; box-shadow: 0 14px 34px -16px var(--shadow); }
-.edit-insert-menu > button { text-align: left; padding: 7px 10px; border-radius: 4px; font-size: 13px; }
-.edit-insert-menu > button:hover { background: var(--indigo-soft); }
-.page-tabs { display: flex; align-items: flex-end; gap: 12px; border-bottom: 1px solid var(--hair); margin-bottom: -16px; min-width: 0; }
-.page-tabs-list { display: flex; gap: 22px; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+.edit-btn { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px; border: 1px solid var(--hair); border-radius: 5px; background: transparent; color: var(--ink-2); font: 12.5px var(--font-sans); white-space: nowrap; }
+.edit-btn:hover:not(:disabled) { border-color: var(--ink-2); color: var(--ink); }
+.edit-btn[aria-pressed="true"] { border-color: color-mix(in srgb, var(--indigo) 55%, var(--hair)); color: var(--indigo); }
+.edit-btn:disabled { opacity: .4; }
+.edit-icon.is-danger:hover:not(:disabled), .edit-btn.is-danger:hover { color: var(--danger); border-color: var(--danger); background: transparent; }
+/* Insertion points between sections: a faint line with a button. Only the button takes clicks. */
+.edit-insert { position: relative; display: flex; justify-content: center; align-items: center; height: 32px; pointer-events: none; }
+.edit-insert::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; border-top: 1px dashed color-mix(in srgb, var(--indigo) 18%, transparent); transition: border-color .15s; }
+.edit-insert:has(.edit-insert-btn:hover), .edit-insert.is-open { z-index: 20; }
+.edit-insert:has(.edit-insert-btn:hover)::before, .edit-insert.is-open::before { border-top-color: var(--indigo); }
+.edit-insert-box { position: relative; pointer-events: auto; }
+.edit-insert-btn { position: relative; display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 11px; border-radius: 5px; border: 1px solid var(--hair); background: var(--bone); color: var(--ink-2); font: 12.5px var(--font-sans); transition: color .15s, border-color .15s; }
+.edit-insert-btn:hover, .edit-insert-btn[aria-expanded="true"] { color: var(--indigo); border-color: var(--indigo); }
+.edit-insert-menu { position: absolute; left: 50%; top: calc(100% + 6px); transform: translateX(-50%); z-index: 30; display: grid; min-width: 200px; padding: 4px; background: var(--white); border: 1px solid var(--hair); border-radius: 6px; box-shadow: 0 14px 34px -16px var(--shadow); }
+.edit-insert-menu > button { text-align: left; padding: 8px 10px; border-radius: 4px; font: 13px var(--font-sans); color: var(--ink); }
+.edit-insert-menu > button:hover, .edit-insert-menu > button:focus-visible { background: var(--indigo-soft); }
+@media (max-width: 639px) { .edit-frame { margin: 0 -6px; } .edit-body { padding: 12px 8px 14px; } .edit-note { display: none; } .metric-tools { margin-left: 0; } }
+/* Index tabs. While editing, the open index's tools sit on their own row under the tabs. */
+.page-tabs { display: grid; gap: 8px; margin-bottom: -16px; min-width: 0; }
+.page-tabs.is-editing { margin-bottom: 0; }
+.page-tabs-list { display: flex; gap: 22px; min-width: 0; overflow-x: auto; scrollbar-width: none; border-bottom: 1px solid var(--hair); }
 .page-tab { font-size: 18px; line-height: 1.3; white-space: nowrap; padding: 0 1px 9px; margin-bottom: -1px; border-bottom: 2px solid transparent; color: var(--grey); background: transparent; }
 .page-tab:hover { color: var(--ink-2); }
 .page-tab[aria-selected="true"], .page-tab[aria-current] { color: var(--ink); }
-.page-tabs-tools { display: flex; gap: 2px; margin-left: auto; padding-bottom: 5px; }
+.page-tabs-tools { padding: 0 0 0 2px; min-height: 0; }
 @media (max-width: 639px) { .page-tab { font-size: 16px; } .page-tabs-list { gap: 18px; } }
 .inline-edit { font: inherit; color: inherit; letter-spacing: inherit; background: transparent; border: 0; border-bottom: 1px dashed color-mix(in srgb, var(--indigo) 55%, transparent); padding: 0 2px; margin: 0 -2px; max-width: 100%; resize: vertical; }
 .inline-edit:focus { outline: none; border-bottom: 1px solid var(--indigo); background: var(--indigo-soft); }
@@ -40,6 +53,7 @@
 textarea.inline-edit { display: block; border: 1px dashed color-mix(in srgb, var(--indigo) 45%, transparent); border-radius: 4px; padding: 6px 8px; margin: 0; }
 .metric-tools { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-left: auto; margin-right: 8px; }
 .is-editing .gallery-panel summary { padding-right: 28px; }
+.gallery-panel.is-dim > summary > :not(.metric-tools) { opacity: .45; }
 
 /* Theme picker cards in Page settings. */
 .theme-swatch { position: relative; display: grid; gap: 8px; padding: 10px; text-align: left; border: 1px solid var(--hair); overflow: hidden; }
@@ -84,7 +98,7 @@ textarea.inline-edit { display: block; border: 1px dashed color-mix(in srgb, var
 .page-root[data-family="slop"] h2 { font-size: 16px !important; font-weight: 500; }
 .page-root[data-family="slop"] .wm { font-weight: 600; }
 .page-root[data-family="slop"] main { max-width: 1240px; gap: 0; padding-top: 24px; }
-.page-root[data-family="slop"] main > section, .page-root[data-family="slop"] main > .edit-frame { padding-top: 28px; padding-bottom: 28px; }
+.page-root[data-family="slop"] main > section { padding-top: 28px; padding-bottom: 28px; }
 .page-root[data-family="slop"] main > section + section { border-top: 1px solid var(--hair); }
 .page-root[data-family="slop"] .chart-panel { background: transparent !important; border: 0; padding: 28px 0 !important; border-radius: 0; margin: 0 !important; }
 .page-root[data-family="slop"] .cap { font-family: var(--font-sans); font-size: 11px; color: var(--grey); letter-spacing: 0; }
@@ -101,4 +115,5 @@ textarea.inline-edit { display: block; border: 1px dashed color-mix(in srgb, var
 .page-root[data-family="slop"] .ranking-list .bar-fill, .page-root[data-family="slop"] .ranking-list .rounded-\[2px\] { border-radius: 1px; }
 .page-root[data-family="slop"] .ranking-list .bg-hair-2 { background: var(--hair); }
 .page-root[data-family="slop"] footer { border-top-color: var(--hair); }
-.page-root.is-editing main { grid-template-columns: minmax(0, 1fr); }
+.page-root.is-editing main { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+.page-root[data-family="slop"] .edit-body > .chart-panel { padding-top: 4px !important; padding-bottom: 4px !important; }

@@ -5,6 +5,7 @@ import { api } from "../../../convex/_generated/api";
 import { storableIndex, type Section } from "../../../convex/validators";
 import type { Profile } from "./IndexPage";
 import { midCode } from "@/lib/konami";
+import { IconArrowDown, IconArrowLeft, IconArrowRight, IconArrowUp, IconEye, IconEyeOff, IconGripVertical, IconPlus, IconStar, IconTrash } from "@tabler/icons-react";
 
 /** Reports whether the signed-in user owns this page. Mounted only when auth is configured. */
 export function OwnerProbe({ handle, onOwner }: { handle: string; onOwner: (owner: boolean) => void }) {
@@ -39,7 +40,7 @@ export function Autosave({ profile, onState }: { profile: Profile; onState: (s: 
   return null;
 }
 
-/** Edit chrome around one section: drag handle, move, hide and remove. The section itself stays live. */
+/** Edit chrome around one section: a toolbar row (drag, move, hide, remove) above the live section. */
 export function SectionFrame({ section, index, count, label, onMove, onPatch, onRemove, onDrop, children }: {
   section: Section; index: number; count: number; label: string;
   onMove: (to: number) => void; onPatch: (p: Partial<Section>) => void; onRemove: () => void; onDrop: (from: number) => void; children: ReactNode;
@@ -50,14 +51,15 @@ export function SectionFrame({ section, index, count, label, onMove, onPatch, on
     onDragLeave={() => setOver(false)}
     onDrop={(e) => { setOver(false); const from = Number(e.dataTransfer.getData("text/x-priors-section")); if (Number.isFinite(from) && from !== index) onDrop(from); }}>
     <div className="edit-toolbar" role="toolbar" aria-label={`${label} section`}>
-      <span className="edit-handle" draggable title="Drag to reorder" aria-hidden="true" onDragStart={(e) => { e.dataTransfer.setData("text/x-priors-section", String(index)); e.dataTransfer.effectAllowed = "move"; }}>
-        <svg width="10" height="14" viewBox="0 0 10 14" fill="currentColor">{[2, 7, 12].flatMap((y) => [2.5, 7.5].map((x) => <circle key={`${x}-${y}`} cx={x} cy={y} r="1.2" />))}</svg>
-      </span>
+      <span className="edit-handle" draggable title="Drag to reorder" aria-hidden="true" onDragStart={(e) => { e.dataTransfer.setData("text/x-priors-section", String(index)); e.dataTransfer.effectAllowed = "move"; }}><IconGripVertical size={16} /></span>
       <span className="edit-kind">{label}</span>
-      <button type="button" className="edit-icon" aria-label="Move up" disabled={index === 0} onClick={() => onMove(index - 1)}>↑</button>
-      <button type="button" className="edit-icon" aria-label="Move down" disabled={index === count - 1} onClick={() => onMove(index + 1)}>↓</button>
-      <button type="button" className="edit-chip" aria-pressed={!section.hidden} onClick={() => onPatch({ hidden: !section.hidden })}>{section.hidden ? "Hidden" : "Shown"}</button>
-      <button type="button" className="edit-icon" aria-label="Remove section" onClick={onRemove}>×</button>
+      {section.hidden && <span className="edit-note">Hidden from visitors</span>}
+      <span className="edit-tools">
+        <button type="button" className="edit-icon" aria-label="Move up" title="Move up" disabled={index === 0} onClick={() => onMove(index - 1)}><IconArrowUp size={16} /></button>
+        <button type="button" className="edit-icon" aria-label="Move down" title="Move down" disabled={index === count - 1} onClick={() => onMove(index + 1)}><IconArrowDown size={16} /></button>
+        <button type="button" className="edit-btn" onClick={() => onPatch({ hidden: !section.hidden })}>{section.hidden ? <IconEye size={15} /> : <IconEyeOff size={15} />}{section.hidden ? "Show" : "Hide"}</button>
+        <button type="button" className="edit-icon is-danger" aria-label={`Remove ${label} section`} title="Remove section" onClick={onRemove}><IconTrash size={16} /></button>
+      </span>
     </div>
     <div className="edit-body">{children}</div>
   </div>;
@@ -83,7 +85,7 @@ export function PageTabs({ indices, activeId, accent, editing, onSelect, onRenam
     // Focus follows the open tab once it has rendered as the selected one.
     requestAnimationFrame(() => list.current?.querySelector<HTMLElement>("[aria-selected=true]")?.focus());
   };
-  return <div className="page-tabs">
+  return <div className={`page-tabs ${editing ? "is-editing" : ""}`}>
     <div ref={list} className="page-tabs-list" role="tablist" aria-label="Indices" onKeyDown={onKey}>
       {indices.map((i) => {
         const on = i.id === activeId;
@@ -92,11 +94,15 @@ export function PageTabs({ indices, activeId, accent, editing, onSelect, onRenam
           : <button key={i.id} type="button" role="tab" aria-selected={on} tabIndex={on || editing ? 0 : -1} className="page-tab serif" style={on ? { borderColor: accent } : undefined} onClick={() => onSelect(i.id)}>{i.name || "Untitled"}</button>;
       })}
     </div>
-    {editing && <div className="page-tabs-tools" role="toolbar" aria-label="This index">
-      {at > 0 && <button type="button" className="edit-chip" title="The main index leads the page, its link preview and its Explore card" onClick={() => onMove(activeId, -at)}>Make main</button>}
-      <button type="button" className="edit-icon" aria-label="Move index left" disabled={at <= 0} onClick={() => onMove(activeId, -1)}>←</button>
-      <button type="button" className="edit-icon" aria-label="Move index right" disabled={at === indices.length - 1} onClick={() => onMove(activeId, 1)}>→</button>
-      <button type="button" className="edit-icon" aria-label="Remove index from page" onClick={() => onRemove(activeId)}>×</button>
+    {editing && <div className="edit-toolbar page-tabs-tools" role="toolbar" aria-label="This index">
+      <span className="edit-kind">{at === 0 ? "Main index" : "Index"}</span>
+      <span className="edit-note">{at === 0 ? "Leads the page, its link preview and its Explore card" : "Rename it in the tab above"}</span>
+      <span className="edit-tools">
+        {at > 0 && <button type="button" className="edit-btn" title="The main index leads the page, its link preview and its Explore card" onClick={() => onMove(activeId, -at)}><IconStar size={15} />Make main</button>}
+        <button type="button" className="edit-icon" aria-label="Move index left" title="Move left" disabled={at <= 0} onClick={() => onMove(activeId, -1)}><IconArrowLeft size={16} /></button>
+        <button type="button" className="edit-icon" aria-label="Move index right" title="Move right" disabled={at === indices.length - 1} onClick={() => onMove(activeId, 1)}><IconArrowRight size={16} /></button>
+        <button type="button" className="edit-btn is-danger" onClick={() => onRemove(activeId)}><IconTrash size={15} />Remove from page</button>
+      </span>
     </div>}
   </div>;
 }
@@ -106,18 +112,31 @@ export const SECTION_KINDS: { kind: Exclude<Section["kind"], "history">; label: 
   { kind: "gallery", label: "More metrics" }, { kind: "benchmark", label: "Benchmark table" }, { kind: "text", label: "Text" }, { kind: "links", label: "Links" },
 ];
 
-/** A thin "+" between sections that opens the section menu. */
+/** An insertion point between sections. Only the button takes clicks, so it never covers other controls. */
 export function AddSection({ onAdd }: { onAdd: (kind: Exclude<Section["kind"], "history">) => void }) {
   const [open, setOpen] = useState(false);
-  return <div className="edit-insert">
-    <button type="button" className="edit-insert-btn" aria-expanded={open} onClick={() => setOpen(!open)}><span aria-hidden="true">+</span> Add section</button>
-    {open && <div className="edit-insert-menu" role="menu">{SECTION_KINDS.map((k) => <button key={k.kind} type="button" role="menuitem" onClick={() => { onAdd(k.kind); setOpen(false); }}>{k.label}</button>)}</div>}
+  const box = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: PointerEvent) => { if (!box.current?.contains(e.target as Node)) setOpen(false); };
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    document.addEventListener("pointerdown", away); document.addEventListener("keydown", esc);
+    return () => { document.removeEventListener("pointerdown", away); document.removeEventListener("keydown", esc); };
+  }, [open]);
+  return <div className={`edit-insert ${open ? "is-open" : ""}`}>
+    <div ref={box} className="edit-insert-box">
+      <button type="button" className="edit-insert-btn" aria-expanded={open} onClick={() => setOpen(!open)}><IconPlus size={14} />Add section</button>
+      {open && <div className="edit-insert-menu" role="menu">{SECTION_KINDS.map((k) => <button key={k.kind} type="button" role="menuitem" onClick={() => { onAdd(k.kind); setOpen(false); }}>{k.label}</button>)}</div>}
+    </div>
   </div>;
 }
+
+/** Keeps password managers from decorating page text fields (they read as login fields otherwise). */
+const NO_AUTOFILL = { autoComplete: "off", "data-1p-ignore": "", "data-lpignore": "true", "data-bwignore": "", "data-form-type": "other" };
 
 /** Text that turns into an input while editing, styled like the text it replaces. */
 export function InlineText({ value, placeholder, onChange, multiline, className, editing, label }: { value: string; placeholder?: string; onChange: (v: string) => void; multiline?: boolean; className?: string; editing: boolean; label: string }) {
   if (!editing) return value ? <span className={className}>{value}</span> : null;
-  if (multiline) return <textarea aria-label={label} className={`inline-edit ${className ?? ""}`} value={value} placeholder={placeholder} rows={Math.max(2, value.split("\n").length)} onChange={(e) => onChange(e.target.value)} />;
-  return <input aria-label={label} className={`inline-edit ${className ?? ""}`} value={value} placeholder={placeholder} size={Math.max(8, (value || placeholder || "").length + 1)} onChange={(e) => onChange(e.target.value)} />;
+  if (multiline) return <textarea {...NO_AUTOFILL} aria-label={label} className={`inline-edit ${className ?? ""}`} value={value} placeholder={placeholder} rows={Math.max(2, value.split("\n").length)} onChange={(e) => onChange(e.target.value)} />;
+  return <input {...NO_AUTOFILL} aria-label={label} className={`inline-edit ${className ?? ""}`} value={value} placeholder={placeholder} size={Math.max(8, (value || placeholder || "").length + 1)} onChange={(e) => onChange(e.target.value)} />;
 }
