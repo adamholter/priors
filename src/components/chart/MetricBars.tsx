@@ -37,15 +37,15 @@ export function MetricBars({ pts: allPoints, labs, better, xName, formatValue, h
   const exportControl = useRef<ChartExportHandle>(null);
   const contextPick = useRef(context.pointMenu);
   useEffect(() => { contextPick.current = context.pointMenu; });
-  const [narrow, setNarrow] = useState(false);
-  useEffect(() => { const el = wrap.current; if (!el) return; const ro = new ResizeObserver(([e]) => setNarrow(e.contentRect.width < 560)); ro.observe(el); return () => ro.disconnect(); }, []);
+  const [width, setWidth] = useState<number>(), narrow = width !== undefined && width < 560;
+  useEffect(() => { const el = wrap.current; if (!el) return; const ro = new ResizeObserver(([e]) => setWidth(Math.round(e.contentRect.width / 8) * 8)); ro.observe(el); return () => ro.disconnect(); }, []);
   const expand = useChartExpand(exportName);
   const cap = Math.max(new Set(pts.map((p) => p.r.model.id)).size, expand.expanded ? (narrow ? 20 : Math.max(limit, 40)) : narrow ? Math.min(12, limit) : limit);
   const pal = useChartPalette();
   const hl = useHighlight();
   const highlight = hl?.items;
   const bars = useMemo(() => { const ordered = selectBars(pts, better, cap, highlight); return bestFirst && better === "higher" ? ordered.reverse() : ordered; }, [pts, better, cap, highlight, bestFirst]);
-  const option = useMemo<EChartsOption>(() => barsOption({ bars, labs, xName, formatValue, pal, narrow, highlight, labelScale: fontScale }), [bars, labs, xName, formatValue, narrow, pal, highlight, fontScale]);
+  const option = useMemo<EChartsOption>(() => barsOption({ bars, labs, xName, formatValue, pal, narrow, highlight, labelScale: fontScale, width, height: Math.round(height * (pal.size?.height ?? 1)) }), [bars, labs, xName, formatValue, narrow, pal, highlight, fontScale, width, height]);
   const pick = useRef<(p: ScatterPoint) => void>(() => {});
   useEffect(() => { pick.current = (p) => { if (hl) hl.set(togglePoint(hl.items, pts, p)); }; }, [hl, pts]);
   const { ref, chart } = useEChart(option, [option], (c) => {

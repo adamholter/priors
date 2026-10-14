@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ScatterPoint } from "./scatter-option";
-import { barLayout, defaultBarModels, filterBarModels, selectBars } from "./bars-option";
+import { barLayout, defaultBarModels, filterBarModels, barLabelFit, selectBars } from "./bars-option";
 
 const point = (model: string, effort: string, score: number, metric: number): ScatterPoint => ({
   x: metric,
@@ -66,4 +66,12 @@ describe("selectBars highlights", () => {
 it("sorts model groups by each group's maximum metric and efforts ascending inside each group", () => {
   const points = [point("zeta", "low", 70, 10), point("alpha", "high", 80, 8), point("beta", "default", 90, 5), point("alpha", "low", 60, 3)];
   expect(selectBars(points, "higher", 10).map((p) => p.r.variant.id)).toEqual(["beta@default", "alpha@low", "alpha@high", "zeta@low"]);
+});
+
+describe("barLabelFit", () => {
+  it("keeps values inside only when every one fits its bar, and turns them vertical past the slot", () => {
+    expect(barLabelFit(["87s", "320s"], 10, 10, 1200, 28)).toBe("inside");
+    expect(barLabelFit(["87.0s", "320s"], 10, 30, 1200, 28)).toBe("above");
+    expect(barLabelFit(["87.0s"], 10, 60, 330, 28)).toBe("vertical");
+  });
 });
