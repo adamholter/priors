@@ -1,14 +1,34 @@
 "use client";
 import { ChartExport, escapeSvg } from "./chart/ChartExport";
-import { useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import type { Lab } from "@/data/types";
 import type { RankedVariant } from "@/engine";
 import { variantLabel } from "./chart/ParetoChart";
 import { markColor, useChartPalette } from "./chart/echarts";
 import { ChartLink } from "./chart/ChartLink";
+import { RankingColumns } from "./chart/RankingColumns";
 
 /** Dense horizontal bars, color by lab, rows slide to their new position when the order changes. */
-export function Rankings({ ranked, labs, limit = 30, onSelect, selected, showEffort = true, title, actions, anchor }: { ranked: RankedVariant[]; labs: Lab[]; limit?: number; showEffort?: boolean; onSelect?: (r: RankedVariant | null) => void; selected?: string | null; title?: ReactNode; actions?: ReactNode; anchor?: string }) {
+type RankingsProps = { ranked: RankedVariant[]; labs: Lab[]; limit?: number; showEffort?: boolean; onSelect?: (r: RankedVariant | null) => void; selected?: string | null; title?: ReactNode; actions?: ReactNode; anchor?: string };
+
+/** Analysis-style themes draw the leaderboard as vertical columns; every other theme keeps the dense rows. */
+export function Rankings(props: RankingsProps) {
+  const columns = useChartPalette().style?.barLabels === "inside";
+  return columns ? <RankingsColumns {...props} /> : <RankingsRows {...props} />;
+}
+
+function RankingsColumns({ ranked, labs, limit = 30, onSelect, selected, showEffort = true, title, actions, anchor }: RankingsProps) {
+  const [expanded, setExpanded] = useState(false);
+  const cap = Math.min(limit, 20);
+  const rows = expanded ? ranked : ranked.slice(0, cap);
+  const svg = useRef<() => string | undefined>(() => undefined);
+  const head = <div id={anchor} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 mb-3 min-h-8 scroll-mt-20"><div className="min-w-0">{title}</div><div className="flex items-center gap-1 ml-auto">{actions}{anchor && <ChartLink id={anchor} name="Rankings" />}<ChartExport name="Rankings" getSvg={() => svg.current()} getRows={() => ranked.map((r) => ({ rank: r.rank, model: r.model.name, effort: showEffort ? r.variant.effort : "best", score: +r.score.toFixed(2), lab: r.model.labId, cost_per_task_usd: r.costUsd ?? null, speed_toks: r.speed ?? null, coverage: r.coverage }))} /></div></div>;
+  if (!rows.length) return <>{head}<p className="cap py-6">No model has enough measured data for this index. Loosen a requirement, lower a weight, or reduce strictness.</p></>;
+  return <>{head}<RankingColumns rows={rows} labs={labs} showEffort={showEffort} selected={selected} onSelect={onSelect} getRef={(f) => { svg.current = f; }} />
+    {ranked.length > cap && <button className="cap mt-3 hover:text-ink" onClick={() => setExpanded(!expanded)}>{expanded ? "Show fewer" : `Show all ${ranked.length} ${showEffort ? "variants" : "models"}`}</button>}</>;
+}
+
+function RankingsRows({ ranked, labs, limit = 30, onSelect, selected, showEffort = true, title, actions, anchor }: RankingsProps) {
   const pal = useChartPalette();
   const color = new Map(labs.map((l) => [l.id, markColor(l.color, pal, l.id)]));
   const [expanded, setExpanded] = useState(false);

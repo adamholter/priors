@@ -17,8 +17,8 @@ export function unitOf(format: (x: number) => string) {
 /** Both schemes ship in every export; the embed follows the viewer's color scheme (or `?theme=light|dark`, or
  *  `#dark` / `#light` on the URL) and re-renders when it changes. Lab colors carry a dark variant per mark. */
 const SCHEMES = {
-  light: { bg: "#FBFBF9", ink: "#1A1A1A", ink2: "#595B53", grey: "#8A8A80", hair: "#ECEAE3", tipBg: "#FFFFFF", tipBorder: "#DDDBD4", link: "#2F4FB0", labelBg: "rgba(251,251,249,.72)" },
-  dark: { bg: "#141413", ink: "#EDECE6", ink2: "#C2C1B9", grey: "#8C8B83", hair: "#262624", tipBg: "#1F1F1C", tipBorder: "#3A3A35", link: "#9AABF5", labelBg: "rgba(20,20,19,.72)" },
+  light: { bg: "#FBFBF9", ink: "#1A1A1A", ink2: "#595B53", grey: "#8A8A80", hair: "#ECEAE3", tipBg: "#FFFFFF", tipBorder: "#DDDBD4", link: "#2F4FB0" },
+  dark: { bg: "#141413", ink: "#EDECE6", ink2: "#C2C1B9", grey: "#8C8B83", hair: "#262624", tipBg: "#1F1F1C", tipBorder: "#3A3A35", link: "#9AABF5" },
 };
 
 function page(title: string, date: string, script: string, height: number) {
@@ -90,7 +90,7 @@ yAxis:{...axis,type:"value",name:"Index score",min:S.yMin,max:S.yMax,nameTextSty
 series:[...S.links.map((l)=>({type:"line",data:l.p,showSymbol:false,silent:true,lineStyle:{color:active&&!l.h?dim(l):lab(l),width:l.h?2:1,opacity:l.h?1:active ? .25 : D ? .45 : .35},z:l.h?4:1})),
 ...(S.frontier.length>1?[{type:"line",data:S.frontier,showSymbol:false,silent:true,lineStyle:{color:P.ink,width:1.4,opacity:active ? .3 : 1},z:2}]:[]),
 {type:"scatter",id:"marks",z:5,data:order.map((p)=>({value:p.v,name:p.n,id:p.id,t:p.t,symbolSize:active?(p.a?12:9):(p.f?11:9),itemStyle:{color:active&&!p.h?dim(p):lab(p),borderColor:active?(p.h?P.ink:P.bg):(p.f?P.ink:P.bg),borderWidth:active?(p.h?(p.a?1.8:1.2):1):(p.f?1.5:1.5),opacity:active&&!p.h?(D ? .55 : .6):(active||p.s||p.f?1:.8)},label:active?(p.a?{show:true,formatter:p.n,fontWeight:600,color:P.ink}:{show:p.h&&p.e!=="default",formatter:p.e.toUpperCase(),fontSize:9*fontScale,color:P.grey,backgroundColor:"transparent",textBorderColor:P.bg,textBorderWidth:3,distance:5}):{show:p.s}})),
-label:{position:"right",formatter:"{b}",fontSize:11.5*fontScale,color:P.ink,distance:7,backgroundColor:P.labelBg,padding:[2,3],borderRadius:2},labelLayout:scatterLabels,emphasis:{scale:1.4,label:{show:true,fontWeight:600}}}]},true);
+label:{position:"right",formatter:"{b}",fontSize:11.5*fontScale,color:P.ink,distance:7,textBorderColor:P.bg,textBorderWidth:3},labelLayout:scatterLabels,emphasis:{scale:1.4,label:{show:true,fontWeight:600}}}]},true);
 guides();`, 520);
 }
 

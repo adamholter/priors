@@ -97,8 +97,10 @@ function escapeHtml(s: string) { return s.replace(/[&<>"']/g, (c) => ({ "&": "&a
 /** The "most attractive quadrant": from the better axis edge to the median metric, and from the median score up. */
 function quadrantArea(pts: ScatterPoint[], better: "lower" | "higher", scale: "linear" | "log" | "time") {
   const median = (v: number[]) => { const s = [...v].sort((a, b) => a - b), m = s.length >> 1; return s.length % 2 ? s[m] : scale === "log" ? Math.sqrt(s[m - 1] * s[m]) : (s[m - 1] + s[m]) / 2; };
+  // "min"/"max" mean the data extent, but the axis pads beyond it; overshoot so the area is clipped at the grid edges.
+  const edge = scale === "log" ? [1e-12, 1e12] : [-1e12, 1e12];
   const mx = median(pts.map((p) => p.x)), my = median(pts.map((p) => p.r.score));
-  return [{ xAxis: better === "lower" ? "min" : mx, yAxis: my }, { xAxis: better === "lower" ? mx : "max", yAxis: "max" }] as [{ xAxis: number | string; yAxis: number | string }, { xAxis: number | string; yAxis: number | string }];
+  return [{ xAxis: better === "lower" ? edge[0] : mx, yAxis: my }, { xAxis: better === "lower" ? mx : edge[1], yAxis: 1e9 }] as [{ xAxis: number | string; yAxis: number | string }, { xAxis: number | string; yAxis: number | string }];
 }
 
 export function scatterOption({ pts, labs, better, xName, xShort, xUnit = "", scale = "linear", formatX, formatValue, view, pal, narrow, hasTitle = false, tooltipExtra, width, height, highlight, fallen }: {
@@ -154,7 +156,7 @@ export function scatterOption({ pts, labs, better, xName, xShort, xUnit = "", sc
       emphasis: { scale: 1.4, label: { show: true, fontWeight: 600 } },
       clip: true, universalTransition: { enabled: false },
       // AA-style themes shade the better corner: better-than-median metric and above-median score.
-      ...(pal.style?.quadrant && scale !== "time" && pts.length >= 4 ? { markArea: { silent: true, z: 0, itemStyle: { color: pal.style.quadrant }, label: { show: false }, data: [quadrantArea(pts, better, scale)] } } : {}),
+      ...(pal.style?.quadrant && scale !== "time" && pts.length >= 4 ? { markArea: { silent: true, z: -1, itemStyle: { color: pal.style.quadrant }, label: { show: false }, data: [quadrantArea(pts, better, scale)] } } : {}),
       animationDurationUpdate: 350, animationEasingUpdate: "cubicOut",
     },
   ];
