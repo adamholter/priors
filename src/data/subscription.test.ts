@@ -53,9 +53,12 @@ describe("subscription cost basis", () => {
     expect(prices.get("b")!.ratio).toBeCloseTo(0.1, 6);
     expect(prices.has("c")).toBe(false);
   });
-  it("leaves costs untouched unless the index asks for the subscription basis", () => {
-    expect(costs(base)).toEqual({ "a@max": 12, "a@high": 4, "b@xhigh": 7, "c@default": 5 });
-    expect(computeIndex(snap(), base).ranked.every((r) => r.costPlan === undefined)).toBe(true);
+  it("leaves costs untouched when the index asks for the API basis", () => {
+    expect(costs({ ...base, costBasis: "api" })).toEqual({ "a@max": 12, "a@high": 4, "b@xhigh": 7, "c@default": 5 });
+    expect(computeIndex(snap(), { ...base, costBasis: "api" }).ranked.every((r) => r.costPlan === undefined)).toBe(true);
+  });
+  it("prices by subscription unless the index asks for API", () => {
+    expect(costs(base)).toEqual(costs({ ...base, costBasis: "subscription" }));
   });
   it("scales every effort of a subscribed model and keeps API cost for models without a plan", () => {
     const ranked = computeIndex(snap(), { ...base, costBasis: "subscription" }).ranked;
@@ -75,9 +78,10 @@ describe("subscription cost basis", () => {
   });
   it("round-trips through share links, omitting the default", () => {
     expect(encodeIndex(base)).not.toContain("costbasis");
-    const encoded = encodeIndex({ ...base, costBasis: "subscription" });
-    expect(encoded).toContain("costbasis=subscription");
-    expect(decodeIndex(encoded, "t")!.costBasis).toBe("subscription");
-    expect(decodeIndex(encoded.replace("subscription", "nope"), "t")!.costBasis).toBeUndefined();
+    expect(encodeIndex({ ...base, costBasis: "subscription" })).not.toContain("costbasis");
+    const encoded = encodeIndex({ ...base, costBasis: "api" });
+    expect(encoded).toContain("costbasis=api");
+    expect(decodeIndex(encoded, "t")!.costBasis).toBe("api");
+    expect(decodeIndex(encoded.replace("api", "nope"), "t")!.costBasis).toBeUndefined();
   });
 });

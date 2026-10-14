@@ -1,4 +1,4 @@
-import { subscriptionPrices, type CostBasis, type SubscriptionPrice } from "../data/subscription";
+import { effectiveBasis, subscriptionPrices, type CostBasis, type SubscriptionPrice } from "../data/subscription";
 import { taskMetricData, taskMetricDescription, type TaskMetricSource } from "../data/task-metrics";
 import type { Benchmark, FocusId, Model, Observation, Snapshot, Variant } from "../data/types";
 
@@ -293,7 +293,7 @@ export function computeIndex(snapshot: Snapshot, config: IndexConfig): IndexResu
   const models = new Map(snapshot.models.map((m) => [m.id, m]));
   const idx = indexObservations(snapshot);
   const costData = taskMetricData(snapshot, config.costSource ?? "aa", "cost");
-  const plans = config.costBasis === "subscription" ? subscriptionPrices(snapshot) : undefined;
+  const plans = effectiveBasis(config.costBasis) === "subscription" ? subscriptionPrices(snapshot) : undefined;
 
   const used = Object.entries(config.weights).filter(([id, w]) => w > 0 && benches.has(id));
   const total = used.reduce((a, [, w]) => a + w, 0);

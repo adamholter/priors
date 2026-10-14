@@ -41,7 +41,7 @@ export function encodeIndex(c: FromPage, keepPage = false): string {
   if (c.onlyModels !== undefined) parts.push(`only=${c.onlyModels.join(",")}`);
   if (c.releasedAfter !== undefined) parts.push(`after=${c.releasedAfter}`);
   if (c.costSource && c.costSource !== "aa") parts.push(`costsrc=${c.costSource}`);
-  if (c.costBasis && c.costBasis !== "api") parts.push(`costbasis=${c.costBasis}`);
+  if (c.costBasis === "api") parts.push(`costbasis=${c.costBasis}`);
   if (c.timeSource && c.timeSource !== "aa") parts.push(`timesrc=${c.timeSource}`);
   if (c.focus) parts.push(`focus=${c.focus}`);
   if (c.highlight?.length) parts.push(`hl=${c.highlight.join(",")}`);

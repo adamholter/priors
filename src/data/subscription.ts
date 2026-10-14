@@ -5,7 +5,9 @@ export const SUBSCRIPTION_BENCHMARK = "subscription-token-price";
 
 /** How cost per task is priced: at API list prices, or at what a subscriber to the lab's plan pays. */
 export type CostBasis = "api" | "subscription";
-export const COST_BASES: { id: CostBasis; name: string }[] = [{ id: "api", name: "API" }, { id: "subscription", name: "Subscription" }];
+export const COST_BASES: { id: CostBasis; name: string }[] = [{ id: "subscription", name: "Subscription" }, { id: "api", name: "API" }];
+/** Subscription pricing is the default; `costBasis` is only stored when someone picks API. Without plan data in the snapshot everything is API-priced. */
+export const effectiveBasis = (basis: CostBasis | undefined, hasPrices = true): CostBasis => hasPrices ? basis ?? "subscription" : "api";
 export const isCostBasis = (value: string): value is CostBasis => COST_BASES.some((b) => b.id === value);
 
 /** Token shares of the workload a plan's allowance was converted with; they sum to 1. */

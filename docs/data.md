@@ -54,7 +54,7 @@ Notes on sources whose behavior is not obvious from the file:
 
 `sources/realapipricing.ts` reads `derived/points.json` from github.com/FeiZhuLulu/real-api-pricing into the proxy benchmark `subscription-token-price`: plan fee divided by monthly tokens on the lab's own plan (median first-party plan; resellers such as Cursor are excluded; `low`-confidence rows are a last resort). `src/data/subscription.ts` divides that by the API list price at the same workload to get each model's share of API price.
 
-`IndexConfig.costBasis: "subscription"` (URL `costbasis=subscription`, the Pricing toggle in the cost chart's settings) multiplies measured cost per task by that share. Models without plan data keep API cost. It is a lower bound, because it assumes the full allowance is used. The toggle only shows when the snapshot has the benchmark.
+Subscription pricing is the default: `IndexConfig.costBasis` unset means subscription (`effectiveBasis` in `src/data/subscription.ts`); only an explicit `"api"` is stored (URL `costbasis=api`, the Pricing toggle in the cost chart's settings). It multiplies measured cost per task by that share. Models without plan data keep API cost. It is a lower bound, because it assumes the full allowance is used. The toggle only shows when the snapshot has the benchmark.
 
 ## Index math
 

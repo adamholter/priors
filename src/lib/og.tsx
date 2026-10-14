@@ -5,6 +5,7 @@ import { ImageResponse } from "next/og";
 import type { Snapshot } from "@/data/types";
 import { chartVariantMode, computeIndex, selectVariants, type IndexConfig, type RankedVariant } from "@/engine";
 import { isShareDesign, type ShareDesign } from "@/lib/share-designs";
+import { effectiveBasis } from "@/data/subscription";
 import { chartLabel, type MetricPoint } from "@/lib/metrics";
 import { cardPalette, renderChartPng, renderRadarPng, scatterSpec } from "@/lib/og-chart";
 import { DEFAULT_RADAR, RADAR_ANCHOR, RADAR_PALETTES, radarSnapshotView, radarSvg, type RadarSettings } from "@/components/chart/radar-view";
@@ -173,7 +174,7 @@ function ScatterCard({c,subtitle,pts,better,scale,formatX,xTitle,secsAxis,moneyA
 
 function Constellation({c}:{c:Ctx}){
  const pts:MetricPoint[]=c.pts.map(r=>({x:r.costUsd!,r}));
- const sub=c.index.costBasis==="subscription";
+ const sub=effectiveBasis(c.index.costBasis)==="subscription";
  return <ScatterCard c={c} subtitle={sub?"Score vs subscription cost per task":"Score vs cost per task"} pts={pts} better="lower" scale="log" formatX={tickMoney} xTitle={sub?"Subscription cost per task, USD · log scale":"Cost per task, USD · log scale"} moneyAxis/>;
 }
 function Empty({c}:{c:Ctx}){return <div style={{padding:68,width:"100%",display:"flex",flexDirection:"column",justifyContent:"space-between"}}><Identity c={c}/><div style={{display:"flex",flexDirection:"column"}}><div style={{fontFamily:"Newsreader",fontSize:64,display:"flex"}}>{c.index.name}</div><div style={{fontSize:21,color:c.muted,marginTop:15,display:"flex"}}>No models meet this index&apos;s current requirements.</div></div><div style={{width:550,borderTop:`1px solid ${c.line}`,display:"flex"}}/></div>}

@@ -20,7 +20,7 @@ export function variantLabel(r: RankedVariant) {
 /** `actions` receives the bar view's model picker plus what chart settings need for the custom formula. */
 export type ParetoSettings = Partial<BarModelPicker> & { formula?: FormulaSettings; defaultScale?: "log" | "linear" };
 
-export function ParetoChart({ ranked, mode = "all", labs, height = 460, title, actions, view: savedView, onView, anchor, description, basis = "api", formulaInputs }: { /** Enables the custom formula in Advanced settings. */ formulaInputs?: FormulaInputs; basis?: CostBasis; ranked: RankedVariant[]; mode?: "all" | "best"; labs: Lab[]; height?: number; title?: ReactNode; actions?: ReactNode | ((settings?: ParetoSettings) => ReactNode); view: ScatterView; onView: (view: ScatterView, persist?: boolean) => void; anchor?: string; description?: string }) {
+export function ParetoChart({ ranked, mode = "all", labs, height = 460, title, actions, view: savedView, onView, anchor, description, basis = "subscription", formulaInputs }: { /** Enables the custom formula in Advanced settings. */ formulaInputs?: FormulaInputs; basis?: CostBasis; ranked: RankedVariant[]; mode?: "all" | "best"; labs: Lab[]; height?: number; title?: ReactNode; actions?: ReactNode | ((settings?: ParetoSettings) => ReactNode); view: ScatterView; onView: (view: ScatterView, persist?: boolean) => void; anchor?: string; description?: string }) {
   const [linkedKind, setLinkedKind] = useState<"bars" | "scatter">();
   // Read once: the effect below that mirrors the formula into the URL would otherwise erase a linked one before a remount reads it.
   const [linkedCustom] = useState(() => (typeof window === "undefined" ? undefined : linkedFormula(new URL(window.location.href).searchParams)));
