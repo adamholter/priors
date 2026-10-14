@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MixAssistant } from "./MixAssistant";
 import { HighlightContext } from "./chart/highlight";
-import { ThemeToggle } from "./Theme";
+import { SettingsButton } from "./SiteSettings";
 import Link from "next/link";
 import type { Snapshot } from "@/data/types";
 import { chartVariantMode, computeIndex, defaultConfig, selectVariants, type IndexConfig } from "@/engine";
@@ -136,7 +136,7 @@ export function Builder({ snapshot: base, initialIndices, labPlacement }: { snap
           <span className="cap">Data as of {snapshot.date}</span>
           {!labPlacement && <><ShareCards indices={indices} active={active} top={topNames} hint={shareHint} onOpen={() => setShareHint(false)} /><HeaderAuth indices={indices} /></>}
         </div>
-        <div className="col-start-3 row-start-1 shrink-0"><ThemeToggle /></div>
+        <div className="col-start-3 row-start-1 shrink-0"><SettingsButton /></div>
       </header>
 
       <HighlightContext.Provider value={highlightState}>

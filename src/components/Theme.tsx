@@ -1,6 +1,8 @@
 "use client";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
 import { ChartPaletteContext, DARK_PALETTE, LIGHT_PALETTE } from "./chart/echarts";
+import { paletteFor } from "./chart/theme";
+import { DEFAULT_SITE_THEME, resolveSiteTheme, savedSiteTheme, SITE_THEME_KEY, siteThemeVars, type SavedSiteTheme } from "@/lib/site-theme";
 
 export type ThemeMode = "system" | "light" | "dark";
 export const THEME_KEY = "priors:theme";
@@ -16,10 +18,10 @@ function saveCookie(mode: ThemeMode) {
   try { document.cookie = `${THEME_COOKIE}=${mode === "system" ? "" : mode}; Path=/; Max-Age=${mode === "system" ? 0 : 31536000}; SameSite=Lax${location.protocol === "https:" ? "; Secure" : ""}`; } catch { /* browser storage can still remember the choice */ }
 }
 
-/** Runs in <head> before first paint so the page never flashes the wrong scheme. */
-export const THEME_SCRIPT = `(function(){var m;try{m=localStorage.getItem("${THEME_KEY}")}catch(e){}if(m!=="light"&&m!=="dark"){try{var c=document.cookie.match(/(?:^|;\\s*)${THEME_COOKIE}=(light|dark)(?:;|$)/);m=c&&c[1]}catch(e){}}var d=m==="dark"||(m!=="light"&&matchMedia("(prefers-color-scheme: dark)").matches);var r=document.documentElement;r.dataset.theme=d?"dark":"light";r.style.colorScheme=d?"dark":"light"})()`;
+/** Runs in <head> before first paint so the page never flashes the wrong scheme or theme. */
+export const THEME_SCRIPT = `(function(){var m;try{m=localStorage.getItem("${THEME_KEY}")}catch(e){}if(m!=="light"&&m!=="dark"){try{var c=document.cookie.match(/(?:^|;\\s*)${THEME_COOKIE}=(light|dark)(?:;|$)/);m=c&&c[1]}catch(e){}}var d=m==="dark"||(m!=="light"&&matchMedia("(prefers-color-scheme: dark)").matches);var r=document.documentElement,t=null;try{t=JSON.parse(localStorage.getItem("${SITE_THEME_KEY}")||"null")}catch(e){}if(t&&(t.light||t.dark)){if(d&&!t.dark)d=false;if(!d&&!t.light)d=true;var v=d?t.dark:t.light;for(var k in v)r.style.setProperty(k,v[k]);r.dataset.siteTheme=t.id}r.dataset.theme=d?"dark":"light";r.style.colorScheme=d?"dark":"light"})()`;
 
-const ThemeContext = createContext<{ mode: ThemeMode; dark: boolean; setMode: (m: ThemeMode) => void }>({ mode: "system", dark: false, setMode: () => {} });
+const ThemeContext = createContext<{ mode: ThemeMode; dark: boolean; setMode: (m: ThemeMode) => void; siteTheme: string; setSiteTheme: (id: string) => void }>({ mode: "system", dark: false, setMode: () => {}, siteTheme: DEFAULT_SITE_THEME, setSiteTheme: () => {} });
 export const useTheme = () => useContext(ThemeContext);
 
 function subscribe(cb: () => void) {
@@ -29,11 +31,25 @@ function subscribe(cb: () => void) {
 }
 const readDark = () => document.documentElement.dataset.theme === "dark";
 
-function apply(dark: boolean) {
-  const r = document.documentElement;
-  const set = () => { r.dataset.theme = dark ? "dark" : "light"; r.style.colorScheme = dark ? "dark" : "light"; };
+function savedThemeId(): string {
+  try { return (JSON.parse(localStorage.getItem(SITE_THEME_KEY) ?? "null") as SavedSiteTheme | null)?.id ?? DEFAULT_SITE_THEME; } catch { return DEFAULT_SITE_THEME; }
+}
+
+const wantsDark = (mode: ThemeMode) => mode === "dark" || (mode === "system" && matchMedia("(prefers-color-scheme: dark)").matches);
+
+/** Paint the scheme and the site theme's tokens on <html>, crossfading when something visibly changes. */
+function apply(mode: ThemeMode, themeId: string, animate = true) {
+  const r = document.documentElement, { preset, dark } = resolveSiteTheme(themeId, wantsDark(mode));
+  const vars = preset ? siteThemeVars(preset) : {};
+  const same = r.dataset.theme === (dark ? "dark" : "light") && (r.dataset.siteTheme ?? DEFAULT_SITE_THEME) === (preset ? themeId : DEFAULT_SITE_THEME);
+  const set = () => {
+    for (const name of [...r.style].filter((n) => n.startsWith("--"))) r.style.removeProperty(name);
+    for (const [k, v] of Object.entries(vars)) r.style.setProperty(k, v);
+    if (preset) r.dataset.siteTheme = themeId; else delete r.dataset.siteTheme;
+    r.dataset.theme = dark ? "dark" : "light"; r.style.colorScheme = dark ? "dark" : "light";
+  };
   const doc = document as Document & { startViewTransition?: (cb: () => void) => unknown };
-  if (doc.startViewTransition && !matchMedia("(prefers-reduced-motion: reduce)").matches && r.dataset.theme !== (dark ? "dark" : "light")) {
+  if (animate && !same && doc.startViewTransition && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
     r.classList.add("theme-switching");
     const t = doc.startViewTransition(set) as { finished?: Promise<void> };
     t.finished?.finally(() => r.classList.remove("theme-switching"));
@@ -43,30 +59,42 @@ function apply(dark: boolean) {
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const dark = useSyncExternalStore(subscribe, readDark, () => false);
   const [mode, setModeState] = useState<ThemeMode>("system");
+  const [siteTheme, setSiteThemeState] = useState(DEFAULT_SITE_THEME);
   useEffect(() => {
-    const m = savedMode();
+    const m = savedMode(), id = savedThemeId();
     if (m !== "system") saveCookie(m);
     // eslint-disable-next-line react-hooks/set-state-in-effect -- localStorage is client-only
     setModeState(m);
-    // A hydration error makes React re-render <html> and drop the attribute the head script set; restore it.
-    const want = m === "dark" || (m === "system" && matchMedia("(prefers-color-scheme: dark)").matches);
-    if (document.documentElement.dataset.theme !== (want ? "dark" : "light")) { document.documentElement.dataset.theme = want ? "dark" : "light"; document.documentElement.style.colorScheme = want ? "dark" : "light"; }
+    setSiteThemeState(id);
+    // A hydration error makes React re-render <html> and drop what the head script set; restore it.
+    // Repainting also refreshes the saved tokens if the theme's definition changed since they were saved.
+    apply(m, id, false);
+    const saved = savedSiteTheme(id);
+    try { if (saved) localStorage.setItem(SITE_THEME_KEY, JSON.stringify(saved)); } catch { /* ignore */ }
   }, []);
   useEffect(() => {
     if (mode !== "system") return;
     const mq = matchMedia("(prefers-color-scheme: dark)");
-    const on = () => apply(mq.matches);
+    const on = () => apply("system", siteTheme);
     mq.addEventListener("change", on);
     return () => mq.removeEventListener("change", on);
-  }, [mode]);
+  }, [mode, siteTheme]);
   const setMode = useCallback((m: ThemeMode) => {
     setModeState(m);
     try { if (m === "system") localStorage.removeItem(THEME_KEY); else localStorage.setItem(THEME_KEY, m); } catch { /* ignore */ }
     saveCookie(m);
-    apply(m === "dark" || (m === "system" && matchMedia("(prefers-color-scheme: dark)").matches));
+    apply(m, savedThemeId());
   }, []);
-  const value = useMemo(() => ({ mode, dark, setMode }), [mode, dark, setMode]);
-  return <ThemeContext.Provider value={value}><ChartPaletteContext.Provider value={dark ? DARK_PALETTE : LIGHT_PALETTE}>{children}</ChartPaletteContext.Provider></ThemeContext.Provider>;
+  const setSiteTheme = useCallback((id: string) => {
+    setSiteThemeState(id);
+    const saved = savedSiteTheme(id);
+    try { if (saved) localStorage.setItem(SITE_THEME_KEY, JSON.stringify(saved)); else localStorage.removeItem(SITE_THEME_KEY); } catch { /* ignore */ }
+    apply(savedMode(), id);
+  }, []);
+  const preset = resolveSiteTheme(siteTheme, dark).preset;
+  const palette = useMemo(() => preset ? paletteFor(preset) : dark ? DARK_PALETTE : LIGHT_PALETTE, [preset, dark]);
+  const value = useMemo(() => ({ mode, dark, setMode, siteTheme, setSiteTheme }), [mode, dark, setMode, siteTheme, setSiteTheme]);
+  return <ThemeContext.Provider value={value}><ChartPaletteContext.Provider value={palette}>{children}</ChartPaletteContext.Provider></ThemeContext.Provider>;
 }
 
 /** Light/dark switch. Starts from the system setting; a click pins the other scheme. */

@@ -5,26 +5,14 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useAuth, useUser } from "@clerk/nextjs";
-import { ACCENTS, THEME_CHOICES, presetOf, themeById, type PagePreset } from "@/lib/page-presets";
+import { ACCENTS, THEME_CHOICES, presetOf, type PagePreset } from "@/lib/page-presets";
+import { ThemeSwatch } from "../ThemeSwatch";
 import { SHARE_DESIGNS } from "@/lib/share-designs";
 import { api } from "../../../convex/_generated/api";
 import type { Profile } from "./IndexPage";
 import { encodeIndices, PAGE_KEY, pageRef, prettyQuery } from "@/lib/url";
 import { authEnabled } from "@/app/providers";
 
-/** A miniature of the theme: its surface, a card, accent, two lab marks and its type. */
-export function ThemeSwatch({ theme, selected, onClick }: { theme: PagePreset; selected: boolean; onClick: () => void }) {
-  const pair = themeById(theme.pair);
-  const labs = Object.values(theme.labColors ?? { a: "#C96A4A", b: "#3B78D8", c: "#2B2B2B" }).slice(0, 4);
-  return <button type="button" aria-pressed={selected} onClick={onClick} className={`theme-swatch ${selected ? "is-on" : ""}`} style={{ background: theme.bg, color: theme.ink, borderRadius: Math.min(theme.radius ?? 4, 8) }}>
-    <span className="theme-swatch-card" style={{ background: theme.surface ?? (theme.dark ? theme.hair2 : "#fff"), borderColor: theme.hair, borderRadius: Math.min(theme.radius ?? 4, 6) }}>
-      <span className="theme-swatch-type" style={{ fontFamily: theme.fonts?.serif }}>Aa</span>
-      <span className="theme-swatch-bars">{labs.map((c, i) => <i key={i} style={{ background: c, height: `${90 - i * 18}%`, borderRadius: theme.chart?.barRadius ?? 1 }} />)}</span>
-    </span>
-    <span className="theme-swatch-name" style={{ fontFamily: theme.fonts?.sans }}>{theme.name}{pair ? <em> · light & dark</em> : null}</span>
-    <i className="theme-swatch-accent" style={{ background: theme.accent }} />
-  </button>;
-}
 
 /**
  * Page settings drawer, opened from the edit bar. Everything on the page itself is edited inline;

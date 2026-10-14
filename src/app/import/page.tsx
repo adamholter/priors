@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { ThemeToggle } from "@/components/Theme";
+import { SettingsButton } from "@/components/SiteSettings";
 import { useState } from "react";
 import { Wordmark } from "@/components/Wordmark";
 import { importSchema, type ImportPayload } from "@/lib/import";
@@ -29,7 +29,7 @@ export default function ImportPage() {
 
   return (
     <PageTransition><main className="min-h-screen">
-      <header className="flex items-center gap-6 px-8 h-14 border-b hairline"><Wordmark transitionTypes={["nav-back"]} /><Link href="/builder" transitionTypes={["nav-back"]} className="text-grey text-[13px] hover:text-ink">Builder</Link><Link href="/skill" transitionTypes={["nav-forward"]} className="text-grey text-[13px] hover:text-ink">Skill</Link><span className="ml-auto"><ThemeToggle /></span></header>
+      <header className="flex items-center gap-6 px-8 h-14 border-b hairline"><Wordmark transitionTypes={["nav-back"]} /><Link href="/builder" transitionTypes={["nav-back"]} className="text-grey text-[13px] hover:text-ink">Builder</Link><Link href="/skill" transitionTypes={["nav-forward"]} className="text-grey text-[13px] hover:text-ink">Skill</Link><span className="ml-auto"><SettingsButton /></span></header>
       <div className="max-w-[820px] mx-auto px-8 py-12 grid gap-6">
         <div><h1 className="text-[36px] mb-3">Import a benchmark</h1><p className="text-[16px] text-ink-2 max-w-[62ch]">Paste the JSON your agent produced with the <Link href="/skill" transitionTypes={["nav-forward"]} className="text-indigo">Priors skill</Link>, or drop the file. Model names are matched to the models already on the site; anything unrecognized is listed so you can fix it.</p></div>
         <div className="grid gap-2">

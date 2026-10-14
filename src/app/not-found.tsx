@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { SiteNav } from "@/components/SiteNav";
-import { ThemeToggle } from "@/components/Theme";
+import { SettingsButton } from "@/components/SiteSettings";
 import { Wordmark } from "@/components/Wordmark";
 
 export const metadata = { title: "Page not found", robots: { index: false } };
@@ -11,7 +11,7 @@ export default function NotFound() {
     <header className="flex items-center gap-5 px-4 sm:px-8 h-14 border-b hairline">
       <Wordmark />
       <SiteNav />
-      <span className="ml-auto"><ThemeToggle /></span>
+      <span className="ml-auto"><SettingsButton /></span>
     </header>
     <div className="max-w-[640px] mx-auto px-4 sm:px-8 py-16 sm:py-24 grid gap-4">
       <p className="cap">404</p>

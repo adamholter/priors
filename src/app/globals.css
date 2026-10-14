@@ -268,3 +268,26 @@ p.share-change { display: grid; grid-template-columns: minmax(0, 1fr) 40% 38px; 
 .share-hint::before{content:"";position:absolute;top:-4px;right:18px;width:8px;height:8px;background:inherit;transform:rotate(45deg)}
 @keyframes share-hint-in{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
 @media(prefers-reduced-motion:reduce){.share-hint{animation:none}}
+
+/* Theme picker cards (Page settings and site Settings). */
+.theme-swatch { position: relative; display: grid; gap: 8px; padding: 10px; text-align: left; border: 1px solid var(--hair); overflow: hidden; }
+.theme-swatch.is-on { box-shadow: 0 0 0 2px var(--ink); }
+.theme-swatch-card { display: flex; align-items: flex-end; justify-content: space-between; height: 54px; padding: 8px; border: 1px solid; }
+.theme-swatch-type { font-size: 22px; line-height: 1; }
+.theme-swatch-bars { display: flex; align-items: flex-end; gap: 3px; height: 36px; }
+.theme-swatch-bars i { width: 7px; display: block; }
+.theme-swatch-name { font-size: 12px; }
+.theme-swatch-name em { font-style: normal; opacity: .55; font-size: 11px; }
+.theme-swatch-accent { position: absolute; top: 10px; right: 10px; width: 8px; height: 8px; border-radius: 50%; }
+
+/* Site settings (the gear in every header). */
+.settings-dialog { margin: auto; width: min(640px, calc(100vw - 24px)); max-height: 88dvh; overflow: auto; padding: 22px 24px 24px; background: var(--bone); color: var(--ink); border: 1px solid var(--hair); border-radius: 7px; box-shadow: 0 22px 100px var(--shadow); font: 13px var(--font-sans); }
+.settings-dialog::backdrop { background: var(--backdrop); backdrop-filter: blur(3px); }
+.settings-dialog[open] { animation: bench-in .2s cubic-bezier(.16,1,.3,1) both; }
+.settings-dialog h2 { font-size: 26px; margin: 0; }
+.settings-dialog h3 { font: 500 12px var(--font-sans); letter-spacing: 0; color: var(--ink); margin: 0 0 10px; }
+.settings-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 20px; }
+.settings-section + .settings-section { margin-top: 22px; padding-top: 20px; border-top: 1px solid var(--hair); }
+.settings-themes { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.settings-note { margin: 10px 0 0; font-size: 12px; color: var(--grey); }
+@media (max-width: 560px) { .settings-themes { grid-template-columns: repeat(2, minmax(0, 1fr)); } .settings-dialog { padding: 18px 16px 20px; } }

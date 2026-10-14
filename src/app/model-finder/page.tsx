@@ -5,7 +5,7 @@ import { loadSnapshot } from "@/data/load";
 import { buildModelFinder } from "@/lib/model-finder";
 import { ModelFinder } from "@/components/model-finder/ModelFinder";
 import { Wordmark } from "@/components/Wordmark";
-import { ThemeToggle } from "@/components/Theme";
+import { SettingsButton } from "@/components/SiteSettings";
 import { pageMeta } from "@/lib/site-meta";
 
 export const dynamic = "force-dynamic";
@@ -23,7 +23,7 @@ export default async function ModelFinderPage({ searchParams }: { searchParams: 
       <Wordmark />
       <Link href="/builder" className="text-[13px] text-ink-2 hover:text-ink">Builder</Link>
       <Link href="/explore" className="text-[13px] text-ink-2 hover:text-ink">Explore</Link>
-      <span className="ml-auto flex items-center gap-2"><SignInLink /><ThemeToggle /></span>
+      <span className="ml-auto flex items-center gap-2"><SignInLink /><SettingsButton /></span>
     </header>
     {snapshot ? <ModelFinder data={buildModelFinder(snapshot)} initialGroup={typeof params.use === "string" ? params.use : "overall"} initialBudget={Number.isFinite(budget) ? Math.round(Math.max(0, Math.min(100, budget))) : 100} initialMix={typeof params.mix === "string" ? params.mix : undefined} /> : <p className="p-8 text-ink-2">Model data is temporarily unavailable.</p>}
   </main>;

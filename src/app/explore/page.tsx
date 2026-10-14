@@ -8,7 +8,7 @@ import { chartVariantMode, computeIndex, selectVariants, type IndexConfig } from
 import type { Snapshot } from "@/data/types";
 import { Wordmark } from "@/components/Wordmark";
 import { SiteNav } from "@/components/SiteNav";
-import { ThemeToggle } from "@/components/Theme";
+import { SettingsButton } from "@/components/SiteSettings";
 import { encodeIndices, prettyQuery } from "@/lib/url";
 import { rankedCount } from "@/lib/ranked-count";
 import { pageMeta } from "@/lib/site-meta";
@@ -49,7 +49,7 @@ export default async function Explore() {
     <header className="flex items-center gap-5 px-4 sm:px-8 h-14 border-b hairline">
       <Wordmark />
       <SiteNav current="explore" />
-      <span className="ml-auto flex items-center gap-2"><SignInLink /><ThemeToggle /></span>
+      <span className="ml-auto flex items-center gap-2"><SignInLink /><SettingsButton /></span>
     </header>
     <div className="max-w-[1100px] mx-auto px-4 sm:px-8 py-10">
       <div className="flex flex-wrap items-end justify-between gap-4 mb-8">
