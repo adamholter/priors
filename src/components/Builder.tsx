@@ -1,9 +1,9 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MixAssistant } from "./MixAssistant";
+import { track } from "@/lib/analytics";
 import { HighlightContext } from "./chart/highlight";
 import { SettingsButton } from "./SiteSettings";
-import Link from "next/link";
 import type { Snapshot } from "@/data/types";
 import { chartVariantMode, computeIndex, defaultConfig, selectVariants, type IndexConfig } from "@/engine";
 import { ShareCards } from "./ShareCards";
@@ -96,6 +96,12 @@ export function Builder({ snapshot: base, initialIndices, labPlacement }: { snap
     const off = setTimeout(() => setShareHint(false), 9000);
     return () => clearTimeout(off);
   }, [shareHint]);
+  // One event per settled edit, not one per slider tick.
+  useEffect(() => {
+    if (labPlacement || active === edits.current.first) return;
+    const t = setTimeout(() => track("index_changed", { benchmarks: Object.values(active.weights).filter((w) => w > 0).length }), 3000);
+    return () => clearTimeout(t);
+  }, [active, labPlacement]);
   const releaseProps = { releasedAfter: active.releasedAfter, onChangeReleased: (v: string) => update({ ...active, releasedAfter: v }) };
 
   // write URL (debounced) when indices change
@@ -150,11 +156,6 @@ export function Builder({ snapshot: base, initialIndices, labPlacement }: { snap
             <CalculationSettings ref={calculations} config={active} result={result} snapshot={snapshot} onChange={update}>
               <SourceStatus snapshot={sourceSnapshot} onSnapshot={receiveSnapshot} />
             </CalculationSettings>
-          </section>
-          <section aria-label="Import a benchmark" className="shrink-0 border-t hairline pt-5">
-            <h3 className="text-[16px] mb-1">Missing a benchmark?</h3>
-            <p className="text-[12.5px] text-ink-2 mb-2">Hand your agent the Priors skill. It researches the benchmark, produces the JSON, and uploads it here.</p>
-            <div className="flex gap-2"><Link className="btn-quiet" href="/skill" transitionTypes={["nav-forward"]}>Get the skill</Link><Link className="btn-quiet" href="/import" transitionTypes={["nav-forward"]}>Import JSON</Link></div>
           </section>
         </aside>
 

@@ -30,6 +30,7 @@ export function CalculationSettings({ ref, config, result, snapshot, onChange, c
   } }), []);
   const row = result.ranked.find((r) => r.variant.id === selected) ?? result.ranked[0];
   const strictness = strictnessOf(config);
+  const DEFAULT_STRICTNESS = 50;
   return (
     <>
       <button type="button" className="mt-4 text-[12px] text-grey hover:text-ink" onClick={() => { dialog.current?.showModal(); setOpen(true); }}>Calculation settings</button>
@@ -61,8 +62,16 @@ export function CalculationSettings({ ref, config, result, snapshot, onChange, c
           </section>
           <section className="grid gap-2 border-t hairline pt-5">
             <h3 className="text-lg text-ink">Strictness and requirements</h3>
+            <label className="grid gap-2 max-w-sm text-ink">
+              <span className="flex justify-between"><span>Strictness</span><span className="cap">{Math.round(strictness)}{Math.round(strictness) !== DEFAULT_STRICTNESS && <> · <button type="button" className="hover:text-ink underline" onClick={() => onChange({ ...config, strictness: DEFAULT_STRICTNESS })}>reset to {DEFAULT_STRICTNESS}</button></>}</span></span>
+              <input type="range" aria-label="Strictness" min={0} max={100} value={strictness} onChange={(e) => onChange({ ...config, strictness: Number(e.target.value) })} className="h-[3px] w-full" />
+              <span className="flex justify-between text-[11px] text-grey"><span>Flexible</span><span>Strict</span></span>
+            </label>
             <p>Strictness is {Math.round(strictness)}. A model is ranked only when measured scores cover at least {Math.round(strictness)}% of this index&apos;s weight — a model with one benchmark cannot ride that benchmark alone. Required checkboxes add hard per-benchmark gates. Higher strictness also demands more effort comparisons, limits how far apart the source and target efforts can be, and narrows peer comparisons. At 100, estimates are disabled.</p>
             <p>Effort estimates require {strictness >= 95 ? 3 : strictness >= 75 ? 2 : 1} paired benchmark comparisons{strictness >= 85 ? " and adjacent effort levels" : ""}. Manual Required and Optional choices persist when strictness changes.</p>
+            <fieldset className="grid gap-1.5 max-w-sm"><legend className="text-ink mb-1.5">Required benchmarks</legend>
+              {Object.entries(config.weights).filter(([, w]) => w > 0).map(([id]) => <label key={id} className="flex items-center gap-2"><input type="checkbox" className="accent-indigo" checked={config.required.includes(id)} onChange={(e) => onChange({ ...config, required: [...config.required.filter((x) => x !== id), ...(e.target.checked ? [id] : [])], optional: [...(config.optional ?? []).filter((x) => x !== id), ...(e.target.checked ? [] : [id])] })} />{snapshot.benchmarks.find((b) => b.id === id)?.name ?? id}</label>)}
+            </fieldset>
             <button className="btn-quiet justify-self-start" onClick={() => onChange({ ...config, required: [], optional: [] })}>Reset requirement overrides</button>
           </section>
           <section className="grid gap-3 border-t hairline pt-5">

@@ -20,7 +20,7 @@ import { PRIORS_MIX_COOKIE, savedLineup } from "./defaults";
 import { Bracket, resetSavedBracket, undoSavedCall } from "./BracketDuel";
 import type { Answer, BracketOptions, BracketStep } from "./bracket";
 import { SearchMonitor } from "./SearchMonitor";
-import { readVia, type Via } from "@/lib/share";
+import { readVia, stashForPublish, type Via } from "@/lib/share";
 import type { RankingEvidence } from "./adaptive";
 import { Finish } from "./Finish";
 import "./onboarding.css";
@@ -365,7 +365,7 @@ export function Onboarding({ snapshot, lineup, seeds, quality, observedModelIds,
     </main>
     <span className="sr-only" aria-live="polite">{announcement}</span>
     <dialog ref={done} className="done-dialog wide" aria-labelledby="done-heading" onClick={e => { if (e.target === e.currentTarget) done.current?.close(); }}>
-      {complete && update && <Finish update={update} models={models} cardUrl={cardUrl} resultUrl={resultUrl} publicUrl={`https://mypriors.com${resultUrl}`} reference={via?.ids} referenceLabel={via ? `@${via.handle}` : undefined} onClose={() => done.current?.close()} />}
+      {complete && update && <Finish update={update} models={models} cardUrl={cardUrl} resultUrl={resultUrl} publicUrl={`https://mypriors.com${resultUrl}`} reference={via?.ids} referenceLabel={via ? `@${via.handle}` : undefined} baseline={original} baselineLabel={hasSavedMix ? "your last index" : "the benchmark consensus"} onSave={fittedIndex ? () => { track("publish_clicked", { from: "onboarding" }); stashForPublish([fittedIndex]); } : undefined} onClose={() => done.current?.close()} />}
     </dialog>
     <Intro snapshot={snapshot} lineup={order} dialogRef={intro} />
     <dialog ref={dialog} className="evidence-dialog" aria-labelledby="dialog-heading" onClick={e => { if (e.target === e.currentTarget) { const r = e.currentTarget.getBoundingClientRect(); if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) dialog.current?.close(); } }}>

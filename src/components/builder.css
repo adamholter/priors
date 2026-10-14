@@ -24,3 +24,7 @@
     & .bench-sheet { top: calc(var(--head) + 16px); left: calc(var(--pad) + 360px * var(--t) + 16px); width: min(460px * var(--t), calc(100vw - var(--pad) - 360px * var(--t) - 32px)); }
   }
 }
+
+/* Remove a benchmark from the mix: a real hit target, quiet until hovered. */
+.bench-remove { display: inline-grid; place-items: center; width: 24px; height: 24px; margin-right: -6px; border-radius: 4px; color: var(--grey); font-size: 15px; line-height: 1; background: none; border: 0; }
+.bench-remove:hover { color: var(--ink); background: var(--hair-2); }

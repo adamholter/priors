@@ -15,11 +15,11 @@ export async function copyCardImage(imageUrl: string): Promise<string> {
 }
 
 /** Post text that carries the result itself: a surprising #1 gets replies, "My priors on Priors" doesn't. */
-export function shareText(top: string[], owner?: string) {
+export function shareText(top: string[], owner?: string, note?: string) {
   const names = [...new Set(top)].slice(0, 3);
   if (!names.length) return owner ? `${owner}'s AI model ranking on Priors` : "My AI model ranking on Priors";
   const head = owner ? `${owner}'s AI model ranking:` : "My AI model ranking:";
-  return `${head}\n${names.map((n, i) => `${i + 1}. ${n}`).join("\n")}\n\nWhat are your priors?`;
+  return `${head}\n${names.map((n, i) => `${i + 1}. ${n}`).join("\n")}\n\n${note ? `${note} ` : ""}What are your priors?`;
 }
 
 /**

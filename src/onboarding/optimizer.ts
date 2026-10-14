@@ -16,7 +16,8 @@ export type FitUpdate = { exactMatch:boolean; matchedPositions:number; priorityM
 type Settings=Pick<IndexConfig,"strictness"|"estimateMissing"|"effortMatching">;
 type Column={id:string;score:number[];present:boolean[]}; type Approx={loss:number[];weights:Record<string,number>}; type Exact={loss:number[];update:FitUpdate};
 // The library's settings come first: its precomputed columns make the first pass nearly free.
-export const SETTINGS:Settings[]=[{strictness:50,estimateMissing:true,effortMatching:"calibrated"},{strictness:20,estimateMissing:true,effortMatching:"calibrated"},{strictness:20,estimateMissing:false,effortMatching:"calibrated"},{strictness:50,estimateMissing:false,effortMatching:"strict"},{strictness:100,estimateMissing:false,effortMatching:"strict"}];
+// Strictness stays at 50: a fit that only works by loosening it ranks models on too little evidence.
+export const SETTINGS:Settings[]=[{strictness:50,estimateMissing:true,effortMatching:"calibrated"},{strictness:50,estimateMissing:false,effortMatching:"calibrated"},{strictness:50,estimateMissing:false,effortMatching:"strict"}];
 export const settingsKey=(s:Settings)=>`${s.strictness}|${s.estimateMissing?1:0}|${s.effortMatching}`;
 export const LEVELS=[1,5,15,30,60,100]; const yieldUi=()=>new Promise<void>(r=>setTimeout(r,0));
 const compare=(a:number[],b:number[])=>{for(let i=0;i<a.length;i++)if(a[i]!==b[i])return a[i]-b[i];return 0};

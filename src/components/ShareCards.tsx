@@ -107,6 +107,7 @@ function ShareCardsContent({ indices, active, profile, pageUrl, defaultDesign, c
     void shareCardToX({ imageUrl: selectedUrl, text: postText, url: local ? undefined : postUrl, fileName: `priors-${design}.png` }).then(setMessage);
   };
   const copy = async () => {
+    track("share_card_shared", { design, scheme, target: "link" });
     try { await navigator.clipboard.writeText(pageUrl ?? `${window.location.origin}/builder?${prettyQuery(params)}`); setMessage("Link copied"); }
     catch { setMessage("Copy failed. Select the link below to copy it manually."); }
   };
@@ -144,7 +145,7 @@ function ShareCardsContent({ indices, active, profile, pageUrl, defaultDesign, c
           <div className="flex flex-wrap gap-2">
             <button type="button" className="btn-quiet inline-flex items-center gap-1.5 !border-black !bg-black !text-[#fff] hover:opacity-85" onClick={shareToX}><XLogo />Share on X</button>
             <button type="button" className="btn-quiet inline-flex items-center gap-1.5" onClick={copy}><CopyIcon />Copy link</button>
-            <a className="btn-quiet inline-flex items-center gap-1.5" href={selectedUrl} download={`priors-${design}.png`}><DownloadIcon />Download</a>
+            <a className="btn-quiet inline-flex items-center gap-1.5" href={selectedUrl} download={`priors-${design}.png`} onClick={() => track("share_card_shared", { design, scheme, target: "download" })}><DownloadIcon />Download</a>
           </div>
         </div>
         {publishHref && !profile && <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-sm border hairline bg-white px-3 py-2.5">

@@ -18,14 +18,13 @@ type Event = { type: "step"; text: string }
   | { type: "done"; reply: string; question?: string; suggestions: string[]; proposal?: { weights: Record<string, number>; required: string[]; view: View }; charts?: AnswerChart[]; highlight?: string[]; theme?: { id?: string; mode?: ThemeMode } }
   | { type: "error"; message: string };
 
-const MODE_KEY = "priors:assistant-mode";
 const EXAMPLES = ["How much does max reasoning add over xhigh?", "Gemini 4 feels too high", "Highlight the Claude models"];
 
 /**
  * The assistant: questions about the data (answered with charts), changes to the active index,
- * highlights and the site theme, in plain language. A composer bar (Raycast/Figma-style) that expands
- * into a short card; it can dock as a side panel for longer back-and-forth. Changes apply immediately
- * with Undo, then the assistant asks what you meant if the ask was vague.
+ * highlights and the site theme, in plain language. Out of the way until asked for: a round button in the
+ * bottom-right corner that opens a chat panel (or press /). Changes apply immediately with Undo, then
+ * the assistant asks what you meant if the ask was vague.
  */
 export function MixAssistant(props: { config: IndexConfig; onApply: (c: IndexConfig) => void; date: string; handle?: string }) {
   if (!authEnabled) return null;
@@ -40,23 +39,22 @@ function Inner({ config, onApply, date, handle }: { config: IndexConfig; onApply
   const [steps, setSteps] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState(false);
-  const [docked, setDocked] = useState(false);
   const input = useRef<HTMLTextAreaElement>(null);
+  const fab = useRef<HTMLButtonElement>(null);
   const scroller = useRef<HTMLDivElement>(null);
   const abort = useRef<AbortController | null>(null);
   const latest = useRef(config);
   useEffect(() => { latest.current = config; }, [config]);
-  useEffect(() => { const id = requestAnimationFrame(() => { try { setDocked(localStorage.getItem(MODE_KEY) === "panel"); } catch { /* ignore */ } }); return () => cancelAnimationFrame(id); }, []);
-  useEffect(() => { try { localStorage.setItem(MODE_KEY, docked ? "panel" : "bar"); } catch { /* ignore */ } }, [docked]);
+  useEffect(() => { if (open) input.current?.focus(); }, [open]);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null;
-      if (e.key === "/" && !e.metaKey && !e.ctrlKey && !t?.closest("input,textarea,select,[contenteditable=true]") && !document.querySelector("dialog[open]")) { e.preventDefault(); input.current?.focus(); setOpen(true); }
-      if (e.key === "Escape" && open && !docked && t?.closest(".assistant")) { setOpen(false); input.current?.blur(); }
+      if (e.key === "/" && !e.metaKey && !e.ctrlKey && !t?.closest("input,textarea,select,[contenteditable=true]") && !document.querySelector("dialog[open]")) { e.preventDefault(); setOpen(true); input.current?.focus(); }
+      if (e.key === "Escape" && open && t?.closest(".assistant")) { setOpen(false); fab.current?.focus(); }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open, docked]);
+  }, [open]);
   useEffect(() => { scroller.current?.scrollTo({ top: scroller.current.scrollHeight, behavior: "smooth" }); }, [turns, steps]);
   useEffect(() => () => abort.current?.abort(), []);
 
@@ -110,18 +108,21 @@ function Inner({ config, onApply, date, handle }: { config: IndexConfig; onApply
   };
 
   if (!isLoaded) return null;
-  const shown = docked ? turns : turns.slice(-2);
-  const card = (open || docked) && (turns.length > 0 || busy);
+  if (!open) return <button ref={fab} type="button" className="assistant-fab" onClick={() => setOpen(true)} aria-label="Open the assistant" title="Ask about the data, or adjust this ranking (/)">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" aria-hidden="true"><path d="M5 5.5h14a1.5 1.5 0 0 1 1.5 1.5v8.5A1.5 1.5 0 0 1 19 17h-7.5L7 20.5V17H5a1.5 1.5 0 0 1-1.5-1.5V7A1.5 1.5 0 0 1 5 5.5Z" /></svg>
+    {busy && <i className="assistant-fab-dot" aria-hidden="true" />}
+  </button>;
   return (
-    <div className={`assistant ${docked ? "assistant-docked" : "assistant-bar"}`} role="region" aria-label="Assistant">
-      {card && <div className="assistant-card" ref={scroller}>
-        <div className="assistant-head"><span className="cap">Assistant · {config.name}</span><span className="flex items-center gap-1">
-          <button type="button" className="assistant-icon max-lg:hidden" onClick={() => setDocked((d) => !d)} aria-label={docked ? "Show as a bar" : "Dock as a side panel"} title={docked ? "Show as a bar" : "Dock as a side panel"}>{docked ? <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><rect x="3" y="14" width="18" height="6" rx="1.5" /></svg> : <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="1.5" /><path d="M15 4v16" /></svg>}</button>
-          {!docked && <button type="button" className="assistant-icon" onClick={() => setOpen(false)} aria-label="Collapse" title="Collapse (Esc)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg></button>}
-          {docked && <button type="button" className="assistant-icon" onClick={() => { setDocked(false); setOpen(false); }} aria-label="Close panel" title="Close"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg></button>}
-        </span></div>
-        {!docked && turns.length > 2 && <button type="button" className="text-[11px] text-grey hover:text-ink mb-2" onClick={() => setDocked(true)}>{turns.length - 2} earlier messages · open as panel</button>}
-        {shown.map((t, k) => { const i = docked ? k : turns.length - shown.length + k; return t.role === "user"
+    <div className="assistant assistant-panel" role="region" aria-label="Assistant">
+      <div className="assistant-head"><span className="cap">Assistant · {config.name}</span>
+        <button type="button" className="assistant-icon" onClick={() => { setOpen(false); requestAnimationFrame(() => fab.current?.focus()); }} aria-label="Close the assistant" title="Close (Esc)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg></button>
+      </div>
+      <div className="assistant-body" ref={scroller}>
+        {!turns.length && !busy && <div className="assistant-empty">
+          <p>Ask about the data, or change this ranking in plain language. Every change can be undone.</p>
+          {isSignedIn && <div className="assistant-examples">{EXAMPLES.map((x) => <button key={x} type="button" className="text-control" onClick={() => void send(x)}>{x}</button>)}</div>}
+        </div>}
+        {turns.map((t, i) => t.role === "user"
           ? <p key={i} className="assistant-user">{t.content}</p>
           : <div key={i} className={`assistant-reply ${t.error ? "is-error" : ""}`}>
             {t.error ? <p>{t.content}</p> : <AssistantAnswer text={t.content} charts={t.charts} />}
@@ -131,15 +132,14 @@ function Inner({ config, onApply, date, handle }: { config: IndexConfig; onApply
               {t.suggestions?.map((s) => <button key={s} type="button" className="text-control" disabled={busy} onClick={() => void send(s)}>{s}</button>)}
               {t.undo && <button type="button" className="text-control ml-auto" disabled={t.undone || busy || i !== turns.length - 1} onClick={() => undo(i)}>{t.undone ? "Undone" : "Undo"}</button>}
             </div>}
-          </div>; })}
+          </div>)}
         {busy && <div className="assistant-steps" role="status">{(steps.length ? steps : ["Thinking"]).map((s, i, a) => <p key={i} className={i === a.length - 1 ? "is-live" : ""}>{s}{i === a.length - 1 ? "…" : ""}</p>)}</div>}
-      </div>}
+      </div>
       {isSignedIn ? <form className="assistant-composer" onSubmit={submit}>
         <textarea ref={input} rows={1} value={draft} placeholder={turns.length ? "Follow up…" : "Ask about the data, or adjust this ranking"} aria-label="Ask the assistant"
-          onFocus={() => setOpen(true)} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void send(draft); } }} />
+          onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void send(draft); } }} />
         {busy ? <button type="button" className="assistant-send" onClick={() => abort.current?.abort()} aria-label="Stop">■</button> : <button type="submit" className="assistant-send" disabled={!draft.trim()} aria-label="Send"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><path d="M12 19V5m-6 6 6-6 6 6" /></svg></button>}
-      </form> : <div className="assistant-composer assistant-signin"><span>Ask about the data or adjust your ranking in plain language.</span><Link href="/sign-in" className="text-control">Sign in to use the assistant →</Link></div>}
-      {isSignedIn && !turns.length && open && !busy && <div className="assistant-examples">{EXAMPLES.map((x) => <button key={x} type="button" className="text-control" onMouseDown={(e) => e.preventDefault()} onClick={() => void send(x)}>{x}</button>)}</div>}
+      </form> : <div className="assistant-composer assistant-signin"><Link href="/sign-in" className="text-control">Sign in to use the assistant →</Link></div>}
     </div>
   );
 }
