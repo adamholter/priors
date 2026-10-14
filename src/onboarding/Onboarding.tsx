@@ -238,7 +238,9 @@ export function Onboarding({ snapshot, lineup, seeds, quality, observedModelIds,
     let fullSnapshot = calculationSnapshot.current;
     if (!fullSnapshot || fullSnapshot.date !== snapshot.date) {
       try {
-        const response = await fetch(`/api/snapshot?view=core&date=${encodeURIComponent(snapshot.date)}&version=${encodeURIComponent(snapshot.generatedAt)}`);
+        // A refresh published mid-ranking (same date) is fine to fit against; reloading would lose the calls made so far.
+        let response = await fetch(`/api/snapshot?view=core&date=${encodeURIComponent(snapshot.date)}&version=${encodeURIComponent(snapshot.generatedAt)}`);
+        if (response.status === 409) response = await fetch(`/api/snapshot?view=core&date=${encodeURIComponent(snapshot.date)}`);
         if (!response.ok) throw new Error("Could not load benchmark data.");
         const payload = await response.json();
         fullSnapshot = payload.snapshot as Snapshot;

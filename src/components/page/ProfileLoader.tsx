@@ -22,11 +22,15 @@ export function ProfileLoader({ profile, version, edit, tab, linkedHighlight, le
     const controller = new AbortController();
     fetch(`/api/snapshot?view=core&version=${encodeURIComponent(version)}`, { signal: controller.signal })
       .then(async (response) => {
-        if (!response.ok) throw new Error("Could not load benchmark data.");
+        // New data was published after this page rendered: the page's own numbers are from the old
+        // snapshot, so reload it (once) instead of showing an error.
+        if (response.status === 409 && reloadForNewData()) return null;
+        if (!response.ok) throw new Error(response.status === 409 ? "Benchmark data changed. Please reload the page." : "Could not load benchmark data.");
         const payload = await response.json();
         return payload.snapshot as Snapshot;
       })
       .then((data) => {
+        if (!data) return;
         if (data.generatedAt !== version) throw new Error("Benchmark data changed. Please reload the page.");
         if (!controller.signal.aborted) setSnapshot(mergeImports(data, profile.imports ?? []).snapshot);
       })
@@ -51,4 +55,15 @@ export function ProfileLoader({ profile, version, edit, tab, linkedHighlight, le
       <div role="status" className="text-[12px] text-grey">{error ? <>{error} <button type="button" className="underline" onClick={() => { setError(""); setRetry((n) => n + 1); }}>Retry</button></> : "Loading charts…"}</div>
     </main>
   </div>;
+}
+
+/** Reloads the page for newly published data, at most once a minute per page so a stale cache can't loop. */
+function reloadForNewData() {
+  try {
+    const key = `priors:reloaded:${location.pathname}`, last = Number(sessionStorage.getItem(key) ?? 0);
+    if (Date.now() - last < 60_000) return false;
+    sessionStorage.setItem(key, String(Date.now()));
+  } catch { return false; }
+  location.reload();
+  return true;
 }
