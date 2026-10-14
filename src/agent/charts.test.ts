@@ -28,6 +28,11 @@ describe("assistant data tools on the real snapshot", async () => {
     expect((queryData(view, { metrics: ["speed"], efforts: ["best"], top: 10 }) as { rows: unknown[] }).rows.length).toBe(10);
   });
 
+  it("only accepts real effort names, since they become chart labels", () => {
+    const r = makeChart(view, { type: "effort_compare", metric: "index", efforts: ["xhigh", "<img src=x onerror=alert(1)>", "max"] });
+    expect(r.chart?.kind === "grouped" && r.chart.series).toEqual(["xhigh", "max"]);
+  });
+
   it("filters by lab, including product names", () => {
     expect(resolveLab(snapshot, "Claude")).toBe("anthropic");
     const r = makeChart(view, { type: "bar", metric: "index", labs: ["OpenAI"] });

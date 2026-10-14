@@ -4,6 +4,7 @@
  */
 import type { AnswerChart, AnswerMark, AnswerMetric } from "../lib/answer-chart";
 import { byEffort, resolveMetric, type DataView, type Metric } from "./data";
+import { EFFORTS } from "./resolve";
 import type { RankedVariant } from "../engine";
 
 type Efforts = "best" | "all" | string[];
@@ -13,7 +14,9 @@ const EFFORT_ALIAS: Record<string, string> = { "extra high": "xhigh", "x-high": 
 const effortList = (e: unknown): Efforts | undefined => {
   if (e === "best" || e === "all") return e;
   if (!Array.isArray(e) || !e.length) return undefined;
-  const list = e.map((x) => EFFORT_ALIAS[String(x).toLowerCase()] ?? String(x).toLowerCase());
+  // Only real effort names: these become chart series names shown to the user.
+  const list = e.map((x) => EFFORT_ALIAS[String(x).toLowerCase()] ?? String(x).toLowerCase()).filter((x) => x === "best" || x === "all" || (EFFORTS as readonly string[]).includes(x));
+  if (!list.length) return undefined;
   return list.length === 1 && (list[0] === "best" || list[0] === "all") ? (list[0] as "best" | "all") : list;
 };
 
@@ -26,7 +29,7 @@ function clean(args: DataArgs): DataArgs {
   }
   return out as DataArgs;
 }
-const effortWord = (e: string) => EFFORT_ALIAS[e.toLowerCase()] ?? e.toLowerCase();
+const effortWord = (e: string) => { const w = EFFORT_ALIAS[e.toLowerCase()] ?? e.toLowerCase(); return (EFFORTS as readonly string[]).includes(w) ? w : "max"; };
 const am = (m: Metric): AnswerMetric => ({ name: m.name, unit: m.unit, better: m.better, ...(m.log ? { log: true } : {}) });
 const label = (r: RankedVariant, withEffort: boolean) => withEffort && r.variant.effort !== "default" ? `${r.model.name} ${r.variant.effort}` : r.model.name;
 const round = (v: number) => +v.toPrecision(4);

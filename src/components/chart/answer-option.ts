@@ -3,6 +3,7 @@ import { formatMetric, type AnswerChart, type AnswerMark } from "@/lib/answer-ch
 import { CONTAIN_AXIS_LABELS, dimColor, insideLabels, markColor, markLabel, MONO, SANS, type ChartPalette } from "./theme";
 
 const ROW = 24;
+const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
 
 /** Plot height for a chart in an assistant answer: bars grow with their rows, the rest are fixed. */
 export function answerHeight(c: AnswerChart): number {
@@ -19,7 +20,8 @@ export function answerHeight(c: AnswerChart): number {
 export function answerOption(c: AnswerChart, pal: ChartPalette, width: () => number | undefined = () => undefined): EChartsOption {
   const color = (m: AnswerMark) => markColor(m.color, pal, m.labId), mono = pal.fonts?.mono ?? MONO, sans = pal.fonts?.sans ?? SANS;
   const valueLabel = (fmt: (v: number) => string) => ({ show: true, position: "right" as const, distance: 6, fontFamily: mono, fontSize: 10.5, color: pal.ink2, formatter: (p: { value?: unknown }) => fmt(Number(p.value)) });
-  const tip = (lines: string[]) => lines.map((l, i) => i ? `<div>${l}</div>` : `<div style="font-weight:600">${l}</div>`).join("");
+  // Tooltips are HTML: every line is escaped (labels can come from user imports, series names from the model).
+  const tip = (lines: string[]) => lines.map((l, i) => i ? `<div>${esc(l)}</div>` : `<div style="font-weight:600">${esc(l)}</div>`).join("");
   const category = (labels: string[]) => ({ type: "category" as const, data: labels, inverse: true, axisLabel: { color: pal.ink, fontFamily: sans, fontSize: 11.5, width: 150, overflow: "truncate" as const }, axisLine: { show: false }, axisTick: { show: false } });
 
   if (c.kind === "bar") {
