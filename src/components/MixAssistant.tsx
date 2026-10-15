@@ -18,7 +18,43 @@ type Event = { type: "step"; text: string }
   | { type: "done"; reply: string; question?: string; suggestions: string[]; proposal?: { weights: Record<string, number>; required: string[]; view: View }; charts?: AnswerChart[]; highlight?: string[]; theme?: { id?: string; mode?: ThemeMode } }
   | { type: "error"; message: string };
 
-const EXAMPLES = ["How much does max reasoning add over xhigh?", "Gemini 4 feels too high", "Highlight the Claude models"];
+/** Typed into the empty composer one at a time, in a fresh random order each visit. */
+const HINTS = [
+  "How much does max reasoning add over xhigh?", "Gemini 4 feels too high", "Highlight the Claude models",
+  "Which model is the best value?", "Chart cost against score for the top 10", "Weight coding benchmarks more",
+  "Compare the top two models", "Is the fastest model any good?", "Switch to a dark theme",
+];
+const HINT_KEY = "priors:assistant-hint";
+
+/**
+ * A placeholder that types out one hint, holds it, erases it and moves to the next. Order is shuffled
+ * per visit and never opens on the hint the last visit opened on. With reduced motion, hints swap whole.
+ */
+function useTypedHint(active: boolean, fallback: string) {
+  const [text, setText] = useState("");
+  useEffect(() => {
+    if (!active) return;
+    const order = [...HINTS];
+    for (let k = order.length - 1; k > 0; k--) { const j = Math.floor(Math.random() * (k + 1)); [order[k], order[j]] = [order[j], order[k]]; }
+    let last: string | null = null;
+    try { last = localStorage.getItem(HINT_KEY); } catch { /* storage blocked */ }
+    if (order[0] === last) order.push(order.shift()!);
+    try { localStorage.setItem(HINT_KEY, order[0]); } catch { /* storage blocked */ }
+    const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    let i = 0, n = 0, erasing = false, timer = 0;
+    const tick = () => {
+      const hint = order[i % order.length];
+      if (still) { setText(hint); i++; timer = window.setTimeout(tick, 3200); return; }
+      if (!erasing) { n++; setText(hint.slice(0, n)); if (n < hint.length) { timer = window.setTimeout(tick, 32 + Math.random() * 30); return; } erasing = true; timer = window.setTimeout(tick, 2200); return; }
+      n--; setText(hint.slice(0, n));
+      if (n > 0) { timer = window.setTimeout(tick, 14); return; }
+      erasing = false; i++; timer = window.setTimeout(tick, 350);
+    };
+    timer = window.setTimeout(tick, 250);
+    return () => window.clearTimeout(timer);
+  }, [active]);
+  return active ? text : fallback;
+}
 
 /**
  * The assistant: questions about the data (answered with charts), changes to the active index,
@@ -42,6 +78,7 @@ function Inner({ config, onApply, date, handle }: { config: IndexConfig; onApply
   const input = useRef<HTMLTextAreaElement>(null);
   const fab = useRef<HTMLButtonElement>(null);
   const scroller = useRef<HTMLDivElement>(null);
+  const hint = useTypedHint(open && !!isSignedIn && !turns.length && !busy && !draft, turns.length ? "Follow up…" : "Ask about the data, or adjust this ranking");
   const abort = useRef<AbortController | null>(null);
   const latest = useRef(config);
   useEffect(() => { latest.current = config; }, [config]);
@@ -117,11 +154,7 @@ function Inner({ config, onApply, date, handle }: { config: IndexConfig; onApply
       <div className="assistant-head"><span className="cap">Assistant · {config.name}</span>
         <button type="button" className="assistant-icon" onClick={() => { setOpen(false); requestAnimationFrame(() => fab.current?.focus()); }} aria-label="Close the assistant" title="Close (Esc)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg></button>
       </div>
-      <div className="assistant-body" ref={scroller}>
-        {!turns.length && !busy && <div className="assistant-empty">
-          <p>Ask about the data, or change this ranking in plain language. Every change can be undone.</p>
-          {isSignedIn && <div className="assistant-examples">{EXAMPLES.map((x) => <button key={x} type="button" className="text-control" onClick={() => void send(x)}>{x}</button>)}</div>}
-        </div>}
+      {(turns.length > 0 || busy) && <div className="assistant-body" ref={scroller}>
         {turns.map((t, i) => t.role === "user"
           ? <p key={i} className="assistant-user">{t.content}</p>
           : <div key={i} className={`assistant-reply ${t.error ? "is-error" : ""}`}>
@@ -134,12 +167,12 @@ function Inner({ config, onApply, date, handle }: { config: IndexConfig; onApply
             </div>}
           </div>)}
         {busy && <div className="assistant-steps" role="status">{(steps.length ? steps : ["Thinking"]).map((s, i, a) => <p key={i} className={i === a.length - 1 ? "is-live" : ""}>{s}{i === a.length - 1 ? "…" : ""}</p>)}</div>}
-      </div>
+      </div>}
       {isSignedIn ? <form className="assistant-composer" onSubmit={submit}>
-        <textarea ref={input} rows={1} value={draft} placeholder={turns.length ? "Follow up…" : "Ask about the data, or adjust this ranking"} aria-label="Ask the assistant"
+        <textarea ref={input} rows={1} value={draft} placeholder={hint} aria-label="Ask about the data, or adjust this ranking"
           onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void send(draft); } }} />
         {busy ? <button type="button" className="assistant-send" onClick={() => abort.current?.abort()} aria-label="Stop">■</button> : <button type="submit" className="assistant-send" disabled={!draft.trim()} aria-label="Send"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><path d="M12 19V5m-6 6 6-6 6 6" /></svg></button>}
-      </form> : <div className="assistant-composer assistant-signin"><Link href="/sign-in" className="text-control">Sign in to use the assistant →</Link></div>}
+      </form> : <div className="assistant-composer assistant-signin"><Link href="/sign-in" className="text-control">Sign in to ask about the data or adjust this ranking →</Link></div>}
     </div>
   );
 }

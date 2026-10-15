@@ -4,7 +4,7 @@ Two separate things: the in-app assistant (questions, charts and changes in plai
 
 ## Assistant
 
-Signed-in users talk to the assistant through a round chat button in the bottom-right corner of `/builder` and profile pages (`src/components/MixAssistant.tsx`; `/` opens it). It answers questions about the data with embedded charts, changes the active index, highlights models and changes the site theme. Changes apply first with one Undo (mix, highlights and theme together), then it explains; for a vague ask it asks where exactly the user wants things.
+Signed-in users talk to the assistant through a round chat button in the bottom-right corner of `/builder` and profile pages (`src/components/MixAssistant.tsx`; `/` opens it). The empty panel is just the composer: its placeholder types out example asks from `HINTS` in a shuffled order that never opens on the last visit's first hint. It answers questions about the data with embedded charts, changes the active index, highlights models and changes the site theme. Changes apply first with one Undo (mix, highlights and theme together), then it explains; for a vague ask it asks where exactly the user wants things.
 
 - `POST /api/assistant` requires Clerk `auth()`. It takes the index, the conversation and the view (`builder` or a published page, the site theme and mode) and streams NDJSON steps, then one `done` event: the reply, and optionally a proposal (new weights), `charts`, `highlight` and `theme`.
 - The loop is `src/agent/agent.ts`, on OpenRouter model `AGENT_MODEL` (`openai/gpt-6-luna`). Verify the id and price live before changing it; `PRICES` there pre-authorizes spend per model.
