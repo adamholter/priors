@@ -7,6 +7,7 @@ import type { RankedVariant } from "@/engine";
 import { metricPanels, money } from "@/lib/metrics";
 import { CONTAIN_AXIS_LABELS, insideLabels, useChartPalette, useEChart } from "../chart/echarts";
 import { FieldStrip, type StripPoint } from "./FieldStrip";
+import { escapeSvg as esc } from "../chart/export-frame";
 
 type Metric = { id: string; title: string; better: "lower" | "higher"; word: string; log: boolean; fmt: (v: number) => string; tick?: (v: number) => string; of: (r: RankedVariant) => number | undefined };
 
@@ -53,7 +54,7 @@ function MetricCard({ m, ranked, mine, modelId, color }: { m: Metric; ranked: Ra
     const own = mine.flatMap((r) => { const v = m.of(r); return v == null ? [] : [{ r, v }]; });
     const better = (a: number, b: number) => (m.better === "lower" ? a < b : a > b);
     const head = own[0], best = field.reduce<{ r: RankedVariant; v: number } | undefined>((a, x) => (!a || better(x.v, a.v) ? x : a), undefined);
-    const point = (x: { r: RankedVariant; v: number }, label: string): StripPoint => ({ key: x.r.variant.id, value: x.v, label, tip: `<b>${x.r.model.name}${effortOf(x.r) ? ` ${effortOf(x.r)}` : ""}</b><br/><span style="font-family:var(--font-jetbrains)">${m.fmt(x.v)} · index ${x.r.score.toFixed(1)}</span>` });
+    const point = (x: { r: RankedVariant; v: number }, label: string): StripPoint => ({ key: x.r.variant.id, value: x.v, label, tip: `<b>${esc(x.r.model.name)}${effortOf(x.r) ? ` ${esc(effortOf(x.r))}` : ""}</b><br/><span style="font-family:var(--font-jetbrains)">${m.fmt(x.v)} · index ${x.r.score.toFixed(1)}</span>` });
     return {
       field: field.map((x) => point(x, "")), points: own.map((x) => point(x, own.length > 1 ? effortOf(x.r) : "")),
       lead: best && head && better(best.v, head.v) ? point(best, best.r.model.name) : undefined,
@@ -81,7 +82,8 @@ function ScoreCost({ ranked, modelId, color }: { ranked: RankedVariant[]; modelI
     const seen = new Set<string>(), rest: RankedVariant[] = [];
     for (const r of ranked) if (r.model.id !== modelId && r.costUsd && r.costUsd > 0 && !seen.has(r.model.id)) { seen.add(r.model.id); rest.push(r); }
     const mine = ranked.filter((r) => r.model.id === modelId && r.costUsd && r.costUsd > 0).sort((a, b) => a.costUsd! - b.costUsd!);
-    const tip = (r: RankedVariant) => `<b>${r.model.name}${effortOf(r) ? ` ${effortOf(r)}` : ""}</b><br/><span style="font-family:var(--font-jetbrains)">index ${r.score.toFixed(1)} · ${money(r.costUsd!)}/task</span>`;
+    // Tooltips are HTML; model names and efforts come from scraped sources, so they are escaped.
+    const tip = (r: RankedVariant) => `<b>${esc(r.model.name)}${effortOf(r) ? ` ${esc(effortOf(r))}` : ""}</b><br/><span style="font-family:var(--font-jetbrains)">index ${r.score.toFixed(1)} · ${money(r.costUsd!)}/task</span>`;
     return {
       grid: { left: 40, right: 70, top: 14, bottom: 36, ...CONTAIN_AXIS_LABELS },
       xAxis: { type: "log", name: "$ / task", nameLocation: "end", nameGap: 6, nameTextStyle: { color: pal.grey, fontSize: 10, align: "right", verticalAlign: "top", padding: [24, 0, 0, 0] }, axisLabel: { formatter: (v: number) => money(v), hideOverlap: true, showMinLabel: false, showMaxLabel: false }, min: (e: { min: number }) => e.min / 1.5, max: (e: { max: number }) => e.max * 1.5 },

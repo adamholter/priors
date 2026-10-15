@@ -13,6 +13,7 @@ import { BenchmarkInfo, InfoIcon } from "../BenchmarkInfo";
 import { ModelStrengths } from "./ModelStrengths";
 import { FieldStrip, type StripPoint } from "./FieldStrip";
 import { ModelCostSpeed } from "./ModelCostSpeed";
+import { escapeSvg as esc } from "../chart/export-frame";
 
 type Row = { variantId: string; modelId: string; effort: string; value: number; cost?: number; rank: number };
 
@@ -157,7 +158,7 @@ function BenchScatter({ b, rows, modelId, color }: { b: Benchmark; rows: Row[]; 
       grid: { left: 44, right: 70, top: 14, bottom: 34, ...CONTAIN_AXIS_LABELS },
       xAxis: { type: "log", name: "$ / task", nameLocation: "end", nameGap: 6, nameTextStyle: { color: pal.grey, fontSize: 10, align: "right", verticalAlign: "top", padding: [22, 0, 0, 0] }, axisLabel: { formatter: (v: number) => `$${v >= 1 ? Math.round(v) : v.toFixed(2)}`, hideOverlap: true, showMinLabel: false, showMaxLabel: false }, min: (e: { min: number }) => e.min / 1.5, max: (e: { max: number }) => e.max * 1.5 },
       yAxis: { type: "value", scale: true, axisLabel: { formatter: (v: number) => b.unit === "percent" ? `${v}%` : `${v}` } },
-      tooltip: { trigger: "item", confine: true, formatter: (p: unknown) => { const d = (p as { data?: { r?: Row } }).data?.r; return d ? `<b>${color.name(d.modelId)} ${d.effort}</b><br/><span style="font-family:var(--font-jetbrains)">${fmt(b, d.value)} · $${d.cost!.toFixed(2)}/task · #${d.rank}</span>` : ""; } },
+      tooltip: { trigger: "item", confine: true, formatter: (p: unknown) => { const d = (p as { data?: { r?: Row } }).data?.r; return d ? `<b>${esc(color.name(d.modelId))} ${esc(d.effort)}</b><br/><span style="font-family:var(--font-jetbrains)">${fmt(b, d.value)} · $${d.cost!.toFixed(2)}/task · #${d.rank}</span>` : ""; } },
       series: [
         { type: "scatter", id: "ghost", symbolSize: 7, data: rest.map((r) => ({ value: [r.cost, r.value], r })), itemStyle: { color: pal.dark ? "#8C8B83" : "#A3A39B", opacity: pal.dark ? 0.32 : 0.28 }, emphasis: { itemStyle: { opacity: 0.9 } }, z: 1 },
         { type: "line", id: "mine-line", data: mine.map((r) => [r.cost, r.value]), showSymbol: false, lineStyle: { color: labColor, width: 1.2, opacity: 0.6 }, silent: true, z: 2 },
@@ -173,7 +174,7 @@ function BenchScatter({ b, rows, modelId, color }: { b: Benchmark; rows: Row[]; 
 /** Every result on the benchmark spread along its score (best to the right); this model, the leader and the median marked. */
 function BenchStrip({ b, rows, modelId, color }: { b: Benchmark; rows: Row[]; modelId: string; color: { lab: string; name: (id: string) => string } }) {
   const { field, mine, lead } = useMemo(() => {
-    const point = (r: Row): StripPoint => ({ key: r.variantId, value: r.value, label: r.effort === "default" ? "" : r.effort, tip: `<b>${color.name(r.modelId)} ${r.effort}</b><br/><span style="font-family:var(--font-jetbrains)">${fmt(b, r.value)} · #${r.rank} of ${rows.length}</span>` });
+    const point = (r: Row): StripPoint => ({ key: r.variantId, value: r.value, label: r.effort === "default" ? "" : r.effort, tip: `<b>${esc(color.name(r.modelId))} ${esc(r.effort)}</b><br/><span style="font-family:var(--font-jetbrains)">${fmt(b, r.value)} · #${r.rank} of ${rows.length}</span>` });
     const top = rows[0];
     return { field: rows.filter((r) => r.modelId !== modelId).map(point), mine: rows.filter((r) => r.modelId === modelId).map(point), lead: top && top.modelId !== modelId ? { ...point(top), label: color.name(top.modelId) } : undefined };
   }, [b, rows, modelId, color]);
