@@ -26,7 +26,7 @@
 npm run scrape -- --date YYYY-MM-DD [--only aa,openrouter]
 ```
 
-A full run takes 2 to 3 minutes (some sources use headless Chromium). A partial `--only` run keeps the other sources' rows from the previous snapshot and seeds effort attribution from it.
+A full run takes 2 to 3 minutes (some sources use headless Chromium). A partial `--only` run keeps the other sources' rows and observation notes unchanged, even when their previous scrape failed, and seeds effort attribution from the previous snapshot.
 
 To add a source, copy `sources/_template.ts`. Its header lists the rules: discover rows live, prefer structured payloads over DOM scraping, emit the label exactly as the site shows it, put a cost in `costUsd` only when the site reports measured run cost, save every parsed payload in `raw`.
 

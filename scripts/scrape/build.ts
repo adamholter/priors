@@ -202,7 +202,7 @@ async function main() {
       const prevBench = prev.benchmarks.filter((b) => b.sourceId === r.sourceId);
       prevBench.forEach((b) => snap.benchmarks.push(b));
       const ids = new Set(prevBench.map((b) => b.id));
-      prev.observations.filter((o) => ids.has(o.benchmarkId)).forEach((o) => snap.observations.push({ ...o, note: only && r.status !== "failed" ? o.note : [o.note, `carried from ${prev.date}`].filter(Boolean).join("; ") }));
+      prev.observations.filter((o) => ids.has(o.benchmarkId)).forEach((o) => snap.observations.push({ ...o, note: only && unselected.includes(r) ? o.note : [o.note, `carried from ${prev.date}`].filter(Boolean).join("; ") }));
       prev.series.filter((s) => ids.has(s.benchmarkId)).forEach((s) => snap.series.push(s));
       r.note = `carried forward from ${prev.date}`;
     }
