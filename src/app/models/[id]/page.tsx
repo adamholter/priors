@@ -4,6 +4,7 @@ import { loadSnapshot } from "@/data/load";
 import { ModelPage } from "@/components/model/ModelPage";
 import { isPreviewBot, PreviewPage } from "@/lib/link-preview";
 import { pageMeta } from "@/lib/site-meta";
+import { modelDescription, modelStanding } from "@/lib/og-model";
 
 export const dynamic = "force-dynamic";
 
@@ -11,8 +12,12 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   const { id } = await params;
   const snap = await loadSnapshot();
   const m = snap?.models.find((x) => x.id === id);
-  if (!m) return { title: "Page not found" };
-  return pageMeta({ title: `${m.name} · benchmarks`, description: `How ${m.name} scores on every benchmark Priors tracks, by reasoning effort.`, path: `/models/${id}` });
+  if (!m || !snap) return { title: "Page not found" };
+  const s = modelStanding(snap, id);
+  return pageMeta({
+    title: `${m.name} · benchmarks`, description: s ? modelDescription(s) : `How ${m.name} scores on every benchmark Priors tracks, by reasoning effort.`, path: `/models/${id}`,
+    image: { url: `/models/${id}/opengraph-image?d=${snap.date}`, width: 1200, height: 630, alt: `${m.name} on Priors: index score, rank and strengths across benchmarks` },
+  });
 }
 
 export default async function Page({ params }: { params: Promise<{ id: string }> }) {
@@ -22,7 +27,8 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
   if (!snapshot || !m) notFound();
   if (await isPreviewBot()) {
     // Link-preview crawlers cap response size — give them the tags plus a tiny body, not the app.
-    return <PreviewPage title={`${m.name} · benchmarks`} description={`How ${m.name} scores on every benchmark Priors tracks, by reasoning effort.`} href={`/models/${id}`} />;
+    const s = modelStanding(snapshot, id);
+    return <PreviewPage title={`${m.name} · benchmarks`} description={s ? modelDescription(s) : `How ${m.name} scores on every benchmark Priors tracks, by reasoning effort.`} href={`/models/${id}`} />;
   }
   return <ModelPage snapshot={snapshot} modelId={id} />;
 }

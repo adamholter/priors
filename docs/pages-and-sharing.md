@@ -12,7 +12,7 @@
 | `/models/[id]`, `/model-finder` | One model's results (Strengths: a radar against the index leader and field median, and where it sits on each benchmark; per-benchmark cards plot score against cost, or the field's spread when cost is unknown); a guided model picker. |
 | `/claim`, `/sign-in` | Pick a handle; Clerk sign-in. |
 | `/import`, `/skill` | Benchmark import; the agent skill. |
-| `/og`, `/[handle]/opengraph-image` | Share card and link-preview images. |
+| `/og`, `/[handle]/opengraph-image`, `/models/[id]/opengraph-image` | Share card and link-preview images. |
 | `/sitemap.xml`, `/robots.txt` | The fixed routes, every model page and every published page, rebuilt hourly. |
 | anything else | `src/app/not-found.tsx`, for a mistyped handle, a model that left the data, or a broken link. |
 | `/lab/*` | Design labs, not indexed. See below. |
@@ -65,6 +65,7 @@
 - **Every route has a full preview.** `pageMeta` in `src/lib/site-meta.ts` builds title, description, canonical address, site name and a large image for a route. Use it for any new route: a route's `openGraph` replaces the layout's whole, so a bare `title` would unfurl with the site's default title. Routes with no card of their own show `/og`, the default leaderboard on today's data.
 - **Builder links.** A share link points at `/builder?i=...` and unfurls as its card through `/og?...`. The description names the top three models and the benchmark mix (`indexSummary`).
 - **Profile links.** `/[handle]` unfurls through `/[handle]/opengraph-image`. A link to a chart, a selection or another tab (`?c=`, `?hl=`, `?hi=`) goes through `/og?handle=&hi=<index id>`, which names the index instead of spelling it out, so the image address stays short. The title names the tab and chart; the description is the bio, then the open index's top three models.
+- **Model links.** `/models/[id]` unfurls through `/models/[id]/opengraph-image` (`src/lib/og-model.ts`): name, lab and release, the General frontier score and rank (with estimates when the model can't rank on measured data alone, as on the page), its three best benchmark placements, and its strengths radar against the #1 model and the field median. The description says the same in a sentence. The image address carries the snapshot date, so caches refresh daily.
 - **Caching.** Profile image addresses carry `v=<updatedAt>`, so a cached preview never outlives an edit.
 - Both take the saved page theme in its own mode through `profileCardLook` in `og-chart.ts`. A page locked to dark, or on a dark theme, unfurls dark. A page set to follow the visitor unfurls in the theme's signature mode (Priors and Analysis light, Slop dark), because a crawler has no light or dark preference.
 - An explicit `theme=` or `scheme=` on `/og` wins over the saved theme.

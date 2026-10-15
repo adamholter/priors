@@ -83,7 +83,7 @@ const FONT_FILES = ["Newsreader-400.ttf", "Inter-400.ttf", "Inter-500.ttf", "Int
 // 1200×630 card: frameSvg wraps the chart with pad 32, a 22px title band, and a 34px footer.
 const CHART_W = 1200 - 64, CHART_H = 630 - 88;
 
-function rasterize(svg: string, bg: string): Buffer {
+export function rasterize(svg: string, bg: string): Buffer {
   const png = new Resvg(svg, {
     fitTo: { mode: "width", value: 2400 },
     background: bg,
