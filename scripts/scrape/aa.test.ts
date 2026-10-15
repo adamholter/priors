@@ -24,9 +24,9 @@ function encrypted(json: unknown, keyHex: string) {
   const cipher = createCipheriv("aes-256-gcm", key, createHash("sha256").update(key).digest().subarray(0, 12));
   return Buffer.concat([cipher.update(gzipSync(JSON.stringify(json))), cipher.final(), cipher.getAuthTag()]);
 }
-async function scrape(models = [astra]) {
+async function scrape(models = [astra], extraHtml = "") {
   const key = "ab".repeat(32);
-  const html = `Artificial Analysis Intelligence Index v4.3 incorporates 10 evaluations: AA-Briefcase, GDPval-AA v2. <a href="/evaluations/terminalbench-v4-0">Terminal-Bench v4.0</a> "manifest":{"path":"/data/aaaa.txt","key":"${key}"} "manifest":{"path":"/data/bbbb.txt","key":"${key}"}`;
+  const html = extraHtml + `Artificial Analysis Intelligence Index v4.3 incorporates 10 evaluations: AA-Briefcase, GDPval-AA v2. <a href="/evaluations/terminalbench-v4-0">Terminal-Bench v4.0</a> "manifest":{"path":"/data/aaaa.txt","key":"${key}"} "manifest":{"path":"/data/bbbb.txt","key":"${key}"}`;
   const tables = models.map(({ canonicalEvalTokenCounts: _, ...m }) => { void _; return m; });
   vi.stubGlobal("fetch", vi.fn(async (url: string) => new Response(encrypted({ models: url.endsWith("aaaa.txt") ? models : tables }, key))));
   const ctx = { fetchText: async () => html, log: () => {}, now: "2026-09-08" } as unknown as ScrapeContext;
@@ -72,5 +72,15 @@ describe("Artificial Analysis v4.3", () => {
     expect(r.rows.find((o) => o.sourceModelId === "future-uuid" && o.benchmarkId === "aa-humanitys-last-exam")?.value).toBe(0);
     expect(r.rows.some((o) => o.sourceModelId === "future-uuid" && o.benchmarkId === "aa-critpt")).toBe(false);
     expect(r.modelMeta?.find((m) => m.modelLabel === "Future Bench Model")?.identity?.modelId).toBe("aa-future-bench-model");
+  });
+
+  it("announces unread evaluation pages and data fields without failing, and fills fields only a page carries", async () => {
+    const inline = `self.__next_f.push([1,${JSON.stringify(`"initialModels":[${JSON.stringify({ id: astra.id, aa3dElo: 1165.2 })}]`)}])`;
+    const future = { ...astra, futureBenchScore: 0.42 };
+    const r = await scrape([future], `<a href="/evaluations/future-bench">Future Bench</a> <a href="/evaluations/artificial-analysis-decision-index">Decision</a> ${inline}`);
+    expect(r.discoveries).toContain(`AA data field "futureBenchScore" (1 models)`);
+    expect(r.discoveries).toContain("AA evaluation page https://artificialanalysis.ai/evaluations/future-bench");
+    expect(r.discoveries?.some((d) => d.includes("decision-index") || d.includes("terminalbench-v4-0"))).toBe(false);
+    expect(r.rows.find((o) => o.benchmarkId === "aa-3d")?.value).toBe(1165.2);
   });
 });

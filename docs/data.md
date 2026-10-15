@@ -36,7 +36,8 @@ Notes on sources whose behavior is not obvious from the file:
 
 | Source | Note |
 | --- | --- |
-| `aa` | Artificial Analysis, read from encrypted RSC payloads. `aa-identity.ts` resolves its structured model records. |
+| `aa` | Artificial Analysis, read from encrypted RSC payloads. `aa-identity.ts` resolves its structured model records. Fields only an evaluation page carries (AA-3D) are filled from its inline `initialModels`. Every evaluation page, numeric model field and benchmark announcement it does not map (`EVALS`) or deliberately ignore (`NON_BENCHMARK_FIELDS`, `IGNORED_PAGES`, `IGNORED_ARTICLES`) is returned in `discoveries`, which the scheduled job announces (see `docs/operations.md`). When AA renames a page, set `page` and keep `slug`, since it is the benchmark id. |
+| `aa-robotics` | AA-Robotics has no evaluation page or manifest yet: per-task scores ship in the article's page bundle. Mean over tasks; harness per model, effort from the article text. `defaultWeight: 0`. |
 | `openrouter` | Operational metrics: uptime, providers, throughput, latency, tool-call errors. `defaultWeight: 0`. |
 | `frontiercode` | Static JSON, per-effort rows, Main and Extended subsets. |
 | `frontiermath` | Epoch AI's live CSV. Private Tiers 1 to 3 (v2), Tier 4 (v2) and Erdős. Public sample questions and v1 sets are excluded. CSV standard errors are kept as notes, not confidence intervals. Token totals are not treated as per-task cost. |

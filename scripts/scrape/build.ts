@@ -66,6 +66,8 @@ async function main() {
         r.modelMeta?.forEach((m) => meta.set(m.modelLabel.toLowerCase(), m));
         runs.push({ sourceId: src.id, status: "ok", fetchedAt: started, rowCount: r.rows.length, unknownLabels: [], rawPath });
         ctx.log(`${r.rows.length} rows, ${r.benchmarks.length} benchmarks${r.notes?.length ? " — " + r.notes.join("; ") : ""}`);
+        // One line per item; scripts/ops/daily-scrape.sh notifies once for each it has not announced before.
+        for (const d of r.discoveries ?? []) console.log(`NEW_BENCHMARK ${src.id}: ${d}`);
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         runs.push({ sourceId: src.id, status: "failed", fetchedAt: started, rowCount: 0, unknownLabels: [], rawPath, error: msg });

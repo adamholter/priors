@@ -43,6 +43,15 @@ fi
 if ! npx tsx scripts/scrape/intro-cards.ts >>"$LOG" 2>&1; then
   notify "Priors intro cards failed for $DATE — see logs/scrape.log"
 fi
+# Sources announce benchmarks the publisher added that Priors does not read yet. Notify once per item.
+ANNOUNCED="${PRIORS_ANNOUNCED_FILE:-$HOME/priors/logs/announced-benchmarks.txt}"
+grep -E '^NEW_BENCHMARK ' "$LOG" | sort -u | while IFS= read -r line; do
+  if ! grep -qxF "$line" "$ANNOUNCED" 2>/dev/null; then
+    echo "$line" >> "$ANNOUNCED" 2>/dev/null
+    item=${line#NEW_BENCHMARK }
+    notify "New benchmark to add: ${item//\"/}"
+  fi
+done
 if grep -qE '^[[:space:]]*failed[[:space:]]' "$LOG"; then
   notify "Priors scrape $DATE finished with source failures — see logs/scrape.log"
 fi

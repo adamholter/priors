@@ -38,6 +38,8 @@ interface EvalDef {
   breakdown?: string;
   harness?: string;
   slug: string;
+  /** Live /evaluations/<page> slug when AA has renamed the page; `slug` stays the benchmark id stem. */
+  page?: string;
   name: string;
   unit: BenchmarkUnit;
   category: BenchmarkCategory;
@@ -61,15 +63,15 @@ const EVALS: EvalDef[] = [
   { field: "briefcaseElo", normalization: { kind: "linear", min: 500, max: 2500 }, breakdown: "briefcaseBreakdown", harness: "Stirrup", slug: "aa-briefcase", name: "AA-Briefcase", unit: "elo", category: "agentic", description: "AA-Briefcase: agentic office-work tasks over real files (xlsx/pptx/docx/pdf) judged pairwise; reported as Elo.", ciFrom: ci95("briefcaseBreakdown") },
   { field: "gdpval", normalization: { kind: "linear", min: 500, max: 2500 }, breakdown: "gdpvalBreakdown", harness: "Stirrup", slug: "gdpval-aa", name: "GDPval-AA v2", unit: "elo", category: "economics", description: "GDPval-AA: economically valuable knowledge-work tasks across occupations, graded pairwise by AA; reported as Elo.", ciFrom: ci95("gdpvalBreakdown"), navName: /^GDPval-AA/ },
   { field: "tauBanking", slug: "tau3-banking", name: "τ³-Banking", unit: "percent", category: "agentic", scale: 100, description: "τ³-Bench banking domain: multi-turn tool-using agent tasks with a simulated user; pass rate." },
-  { field: "terminalBench21", read: (m) => m.terminalBench21 ?? m.terminalbenchV21, slug: "terminalbench-v2-1", name: "Terminal-Bench v2.1-AA", unit: "percent", category: "coding", scale: 100, description: "Terminal-Bench v2.1 run by AA: agentic command-line software engineering tasks; task pass rate.", navName: /^Terminal-Bench v2\.1/ },
+  { field: "terminalBench21", read: (m) => m.terminalBench21 ?? m.terminalbenchV21, slug: "terminalbench-v2-1", page: "terminalbench-2-1", name: "Terminal-Bench v2.1-AA", unit: "percent", category: "coding", scale: 100, description: "Terminal-Bench v2.1 run by AA: agentic command-line software engineering tasks; task pass rate.", navName: /^Terminal-Bench v2\.1/ },
   { field: "scicode", slug: "scicode", name: "SciCode", unit: "percent", category: "coding", scale: 100, description: "SciCode: implementing scientific research code from paper descriptions; sub-problem accuracy." },
   { field: "hle", slug: "humanitys-last-exam", name: "Humanity's Last Exam", unit: "percent", category: "reasoning", scale: 100, description: "Humanity's Last Exam: frontier expert-level questions across disciplines; accuracy." },
   { field: "gdpPdfAllPass", slug: "gdp-pdf", name: "GDP.pdf", unit: "percent", category: "economics", scale: 100, description: "GDP.pdf: document-heavy professional tasks over PDFs graded against rubric criteria; share of tasks passing all criteria." },
   { field: "critpt", slug: "critpt", name: "CritPt", unit: "percent", category: "reasoning", scale: 100, description: "CritPt: research-level physics reasoning problems; accuracy." },
   { field: "omniscience", slug: "omniscience", name: "AA-Omniscience", unit: "score", category: "knowledge", description: "AA-Omniscience Index (-100..100): knowledge accuracy minus hallucination penalty on 6,000 questions across 42 topics." },
   { field: "lcr", slug: "artificial-analysis-long-context-reasoning", name: "AA-LCR v1.1", unit: "percent", category: "long-context", scale: 100, description: "AA-LCR: long-context reasoning over ~100k-token document sets; pass rate.", navName: /^AA-LCR/ },
-  { field: "terminalBench40", read: (m) => m.terminalBench40 ?? m.terminalbenchV40, slug: "terminalbench-v4-0", name: "Terminal-Bench v4-AA", unit: "percent", category: "coding", scale: 100, harness: "mini-SWE-agent", description: "AA's 66-task Terminal-Bench v4.0, three repeats, average pass@1. Distinct from the upstream leaderboard and v2.1." },
-  { field: "terminalBenchScience", slug: "terminalbench-science", name: "Terminal-Bench Science-AA", unit: "percent", category: "coding", scale: 100, description: "Terminal-Bench Science (AA): scientific-computing terminal tasks; pass rate." },
+  { field: "terminalBench40", read: (m) => m.terminalBench40 ?? m.terminalbenchV40, slug: "terminalbench-v4-0", page: "terminalbench-4-0", name: "Terminal-Bench v4-AA", unit: "percent", category: "coding", scale: 100, harness: "mini-SWE-agent", description: "AA's 66-task Terminal-Bench v4.0, three repeats, average pass@1. Distinct from the upstream leaderboard and v2.1." },
+  { field: "terminalBenchScience", slug: "terminalbench-science", page: "terminal-bench-science", name: "Terminal-Bench Science-AA", unit: "percent", category: "coding", scale: 100, description: "Terminal-Bench Science (AA): scientific-computing terminal tasks; pass rate." },
   { field: "omniscienceBreakdown", id: "aa-omniscience-accuracy", read: (m) => m.omniscienceBreakdown?.accuracy, slug: "omniscience", name: "AA-Omniscience Accuracy", unit: "percent", category: "knowledge", scale: 100, description: "Correct answers divided by all questions. AA v4.3 gives this component 10%." },
   { field: "omniscienceBreakdown", id: "aa-omniscience-non-hallucination", read: (m) => isNum(m.omniscienceBreakdown?.hallucinationRate) ? 1 - m.omniscienceBreakdown.hallucinationRate : undefined, slug: "omniscience", name: "AA-Omniscience Non-hallucination", unit: "percent", category: "knowledge", scale: 100, description: "One minus AA's hallucination rate. AA v4.3 gives this component 5%; it is not the combined Omniscience Index." },
   // ---- other evaluations AA publishes
@@ -82,7 +84,7 @@ const EVALS: EvalDef[] = [
   { field: "analystAgent", slug: "aa-analyst-agent", name: "AA-AnalystAgent", unit: "percent", category: "agentic", scale: 100, description: "AA-AnalystAgent: multi-step financial/data analysis agent tasks; pass rate." },
   { field: "automationBenchPartialScore", breakdown: "automationBenchBreakdown", slug: "automationbench-aa", name: "AutomationBench-AA", unit: "percent", category: "agentic", scale: 100, description: "AutomationBench-AA: building workflow automations; partial-credit score." },
   { field: "enterpriseOpsGym", slug: "enterprise-ops-gym-aa", name: "EnterpriseOps-Gym-AA", unit: "percent", category: "agentic", scale: 100, description: "EnterpriseOps-Gym-AA: multi-turn enterprise operations tasks over simulated business systems; success rate." },
-  { field: "harveyLab", slug: "harvey-lab-aa", name: "Harvey LAB-AA", unit: "percent", category: "knowledge", scale: 100, description: "Harvey LAB-AA: legal professional tasks graded by rubric; score." },
+  { field: "harveyLab", breakdown: "harveyLabBreakdown", slug: "harvey-lab-aa", name: "Harvey LAB-AA", unit: "percent", category: "knowledge", scale: 100, description: "Harvey LAB-AA v1.1: 120 private agentic legal tasks built by Harvey. Hallucination-Gated All-Pass Rate: a task counts only when a three-judge panel passes every rubric criterion and the deliverables contain no material hallucination. Not comparable with v1.0 scores." },
   { field: "mlcrOverall", slug: "mlcr-aa", name: "MLCR-AA", unit: "percent", category: "long-context", scale: 100, description: "Medical Long Context Reasoning (MLCR-AA): reasoning over long medical records; overall score." },
   { field: "mmmuPro", slug: "mmmu-pro", name: "MMMU-Pro", unit: "percent", category: "knowledge", scale: 100, description: "MMMU-Pro: multimodal college-level understanding; accuracy." },
   { field: "livecodebench", slug: "livecodebench", name: "LiveCodeBench", unit: "percent", category: "coding", scale: 100, description: "LiveCodeBench: competitive programming problems; pass rate." },
@@ -91,7 +93,36 @@ const EVALS: EvalDef[] = [
   { field: "mmluPro", slug: "mmlu-pro", name: "MMLU-Pro", unit: "percent", category: "knowledge", scale: 100, description: "MMLU-Pro: broad knowledge multiple choice; accuracy." },
   { field: "globalMmluLiteScore", slug: "global-mmlu-lite", name: "Global-MMLU-Lite", unit: "percent", category: "knowledge", scale: 100, description: "Global-MMLU-Lite: multilingual MMLU subset; accuracy." },
   { field: "cweBench", slug: "cwe-bench", name: "CWE-Bench", unit: "percent", category: "safety", scale: 100, description: "CWE-Bench: security-weakness detection; score." },
+  { field: "aa3dElo", breakdown: "aa3dBreakdown", harness: "Stirrup", slug: "aa-3d", name: "AA-3D", unit: "elo", category: "creative", description: "AA-3D: agents in an offline sandbox turn a written brief into an interactive three.js scene; Elo from blind pairwise votes by AA's recruited panel.", ciFrom: ci95("aa3dCi") },
+  { field: "frontierCode", harness: "Stirrup", slug: "frontiercode", name: "FrontierCode 1.1-AA", unit: "percent", category: "coding", scale: 100, description: "AA's run of Cognition's FrontierCode 1.1 Main (100 private tasks, three attempts each, 250-turn cap): would a repository's maintainers merge the change? Mean score; an attempt failing a blocking check scores 0. Separate from Cognition's own leaderboard, which uses different harnesses.", navName: /-AA$/ },
+  // ---- Artificial Analysis Cyber Index (equal-weight mean of CWE-Bench-AA, DeepsecBench-AA, CyberGym-E2E-AA)
+  { field: "cyberIndex", id: "aa-cyber-index", normalization: { kind: "linear", min: 0, max: 100 }, slug: "artificial-analysis-cyber-index", name: "AA Cyber Index", unit: "score", category: "safety", description: "Artificial Analysis Cyber Index: cyber defense in real repositories (find, reproduce and patch vulnerabilities), the equal-weight mean of CWE-Bench-AA, DeepsecBench-AA and CyberGym-E2E-AA. Safety refusals score zero. Includes trusted-access models that are not publicly available." },
+  { field: "deepsecBench", id: "aa-deepsec-bench", slug: "artificial-analysis-cyber-index", name: "DeepsecBench-AA", unit: "percent", category: "safety", scale: 100, description: "DeepsecBench-AA (based on Vercel's DeepsecBench), part of the AA Cyber Index: finding and fixing vulnerabilities in real codebases; score." },
+  { field: "cybergymE2e", id: "aa-cybergym-e2e", slug: "artificial-analysis-cyber-index", name: "CyberGym-E2E-AA", unit: "percent", category: "safety", scale: 100, description: "CyberGym-E2E-AA (based on Berkeley RDI's CyberGym-E2E), part of the AA Cyber Index: end-to-end vulnerability reproduction and patching; score. The component with the most safety refusals." },
+  { field: "cweBenchRefusalRate", id: "aa-cwe-bench-refusal-rate", slug: "artificial-analysis-cyber-index", name: "CWE-Bench-AA Refusal Rate", unit: "percent", category: "safety", scale: 100, higherIsBetter: false, description: "Share of CWE-Bench-AA tasks the model refused on safety grounds. Lower means fewer refusals on defensive security work." },
+  { field: "deepsecBenchRefusalRate", id: "aa-deepsec-bench-refusal-rate", slug: "artificial-analysis-cyber-index", name: "DeepsecBench-AA Refusal Rate", unit: "percent", category: "safety", scale: 100, higherIsBetter: false, description: "Share of DeepsecBench-AA tasks the model refused on safety grounds. Lower means fewer refusals on defensive security work." },
+  { field: "cybergymE2eRefusalRate", id: "aa-cybergym-e2e-refusal-rate", slug: "artificial-analysis-cyber-index", name: "CyberGym-E2E-AA Refusal Rate", unit: "percent", category: "safety", scale: 100, higherIsBetter: false, description: "Share of CyberGym-E2E-AA tasks the model refused on safety grounds. Lower means fewer refusals on defensive security work." },
+  { field: "opennessIndex", breakdown: "opennessBreakdown", id: "aa-openness-index", normalization: { kind: "linear", min: 0, max: 100 }, slug: "artificial-analysis-openness-index", name: "AA Openness Index", unit: "score", category: "other", description: "Artificial Analysis Openness Index (0 to 100): how open a model is, from weight availability and license to transparency about training data and methodology. Not a capability measure." },
 ];
+
+/** Numeric per-model fields that are metadata or sub-metrics of a mapped evaluation, not benchmarks. */
+const NON_BENCHMARK_FIELDS = new Set([
+  "intelligenceIndex", "price1mInputTokens", "price1mOutputTokens", "price1mBlended0To3To1", "cacheHitPrice", "cacheWritePrice", "cacheHitRate",
+  "parameters", "activeParams", "inferenceParametersActiveBillions", "contextWindowTokens", "medianCanonicalAnswerOutputSpeed",
+  "mlcrAccuracy", "mlcrCompleteness", "mlcrConciseness", "analystAgentPassAt1", "analystAgentPassAtK",
+  "enterpriseOpsGymAvgConversationTurns", "itbenchAvgTurnsPerTask",
+]);
+/** AA pages and articles deliberately left out of Priors. Anything else new is announced (see `discoveries`). */
+const IGNORED_PAGES = new Set([
+  "artificial-analysis-intelligence-index", // read separately as the composite
+  "artificial-analysis-decision-index", // ranks single-call "decision models", not chat models
+]);
+const IGNORED_ARTICLES = new Set([
+  "artificial-analysis-decision-index",
+  "aa-agentperf-local", // local inference hardware, not models
+  "aa-robotics", // scraped by sources/aa-robotics.ts
+  "trusted-access-models-cyber-index", // covered by aa-cyber-index
+]);
 
 /** Benchmark id from AA eval slug; avoids "aa-aa-briefcase" for AA's own "aa-*" slugs. */
 const bid = (slug: string) => `aa-${slug.replace(/^aa-/, "")}`;
@@ -124,6 +155,35 @@ async function fetchDecrypt(m: Manifest): Promise<{ json: Json; text: string }> 
     } catch (e) { last = e; await new Promise((r) => setTimeout(r, 700 * (i + 1))); }
   }
   throw last instanceof Error ? last : new Error(String(last));
+}
+
+/** Concatenated RSC payload of a Next.js page (the `self.__next_f.push([1,"..."])` strings). */
+function rscText(html: string): string {
+  let out = "";
+  for (const m of html.matchAll(/self\.__next_f\.push\(\[1,"((?:[^"\\]|\\.)*)"\]\)/g)) {
+    try { out += JSON.parse(`"${m[1]}"`); } catch { /* skip a malformed chunk */ }
+  }
+  return out;
+}
+
+/** JSON arrays of objects embedded in an RSC payload under `"<key>":[{...`. */
+function rscArrays(rsc: string, key: string): Json[][] {
+  const out: Json[][] = [];
+  for (const m of rsc.matchAll(new RegExp(`"${key}":\\[\\{`, "g"))) {
+    const start = m.index! + m[0].length - 2;
+    let depth = 0, inStr = false;
+    for (let i = start; i < rsc.length; i++) {
+      const c = rsc[i];
+      if (inStr) { if (c === "\\") i++; else if (c === '"') inStr = false; continue; }
+      if (c === '"') inStr = true;
+      else if (c === "[" || c === "{") depth++;
+      else if ((c === "]" || c === "}") && --depth === 0) {
+        try { const a = JSON.parse(rsc.slice(start, i + 1)); if (Array.isArray(a)) out.push(a); } catch { /* not plain JSON */ }
+        break;
+      }
+    }
+  }
+  return out;
 }
 
 const isNum = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
@@ -186,6 +246,41 @@ const source: Source = {
       else raw[`unknown-${name}.json`] = text;
     }
     if (!tableModels?.length || !evalModels?.length) throw new Error("AA full model/evaluation table missing; refusing to replace the previous snapshot with incomplete coverage");
+
+    // Some evaluation pages (AA-3D) render from inline `initialModels` records instead of the shared
+    // manifest, and those records carry fields the manifest lacks. Fill gaps by model id; never overwrite.
+    const evalById = new Map(evalModels.map((m) => [m.id, m]));
+    for (const [url, html] of pageHtml) {
+      const rsc = rscText(html);
+      for (const arr of rscArrays(rsc, "initialModels")) for (const rec of arr) {
+        const target = rec?.id && evalById.get(rec.id);
+        if (!target) continue;
+        for (const [k, v] of Object.entries(rec)) if (target[k] == null && v != null) target[k] = v;
+      }
+      // AA-3D's Elo chart rows carry the confidence interval.
+      if (url.endsWith("/evaluations/aa-3d")) for (const arr of rscArrays(rsc, "models")) for (const rec of arr) {
+        const target = rec?.id && evalById.get(rec.id);
+        if (target && isNum(rec.elo) && isNum(rec.lower95ci) && isNum(rec.upper95ci) && rec.elo === target.aa3dElo) target.aa3dCi = { lower95ci: rec.lower95ci, upper95ci: rec.upper95ci };
+      }
+    }
+
+    // Anything AA publishes that Priors does not read yet. Announced, never fatal.
+    const discoveries: string[] = [];
+    const mappedFields = new Set(EVALS.map((d) => d.field));
+    const mappedSlugs = new Set(EVALS.flatMap((d) => [d.slug, d.page ?? d.slug]));
+    for (const slug of evaluationSlugs) if (!mappedSlugs.has(slug) && !IGNORED_PAGES.has(slug)) discoveries.push(`AA evaluation page ${ORIGIN}/evaluations/${slug}`);
+    const fieldCounts = new Map<string, number>();
+    for (const m of evalModels) for (const [k, v] of Object.entries(m)) if (isNum(v) && !mappedFields.has(k) && !NON_BENCHMARK_FIELDS.has(k) && !/RefusalRate$/.test(k)) fieldCounts.set(k, (fieldCounts.get(k) ?? 0) + 1);
+    for (const [k, n] of fieldCounts) discoveries.push(`AA data field "${k}" (${n} models)`);
+    try {
+      const articlesHtml = await ctx.fetchText(`${ORIGIN}/articles`);
+      raw["articles.html"] = articlesHtml;
+      for (const m of articlesHtml.matchAll(/href="\/articles\/([a-z0-9-]+)".*?<h3[^>]*>([^<]+)<\/h3>/g)) {
+        const [slug, title] = [m[1], decode(m[2])];
+        if (IGNORED_ARTICLES.has(slug) || [...mappedSlugs].some((s) => slug.includes(s))) continue;
+        if (/\b(introduc|announc|launch)/i.test(title) && /bench|index|arena|leaderboard|\bAA-|evaluation/i.test(title)) discoveries.push(`AA article "${title}" ${ORIGIN}/articles/${slug}`);
+      }
+    } catch { notes.push("articles page unavailable; skipped new-benchmark check for articles"); }
     ctx.log(`table=${tableModels?.length ?? 0} evals=${evalModels?.length ?? 0} hosts=${hosts?.length ?? 0}`);
     if (!evalModels) notes.push("evaluations payload missing; scores come from /models table only");
     if (!tableModels) notes.push("/models table payload missing; no speed/price/cost");
@@ -266,7 +361,7 @@ const source: Source = {
         const contribution = tbl?.intelligenceIndexCostPerTask?.evaluations?.find((e: Json) => e.slug === d.slug)?.weightedCostPerTask;
         rows.push({
           ...common, benchmarkId: id, value: v * (d.scale ?? 1),
-          costUsd: costWeight && isNum(contribution) ? contribution / (costWeight / 100) : undefined, sourceUrl: `${ORIGIN}/evaluations/${d.slug}`,
+          costUsd: costWeight && isNum(contribution) ? contribution / (costWeight / 100) : undefined, sourceUrl: `${ORIGIN}/evaluations/${d.page ?? d.slug}`,
           ci: d.ciFrom?.(base) ?? (tbl ? d.ciFrom?.(tbl) : undefined), note: noteBits[0], harness: d.harness,
           details: { field: d.field, ...(d.breakdown ? { breakdown: base[d.breakdown] ?? tbl?.[d.breakdown] } : {}), canonicalTokenCounts: base.canonicalEvalTokenCounts?.[d.field] },
         });
@@ -311,7 +406,7 @@ const source: Source = {
       const nav = navNames.get(d.slug);
       const name = !d.id && nav && (!d.navName || d.navName.test(nav)) && !/Hallucination|Accuracy|Rubric/.test(nav) ? nav : d.name;
       benchmarks.push({
-        id, name, sourceId: this.id, url: `${ORIGIN}/evaluations/${d.slug}`, description: d.description,
+        id, name, sourceId: this.id, url: `${ORIGIN}/evaluations/${d.page ?? d.slug}`, description: d.description,
         normalization: d.normalization, unit: d.unit, higherIsBetter: d.higherIsBetter ?? true, category: d.category,
         defaultWeight: AA_V43_WEIGHTS[id] ?? 0, eligibleForDefault: id in AA_V43_WEIGHTS,
         ...(id === "aa-terminalbench-v4-0" ? { versionPolicy: { kind: "fresh" as const, supersedes: "aa-terminalbench-v2-1" } } : {}),
@@ -344,7 +439,7 @@ const source: Source = {
     }
     raw["coverage.json"] = JSON.stringify({ indexVersion: iiVersion, discoveredPages: pageHtml.size, pageFailures, tableModels: tableModels.length, evaluationModels: evalModels.length, mergedModels: byId.size, representedModels: identities.length, modelsWithObservations: new Set(rows.map((r) => r.sourceModelId)).size, distinctVariants: seenVariants.size, benchmarkRows: Object.fromEntries(counts), identities }, null, 2);
     notes.push(`benchmarks: ${[...counts.entries()].map(([k, v]) => `${k}=${v}`).join(", ")}`);
-    return { benchmarks, rows, modelMeta, raw, notes };
+    return { benchmarks, rows, modelMeta, raw, notes, discoveries };
   },
 };
 

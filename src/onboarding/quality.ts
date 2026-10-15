@@ -75,9 +75,13 @@ const RELEASES: Record<string, { date: string; url: string }> = {
   "aa-scicode": { date: "2024-07-19", url: "https://arxiv.org/abs/2407.13168" },
   "aa-tau2-bench": { date: "2025-06-10", url: "https://arxiv.org/abs/2506.07982" },
   "aa-tau3-banking": { date: "2026-03-05", url: "https://arxiv.org/abs/2603.04370" },
-  "aa-terminalbench-v2-1": { date: "2026-01-26", url: "https://artificialanalysis.ai/evaluations/terminalbench-v2-1" },
-  "aa-terminalbench-v4-0": { date: "2026-08-01", url: "https://artificialanalysis.ai/evaluations/terminalbench-v4-0" },
+  "aa-terminalbench-v2-1": { date: "2026-01-26", url: "https://artificialanalysis.ai/evaluations/terminalbench-2-1" },
+  "aa-terminalbench-v4-0": { date: "2026-08-01", url: "https://artificialanalysis.ai/evaluations/terminalbench-4-0" },
   "aa-humanitys-last-exam": { date: "2025-01-23", url: "https://arxiv.org/abs/2501.14249" },
+  "aa-3d": { date: "2026-10-12", url: "https://artificialanalysis.ai/articles/aa-3d" },
+  "aa-frontiercode": { date: "2026-07-07", url: "https://cognition.com/blog/frontier-code-1.1" },
+  "aa-harvey-lab-aa": { date: "2026-10-08", url: "https://artificialanalysis.ai/articles/harvey-lab-aa-v1-1" },
+  "aa-robotics": { date: "2026-10-14", url: "https://artificialanalysis.ai/articles/aa-robotics" },
 };
 
 const SOURCE_URLS: Record<string, string> = {
