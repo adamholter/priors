@@ -10,6 +10,7 @@ import { decodeIndices, encodeIndices, prettyQuery } from "@/lib/url";
 import { Wordmark } from "../Wordmark";
 import { CONTAIN_AXIS_LABELS, insideLabels, markColor, useChartPalette, useEChart } from "../chart/echarts";
 import { BenchmarkInfo, InfoIcon } from "../BenchmarkInfo";
+import { ModelStrengths } from "./ModelStrengths";
 
 type Row = { variantId: string; modelId: string; effort: string; value: number; cost?: number; rank: number };
 
@@ -90,6 +91,8 @@ export function ModelPage({ snapshot, modelId }: { snapshot: Snapshot; modelId: 
           <div className="grid gap-[5px]">{mine.map((r) => <EffortRow key={r.variant.id} r={r} rank={shown.ranked.indexOf(r) + 1} total={shown.ranked.length} max={mine[0].score} color={labC} />)}</div>
         </section>}
 
+        {mine.length > 0 && <ModelStrengths snapshot={snapshot} mix={mix} result={shown} modelId={modelId} onInfo={setInfo} />}
+
         <section className="grid gap-4">
           <div className="flex items-baseline justify-between border-b hairline pb-2"><h2 className="text-[26px]">Your mix&rsquo;s benchmarks</h2><span className="cap">{inMix.length} of {Object.values(mix.weights).filter((w) => w > 0).length} measured</span></div>
           {inMix.length ? <div className="grid gap-8 lg:grid-cols-2">{inMix.map((b) => <BenchCard key={b.id} b={b} rows={perBench.get(b.id)!} modelId={modelId} color={color} onInfo={() => setInfo(b.id)} />)}</div>
@@ -119,14 +122,15 @@ function LazyCards({ list, perBench, modelId, color, onInfo }: { list: Benchmark
   return <div className="grid gap-8 lg:grid-cols-2 mt-5">{list.map((b) => <BenchCard key={b.id} b={b} rows={perBench.get(b.id)!} modelId={modelId} color={color} onInfo={() => onInfo(b.id)} />)}</div>;
 }
 
-/** One benchmark: this model's efforts highlighted on score-vs-cost (others ghosted), plus placements. */
+/** One benchmark: this model's efforts highlighted on score-vs-cost (others ghosted), or on the field's spread when cost is unknown, plus placements. */
 function BenchCard({ b, rows, modelId, color, onInfo }: { b: Benchmark; rows: Row[]; modelId: string; color: { lab: string; name: (id: string) => string }; onInfo: () => void }) {
   const mine = rows.filter((r) => r.modelId === modelId);
   const withCost = rows.filter((r) => r.cost && r.cost > 0);
   return (
     <article className="grid gap-3 content-start">
       <div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="cap">{b.category}</p><h3 className="text-[19px] leading-tight flex items-center gap-1.5">{b.name}<InfoIcon name={b.name} onClick={onInfo} /></h3></div><span className="cap shrink-0 pt-4">{rows.length} results</span></div>
-      {withCost.length >= 3 && mine.some((r) => r.cost) && <BenchScatter b={b} rows={withCost} modelId={modelId} color={color} />}
+      {withCost.length >= 3 && mine.some((r) => r.cost) ? <BenchScatter b={b} rows={withCost} modelId={modelId} color={color} />
+        : rows.length >= 3 && <BenchStrip b={b} rows={rows} modelId={modelId} color={color} />}
       <ol className="grid gap-[4px]">
         {mine.map((r) => <li key={r.variantId} className="grid grid-cols-[52px_minmax(0,1fr)_70px] items-center gap-3 text-[12.5px] h-[24px]">
           <span className="num text-[15px]" style={{ color: "var(--indigo)" }}>#{r.rank}</span>
@@ -160,4 +164,41 @@ function BenchScatter({ b, rows, modelId, color }: { b: Benchmark; rows: Row[]; 
   const { ref } = useEChart(option, [option]);
   useEffect(() => { const el = ref.current; if (!el) return; const ro = new ResizeObserver(([e]) => setPlotW(Math.round(e.contentRect.width / 4) * 4)); ro.observe(el); return () => ro.disconnect(); }, [ref]);
   return <div ref={ref} role="img" aria-label={`${b.name} score versus cost per task`} style={{ width: "100%", height: 230 }} />;
+}
+
+/** Stable 0..1 jitter per result, so the strip doesn't reshuffle between renders. */
+function jitter(id: string) {
+  let h = 2166136261;
+  for (let i = 0; i < id.length; i++) h = Math.imul(h ^ id.charCodeAt(i), 16777619);
+  return ((h >>> 0) % 1000) / 1000;
+}
+
+/**
+ * Every result on the benchmark spread along its score (best to the right), jittered so they don't
+ * stack; this model's efforts stand out in its lab color, the leader is ringed, the median dashed.
+ */
+function BenchStrip({ b, rows, modelId, color }: { b: Benchmark; rows: Row[]; modelId: string; color: { lab: string; name: (id: string) => string } }) {
+  const pal = useChartPalette();
+  const [plotW, setPlotW] = useState(0);
+  const option = useMemo<EChartsOption>(() => {
+    const mine = rows.filter((r) => r.modelId === modelId), rest = rows.filter((r) => r.modelId !== modelId), lead = rows[0];
+    const sorted = rows.map((r) => r.value).sort((x, y) => x - y), mid = sorted[Math.floor(sorted.length / 2)];
+    const y = (r: Row) => 0.18 + jitter(r.variantId) * 0.64;
+    const tip = (r: Row) => `<b>${color.name(r.modelId)} ${r.effort}</b><br/><span style="font-family:var(--font-jetbrains)">${fmt(b, r.value)} · #${r.rank} of ${rows.length}</span>`;
+    return {
+      grid: { left: 12, right: 18, top: 24, bottom: 30, ...CONTAIN_AXIS_LABELS },
+      xAxis: { type: "value", scale: true, inverse: b.higherIsBetter === false, splitNumber: 4, axisLabel: { formatter: (v: number) => fmt(b, v).replace(/\.0(?=%|$)/, ""), hideOverlap: true } },
+      yAxis: { type: "value", min: 0, max: 1, show: false },
+      tooltip: { trigger: "item", confine: true, formatter: (p: unknown) => { const d = (p as { data?: { r?: Row } }).data?.r; return d ? tip(d) : ""; } },
+      series: [
+        { type: "scatter", id: "ghost", symbolSize: 7, data: rest.map((r) => ({ value: [r.value, y(r)], r })), itemStyle: { color: pal.grey, opacity: pal.dark ? 0.35 : 0.32 }, emphasis: { itemStyle: { opacity: 0.9 } }, z: 1,
+          markLine: { silent: true, symbol: "none", label: { show: true, position: "end", formatter: "median", color: pal.grey, fontSize: 10 }, lineStyle: { color: pal.grey, type: "dashed", width: 1 }, data: [{ xAxis: mid }] } },
+        ...(lead && lead.modelId !== modelId ? [{ type: "scatter" as const, id: "lead", symbolSize: 12, data: [{ value: [lead.value, y(lead)], r: lead, name: color.name(lead.modelId) }], itemStyle: { color: "transparent", borderColor: pal.ink, borderWidth: 1.5 }, label: { show: true, position: "bottom" as const, formatter: "{b}", fontSize: 10.5, color: pal.ink2, distance: 5, textBorderColor: pal.bg, textBorderWidth: 3 }, z: 2 }] : []),
+        { type: "scatter", id: "mine", symbolSize: 12, data: mine.map((r) => ({ value: [r.value, 0.5], r, name: r.effort === "default" ? "" : r.effort })), itemStyle: { color: color.lab, borderColor: pal.ink, borderWidth: 1.2 }, label: { show: true, position: "top", formatter: "{b}", fontSize: 11, color: pal.ink, distance: 5, textBorderColor: pal.bg, textBorderWidth: 3 }, labelLayout: insideLabels(() => plotW || undefined, { moveOverlap: true }), z: 3 },
+      ],
+    };
+  }, [b, rows, modelId, color, pal, plotW]);
+  const { ref } = useEChart(option, [option]);
+  useEffect(() => { const el = ref.current; if (!el) return; const ro = new ResizeObserver(([e]) => setPlotW(Math.round(e.contentRect.width / 4) * 4)); ro.observe(el); return () => ro.disconnect(); }, [ref]);
+  return <div ref={ref} role="img" aria-label={`${b.name}: where this model sits among ${rows.length} results`} style={{ width: "100%", height: 150 }} />;
 }
