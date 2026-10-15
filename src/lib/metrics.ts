@@ -8,7 +8,7 @@ import { compileFormula, type FormulaVars } from "./formula";
 export const anchorOf = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 
 /** A metric scatter point: x is the (possibly transformed) metric value. */
-export interface MetricPoint { x: number; r: RankedVariant; /** untransformed value for labels when x is transformed */ raw?: number }
+export interface MetricPoint { x: number; r: RankedVariant; /** untransformed value for labels when x is transformed */ raw?: number; /** Costs nothing (a free tier): `raw` is 0 and `x` sits on `freeFloor`, since a log axis has no 0. */ free?: boolean }
 
 export interface MetricChart {
   better: "lower" | "higher";
@@ -120,16 +120,28 @@ export function pickPoints(chart: MetricChart, ranked: RankedVariant[], mode: "a
   return [...best.values()];
 }
 
+/**
+ * Where free models sit on a log cost axis, which has no 0: a step left of the cheapest paid cost
+ * (a quarter of it), so they read as cheapest without stretching the axis.
+ */
+export function freeFloor(costs: number[]): number {
+  const paid = costs.filter((c) => c > 0);
+  return (paid.length ? Math.min(...paid) : 0.01) / 4;
+}
+
 /** Index score vs measured cost per task — same fields ParetoChart passes to ScoreScatter. */
 export const costChart: MetricChart & { xShort: string } = {
   better: "lower",
-  points: (rows) => rows.flatMap((r) => (r.costUsd != null && r.costUsd > 0 ? [{ x: r.costUsd, r }] : [])),
+  points: (rows) => {
+    const floor = freeFloor(rows.flatMap((r) => (r.costUsd ? [r.costUsd] : [])));
+    return rows.flatMap((r) => (r.costUsd == null || !(r.costUsd >= 0) ? [] : r.costUsd === 0 ? [{ x: floor, raw: 0, free: true, r }] : [{ x: r.costUsd, r }]));
+  },
   xLabel: "",
   xName: "Cost per task ($, log)",
   xShort: "$ / task (log)",
   scale: "log",
   formatX: money,
-  formatValue: (v) => `$${v < 0.01 ? v.toPrecision(2) : v.toFixed(v < 0.1 ? 3 : 2)}/task`,
+  formatValue: (v) => (v === 0 ? "free" : `$${v < 0.01 ? v.toPrecision(2) : v.toFixed(v < 0.1 ? 3 : 2)}/task`),
   aria: "Index score versus cost per task",
 };
 

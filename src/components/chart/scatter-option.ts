@@ -6,7 +6,7 @@ import { scatterLabelLayout } from "./scatter-label-layout";
 import { chartLabel } from "../../lib/metrics";
 import { labelScale } from "./label-size";
 
-export interface ScatterPoint { x: number; r: RankedVariant; /** untransformed value for tooltips/export when x is transformed */ raw?: number }
+export interface ScatterPoint { x: number; r: RankedVariant; /** untransformed value for tooltips/export when x is transformed */ raw?: number; /** Costs nothing: drawn on the "free" line left of the cheapest paid point. */ free?: boolean }
 export interface ScatterView { labelScale?: number; scale?: "log" | "linear"; density: number; frontier: boolean; links: boolean; /** The user explicitly toggled the frontier rather than saving an old default. */ frontierChosen?: boolean; /** Dashed axis guides for highlighted efforts (default on). */ guides?: boolean; kind?: "scatter" | "bars"; /** The user picked `kind` (vs. the chart default). */ kindChosen?: boolean; /** Advanced: a custom formula that replaces the chart's metric (src/lib/formula.ts), and which direction is better. */ formula?: string; formulaBetter?: "higher" | "lower" }
 /**
  * Emphasis for chosen models. `items` are model ids (feature that model's best effort) or variant ids
@@ -161,6 +161,10 @@ export function scatterOption({ pts, labs, better, xName, xShort, xUnit = "", sc
     },
   ];
   const name = narrow && xShort ? xShort : xName;
+  // Free models sit on one x left of every paid point (MetricPoint.free); a dashed line names it.
+  // A two-point line: ECharts drops a lone { xAxis } mark line on a log axis.
+  const free = pts.find((p) => p.free);
+  if (free) (series[series.length - 1] as { markLine?: unknown }).markLine = { silent: true, symbol: "none", z: 0, animation: false, lineStyle: { color: pal.grey, type: "dashed", width: 1, opacity: 0.7 }, label: { show: true, position: "end", formatter: "free", color: pal.grey, fontSize: 10.5 * t }, data: [[{ xAxis: free.x, yAxis: yMin }, { xAxis: free.x, yAxis: yMax }]] };
   return {
     animation: true,
     grid: { ...(narrow ? { left: 38 * t, right: 12, top: hasTitle ? 24 : 48, bottom: 40 * t } : { left: 48 * t, right: 130 * t, top: hasTitle ? 24 * t : 48, bottom: 44 * t }), ...CONTAIN_AXIS_LABELS },

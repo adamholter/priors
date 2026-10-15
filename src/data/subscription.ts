@@ -29,7 +29,7 @@ export interface SubscriptionDetails {
 }
 
 export interface SubscriptionPrice {
-  /** Subscription cost as a fraction of the API cost of the same tokens. */
+  /** Subscription cost as a fraction of the API cost of the same tokens; 0 for a free tier. */
   ratio: number;
   plan: string;
   feeUsd?: number;
@@ -61,10 +61,12 @@ export function subscriptionPrices(snapshot: Snapshot): Map<string, Subscription
     aaPrices.set(v.modelId, { input: m.price1mInputTokens, output: m.price1mOutputTokens, cached: positive(m.cacheHitPrice) ? m.cacheHitPrice : undefined, cacheWrite: positive(m.cacheWritePrice) ? m.cacheWritePrice : undefined });
   }
   for (const o of snapshot.observations) {
-    if (o.benchmarkId !== SUBSCRIPTION_BENCHMARK || !positive(o.value)) continue;
+    if (o.benchmarkId !== SUBSCRIPTION_BENCHMARK) continue;
     const d = o.details as unknown as SubscriptionDetails | undefined;
     const modelId = variants.get(o.variantId)?.modelId ?? o.variantId.split("@")[0];
-    if (positive(d?.ratio)) { out.set(modelId, { ratio: d.ratio, plan: d.plan, feeUsd: d.feeUsd, confidence: d.confidence }); continue; }
+    // A curated ratio is taken as is; 0 is a free tier.
+    if (typeof d?.ratio === "number" && Number.isFinite(d.ratio) && d.ratio >= 0) { out.set(modelId, { ratio: d.ratio, plan: d.plan, feeUsd: d.feeUsd, confidence: d.confidence }); continue; }
+    if (!positive(o.value)) continue;
     const prices = d?.listPrice ?? aaPrices.get(modelId);
     if (!d?.mix || !prices) continue;
     const api = blendedApiPrice(prices, d.mix);

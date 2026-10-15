@@ -28,6 +28,7 @@ All charts are ECharts with the `priors` theme, set up in `src/components/chart/
 - Usage (T3 Code share) is model-level: one point per model, on its best-scoring ranked variant.
 - Per-variant detail fields are looked up on the index observation. Source-qualified variant ids (`@effort~source-conf`) resolve to their base effort id, the same as engine substitution.
 - Uptime plots `-log10(downtime)` so 90, 99 and 99.9% are evenly spaced. Tooltips and exports show the raw percent.
+- Free models (subscription cost $0) sit on a dashed "free" line left of the cheapest paid cost, since a log axis has no 0. See `docs/data.md`, Subscription cost.
 
 ## Highlights
 

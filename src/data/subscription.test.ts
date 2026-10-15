@@ -78,6 +78,14 @@ describe("subscription cost basis", () => {
     snapshot.observations.push({ ...snapshot.observations.find((o) => o.benchmarkId === SUBSCRIPTION_BENCHMARK)!, variantId: "c@default", value: 0.5, details: { plan: "Curated", ratio: 1 / 6, confidence: "medium", plans: [] } });
     expect(subscriptionPrices(snapshot).get("c")).toMatchObject({ ratio: 1 / 6, plan: "Curated" });
   });
+  it("prices a free tier (ratio 0) at $0 and says where it is free", () => {
+    const snapshot = snap();
+    snapshot.observations.push({ ...snapshot.observations.find((o) => o.benchmarkId === SUBSCRIPTION_BENCHMARK)!, variantId: "c@default", value: 0, details: { plan: "OpenCode Zen free tier", ratio: 0, confidence: "high", plans: [] } });
+    expect(subscriptionPrices(snapshot).get("c")).toMatchObject({ ratio: 0 });
+    const c = computeIndex(snapshot, { ...base, variants: "all" }).ranked.find((r) => r.variant.id === "c@default")!;
+    expect(c.costUsd).toBe(0);
+    expect(c.costSource).toContain("free on OpenCode Zen free tier");
+  });
   it("survives the client snapshot, which drops other scraper details", () => {
     expect(subscriptionPrices(clientSnapshot(snap())).get("a")!.ratio).toBeCloseTo(0.01, 6);
   });

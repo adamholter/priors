@@ -17,6 +17,12 @@ function tickOf(m: AnswerMetric) {
 /** An axis name with its unit when the ticks no longer carry it. */
 const axisName = (m: AnswerMetric) => (m.unit && !["$", "%", "s", "pts"].includes(m.unit) && !m.name.includes(m.unit) ? `${m.name} (${m.unit})` : m.name);
 
+/** Positions on a log axis, which has no 0: a free (0) value sits a step left of the smallest positive one. */
+function onLog(values: (number | null)[], log?: boolean) {
+  const pos = values.filter((v): v is number => v != null && v > 0), floor = (pos.length ? Math.min(...pos) : 0.01) / 4;
+  return (v: number | null) => (v == null ? null : log && v <= 0 ? floor : v);
+}
+
 /** Plot height for a chart in an assistant answer: bars grow with their rows, the rest are fixed. */
 export function answerHeight(c: AnswerChart): number {
   if (c.kind === "bar") return 40 + c.items.length * ROW;
@@ -68,16 +74,17 @@ export function answerOption(c: AnswerChart, pal: ChartPalette, width: () => num
       xAxis: { type: "category", data: c.x, boundaryGap: false, axisLabel: { color: pal.ink2, fontFamily: sans, fontSize: 11 } },
       yAxis: { type: c.metric.log ? "log" : "value", scale: true, name: axisName(c.metric) === c.metric.name ? undefined : axisName(c.metric), nameTextStyle: { color: pal.grey, fontSize: 11, align: "left" }, axisLabel: { formatter: tickOf(c.metric), hideOverlap: true } },
       tooltip: { trigger: "axis", formatter: (ps: unknown) => { const list = ps as { seriesName: string; value: number | null; axisValue: string }[]; return tip([list[0]?.axisValue ?? "", ...list.filter((p) => p.value != null).sort((a, b) => Number(b.value) - Number(a.value)).map((p) => `${p.seriesName}: ${f(Number(p.value))}`)]); } },
-      series: c.lines.map((l) => ({ type: "line" as const, name: l.label, data: l.values, connectNulls: true, symbolSize: 6, lineStyle: { width: 2, color: color(l) }, itemStyle: { color: color(l) }, endLabel: { show: true, formatter: "{a}", color: pal.ink, fontSize: 11, distance: 6 }, labelLayout: { hideOverlap: true }, emphasis: { focus: "series" as const } })),
+      series: c.lines.map((l) => ({ type: "line" as const, name: l.label, data: l.values.map(onLog(c.lines.flatMap((k) => k.values), c.metric.log)), connectNulls: true, symbolSize: 6, lineStyle: { width: 2, color: color(l) }, itemStyle: { color: color(l) }, endLabel: { show: true, formatter: "{a}", color: pal.ink, fontSize: 11, distance: 6 }, labelLayout: { hideOverlap: true }, emphasis: { focus: "series" as const } })),
     };
   }
   const fx = (v: number) => formatMetric(c.x, v), fy = (v: number) => formatMetric(c.y, v), narrow = (width() ?? 600) < 420;
+  const px = onLog(c.points.map((q) => q.x), c.x.log), py = onLog(c.points.map((q) => q.y), c.y.log);
   return {
     grid: { left: 8, right: 24, top: 16, bottom: 28, ...CONTAIN_AXIS_LABELS },
     xAxis: { type: c.x.log ? "log" : "value", scale: true, name: axisName(c.x), nameLocation: "middle", nameGap: 26, nameTextStyle: { color: pal.grey, fontSize: 11 }, splitNumber: narrow ? 3 : 5, axisLabel: { formatter: tickOf(c.x), hideOverlap: true } },
     yAxis: { type: c.y.log ? "log" : "value", scale: true, name: axisName(c.y), nameTextStyle: { color: pal.grey, fontSize: 11, align: "left" }, axisLabel: { formatter: tickOf(c.y), hideOverlap: true } },
     tooltip: { trigger: "item", formatter: (p: unknown) => { const q = c.points[(p as { dataIndex: number }).dataIndex]; return tip([q.label, `${c.y.name}: ${fy(q.y)}`, `${c.x.name}: ${fx(q.x)}`]); } },
-    series: [{ type: "scatter", symbolSize: 9, data: c.points.map((q) => ({ value: [q.x, q.y], name: q.label, itemStyle: { color: color(q) } })), label: { ...markLabel(pal), fontSize: 10.5 }, labelLayout: insideLabels(width) }],
+    series: [{ type: "scatter", symbolSize: 9, data: c.points.map((q) => ({ value: [px(q.x), py(q.y)], name: q.label, itemStyle: { color: color(q) } })), label: { ...markLabel(pal), fontSize: 10.5 }, labelLayout: insideLabels(width) }],
   };
 }
 

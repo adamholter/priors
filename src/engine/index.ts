@@ -378,7 +378,7 @@ export function computeIndex(snapshot: Snapshot, config: IndexConfig): IndexResu
     // Subscription basis: the measured API cost scaled by the share of API price the plan works out to.
     // Models without a first-party plan keep their API cost — that is what they cost to use.
     const plan = cost && plans?.get(model.id);
-    if (cost && plan) { cost.usd *= plan.ratio; cost.source += ` · ${plan.plan}, ${subscriptionShare(plan.ratio)} of API price at full use`; }
+    if (cost && plan) { cost.usd *= plan.ratio; cost.source += plan.ratio === 0 ? ` · free on ${plan.plan}` : ` · ${plan.plan}, ${subscriptionShare(plan.ratio)} of API price at full use`; }
     const speedObs = idx.get(SPEED_BENCHMARK)?.get(v.id);
     ranked.push({ variant: v, model, score: num / den, coverage: Math.min(1, Math.round(covered * 1e4) / 1e6), measuredShare, values, mixedEfforts: values.some((value) => value.estimateKind === "effort"), costUsd: cost?.usd, costSource: cost?.source, costPlan: plan || undefined, speed: speedObs && speedObs.value > 0 ? speedObs.value : undefined, onFrontier: false, rank: 0 });
   }

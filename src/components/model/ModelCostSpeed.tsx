@@ -4,7 +4,7 @@ import type { EChartsOption } from "echarts";
 import type { Snapshot } from "@/data/types";
 import type { TaskMetricSource } from "@/data/task-metrics";
 import type { RankedVariant } from "@/engine";
-import { metricPanels, money } from "@/lib/metrics";
+import { costChart, freeFloor, metricPanels, money } from "@/lib/metrics";
 import { CONTAIN_AXIS_LABELS, insideLabels, useChartPalette, useEChart } from "../chart/echarts";
 import { FieldStrip, type StripPoint } from "./FieldStrip";
 import { escapeSvg as esc } from "../chart/export-frame";
@@ -25,8 +25,10 @@ export function ModelCostSpeed({ snapshot, ranked, modelId, name, color, timeSou
   const metrics = useMemo<Metric[]>(() => {
     const panels = new Map(metricPanels(snapshot, ranked, timeSource).map((p) => [p.id, p]));
     const from = (id: string) => { const pts = panels.get(id)?.chart?.points(ranked) ?? []; const m = new Map(pts.map((p) => [p.r.variant.id, p.raw ?? p.x])); return (r: RankedVariant) => m.get(r.variant.id); };
+    // A free tier has no place on a log axis; it sits on the floor left of the cheapest paid cost.
+    const floor = freeFloor(ranked.flatMap((r) => (r.costUsd ? [r.costUsd] : [])));
     return [
-      { id: "cost", title: "Cost per task", better: "lower", word: "cheapest", log: true, fmt: money, of: (r) => (r.costUsd && r.costUsd > 0 ? r.costUsd : undefined) },
+      { id: "cost", title: "Cost per task", better: "lower", word: "cheapest", log: true, fmt: (v) => (v === floor ? "free" : money(v)), tick: money, of: (r) => (r.costUsd === 0 ? floor : r.costUsd && r.costUsd > 0 ? r.costUsd : undefined) },
       { id: "tpt", title: "Time per task", better: "lower", word: "quickest", log: true, fmt: secs, of: from("tpt") },
       { id: "speed", title: "Output speed", better: "higher", word: "fastest", log: false, fmt: (v) => `${Math.round(v)} tok/s`, tick: (v) => `${Math.round(v)}`, of: (r) => (r.speed && r.speed > 0 ? r.speed : undefined) },
       { id: "latency", title: "Time to first token", better: "lower", word: "quickest", log: true, fmt: secs, of: from("latency") },
@@ -35,7 +37,7 @@ export function ModelCostSpeed({ snapshot, ranked, modelId, name, color, timeSou
   }, [snapshot, ranked, timeSource]);
   const mineAll = useMemo(() => ranked.filter((r) => r.model.id === modelId), [ranked, modelId]);
   const has = metrics.filter((m) => mineAll.some((r) => m.of(r) != null)), missing = metrics.filter((m) => !has.includes(m));
-  const withCost = mineAll.some((r) => r.costUsd && r.costUsd > 0);
+  const withCost = mineAll.some((r) => r.costUsd != null && r.costUsd >= 0);
   return (
     <section className="grid gap-4">
       <div className="flex items-baseline justify-between border-b hairline pb-2"><h2 className="text-[26px]">Cost and speed</h2><span className="cap">{ranked.length ? `against ${new Set(ranked.map((r) => r.model.id)).size} ranked models` : ""}</span></div>
@@ -79,20 +81,23 @@ function ScoreCost({ ranked, modelId, color }: { ranked: RankedVariant[]; modelI
   const pal = useChartPalette();
   const [plotW, setPlotW] = useState(0);
   const option = useMemo<EChartsOption>(() => {
+    // Free tiers sit on the floor left of the cheapest paid cost (costChart.points).
+    const x = new Map(costChart.points(ranked).map((p) => [p.r.variant.id, p.x])), free = ranked.find((r) => r.costUsd === 0);
     const seen = new Set<string>(), rest: RankedVariant[] = [];
-    for (const r of ranked) if (r.model.id !== modelId && r.costUsd && r.costUsd > 0 && !seen.has(r.model.id)) { seen.add(r.model.id); rest.push(r); }
-    const mine = ranked.filter((r) => r.model.id === modelId && r.costUsd && r.costUsd > 0).sort((a, b) => a.costUsd! - b.costUsd!);
+    for (const r of ranked) if (r.model.id !== modelId && x.has(r.variant.id) && !seen.has(r.model.id)) { seen.add(r.model.id); rest.push(r); }
+    const mine = ranked.filter((r) => r.model.id === modelId && x.has(r.variant.id)).sort((a, b) => a.costUsd! - b.costUsd!);
     // Tooltips are HTML; model names and efforts come from scraped sources, so they are escaped.
-    const tip = (r: RankedVariant) => `<b>${esc(r.model.name)}${effortOf(r) ? ` ${esc(effortOf(r))}` : ""}</b><br/><span style="font-family:var(--font-jetbrains)">index ${r.score.toFixed(1)} · ${money(r.costUsd!)}/task</span>`;
+    const tip = (r: RankedVariant) => `<b>${esc(r.model.name)}${effortOf(r) ? ` ${esc(effortOf(r))}` : ""}</b><br/><span style="font-family:var(--font-jetbrains)">index ${r.score.toFixed(1)} · ${r.costUsd === 0 ? "free" : `${money(r.costUsd!)}/task`}</span>`;
     return {
       grid: { left: 40, right: 70, top: 14, bottom: 36, ...CONTAIN_AXIS_LABELS },
       xAxis: { type: "log", name: "$ / task", nameLocation: "end", nameGap: 6, nameTextStyle: { color: pal.grey, fontSize: 10, align: "right", verticalAlign: "top", padding: [24, 0, 0, 0] }, axisLabel: { formatter: (v: number) => money(v), hideOverlap: true, showMinLabel: false, showMaxLabel: false }, min: (e: { min: number }) => e.min / 1.5, max: (e: { max: number }) => e.max * 1.5 },
       yAxis: { type: "value", scale: true, name: "Index score", nameTextStyle: { color: pal.grey, fontSize: 10, align: "left" } },
       tooltip: { trigger: "item", confine: true, formatter: (p: unknown) => { const r = (p as { data?: { r?: RankedVariant } }).data?.r; return r ? tip(r) : ""; } },
       series: [
-        { type: "scatter", id: "ghost", symbolSize: 7, data: rest.map((r) => ({ value: [r.costUsd, r.score], r })), itemStyle: { color: pal.grey, opacity: pal.dark ? 0.35 : 0.32 }, emphasis: { itemStyle: { opacity: 0.9 } }, z: 1 },
-        { type: "line", id: "mine-line", data: mine.map((r) => [r.costUsd, r.score]), showSymbol: false, lineStyle: { color, width: 1.4, opacity: 0.7 }, silent: true, z: 2 },
-        { type: "scatter", id: "mine", symbolSize: 12, data: mine.map((r) => ({ value: [r.costUsd, r.score], r, name: effortOf(r) })), itemStyle: { color, borderColor: pal.ink, borderWidth: 1.2 }, label: { show: true, position: "right", formatter: "{b}", fontSize: 11, color: pal.ink, distance: 6, textBorderColor: pal.bg, textBorderWidth: 3 }, labelLayout: insideLabels(() => plotW || undefined, { moveOverlap: true }), z: 3 },
+        { type: "scatter", id: "ghost", symbolSize: 7, data: rest.map((r) => ({ value: [x.get(r.variant.id), r.score], r })), itemStyle: { color: pal.grey, opacity: pal.dark ? 0.35 : 0.32 }, emphasis: { itemStyle: { opacity: 0.9 } }, z: 1,
+          ...(free ? { markLine: { silent: true, symbol: "none", lineStyle: { color: pal.grey, type: "dashed" as const, width: 1, opacity: 0.7 }, label: { show: true, position: "end" as const, formatter: "free", color: pal.grey, fontSize: 10 }, data: [[{ xAxis: x.get(free.variant.id)!, yAxis: "min" }, { xAxis: x.get(free.variant.id)!, yAxis: "max" }]] } } : {}) },
+        { type: "line", id: "mine-line", data: mine.map((r) => [x.get(r.variant.id), r.score]), showSymbol: false, lineStyle: { color, width: 1.4, opacity: 0.7 }, silent: true, z: 2 },
+        { type: "scatter", id: "mine", symbolSize: 12, data: mine.map((r) => ({ value: [x.get(r.variant.id), r.score], r, name: effortOf(r) })), itemStyle: { color, borderColor: pal.ink, borderWidth: 1.2 }, label: { show: true, position: "right", formatter: "{b}", fontSize: 11, color: pal.ink, distance: 6, textBorderColor: pal.bg, textBorderWidth: 3 }, labelLayout: insideLabels(() => plotW || undefined, { moveOverlap: true }), z: 3 },
       ],
     };
   }, [ranked, modelId, color, pal, plotW]);

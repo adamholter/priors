@@ -3,7 +3,7 @@ import type { RawRow } from "../../../src/data/types";
 /**
  * Subsidy figures read straight from a published plan allowance, for models Real API Pricing does not
  * cover. `ratio` is what a subscriber pays as a share of API list price at full use (fee ÷ usage value),
- * so 6× subsidized is 1/6. Only figures at roughly 80% confidence or better belong here: a plan page that
+ * so 6× subsidized is 1/6, and a free tier is 0. Only figures at roughly 80% confidence or better belong here: a plan page that
  * states the allowance in dollars of usage, checked on `checked`. Each replaces any computed row for the model.
  */
 export interface SubsidyOverride {
@@ -22,6 +22,10 @@ export interface SubsidyOverride {
 }
 
 export const SUBSIDY_OVERRIDES: SubsidyOverride[] = [
+  {
+    modelId: "deepseek-v4.1-flash", label: "DeepSeek V4.1 Flash", plan: "OpenCode Zen free tier", feeUsd: 0, ratio: 0, confidence: "high", source: "https://opencode.ai/docs/zen/", checked: "2026-10-15",
+    note: "Zen lists DeepSeek V4.1 Flash Free at no charge for a limited time, with no end date given. When it ends, the best plan is OpenCode Go again (about 12× the fee).",
+  },
   {
     modelId: "gemini-4", label: "Gemini 4 Argon", plan: "OpenCode Go (2× launch promo)", feeUsd: 10, ratio: 10 / 60, confidence: "medium", source: "https://opencode.ai/go", checked: "2026-10-14",
     note: "Go lists $30 of monthly usage for Argon, doubled to $60 for a limited time: 6× the fee. Back to 3× when the promo ends.",

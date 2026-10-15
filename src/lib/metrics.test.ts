@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { RankedVariant } from "@/engine";
 import type { Snapshot } from "@/data/types";
-import { formatComputed, formulaChart, formulaInputs, metricPanels, pickPoints, type MetricChart } from "./metrics";
+import { costChart, formatComputed, formulaChart, formulaInputs, metricPanels, pickPoints, type MetricChart } from "./metrics";
 import { selectBars } from "../components/chart/bars-option";
 
 const rv = (model: string, variant: string, score: number, metric?: number) =>
@@ -94,4 +94,13 @@ describe("custom formulas", () => {
   it("formats computed values of any size", () => {
     expect([0, 0.00001234, 0.0123, 1.5, 12.345, 403.2, 1234, 5_600_000, -42.5, 2e16].map(formatComputed)).toEqual(["0", "1.2e-5", "0.0123", "1.5", "12.3", "403", "1.23k", "5.6M", "-42.5", "2e16"]);
   });
+});
+
+it("puts free models on a floor left of the cheapest paid cost, since a log axis has no 0", () => {
+  const rows = [rv("paid", "paid@high", 70), rv("cheap", "cheap@high", 60), rv("free", "free@max", 55), rv("unpriced", "unpriced@max", 50)];
+  Object.assign(rows[0], { costUsd: 2 }); Object.assign(rows[1], { costUsd: 0.2 }); Object.assign(rows[2], { costUsd: 0 });
+  const pts = costChart.points(rows);
+  expect(pts.map((p) => p.r.model.id)).toEqual(["paid", "cheap", "free"]);
+  expect(pts[2]).toMatchObject({ x: 0.05, raw: 0, free: true });
+  expect(costChart.formatValue!(0)).toBe("free");
 });

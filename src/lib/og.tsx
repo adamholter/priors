@@ -6,7 +6,7 @@ import type { Snapshot } from "@/data/types";
 import { chartVariantMode, computeIndex, selectVariants, type IndexConfig, type RankedVariant } from "@/engine";
 import { isShareDesign, type ShareDesign } from "@/lib/share-designs";
 import { effectiveBasis } from "@/data/subscription";
-import { chartLabel, type MetricPoint } from "@/lib/metrics";
+import { chartLabel, costChart, type MetricPoint } from "@/lib/metrics";
 import { cardPalette, renderChartPng, renderRadarPng, scatterSpec } from "@/lib/og-chart";
 import { DEFAULT_RADAR, RADAR_ANCHOR, RADAR_PALETTES, radarSnapshotView, radarSvg, type RadarSettings } from "@/components/chart/radar-view";
 import { markColor } from "@/components/chart/theme";
@@ -39,7 +39,7 @@ function ctxFor(snapshot:Snapshot,index:IndexConfig,who:Ctx["who"],opts?:{accent
  const k=themed?{bg:themed.surface??themed.bg,ink:themed.ink,muted:themed.grey,line:themed.hair,pale:themed.dark?themed.hair:themed.hair2,onBar:themed.dark?themed.bg:"#FFFFFF",panel:themed.dark?themed.hair2:themed.ink,onPanel:themed.dark?themed.ink:themed.bg,panelMuted:themed.grey,accent:themed.accent}:SCHEMES[scheme];
  const key=`${snapshot.date}|${who.name}|${who.handle??""}|${opts?.accent??""}|${opts?.surface??""}|${scheme}|${themed?.id??""}|${JSON.stringify(index)}`;
  let p=ctxCache.get(key);
- if(!p){p=(async()=>{const r=computeIndex(snapshot,{...index,variants:"all"}),mode=chartVariantMode(index,"ranking"),list=selectVariants(r.ranked,mode),pareto=selectVariants(r.ranked,chartVariantMode(index,"pareto")),link=`https://mypriors.com${who.handle?`/${who.handle}`:""}`;return{...k,index,who,top:list.slice(0,5),board:list.slice(0,10),pts:pareto.filter(x=>!!x.costUsd&&x.costUsd>0),ranked:r.ranked,pareto,benches:r.benchmarks.map(b=>({id:b.benchmark.id,name:b.benchmark.shortName??b.benchmark.name,share:b.share})),colors:new Map(snapshot.labs.map(l=>[l.id,themed?.labColors?themed.labColors[l.id]??themed.labColors.other??l.color:scheme==="dark"?DARK_LAB_COLORS[l.id]??l.color:l.color])),accent:themed?opts?.accent??k.accent:scheme==="dark"?(opts?.accent&&opts.accent.toLowerCase()!=="#2f4fb0"?mixHex(opts.accent,"#ffffff",0.38):k.accent):opts?.accent??k.accent,bg:themed||scheme==="dark"?k.bg:opts?.surface??k.bg,dark:scheme==="dark",date:snapshot.date,qr:await QRCode.toDataURL(link,{margin:0,width:300,color:{dark:"#1A1A1A",light:"#00000000"}}),snapshot}})();ctxCache.set(key,p);if(ctxCache.size>24)ctxCache.delete(ctxCache.keys().next().value!);}
+ if(!p){p=(async()=>{const r=computeIndex(snapshot,{...index,variants:"all"}),mode=chartVariantMode(index,"ranking"),list=selectVariants(r.ranked,mode),pareto=selectVariants(r.ranked,chartVariantMode(index,"pareto")),link=`https://mypriors.com${who.handle?`/${who.handle}`:""}`;return{...k,index,who,top:list.slice(0,5),board:list.slice(0,10),pts:pareto.filter(x=>x.costUsd!=null&&x.costUsd>=0),ranked:r.ranked,pareto,benches:r.benchmarks.map(b=>({id:b.benchmark.id,name:b.benchmark.shortName??b.benchmark.name,share:b.share})),colors:new Map(snapshot.labs.map(l=>[l.id,themed?.labColors?themed.labColors[l.id]??themed.labColors.other??l.color:scheme==="dark"?DARK_LAB_COLORS[l.id]??l.color:l.color])),accent:themed?opts?.accent??k.accent:scheme==="dark"?(opts?.accent&&opts.accent.toLowerCase()!=="#2f4fb0"?mixHex(opts.accent,"#ffffff",0.38):k.accent):opts?.accent??k.accent,bg:themed||scheme==="dark"?k.bg:opts?.surface??k.bg,dark:scheme==="dark",date:snapshot.date,qr:await QRCode.toDataURL(link,{margin:0,width:300,color:{dark:"#1A1A1A",light:"#00000000"}}),snapshot}})();ctxCache.set(key,p);if(ctxCache.size>24)ctxCache.delete(ctxCache.keys().next().value!);}
  return p;
 }
 export async function renderShareCard(snapshot: Snapshot,index:IndexConfig,who:{name:string;handle?:string;avatarUrl?:string},opts?:{accent?:string;surface?:string;design?:string;chart?:string;cv?:string;cm?:string;cs?:string;hidden?:ChartHidden;labelScale?:number;scheme?:CardScheme;theme?:{preset?:string;surface?:"bone"|"white"};radar?:RadarSettings}) {
@@ -173,7 +173,7 @@ function ScatterCard({c,subtitle,pts,better,scale,formatX,xTitle,secsAxis,moneyA
 }
 
 function Constellation({c}:{c:Ctx}){
- const pts:MetricPoint[]=c.pts.map(r=>({x:r.costUsd!,r}));
+ const pts:MetricPoint[]=costChart.points(c.pts);
  const sub=effectiveBasis(c.index.costBasis)==="subscription";
  return <ScatterCard c={c} subtitle={sub?"Score vs subscription cost per task":"Score vs cost per task"} pts={pts} better="lower" scale="log" formatX={tickMoney} xTitle={sub?"Subscription cost per task, USD · log scale":"Cost per task, USD · log scale"} moneyAxis/>;
 }
