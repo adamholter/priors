@@ -174,7 +174,7 @@ export const ALIASES: Record<string, string> = {
   "claude-sonnet-4-6-search": "claude sonnet 4.6",
 };
 
-/** Exact public VALS catalog labels whose provider IDs resolve to known or explicit model identities. */
+/** Exact public catalog and benchmark labels with known model identities. */
 const VALS_PUBLISHED_MODELS: Record<string, { id: string; name: string; lab: string; reasoning: boolean }> = {
   "ling 3.0 flash": { id: "aa-ling-3-0-flash", name: "Ling 3.0 Flash", lab: "ant-group", reasoning: true },
   "ling 3.0 flash fin": { id: "aa-ling-3-0-flash-fin", name: "Ling 3.0 Flash Fin", lab: "ant-group", reasoning: true },
@@ -184,6 +184,8 @@ const VALS_PUBLISHED_MODELS: Record<string, { id: string; name: string; lab: str
   "laguna m.1": { id: "laguna-m-1", name: "Laguna M.1", lab: "poolside", reasoning: true },
   "laguna xs.2": { id: "laguna-xs-2", name: "Laguna XS.2", lab: "poolside", reasoning: true },
   "muse spark": { id: "aa-muse-spark", name: "Muse Spark", lab: "meta", reasoning: true },
+  "muse wonder": { id: "aa-muse-wonder", name: "Muse Wonder", lab: "meta", reasoning: true },
+  "muse wonder full": { id: "aa-muse-wonder-full", name: "Muse Wonder Full", lab: "meta", reasoning: true },
   "claude 3.7 sonnet nonthinking": { id: "claude-sonnet-3.7", name: "Sonnet 3.7", lab: "anthropic", reasoning: true },
   "claude 3.5 haiku latest": { id: "claude-haiku-3.5", name: "Haiku 3.5", lab: "anthropic", reasoning: true },
   "command a": { id: "aa-command-a", name: "Command A", lab: "other", reasoning: true },

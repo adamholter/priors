@@ -12,6 +12,7 @@ import { EFFORT_WORDS, LABS, normalizeLabel, variantId } from "../../src/data/no
 import { makeContext, saveRaw } from "./harness";
 import { buildLibrary } from "./library";
 import { canonicalizeSnapshot } from "../../src/data/canonical-snapshot";
+import { retainCatalog } from "./retain-catalog";
 
 const args = process.argv.slice(2);
 const opt = (k: string) => { const i = args.indexOf(`--${k}`); return i >= 0 ? args[i + 1] : undefined; };
@@ -203,10 +204,9 @@ async function main() {
       const ids = new Set(prevBench.map((b) => b.id));
       prev.observations.filter((o) => ids.has(o.benchmarkId)).forEach((o) => snap.observations.push({ ...o, note: only && r.status !== "failed" ? o.note : [o.note, `carried from ${prev.date}`].filter(Boolean).join("; ") }));
       prev.series.filter((s) => ids.has(s.benchmarkId)).forEach((s) => snap.series.push(s));
-      prev.variants.forEach((v) => { if (!snap.variants.some((x) => x.id === v.id)) snap.variants.push(v); });
-      prev.models.forEach((m) => { if (!snap.models.some((x) => x.id === m.id)) snap.models.push(m); });
       r.note = `carried forward from ${prev.date}`;
     }
+    if (retained.length) Object.assign(snap, retainCatalog(prev, snap));
   } catch { /* first run */ }
 
   snap = canonicalizeSnapshot(snap);
