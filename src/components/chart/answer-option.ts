@@ -25,7 +25,7 @@ export function answerOption(c: AnswerChart, pal: ChartPalette, width: () => num
   const valueLabel = (fmt: (v: number) => string) => ({ show: true, position: "right" as const, distance: 6, fontFamily: mono, fontSize: 10.5 * Math.min(scale, 1.2), color: pal.ink2, formatter: (p: { value?: unknown }) => fmt(Number(p.value)) });
   // Tooltips are HTML: every line is escaped (labels can come from user imports, series names from the model).
   const tip = (lines: string[]) => lines.map((l, i) => i ? `<div>${esc(l)}</div>` : `<div style="font-weight:600">${esc(l)}</div>`).join("");
-  const category = (labels: string[]) => ({ type: "category" as const, data: labels, inverse: true, axisLabel: { color: pal.ink, fontFamily: sans, fontSize: 11.5 * Math.min(scale, 1.2), width: 150, overflow: "truncate" as const }, axisLine: { show: false }, axisTick: { show: false } });
+  const category = (labels: string[]) => ({ type: "category" as const, data: labels, inverse: true, axisLabel: { color: pal.ink, fontFamily: sans, fontSize: 11.5, width: 150, overflow: "truncate" as const }, axisLine: { show: false }, axisTick: { show: false } });
 
   if (c.kind === "bar") {
     const f = (v: number) => formatMetric(c.metric, v), neg = c.items.some((i) => i.value < 0);
