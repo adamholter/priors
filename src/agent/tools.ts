@@ -172,6 +172,11 @@ export async function runTool(ctx: ToolContext, name: string, args: Record<strin
       if (ctx.charts.length >= 4) return { error: "Four charts is the limit for one answer." };
       const r = makeChart(dataOf(ctx), args as DataArgs);
       if (!r.chart) return r;
+      r.chart.title = r.chart.title.replace(/\s*[—–]\s*/g, ": ");
+      // The same data under another title is the same chart: point at the one already drawn.
+      const key = JSON.stringify({ ...r.chart, title: "" }), same = (c: AnswerChart) => JSON.stringify({ ...c, title: "" }) === key;
+      const dup = ctx.charts.findIndex(same);
+      if (dup >= 0) return { chart: dup + 1, title: ctx.charts[dup].title, duplicate: true, use: `Chart ${dup + 1} already shows exactly this; place [[chart:${dup + 1}]] once and don't draw it again.` };
       ctx.charts.push(r.chart);
       return { chart: ctx.charts.length, title: r.chart.title, shown: r.shown, missing: r.missing?.length ? r.missing : undefined, use: `Put [[chart:${ctx.charts.length}]] on its own line in your reply.` };
     }

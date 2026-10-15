@@ -210,12 +210,19 @@ details.gallery-panel > summary::-webkit-details-marker { display: none; }
 .assistant-fab:hover { transform: translateY(-1px); box-shadow: 0 16px 36px -14px var(--shadow); }
 .assistant-fab:focus-visible { outline: 2px solid var(--indigo); outline-offset: 2px; }
 .assistant-fab-dot { position: absolute; top: 9px; right: 9px; width: 8px; height: 8px; border-radius: 50%; background: var(--indigo); }
-.assistant-panel { position: fixed; right: 20px; bottom: 20px; width: min(420px, calc(100vw - 24px)); max-height: min(620px, calc(100dvh - 40px)); display: flex; flex-direction: column; background: var(--white); border: 1px solid var(--hair); border-radius: 12px; box-shadow: 0 24px 60px -28px var(--shadow); animation: assistant-in .22s cubic-bezier(.16,1,.3,1) both; overflow: hidden; }
+.assistant-panel { position: fixed; right: 20px; bottom: 20px; width: min(var(--assistant-w, 420px), calc(100vw - 24px)); max-height: min(620px, calc(100dvh - 40px)); display: flex; flex-direction: column; background: var(--white); border: 1px solid var(--hair); border-radius: 12px; box-shadow: 0 24px 60px -28px var(--shadow); animation: assistant-in .22s cubic-bezier(.16,1,.3,1) both; overflow: hidden; }
 .assistant-panel .assistant-head { margin: 0; padding: 8px 8px 8px 14px; border-bottom: 1px solid var(--hair); }
 .assistant-body { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 10px 14px; }
 .assistant-panel .assistant-composer { margin: 0 10px 10px; box-shadow: none; }
 .assistant-panel .assistant-head + .assistant-composer { margin-top: 10px; }
-@media (max-width: 640px) { .assistant-fab { right: 14px; bottom: 14px; } .assistant-panel { right: 8px; left: 8px; bottom: 8px; width: auto; max-height: min(78dvh, 620px); } }
+/* Dragged to a size: that height once there's a conversation (an empty panel stays just the composer). */
+.assistant-panel.is-sized:has(.assistant-body) { height: min(var(--assistant-h), calc(100dvh - 40px)); max-height: none; }
+.assistant-grip { position: absolute; top: 0; left: 0; z-index: 1; width: 18px; height: 18px; display: grid; place-items: center; padding: 0; border: 0; background: none; color: var(--grey); cursor: nwse-resize; touch-action: none; opacity: .55; }
+.assistant-grip:hover, .assistant-grip:focus-visible { opacity: 1; color: var(--ink); }
+.assistant-grip:focus-visible { outline: 2px solid var(--indigo); outline-offset: -2px; border-radius: 4px; }
+.assistant-icon:disabled { opacity: .4; }
+.assistant-chart figcaption .assistant-chart-expand { width: 22px; height: 22px; margin: -3px -4px -3px 0; }
+@media (max-width: 640px) { .assistant-fab { right: 14px; bottom: 14px; } .assistant-panel, .assistant-panel.is-sized:has(.assistant-body) { right: 8px; left: 8px; bottom: 8px; width: auto; height: auto; max-height: min(78dvh, 620px); } .assistant-grip { display: none; } }
 .assistant-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
 .assistant-icon { display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 4px; color: var(--grey); background: none; border: 0; }
 .assistant-icon:hover { color: var(--ink); background: var(--hair-2); }

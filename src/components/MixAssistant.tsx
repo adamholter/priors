@@ -1,13 +1,14 @@
 "use client";
 import { track } from "@/lib/analytics";
 import Link from "next/link";
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
 import { useAuth } from "@clerk/nextjs";
 import type { IndexConfig } from "@/engine";
 import { encodeIndex } from "@/lib/url";
 import { authEnabled } from "@/app/providers";
 import type { AnswerChart } from "@/lib/answer-chart";
-import { AssistantAnswer } from "./AssistantAnswer";
+import { AssistantAnswer, type AnswerHighlight } from "./AssistantAnswer";
+import { chatDocument, printDocument } from "./assistant-print";
 import { useTheme, type ThemeMode } from "./Theme";
 
 type View = { benchmarks: { id: string; name: string; share: number; was: number }[]; removed?: { id: string; name: string; was: number }[]; movedFromOriginal: number; ranking: { rank: number; model: string; score: number; was: number | null }[] };
@@ -25,6 +26,20 @@ const HINTS = [
   "Compare the top two models", "Is the fastest model any good?", "Switch to a dark theme",
 ];
 const HINT_KEY = "priors:assistant-hint";
+/** The panel size the user dragged to (desktop), and the current conversation, per signed-in user. */
+const SIZE_KEY = "priors:assistant-size";
+const chatKey = (userId: string) => `priors:assistant-chat:${userId}`;
+type Size = { w: number; h: number };
+const MIN: Size = { w: 340, h: 280 };
+const NONE: string[] = [];
+const fit = (s: Size): Size => ({ w: Math.round(Math.min(Math.max(s.w, MIN.w), innerWidth - 40)), h: Math.round(Math.min(Math.max(s.h, MIN.h), innerHeight - 40)) });
+
+function load<T>(key: string): T | null {
+  try { const v = localStorage.getItem(key); return v ? JSON.parse(v) as T : null; } catch { return null; }
+}
+function store(key: string, value: unknown) {
+  try { if (value == null) localStorage.removeItem(key); else localStorage.setItem(key, JSON.stringify(value)); } catch { /* storage blocked or full */ }
+}
 
 /**
  * A placeholder that types out one hint, holds it, erases it and moves to the next. Order is shuffled
@@ -68,7 +83,7 @@ export function MixAssistant(props: { config: IndexConfig; onApply: (c: IndexCon
 }
 
 function Inner({ config, onApply, date, handle }: { config: IndexConfig; onApply: (c: IndexConfig) => void; date: string; handle?: string }) {
-  const { isSignedIn, isLoaded } = useAuth();
+  const { isSignedIn, isLoaded, userId } = useAuth();
   const { mode, setMode, siteTheme, setSiteTheme } = useTheme();
   const [turns, setTurns] = useState<Turn[]>([]);
   const [draft, setDraft] = useState("");
@@ -78,6 +93,9 @@ function Inner({ config, onApply, date, handle }: { config: IndexConfig; onApply
   const input = useRef<HTMLTextAreaElement>(null);
   const fab = useRef<HTMLButtonElement>(null);
   const scroller = useRef<HTMLDivElement>(null);
+  const panel = useRef<HTMLDivElement>(null);
+  const [size, setSize] = useState<Size | null>(null);
+  const restored = useRef<string | null>(null);
   const hint = useTypedHint(open && !!isSignedIn && !turns.length && !busy && !draft, turns.length ? "Follow up…" : "Ask about the data, or adjust this ranking");
   const abort = useRef<AbortController | null>(null);
   const latest = useRef(config);
@@ -94,6 +112,19 @@ function Inner({ config, onApply, date, handle }: { config: IndexConfig; onApply
   }, [open]);
   useEffect(() => { scroller.current?.scrollTo({ top: scroller.current.scrollHeight, behavior: "smooth" }); }, [turns, steps]);
   useEffect(() => () => abort.current?.abort(), []);
+  useEffect(() => { const s = load<Size>(SIZE_KEY); if (s?.w && s?.h) setSize(s); }, []);
+  // The conversation survives reloads in this browser only (never on our servers). Undo doesn't: the page it undid is gone.
+  useEffect(() => {
+    if (!userId || restored.current === userId) return;
+    restored.current = userId;
+    const saved = load<Turn[]>(chatKey(userId));
+    if (Array.isArray(saved)) setTurns((t) => (t.length ? t : saved));
+  }, [userId]);
+  useEffect(() => {
+    if (!userId || restored.current !== userId) return;
+    store(chatKey(userId), turns.length ? turns.slice(-40).map((t) => ({ ...t, undo: undefined })) : null);
+  }, [turns, userId]);
+  const highlight = useMemo<AnswerHighlight>(() => ({ items: config.highlight ?? NONE, set: (items) => onApply({ ...latest.current, highlight: items.length ? items : undefined }) }), [config.highlight, onApply]);
 
   async function send(text: string) {
     const message = text.trim();
@@ -136,6 +167,33 @@ function Inner({ config, onApply, date, handle }: { config: IndexConfig; onApply
     } finally { setBusy(false); setSteps([]); abort.current = null; }
   }
   const submit = (e: FormEvent) => { e.preventDefault(); void send(draft); };
+  const clear = () => { abort.current?.abort(); setTurns([]); setSteps([]); setDraft(""); input.current?.focus(); };
+  const save = () => {
+    const title = `Priors assistant · ${config.name} · ${date}`;
+    printDocument(chatDocument(turns, { title, index: config.name, date, url: location.href }), title);
+    track("assistant_saved", { turns: turns.length });
+  };
+  /** Drag the top-left corner to resize; the panel stays anchored bottom-right. */
+  const startResize = (e: ReactPointerEvent<HTMLButtonElement>) => {
+    const el = panel.current;
+    if (!el || e.button !== 0) return;
+    e.preventDefault();
+    const r = el.getBoundingClientRect(), x0 = e.clientX, y0 = e.clientY, grip = e.currentTarget;
+    grip.setPointerCapture(e.pointerId);
+    let last: Size = { w: r.width, h: r.height };
+    const move = (ev: PointerEvent) => { last = fit({ w: r.width + x0 - ev.clientX, h: r.height + y0 - ev.clientY }); setSize(last); };
+    const up = () => { grip.removeEventListener("pointermove", move); grip.removeEventListener("pointerup", up); grip.removeEventListener("pointercancel", up); store(SIZE_KEY, last); };
+    grip.addEventListener("pointermove", move); grip.addEventListener("pointerup", up); grip.addEventListener("pointercancel", up);
+  };
+  const keyResize = (e: ReactKeyboardEvent) => {
+    const d = { ArrowLeft: [24, 0], ArrowRight: [-24, 0], ArrowUp: [0, 24], ArrowDown: [0, -24] }[e.key];
+    const r = panel.current?.getBoundingClientRect();
+    if (!d || !r) return;
+    e.preventDefault();
+    const next = fit({ w: r.width + d[0], h: r.height + d[1] });
+    setSize(next); store(SIZE_KEY, next);
+  };
+  const resetSize = () => { setSize(null); store(SIZE_KEY, null); };
   const undo = (i: number) => {
     const u = turns[i].undo;
     if (!u) return;
@@ -150,15 +208,22 @@ function Inner({ config, onApply, date, handle }: { config: IndexConfig; onApply
     {busy && <i className="assistant-fab-dot" aria-hidden="true" />}
   </button>;
   return (
-    <div className="assistant assistant-panel" role="region" aria-label="Assistant">
+    <div ref={panel} className={`assistant assistant-panel ${size ? "is-sized" : ""}`} role="region" aria-label="Assistant" style={size ? { "--assistant-w": `${size.w}px`, "--assistant-h": `${size.h}px` } as CSSProperties : undefined}>
+      <button type="button" className="assistant-grip" onPointerDown={startResize} onKeyDown={keyResize} onDoubleClick={resetSize} aria-label="Resize the assistant (arrow keys; double-click resets)" title="Drag to resize · double-click to reset">
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.2" aria-hidden="true"><path d="M1 9V1h8M1 5.5 5.5 1" /></svg>
+      </button>
       <div className="assistant-head"><span className="cap">Assistant · {config.name}</span>
-        <button type="button" className="assistant-icon" onClick={() => { setOpen(false); requestAnimationFrame(() => fab.current?.focus()); }} aria-label="Close the assistant" title="Close (Esc)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg></button>
+        {turns.length > 0 && <>
+          <button type="button" className="assistant-icon ml-auto" onClick={save} disabled={busy} aria-label="Save the chat as a PDF" title="Save as PDF"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 4v11m-4.5-4.5L12 15l4.5-4.5M5 19.5h14" /></svg></button>
+          <button type="button" className="assistant-icon" onClick={clear} aria-label="Clear the chat" title="Clear chat"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4.5 7h15M9.5 7V4.5h5V7m-8 0 .8 12.5h9.4L17.5 7M10.5 11v5m3-5v5" /></svg></button>
+        </>}
+        <button type="button" className={`assistant-icon ${turns.length ? "" : "ml-auto"}`} onClick={() => { setOpen(false); requestAnimationFrame(() => fab.current?.focus()); }} aria-label="Close the assistant" title="Close (Esc)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg></button>
       </div>
       {(turns.length > 0 || busy) && <div className="assistant-body" ref={scroller}>
         {turns.map((t, i) => t.role === "user"
           ? <p key={i} className="assistant-user">{t.content}</p>
           : <div key={i} className={`assistant-reply ${t.error ? "is-error" : ""}`}>
-            {t.error ? <p>{t.content}</p> : <AssistantAnswer text={t.content} charts={t.charts} />}
+            {t.error ? <p>{t.content}</p> : <AssistantAnswer text={t.content} charts={t.charts} highlight={highlight} />}
             {t.view && <Diff view={t.view} />}
             {t.question && <p className="assistant-question">{t.question}</p>}
             {(t.suggestions?.length || t.undo) && <div className="assistant-actions">

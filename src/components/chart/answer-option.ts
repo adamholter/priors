@@ -15,14 +15,17 @@ export function answerHeight(c: AnswerChart): number {
 /**
  * ECharts options for an assistant chart, in the viewer's palette: lab colors through markColor, the
  * theme's fonts and grid, values in the metric's unit. Bars are horizontal so model names stay
- * readable in a narrow panel.
+ * readable in a narrow panel. `highlight` (model or variant ids) fades every model not in it; `scale`
+ * enlarges bars and text for the expanded view.
  */
-export function answerOption(c: AnswerChart, pal: ChartPalette, width: () => number | undefined = () => undefined): EChartsOption {
-  const color = (m: AnswerMark) => markColor(m.color, pal, m.labId), mono = pal.fonts?.mono ?? MONO, sans = pal.fonts?.sans ?? SANS;
-  const valueLabel = (fmt: (v: number) => string) => ({ show: true, position: "right" as const, distance: 6, fontFamily: mono, fontSize: 10.5, color: pal.ink2, formatter: (p: { value?: unknown }) => fmt(Number(p.value)) });
+export function answerOption(c: AnswerChart, pal: ChartPalette, width: () => number | undefined = () => undefined, highlight: string[] = [], scale = 1): EChartsOption {
+  // With highlights on, every other model's marks fade, as on the page's own charts.
+  const lit = (m: AnswerMark) => !highlight.length || highlight.some((h) => h.split("@")[0] === m.modelId);
+  const color = (m: AnswerMark) => lit(m) ? markColor(m.color, pal, m.labId) : dimColor(markColor(m.color, pal, m.labId), pal), mono = pal.fonts?.mono ?? MONO, sans = pal.fonts?.sans ?? SANS;
+  const valueLabel = (fmt: (v: number) => string) => ({ show: true, position: "right" as const, distance: 6, fontFamily: mono, fontSize: 10.5 * Math.min(scale, 1.2), color: pal.ink2, formatter: (p: { value?: unknown }) => fmt(Number(p.value)) });
   // Tooltips are HTML: every line is escaped (labels can come from user imports, series names from the model).
   const tip = (lines: string[]) => lines.map((l, i) => i ? `<div>${esc(l)}</div>` : `<div style="font-weight:600">${esc(l)}</div>`).join("");
-  const category = (labels: string[]) => ({ type: "category" as const, data: labels, inverse: true, axisLabel: { color: pal.ink, fontFamily: sans, fontSize: 11.5, width: 150, overflow: "truncate" as const }, axisLine: { show: false }, axisTick: { show: false } });
+  const category = (labels: string[]) => ({ type: "category" as const, data: labels, inverse: true, axisLabel: { color: pal.ink, fontFamily: sans, fontSize: 11.5 * Math.min(scale, 1.2), width: 150, overflow: "truncate" as const }, axisLine: { show: false }, axisTick: { show: false } });
 
   if (c.kind === "bar") {
     const f = (v: number) => formatMetric(c.metric, v), neg = c.items.some((i) => i.value < 0);
@@ -31,7 +34,7 @@ export function answerOption(c: AnswerChart, pal: ChartPalette, width: () => num
       xAxis: { type: "value", axisLabel: { show: false }, splitLine: { show: neg } },
       yAxis: category(c.items.map((i) => i.label)),
       tooltip: { trigger: "item", formatter: (p: unknown) => { const i = c.items[(p as { dataIndex: number }).dataIndex]; return tip([i.label, `${c.metric.name}: ${f(i.value)}`]); } },
-      series: [{ type: "bar", barMaxWidth: 14, data: c.items.map((i) => ({ value: i.value, itemStyle: { color: color(i), borderRadius: i.value < 0 ? [2, 0, 0, 2] : [0, 2, 2, 0] }})), label: valueLabel(f) }],
+      series: [{ type: "bar", barMaxWidth: 14 * scale, data: c.items.map((i) => ({ value: i.value, itemStyle: { color: color(i), borderRadius: i.value < 0 ? [2, 0, 0, 2] : [0, 2, 2, 0] }})), label: valueLabel(f) }],
     };
   }
   if (c.kind === "grouped") {
@@ -43,7 +46,7 @@ export function answerOption(c: AnswerChart, pal: ChartPalette, width: () => num
       xAxis: { type: "value", axisLabel: { show: false } },
       yAxis: category(c.groups.map((g) => g.label)),
       tooltip: { trigger: "axis", axisPointer: { type: "shadow" }, formatter: (ps: unknown) => { const list = ps as { dataIndex: number }[], g = c.groups[list[0]?.dataIndex ?? 0]; return tip([g.label, ...c.series.map((s, i) => `${s}: ${g.values[i] == null ? "not measured" : f(g.values[i]!)}`)]); } },
-      series: c.series.map((s, si) => ({ type: "bar" as const, name: s, barMaxWidth: 10, barGap: "20%", data: c.groups.map((g) => ({ value: g.values[si], itemStyle: { color: shade(g, si), borderRadius: [0, 2, 2, 0] } })), label: valueLabel(f) })),
+      series: c.series.map((s, si) => ({ type: "bar" as const, name: s, barMaxWidth: 10 * scale, barGap: "20%", data: c.groups.map((g) => ({ value: g.values[si], itemStyle: { color: shade(g, si), borderRadius: [0, 2, 2, 0] } })), label: valueLabel(f) })),
     };
   }
   if (c.kind === "lines") {
@@ -64,4 +67,20 @@ export function answerOption(c: AnswerChart, pal: ChartPalette, width: () => num
     tooltip: { trigger: "item", formatter: (p: unknown) => { const q = c.points[(p as { dataIndex: number }).dataIndex]; return tip([q.label, `${c.y.name}: ${fy(q.y)}`, `${c.x.name}: ${fx(q.x)}`]); } },
     series: [{ type: "scatter", symbolSize: 9, data: c.points.map((q) => ({ value: [q.x, q.y], name: q.label, itemStyle: { color: color(q) } })), label: { ...markLabel(pal), fontSize: 10.5 }, labelLayout: insideLabels(width) }],
   };
+}
+
+/** One row per mark for CSV and JSON export. */
+export function answerRows(c: AnswerChart): Record<string, string | number | null>[] {
+  if (c.kind === "bar") return c.items.map((i) => ({ model: i.label, [c.metric.name]: i.value }));
+  if (c.kind === "grouped") return c.groups.map((g) => ({ model: g.label, ...Object.fromEntries(c.series.map((s, k) => [s, g.values[k]])) }));
+  if (c.kind === "lines") return c.lines.map((l) => ({ model: l.label, ...Object.fromEntries(c.x.map((x, k) => [x, l.values[k]])) }));
+  return c.points.map((q) => ({ model: q.label, [c.x.name]: q.x, [c.y.name]: q.y }));
+}
+
+/** The mark under a click: a bar, a group, a line or a point. */
+export function answerMarkAt(c: AnswerChart, p: { dataIndex: number; seriesIndex?: number }): AnswerMark | undefined {
+  if (c.kind === "bar") return c.items[p.dataIndex];
+  if (c.kind === "grouped") return c.groups[p.dataIndex];
+  if (c.kind === "lines") return c.lines[p.seriesIndex ?? 0];
+  return c.points[p.dataIndex];
 }
