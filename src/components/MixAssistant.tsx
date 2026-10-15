@@ -10,6 +10,7 @@ import type { AnswerChart } from "@/lib/answer-chart";
 import { AssistantAnswer, type AnswerHighlight } from "./AssistantAnswer";
 import { chatDocument, printDocument } from "./assistant-print";
 import { useTheme, type ThemeMode } from "./Theme";
+import { IconAdjustmentsHorizontal, IconChartBar, IconCheck, IconListDetails, IconPalette, IconScale, IconSearch, IconSparkles, IconStar, IconTable, IconZoomQuestion } from "@tabler/icons-react";
 
 type View = { benchmarks: { id: string; name: string; share: number; was: number }[]; removed?: { id: string; name: string; was: number }[]; movedFromOriginal: number; ranking: { rank: number; model: string; score: number; was: number | null }[] };
 /** What Undo restores: the index before the change and, when the theme changed, the previous look. */
@@ -18,6 +19,17 @@ type Turn = { role: "user" | "assistant"; content: string; question?: string; su
 type Event = { type: "step"; text: string }
   | { type: "done"; reply: string; question?: string; suggestions: string[]; proposal?: { weights: Record<string, number>; required: string[]; view: View }; charts?: AnswerChart[]; highlight?: string[]; theme?: { id?: string; mode?: ThemeMode } }
   | { type: "error"; message: string };
+
+/** An icon for each kind of step the assistant reports (labels come from `stepLabel` in src/agent/tools.ts). */
+const STEP_ICONS: [RegExp, typeof IconTable][] = [
+  [/^Reading the data/, IconTable], [/^Reading your mix/, IconListDetails], [/^Drawing a chart/, IconChartBar],
+  [/^(Searching|Finding)/, IconSearch], [/^Comparing/, IconScale], [/^Looking at why/, IconZoomQuestion],
+  [/^(Solving|Rebuilding|Testing)/, IconAdjustmentsHorizontal], [/highlight/i, IconStar], [/theme/i, IconPalette], [/^Applying/, IconCheck],
+];
+function Step({ text, live }: { text: string; live: boolean }) {
+  const Icon = STEP_ICONS.find(([re]) => re.test(text))?.[1] ?? IconSparkles;
+  return <p className={live ? "is-live" : ""}><Icon size={14} stroke={1.6} aria-hidden="true" /><span>{text}{live ? "…" : ""}</span></p>;
+}
 
 /** Typed into the empty composer one at a time, in a fresh random order each visit. */
 const HINTS = [
@@ -231,7 +243,7 @@ function Inner({ config, onApply, date, handle }: { config: IndexConfig; onApply
               {t.undo && <button type="button" className="text-control ml-auto" disabled={t.undone || busy || i !== turns.length - 1} onClick={() => undo(i)}>{t.undone ? "Undone" : "Undo"}</button>}
             </div>}
           </div>)}
-        {busy && <div className="assistant-steps" role="status">{(steps.length ? steps : ["Thinking"]).map((s, i, a) => <p key={i} className={i === a.length - 1 ? "is-live" : ""}>{s}{i === a.length - 1 ? "…" : ""}</p>)}</div>}
+        {busy && <div className="assistant-steps" role="status">{(steps.length ? steps : ["Thinking"]).map((s, i, a) => <Step key={i} text={s} live={i === a.length - 1} />)}</div>}
       </div>}
       {isSignedIn ? <form className="assistant-composer" onSubmit={submit}>
         <textarea ref={input} rows={1} value={draft} placeholder={hint} aria-label="Ask about the data, or adjust this ranking"

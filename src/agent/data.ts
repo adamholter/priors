@@ -8,6 +8,7 @@ import type { Observation, Snapshot } from "../data/types";
 import { EFFORT_ORDER } from "../data/types";
 import { computeIndex, type IndexConfig, type RankedVariant } from "../engine";
 import { taskMetricData } from "../data/task-metrics";
+import { outputTokensPerTask } from "../lib/metrics";
 import { resolveBenchmark, resolveLab, resolveModel } from "./resolve";
 
 export type MetricKey = string;
@@ -70,7 +71,7 @@ export class DataView {
       case "time": return num(this.time.get(id)?.value);
       case "speed": return num(r.speed);
       case "latency": return num(o("aa-ttft")?.value);
-      case "tokens": { const x = this.iiId ? o(this.iiId) : undefined; return num(x?.details?.outputTokensPerTask ?? x?.outputTokens); }
+      case "tokens": { const x = this.iiId ? o(this.iiId) : undefined; return outputTokensPerTask(x?.details?.outputTokensPerTask) ?? num(x?.outputTokens); }
       default: return num(metric.benchmarkId ? o(metric.benchmarkId)?.value : undefined);
     }
   }

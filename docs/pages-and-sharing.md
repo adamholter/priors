@@ -9,7 +9,7 @@
 | `/builder` | The explorer: weights, rankings, charts. State lives in the URL. |
 | `/[handle]` | A published page. |
 | `/explore` | Published pages. |
-| `/models/[id]`, `/model-finder` | One model's results (Strengths: a radar against the index leader and field median, and where it sits on each benchmark; per-benchmark cards plot score against cost, or the field's spread when cost is unknown); a guided model picker. |
+| `/models/[id]`, `/model-finder` | One model's results (Strengths: a radar against the index leader and field median, and where it sits on each benchmark; Cost and speed: index score against cost per task by effort, and field strips for cost, time per task, output speed, time to first token and output tokens, naming any it lacks; per-benchmark cards plot score against cost, or the field's spread when cost is unknown); a guided model picker. |
 | `/claim`, `/sign-in` | Pick a handle; Clerk sign-in. |
 | `/import`, `/skill` | Benchmark import; the agent skill. |
 | `/og`, `/[handle]/opengraph-image`, `/models/[id]/opengraph-image` | Share card and link-preview images. |

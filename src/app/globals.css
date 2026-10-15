@@ -250,8 +250,14 @@ details.gallery-panel > summary::-webkit-details-marker { display: none; }
 .assistant-diff .is-up { color: #3F8F5A; }
 .assistant-diff .is-down { color: var(--danger); }
 :root[data-theme="dark"] .assistant-diff .is-up { color: #7CC48F; }
-.assistant-steps p { margin: 3px 0; color: var(--grey); font-size: 12px; }
+.assistant-steps p { display: flex; align-items: center; gap: 7px; margin: 4px 0; color: var(--grey); font-size: 12px; }
+.assistant-steps p svg { flex: none; }
 .assistant-steps p.is-live { color: var(--ink-2); }
+.assistant-steps p.is-live svg { color: var(--indigo); }
+/* The step in progress shimmers: a lighter band sweeps across its text. */
+.assistant-steps p.is-live span { background: linear-gradient(90deg, var(--ink-2) 0%, var(--ink-2) 38%, var(--grey) 50%, var(--ink-2) 62%, var(--ink-2) 100%) 0 0 / 250% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: assistant-shimmer 1.8s linear infinite; }
+@keyframes assistant-shimmer { from { background-position: 100% 0; } to { background-position: 0 0; } }
+@media (prefers-reduced-motion: reduce) { .assistant-steps p.is-live span { animation: none; background: none; color: var(--ink-2); } }
 .assistant-composer { display: flex; align-items: flex-end; gap: 8px; background: var(--white); border: 1px solid var(--hair); border-radius: 12px; padding: 8px 8px 8px 14px; box-shadow: 0 10px 34px -18px var(--shadow); }
 .assistant-composer:focus-within { border-color: color-mix(in srgb, var(--indigo) 55%, var(--hair)); }
 .assistant-composer textarea { flex: 1; resize: none; border: 0; outline: none; background: transparent; color: var(--ink); font: inherit; font-size: 13.5px; line-height: 1.5; padding: 5px 0; max-height: 140px; field-sizing: content; }

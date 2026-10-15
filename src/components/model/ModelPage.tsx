@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { SignInLink } from "@/components/SignInLink";
 import { SettingsButton } from "../SiteSettings";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { EChartsOption } from "echarts";
 import type { Benchmark, Snapshot } from "@/data/types";
 import { computeIndex, defaultConfig, type IndexConfig, type RankedVariant } from "@/engine";
@@ -11,6 +11,8 @@ import { Wordmark } from "../Wordmark";
 import { CONTAIN_AXIS_LABELS, insideLabels, markColor, useChartPalette, useEChart } from "../chart/echarts";
 import { BenchmarkInfo, InfoIcon } from "../BenchmarkInfo";
 import { ModelStrengths } from "./ModelStrengths";
+import { FieldStrip, type StripPoint } from "./FieldStrip";
+import { ModelCostSpeed } from "./ModelCostSpeed";
 
 type Row = { variantId: string; modelId: string; effort: string; value: number; cost?: number; rank: number };
 
@@ -93,6 +95,8 @@ export function ModelPage({ snapshot, modelId }: { snapshot: Snapshot; modelId: 
 
         {mine.length > 0 && <ModelStrengths snapshot={snapshot} mix={mix} result={shown} modelId={modelId} onInfo={setInfo} />}
 
+        {mine.length > 0 && <ModelCostSpeed snapshot={snapshot} ranked={shown.ranked} modelId={modelId} name={model.name} color={labC} timeSource={mix.timeSource} />}
+
         <section className="grid gap-4">
           <div className="flex items-baseline justify-between border-b hairline pb-2"><h2 className="text-[26px]">Your mix&rsquo;s benchmarks</h2><span className="cap">{inMix.length} of {Object.values(mix.weights).filter((w) => w > 0).length} measured</span></div>
           {inMix.length ? <div className="grid gap-8 lg:grid-cols-2">{inMix.map((b) => <BenchCard key={b.id} b={b} rows={perBench.get(b.id)!} modelId={modelId} color={color} onInfo={() => setInfo(b.id)} />)}</div>
@@ -166,39 +170,13 @@ function BenchScatter({ b, rows, modelId, color }: { b: Benchmark; rows: Row[]; 
   return <div ref={ref} role="img" aria-label={`${b.name} score versus cost per task`} style={{ width: "100%", height: 230 }} />;
 }
 
-/** Stable 0..1 jitter per result, so the strip doesn't reshuffle between renders. */
-function jitter(id: string) {
-  let h = 2166136261;
-  for (let i = 0; i < id.length; i++) h = Math.imul(h ^ id.charCodeAt(i), 16777619);
-  return ((h >>> 0) % 1000) / 1000;
-}
-
-/**
- * Every result on the benchmark spread along its score (best to the right), jittered so they don't
- * stack; this model's efforts stand out in its lab color, the leader is ringed, the median dashed.
- */
+/** Every result on the benchmark spread along its score (best to the right); this model, the leader and the median marked. */
 function BenchStrip({ b, rows, modelId, color }: { b: Benchmark; rows: Row[]; modelId: string; color: { lab: string; name: (id: string) => string } }) {
-  const pal = useChartPalette();
-  const [plotW, setPlotW] = useState(0);
-  const option = useMemo<EChartsOption>(() => {
-    const mine = rows.filter((r) => r.modelId === modelId), rest = rows.filter((r) => r.modelId !== modelId), lead = rows[0];
-    const sorted = rows.map((r) => r.value).sort((x, y) => x - y), mid = sorted[Math.floor(sorted.length / 2)];
-    const y = (r: Row) => 0.18 + jitter(r.variantId) * 0.64;
-    const tip = (r: Row) => `<b>${color.name(r.modelId)} ${r.effort}</b><br/><span style="font-family:var(--font-jetbrains)">${fmt(b, r.value)} · #${r.rank} of ${rows.length}</span>`;
-    return {
-      grid: { left: 12, right: 18, top: 24, bottom: 30, ...CONTAIN_AXIS_LABELS },
-      xAxis: { type: "value", scale: true, inverse: b.higherIsBetter === false, splitNumber: 4, axisLabel: { formatter: (v: number) => fmt(b, v).replace(/\.0(?=%|$)/, ""), hideOverlap: true } },
-      yAxis: { type: "value", min: 0, max: 1, show: false },
-      tooltip: { trigger: "item", confine: true, formatter: (p: unknown) => { const d = (p as { data?: { r?: Row } }).data?.r; return d ? tip(d) : ""; } },
-      series: [
-        { type: "scatter", id: "ghost", symbolSize: 7, data: rest.map((r) => ({ value: [r.value, y(r)], r })), itemStyle: { color: pal.grey, opacity: pal.dark ? 0.35 : 0.32 }, emphasis: { itemStyle: { opacity: 0.9 } }, z: 1,
-          markLine: { silent: true, symbol: "none", label: { show: true, position: "end", formatter: "median", color: pal.grey, fontSize: 10 }, lineStyle: { color: pal.grey, type: "dashed", width: 1 }, data: [{ xAxis: mid }] } },
-        ...(lead && lead.modelId !== modelId ? [{ type: "scatter" as const, id: "lead", symbolSize: 12, data: [{ value: [lead.value, y(lead)], r: lead, name: color.name(lead.modelId) }], itemStyle: { color: "transparent", borderColor: pal.ink, borderWidth: 1.5 }, label: { show: true, position: "bottom" as const, formatter: "{b}", fontSize: 10.5, color: pal.ink2, distance: 5, textBorderColor: pal.bg, textBorderWidth: 3 }, z: 2 }] : []),
-        { type: "scatter", id: "mine", symbolSize: 12, data: mine.map((r) => ({ value: [r.value, 0.5], r, name: r.effort === "default" ? "" : r.effort })), itemStyle: { color: color.lab, borderColor: pal.ink, borderWidth: 1.2 }, label: { show: true, position: "top", formatter: "{b}", fontSize: 11, color: pal.ink, distance: 5, textBorderColor: pal.bg, textBorderWidth: 3 }, labelLayout: insideLabels(() => plotW || undefined, { moveOverlap: true }), z: 3 },
-      ],
-    };
-  }, [b, rows, modelId, color, pal, plotW]);
-  const { ref } = useEChart(option, [option]);
-  useEffect(() => { const el = ref.current; if (!el) return; const ro = new ResizeObserver(([e]) => setPlotW(Math.round(e.contentRect.width / 4) * 4)); ro.observe(el); return () => ro.disconnect(); }, [ref]);
-  return <div ref={ref} role="img" aria-label={`${b.name}: where this model sits among ${rows.length} results`} style={{ width: "100%", height: 150 }} />;
+  const { field, mine, lead } = useMemo(() => {
+    const point = (r: Row): StripPoint => ({ key: r.variantId, value: r.value, label: r.effort === "default" ? "" : r.effort, tip: `<b>${color.name(r.modelId)} ${r.effort}</b><br/><span style="font-family:var(--font-jetbrains)">${fmt(b, r.value)} · #${r.rank} of ${rows.length}</span>` });
+    const top = rows[0];
+    return { field: rows.filter((r) => r.modelId !== modelId).map(point), mine: rows.filter((r) => r.modelId === modelId).map(point), lead: top && top.modelId !== modelId ? { ...point(top), label: color.name(top.modelId) } : undefined };
+  }, [b, rows, modelId, color]);
+  const format = useCallback((v: number) => fmt(b, v).replace(/\.0(?=%|$)/, ""), [b]);
+  return <FieldStrip field={field} mine={mine} lead={lead} color={color.lab} fmt={format} inverse={b.higherIsBetter === false} aria={`${b.name}: where this model sits among ${rows.length} results`} />;
 }

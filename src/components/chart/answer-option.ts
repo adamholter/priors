@@ -1,9 +1,21 @@
 import type { EChartsOption } from "echarts";
-import { formatMetric, type AnswerChart, type AnswerMark } from "@/lib/answer-chart";
+import { formatMetric, type AnswerChart, type AnswerMark, type AnswerMetric } from "@/lib/answer-chart";
 import { CONTAIN_AXIS_LABELS, dimColor, insideLabels, markColor, markLabel, MONO, SANS, type ChartPalette } from "./theme";
 
 const ROW = 24;
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
+
+/**
+ * Axis ticks: dollars and percents keep their sign; any other unit moves to the axis name and
+ * thousands shorten ("10k"), so ticks stay narrow enough not to collide on a phone.
+ */
+function tickOf(m: AnswerMetric) {
+  if (m.unit === "$" || m.unit === "%") return (v: number) => formatMetric(m, v);
+  if (m.unit === "s") return (v: number) => (Math.abs(v) >= 60 ? `${+(v / 60).toFixed(Math.abs(v) >= 600 ? 0 : 1)} min` : `${formatMetric({ unit: "" }, v)}s`);
+  return (v: number) => (Math.abs(v) >= 1000 ? `${+(v / 1000).toFixed(1)}k` : formatMetric({ unit: "" }, v));
+}
+/** An axis name with its unit when the ticks no longer carry it. */
+const axisName = (m: AnswerMetric) => (m.unit && !["$", "%", "s", "pts"].includes(m.unit) && !m.name.includes(m.unit) ? `${m.name} (${m.unit})` : m.name);
 
 /** Plot height for a chart in an assistant answer: bars grow with their rows, the rest are fixed. */
 export function answerHeight(c: AnswerChart): number {
@@ -54,16 +66,16 @@ export function answerOption(c: AnswerChart, pal: ChartPalette, width: () => num
     return {
       grid: { left: 8, right: 96, top: 12, bottom: 8, ...CONTAIN_AXIS_LABELS },
       xAxis: { type: "category", data: c.x, boundaryGap: false, axisLabel: { color: pal.ink2, fontFamily: sans, fontSize: 11 } },
-      yAxis: { type: c.metric.log ? "log" : "value", scale: true, axisLabel: { formatter: (v: number) => f(v) } },
+      yAxis: { type: c.metric.log ? "log" : "value", scale: true, name: axisName(c.metric) === c.metric.name ? undefined : axisName(c.metric), nameTextStyle: { color: pal.grey, fontSize: 11, align: "left" }, axisLabel: { formatter: tickOf(c.metric), hideOverlap: true } },
       tooltip: { trigger: "axis", formatter: (ps: unknown) => { const list = ps as { seriesName: string; value: number | null; axisValue: string }[]; return tip([list[0]?.axisValue ?? "", ...list.filter((p) => p.value != null).sort((a, b) => Number(b.value) - Number(a.value)).map((p) => `${p.seriesName}: ${f(Number(p.value))}`)]); } },
       series: c.lines.map((l) => ({ type: "line" as const, name: l.label, data: l.values, connectNulls: true, symbolSize: 6, lineStyle: { width: 2, color: color(l) }, itemStyle: { color: color(l) }, endLabel: { show: true, formatter: "{a}", color: pal.ink, fontSize: 11, distance: 6 }, labelLayout: { hideOverlap: true }, emphasis: { focus: "series" as const } })),
     };
   }
-  const fx = (v: number) => formatMetric(c.x, v), fy = (v: number) => formatMetric(c.y, v);
+  const fx = (v: number) => formatMetric(c.x, v), fy = (v: number) => formatMetric(c.y, v), narrow = (width() ?? 600) < 420;
   return {
     grid: { left: 8, right: 24, top: 16, bottom: 28, ...CONTAIN_AXIS_LABELS },
-    xAxis: { type: c.x.log ? "log" : "value", scale: true, name: c.x.name, nameLocation: "middle", nameGap: 26, nameTextStyle: { color: pal.grey, fontSize: 11 }, axisLabel: { formatter: (v: number) => fx(v) } },
-    yAxis: { type: c.y.log ? "log" : "value", scale: true, name: c.y.name, nameTextStyle: { color: pal.grey, fontSize: 11, align: "left" }, axisLabel: { formatter: (v: number) => fy(v) } },
+    xAxis: { type: c.x.log ? "log" : "value", scale: true, name: axisName(c.x), nameLocation: "middle", nameGap: 26, nameTextStyle: { color: pal.grey, fontSize: 11 }, splitNumber: narrow ? 3 : 5, axisLabel: { formatter: tickOf(c.x), hideOverlap: true } },
+    yAxis: { type: c.y.log ? "log" : "value", scale: true, name: axisName(c.y), nameTextStyle: { color: pal.grey, fontSize: 11, align: "left" }, axisLabel: { formatter: tickOf(c.y), hideOverlap: true } },
     tooltip: { trigger: "item", formatter: (p: unknown) => { const q = c.points[(p as { dataIndex: number }).dataIndex]; return tip([q.label, `${c.y.name}: ${fy(q.y)}`, `${c.x.name}: ${fx(q.x)}`]); } },
     series: [{ type: "scatter", symbolSize: 9, data: c.points.map((q) => ({ value: [q.x, q.y], name: q.label, itemStyle: { color: color(q) } })), label: { ...markLabel(pal), fontSize: 10.5 }, labelLayout: insideLabels(width) }],
   };

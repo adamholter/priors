@@ -39,6 +39,12 @@ export interface MetricPanel {
 
 const MIN_PTS = 3;
 
+/** Output tokens per task: a number, or (newer AA data) `{ reasoning, answer, output }` whose `output` is the total. */
+export function outputTokensPerTask(v: unknown): number | undefined {
+  const x = typeof v === "number" ? v : v && typeof v === "object" ? (v as { output?: unknown }).output : undefined;
+  return typeof x === "number" && Number.isFinite(x) && x > 0 ? x : undefined;
+}
+
 /** Compact mark label: model, effort, and fallback flag — never the full source configuration string. */
 export function chartLabel(r: RankedVariant) {
   const named = new RegExp(`\\b${r.variant.effort}\\b`, "i").test(r.model.name);
@@ -63,7 +69,7 @@ export function metricPanels(snapshot: Snapshot, ranked: RankedVariant[], timeSo
   const ttft = at("aa-ttft");
   const timeData = taskMetricData(snapshot, timeSource, "time");
   const decode = (rows: RankedVariant[]): MetricPoint[] => rows.flatMap((r) => { const x = timeData.get(r.variant.id)?.value; return x == null ? [] : [{ x, r }]; });
-  const tokens = iiId ? at(iiId, (o) => (o.details?.outputTokensPerTask as number | undefined) ?? o.outputTokens ?? undefined) : () => [];
+  const tokens = iiId ? at(iiId, (o) => outputTokensPerTask(o.details?.outputTokensPerTask) ?? o.outputTokens ?? undefined) : () => [];
   const uptime = at("openrouter-uptime");
   const dates = (rows: RankedVariant[]) => rows.flatMap((r) => r.model.releaseDate ? [{ x: Date.parse(r.model.releaseDate), r }] : []);
   const has = (f: (rows: RankedVariant[]) => MetricPoint[]) => f(ranked).length >= MIN_PTS;

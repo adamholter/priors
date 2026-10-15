@@ -35,16 +35,20 @@ export function RankingColumns({ rows, labs, showEffort, selected, onSelect, get
     const on = !!selected && rows.some((r) => r.variant.id === selected);
     const left = 40 * t, size = 11 * t, slot = w ? (w - left - 8) / Math.max(1, rows.length) : 0;
     const font = `${size}px ${(pal.fonts?.sans ?? "").replace(/var\([^)]*\),?\s*/g, "") || "Inter, sans-serif"}`;
-    const label = (text: string, i: number) => (w ? ellipsize(text, Math.min(150 * t, (left + slot * (i + 0.5) - 6) / Math.SQRT1_2 - size), font) : text);
+    // Too narrow for slanted labels (a phone): they stand upright, cut to the space below the plot.
+    const upright = !!w && slot < 24, bottom = 130 * t;
+    const label = (text: string, i: number) => (!w ? text : ellipsize(text, upright ? bottom - 10 : Math.min(150 * t, (left + slot * (i + 0.5) - 6) / Math.SQRT1_2 - size), font));
+    // Values sit inside the bar; when the bar is narrower than the number, they turn to read up the bar.
+    const thin = !!w && slot * 0.72 < 10 * t * 0.6 * 4 + 4;
     return {
       grid: { left, right: 8, top: 24, bottom: 130 * t, ...CONTAIN_AXIS_LABELS },
-      xAxis: { type: "category", data: rows.map((r, i) => label(showEffort ? variantLabel(r) : r.model.name, i)), axisLabel: { rotate: 45, interval: 0, fontSize: 11 * t, color: pal.ink2, fontFamily: pal.fonts?.sans ?? "var(--font-inter), Inter, sans-serif", width: 150 * t, overflow: "truncate" }, axisTick: { show: false }, axisLine: { show: false } },
+      xAxis: { type: "category", data: rows.map((r, i) => label(showEffort ? variantLabel(r) : r.model.name, i)), axisLabel: { rotate: upright ? 90 : 45, interval: 0, fontSize: 11 * t, color: pal.ink2, fontFamily: pal.fonts?.sans ?? "var(--font-inter), Inter, sans-serif", width: 150 * t, overflow: "truncate" }, axisTick: { show: false }, axisLine: { show: false } },
       yAxis: { type: "value", min: 0 },
       tooltip: { trigger: "item", confine: true, formatter: (p: unknown) => { const r = rows[(p as { dataIndex: number }).dataIndex]; return r ? `<div style="font-weight:600">${r.variant.sourceModel?.name ?? variantLabel(r)}</div><div style="font-family:var(--font-jetbrains);margin-top:4px">#${r.rank} · index ${r.score.toFixed(1)}</div>` : ""; } },
       series: [{
         type: "bar", id: "rank", barMaxWidth: 36 * markSize(pal), barCategoryGap: "28%",
         data: rows.map((r) => { const c = color.get(r.model.labId) ?? "#A3A39B", dim = on && r.variant.id !== selected; return { value: r.score, itemStyle: { color: dim ? dimColor(c, pal) : c, opacity: dim ? 0.6 : 1, borderRadius: [pal.style?.barRadius ?? 2, pal.style?.barRadius ?? 2, 0, 0] }, label: dim ? { color: pal.ink, opacity: 0.75, textBorderWidth: 0 } : undefined }; }),
-        label: { show: true, position: "insideTop", distance: 6, color: "#FFFFFF", textBorderColor: "rgba(0,0,0,.18)", textBorderWidth: 1.5, fontSize: 10 * t, fontFamily: pal.fonts?.mono ?? "var(--font-jetbrains), monospace", formatter: (p: { value?: unknown }) => Number(p.value).toFixed(1) }, labelLayout: { hideOverlap: true },
+        label: { show: true, position: "insideTop", distance: 6, ...(thin ? { rotate: 90, align: "right" as const, verticalAlign: "middle" as const } : {}), color: "#FFFFFF", textBorderColor: "rgba(0,0,0,.18)", textBorderWidth: 1.5, fontSize: 10 * t, fontFamily: pal.fonts?.mono ?? "var(--font-jetbrains), monospace", formatter: (p: { value?: unknown }) => Number(p.value).toFixed(1) }, labelLayout: { hideOverlap: true },
         animationDurationUpdate: 350,
       }],
     };
