@@ -26,6 +26,8 @@ export function clientSnapshot(snapshot: Snapshot): Snapshot {
         ...(details.estimatedDecodeSecondsPerTask !== undefined && { estimatedDecodeSecondsPerTask: details.estimatedDecodeSecondsPerTask }),
         ...(details.outputTokensPerTask !== undefined && { outputTokensPerTask: details.outputTokensPerTask }),
         ...(observation.benchmarkId === "t3-usage-share" && details.window !== undefined && { window: details.window }),
+        // Daily turns per model and all models, for the usage-over-time chart.
+        ...(observation.benchmarkId === "t3-usage-share" && details.daily !== undefined && { start: details.start, daily: details.daily, dayTotals: details.dayTotals }),
       };
       return Object.keys(usedDetails).length ? { ...observation, details: usedDetails } : { ...observation, details: undefined };
     }),

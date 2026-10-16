@@ -15,6 +15,8 @@ import type { GalleryMetric } from "../../../convex/validators";
 import { arrangeMetrics } from "@/lib/gallery-layout";
 import { MetricBars } from "../chart/MetricBars";
 import { radarReady, StrengthsRadar } from "../chart/StrengthsRadar";
+import { UsageStream } from "../chart/UsageStream";
+import { usageData } from "@/lib/usage-stream";
 import { anchorOf, useHashTarget } from "../chart/ChartLink";
 
 import { linkedLabelScale } from "../chart/label-size";
@@ -53,13 +55,25 @@ export function MetricGallery({ ranked, mode = "all", snapshot, labs, settings, 
           <button type="button" className="edit-icon" aria-label={`Move ${p.title} up`} title="Move up" disabled={i === 0} onClick={() => move(p.id, -1)}><IconArrowUp size={16} /></button>
           <button type="button" className="edit-icon" aria-label={`Move ${p.title} down`} title="Move down" disabled={i === shown.length - 1} onClick={() => move(p.id, 1)}><IconArrowDown size={16} /></button>
         </span>;
-        const body = p.id === "strengths"
+        const scatterBody = p.id === "strengths"
           ? <div id={anchor} className="scroll-mt-20"><StrengthsRadar ranked={ranked} benchmarks={benchmarks!} labs={labs} snapshot={snapshot} config={config!} /></div>
           : chart && <GalleryChart inputs={inputs} id={p.id} anchor={anchor} title={p.title} chart={chart.chart} speed={chart.speed} ranked={ranked} defaultMode={mode} labs={labs} settings={settings} owner={p.entry?.view} onOwner={editing ? (view) => patch(p.id, { view }) : undefined} dataSource={p.id === "tpt" && onTimeSourceChange ? { value: timeSource, options: taskMetricOptions(snapshot, "time"), onChange: onTimeSourceChange } : undefined} />;
+        // Usage opens as daily share over time (the Slopalytics view); the score-against-usage chart stays one click away.
+        const body = p.id === "usage" && usageData(snapshot) ? <UsageGallery snapshot={snapshot} labs={labs} scatter={scatterBody} /> : scatterBody;
         return <Panel key={`${p.id}-${editing ? "edit" : p.open}`} anchor={anchor} title={p.title} desc={p.desc} defaultOpen={p.open && !p.hidden} dim={editing && p.hidden} tools={tools}>{body}</Panel>;
       })}
     </div>
   );
+}
+
+/** Usage: daily share over time by default, with the score-against-usage chart behind a toggle. */
+function UsageGallery({ snapshot, labs, scatter }: { snapshot: Snapshot; labs: Lab[]; scatter: React.ReactNode }) {
+  const [view, setView] = useState<"time" | "score">("time");
+  const toggle = <div className="seg whitespace-nowrap" role="group" aria-label="Usage chart">
+    <button type="button" aria-pressed={view === "time"} onClick={() => setView("time")}>Over time</button>
+    <button type="button" aria-pressed={view === "score"} onClick={() => setView("score")}>Score vs usage</button>
+  </div>;
+  return view === "time" ? <UsageStream snapshot={snapshot} labs={labs} extra={toggle} /> : <div><div className="flex justify-end mb-2 max-sm:px-4">{toggle}</div>{scatter}</div>;
 }
 
 /** One gallery chart with its own effort mode and display settings; shared index filters pass through. */

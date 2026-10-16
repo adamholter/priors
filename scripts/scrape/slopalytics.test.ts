@@ -19,6 +19,16 @@ describe("Slopalytics T3 Code usage", () => {
     expect(r.benchmarks[0]).toMatchObject({ id: "t3-usage-share", defaultWeight: 0, eligibleForDefault: false, unit: "percent" });
     expect(r.rows[0].details).toMatchObject({ window: "2026-09-01 to 2026-09-30", completionRate: 0.9, interruptRate: 0.06, minutesPerCompletedTurn: 2, outputTokensPerTurn: 5000, estimatedUsdPerTurn: 3 });
   });
+  it("keeps each model's turns per day, over every day of the window, for the usage chart", async () => {
+    const r = await source.scrape(ctx);
+    const astra = r.rows.find((x) => x.modelLabel === "GPT-6 Astra")!.details as { start: string; daily: number[]; dayTotals: number[] };
+    expect(astra.start).toBe("2026-09-01");
+    expect(astra.daily).toHaveLength(30);
+    expect(astra.daily.slice(0, 3)).toEqual([60, 0, 0]);
+    expect((r.rows.find((x) => x.modelLabel === "Opus 5.5")!.details as { daily: number[] }).daily.slice(0, 3)).toEqual([0, 30, 0]);
+    // The total counts the catch-all buckets too, so shares stay shares of everything.
+    expect(astra.dayTotals.slice(0, 3)).toEqual([60, 40, 0]);
+  });
   it("rejects an unexpected payload", async () => {
     await expect(source.scrape({ fetchJson: async () => ({ schemaVersion: 9, models: [] }) } as unknown as Parameters<typeof source.scrape>[0])).rejects.toThrow();
   });

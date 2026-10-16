@@ -28,6 +28,17 @@ const source: Source = {
   async scrape(ctx): Promise<ScrapeResult> {
     const json = await ctx.fetchJson(API) as Usage;
     if (![1, 2].includes(json.schemaVersion) || !Array.isArray(json.models) || !json.models.length) throw new Error("Slopalytics: unexpected usage payload");
+    // Turns per day for each model (and all models), over the window's days in order, for the usage-over-time chart.
+    const days: string[] = [];
+    for (let t = Date.parse(`${json.start}T00:00:00Z`); t < Date.parse(`${json.endExclusive}T00:00:00Z`) && days.length < 400; t += 86_400_000) days.push(new Date(t).toISOString().slice(0, 10));
+    const dayIndex = new Map(days.map((d, i) => [d, i]));
+    const daily = new Map<string, number[]>(), dayTotals = days.map(() => 0);
+    for (const r of json.models) {
+      const i = dayIndex.get(r.day);
+      if (i === undefined || !r.model || !(r.turns > 0)) continue;
+      dayTotals[i] += r.turns;
+      (daily.get(r.model) ?? daily.set(r.model, days.map(() => 0)).get(r.model)!)[i] += r.turns;
+    }
     const turns = new Map<string, number>();
     const harnesses = new Map<string, Set<string>>();
     let total = 0;
@@ -54,7 +65,7 @@ const source: Source = {
         benchmarkId: "t3-usage-share", modelLabel: model, value: (n / total) * 100, sourceUrl: SITE,
         note: `${n.toLocaleString("en-US")} of ${total.toLocaleString("en-US")} T3 Code turns, ${window}`,
         details: {
-          turns: n, totalTurns: total, window, harnesses: [...(harnesses.get(model) ?? [])].sort(),
+          turns: n, totalTurns: total, window, start: days[0], daily: daily.get(model), dayTotals, harnesses: [...(harnesses.get(model) ?? [])].sort(),
           completionRate: ratio(s?.completed, s?.terminal), interruptRate: ratio(s?.interrupted, s?.terminal), failureRate: ratio(s?.failed, s?.terminal),
           minutesPerCompletedTurn: s && s.timedTurns ? s.durationMs / s.timedTurns / 60_000 : undefined,
           outputTokensPerTurn: ratio(s?.output, s?.tokenTurns), inputTokensPerTurn: ratio(s?.input, s?.tokenTurns),

@@ -55,7 +55,7 @@ Notes on sources whose behavior is not obvious from the file:
 | `zapier`, `roboflow`, `terminalbench`, `andonlabs` | Headless page (`ctx.withPage`). Zapier clicks "See N more". |
 | `boardbench` | Board-game puzzles (ten games, engine-scored move quality, 0 to 100), read from the home page's RSC `points`. Reasoning category, `defaultWeight: 0`. Its cost is the list price of one answer, kept in `details`, not `costUsd`. |
 | `voxelbench`, `minebench`, `threejseval` | Human-vote ratings. Creative category, `defaultWeight: 0`. threejseval's cost is the site's estimate from token usage, so it is kept in `details`, not `costUsd`. |
-| `slopalytics` | T3 Code's own telemetry. `t3-usage-share` is each model's share of all turns in the file's trailing window. Model-level; catch-all buckets count toward the total but are never ranked. Not a quality measure, `defaultWeight: 0`. |
+| `slopalytics` | T3 Code's own telemetry. `t3-usage-share` is each model's share of all turns in the file's trailing window. Model-level; each observation also carries `details.start`, `daily` (that model's turns per day) and `dayTotals` (all models' turns per day), which the Usage chart stacks over time; catch-all buckets count toward the total but are never ranked. Not a quality measure, `defaultWeight: 0`. |
 | `realapipricing` | Feeds the subscription cost view, see below. |
 | `vals*` | Vals benchmarks. Shared parsing in `_vals.ts` and `vals.ts`. |
 
