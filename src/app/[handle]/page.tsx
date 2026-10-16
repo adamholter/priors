@@ -18,7 +18,7 @@ import { indexSummary, pageMeta, previewText } from "@/lib/site-meta";
 import type { Snapshot } from "@/data/types";
 import { linkedHighlights, linkedViews } from "@/lib/highlight-link";
 import { chartTitle } from "@/lib/metrics";
-import { resolveProfileChart } from "../og/route";
+import { resolveProfileChart } from "@/lib/profile-chart";
 import { isPreviewBot, isSearchBot, PreviewPage } from "@/lib/link-preview";
 
 export const dynamic = "force-dynamic";
