@@ -184,4 +184,17 @@ export const CASES: Case[] = [
     facts: (env) => tool(env, "query_data", { metrics: ["speed"], top: 10 }),
     checks: [ok, noMixChange, mentions("Sonnet 5.5"), (r) => JSON.stringify(ids(r.done?.highlight)) === JSON.stringify(["claude-sonnet-5.5"]) ? undefined : `highlighted ${ids(r.done?.highlight).join(", ") || "nothing"}`],
   },
+  {
+    id: "mix-from-ui-work", kind: "change", prompt: "Most of what I do is adding features, editing dashboards and fixing UI bugs from loose instructions. Design quality matters to me, and so do cost and speed. Build me a mix that represents that.",
+    expect: "Builds a new mix from benchmarks that measure front-end and software work (web development arenas, coding agents, real-repo tasks), each explained in terms of the work. Includes no medical, legal, trivia, math, safety or creative-writing benchmark. Says plainly that cost and speed are not benchmark shares and are read from the cost and time charts.",
+    checks: [ok, mixChanged, (r, env) => {
+      const odd = Object.keys(r.after.weights).filter((id) => { const b = env.snapshot.benchmarks.find((x) => x.id === id); return !b || ["knowledge", "safety", "math", "creative", "economics", "cost", "speed", "reliability", "composite", "other"].includes(b.category); });
+      return odd.length ? `unrelated benchmarks in the mix: ${odd.join(", ")}` : undefined;
+    }, (r) => Object.keys(r.after.weights).length >= 3 ? undefined : "fewer than three benchmarks"],
+  },
+  {
+    id: "mix-from-legal-work", kind: "change", prompt: "I use AI almost only for legal work: reviewing contracts and drafting. Build me a mix for that.",
+    expect: "Builds a new mix that includes at least one legal benchmark (Harvey LAB or Vals legal) and no coding or math boards beyond what the work needs; names what each benchmark measures.",
+    checks: [ok, mixChanged, (r) => Object.keys(r.after.weights).some((id) => /harvey|legal|lexam|caselaw/i.test(id)) ? undefined : `no legal benchmark in ${Object.keys(r.after.weights).join(", ")}`],
+  },
 ];
