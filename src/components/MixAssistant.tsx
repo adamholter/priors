@@ -10,21 +10,21 @@ import type { AnswerChart } from "@/lib/answer-chart";
 import { AssistantAnswer, type AnswerHighlight } from "./AssistantAnswer";
 import { chatDocument, printDocument } from "./assistant-print";
 import { useTheme, type ThemeMode } from "./Theme";
-import { IconAdjustmentsHorizontal, IconChartBar, IconCheck, IconListDetails, IconPalette, IconScale, IconSearch, IconSparkles, IconStar, IconTable, IconZoomQuestion } from "@tabler/icons-react";
+import { IconAdjustmentsHorizontal, IconChartBar, IconCheck, IconEye, IconListDetails, IconPalette, IconScale, IconSearch, IconSparkles, IconStar, IconTable, IconZoomQuestion } from "@tabler/icons-react";
 
 type View = { benchmarks: { id: string; name: string; share: number; was: number }[]; removed?: { id: string; name: string; was: number }[]; movedFromOriginal: number; ranking: { rank: number; model: string; score: number; was: number | null }[] };
 /** What Undo restores: the index before the change and, when the theme changed, the previous look. */
 type Undo = { config?: IndexConfig; theme?: { id: string; mode: ThemeMode } };
 type Turn = { role: "user" | "assistant"; content: string; question?: string; suggestions?: string[]; view?: View; charts?: AnswerChart[]; undo?: Undo; undone?: boolean; error?: boolean };
 type Event = { type: "step"; text: string }
-  | { type: "done"; reply: string; question?: string; suggestions: string[]; proposal?: { weights: Record<string, number>; required: string[]; view: View }; charts?: AnswerChart[]; highlight?: string[]; theme?: { id?: string; mode?: ThemeMode } }
+  | { type: "done"; reply: string; question?: string; suggestions: string[]; proposal?: { weights: Record<string, number>; required: string[]; view: View }; charts?: AnswerChart[]; highlight?: string[]; visibility?: { excludeModels?: string[] }; theme?: { id?: string; mode?: ThemeMode } }
   | { type: "error"; message: string };
 
 /** An icon for each kind of step the assistant reports (labels come from `stepLabel` in src/agent/tools.ts). */
 const STEP_ICONS: [RegExp, typeof IconTable][] = [
   [/^Reading the data/, IconTable], [/^Reading your mix/, IconListDetails], [/^Drawing a chart/, IconChartBar],
   [/^(Searching|Finding)/, IconSearch], [/^Comparing/, IconScale], [/^Looking at why/, IconZoomQuestion],
-  [/^(Solving|Rebuilding|Testing)/, IconAdjustmentsHorizontal], [/highlight/i, IconStar], [/theme/i, IconPalette], [/^Applying/, IconCheck],
+  [/^(Solving|Rebuilding|Testing)/, IconAdjustmentsHorizontal], [/highlight/i, IconStar], [/models to show|every model/i, IconEye], [/theme/i, IconPalette], [/^Applying/, IconCheck],
 ];
 function Step({ text, live }: { text: string; live: boolean }) {
   const Icon = STEP_ICONS.find(([re]) => re.test(text))?.[1] ?? IconSparkles;
@@ -33,7 +33,7 @@ function Step({ text, live }: { text: string; live: boolean }) {
 
 /** Typed into the empty composer one at a time, in a fresh random order each visit. */
 const HINTS = [
-  "How much does max reasoning add over xhigh?", "Gemini 4 feels too high", "Highlight the Claude models",
+  "How much does max reasoning add over xhigh?", "Gemini 4 feels too high", "Highlight the Claude models", "Show only the OpenAI models",
   "Which model is the best value?", "Chart cost against score for the top 10", "Weight coding benchmarks more",
   "Compare the top two models", "Is the fastest model any good?", "Switch to a dark theme",
 ];
@@ -163,8 +163,8 @@ function Inner({ config, onApply, date, handle }: { config: IndexConfig; onApply
           if (e.type === "step") setSteps((s) => (s[s.length - 1] === e.text ? s : [...s, e.text]));
           else if (e.type === "error") { setTurns((t) => [...t, { role: "assistant", content: e.message, error: true }]); done = true; }
           else {
-            const next = { ...before, ...(e.proposal ? { weights: e.proposal.weights, required: e.proposal.required } : {}), ...(e.highlight ? { highlight: e.highlight.length ? e.highlight : undefined } : {}) };
-            const changed = !!e.proposal || !!e.highlight;
+            const next = { ...before, ...(e.proposal ? { weights: e.proposal.weights, required: e.proposal.required } : {}), ...(e.highlight ? { highlight: e.highlight.length ? e.highlight : undefined } : {}), ...(e.visibility ? { excludeModels: e.visibility.excludeModels?.length ? e.visibility.excludeModels : undefined, onlyModels: undefined } : {}) };
+            const changed = !!e.proposal || !!e.highlight || !!e.visibility;
             if (changed) onApply(next);
             const undo: Undo = { ...(changed ? { config: before } : {}), ...(e.theme ? { theme: { id: siteTheme, mode } } : {}) };
             if (e.theme?.id) setSiteTheme(e.theme.id);

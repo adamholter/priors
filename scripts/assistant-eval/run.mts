@@ -39,3 +39,4 @@ mkdirSync("scripts/assistant-eval/results", { recursive: true });
 const file = `scripts/assistant-eval/results/${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}-${model.replace(/\//g, "_")}.json`;
 writeFileSync(file, JSON.stringify({ model, snapshot: EVAL_SNAPSHOT, judge: JUDGE_MODEL, passed, total: rows.length, meanGrade: +mean.toFixed(2), costUsd: +cost.toFixed(4), rows: rows.sort((a, b) => a.id.localeCompare(b.id) || a.run - b.run) }, null, 2));
 console.log(`results: ${file}`);
+if (passed < rows.length) process.exitCode = 1;

@@ -32,6 +32,6 @@ export async function runCase(opts: { snapshot: Snapshot; config: IndexConfig; p
       settle: async (estimate, actual) => { opts.spend.left += estimate - actual; costUsd += actual; },
     },
   });
-  const after: IndexConfig = { ...config, ...(done?.proposal ? { weights: done.proposal.weights, required: done.proposal.required } : {}), ...(done?.highlight ? { highlight: done.highlight } : {}) };
+  const after: IndexConfig = { ...config, ...(done?.proposal ? { weights: done.proposal.weights, required: done.proposal.required } : {}), ...(done?.highlight ? { highlight: done.highlight } : {}), ...(done?.visibility ? { excludeModels: done.visibility.excludeModels?.length ? done.visibility.excludeModels : undefined, onlyModels: undefined } : {}) };
   return { done, error, steps, tools, costUsd, seconds: (Date.now() - t) / 1000, before: config, after, rankBefore: new DataView(snapshot, config).bestRank, rankAfter: new DataView(snapshot, after).bestRank };
 }

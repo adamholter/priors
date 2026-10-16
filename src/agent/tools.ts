@@ -8,11 +8,12 @@ import { computeIndex, type IndexConfig } from "../engine";
 import { fitPriors } from "../onboarding/optimizer";
 import { benchmarkQuality } from "../onboarding/quality";
 import { FOCUS_IDS, type FocusId } from "../onboarding/focus";
-import { norm, resolveBenchmark, resolveModel, resolveVariant } from "./resolve";
+import { norm, resolveBenchmark, resolveLab, resolveModel, resolveVariant } from "./resolve";
 import { DataView } from "./data";
 import { makeChart, queryData, specOf, type DataArgs } from "./charts";
 import type { AnswerChart } from "../lib/answer-chart";
 import { THEME_CHOICES, themeById } from "../lib/page-presets";
+import { compactVisibility, hiddenIds } from "../lib/model-visibility";
 import { compareModels } from "./compare";
 import { benchmarksFor, distance, exactRanking, explainModel, mixMetrics, solveEdit, toShares, toWeights, qualityOf, churn, type Goal, type Move } from "./solver";
 
@@ -27,11 +28,21 @@ export type ToolContext = {
   charts: AnswerChart[];
   /** Highlight list to apply (model or variant ids), when the agent changed it. */
   highlight?: string[];
+  /** Which models the charts show, when the agent changed it (the hide list the index stores). */
+  visibility?: { excludeModels?: string[] };
   theme?: { id?: string; mode?: ThemeMode };
   /** Mixes the solver or fitter returned: already checked for new entrants, so propose takes them as they are. */
   vetted?: Record<string, number>[];
 };
 const dataOf = (ctx: ToolContext) => (ctx.data ??= new DataView(ctx.snapshot, ctx.original));
+
+/** When `name` is a lab (not also a model's own name), that lab's models in the user's top 10, in rank order; otherwise undefined. */
+function labModels(ctx: ToolContext, name: string): string[] | undefined {
+  const { snapshot } = ctx, lab = resolveLab(snapshot, name);
+  if (!lab || snapshot.models.some((m) => m.kind === "llm" && norm(m.name) === norm(name))) return undefined;
+  const view = dataOf(ctx);
+  return [...view.bestRank.keys()].filter((id) => snapshot.models.find((m) => m.id === id)?.labId === lab && (view.bestRank.get(id) ?? 99) <= 10).map((id) => snapshot.models.find((m) => m.id === id)!.name);
+}
 
 /** Lab display name for a model id, so the agent knows Fable is a Claude model and Sol a GPT one. */
 const labName = (snapshot: Snapshot, modelId: string) => { const labId = snapshot.models.find((m) => m.id === modelId)?.labId; return snapshot.labs.find((l) => l.id === labId)?.name ?? labId; };
@@ -88,8 +99,9 @@ export const TOOL_SPECS = [
   { name: "solve_edit", description: "Optimizer for edits. Finds the smallest change to the current mix that satisfies ranking moves and benchmark constraints, while keeping other rankings stable and the mix clean (few benchmarks, roughly even shares, soft 5–40% band). Returns up to 3 verified candidates: balanced, smallest change, cleanest. Moves: below/above another model, exact rank, or min_rank (at least this low) / max_rank (at least this high).", parameters: { type: "object", properties: { moves: { type: "array", items: { type: "object", properties: { model: { type: "string" }, below: { type: "string" }, above: { type: "string" }, rank: { type: "integer" }, min_rank: { type: "integer" }, max_rank: { type: "integer" } }, required: ["model"], additionalProperties: false } }, exclude: { type: "array", items: { type: "string" }, description: "benchmarks that must be removed" }, include: { type: "array", items: { type: "string" }, description: "benchmarks that must be in the mix" }, keep_top: { type: "integer", description: "keep the order of the current top N (moved models aside)" }, max_benchmarks: { type: "integer" }, allow_add: { type: "boolean", description: "may add new benchmarks (default true)" } }, additionalProperties: false } },
   { name: "fit_ranking", description: "Quality-aware generator (the onboarding algorithm). Builds a fresh mix that reproduces a model order, preferring fewer, higher-quality, focus-relevant benchmarks. Use for big changes or 'rebuild without X but keep my ranking'. Default order: the current top 16. Slower (~10 s).", parameters: { type: "object", properties: { order: { type: "array", items: { type: "string" } }, exclude: { type: "array", items: { type: "string" } }, focus: { type: "string", enum: FOCUS_IDS } }, additionalProperties: false } },
   { name: "try_mix", description: "Evaluate any mix you write by hand (benchmark → percent share). Returns metrics, how much weight moved from the original, churn, and the ranking with each model's previous rank. Use for simple manual tweaks or to check an idea.", parameters: { type: "object", properties: { pin: { type: "object", additionalProperties: { type: "number" }, description: "benchmarks whose share must be exactly this percent; the other weights are scaled to fill the rest" }, weights: { type: "object", additionalProperties: { type: "number" } } }, required: ["weights"], additionalProperties: false } },
-  { name: "query_data", description: "Read values from the data as a table. Metrics: index (score under the user's current mix), cost (cost per task, USD), time (time per task, s), speed (output tok/s), latency (time to first token, s), tokens (output tokens per task), or any benchmark by name or id (its published raw value). Pick models by name, or the top N of the user's ranking (default 10). efforts: best (each model's top-scoring effort, the default; one row per model), all (every measured effort; use this for any question about reasoning effort), or a list like [\"xhigh\",\"max\"]. Rows carry the model's lab and its rank in the user's ranking.", parameters: { type: "object", properties: { metrics: { type: "array", items: { type: "string" } }, models: { type: "array", items: { type: "string" } }, labs: { type: "array", items: { type: "string" }, description: "only these labs' ranked models (OpenAI, Anthropic, Google…; Claude, GPT, Gemini work too)" }, weights: { type: "string", enum: ["open", "closed"], description: "only models whose weights are open (downloadable) or closed; combine with labs or top. Rows say each model's weights." }, top: { type: "integer" }, efforts: { anyOf: [{ type: "string", enum: ["best", "all"] }, { type: "array", items: { type: "string" } }] } }, required: ["metrics"], additionalProperties: false } },
-  { name: "make_chart", description: "Build a chart from the data to embed in your answer. The values are filled from the data, not by you. Returns a chart number N and the numbers it shows; put [[chart:N]] on its own line in your reply where the chart belongs. Types: bar (one value per model; with efforts all or a list, one bar per model and effort), effort_lines (a metric across reasoning efforts, one line per model), effort_compare (grouped bars for the listed efforts, default xhigh and max), effort_delta (to_effort minus from_effort per model, absolute or percent; default max minus xhigh), scatter (metric on y against x_metric). Metrics as in query_data. Default models: the top of the user's ranking. For an exact mix of efforts across models (GPT-5.6 Sol at max next to Opus 5.5 at low), use bar or scatter with variants: each entry is a model plus effort (\"GPT-5.6 Sol max\"), and only those exact configurations are drawn (never both efforts of each model).", parameters: { type: "object", properties: { type: { type: "string", enum: ["bar", "effort_lines", "effort_compare", "effort_delta", "scatter"] }, metric: { type: "string" }, x_metric: { type: "string" }, models: { type: "array", items: { type: "string" } }, variants: { type: "array", items: { type: "string" }, description: "exact model + effort configurations, e.g. [\"GPT-5.6 Sol max\", \"Opus 5.5 low\"]; bar and scatter only; overrides models, labs and efforts" }, labs: { type: "array", items: { type: "string" }, description: "only these labs' ranked models (OpenAI, Anthropic, Google…; Claude, GPT, Gemini work too)" }, weights: { type: "string", enum: ["open", "closed"], description: "only models whose weights are open (downloadable) or closed; combine with labs or top. Rows say each model's weights." }, top: { type: "integer" }, efforts: { anyOf: [{ type: "string", enum: ["best", "all"] }, { type: "array", items: { type: "string" } }] }, from_effort: { type: "string" }, to_effort: { type: "string" }, delta: { type: "string", enum: ["absolute", "percent"] }, title: { type: "string", description: "short, plain; defaults to the metric name" } }, required: ["type", "metric"], additionalProperties: false } },
+  { name: "query_data", description: "Read values from the data as a table. Metrics: index (score under the user's current mix), cost (cost per task, USD), time (time per task, s), speed (output tok/s), latency (time to first token, s), tokens (output tokens per task), or any benchmark by name or id (its published raw value). Pick models by name, or the top N of the user's ranking (default 10). efforts: best (each model's top-scoring effort, the default; one row per model), all (every measured effort; use this for any question about reasoning effort), or a list like [\"xhigh\",\"max\"]. Rows carry the model's lab and its rank in the user's ranking.", parameters: { type: "object", properties: { metrics: { type: "array", items: { type: "string" } }, models: { type: "array", items: { type: "string" } }, labs: { type: "array", items: { type: "string" }, description: "only these labs' ranked models (OpenAI, Anthropic, Google…; Claude, GPT, Gemini work too)" }, weights: { type: "string", enum: ["open", "closed", ""], description: "Leave empty unless the user asked for open-weights or closed-weights models. open or closed keeps only those (downloadable or not); combine with labs or top. Rows say each model's weights." }, top: { type: "integer" }, efforts: { anyOf: [{ type: "string", enum: ["best", "all"] }, { type: "array", items: { type: "string" } }] } }, required: ["metrics"], additionalProperties: false } },
+  { name: "make_chart", description: "Build a chart from the data to embed in your answer. The values are filled from the data, not by you. Returns a chart number N and the numbers it shows; put [[chart:N]] on its own line in your reply where the chart belongs. Types: bar (one value per model; with efforts all or a list, one bar per model and effort), effort_lines (a metric across reasoning efforts, one line per model), effort_compare (grouped bars for the listed efforts, default xhigh and max), effort_delta (to_effort minus from_effort per model, absolute or percent; default max minus xhigh), scatter (metric on y against x_metric). Metrics as in query_data. Default models: the top of the user's ranking. For an exact mix of efforts across models (GPT-5.6 Sol at max next to Opus 5.5 at low), use bar or scatter with variants: each entry is a model plus effort (\"GPT-5.6 Sol max\"), and only those exact configurations are drawn (never both efforts of each model).", parameters: { type: "object", properties: { type: { type: "string", enum: ["bar", "effort_lines", "effort_compare", "effort_delta", "scatter"] }, metric: { type: "string" }, x_metric: { type: "string" }, models: { type: "array", items: { type: "string" } }, variants: { type: "array", items: { type: "string" }, description: "exact model + effort configurations, e.g. [\"GPT-5.6 Sol max\", \"Opus 5.5 low\"]; bar and scatter only; overrides models, labs and efforts" }, labs: { type: "array", items: { type: "string" }, description: "only these labs' ranked models (OpenAI, Anthropic, Google…; Claude, GPT, Gemini work too)" }, weights: { type: "string", enum: ["open", "closed", ""], description: "Leave empty unless the user asked for open-weights or closed-weights models. open or closed keeps only those (downloadable or not); combine with labs or top. Rows say each model's weights." }, top: { type: "integer" }, efforts: { anyOf: [{ type: "string", enum: ["best", "all"] }, { type: "array", items: { type: "string" } }] }, from_effort: { type: "string" }, to_effort: { type: "string" }, delta: { type: "string", enum: ["absolute", "percent"] }, title: { type: "string", description: "short, plain; defaults to the metric name" } }, required: ["type", "metric"], additionalProperties: false } },
+  { name: "set_models", description: "Choose which models the charts and ranking show (the Models list in chart settings), without changing the mix. mode: only (show just these, hide the rest), hide (hide these), show (show these again), reset (show every model). Name the models in models, or pass labs, weights (open or closed) or top (the first N in the user's ranking). Names may be rough or misspelled; the result lists what each matched and what was not found. Use highlight instead when the user only wants models to stand out.", parameters: { type: "object", properties: { mode: { type: "string", enum: ["only", "hide", "show", "reset"] }, models: { type: "array", items: { type: "string" } }, labs: { type: "array", items: { type: "string" } }, weights: { type: "string", enum: ["open", "closed", ""], description: "Leave empty unless the user asked for open-weights or closed-weights models." }, top: { type: "number" } }, required: ["mode"], additionalProperties: false } },
   { name: "highlight", description: "Highlight models on every chart in the user's current view (or clear highlights). A name may carry an effort (\"Opus 5.5 max\") to feature exactly that effort; otherwise the model's best effort is featured. mode: set (replace, the default), add, remove, clear.", parameters: { type: "object", properties: { models: { type: "array", items: { type: "string" } }, mode: { type: "string", enum: ["set", "add", "remove", "clear"] } }, additionalProperties: false } },
   { name: "set_theme", description: `Change how the site looks for this user: a theme (${THEME_CHOICES.map((t) => t.name).join(", ")}) and/or light/dark mode (system, light, dark). Some themes come in one mode only.`, parameters: { type: "object", properties: { theme: { type: "string" }, mode: { type: "string", enum: ["system", "light", "dark"] } }, additionalProperties: false } },
   { name: "propose", description: "Final step for any change: apply this mix for the user now. It ends your turn, so make any highlight or set_theme calls before it. Include a short plain-language summary of what changed and why, and, when the request was vague, one clarifying question plus 2–3 short reply suggestions.", parameters: { type: "object", properties: { pin: { type: "object", additionalProperties: { type: "number" }, description: "benchmarks whose share must be exactly this percent; the other weights are scaled to fill the rest" }, weights: { type: "object", additionalProperties: { type: "number" } }, summary: { type: "string" }, question: { type: "string" }, suggestions: { type: "array", items: { type: "string" }, maxItems: 3 }, fresh: { type: "boolean", description: "true when this is a new mix built from a description of the user's work, so the ranking is expected to change; false (default) for edits to the current ranking" } }, required: ["weights", "summary"], additionalProperties: false } },
@@ -108,6 +120,7 @@ export function stepLabel(name: string, args: Record<string, unknown>): string {
     case "try_mix": return "Testing a mix";
     case "query_data": return "Reading the data";
     case "make_chart": return "Drawing a chart";
+    case "set_models": return args.mode === "reset" ? "Showing every model" : "Choosing which models to show";
     case "highlight": return args.mode === "clear" ? "Clearing highlights" : "Highlighting models";
     case "set_theme": return "Changing the theme";
     case "propose": return "Applying the change";
@@ -190,11 +203,49 @@ export async function runTool(ctx: ToolContext, name: string, args: Record<strin
       ctx.charts.push(r.chart);
       return { chart: ctx.charts.length, title: r.chart.title, shown: r.shown, missing: r.missing?.length ? r.missing : undefined, use: `Put [[chart:${ctx.charts.length}]] on its own line in your reply.` };
     }
+    case "set_models": {
+      const mode = String(args.mode ?? "only");
+      // The whole field of models, ignoring what is hidden now, so "show X again" can find X.
+      const base = { ...original, excludeModels: undefined, onlyModels: undefined };
+      const full = computeIndex(snapshot, { ...base, variants: "all" });
+      const universe = [...new Set([...full.ranked.map((r) => r.model.id), ...full.candidateModelIds])];
+      const names = new Map(snapshot.models.map((m) => [m.id, m.name]));
+      if (mode === "reset") { ctx.visibility = {}; return { shown: universe.length, hidden: 0 }; }
+      const asked = (Array.isArray(args.models) ? args.models : []).map(String).filter(Boolean);
+      const models = asked.filter((m) => !labModels({ ...ctx, data: undefined, original: base } as ToolContext, m)), labs = [...(Array.isArray(args.labs) ? args.labs : []).map(String).filter(Boolean), ...asked.filter((m) => !models.includes(m))];
+      const weights = args.weights === "open" || args.weights === "closed" ? args.weights : undefined, top = positive(args.top);
+      if (!models.length && !labs.length && !weights && !top) return { error: "Say which models: names, a lab, open or closed weights, or a number from the top of the ranking." };
+      const view = new DataView(snapshot, base);
+      // Names, and a lab / open-or-closed / top-N group, together: everything either one picks, from the whole field (ranked models first).
+      const byName = models.length ? view.pick(models, undefined, "best") : undefined;
+      const labIds = new Set(labs.map((l) => resolveLab(snapshot, l)).filter((x): x is string => !!x));
+      const flag = new Map(snapshot.models.map((m) => [m.id, m.openWeights])), labOf = new Map(snapshot.models.map((m) => [m.id, m.labId]));
+      let group = universe;
+      if (labs.length) group = group.filter((id) => labIds.has(labOf.get(id) ?? ""));
+      if (weights) group = group.filter((id) => flag.get(id) === (weights === "open"));
+      if (top) group = group.slice(0, top);
+      const p = { unknown: [...(byName?.unknown ?? []), ...labs.filter((l) => !resolveLab(snapshot, l))], unranked: byName?.unranked ?? [] };
+      const targets = [...new Set([...(byName?.rows.map((r) => r.model.id) ?? []), ...(labs.length || weights || top ? group : [])])].filter((id) => universe.includes(id));
+      const matched = models.map((asked) => { const id = resolveModel(snapshot, asked, view.bestRank); const as = id ? names.get(id) : undefined; return as && norm(asked) !== norm(as) ? { asked, as } : null; }).filter(Boolean);
+      const notes = { notFound: p.unknown.length ? p.unknown : undefined, notRanked: [...new Set([...p.unranked, ...models.filter((m) => { const id = resolveModel(snapshot, m, view.bestRank); return id && !universe.includes(id); })])].filter(Boolean), matched: matched.length ? matched : undefined };
+      if (!targets.length) return { error: "None of those models are ranked under this index, so nothing changed.", ...notes };
+      const hidden = hiddenIds(original, universe), want = new Set(targets);
+      const next = mode === "only" ? new Set(universe.filter((id) => !want.has(id))) : mode === "hide" ? new Set([...hidden, ...targets]) : new Set([...hidden].filter((id) => !want.has(id)));
+      if (next.size >= universe.length) return { error: "That would hide every model. Nothing changed; ask which ones to keep.", ...notes };
+      ctx.visibility = { excludeModels: compactVisibility(next, universe).excludeModels };
+      const shown = universe.filter((id) => !next.has(id));
+      return { shown: shown.length, hidden: next.size, showing: shown.slice(0, 40).map((id) => names.get(id) ?? id), ...notes };
+    }
     case "highlight": {
       const mode = (args.mode as string) ?? "set", current = ctx.highlight ?? original.highlight ?? [];
       if (mode === "clear") { ctx.highlight = []; return { highlighted: [] }; }
       const items: string[] = [], unknown: string[] = [], noEffort: string[] = [];
-      for (const name of (Array.isArray(args.models) ? args.models : []) as string[]) {
+      // A lab's name ("Claude", "OpenAI") means that lab's ranked models, not the oldest model that happens to match the word.
+      const named = ((Array.isArray(args.models) ? args.models : []) as string[]).flatMap((name) => {
+        const lab = labModels(ctx, String(name));
+        return lab ?? [String(name)];
+      });
+      for (const name of named) {
         const v = resolveVariant(snapshot, String(name), dataOf(ctx).bestRank);
         if (!v) { unknown.push(name); continue; }
         if (v.missingEffort) noEffort.push(`${name} (no ${v.missingEffort} measured)`);

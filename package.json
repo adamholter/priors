@@ -14,7 +14,8 @@
     "typecheck": "tsc --noEmit",
     "validate": "npm run ci && npm run build",
     "ci": "next typegen && vitest run && tsc --noEmit && eslint src scripts convex",
-    "smoke": "node scripts/verify/smoke.mjs"
+    "smoke": "node scripts/verify/smoke.mjs",
+    "assistant-eval": "tsx scripts/assistant-eval/run.mts"
   },
   "dependencies": {
     "@clerk/nextjs": "^7.9.1",

@@ -64,6 +64,7 @@ Read the one for the area you are changing. Update it in the same change when be
 - `npm run ci`: route types, tests, `tsc`, ESLint. This is the deploy gate.
 - `npm run validate`: `ci` plus a production build. Run it before handoff.
 - `BASE=http://localhost:<port> node scripts/verify/smoke.mjs`: every route plus the onboarding end to end, in a headless browser. Other checks in `scripts/verify/` take the same `BASE`.
+- `npm run assistant-eval -- [--repeat 2] [--cases a,b]`: the assistant's eval on GPT-6 Luna (the model it runs on), needs `OPENROUTER_API_KEY` in `.env.local`, about $0.01 per pass. **Run it with `--repeat 2` before pushing any change under `src/agent/`, to the assistant's prompt or tool specs, or to data the tools read, and do not ship a drop.** Every new capability and every bug found in the assistant gets eval cases first, including rough names, impossible asks and multi-step tasks. See `docs/assistant.md`.
 - `npm run scrape -- --date YYYY-MM-DD [--only aa,openrouter]`: build a snapshot.
 - `npm run library -- --date YYYY-MM-DD`: rebuild the mix library.
 - `npx convex dev --once`: push schema and functions to the dev deployment.

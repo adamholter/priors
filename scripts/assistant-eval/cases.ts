@@ -4,7 +4,7 @@
  * grader can tell a grounded answer from an invented one. Answers don't need to match word for word.
  */
 import type { Snapshot } from "../../src/data/types";
-import { defaultConfig, type IndexConfig } from "../../src/engine";
+import { computeIndex, defaultConfig, type IndexConfig } from "../../src/engine";
 import { DEFAULT_PRIORS_MIX } from "../../src/onboarding/defaults";
 import { runTool, type ToolContext, type ViewState } from "../../src/agent/tools";
 import { toShares } from "../../src/agent/solver";
@@ -13,7 +13,7 @@ import type { RunResult } from "./harness";
 import type { AnswerMark } from "../../src/lib/answer-chart";
 
 /** The snapshot every case is written against; facts and checks are computed from it. */
-export const EVAL_SNAPSHOT = "2026-10-14";
+export const EVAL_SNAPSHOT = "2026-10-16";
 
 export interface Env { snapshot: Snapshot; config: IndexConfig }
 export interface Case {
@@ -23,6 +23,8 @@ export interface Case {
   history?: ChatMessage[];
   index?: "general" | "aa";
   highlight?: string[];
+  /** Models already hidden in the view when the request arrives. */
+  exclude?: string[];
   view?: Partial<ViewState>;
   /** What a good response does, for the grader. */
   expect: string;
@@ -34,7 +36,7 @@ export interface Case {
 
 export function configFor(c: Case, snapshot: Snapshot): IndexConfig {
   const base = c.index === "aa" ? { ...DEFAULT_PRIORS_MIX } : defaultConfig(snapshot);
-  return { ...base, ...(c.highlight ? { highlight: c.highlight } : {}) };
+  return { ...base, ...(c.highlight ? { highlight: c.highlight } : {}), ...(c.exclude ? { excludeModels: c.exclude } : {}) };
 }
 
 const tool = async (env: Env, name: string, args: Record<string, unknown>) => JSON.stringify(await runTool({ snapshot: env.snapshot, original: env.config, charts: [] } as ToolContext, name, args));
@@ -54,6 +56,16 @@ const charts = (min: number, kinds?: string[]) => (r: RunResult) => {
 const noCharts = (r: RunResult) => r.done?.charts?.length ? "drew a chart for a request that needs none" : undefined;
 const mentions = (...names: string[]) => (r: RunResult) => { const t = reply(r).toLowerCase(); const miss = names.filter((n) => !t.includes(n.toLowerCase())); return miss.length ? `reply doesn't mention ${miss.join(", ")}` : undefined; };
 const rank = (r: RunResult, id: string, when: "before" | "after") => (when === "before" ? r.rankBefore : r.rankAfter).get(id);
+
+// ---- model visibility: which models the charts show (the Models list in chart settings)
+const universe = (env: Env) => { const full = computeIndex(env.snapshot, { ...env.config, excludeModels: undefined, onlyModels: undefined, variants: "all" }); return [...new Set([...full.ranked.map((x) => x.model.id), ...full.candidateModelIds])]; };
+const shown = (r: RunResult, env: Env) => { const hidden = new Set(r.after.excludeModels ?? []); return universe(env).filter((id) => !hidden.has(id)); };
+const viewChanged = (r: RunResult) => !r.done?.visibility ? "didn't change which models are shown" : undefined;
+const viewUnchanged = (r: RunResult) => r.done?.visibility ? "changed which models are shown for a request that didn't ask for it" : undefined;
+const showsExactly = (...modelIds: string[]) => (r: RunResult, env: Env) => { const got = shown(r, env).sort(), want = [...modelIds].sort(); return JSON.stringify(got) === JSON.stringify(want) ? undefined : `shows ${got.length} models (${got.slice(0, 8).join(", ")}), wanted ${want.join(", ")}`; };
+const shows = (...modelIds: string[]) => (r: RunResult, env: Env) => { const got = new Set(shown(r, env)); const miss = modelIds.filter((id) => !got.has(id)); return miss.length ? `doesn't show ${miss.join(", ")}` : undefined; };
+const hides = (...modelIds: string[]) => (r: RunResult, env: Env) => { const got = new Set(shown(r, env)); const bad = modelIds.filter((id) => got.has(id)); return bad.length ? `still shows ${bad.join(", ")}` : undefined; };
+const labOf = (env: Env, id: string) => env.snapshot.models.find((m) => m.id === id)?.labId;
 
 export const CASES: Case[] = [
   {
@@ -196,5 +208,65 @@ export const CASES: Case[] = [
     id: "mix-from-legal-work", kind: "change", prompt: "I use AI almost only for legal work: reviewing contracts and drafting. Build me a mix for that.",
     expect: "Builds a new mix that includes at least one legal benchmark (Harvey LAB or Vals legal) and no coding or math boards beyond what the work needs; names what each benchmark measures.",
     checks: [ok, mixChanged, (r) => Object.keys(r.after.weights).some((id) => /harvey|legal|lexam|caselaw/i.test(id)) ? undefined : `no legal benchmark in ${Object.keys(r.after.weights).join(", ")}`],
+  },
+  {
+    id: "select-only", kind: "view", prompt: "Show only Opus 5.5, Sonnet 5.5 and GPT-6 Astra.",
+    expect: "Changes which models are shown to exactly those three (and nothing else), without touching the mix or the highlights, and says so briefly.",
+    checks: [ok, noMixChange, viewChanged, showsExactly("claude-opus-5.5", "claude-sonnet-5.5", "gpt-6-astra")],
+  },
+  {
+    id: "select-garbled", kind: "view", prompt: "Select only the models shown here to be shown. Opus 5.5, Sonnet 5.5, GPT 6 Astra, GPT 6.1 Sol, Haiku 5.5, Grok 4.7, Gemini 4 Argon, Kimi K3, DeepSeek V4.1 Flash, MiMo V6 v 2.6 Flash, GLM 5.3, MiMo V2.6 Pro, GLM 5.3 Flash, and GPT 6 Luna.",
+    expect: "Shows only the listed models that exist, matching rough names (GPT 6 Astra is GPT-6 Astra; the garbled \"MiMo V6 v 2.6 Flash\" is MiMo V2.6 Flash, or reported as not recognized rather than silently dropped), hides every other model, and says plainly which names were matched to which models and which could not be found. Does not change the mix.",
+    checks: [ok, noMixChange, viewChanged, shows("claude-opus-5.5", "claude-sonnet-5.5", "gpt-6-astra", "gpt-6.1-sol", "claude-haiku-5.5", "mimo-v2.6-flash"), hides("claude-fable-5.1", "gpt-5.5", "gpt-5.6-sol")],
+  },
+  {
+    id: "select-hide-lab", kind: "view", prompt: "Hide all the OpenAI models.",
+    expect: "Hides every OpenAI model and keeps the rest, without touching the mix.",
+    checks: [ok, noMixChange, viewChanged, (r, env) => { const bad = shown(r, env).filter((id) => labOf(env, id) === "openai"); return bad.length ? `still shows OpenAI models: ${bad.join(", ")}` : undefined; }, shows("claude-opus-5.5")],
+  },
+  {
+    id: "select-show-again", kind: "view", exclude: ["claude-opus-5.5", "gpt-6-astra", "claude-sonnet-5.5"], prompt: "Bring back Opus 5.5.",
+    expect: "Shows Opus 5.5 again and leaves the other hidden models hidden (Sonnet 5.5 and GPT-6 Astra stay hidden).",
+    checks: [ok, noMixChange, viewChanged, shows("claude-opus-5.5"), hides("claude-sonnet-5.5", "gpt-6-astra")],
+  },
+  {
+    id: "select-reset", kind: "view", exclude: ["claude-opus-5.5", "gpt-6-astra", "claude-sonnet-5.5"], prompt: "Actually, show every model again.",
+    expect: "Shows every model again; nothing stays hidden.",
+    checks: [ok, noMixChange, (r) => r.after.excludeModels?.length ? `still hiding ${r.after.excludeModels.join(", ")}` : undefined],
+  },
+  {
+    id: "select-top-n", kind: "view", prompt: "Only show my top 5.",
+    expect: "Shows exactly the five models at the top of the user's current ranking, hiding the rest.",
+    checks: [ok, noMixChange, viewChanged, (r, env) => { const want = [...r.rankBefore.entries()].sort((a, b) => a[1] - b[1]).slice(0, 5).map(([id]) => id); return showsExactly(...want)(r, env); }],
+  },
+  {
+    id: "select-nothing", kind: "edge", prompt: "Hide every single model.",
+    expect: "Does not hide everything (the charts would be empty): leaves the view unchanged and says so, perhaps asking which models to keep.",
+    checks: [ok, noMixChange, viewUnchanged],
+  },
+  {
+    id: "select-unknown-name", kind: "edge", prompt: "Show only Llama 5 and Opus 5.5.",
+    expect: "Shows only Opus 5.5 and says plainly that Llama 5 is not in the data; does not invent a Llama 5.",
+    checks: [ok, noMixChange, viewChanged, showsExactly("claude-opus-5.5"), (r) => /llama/i.test(reply(r)) && /not found|not in|isn['’]t|wasn['’]t|couldn['’]t|no data|n['’]t find|doesn['’]t|don['’]t/i.test(reply(r)) ? undefined : "doesn't say Llama 5 wasn't found"],
+  },
+  {
+    id: "select-open-weights", kind: "view", prompt: "Show only the open-weights models.",
+    expect: "Shows only models whose weights are open, hiding every closed model, without touching the mix.",
+    checks: [ok, noMixChange, viewChanged, (r, env) => { const got = shown(r, env); const bad = got.filter((id) => env.snapshot.models.find((m) => m.id === id)?.openWeights !== true); return !got.length ? "shows nothing" : bad.length ? `shows non-open models: ${bad.slice(0, 5).join(", ")}` : undefined; }],
+  },
+  {
+    id: "select-and-highlight", kind: "view", prompt: "Show only the Claude models and highlight the best one.",
+    expect: "Shows only Anthropic models and highlights the top-ranked Claude model (Opus 5.5). Does not touch the mix.",
+    checks: [ok, noMixChange, viewChanged, (r, env) => { const bad = shown(r, env).filter((id) => labOf(env, id) !== "anthropic"); return bad.length ? `shows non-Claude models: ${bad.join(", ")}` : undefined; }, (r) => ids(r.done?.highlight).includes("claude-opus-5.5") ? undefined : "didn't highlight Opus 5.5"],
+  },
+  {
+    id: "select-with-chart", kind: "view", prompt: "Show only Opus 5.5 and Sonnet 5.5, and chart their cost per task.",
+    expect: "Shows only those two models and draws a chart of their cost per task, with a short takeaway. Does not touch the mix.",
+    checks: [ok, noMixChange, viewChanged, showsExactly("claude-opus-5.5", "claude-sonnet-5.5"), charts(1)],
+  },
+  {
+    id: "data-question-not-view", kind: "question", prompt: "What's the cost per task of just the Claude models?",
+    expect: "Answers with the Claude models' cost per task from the data (a chart or table). Does not change which models the charts show and does not change the mix.",
+    checks: [ok, noMixChange, viewUnchanged, noViewChange],
   },
 ];
