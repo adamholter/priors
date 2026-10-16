@@ -18,7 +18,7 @@ export const COVERED = new Set([
   "mmmu-pro", "gpqa-diamond", "math-500", "tau2-bench", "otis-mock-aime-2024-2025", "aa-briefcase", "vending-bench-2", "ebr-bench", "blueprint-bench-2", "scale-hss", "programbench",
   "code-migration", "vibe-code-bench-1-100", "cua-bench", "mysterymechanism", "vals-rsi", "deepswe", "proofbench", "vibe-code-bench", "frontier-code", "agents-last-exam", "gdp-pdf",
   "terminal-bench-4", "terminal-bench-science", "lisanbench", "contextarena", "gso-bench", "apprentice-bench", "real-swe", "rsi-exam", "bullshitbench", "zapier-benchmarks", "chartography",
-  "livebench", "longbench-v2", "mmlu",
+  "livebench", "longbench-v2", "mmlu", "sudo-l7",
 ]);
 
 const CATEGORY: Record<string, BenchmarkCategory> = {

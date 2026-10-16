@@ -34,6 +34,9 @@ Every benchmark comes from a live scraper. No frozen datasets are merged at load
 
 Notes on sources whose behavior is not obvious from the file:
 
+- `surge-sudo-l7` reads the live sudo L7 leaderboard's primary rows, excluding the related benchmark cards. It keeps the existing `bg-sudo-l7` id for saved mixes and excludes the secondary dashboard copy in `boggs.COVERED`. It preserves the published percentage, reasoning effort and agent harness. Scores come from the leaderboard, which can differ from the launch blog. The page's static rank fields all read 1, so they are omitted. Raw HTML is retained; missing or malformed rows fail the refresh and preserve the prior snapshot. Coding category, `defaultWeight: 0`.
+  `BASE=https://mypriors.com npx tsx scripts/verify/sudo-l7.ts` checks source agreement, search, adding, reload, every displayed score, and desktop/mobile rendering.
+
 | Source | Note |
 | --- | --- |
 | `aa` | Artificial Analysis, read from encrypted RSC payloads. `aa-identity.ts` resolves its structured model records. Fields only an evaluation page carries (AA-3D) are filled from its inline `initialModels`. Every evaluation page, numeric model field and benchmark announcement it does not map (`EVALS`) or deliberately ignore (`NON_BENCHMARK_FIELDS`, `IGNORED_PAGES`, `IGNORED_ARTICLES`) is returned in `discoveries`, which the scheduled job announces (see `docs/operations.md`). When AA renames a page, set `page` and keep `slug`, since it is the benchmark id. |
