@@ -93,6 +93,16 @@ export function IndexPage({ profile, snapshot, edit, tab: linkedTab, linkedHighl
   const viaNames = useMemo(() => firstIndex && firstResult ? [...new Set(selectVariants(firstResult.ranked, chartVariantMode(firstIndex, "ranking")).map((r) => r.model.name))].slice(0, 5) : [], [firstIndex, firstResult]);
   const topNames = useMemo(() => active && activeResult ? [...new Set(selectVariants(activeResult.ranked, chartVariantMode(active, "ranking")).map((r) => r.model.name))].slice(0, 5) : [], [active, activeResult]);
   const footerMix = useMemo(() => activeResult ? [...activeResult.benchmarks].sort((a, b) => b.share - a.share).map((b) => ({ id: b.benchmark.id, name: b.benchmark.shortName ?? b.benchmark.name, share: b.share })) : [], [activeResult]);
+  // The editor autosaves what it shows, so a page opened through a link's overrides (hl, hv) must not turn editing on in place:
+  // it reloads through the server path that ignores them (the saved page), keeping the tab.
+  const toggleEditing = () => {
+    if (!editing && !lab && (linkedView || linkedHighlight)) {
+      const tabParam = active && active !== p.indices[0] ? `&hi=${encodeURIComponent(tabKey(p.indices, active))}` : "";
+      window.location.assign(`/${p.handle}?edit=1${tabParam}`);
+      return;
+    }
+    setEditing(!editing);
+  };
   const [isOwner, setIsOwner] = useState(!!lab);
   const onOwner = useCallback((o: boolean) => setIsOwner(o || !!lab), [lab]);
   // For the owner, each index remembers the page index it came from, so saving from the builder updates that one
@@ -215,7 +225,7 @@ export function IndexPage({ profile, snapshot, edit, tab: linkedTab, linkedHighl
         <div className="ml-auto hidden sm:flex flex-wrap items-center justify-end gap-3">
           {active && <ShareCards indices={p.indices} active={active} profile={p} pageUrl={pageUrl.toString()} defaultDesign={p.theme?.cardDesign} top={topNames} pageTheme={p.theme?.preset} />}
           <Link href={builderHref as "/"} onClick={keepPageKey} className="btn-quiet">Open in builder</Link>
-          {isOwner && <button type="button" className="btn" onClick={() => setEditing(!editing)}>{editing ? "Done editing" : "Edit page"}</button>}
+          {isOwner && <button type="button" className="btn" onClick={toggleEditing}>{editing ? "Done editing" : "Edit page"}</button>}
           <HeaderAccount />
           {followsSite && <ThemeToggle />}
         </div>
@@ -226,7 +236,7 @@ export function IndexPage({ profile, snapshot, edit, tab: linkedTab, linkedHighl
             <Link href={builderHref as "/"} onClick={keepPageKey} className="btn-quiet text-center">Open in builder</Link>
             <Link href="/explore" className="btn-quiet text-center">Explore rankings</Link>
             <Link href="/rank" className="btn-quiet text-center">Rank models</Link>
-            {isOwner && <button type="button" className="btn text-center" onClick={() => setEditing(!editing)}>{editing ? "Done editing" : "Edit page"}</button>}
+            {isOwner && <button type="button" className="btn text-center" onClick={toggleEditing}>{editing ? "Done editing" : "Edit page"}</button>}
           </MobileMenu>
         </div>
       </header>
