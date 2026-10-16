@@ -35,7 +35,7 @@ The builder grows with the screen (`src/components/builder.css`, `builder-size.t
 
 ## Light and dark
 
-`src/components/Theme.tsx`. System default; the Mode control in Settings pins `localStorage["priors:theme"]` (mirrored in the `priors_theme` cookie). Published pages keep the moon toggle.
+`src/components/Theme.tsx`. System default; the Mode control in Settings pins `localStorage["priors:theme"]` (mirrored in the `priors_theme` cookie). Published pages keep the moon toggle. No flash of white for a dark system: the root `viewport` declares `colorScheme: "light dark"`, and an inline `<style>` (`THEME_CRITICAL_CSS` in `src/lib/theme-critical.ts`) paints the dark page color while `<html>` has no `data-theme`, so the first paint is dark even before the stylesheet or the head script run. The head script then sets the real scheme.
 
 **Site theme.** The gear in every header (`SiteSettings.tsx`) opens Settings: any page theme (`THEME_CHOICES`) can be the visitor's theme for the builder, Explore, model pages and onboarding. `src/lib/site-theme.ts` turns a preset into site tokens (`presetStyle` plus the wordmark i and onboarding's surface tokens) and sets them inline on `<html>`; Priors sets nothing. `localStorage["priors:site-theme"]` holds the id and both modes' tokens so the no-flash script paints them before React. Single-mode themes force the scheme (Midnight is always dark). The root `ChartPaletteContext` uses `paletteFor(preset)`, so lab colors and chart style follow. `.page-root` sets its owner's tokens on top, so published pages are unchanged; family stylesheets (layout details) apply only on pages.
 

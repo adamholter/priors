@@ -49,7 +49,6 @@ describe("Real API Pricing subscriptions", () => {
     expect(rows.filter((r) => r.modelLabel === "Gemini 4 Argon")).toHaveLength(1);
     expect(row("Gemini 4 Argon")).toMatchObject({ details: { ratio: 10 / 60, plan: expect.stringContaining("OpenCode Go") } });
     expect(row("Muse Wonder (Max)")).toMatchObject({ identity: { modelId: "aa-muse-wonder" }, details: { ratio: 100 / 150 } });
-    expect(row("DeepSeek V4.1 Flash")).toMatchObject({ value: 0, details: { ratio: 0, feeUsd: 0, plan: "OpenCode Zen free tier" } });
   });
   it("takes the median plan rather than the cheapest, and low-confidence rows only as a last resort", () => {
     expect(row("GPT 5.6 Sol")).toMatchObject({ value: 0.0325, details: { plan: "ChatGPT Plus", feeUsd: 20, confidence: "medium" } });
@@ -69,7 +68,7 @@ describe("Real API Pricing subscriptions", () => {
     const ctx = { fetchText: async (url: string) => JSON.stringify(files[url.split("/").pop()!]) } as unknown as Parameters<typeof source.scrape>[0];
     const r = await source.scrape(ctx);
     expect(r.benchmarks[0]).toMatchObject({ id: SUBSCRIPTION_BENCHMARK, unit: "usd", proxy: true, defaultWeight: 0, eligibleForDefault: false, lastUpdated: "2026-10-08" });
-    expect(r.rows).toHaveLength(8);
+    expect(r.rows).toHaveLength(7);
     expect(Object.keys(r.raw)).toEqual(["points.json", "conventions.json", "channel-colors.json"]);
   });
 });

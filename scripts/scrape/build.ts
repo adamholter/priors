@@ -13,6 +13,9 @@ import { makeContext, saveRaw } from "./harness";
 import { buildLibrary } from "./library";
 import { canonicalizeSnapshot } from "../../src/data/canonical-snapshot";
 import { retainCatalog } from "./retain-catalog";
+import { fetchFreeTiers } from "./free-tiers";
+import { applyFreeTiers, carriedFreeTiers } from "../../src/data/free-tier";
+import { SUBSCRIPTION_BENCHMARK } from "../../src/data/subscription";
 
 const args = process.argv.slice(2);
 const opt = (k: string) => { const i = args.indexOf(`--${k}`); return i >= 0 ? args[i + 1] : undefined; };
@@ -208,6 +211,29 @@ async function main() {
     }
     if (retained.length) Object.assign(snap, retainCatalog(prev, snap));
   } catch { /* first run */ }
+
+  // Models free today on OpenCode Zen or OpenRouter are priced at 0 in the subscription view.
+  if (!only || only.includes("realapipricing") || only.includes("free-tiers")) {
+    const freeCtx = makeContext("free-tiers");
+    try {
+      const { entries, raw } = await fetchFreeTiers(freeCtx);
+      await saveRaw("free-tiers", date, raw);
+      const made = applyFreeTiers(snap, entries, date);
+      freeCtx.log(`${made.length} ranked models are free: ${made.join(", ")}`);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      freeCtx.log(`FAILED: ${msg}`);
+      try {
+        const prev: Snapshot = JSON.parse(gunzipSync(await readFile(path.join(SNAP_DIR, "latest.json.gz"))).toString("utf8"));
+        const carried = carriedFreeTiers(prev, snap);
+        const freeIds = new Set(carried.map((o) => o.variantId));
+        const variantModel = new Map(snap.variants.map((v) => [v.id, v.modelId]));
+        const freeModels = new Set(carried.map((o) => variantModel.get(o.variantId)));
+        snap.observations = [...snap.observations.filter((o) => o.benchmarkId !== SUBSCRIPTION_BENCHMARK || !freeModels.has(variantModel.get(o.variantId))), ...carried];
+        freeCtx.log(`carried ${freeIds.size} free models from ${prev.date}`);
+      } catch { /* first run */ }
+    }
+  }
 
   snap = canonicalizeSnapshot(snap);
   await mkdir(SNAP_DIR, { recursive: true });
