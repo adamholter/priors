@@ -116,7 +116,7 @@ async function buildFits(snapshot: Snapshot, library: MixLibrary, quality: Recor
   const targets: { lineup: string[]; focus: FocusId; budget: number }[] = FOCUSES.map((f) => ({ lineup, focus: f.id, budget: 45_000 }));
   for (const f of FOCUSES) for (const lineup of await topLineups(f.id)) targets.push({ lineup: lineup.filter((id) => llmIds.has(id)), focus: f.id, budget: 20_000 });
   const seen = new Set<string>();
-  let reused = 0;
+  let reused = 0, rechecked = 0;
   for (const t of targets) {
     const key = `${t.focus}|${t.lineup.join(",")}`;
     if (t.lineup.length < 2 || seen.has(key)) continue;
@@ -125,13 +125,19 @@ async function buildFits(snapshot: Snapshot, library: MixLibrary, quality: Recor
     const carried = known.find((k) => k.fingerprint === fingerprint && k.focus === t.focus && k.lineup.join(",") === t.lineup.join(","));
     if (carried) { fits.push(carried); reused++; continue; }
     try {
-      const done = await fitPriors(snapshot, t.lineup, () => {}, quality, 0, { baseline: t.lineup }, { focus: t.focus, library, extraFits: [...known, ...fits], budgetMs: { soft: t.budget, hard: t.budget + 10_000 } });
+      // Data moves a little every run, so first re-check the fits we already have (fitPriors verifies stored fits
+      // before it searches; a zero soft budget stops it there). Keep them while they still match, or lose under 1.5 points.
+      const prior = known.filter((k) => k.focus === t.focus && k.lineup.join(",") === t.lineup.join(",")).sort((a, b) => b.fitScore - a.fitScore)[0];
+      const run = (budget: { soft: number; hard: number }) => fitPriors(snapshot, t.lineup, () => {}, quality, 0, { baseline: t.lineup }, { focus: t.focus, library, extraFits: [...known, ...fits], budgetMs: budget });
+      let done = prior ? await run({ soft: 0, hard: 8_000 }) : undefined;
+      if (done && (done.exactMatch || done.fitScore >= prior!.fitScore - 1.5)) rechecked++;
+      else done = await run({ soft: t.budget, hard: t.budget + 10_000 });
       const c = done.config;
       fits.push({ lineup: t.lineup, focus: t.focus, weights: done.weights, fingerprint, settings: { strictness: c.strictness ?? 50, estimateMissing: c.estimateMissing, effortMatching: c.effortMatching ?? "calibrated" }, exact: done.exactMatch, fitScore: done.fitScore });
       console.log(`fit ${key.slice(0, 60)}…: ${done.exactMatch ? "exact" : "approx"} ${Math.round(done.fitScore)}%`);
     } catch { /* skip failed fits */ }
   }
-  console.log(`fits: ${reused} reused, ${fits.length - reused} searched`);
+  console.log(`fits: ${reused} unchanged, ${rechecked} re-verified, ${fits.length - reused - rechecked} searched`);
   if (!fits.some((f) => f.exact && f.focus === "capabilities" && f.lineup.join(",") === lineup.join(","))) console.log("DEFAULT_FIT_MISSING: no exact fit for the default lineup");
   return fits;
 }

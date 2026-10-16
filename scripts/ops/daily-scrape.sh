@@ -53,13 +53,13 @@ case "$CHANGE_STATUS" in
   *) notify "Priors snapshot change check failed — see logs/scrape.log"; exit 1 ;;
 esac
 # Only a changed snapshot needs the mix library (its lineup fits reuse every fit whose data is unchanged) and intro cards.
-if ! npm run library -- --date "$DATE" >>"$LOG" 2>&1; then
+if ! npm run library -- --date "$DATE" 2>&1 | tee -a "$LOG"; then
   notify "Priors library build failed for $DATE — see logs/scrape.log"
 fi
 if grep -q "DEFAULT_FIT_MISSING" "$LOG"; then
   notify "Priors: the default lineup has no exact fit on today's data — see logs/scrape.log"
 fi
-if ! npx tsx scripts/scrape/intro-cards.ts >>"$LOG" 2>&1; then
+if ! npx tsx scripts/scrape/intro-cards.ts 2>&1 | tee -a "$LOG"; then
   notify "Priors intro cards failed for $DATE — see logs/scrape.log"
 fi
 git add data/snapshots public/intro || exit 1
