@@ -30,6 +30,8 @@ const getProfile = cache(async function getProfile(handle: string): Promise<Prof
 });
 
 function profileWithLink(p: Profile, sp: Record<string, string | string[] | undefined>): Profile {
+  // A link that opens the editor never applies its overrides: the editor autosaves what it shows, so a link must not be able to change the page.
+  if (sp.edit === "1") return p;
   const query = new URLSearchParams();
   for (const key of ["hi", "hl", "hv"]) if (typeof sp[key] === "string") query.set(key, sp[key]);
   return { ...p, indices: linkedViews(linkedHighlights(p.indices, query), query) };
@@ -93,9 +95,9 @@ export default async function Page({ params, searchParams }: PageProps<"/[handle
   const tab = typeof sp.hi === "string" ? sp.hi : undefined;
   const open = findTab(p.indices, tab) ?? p.indices[0];
   // The index whose selection came from the link: its share link has to keep spelling that selection out.
-  const linkedHighlight = typeof sp.hl === "string" ? open?.id : undefined;
+  const linkedHighlight = typeof sp.hl === "string" && sp.edit !== "1" ? open?.id : undefined;
   // Likewise the index whose display settings (hidden models and so on) came from the link.
-  const linkedView = typeof sp.hv === "string" ? open?.id : undefined;
+  const linkedView = typeof sp.hv === "string" && sp.edit !== "1" ? open?.id : undefined;
   if (await isSearchBot()) return <PageTransition><IndexPage profile={p} snapshot={clientSnapshot(snapshot)} edit={false} tab={tab} linkedHighlight={linkedHighlight} linkedView={linkedView} /></PageTransition>;
   const leaders = open ? selectVariants(computeIndex(snapshot, { ...open, variants: "all" }).ranked, chartVariantMode(open, "ranking")).slice(0, 10).map((r) => ({ name: r.model.name, score: r.score })) : [];
   return <PageTransition><ProfileLoader key={`${p.handle}-${snapshot.generatedAt}`} profile={p} version={snapshot.generatedAt} edit={sp.edit === "1"} tab={tab} linkedHighlight={linkedHighlight} linkedView={linkedView} leaders={leaders} /></PageTransition>;
