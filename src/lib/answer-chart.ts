@@ -6,7 +6,11 @@
 export interface AnswerMetric { name: string; unit: string; better: "higher" | "lower"; log?: boolean }
 export interface AnswerMark { label: string; modelId: string; labId: string; color?: string }
 
-export type AnswerChart =
+export type AnswerChart = AnswerChartShape & { spec?: ChartSpec; index?: string };
+
+/** What the assistant asked for, as passed to make_chart; the server redraws it from this, so a link can carry it. */
+export type ChartSpec = Record<string, unknown>;
+type AnswerChartShape =
   /** One value per mark, best first. */
   | { kind: "bar"; title: string; metric: AnswerMetric; items: (AnswerMark & { value: number })[] }
   /** Side-by-side bars: one group per model, one bar per effort (or per metric). */
@@ -28,4 +32,24 @@ export function formatMetric(m: Pick<AnswerMetric, "unit">, v: number): string {
   if (m.unit === "%") return `${sign}${n}%`;
   if (m.unit === "s") return `${sign}${n}s`;
   return m.unit && m.unit !== "pts" ? `${sign}${n} ${m.unit}` : `${sign}${n}`;
+}
+
+/** A chart's recipe in a URL: base64url JSON, so any chart the assistant can draw can be linked. */
+export function encodeSpec(spec: ChartSpec): string {
+  const bytes = new TextEncoder().encode(JSON.stringify(spec));
+  let s = ""; for (const b of bytes) s += String.fromCharCode(b);
+  return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+export function decodeSpec(s: string): ChartSpec | null {
+  try {
+    const bin = atob(s.replace(/-/g, "+").replace(/_/g, "/")), v = JSON.parse(new TextDecoder().decode(Uint8Array.from(bin, (c) => c.charCodeAt(0))));
+    return v && typeof v === "object" && !Array.isArray(v) ? v as ChartSpec : null;
+  } catch { return null; }
+}
+/** Link to the builder with this index and the chart open over it. */
+export function chartLink(origin: string, chart: Pick<AnswerChart, "spec" | "index">): string | undefined {
+  if (!chart.spec || !chart.index) return undefined;
+  const q = new URLSearchParams({ i: chart.index, chart: encodeSpec(chart.spec) });
+  // As prettyQuery in lib/url writes it: the `|` inside an index stays escaped, since chat apps cut a link at a bare pipe.
+  return `${origin}/?${q.toString().replace(/%3A/g, ":").replace(/%2C/g, ",").replace(/%3D/g, "=").replace(/%2520/g, "+")}`;
 }

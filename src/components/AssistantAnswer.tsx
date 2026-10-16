@@ -5,6 +5,7 @@ import type { EChartsOption } from "echarts";
 import type { AnswerChart } from "@/lib/answer-chart";
 import { markColor, useChartPalette, useEChart } from "./chart/echarts";
 import { answerHeight, answerMarkAt, answerOption, answerRows } from "./chart/answer-option";
+import { chartLink } from "@/lib/answer-chart";
 import { ChartExpandIcon } from "./chart/ChartIcons";
 import { ChartExport } from "./chart/ChartExport";
 import { HighlightContext, HighlightMenu, toggleModel, type HighlightState } from "./chart/highlight";
@@ -34,6 +35,19 @@ export function AssistantAnswer({ text, charts = [], highlight }: { text: string
   })}</div>;
 }
 
+/** Copies a link that opens this chart on the index it was asked under. Nothing when the chart carries no recipe (older chats). */
+function ChartLinkButton({ chart, className = "assistant-icon" }: { chart: AnswerChart; className?: string }) {
+  const [copied, setCopied] = useState(false);
+  const url = typeof window === "undefined" ? undefined : chartLink(window.location.origin, chart);
+  if (!url) return null;
+  const copy = () => { void navigator.clipboard?.writeText(url).then(() => { setCopied(true); window.setTimeout(() => setCopied(false), 1600); }).catch(() => window.prompt("Copy this link", url)); };
+  return <button type="button" className={className} onClick={copy} aria-label={`Copy a link to ${chart.title}`} title={copied ? "Link copied" : "Copy link to this chart"}>
+    {copied
+      ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5" /></svg>
+      : <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1" /></svg>}
+  </button>;
+}
+
 const Key = ({ chart }: { chart: AnswerChart }) => chart.kind === "grouped" ? <span className="assistant-key">{chart.series.map((s, i) => <span key={s}><i style={{ opacity: i === chart.series.length - 1 ? 1 : 0.4 }} />{s}</span>)}</span> : null;
 
 /** One chart, drawn with the viewer's chart palette so it follows the site theme. Expands to fill the screen. */
@@ -48,6 +62,7 @@ function ChartBlock({ chart, highlight }: { chart: AnswerChart; highlight?: Answ
   const collapse = useCallback(() => { setExpanded(false); requestAnimationFrame(() => trigger.current?.focus()); }, []);
   return <figure ref={box} className="assistant-chart">
     <figcaption><span className="mr-auto">{chart.title}</span><Key chart={chart} />
+      <ChartLinkButton chart={chart} className="assistant-icon assistant-chart-expand" />
       <button ref={trigger} type="button" className="assistant-icon assistant-chart-expand" onClick={() => setExpanded(true)} aria-label={`Expand ${chart.title}`} title="Expand"><ChartExpandIcon /></button>
     </figcaption>
     <div ref={ref} role="img" aria-label={chart.title} style={{ width: "100%", height: answerHeight(chart) }} />
@@ -59,7 +74,7 @@ function ChartBlock({ chart, highlight }: { chart: AnswerChart; highlight?: Answ
  * An answer chart over the page, like the page's own expanded charts: highlight models (the star menu
  * or clicking a mark, saved on the index) and export it. Escape or the backdrop closes it.
  */
-function ExpandedChart({ chart, highlight, onClose }: { chart: AnswerChart; highlight?: AnswerHighlight; onClose: () => void }) {
+export function ExpandedChart({ chart, highlight, onClose }: { chart: AnswerChart; highlight?: AnswerHighlight; onClose: () => void }) {
   const pal = useChartPalette(), hl = highlight?.items;
   const box = useRef<HTMLDivElement>(null), close = useRef<HTMLButtonElement>(null), [w, setW] = useState<number>();
   useEffect(() => { const el = box.current; if (!el) return; const ro = new ResizeObserver(([e]) => setW(Math.round(e.contentRect.width))); ro.observe(el); return () => ro.disconnect(); }, []);
@@ -90,6 +105,7 @@ function ExpandedChart({ chart, highlight, onClose }: { chart: AnswerChart; high
     <div className="chart-expanded" role="dialog" aria-modal="true" aria-label={chart.title}>
       <div className="flex flex-wrap items-center gap-1 mb-2"><h2 className="text-[22px] min-w-0 mr-auto">{chart.title}</h2><Key chart={chart} />
         <HighlightContext.Provider value={state}><HighlightMenu label={chart.title} /></HighlightContext.Provider>
+        <ChartLinkButton chart={chart} className="p-1.5 text-grey hover:text-ink rounded-sm focus-visible:outline-indigo" />
         <ChartExport name={chart.title} frame getSvg={() => instance.current?.renderToSVGString()} getRows={() => answerRows(chart)} />
         <button ref={close} type="button" className="p-1.5 text-grey hover:text-ink rounded-sm focus-visible:outline-indigo" aria-label={`Close expanded ${chart.title}`} title="Close (Esc)" onClick={onClose}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg></button>
       </div>

@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MixAssistant } from "./MixAssistant";
+import { SharedChart } from "./SharedChart";
 import { track } from "@/lib/analytics";
 import { HighlightContext } from "./chart/highlight";
 import { SettingsButton } from "./SiteSettings";
@@ -177,6 +178,7 @@ export function Builder({ snapshot: base, initialIndices, labPlacement }: { snap
       </main>
       </HighlightContext.Provider>
       {labPlacement === "dock" && <IndexLabActions active={active} date={snapshot.date} top={topNames} placement="dock" />}
+      {!labPlacement && <SharedChart highlight={active.highlight} onHighlight={(items) => update({ ...active, highlight: items.length ? items : undefined })} />}
       {!labPlacement && <MixAssistant config={active} onApply={update} date={snapshot.date} />}
     </div>
     </ChartPaletteContext.Provider>

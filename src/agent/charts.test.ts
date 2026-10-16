@@ -6,7 +6,7 @@ import { makeChart, queryData } from "./charts";
 import { resolveBenchmark, resolveLab, resolveVariant } from "./resolve";
 import { runTool, type ToolContext } from "./tools";
 import { toShares } from "./solver";
-import { formatMetric } from "../lib/answer-chart";
+import { chartLink, decodeSpec, encodeSpec, formatMetric } from "../lib/answer-chart";
 
 describe("assistant data tools on the real snapshot", async () => {
   const snapshot = (await loadSnapshot())!, config = defaultConfig(snapshot), view = new DataView(snapshot, config);
@@ -59,6 +59,25 @@ describe("assistant data tools on the real snapshot", async () => {
     expect(c.highlight).toEqual(["claude-opus-5.5@max", "claude-sonnet-5.5"]);
     expect(await runTool(c, "set_theme", { theme: "Midnight", mode: "light" })).toMatchObject({ note: expect.stringContaining("only comes in dark") });
     expect(c.theme).toEqual({ id: "midnight", mode: "light" });
+  });
+
+  it("draws exactly the model and effort pairs asked for, in any mix of efforts", () => {
+    const r = makeChart(view, { type: "bar", metric: "index", variants: ["GPT-5.6 Sol max", "Opus 5.5 low"] });
+    expect(r.chart?.kind === "bar" && r.chart.items.map((i) => i.label).sort()).toEqual(["GPT-5.6 Sol max", "Opus 5.5 low"]);
+    const missing = makeChart(view, { type: "bar", metric: "index", variants: ["Opus 5.5 low", "Nonexistent Model 9 max"] });
+    expect(missing.chart?.kind === "bar" && missing.chart.items.length).toBe(1);
+    const sc = makeChart(view, { type: "scatter", metric: "index", x_metric: "cost", variants: ["Opus 5.5 max", "Opus 5.5 low", "GPT-5.6 Sol max"] });
+    expect(sc.chart?.kind === "scatter" && sc.chart.points.length).toBe(3);
+  });
+
+  it("carries a chart's recipe in a link that redraws the same chart", async () => {
+    const c = ctx();
+    await runTool(c, "make_chart", { type: "bar", metric: "index", variants: ["GPT-5.6 Sol max", "Opus 5.5 low"], title: "Sol max vs Opus low", injected: "x" });
+    const spec = c.charts[0].spec!;
+    expect(spec).toEqual({ type: "bar", metric: "index", variants: ["GPT-5.6 Sol max", "Opus 5.5 low"], title: "Sol max vs Opus low" });
+    expect(decodeSpec(encodeSpec(spec))).toEqual(spec);
+    expect(chartLink("https://x.test", { spec, index: "a|b:1" })).toMatch(/^https:\/\/x\.test\/\?i=a%7Cb:1&chart=[\w-]+$/);
+    expect(JSON.stringify(makeChart(view, spec as never).chart)).toBe(JSON.stringify({ ...c.charts[0], spec: undefined }));
   });
 
   it("formats values without stray zeros", () => {

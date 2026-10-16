@@ -169,7 +169,7 @@ function Inner({ config, onApply, date, handle }: { config: IndexConfig; onApply
             const undo: Undo = { ...(changed ? { config: before } : {}), ...(e.theme ? { theme: { id: siteTheme, mode } } : {}) };
             if (e.theme?.id) setSiteTheme(e.theme.id);
             if (e.theme?.mode) setMode(e.theme.mode);
-            setTurns((t) => [...t, { role: "assistant", content: e.reply, question: e.question, suggestions: e.suggestions, view: e.proposal?.view, charts: e.charts, undo: undo.config || undo.theme ? undo : undefined }]);
+            setTurns((t) => [...t, { role: "assistant", content: e.reply, question: e.question, suggestions: e.suggestions, view: e.proposal?.view, charts: e.charts?.map((c) => ({ ...c, index: encodeIndex(before) })), undo: undo.config || undo.theme ? undo : undefined }]);
             done = true;
           }
         }
@@ -185,15 +185,15 @@ function Inner({ config, onApply, date, handle }: { config: IndexConfig; onApply
     printDocument(chatDocument(turns, { title, index: config.name, date, url: location.href }), title);
     track("assistant_saved", { turns: turns.length });
   };
-  /** Drag the top-left corner to resize; the panel stays anchored bottom-right. */
-  const startResize = (e: ReactPointerEvent<HTMLButtonElement>) => {
+  /** Drag the top or left edge, or the top-left corner, to resize; the panel stays anchored bottom-right. */
+  const startResize = (e: ReactPointerEvent<HTMLElement>, axis: { x: boolean; y: boolean }) => {
     const el = panel.current;
     if (!el || e.button !== 0) return;
     e.preventDefault();
     const r = el.getBoundingClientRect(), x0 = e.clientX, y0 = e.clientY, grip = e.currentTarget;
     grip.setPointerCapture(e.pointerId);
     let last: Size = { w: r.width, h: r.height };
-    const move = (ev: PointerEvent) => { last = fit({ w: r.width + x0 - ev.clientX, h: r.height + y0 - ev.clientY }); setSize(last); };
+    const move = (ev: PointerEvent) => { last = fit({ w: axis.x ? r.width + x0 - ev.clientX : r.width, h: axis.y ? r.height + y0 - ev.clientY : r.height }); setSize(last); };
     const up = () => { grip.removeEventListener("pointermove", move); grip.removeEventListener("pointerup", up); grip.removeEventListener("pointercancel", up); store(SIZE_KEY, last); };
     grip.addEventListener("pointermove", move); grip.addEventListener("pointerup", up); grip.addEventListener("pointercancel", up);
   };
@@ -221,9 +221,9 @@ function Inner({ config, onApply, date, handle }: { config: IndexConfig; onApply
   </button>;
   return (
     <div ref={panel} className={`assistant assistant-panel ${size ? "is-sized" : ""}`} role="region" aria-label="Assistant" style={size ? { "--assistant-w": `${size.w}px`, "--assistant-h": `${size.h}px` } as CSSProperties : undefined}>
-      <button type="button" className="assistant-grip" onPointerDown={startResize} onKeyDown={keyResize} onDoubleClick={resetSize} aria-label="Resize the assistant (arrow keys; double-click resets)" title="Drag to resize · double-click to reset">
-        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.2" aria-hidden="true"><path d="M1 9V1h8M1 5.5 5.5 1" /></svg>
-      </button>
+      <div className="assistant-edge is-top" onPointerDown={(e) => startResize(e, { x: false, y: true })} onDoubleClick={resetSize} aria-hidden="true" />
+      <div className="assistant-edge is-left" onPointerDown={(e) => startResize(e, { x: true, y: false })} onDoubleClick={resetSize} aria-hidden="true" />
+      <button type="button" className="assistant-edge is-corner" onPointerDown={(e) => startResize(e, { x: true, y: true })} onKeyDown={keyResize} onDoubleClick={resetSize} aria-label="Resize the assistant (arrow keys; double-click resets)" title="Drag an edge to resize · double-click to reset" />
       <div className="assistant-head"><span className="cap">Assistant · {config.name}</span>
         {turns.length > 0 && <>
           <button type="button" className="assistant-icon ml-auto" onClick={save} disabled={busy} aria-label="Save the chat as a PDF" title="Save as PDF"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 4v11m-4.5-4.5L12 15l4.5-4.5M5 19.5h14" /></svg></button>

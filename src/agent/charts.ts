@@ -8,7 +8,7 @@ import { EFFORTS } from "./resolve";
 import type { RankedVariant } from "../engine";
 
 type Efforts = "best" | "all" | string[];
-export type DataArgs = { labs?: string[]; metrics?: string[]; metric?: string; x_metric?: string; models?: string[]; top?: number; efforts?: Efforts; from_effort?: string; to_effort?: string; delta?: "absolute" | "percent"; type?: string; title?: string };
+export type DataArgs = { labs?: string[]; metrics?: string[]; metric?: string; x_metric?: string; models?: string[]; variants?: string[]; top?: number; efforts?: Efforts; from_effort?: string; to_effort?: string; delta?: "absolute" | "percent"; type?: string; title?: string };
 
 const EFFORT_ALIAS: Record<string, string> = { "extra high": "xhigh", "x-high": "xhigh", maximum: "max", med: "medium" };
 const effortList = (e: unknown): Efforts | undefined => {
@@ -21,13 +21,19 @@ const effortList = (e: unknown): Efforts | undefined => {
 };
 
 /** Models fill every optional field (top: 0, models: [], x_metric: ""); empty means unset. */
-function clean(args: DataArgs): DataArgs {
+export function clean(args: DataArgs): DataArgs {
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(args)) {
     if (v === "" || v == null || (Array.isArray(v) && !v.length) || (k === "top" && !(Number(v) > 0))) continue;
     out[k] = v;
   }
   return out as DataArgs;
+}
+const SPEC_KEYS: (keyof DataArgs)[] = ["labs", "metrics", "metric", "x_metric", "models", "variants", "top", "efforts", "from_effort", "to_effort", "delta", "type", "title"];
+/** The recipe that redraws a chart from the data (a deep link carries it): only the known fields, nothing else the model sent. */
+export function specOf(args: DataArgs): DataArgs {
+  const c = clean(args) as Record<string, unknown>;
+  return Object.fromEntries(SPEC_KEYS.filter((k) => c[k] !== undefined).map((k) => [k, c[k]])) as DataArgs;
 }
 const effortWord = (e: string) => { const w = EFFORT_ALIAS[e.toLowerCase()] ?? e.toLowerCase(); return (EFFORTS as readonly string[]).includes(w) ? w : "max"; };
 const am = (m: Metric): AnswerMetric => ({ name: m.name, unit: m.unit, better: m.better, ...(m.log ? { log: true } : {}) });
@@ -69,10 +75,13 @@ export function makeChart(view: DataView, raw: DataArgs): { chart?: AnswerChart;
   if (!metric) return { error: `Unknown metric: ${args.metric}. Use index, cost, time, speed, latency, tokens or a benchmark name.` };
   const efforts = effortList(args.efforts);
   const mark = (r: RankedVariant, withEffort: boolean): AnswerMark => ({ label: label(r, withEffort), modelId: r.model.id, labId: r.model.labId, color: view.snapshot.labs.find((l) => l.id === r.model.labId)?.color });
-  const notFound = (p: ReturnType<DataView["pick"]>) => [...p.unknown.map((x) => `${x} (not in the data)`), ...(metric.key === "index" || metric.key === "cost" || metric.key === "speed" ? p.unranked.map((x) => `${x} (not ranked under this index)`) : [])];
+  const exact = !!args.variants?.length;
+  // Exact variants ("GPT-5.6 Sol max", "Opus 5.5 low") override models, labs and efforts; their notes are already complete.
+  const choose = (top: number | undefined, fallback: Efforts) => exact ? view.pickVariants(args.variants!) : view.pick(args.models, top, efforts ?? fallback, args.labs);
+  const notFound = (p: ReturnType<DataView["pick"]>) => [...p.unknown.map((x) => (exact ? x : `${x} (not in the data)`)), ...(metric.key === "index" || metric.key === "cost" || metric.key === "speed" ? p.unranked.map((x) => `${x} (not ranked under this index)`) : [])];
 
   if (type === "bar") {
-    const p = view.pick(args.models, args.top ?? (args.labs ? undefined : 12), efforts ?? "best", args.labs), withEffort = efforts !== "best" && efforts !== undefined;
+    const p = choose(args.top ?? (args.labs || args.models?.length ? undefined : 12), "best"), withEffort = exact || (efforts !== "best" && efforts !== undefined);
     const items = p.rows.map((r) => ({ ...mark(r, withEffort), value: view.value(metric, r) })).filter((x): x is AnswerMark & { value: number } => x.value != null);
     const missing = [...notFound(p), ...p.rows.filter((r) => view.value(metric, r) == null).map((r) => `${label(r, withEffort)} (no ${metric.name})`)];
     items.sort((a, b) => metric.better === "higher" ? b.value - a.value : a.value - b.value);
@@ -112,7 +121,7 @@ export function makeChart(view: DataView, raw: DataArgs): { chart?: AnswerChart;
   if (type === "scatter") {
     const x = resolveMetric(view.snapshot, args.x_metric ?? "cost");
     if (!x) return { error: `Unknown x metric: ${args.x_metric}.` };
-    const p = view.pick(args.models, args.top ?? (args.labs ? undefined : 20), efforts ?? "best", args.labs), withEffort = efforts !== undefined && efforts !== "best";
+    const p = choose(args.top ?? (args.labs || args.models?.length ? undefined : 20), "best"), withEffort = exact || (efforts !== undefined && efforts !== "best");
     const points = p.rows.map((r) => ({ ...mark(r, withEffort), x: view.value(x, r), y: view.value(metric, r) })).filter((q): q is AnswerMark & { x: number; y: number } => q.x != null && q.y != null);
     if (points.length < 2) return { error: `Too few models have both ${x.name} and ${metric.name}.` };
     const chart: AnswerChart = { kind: "scatter", title: args.title ?? `${metric.name} vs ${x.name}`, x: am(x), y: am(metric), points: points.slice(0, 40) };

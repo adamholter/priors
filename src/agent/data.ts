@@ -9,7 +9,7 @@ import { EFFORT_ORDER } from "../data/types";
 import { computeIndex, type IndexConfig, type RankedVariant } from "../engine";
 import { taskMetricData } from "../data/task-metrics";
 import { outputTokensPerTask } from "../lib/metrics";
-import { resolveBenchmark, resolveLab, resolveModel } from "./resolve";
+import { resolveBenchmark, resolveLab, resolveModel, resolveVariant } from "./resolve";
 
 export type MetricKey = string;
 export interface Metric { key: MetricKey; name: string; unit: string; better: "higher" | "lower"; log?: boolean; benchmarkId?: string }
@@ -108,6 +108,31 @@ export class DataView {
     if (efforts === "best") rows = rows.filter((r, i, a) => a.findIndex((x) => x.model.id === r.model.id) === i);
     else if (Array.isArray(efforts)) rows = rows.filter((r) => efforts.includes(r.variant.effort));
     rows.sort((a, b) => ids.indexOf(a.model.id) - ids.indexOf(b.model.id) || byEffort(a.variant, b.variant));
+    return { rows, unknown, unranked };
+  }
+
+  /**
+   * Exact variants ("GPT-5.6 Sol max", "Opus 5.5 low"): the named effort of each model, in the order given.
+   * A name without an effort means that model's best effort. An effort the model doesn't have is reported, not guessed.
+   */
+  pickVariants(names: string[]): { rows: RankedVariant[]; unknown: string[]; unranked: string[] } {
+    const rows: RankedVariant[] = [], unknown: string[] = [], unranked: string[] = [];
+    for (const name of names) {
+      const v = resolveVariant(this.snapshot, name, this.bestRank);
+      if (!v) { unknown.push(`${name} (not in the data)`); continue; }
+      if (v.missingEffort) { unknown.push(`${name} (no ${v.missingEffort} measured)`); continue; }
+      let r: RankedVariant | undefined;
+      if (v.variantId) {
+        r = this.ranked.find((x) => x.variant.id === v.variantId);
+        if (!r) {
+          const variant = this.snapshot.variants.find((x) => x.id === v.variantId), model = this.snapshot.models.find((m) => m.id === v.modelId);
+          if (variant && model) r = { variant, model, score: NaN, coverage: 0, measuredShare: 0, values: [], onFrontier: false, rank: 0 };
+        }
+      } else r = this.pick([v.modelId], undefined, "best").rows[0];
+      if (!r) { unknown.push(`${name} (no measured variant)`); continue; }
+      if (!this.ranked.includes(r)) unranked.push(`${r.model.name} ${r.variant.effort}`);
+      if (!rows.some((x) => x.variant.id === r!.variant.id)) rows.push(r);
+    }
     return { rows, unknown, unranked };
   }
 
