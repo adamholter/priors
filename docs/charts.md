@@ -6,6 +6,8 @@ All charts are ECharts with the `priors` theme, set up in `src/components/chart/
 
 - `src/components/Rankings.tsx`. Top 30 (25 on profile pages) with one "Show all" toggle. A staged 15, 35, all expansion was tried and rejected.
 - Rows are keyed DOM elements that transition between list-local absolute positions inside a paint-contained, clipped list. Do not bring back viewport-coordinate FLIP measurements: they compound in-flight transforms during slider drags and scrolling.
+- The benchmark list's search (`src/lib/benchmark-search.ts`) reads names first, then short name and id, lab and category, then descriptions. Every word must match somewhere, a description word must start a word ("ui" does not match "build"), and a name match outranks any number of description matches. A search shows one list, best match first; browsing groups by category.
+- The `+` next to the index tabs copies the index you are viewing (weights, filters, highlights) as "<name> copy", with its name open for renaming. It is how to save a variation without rebuilding it.
 - Weight sliders (`WeightsPanel.tsx`) control a benchmark's share (0 to 70%), not its raw weight, so the range is the same for every benchmark.
 
 ## Chart kinds

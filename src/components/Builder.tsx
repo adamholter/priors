@@ -127,7 +127,16 @@ export function Builder({ snapshot: base, initialIndices, labPlacement }: { snap
 
   const update = useCallback((c: IndexConfig) => setIndices((list) => list.map((i) => (i.id === c.id ? c : i))), []);
   const highlightState = useMemo(() => ({ items: active.highlight ?? [], set: (h: string[]) => update({ ...active, highlight: h.length ? h : undefined }), models: pickerModels, linkIndices: [active, ...indices.filter((i) => i.id !== active.id)] }), [active, indices, update, pickerModels]);
-  const add = () => { const id = `i${Date.now().toString(36)}`; const c = { ...defaultConfig(snapshot, id, "New index") }; setIndices((l) => [...l, c]); setActiveId(id); };
+  // The + copies the index you are viewing (weights, filters, highlights), so a variation never starts from a blank mix.
+  const add = () => {
+    const id = `i${Date.now().toString(36)}`;
+    const base = active.name.replace(/ copy( \d+)?$/, ""), taken = new Set(indices.map((i) => i.name));
+    let name = `${base} copy`;
+    for (let n = 2; taken.has(name); n++) name = `${base} copy ${n}`;
+    setIndices((l) => [...l, { ...structuredClone(active), id, name }]);
+    setActiveId(id);
+    return { id, name };
+  };
   const remove = (id: string) => { setIndices((l) => { const n = l.filter((i) => i.id !== id); if (!n.length) n.push(defaultConfig(snapshot)); if (activeId === id) setActiveId(n[0].id); return n; }); };
 
   return (

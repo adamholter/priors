@@ -4,7 +4,8 @@ import { useEffect, useRef, useState } from "react";
 export function IndexTabs({ indices, activeId, onSelect, onRename, onAdd, onRemove }: {
   indices: { id: string; name: string }[]; activeId: string;
   onSelect: (id: string) => void; onRename: (id: string, name: string) => void;
-  onAdd: () => void; onRemove: (id: string) => void;
+  /** Adds a copy of the active index and returns it, so its name opens for renaming. */
+  onAdd: () => { id: string; name: string }; onRemove: (id: string) => void;
 }) {
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
@@ -42,7 +43,7 @@ export function IndexTabs({ indices, activeId, onSelect, onRename, onAdd, onRemo
           </span>
         );
       })}
-      <button type="button" onClick={onAdd} className="w-6 h-6 rounded-full border hairline grid place-items-center text-grey hover:text-ink hover:border-ink text-[15px] leading-none" title="Add an index" aria-label="Add an index">+</button>
+      <button type="button" onClick={() => { const added = onAdd(); start(added.id, added.name); }} className="w-6 h-6 rounded-full border hairline grid place-items-center text-grey hover:text-ink hover:border-ink text-[15px] leading-none" title="Copy this index as a new one" aria-label="Copy this index as a new index">+</button>
     </div>
   );
 }

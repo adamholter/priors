@@ -5,6 +5,7 @@ import type { IndexConfig, IndexResult } from "@/engine";
 import Link from "next/link";
 
 import { useLightDismiss } from "@/lib/useLightDismiss";
+import { searchBenchmarks } from "@/lib/benchmark-search";
 import { BenchmarkInfo, InfoIcon } from "./BenchmarkInfo";
 
 const CATS: Record<string, string> = { coding: "Coding", agentic: "Agentic", reasoning: "Reasoning", knowledge: "Knowledge", math: "Math", "long-context": "Long context", instruction: "Instruction following", creative: "Creative", safety: "Safety", economics: "Economics", composite: "Composite indices", speed: "Speed", cost: "Cost", other: "Other" };
@@ -44,12 +45,12 @@ export function WeightsPanel({ snapshot, config, onChange }: { snapshot: Snapsho
   const [pinnedIds, setPinnedIds] = useState<Set<string>>(new Set());
   const openList = () => { if (!open) setPinnedIds(new Set(active.map((b) => b.id))); setOpen(true); };
   const inactive = listable.filter((b) => !pinnedIds.has(b.id));
-  const normalize = (value: string) => value.toLowerCase().replace(/[\s._-]+/g, "");
-  const terms = query.trim().split(/\s+/).filter(Boolean).map(normalize);
-  const hit = (b: Benchmark) => terms.every((term) => normalize([b.name, b.shortName, b.id, b.sourceId, CATS[b.category]].join(" ")).includes(term));
-  const matches = inactive.filter(hit);
-  const pinned = listable.filter((b) => pinnedIds.has(b.id) && hit(b));
-  const groups = matches.reduce<Record<string, Benchmark[]>>((acc, b) => ((acc[b.category] ??= []).push(b), acc), {});
+  const terms = query.trim().split(/\s+/).filter(Boolean);
+  // Names rank first, then other fields, then descriptions (src/lib/benchmark-search.ts). A search shows one list, best match first; browsing groups by category.
+  const catName = (c: string) => CATS[c] ?? c;
+  const matches = searchBenchmarks(inactive, query, catName);
+  const pinned = searchBenchmarks(listable.filter((b) => pinnedIds.has(b.id)), query, catName);
+  const groups = terms.length ? { "Best matches": matches } : matches.reduce<Record<string, Benchmark[]>>((acc, b) => ((acc[b.category] ??= []).push(b), acc), {});
   // Adding keeps the list open and the query intact: people often add several while browsing.
   const toggle = (id: string) => { const on = config.weights[id] > 0; setW(id, on ? 0 : 10); setRecent(on ? null : id); };
   const addBenchmark = (id: string) => { setW(id, 10); setRecent(id); };
@@ -90,7 +91,7 @@ export function WeightsPanel({ snapshot, config, onChange }: { snapshot: Snapsho
             <div className="bench-sheet-head">
               <div className="flex items-center gap-2 border hairline rounded-sm px-2.5 py-1.5 focus-within:border-indigo bg-white">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="text-grey shrink-0" aria-hidden="true"><circle cx="11" cy="11" r="6.5" /><path d="m20 20-4.2-4.2" /></svg>
-                <input autoFocus type="search" aria-label="Search benchmarks" placeholder="Search by name, lab, or category" value={query} onChange={(e) => setQuery(e.target.value)}
+                <input autoFocus type="search" aria-label="Search benchmarks" placeholder="Search by name, topic, lab or category" value={query} onChange={(e) => setQuery(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Escape") { e.preventDefault(); setOpen(false); setQuery(""); search.current?.focus(); } if (e.key === "Enter" && terms.length && matches.length) { e.preventDefault(); addBenchmark(matches[0].id); } }}
                   className="min-w-0 flex-1 bg-transparent text-[13px] outline-none" />
               </div>
@@ -100,7 +101,7 @@ export function WeightsPanel({ snapshot, config, onChange }: { snapshot: Snapsho
               {pinned.length > 0 && <BenchGroup label="In your mix">{pinned.map((b) => <BenchRow key={b.id} b={b} on={config.weights[b.id] > 0} models={coverage(b.id)} fresh={recent === b.id} onToggle={() => toggle(b.id)} onInfo={() => setInfo(b.id)} />)}</BenchGroup>}
               {!matches.length && !pinned.length && <p className="cap py-2" role="status">No matching benchmarks.</p>}
               {Object.entries(groups).map(([cat, list]) => (
-                <BenchGroup key={cat} label={CATS[cat] ?? cat}>{list.map((b) => <BenchRow key={b.id} b={b} on={config.weights[b.id] > 0} models={coverage(b.id)} fresh={recent === b.id} onToggle={() => toggle(b.id)} onInfo={() => setInfo(b.id)} />)}</BenchGroup>
+                <BenchGroup key={cat} label={terms.length ? cat : catName(cat)}>{list.map((b) => <BenchRow key={b.id} b={b} on={config.weights[b.id] > 0} models={coverage(b.id)} fresh={recent === b.id} onToggle={() => toggle(b.id)} onInfo={() => setInfo(b.id)} />)}</BenchGroup>
               ))}
               <p className="text-[12px] text-ink-2 border-t hairline pt-3">Missing one? <Link className="text-indigo hover:underline" href="/skill" transitionTypes={["nav-forward"]}>Have your agent add it</Link> or <Link className="text-indigo hover:underline" href="/import" transitionTypes={["nav-forward"]}>import JSON</Link>.</p>
             </div>
