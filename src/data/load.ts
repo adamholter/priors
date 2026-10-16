@@ -23,6 +23,12 @@ export function loadSnapshot(date?: string): Promise<Snapshot | null> {
   return p;
 }
 
+/** One snapshot by date, uncached: for walking every date without keeping them all in memory. */
+export async function readSnapshot(date: string): Promise<Snapshot | null> {
+  try { return canonicalizeSnapshot(JSON.parse(gunzipSync(await readFile(path.join(SNAP_DIR, `${date}.json.gz`))).toString("utf8")) as Snapshot); }
+  catch { return null; }
+}
+
 /** Load the precomputed mix library for a snapshot date, or null when absent. */
 export async function loadMixLibrary(date?: string): Promise<MixLibrary | null> {
   const file = date ? `${date}.library.json.gz` : "latest.library.json.gz";

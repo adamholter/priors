@@ -9,6 +9,7 @@ const nextConfig: NextConfig = {
   skipTrailingSlashRedirect: true,
   outputFileTracingIncludes: {
     "/og": ["./src/lib/og-fonts/*"],
+    "/api/history": ["./data/snapshots/????-??-??.json.gz"],
     "/\\[handle\\]/opengraph-image": ["./src/lib/og-fonts/*"],
   },
 };
