@@ -11,7 +11,7 @@ import { chartLinkUrl } from "@/lib/highlight-link";
 import { FormulaEditor, type FormulaSettings } from "./formula-chart";
 import styles from "./ChartSettings.module.css";
 
-export function ChartSettings({ label, mode, onChange, releasedAfter, onChangeReleased, models = [], excluded, onToggleModel, onShowAllModels, onHideAllModels, view, onView, dataSource, costBasis, defaultScale, anchor, formula }: {
+export function ChartSettings({ label, mode, onChange, releasedAfter, onChangeReleased, models = [], excluded, onToggleModel, onShowAllModels, onHideAllModels, onShowOnly, view, onView, dataSource, costBasis, defaultScale, anchor, formula }: {
   /** Advanced: a custom formula for this chart's metric. Omitted where a chart has no formula support. */
   formula?: FormulaSettings;
   /** Cost charts: price tasks at API list prices or at each lab's subscription plan. */
@@ -25,11 +25,13 @@ export function ChartSettings({ label, mode, onChange, releasedAfter, onChangeRe
   releasedAfter?: string;
   onChangeReleased?: (value: string) => void;
   /** Model picker: ranked-order list + the index's excluded set. */
-  models?: { id: string; name: string; color?: string }[];
+  models?: { id: string; name: string; color?: string; /** weights are downloadable; undefined when unknown */ open?: boolean }[];
   excluded?: Set<string>;
   onToggleModel?: (id: string) => void;
   onShowAllModels?: () => void;
   onHideAllModels?: () => void;
+  /** Show only these models (the open-weights and closed-weights shortcuts). */
+  onShowOnly?: (ids: string[]) => void;
   /** Scatter display: label density, frontier line, reasoning-effort lines. */
   view?: ScatterView;
   onView?: (view: ScatterView, persist?: boolean) => void;
@@ -66,7 +68,9 @@ export function ChartSettings({ label, mode, onChange, releasedAfter, onChangeRe
   }
   const hasModels = !!onToggleModel && models.length > 0;
   const modelPanel = <>
-    <div className={styles.modelCount}><span>{models.filter(m => !excluded?.has(m.id)).length} of {models.length} selected</span>{onShowAllModels && <button type="button" onClick={onShowAllModels}>All</button>}{onHideAllModels && <button type="button" onClick={onHideAllModels}>None</button>}</div>
+    <div className={styles.modelCount}><span>{models.filter(m => !excluded?.has(m.id)).length} of {models.length} selected</span>{onShowAllModels && <button type="button" onClick={onShowAllModels}>All</button>}{onHideAllModels && <button type="button" onClick={onHideAllModels}>None</button>}{onShowOnly && models.some((m) => m.open !== undefined) && <>
+      <button type="button" onClick={() => onShowOnly(models.filter((m) => m.open === true).map((m) => m.id))} title="Show only models whose weights can be downloaded">Open</button>
+      <button type="button" onClick={() => onShowOnly(models.filter((m) => m.open === false).map((m) => m.id))} title="Show only models with closed weights">Closed</button></>}</div>
     <input type="search" className={styles.search} aria-label="Search models" placeholder="Search models" value={query} onChange={e => setQuery(e.target.value)} />
     <div className={styles.modelList}>{filtered.map(m => {
       const star = !!hl && isHighlighted(hl.items, m.id);

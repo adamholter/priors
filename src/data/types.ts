@@ -22,6 +22,11 @@ export interface Model {
   kind: "llm" | "image" | "video" | "audio" | "other"; // only llm is ranked
   reasoning: boolean; // has reasoning-effort variants anywhere
   aliases: string[]; // lowercase raw labels seen across sources
+  /** Weights are downloadable (any license). Undefined when no source says and no rule applies. */
+  openWeights?: boolean;
+  /** Total and active parameters in billions, when a source publishes them. */
+  paramsB?: number;
+  activeParamsB?: number;
 }
 
 export interface Variant {
@@ -197,6 +202,8 @@ export interface ScrapeResult {
   series?: RawSeries[];
   /** Any extra per-model metadata the source exposes (AA: speed, price, release dates). */
   modelMeta?: { modelLabel: string; labHint?: string; releaseDateHint?: string; kind?: Model["kind"]; identity?: RawRow["identity"]; modelMetadata?: Record<string, unknown> }[];
+  /** Whether each model's weights are open, where the source records it (Epoch ECI, Benchmark Heaven). */
+  modelFlags?: { modelLabel: string; labHint?: string; openWeights: boolean }[];
   /** Raw artifacts to persist for audit (filename -> content). */
   raw: Record<string, string>;
   /** Free-form notes for the run log. */

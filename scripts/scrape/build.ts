@@ -16,6 +16,7 @@ import { retainCatalog } from "./retain-catalog";
 import { fetchFreeTiers } from "./free-tiers";
 import { applyFreeTiers, carriedFreeTiers } from "../../src/data/free-tier";
 import { SUBSCRIPTION_BENCHMARK } from "../../src/data/subscription";
+import { applyOpenWeights } from "../../src/data/open-weights";
 
 const args = process.argv.slice(2);
 const opt = (k: string) => { const i = args.indexOf(`--${k}`); return i >= 0 ? args[i + 1] : undefined; };
@@ -40,10 +41,13 @@ async function main() {
   const sources = await loadSources();
   if (!sources.length) throw new Error("no sources");
   const runs: SourceRun[] = [];
+  const timings = new Map<string, number>();
+  const scrapeStart = Date.now();
   const benchmarks = new Map<string, Benchmark>();
   const rows: (RawRow & { sourceId: string })[] = [];
   const rawSeries: (RawSeries & { sourceId: string })[] = [];
   const meta = new Map<string, NonNullable<ScrapeResult["modelMeta"]>[number]>();
+  const weightFlags: NonNullable<ScrapeResult["modelFlags"]> = [];
 
   // Keep publisher traffic bounded when many benchmarks share one host (VALS).
   let nextSource = 0;
@@ -51,7 +55,7 @@ async function main() {
     while (nextSource < sources.length) {
       const src = sources[nextSource++];
       const ctx = makeContext(src.id);
-      const started = new Date().toISOString();
+      const started = new Date().toISOString(), t0 = Date.now();
       let rawPath = "";
       try {
         const r = await src.scrape(ctx);
@@ -68,18 +72,22 @@ async function main() {
         r.rows.forEach((row) => rows.push({ ...row, sourceId: src.id }));
         r.series?.forEach((s) => rawSeries.push({ ...s, sourceId: src.id }));
         r.modelMeta?.forEach((m) => meta.set(m.modelLabel.toLowerCase(), m));
+        r.modelFlags?.forEach((f) => weightFlags.push(f));
         runs.push({ sourceId: src.id, status: "ok", fetchedAt: started, rowCount: r.rows.length, unknownLabels: [], rawPath });
-        ctx.log(`${r.rows.length} rows, ${r.benchmarks.length} benchmarks${r.notes?.length ? " — " + r.notes.join("; ") : ""}`);
+        timings.set(src.id, Date.now() - t0);
+        ctx.log(`${r.rows.length} rows, ${r.benchmarks.length} benchmarks in ${((Date.now() - t0) / 1000).toFixed(1)}s${r.notes?.length ? " — " + r.notes.join("; ") : ""}`);
         // One line per item; scripts/ops/daily-scrape.sh notifies once for each it has not announced before.
         for (const d of r.discoveries ?? []) console.log(`NEW_BENCHMARK ${src.id}: ${d}`);
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         runs.push({ sourceId: src.id, status: "failed", fetchedAt: started, rowCount: 0, unknownLabels: [], rawPath, error: msg });
-        ctx.log(`FAILED: ${msg}`);
+        timings.set(src.id, Date.now() - t0);
+        ctx.log(`FAILED after ${((Date.now() - t0) / 1000).toFixed(1)}s: ${msg}`);
       }
     }
   }));
 
+  console.log(`TIMING sources ${((Date.now() - scrapeStart) / 1000).toFixed(0)}s wall: ${[...timings].sort((a, b) => b[1] - a[1]).slice(0, 10).map(([id, ms]) => `${id} ${(ms / 1000).toFixed(0)}s`).join(", ")}`);
   // ---- normalize
   const models = new Map<string, Model>();
   const pending: { row: RawRow & { sourceId: string }; modelId: string; effort?: Effort }[] = [];
@@ -209,7 +217,23 @@ async function main() {
       prev.series.filter((s) => ids.has(s.benchmarkId)).forEach((s) => snap.series.push(s));
       r.note = `carried forward from ${prev.date}`;
     }
-    if (retained.length) Object.assign(snap, retainCatalog(prev, snap));
+    // A source that succeeded but stopped returning a benchmark it returned before (a board blocked or
+    // renamed upstream, a dataset that fell below its minimum) keeps its last scores for 21 days, marked as carried.
+    const have = new Set(snap.benchmarks.map((x) => x.id));
+    const okSources = new Set(runs.filter((r) => r.status === "ok").map((r) => r.sourceId));
+    let dropped = 0;
+    for (const bm of prev.benchmarks) {
+      if (!okSources.has(bm.sourceId) || have.has(bm.id)) continue;
+      const obs = prev.observations.filter((o) => o.benchmarkId === bm.id);
+      const since = obs.map((o) => o.note?.match(/carried from (\d{4}-\d{2}-\d{2})/)?.[1]).find(Boolean) ?? prev.date;
+      if ((Date.parse(date) - Date.parse(since)) / 86_400_000 > 21) { console.log(`DROPPED ${bm.id}: not returned by ${bm.sourceId} for over 21 days`); continue; }
+      snap.benchmarks.push(bm);
+      obs.forEach((o) => snap.observations.push({ ...o, note: o.note?.includes("carried from") ? o.note : [o.note, `carried from ${prev.date}`].filter(Boolean).join("; ") }));
+      prev.series.filter((s) => s.benchmarkId === bm.id).forEach((s) => snap.series.push(s));
+      console.log(`CARRIED ${bm.id}: no longer returned by ${bm.sourceId}; keeping the scores from ${since}`);
+      dropped++;
+    }
+    if (retained.length || dropped) Object.assign(snap, retainCatalog(prev, snap));
   } catch { /* first run */ }
 
   // Models free today on OpenCode Zen or OpenRouter are priced at 0 in the subscription view.
@@ -235,7 +259,20 @@ async function main() {
     }
   }
 
+  // A benchmark whose every model is unknown to Priors has nothing to show.
+  const observed = new Set(snap.observations.map((o) => o.benchmarkId));
+  snap.benchmarks = snap.benchmarks.filter((x) => observed.has(x.id) || snap.series.some((s) => s.benchmarkId === x.id));
+
   snap = canonicalizeSnapshot(snap);
+  // Open-weights flags: AA's per-model metadata, then other sources' flags (Epoch ECI, Benchmark Heaven), then family rules.
+  const signals = new Map<string, boolean>();
+  for (const f of weightFlags) {
+    const n = normalizeLabel(f.modelLabel);
+    if (n.ok && !signals.has(n.modelId)) signals.set(n.modelId, f.openWeights);
+  }
+  const weights = applyOpenWeights(snap, signals);
+  snap.models = weights.models;
+  console.log(`OPEN_WEIGHTS ${weights.models.filter((m) => m.openWeights === true).length} open, ${weights.models.filter((m) => m.openWeights === false).length} closed, ${weights.unknown.length} unknown`);
   await mkdir(SNAP_DIR, { recursive: true });
   const json = JSON.stringify(snap);
   // gz only: ~130 KB/day committed to the repo is the backup and the time-travel archive.
@@ -249,7 +286,8 @@ async function main() {
   console.log(`\nsnapshot ${date}: ${snap.models.length} models, ${snap.variants.length} variants, ${snap.benchmarks.length} benchmarks, ${snap.observations.length} observations, ${(json.length / 1024).toFixed(0)} KB (${(gzipSync(json).length / 1024).toFixed(0)} KB gz)`);
   for (const r of runs) console.log(`  ${r.status.padEnd(7)} ${r.sourceId.padEnd(16)} rows=${r.rowCount} unknown=${r.unknownLabels.length}${r.unknownLabels.length ? " [" + r.unknownLabels.slice(0, 6).join(" | ") + (r.unknownLabels.length > 6 ? " …" : "") + "]" : ""}${r.error ? " " + r.error : ""}`);
 
-  await buildLibrary(date);
+  // The scheduled job builds the library once, after it knows the data changed (--no-library here).
+  if (!args.includes("--no-library")) await buildLibrary(date);
 }
 
 declare module "../../src/data/types" { interface SourceRun { note?: string } }

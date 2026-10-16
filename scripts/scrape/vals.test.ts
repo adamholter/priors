@@ -55,7 +55,7 @@ describe("Vals AI Astro benchmark payload", () => {
       "openai/gpt-6-astra": { label: "GPT-6 Astra", company: "OpenAI", supports: { transcription: false } },
     });
     expect(parseValsModelCatalogEntry(catalogFixture, "openai/gpt-6-astra-old")).toMatchObject({ label: "GPT-6 Astra" });
-    expect(() => parseValsModelCatalog("export default {};")).toThrow(/const p object missing/);
+    expect(() => parseValsModelCatalog("export default {};")).toThrow(/model object missing/);
   });
 
   it("emits every overall score with source update and metric provenance", async () => {

@@ -102,11 +102,19 @@ function astroComponentUrl(html: string, componentName: string): string {
   throw new Error(`Vals AI: ${componentName} island missing from page`);
 }
 
+/**
+ * Index just past the `=` of the model catalog's declaration. The bundler renames the constant between
+ * deploys (`p`, `_`, ...), so it is found by shape: a map of "provider/model" keys to records.
+ */
+export function findValsCatalogStart(source: string): number {
+  const declaration = /(?:const|let|var)\s+[\w$]+\s*=\s*(?=\{\s*["']?[^"':{}\s]+\/[^"':{}\s]+["']?\s*:\s*\{)/.exec(source);
+  if (!declaration) throw new Error("Vals AI model catalog: model object missing");
+  return declaration.index + declaration[0].length;
+}
+
 /** Parse the generated, data-only JavaScript object shipped as VALS' model catalog. */
 export function parseValsModelCatalog(source: string): Record<string, ValsModelCatalogEntry> {
-  const start = source.indexOf("const p=");
-  if (start < 0) throw new Error("Vals AI model catalog: const p object missing");
-  let i = start + "const p=".length;
+  let i = findValsCatalogStart(source);
   const skip = () => { while (/\s/.test(source[i] ?? "")) i++; };
   const parseString = (): string => {
     const quote = source[i++];

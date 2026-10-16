@@ -1,4 +1,5 @@
 import type { Benchmark, RawRow, ScrapeResult, Source } from "../../../src/data/types";
+import { findValsCatalogStart, valsConstantsUrl } from "./_vals";
 
 const PAGE = "https://www.vals.ai/benchmarks/programbench";
 const ORIGIN = "https://www.vals.ai";
@@ -86,24 +87,26 @@ export function parseProgramBenchHtml(html: string): View {
   throw new Error("ProgramBench: embedded benchmark table payload not found");
 }
 
+/** Newer pages render a BenchmarkViewLoader island whose props name a JSON file with the full view; older ones inline it. */
+async function loadView(html: string, fetchText: (url: string) => Promise<string>): Promise<View> {
+  for (const tag of islands(html)) {
+    const serialized = attr(tag, "props");
+    if (!serialized || !serialized.includes("benchmarkViewUrl")) continue;
+    let props: unknown;
+    try { props = decodeAstro(JSON.parse(serialized)); } catch { continue; }
+    if (!isRecord(props) || typeof props.benchmarkViewUrl !== "string") continue;
+    const json = JSON.parse(await fetchText(new URL(props.benchmarkViewUrl, ORIGIN).toString())) as unknown;
+    const view = isRecord(json) && isRecord(json.default) ? json.default : json;
+    if (isRecord(view) && isRecord(view.metadata) && view.metadata.benchmark_id === "programbench" && isRecord(view.tasks)) return view as unknown as View;
+  }
+  return parseProgramBenchHtml(html);
+}
 function findAnalysisModule(html: string): string {
   for (const tag of islands(html)) {
     const url = attr(tag, "component-url");
     if (url && /\/ProgramBenchResultsAnalysis\.[^/]+\.js(?:$|\?)/.test(url)) return new URL(url, ORIGIN).toString();
   }
   throw new Error("ProgramBench: task-analysis component URL not found");
-}
-function findBenchmarkViewModule(html: string): string {
-  for (const tag of islands(html)) {
-    const url = attr(tag, "component-url");
-    if (url && /\/BenchmarkView\.[^/]+\.js(?:$|\?)/.test(url)) return new URL(url, ORIGIN).toString();
-  }
-  throw new Error("ProgramBench: benchmark-view component URL not found");
-}
-function findCatalogUrl(moduleText: string, moduleUrl: string): string {
-  const match = moduleText.match(/from["'](\.\/constants\.[^"']+\.js)["']/);
-  if (!match) throw new Error("ProgramBench: model catalog URL not found in benchmark-view module");
-  return new URL(match[1], moduleUrl).toString();
 }
 function readCatalogString(source: string, start: number): { value: string; end: number } {
   if (source[start] !== '"') throw new Error("ProgramBench: malformed model catalog string");
@@ -160,9 +163,7 @@ function topLevelLabel(record: string): string | undefined {
   return undefined;
 }
 function parseCatalogLabels(catalog: string, modelIds: string[]): Map<string, string> {
-  const start = catalog.indexOf("const p=");
-  if (start < 0) throw new Error("ProgramBench: model catalog object not found");
-  let i = start + "const p=".length;
+  let i = findValsCatalogStart(catalog);
   if (catalog[i++] !== "{") throw new Error("ProgramBench: malformed model catalog object");
   const direct = new Map<string, string>();
   const aliases = new Map<string, Set<string>>();
@@ -304,7 +305,7 @@ const source: Source = {
   url: PAGE,
   async scrape(ctx): Promise<ScrapeResult> {
     const html = await ctx.fetchText(PAGE);
-    const view = parseProgramBenchHtml(html);
+    const view = await loadView(html, ctx.fetchText);
     const date = updatedDate(view.metadata.updated);
     const ids = view.metadata.models;
     const labels = view.metadata.tasks;
@@ -322,10 +323,7 @@ const source: Source = {
     const moduleText = await ctx.fetchText(moduleUrl);
     const analysisUrl = findAnalysisJson(moduleText);
     const analysisText = await ctx.fetchText(analysisUrl);
-    const viewModuleUrl = findBenchmarkViewModule(html);
-    const viewModuleText = await ctx.fetchText(viewModuleUrl);
-    const catalogUrl = findCatalogUrl(viewModuleText, viewModuleUrl);
-    const catalogText = await ctx.fetchText(catalogUrl);
+    const catalogText = await ctx.fetchText((await valsConstantsUrl(html, ctx.fetchText)).url);
     const { analysis, models } = parseAnalysis(analysisText, view);
     const modelLabels = parseCatalogLabels(catalogText, ids);
     const overallIsDistinct = distinctOverall(view, ids);
@@ -367,7 +365,7 @@ const source: Source = {
       benchmarks, rows,
       raw: {
         "page.html": html, "analysis-component.js": moduleText, "task-analysis.json": analysisText,
-        "benchmark-view-component.js": viewModuleText, "model-catalog-module.js": catalogText,
+        "model-catalog-module.js": catalogText,
       },
       notes: [
         ids.length + " models; " + analysis.heatmap.taskOrder.length + " task scores per model",

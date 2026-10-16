@@ -80,6 +80,19 @@ describe("assistant data tools on the real snapshot", async () => {
     expect(JSON.stringify(makeChart(view, spec as never).chart)).toBe(JSON.stringify({ ...c.charts[0], spec: undefined }));
   });
 
+  it("filters to open or closed weights", () => {
+    if (!snapshot.models.some((m) => m.openWeights !== undefined)) return; // a snapshot from before the flag existed
+    const flag = new Map(snapshot.models.map((m) => [m.id, m.openWeights]));
+    for (const w of ["open", "closed"] as const) {
+      const r = makeChart(view, { type: "bar", metric: "index", weights: w, top: 8 });
+      const items = r.chart?.kind === "bar" ? r.chart.items : [];
+      expect(items.length).toBeGreaterThan(0);
+      expect(items.every((i) => flag.get(i.modelId) === (w === "open"))).toBe(true);
+    }
+    const t = queryData(view, { metrics: ["index"], weights: "open", top: 5 }) as { rows: { weights: string }[] };
+    expect(t.rows.every((x) => x.weights === "open")).toBe(true);
+  });
+
   it("formats values without stray zeros", () => {
     expect(formatMetric({ unit: "pts" }, 0.5)).toBe("0.5");
     expect(formatMetric({ unit: "$" }, 0.0845)).toBe("$0.08");

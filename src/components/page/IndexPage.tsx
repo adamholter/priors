@@ -160,9 +160,9 @@ export function IndexPage({ profile, snapshot, edit, tab: linkedTab, linkedHighl
           const updateIndex = (patch: Partial<IndexConfig>) => (editing ? change : setP)({ ...p, indices: p.indices.map((i) => i.id === idx.id ? { ...i, ...patch } : i) });
           const pickerModels = (() => {
             const col = new Map(snapshot.labs.map((l) => [l.id, markColor(l.color, palette, l.id)]));
-            const seen = new Map<string, { id: string; name: string; color?: string }>();
-            const add = (id: string) => { if (!seen.has(id)) { const m = snapshot.models.find((x) => x.id === id); if (m) seen.set(id, { id, name: m.name, color: col.get(m.labId) }); } };
-            for (const v of r.ranked) if (!seen.has(v.model.id)) seen.set(v.model.id, { id: v.model.id, name: v.model.name, color: col.get(v.model.labId) });
+            const seen = new Map<string, { id: string; name: string; color?: string; open?: boolean }>();
+            const add = (id: string) => { if (!seen.has(id)) { const m = snapshot.models.find((x) => x.id === id); if (m) seen.set(id, { id, name: m.name, color: col.get(m.labId), open: m.openWeights }); } };
+            for (const v of r.ranked) if (!seen.has(v.model.id)) seen.set(v.model.id, { id: v.model.id, name: v.model.name, color: col.get(v.model.labId), open: v.model.openWeights });
             for (const id of r.candidateModelIds) add(id);
             for (const id of idx.excludeModels ?? []) add(id);
             return [...seen.values()];
@@ -170,13 +170,13 @@ export function IndexPage({ profile, snapshot, edit, tab: linkedTab, linkedHighl
           const pickerIds = pickerModels.map((m) => m.id);
           const excludedIds = hiddenIds(idx, pickerIds);
           const toggleModel = (id: string) => updateIndex(toggleVisibility(idx, id, pickerIds));
-          const modelPicker = { models: pickerModels, excluded: excludedIds, onToggleModel: toggleModel, onShowAllModels: () => updateIndex(SHOW_ALL), onHideAllModels: () => updateIndex({ excludeModels: pickerIds, onlyModels: undefined }) };
+          const modelPicker = { models: pickerModels, excluded: excludedIds, onToggleModel: toggleModel, onShowAllModels: () => updateIndex(SHOW_ALL), onHideAllModels: () => updateIndex({ excludeModels: pickerIds, onlyModels: undefined }), onShowOnly: (ids: string[]) => updateIndex({ excludeModels: pickerIds.filter((id) => !ids.includes(id)), onlyModels: undefined }) };
           const wrap = (el: React.ReactNode) => <HighlightContext.Provider key={s.id} value={{ items: idx.highlight ?? [], indexId: tabKey(p.indices, idx), set: (h) => {
             updateIndex({ highlight: h.length ? h : undefined });
             window.history.replaceState(null, "", setHighlightParams(new URL(window.location.href), tabKey(p.indices, idx), h).toString());
           }, models: pickerModels }}>{el}</HighlightContext.Provider>;
           if (s.kind === "gallery") return wrap(<section key={s.id} className="chart-panel">{heading(s, title, "text-[21px] sm:text-[24px] mb-1")}{!editing && <p className="cap mb-3">More metrics · expand a row</p>}<MetricGallery layout={s.metrics} editing={editing} onLayout={(metrics) => patchSection(s.id, { metrics })} timeSource={idx.timeSource} onTimeSourceChange={(timeSource) => updateIndex({ timeSource })} ranked={r.ranked} mode={paretoMode} snapshot={snapshot} labs={snapshot.labs} benchmarks={r.benchmarks} config={idx} settings={{ releasedAfter: idx.releasedAfter, onChangeReleased: (v) => updateIndex({ releasedAfter: v }), ...modelPicker }} /></section>);
-          const settings = (label: string, mode: "all" | "best", key: "rankingVariants" | "paretoVariants") => <ChartSettings label={label} mode={mode} onChange={(v) => updateIndex({ [key]: v })} releasedAfter={idx.releasedAfter} onChangeReleased={(v) => updateIndex({ releasedAfter: v })} models={pickerModels} excluded={excludedIds} onToggleModel={toggleModel} onShowAllModels={() => updateIndex(SHOW_ALL)} onHideAllModels={() => updateIndex({ excludeModels: pickerIds, onlyModels: undefined })} />;
+          const settings = (label: string, mode: "all" | "best", key: "rankingVariants" | "paretoVariants") => <ChartSettings label={label} mode={mode} onChange={(v) => updateIndex({ [key]: v })} releasedAfter={idx.releasedAfter} onChangeReleased={(v) => updateIndex({ releasedAfter: v })} models={pickerModels} excluded={excludedIds} onToggleModel={toggleModel} onShowAllModels={() => updateIndex(SHOW_ALL)} onHideAllModels={() => updateIndex({ excludeModels: pickerIds, onlyModels: undefined })} onShowOnly={modelPicker.onShowOnly} />;
           if (s.kind === "rankings") return wrap(
             <section key={s.id} className="chart-panel">
               <Rankings anchor={anchorOf(title)} title={heading(s, title, "text-[21px] sm:text-[24px]")} actions={settings("Ranking", rankingMode, "rankingVariants")} ranked={selectVariants(r.ranked, rankingMode)} showEffort={rankingMode === "all"} labs={snapshot.labs} limit={25} selected={selected} onSelect={(x) => setSelected(x?.variant.id ?? null)} />

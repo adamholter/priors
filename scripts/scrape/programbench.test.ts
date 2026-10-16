@@ -46,7 +46,7 @@ describe("VALS AI ProgramBench source", () => {
     expect(new Set(result.rows.map((row) => row.sourceModelId)).size).toBe(51);
     expect(result.rows.every((row) => typeof row.modelLabel === "string" && row.modelLabel.length > 0)).toBe(true);
     expect(Object.keys(result.raw)).toEqual([
-      "page.html", "analysis-component.js", "task-analysis.json", "benchmark-view-component.js", "model-catalog-module.js",
+      "page.html", "analysis-component.js", "task-analysis.json", "model-catalog-module.js",
     ]);
     expect(result.raw["page.html"]).toBe(page);
     expect(result.raw["task-analysis.json"]).toBe(analysis);

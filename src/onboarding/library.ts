@@ -20,4 +20,6 @@ export interface LibraryFit {
   settings: { strictness: number; estimateMissing: boolean; effortMatching: "calibrated" | "strict" | "nearest" };
   exact: boolean;
   fitScore: number;
+  /** Hash of the data and code the fit was made under; an equal one means the fit still holds. */
+  fingerprint?: string;
 }

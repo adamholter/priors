@@ -10,6 +10,9 @@ const ROW = 32, VIDEO_ROW = 40;
 const BASE_SPEED = 1.4;
 type Mode = "fixed" | "adapting";
 const SPEEDS = [0.5, 1, 2, 4];
+type ColorBy = "lab" | "weights";
+/** Weights view: open and closed, in the site's two chart colors. Unknown is grey. */
+const WEIGHT_COLORS = { open: "var(--indigo)", closed: "var(--ink-2)", unknown: "var(--grey)" } as const;
 
 const longDate = (d: string) => new Date(`${d}T12:00:00Z`).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" });
 const shortDate = (d: string) => new Date(`${d}T12:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
@@ -29,6 +32,7 @@ export function HistoryRace({ video = false }: { video?: boolean }) {
   const [playing, setPlaying] = useState(false);
   const [back, setBack] = useState(true);
   const [speed, setSpeed] = useState(1);
+  const [colorBy, setColorBy] = useState<ColorBy>("lab");
   const pal = useChartPalette();
   const posRef = useRef(0);
   const place = useCallback((p: number) => { posRef.current = p; setPos(p); }, []);
@@ -89,7 +93,7 @@ export function HistoryRace({ video = false }: { video?: boolean }) {
   const rowH = video ? VIDEO_ROW : ROW;
   const chart = <div className="relative overflow-hidden" style={{ height: TOP * rowH }} role="img" aria-label={`Top ${TOP} on ${frame ? longDate(frame.date) : ""}`}>
     {data && rows.map((r) => {
-      const [lo, hi] = data.domain, color = markColor(labs.get(r.labId)?.color, pal, r.labId);
+      const [lo, hi] = data.domain, color = colorBy === "weights" ? WEIGHT_COLORS[r.open === true ? "open" : r.open === false ? "closed" : "unknown"] : markColor(labs.get(r.labId)?.color, pal, r.labId);
       return <div key={r.id} className="absolute left-0 right-0 flex items-center gap-3" style={{ height: rowH, transform: `translateY(${r.y * rowH}px)`, opacity: r.opacity, willChange: "transform" }}>
         <span className="num text-grey text-[12px] w-6 text-right">{Math.round(r.y) + 1}</span>
         <span className={`text-right truncate ${video ? "w-[260px] text-[19px]" : "w-[120px] sm:w-[190px] text-[13px]"}`}>{r.name}<span className="text-grey"> {fmtEffort(r.effort)}</span></span>
@@ -102,7 +106,7 @@ export function HistoryRace({ video = false }: { video?: boolean }) {
   </div>;
 
   const key = <div className="flex flex-wrap gap-x-4 gap-y-1 mt-4 text-[12px] text-ink-2">
-    {data?.labs.map((l) => <span key={l.id} className="inline-flex items-center gap-1.5"><i className="inline-block w-2.5 h-2.5 rounded-[2px]" style={{ background: markColor(l.color, pal, l.id) }} />{l.name}</span>)}
+    {colorBy === "weights" ? (["open", "closed"] as const).map((k) => <span key={k} className="inline-flex items-center gap-1.5"><i className="inline-block w-2.5 h-2.5 rounded-[2px]" style={{ background: WEIGHT_COLORS[k] }} />{k === "open" ? "Open weights" : "Closed weights"}</span>) : data?.labs.map((l) => <span key={l.id} className="inline-flex items-center gap-1.5"><i className="inline-block w-2.5 h-2.5 rounded-[2px]" style={{ background: markColor(l.color, pal, l.id) }} />{l.name}</span>)}
   </div>;
 
   if (video) return <div className="h-dvh w-dvw flex flex-col px-[6vw] py-[5vh] bg-bone overflow-hidden" style={{ fontSize: 16 }}>
@@ -128,6 +132,7 @@ export function HistoryRace({ video = false }: { video?: boolean }) {
         <button type="button" className="btn inline-flex items-center gap-1.5" onClick={play} aria-label={playing ? "Pause" : "Play"}>{playing ? <IconPlayerPauseFilled size={14} /> : <IconPlayerPlayFilled size={14} />}{playing ? "Pause" : "Play"}</button>
         <span className="flex gap-1" role="group" aria-label="Direction"><button type="button" className={chip(back)} onClick={() => setBack(true)}>Back in time</button><button type="button" className={chip(!back)} onClick={() => setBack(false)}>Forward</button></span>
         <span className="flex gap-1" role="group" aria-label="Speed">{SPEEDS.map((s) => <button key={s} type="button" className={chip(speed === s)} onClick={() => setSpeed(s)}>{s}×</button>)}</span>
+        <span className="flex gap-1" role="group" aria-label="Bar color"><button type="button" className={chip(colorBy === "lab")} onClick={() => setColorBy("lab")}>By lab</button><button type="button" className={chip(colorBy === "weights")} onClick={() => setColorBy("weights")}>Open vs closed</button></span>
         <span className="flex gap-1 sm:ml-auto" role="group" aria-label="Index over time">
           <button type="button" className={chip(mode === "fixed")} onClick={() => setMode("fixed")} title="Today's index exactly as written, scored on each day's data">Fixed index</button>
           <button type="button" className={chip(mode === "adapting")} onClick={() => setMode("adapting")} title="Each day drops benchmarks that fewer than 8 models had scores for">Adapting index</button>
@@ -139,6 +144,7 @@ export function HistoryRace({ video = false }: { video?: boolean }) {
         <div className="flex justify-between cap"><span>{shortDate(data.frames[0].date)}</span><span>{shortDate(data.frames[data.frames.length - 1].date)}</span></div>
       </div>
       {key}
+      <OpenClosed data={data} pos={pos} />
       <p className="text-ink-2 text-[12.5px] mt-5 leading-relaxed">
         {mode === "fixed" ? "Fixed: your index as it is today, with each day's scores. A benchmark that wasn't published yet that day has no scores, so the others carry the ranking." : "Adapting: each day leaves out benchmarks that fewer than 8 models had scores for, so the index follows what was established by then."}
         {same && mode === "adapting" ? " Every benchmark in this index was well covered on every date, so it matches the fixed view." : ""}
@@ -147,4 +153,30 @@ export function HistoryRace({ video = false }: { video?: boolean }) {
       </p>
     </>}
   </div>;
+}
+
+/** The best open-weights and best closed-weights model on each date, so the gap between them is visible. */
+function OpenClosed({ data, pos }: { data: HistoryData; pos: number }) {
+  const pts = data.frames.map((f, i) => ({ i, open: f.best?.open, closed: f.best?.closed }));
+  const have = pts.filter((p) => p.open !== undefined && p.closed !== undefined);
+  if (have.length < 2) return null;
+  const W = 640, H = 170, L = 34, R = 56, T = 12, B = 22, n = data.frames.length - 1;
+  const vals = have.flatMap((p) => [p.open!, p.closed!]), lo = Math.floor(Math.min(...vals) / 5) * 5, hi = Math.ceil(Math.max(...vals) / 5) * 5;
+  const x = (i: number) => L + (i / n) * (W - L - R), y = (v: number) => T + (1 - (v - lo) / (hi - lo)) * (H - T - B);
+  const line = (k: "open" | "closed") => pts.filter((p) => p[k] !== undefined).map((p, j) => `${j ? "L" : "M"}${x(p.i).toFixed(1)} ${y(p[k]!).toFixed(1)}`).join(" ");
+  const cur = Math.min(Math.max(Math.round(pos), 0), n), at = pts[cur], last = have[have.length - 1];
+  const gap = at.open !== undefined && at.closed !== undefined ? at.closed - at.open : undefined;
+  return <figure className="mt-8">
+    <figcaption className="cap mb-1">Best model by weights{gap !== undefined ? ` · open trails closed by ${gap.toFixed(1)} on ${shortDate(data.frames[cur].date)}` : ""}</figcaption>
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label="Best open-weights and best closed-weights score over time">
+      {[lo, (lo + hi) / 2, hi].map((v) => <g key={v}><line x1={L} x2={W - R} y1={y(v)} y2={y(v)} stroke="var(--hair)" /><text x={L - 6} y={y(v) + 4} textAnchor="end" fontSize="10" fill="var(--grey)">{v}</text></g>)}
+      <line x1={x(cur)} x2={x(cur)} y1={T} y2={H - B} stroke="var(--hair-3)" strokeDasharray="3 3" />
+      <path d={line("closed")} fill="none" stroke={WEIGHT_COLORS.closed} strokeWidth="2" />
+      <path d={line("open")} fill="none" stroke={WEIGHT_COLORS.open} strokeWidth="2" />
+      <text x={x(last.i) + 6} y={y(last.closed!) + 4} fontSize="11" fill={WEIGHT_COLORS.closed}>Closed</text>
+      <text x={x(last.i) + 6} y={y(last.open!) + 4} fontSize="11" fill={WEIGHT_COLORS.open}>Open</text>
+      <text x={L} y={H - 6} fontSize="10" fill="var(--grey)">{shortDate(data.frames[0].date)}</text>
+      <text x={W - R} y={H - 6} textAnchor="end" fontSize="10" fill="var(--grey)">{shortDate(data.frames[n].date)}</text>
+    </svg>
+  </figure>;
 }

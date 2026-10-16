@@ -28,20 +28,10 @@ if [ "${1:-}" != "--synced" ]; then
   exec /bin/bash "$0" --synced
 fi
 LOG=$(mktemp "${TMPDIR:-/tmp}/priors-scrape.XXXXXX") || exit 1
-if ! npx tsx scripts/scrape/build.ts --date "$DATE" 2>&1 | tee "$LOG"; then
+# --no-library: the library (the slow part) is built below, once, and only if the data changed.
+if ! npx tsx scripts/scrape/build.ts --date "$DATE" --no-library 2>&1 | tee "$LOG"; then
   notify "Priors scrape failed for $DATE — see logs/scrape.log"
   exit 1
-fi
-# build.ts already regenerates the mix library inline; re-run explicitly so the
-# library is refreshed even if the inline step is ever skipped.
-if ! npm run library -- --date "$DATE" >>"$LOG" 2>&1; then
-  notify "Priors library build failed for $DATE — see logs/scrape.log"
-fi
-if grep -q "DEFAULT_FIT_MISSING" "$LOG"; then
-  notify "Priors: the default lineup has no exact fit on today's data — see logs/scrape.log"
-fi
-if ! npx tsx scripts/scrape/intro-cards.ts >>"$LOG" 2>&1; then
-  notify "Priors intro cards failed for $DATE — see logs/scrape.log"
 fi
 # Sources announce benchmarks the publisher added that Priors does not read yet. Notify once per item.
 ANNOUNCED="${PRIORS_ANNOUNCED_FILE:-$HOME/priors/logs/announced-benchmarks.txt}"
@@ -62,6 +52,16 @@ case "$CHANGE_STATUS" in
   10) ;; # Meaningful data (or default ranking membership) changed.
   *) notify "Priors snapshot change check failed — see logs/scrape.log"; exit 1 ;;
 esac
+# Only a changed snapshot needs the mix library (its lineup fits reuse every fit whose data is unchanged) and intro cards.
+if ! npm run library -- --date "$DATE" >>"$LOG" 2>&1; then
+  notify "Priors library build failed for $DATE — see logs/scrape.log"
+fi
+if grep -q "DEFAULT_FIT_MISSING" "$LOG"; then
+  notify "Priors: the default lineup has no exact fit on today's data — see logs/scrape.log"
+fi
+if ! npx tsx scripts/scrape/intro-cards.ts >>"$LOG" 2>&1; then
+  notify "Priors intro cards failed for $DATE — see logs/scrape.log"
+fi
 git add data/snapshots public/intro || exit 1
 if ! git diff --cached --quiet -- data/snapshots public/intro; then
   git commit -q -m "data: snapshot $DATE" -- data/snapshots public/intro || exit 1

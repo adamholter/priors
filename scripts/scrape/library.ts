@@ -3,6 +3,7 @@
  * focus-biased, high-quality mixes that seed the lineup fit's first restarts.
  * Usage: npm run library -- --date YYYY-MM-DD
  */
+import { createHash } from "node:crypto";
 import { readFile, writeFile, rename, mkdir } from "node:fs/promises";
 import path from "node:path";
 import { gunzipSync, gzipSync } from "node:zlib";
@@ -86,29 +87,51 @@ async function priorFits(): Promise<LibraryFit[]> {
   return out;
 }
 
+/**
+ * What a lineup fit depends on: every score of every eligible benchmark, the pool of models and their
+ * release dates, and the code that ranks and searches. Equal fingerprints mean the same fit still holds,
+ * so the search (the slow part of a scrape) is skipped.
+ */
+async function fitFingerprint(snapshot: Snapshot): Promise<string> {
+  const h = createHash("sha1");
+  const ids = new Set(snapshot.benchmarks.filter(eligible).map((b) => b.id));
+  h.update([...ids].sort().join(","));
+  for (const o of snapshot.observations) if (ids.has(o.benchmarkId)) h.update(`${o.benchmarkId}|${o.variantId}|${o.value}|${o.harness ?? ""}\n`);
+  for (const m of snapshot.models) h.update(`${m.id}|${m.releaseDate ?? ""}|${m.kind}\n`);
+  for (const f of ["src/engine/index.ts", "src/onboarding/optimizer.ts", "src/onboarding/quality.ts"]) h.update(await readFile(path.resolve(f), "utf8").catch(() => ""));
+  return h.digest("hex");
+}
+
 /** Exact-verified fits for the default lineup (every focus) and popular lineups, so those resolve instantly. */
 async function buildFits(snapshot: Snapshot, library: MixLibrary, quality: Record<string, number>, llmIds: Set<string>): Promise<LibraryFit[]> {
   const defaultMix = defaultPriorsMix(snapshot);
   const lineup = defaultLineup(snapshot).filter((id) => llmIds.has(id));
   const known = await priorFits();
+  const fingerprintNow = await fitFingerprint(snapshot);
   // The mix that defines the default lineup orders it exactly — seed it so the capabilities
   // fit resolves immediately instead of depending on search luck.
-  known.push({ lineup, focus: "capabilities", weights: { ...defaultMix.weights }, settings: { strictness: defaultMix.strictness ?? 50, estimateMissing: defaultMix.estimateMissing, effortMatching: defaultMix.effortMatching ?? "calibrated" }, exact: true, fitScore: 100 });
+  known.push({ lineup, focus: "capabilities", weights: { ...defaultMix.weights }, settings: { strictness: defaultMix.strictness ?? 50, estimateMissing: defaultMix.estimateMissing, effortMatching: defaultMix.effortMatching ?? "calibrated" }, exact: true, fitScore: 100, fingerprint: fingerprintNow });
+  const fingerprint = fingerprintNow;
   const fits: LibraryFit[] = [];
   const targets: { lineup: string[]; focus: FocusId; budget: number }[] = FOCUSES.map((f) => ({ lineup, focus: f.id, budget: 45_000 }));
   for (const f of FOCUSES) for (const lineup of await topLineups(f.id)) targets.push({ lineup: lineup.filter((id) => llmIds.has(id)), focus: f.id, budget: 20_000 });
   const seen = new Set<string>();
+  let reused = 0;
   for (const t of targets) {
     const key = `${t.focus}|${t.lineup.join(",")}`;
     if (t.lineup.length < 2 || seen.has(key)) continue;
     seen.add(key);
+    // The same lineup, focus and data as last build: the fit is unchanged.
+    const carried = known.find((k) => k.fingerprint === fingerprint && k.focus === t.focus && k.lineup.join(",") === t.lineup.join(","));
+    if (carried) { fits.push(carried); reused++; continue; }
     try {
       const done = await fitPriors(snapshot, t.lineup, () => {}, quality, 0, { baseline: t.lineup }, { focus: t.focus, library, extraFits: [...known, ...fits], budgetMs: { soft: t.budget, hard: t.budget + 10_000 } });
       const c = done.config;
-      fits.push({ lineup: t.lineup, focus: t.focus, weights: done.weights, settings: { strictness: c.strictness ?? 50, estimateMissing: c.estimateMissing, effortMatching: c.effortMatching ?? "calibrated" }, exact: done.exactMatch, fitScore: done.fitScore });
+      fits.push({ lineup: t.lineup, focus: t.focus, weights: done.weights, fingerprint, settings: { strictness: c.strictness ?? 50, estimateMissing: c.estimateMissing, effortMatching: c.effortMatching ?? "calibrated" }, exact: done.exactMatch, fitScore: done.fitScore });
       console.log(`fit ${key.slice(0, 60)}…: ${done.exactMatch ? "exact" : "approx"} ${Math.round(done.fitScore)}%`);
     } catch { /* skip failed fits */ }
   }
+  console.log(`fits: ${reused} reused, ${fits.length - reused} searched`);
   if (!fits.some((f) => f.exact && f.focus === "capabilities" && f.lineup.join(",") === lineup.join(","))) console.log("DEFAULT_FIT_MISSING: no exact fit for the default lineup");
   return fits;
 }

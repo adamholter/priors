@@ -8,7 +8,7 @@ import { EFFORTS } from "./resolve";
 import type { RankedVariant } from "../engine";
 
 type Efforts = "best" | "all" | string[];
-export type DataArgs = { labs?: string[]; metrics?: string[]; metric?: string; x_metric?: string; models?: string[]; variants?: string[]; top?: number; efforts?: Efforts; from_effort?: string; to_effort?: string; delta?: "absolute" | "percent"; type?: string; title?: string };
+export type DataArgs = { labs?: string[]; metrics?: string[]; metric?: string; x_metric?: string; models?: string[]; variants?: string[]; weights?: string; top?: number; efforts?: Efforts; from_effort?: string; to_effort?: string; delta?: "absolute" | "percent"; type?: string; title?: string };
 
 const EFFORT_ALIAS: Record<string, string> = { "extra high": "xhigh", "x-high": "xhigh", maximum: "max", med: "medium" };
 const effortList = (e: unknown): Efforts | undefined => {
@@ -29,12 +29,13 @@ export function clean(args: DataArgs): DataArgs {
   }
   return out as DataArgs;
 }
-const SPEC_KEYS: (keyof DataArgs)[] = ["labs", "metrics", "metric", "x_metric", "models", "variants", "top", "efforts", "from_effort", "to_effort", "delta", "type", "title"];
+const SPEC_KEYS: (keyof DataArgs)[] = ["weights", "labs", "metrics", "metric", "x_metric", "models", "variants", "top", "efforts", "from_effort", "to_effort", "delta", "type", "title"];
 /** The recipe that redraws a chart from the data (a deep link carries it): only the known fields, nothing else the model sent. */
 export function specOf(args: DataArgs): DataArgs {
   const c = clean(args) as Record<string, unknown>;
   return Object.fromEntries(SPEC_KEYS.filter((k) => c[k] !== undefined).map((k) => [k, c[k]])) as DataArgs;
 }
+const weightsOf = (a: DataArgs): "open" | "closed" | undefined => (a.weights === "open" || a.weights === "closed" ? a.weights : undefined);
 const effortWord = (e: string) => { const w = EFFORT_ALIAS[e.toLowerCase()] ?? e.toLowerCase(); return (EFFORTS as readonly string[]).includes(w) ? w : "max"; };
 const am = (m: Metric): AnswerMetric => ({ name: m.name, unit: m.unit, better: m.better, ...(m.log ? { log: true } : {}) });
 const label = (r: RankedVariant, withEffort: boolean) => withEffort && r.variant.effort !== "default" ? `${r.model.name} ${r.variant.effort}` : r.model.name;
@@ -52,9 +53,9 @@ export function queryData(view: DataView, raw: DataArgs) {
   const { metrics, unknown: unknownMetrics } = metricsOf(view, args.metrics?.length ? args.metrics : ["index"]);
   if (!metrics.length) return { error: `Unknown metric: ${unknownMetrics.join(", ")}. Use index, cost, time, speed, latency, tokens or a benchmark name (search_benchmarks finds them).` };
   const efforts = effortList(args.efforts) ?? "best";
-  const { rows, unknown, unranked } = view.pick(args.models, args.top, efforts, args.labs);
+  const { rows, unknown, unranked } = view.pick(args.models, args.top, efforts, args.labs, weightsOf(args));
   const labs = new Map(view.snapshot.labs.map((l) => [l.id, l.name]));
-  const table = rows.slice(0, 60).map((r) => { const row = view.row(r, metrics); return { model: row.model, lab: labs.get(row.labId) ?? row.labId, effort: row.effort, rank: row.rank, ...Object.fromEntries(metrics.map((m) => [m.name, row.values[m.key] == null ? null : round(row.values[m.key]!)])) }; });
+  const table = rows.slice(0, 60).map((r) => { const row = view.row(r, metrics); return { model: row.model, lab: labs.get(row.labId) ?? row.labId, weights: r.model.openWeights === undefined ? "unknown" : r.model.openWeights ? "open" : "closed", effort: row.effort, rank: row.rank, ...Object.fromEntries(metrics.map((m) => [m.name, row.values[m.key] == null ? null : round(row.values[m.key]!)])) }; });
   return {
     metrics: metrics.map((m) => ({ name: m.name, unit: m.unit, better: m.better })), rows: table,
     note: [
@@ -77,7 +78,7 @@ export function makeChart(view: DataView, raw: DataArgs): { chart?: AnswerChart;
   const mark = (r: RankedVariant, withEffort: boolean): AnswerMark => ({ label: label(r, withEffort), modelId: r.model.id, labId: r.model.labId, color: view.snapshot.labs.find((l) => l.id === r.model.labId)?.color });
   const exact = !!args.variants?.length;
   // Exact variants ("GPT-5.6 Sol max", "Opus 5.5 low") override models, labs and efforts; their notes are already complete.
-  const choose = (top: number | undefined, fallback: Efforts) => exact ? view.pickVariants(args.variants!) : view.pick(args.models, top, efforts ?? fallback, args.labs);
+  const choose = (top: number | undefined, fallback: Efforts) => exact ? view.pickVariants(args.variants!) : view.pick(args.models, top, efforts ?? fallback, args.labs, weightsOf(args));
   const notFound = (p: ReturnType<DataView["pick"]>) => [...p.unknown.map((x) => (exact ? x : `${x} (not in the data)`)), ...(metric.key === "index" || metric.key === "cost" || metric.key === "speed" ? p.unranked.map((x) => `${x} (not ranked under this index)`) : [])];
 
   if (type === "bar") {
@@ -91,7 +92,7 @@ export function makeChart(view: DataView, raw: DataArgs): { chart?: AnswerChart;
   }
 
   if (type === "effort_lines" || type === "effort_compare") {
-    const p = view.pick(args.models, args.top ?? (args.labs ? undefined : type === "effort_lines" ? 6 : 8), type === "effort_compare" ? (Array.isArray(efforts) ? efforts : ["xhigh", "max"]) : "all", args.labs);
+    const p = view.pick(args.models, args.top ?? (args.labs ? undefined : type === "effort_lines" ? 6 : 8), type === "effort_compare" ? (Array.isArray(efforts) ? efforts : ["xhigh", "max"]) : "all", args.labs, weightsOf(args));
     const byModel = new Map<string, RankedVariant[]>();
     for (const r of p.rows) (byModel.get(r.model.id) ?? byModel.set(r.model.id, []).get(r.model.id)!).push(r);
     const xs = type === "effort_compare" ? (Array.isArray(efforts) ? efforts : ["xhigh", "max"]) : [...new Set(p.rows.filter((r) => view.value(metric, r) != null && r.variant.effort !== "default").map((r) => r.variant.effort))].sort((a, b) => byEffort({ effort: a }, { effort: b }));
@@ -107,7 +108,7 @@ export function makeChart(view: DataView, raw: DataArgs): { chart?: AnswerChart;
 
   if (type === "effort_delta") {
     const from = effortWord(args.from_effort ?? "xhigh"), to = effortWord(args.to_effort ?? "max"), pct = args.delta === "percent";
-    const p = view.pick(args.models, args.top ?? (args.labs ? undefined : 15), [from, to], args.labs);
+    const p = view.pick(args.models, args.top ?? (args.labs ? undefined : 15), [from, to], args.labs, weightsOf(args));
     const byModel = new Map<string, { a?: number; b?: number; r: RankedVariant }>();
     for (const r of p.rows) { const v = view.value(metric, r), e = byModel.get(r.model.id) ?? { r }; if (v != null) { if (r.variant.effort === from) e.a = v; if (r.variant.effort === to) e.b = v; } byModel.set(r.model.id, e); }
     const items = [...byModel.values()].filter((e) => e.a != null && e.b != null && (!pct || e.a !== 0)).map((e) => ({ ...mark(e.r, false), value: pct ? ((e.b! - e.a!) / Math.abs(e.a!)) * 100 : e.b! - e.a!, from: e.a!, to: e.b! }));

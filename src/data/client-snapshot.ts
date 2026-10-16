@@ -1,12 +1,24 @@
 import { SUBSCRIPTION_BENCHMARK } from "./subscription";
 import type { Observation, Snapshot } from "./types";
 
+/**
+ * Observation fields the browser never reads, dropped to shrink the download and the parse: the scrape
+ * time (the snapshot has one date), the source's model id (read only beside a measured cost, for AA's
+ * mix-weighted cost) and any note except the "estimated" marker the engine checks before using a score as calibration.
+ */
+export function slimObservation(o: Observation): Observation {
+  const { note, sourceModelId, observedAt: _observedAt, ...rest } = o;
+  void _observedAt;
+  return { ...rest, observedAt: "", ...(note && /estimated/i.test(note) ? { note } : {}), ...(sourceModelId && o.costUsd != null ? { sourceModelId } : {}) };
+}
+
 /** Keep every field used by charting, calculation, imports, and source inspection.
  * Scraper-specific raw detail objects stay on the server. */
 export function clientSnapshot(snapshot: Snapshot): Snapshot {
   return {
     ...snapshot,
-    observations: snapshot.observations.map((observation): Observation => {
+    observations: snapshot.observations.map((full): Observation => {
+      const observation = slimObservation(full);
       const details = observation.details;
       if (!details || observation.benchmarkId === SUBSCRIPTION_BENCHMARK) return observation;
       const usedDetails = {

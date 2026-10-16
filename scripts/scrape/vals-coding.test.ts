@@ -149,4 +149,11 @@ describe("Vals benchmark source modules", () => {
     const entry = parseValsModelCatalogEntry('const p={"provider/model-x":{company:"Provider",country:"X"}};', "provider/model-x");
     expect(entry?.label).toBeUndefined();
   });
+
+  it("finds the model catalog whatever the bundler named it", () => {
+    for (const name of ["p", "_", "$a1"]) {
+      const entry = parseValsModelCatalogEntry(`const ${name}={"provider/model-x":{company:"Provider",label:"Model X",open_source:!1}};export{${name} as C};`, "provider/model-x");
+      expect(entry?.label).toBe("Model X");
+    }
+  });
 });

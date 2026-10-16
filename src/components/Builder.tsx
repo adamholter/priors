@@ -66,9 +66,9 @@ export function Builder({ snapshot: base, initialIndices, labPlacement }: { snap
   const palette = useMemo(() => ({ ...basePalette, size }), [basePalette, size]);
   const pickerModels = useMemo(() => {
     const col = new Map(snapshot.labs.map((l) => [l.id, labColor(l.id, l.color)]));
-    const seen = new Map<string, { id: string; name: string; color?: string }>();
-    const add = (id: string) => { if (!seen.has(id)) { const m = snapshot.models.find((x) => x.id === id); if (m) seen.set(id, { id, name: m.name, color: col.get(m.labId) }); } };
-    for (const r of result.ranked) if (!seen.has(r.model.id)) seen.set(r.model.id, { id: r.model.id, name: r.model.name, color: col.get(r.model.labId) });
+    const seen = new Map<string, { id: string; name: string; color?: string; open?: boolean }>();
+    const add = (id: string) => { if (!seen.has(id)) { const m = snapshot.models.find((x) => x.id === id); if (m) seen.set(id, { id, name: m.name, color: col.get(m.labId), open: m.openWeights }); } };
+    for (const r of result.ranked) if (!seen.has(r.model.id)) seen.set(r.model.id, { id: r.model.id, name: r.model.name, color: col.get(r.model.labId), open: r.model.openWeights });
     for (const id of result.candidateModelIds) add(id);
     for (const id of active.excludeModels ?? []) add(id);
     return [...seen.values()];
@@ -81,7 +81,7 @@ export function Builder({ snapshot: base, initialIndices, labPlacement }: { snap
     return { ...i, ...toggleVisibility(i, id, pickerIds) };
   })), [activeId, pickerIds]);
   // Legacy allowlists are converted when the user changes model visibility.
-  const modelPicker = { models: pickerModels, excluded: excludedIds, onToggleModel: toggleModel, onShowAllModels: () => setVisibility(SHOW_ALL), onHideAllModels: () => setVisibility({ excludeModels: pickerIds, onlyModels: undefined }) };
+  const modelPicker = { models: pickerModels, excluded: excludedIds, onToggleModel: toggleModel, onShowAllModels: () => setVisibility(SHOW_ALL), onHideAllModels: () => setVisibility({ excludeModels: pickerIds, onlyModels: undefined }), onShowOnly: (ids: string[]) => setVisibility({ excludeModels: pickerIds.filter((id) => !ids.includes(id)), onlyModels: undefined }) };
   const [paretoView, setParetoView] = useScatterView("pareto");
   const topNames = useMemo(() => [...new Set(rankingRows.map((r) => r.model.name))].slice(0, 3), [rankingRows]);
   // After a few real edits, one gentle hint beside Share. Never a pop-up, never twice.

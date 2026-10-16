@@ -80,8 +80,11 @@ export class DataView {
    * Variants for these models (names or ids), or the top n models of the ranking. Named models the
    * index doesn't rank still come back, unscored, so their published benchmark values can be read.
    */
-  pick(models: string[] | undefined, top: number | undefined, efforts: "best" | "all" | string[], labs?: string[]): { rows: RankedVariant[]; unknown: string[]; unranked: string[] } {
+  pick(models: string[] | undefined, top: number | undefined, efforts: "best" | "all" | string[], labs?: string[], weights?: "open" | "closed"): { rows: RankedVariant[]; unknown: string[]; unranked: string[] } {
     const unknown: string[] = [], unranked: string[] = [];
+    // Open or closed weights; a model whose status isn't known matches neither.
+    const flag = new Map(this.snapshot.models.map((m) => [m.id, m.openWeights]));
+    const wanted = (id: string) => !weights || flag.get(id) === (weights === "open");
     let ids: string[];
     if (models?.length) {
       ids = [];
@@ -96,8 +99,9 @@ export class DataView {
       const lab = new Map(this.snapshot.models.map((m) => [m.id, m.labId]));
       if (labIds && !labIds.size) unknown.push(...labs!);
       // A lab filter alone means all of that lab's ranked models (up to 40); top caps it.
-      ids = [...this.bestRank.keys()].filter((id) => !labIds || labIds.has(lab.get(id) ?? "")).slice(0, Math.min(Math.max(top ?? (labIds ? 40 : 10), 1), 40));
+      ids = [...this.bestRank.keys()].filter((id) => (!labIds || labIds.has(lab.get(id) ?? "")) && wanted(id)).slice(0, Math.min(Math.max(top ?? (labIds ? 40 : 10), 1), 40));
     }
+    ids = ids.filter(wanted);
     const want = new Set(ids);
     const loose = ids.filter((id) => !this.bestRank.has(id)).flatMap((id) => {
       const model = this.snapshot.models.find((m) => m.id === id)!;

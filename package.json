@@ -23,6 +23,7 @@
     "convex": "^1.45.0",
     "csv-parse": "6.1.0",
     "echarts": "^6.1.0",
+    "hyparquet": "^1.31.4",
     "next": "16.3.4",
     "nuqs": "^2.10.1",
     "posthog-js": "^1.438.1",
