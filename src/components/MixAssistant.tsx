@@ -42,7 +42,7 @@ const HINT_KEY = "priors:assistant-hint";
 const SIZE_KEY = "priors:assistant-size";
 const chatKey = (userId: string) => `priors:assistant-chat:${userId}`;
 type Size = { w: number; h: number };
-const MIN: Size = { w: 340, h: 280 };
+const MIN: Size = { w: 340, h: 160 };
 const NONE: string[] = [];
 const fit = (s: Size): Size => ({ w: Math.round(Math.min(Math.max(s.w, MIN.w), innerWidth - 40)), h: Math.round(Math.min(Math.max(s.h, MIN.h), innerHeight - 40)) });
 

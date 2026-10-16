@@ -216,7 +216,10 @@ details.gallery-panel > summary::-webkit-details-marker { display: none; }
 .assistant-panel .assistant-composer { margin: 0 10px 10px; box-shadow: none; }
 .assistant-panel .assistant-head + .assistant-composer { margin-top: 10px; }
 /* Dragged to a size: that height once there's a conversation (an empty panel stays just the composer). */
-.assistant-panel.is-sized:has(.assistant-body) { height: min(var(--assistant-h), calc(100dvh - 40px)); max-height: none; }
+.assistant-panel.is-sized { height: min(var(--assistant-h), calc(100dvh - 40px)); max-height: none; }
+/* A taller panel with no chat yet keeps the composer at the bottom. */
+.assistant-panel.is-sized .assistant-head { margin-bottom: 10px; }
+.assistant-panel.is-sized .assistant-head + .assistant-composer { margin-top: auto; }
 .assistant-edge { position: absolute; z-index: 2; padding: 0; border: 0; background: none; touch-action: none; }
 .assistant-edge.is-top { top: 0; left: 14px; right: 14px; height: 7px; cursor: ns-resize; }
 .assistant-edge.is-left { top: 14px; bottom: 14px; left: 0; width: 7px; cursor: ew-resize; }
@@ -228,7 +231,7 @@ details.gallery-panel > summary::-webkit-details-marker { display: none; }
 .assistant-toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 60; padding: 8px 14px; border: 1px solid var(--hair); border-radius: 8px; background: var(--white); color: var(--ink); font-size: 13px; box-shadow: 0 12px 32px -14px var(--shadow); }
 .assistant-icon:disabled { opacity: .4; }
 .assistant-chart figcaption .assistant-chart-expand { width: 22px; height: 22px; margin: -3px -4px -3px 0; }
-@media (max-width: 640px) { .assistant-fab { right: 14px; bottom: 14px; } .assistant-panel, .assistant-panel.is-sized:has(.assistant-body) { right: 8px; left: 8px; bottom: 8px; width: auto; height: auto; max-height: min(78dvh, 620px); } .assistant-edge { display: none; } }
+@media (max-width: 640px) { .assistant-fab { right: 14px; bottom: 14px; } .assistant-panel, .assistant-panel.is-sized { right: 8px; left: 8px; bottom: 8px; width: auto; height: auto; max-height: min(78dvh, 620px); } .assistant-edge { display: none; } }
 .assistant-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
 .assistant-icon { display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 4px; color: var(--grey); background: none; border: 0; }
 .assistant-icon:hover { color: var(--ink); background: var(--hair-2); }
