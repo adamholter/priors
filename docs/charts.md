@@ -30,6 +30,7 @@ All charts are ECharts with the `priors` theme, set up in `src/components/chart/
 - Usage (T3 Code share) is model-level: one point per model, on its best-scoring ranked variant.
 - Per-variant detail fields are looked up on the index observation. Source-qualified variant ids (`@effort~source-conf`) resolve to their base effort id, the same as engine substitution.
 - Uptime plots `-log10(downtime)` so 90, 99 and 99.9% are evenly spaced. Tooltips and exports show the raw percent.
+- Scatter labels (`scatter-label-layout.ts`) are placed in priority order and never overlap each other. ECharts reports a label's box at the size it had before a label-size change (a 150% label arrived at 100%), so the layout scales the box up to the configured font size (`fontPx`) and reserves a little extra for the web font. It also steers around other marks when the chart supplies their pixel positions (`dots`, from `convertToPixel`), falling back to any free slot rather than hiding a label. Check overlaps at 100, 125 and 150% label size and at phone width.
 - Free models (subscription cost $0) sit on a dashed "free" line left of the cheapest paid cost, since a log axis has no 0. See `docs/data.md`, Subscription cost.
 
 ## Highlights

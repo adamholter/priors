@@ -1,6 +1,6 @@
 "use client";
 import { ChartExport, type ExportRow, type ChartExportHandle } from "./ChartExport";
-import type { EChartsOption } from "echarts";
+import type { ECharts, EChartsOption } from "echarts";
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Lab } from "@/data/types";
@@ -107,20 +107,27 @@ export function ScoreScatter({ pts: allPoints, labs, better, xName: baseXName, x
   const pal = useChartPalette();
   const plotWidth = useCallback(() => plotW || undefined, [plotW]);
   const plotHeight = useCallback(() => plotH, [plotH]);
+  // Where the marks are drawn, so labels can steer around them. Set once the chart exists; the next layout pass uses it.
+  const handle = useRef<ECharts | null>(null);
+  const dots = useCallback(() => {
+    const c = handle.current; if (!c) return undefined;
+    try { return pts.map((p) => { const [x, y] = c.convertToPixel({ xAxisIndex: 0, yAxisIndex: 0 }, [p.x, p.r.score]) as number[]; return { x, y }; }); } catch { return undefined; }
+  }, [pts]);
   const hl = useHighlight();
   const hlItems = hl?.items;
   const highlight = useMemo<Highlight | undefined>(() => hlItems?.length ? { items: hlItems, guides: view.guides !== false } : undefined, [hlItems, view.guides]);
   // Easter egg (Konami code): marks off the frontier drop to the x-axis. See GravityLayer.
   const gravity = useGravity() && !!view.frontier;
   const fallen = useMemo(() => { if (!gravity) return undefined; const on = new Set(frontier.map((p) => p.r.variant.id)); return new Set(pts.filter((p) => !on.has(p.r.variant.id)).map((p) => p.r.variant.id)); }, [gravity, pts, frontier]);
-  const option = useMemo<EChartsOption>(() => scatterOption({ pts, labs, better, xName, xShort, xUnit, scale, formatX, formatValue, view, pal, narrow, hasTitle: !!title, tooltipExtra, width: plotWidth, height: plotHeight, highlight, fallen }),
-    [pts, labs, better, view, narrow, xName, xShort, xUnit, scale, formatX, formatValue, tooltipExtra, title, pal, plotWidth, plotHeight, highlight, fallen]);
+  const option = useMemo<EChartsOption>(() => scatterOption({ pts, labs, better, xName, xShort, xUnit, scale, formatX, formatValue, view, pal, narrow, hasTitle: !!title, tooltipExtra, width: plotWidth, height: plotHeight, dots, highlight, fallen }),
+    [pts, labs, better, view, narrow, xName, xShort, xUnit, scale, formatX, formatValue, tooltipExtra, title, pal, plotWidth, plotHeight, dots, highlight, fallen]);
   // Clicking a mark toggles that exact effort's highlight (several efforts per model are allowed).
   const pick = useRef<(p: ScatterPoint) => void>(() => {});
   useEffect(() => { pick.current = (p) => { if (hl) hl.set(togglePoint(hl.items, pts, p)); }; }, [hl, pts]);
   // Rebuild series so mark traversal follows the new label priority after slider/filter changes.
   // Merge mode retains the previous graphic order even when the data array is reordered.
   const { ref, chart } = useEChart(option, [option], (c) => {
+    handle.current = c;
     c.on("click", (e) => { const d = (e.data as { extra?: ScatterPoint } | undefined)?.extra; if (d) pick.current(d); });
     c.on("contextmenu", (e) => {
       const d = (e.data as { extra?: ScatterPoint } | undefined)?.extra;

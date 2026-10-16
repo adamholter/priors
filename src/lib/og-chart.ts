@@ -164,7 +164,7 @@ export async function renderChartPng(spec: ChartSpec, labs: Lab[], pal: ChartPal
   } else {
     if (!spec.pts.length) return null;
     const emphasis: Highlight | undefined = highlight ? { items: highlight, guides: true } : undefined;
-    const opt = scatterOption({ ...spec.chart, xUnit: spec.chart.xLabel, pts: spec.pts, hasTitle: spec.hasTitle, labs, view: { ...DEFAULT_VIEW, labelScale: spec.labelScale, frontier: spec.chart.defaultFrontier ?? DEFAULT_VIEW.frontier }, pal, narrow: false, width: () => CHART_W, height: () => CHART_H, highlight: emphasis });
+    const opt = scatterOption({ ...spec.chart, xUnit: spec.chart.xLabel, pts: spec.pts, hasTitle: spec.hasTitle, labs, view: { ...DEFAULT_VIEW, labelScale: spec.labelScale, frontier: spec.chart.defaultFrontier ?? DEFAULT_VIEW.frontier }, pal, narrow: false, width: () => CHART_W, height: () => CHART_H, dots: () => { try { return spec.pts.map((p) => { const [x, y] = chart.convertToPixel({ xAxisIndex: 0, yAxisIndex: 0 }, [p.x, p.r.score]) as number[]; return { x, y }; }); } catch { return undefined; } }, highlight: emphasis });
     // Lift the x-axis so tick labels and the axis name clear X's bottom-left title overlay (~y550).
     chart.setOption({ ...opt, animation: false, grid: { ...(opt.grid as Record<string, number>), bottom: 108 } });
     addHighlightGuides(chart, spec.pts, emphasis, labs, pal, spec.chart.formatX);

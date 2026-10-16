@@ -83,7 +83,7 @@ const key=JSON.stringify(children);if(key===last)return;last=key;chart.setOption
 };
 let last="";onFinish=guides;
 const order=[...S.points].sort((a,b)=>Number(a.h)-Number(b.h));
-const scatterLabels=(${scatterLabelLayout.toString()})(()=>chart.getWidth(),()=>chart.getHeight(),order.map(p=>active?(p.a||(p.h&&p.e!=="default")):p.s));
+const scatterLabels=(${scatterLabelLayout.toString()})(()=>chart.getWidth(),()=>chart.getHeight(),order.map(p=>active?(p.a||(p.h&&p.e!=="default")):p.s),()=>{try{return order.map((p)=>{const q=chart.convertToPixel({xAxisIndex:0,yAxisIndex:0},p.v);return{x:q[0],y:q[1]}})}catch(e){return undefined}});
 chart.setOption({textStyle:{fontFamily:"Inter,system-ui,sans-serif",color:P.ink},grid:{left:48,right:130,top:30,bottom:44,...CONTAIN},tooltip:{...tip,trigger:"item",formatter:(p)=>p.data&&p.data.t||""},
 xAxis:{...axis,type:S.scale==="linear"?"value":S.scale,scale:S.scale==="linear",name:S.xName,nameLocation:"end",nameGap:8,nameTextStyle:{color:GREY,fontSize:11,align:"right",verticalAlign:"top",padding:[26,0,0,0]},axisLabel:{...axis.axisLabel,hideOverlap:true,showMinLabel:S.scale==="linear",showMaxLabel:S.scale==="linear",...(S.scale==="time"?{}:{formatter:fmt})},...(S.scale==="log"?{min:(e)=>e.min/1.5,max:(e)=>e.max*1.8}:{})},
 yAxis:{...axis,type:"value",name:"Index score",min:S.yMin,max:S.yMax,nameTextStyle:{color:GREY,fontSize:11,align:"left",padding:[0,0,0,-30]}},
