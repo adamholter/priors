@@ -58,7 +58,7 @@ Embeds inline the same rules.
 ## Exports, links and embeds
 
 - `ChartExport.tsx`: PNG, SVG and CSV. PNG and SVG follow the current palette.
-- `ChartLink.tsx` and `src/lib/highlight-link.ts`: a link to one chart (`c=<id>` plus view params `cv`, `cm`, `cs`, `cf`, `cb` and `hl`). Such links unfurl as that chart, see `docs/pages-and-sharing.md`.
+- `ChartLink.tsx` and `src/lib/highlight-link.ts`: a link to one chart (`c=<id>` plus view params `cv`, `cm`, `cs`, `cf`, `cb`, `hl` and, on pages, `hv` for the visit's unsaved model and effort settings). Such links unfurl as that chart, see `docs/pages-and-sharing.md`.
 - `embed.ts`: a standalone HTML file. It ships both palettes and follows the viewer's `prefers-color-scheme` (override with `?theme=` or `#dark`).
 
 ## Strengths radar

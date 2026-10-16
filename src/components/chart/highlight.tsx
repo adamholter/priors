@@ -10,7 +10,7 @@ import { matchesVariantId } from "@/data/variant-identity";
  * or variant ids (feature exactly that effort). Stored on the index (`hl=` in URLs), so links, saved
  * pages and exported images keep them.
  */
-export type HighlightState = { items: string[]; set: (items: string[]) => void; models: { id: string; name: string; color?: string }[]; indexId?: string; linkIndices?: IndexConfig[] };
+export type HighlightState = { items: string[]; set: (items: string[]) => void; models: { id: string; name: string; color?: string }[]; indexId?: string; /** `hv` for a link: this index's unsaved display settings (see `viewParam`). */ view?: string; linkIndices?: IndexConfig[] };
 export const HighlightContext = createContext<HighlightState | null>(null);
 export const useHighlight = () => useContext(HighlightContext);
 

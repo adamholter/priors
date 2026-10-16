@@ -1,5 +1,5 @@
 import type { IndexConfig } from "../engine";
-import { encodeIndices } from "./url";
+import { decodeIndex, encodeIndex, encodeIndices } from "./url";
 import { findTab } from "./page-layout";
 import { setChartHidden, type ChartHidden } from "../components/chart/chart-visibility";
 
@@ -19,8 +19,51 @@ export function setHighlightParams(url: URL, indexId: string, items: string[]) {
   return url;
 }
 
+/**
+ * Display settings of an index that a visitor can change without saving the page: which models are shown,
+ * the effort mode, release window, cost and time sources. A chart link carries the ones that differ from
+ * the saved page (`hv`), written in the index codec's own keys, so it opens looking the way it did when copied.
+ */
+const VIEW_KEYS = ["ex", "only", "after", "costsrc", "costbasis", "timesrc", "pareto", "bars"] as const;
+const VIEW_FIELD: Record<(typeof VIEW_KEYS)[number], keyof IndexConfig> = { ex: "excludeModels", only: "onlyModels", after: "releasedAfter", costsrc: "costSource", costbasis: "costBasis", timesrc: "timeSource", pareto: "paretoVariants", bars: "rankingVariants" };
+
+const viewParts = (index?: IndexConfig) => {
+  const parts = new Map<string, string>();
+  if (!index) return parts;
+  for (const part of encodeIndex({ ...index, page: undefined }).split("|").slice(2)) {
+    const key = part.split("=")[0];
+    if ((VIEW_KEYS as readonly string[]).includes(key)) parts.set(key, part.slice(key.length + 1));
+  }
+  return parts;
+};
+
+/** The `hv` value for an index against the saved one (or against nothing, for an index that came from a link): empty when nothing differs. */
+export function viewParam(index: IndexConfig, saved?: IndexConfig): string {
+  const now = viewParts(index), was = viewParts(saved), out: string[] = [];
+  for (const key of VIEW_KEYS) {
+    const a = now.get(key), b = was.get(key);
+    if (a === b) continue;
+    // A cleared hide list has to be said; the other settings cannot be unset by a link, so they are left alone.
+    if (a !== undefined) out.push(`${key}=${a}`); else if (key === "ex") out.push("ex=");
+  }
+  return out.join("|");
+}
+
+/** Profile links apply the display settings in `hv` to the index `hi` names, without changing the saved page. */
+export function linkedViews(indices: IndexConfig[], params: URLSearchParams): IndexConfig[] {
+  const hv = params.get("hv");
+  if (!hv) return indices;
+  const id = (params.has("hi") ? findTab(indices, params.get("hi")) : indices[0])?.id;
+  const parsed = id ? decodeIndex(`x||${hv}`, id) : null;
+  if (!id || !parsed) return indices;
+  const keys = hv.split("|").map((part) => part.split("=")[0]).filter((key): key is (typeof VIEW_KEYS)[number] => (VIEW_KEYS as readonly string[]).includes(key));
+  const patch: Record<string, unknown> = {};
+  for (const key of keys) patch[VIEW_FIELD[key]] = parsed[VIEW_FIELD[key]];
+  return indices.map((index) => index.id === id ? { ...index, ...patch } : index);
+}
+
 /** Copy current React state, including the active mix, before the debounced address bar update. */
-export function chartLinkUrl(current: string, id: string, params?: { cv?: "bars" | "scatter"; cm?: "best" | "all"; cs?: "log" | "linear"; ls?: number; hidden?: ChartHidden; extra?: Record<string, string | undefined> }, state?: { items: string[]; indexId?: string; linkIndices?: IndexConfig[] }) {
+export function chartLinkUrl(current: string, id: string, params?: { cv?: "bars" | "scatter"; cm?: "best" | "all"; cs?: "log" | "linear"; ls?: number; hidden?: ChartHidden; extra?: Record<string, string | undefined> }, state?: { items: string[]; indexId?: string; view?: string; linkIndices?: IndexConfig[] }) {
   const url = new URL(current);
   url.searchParams.set("c", id);
   url.hash = id;
@@ -39,6 +82,10 @@ export function chartLinkUrl(current: string, id: string, params?: { cv?: "bars"
     for (const encoded of encodeIndices(state.linkIndices).getAll("i")) url.searchParams.append("i", encoded);
     url.searchParams.delete("hi");
     url.searchParams.delete("hl");
-  } else if (state?.indexId) setHighlightParams(url, state.indexId, state.items);
+    url.searchParams.delete("hv");
+  } else if (state?.indexId) {
+    setHighlightParams(url, state.indexId, state.items);
+    if (state.view) url.searchParams.set("hv", state.view); else url.searchParams.delete("hv");
+  }
   return url;
 }

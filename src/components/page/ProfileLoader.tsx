@@ -10,8 +10,8 @@ import { Wordmark } from "../Wordmark";
 import { IndexPage, type Profile } from "./IndexPage";
 
 /** Render the profile identity immediately, then load calculation rows for its charts. */
-export function ProfileLoader({ profile, version, edit, tab, linkedHighlight, leaders }: {
-  profile: Profile; version: string; edit: boolean; tab?: string; linkedHighlight?: string;
+export function ProfileLoader({ profile, version, edit, tab, linkedHighlight, linkedView, leaders }: {
+  profile: Profile; version: string; edit: boolean; tab?: string; linkedHighlight?: string; linkedView?: string;
   leaders: { name: string; score: number }[];
 }) {
   const { dark: siteDark } = useTheme();
@@ -37,7 +37,7 @@ export function ProfileLoader({ profile, version, edit, tab, linkedHighlight, le
       .catch((cause) => { if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : "Could not load benchmark data."); });
     return () => controller.abort();
   }, [version, profile.imports, retry]);
-  if (snapshot) return <IndexPage profile={profile} snapshot={snapshot} edit={edit} tab={tab} linkedHighlight={linkedHighlight} />;
+  if (snapshot) return <IndexPage profile={profile} snapshot={snapshot} edit={edit} tab={tab} linkedHighlight={linkedHighlight} linkedView={linkedView} />;
   const preset = resolvePreset(profile.theme, siteDark);
   const surface = preset.bg;
   return <div className="page-root min-h-screen" data-dark={preset.dark || undefined} style={presetStyle(preset, resolveAccent(profile.theme, preset)) as React.CSSProperties}>

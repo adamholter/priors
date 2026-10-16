@@ -16,7 +16,7 @@ import { prettyQuery } from "@/lib/url";
 import { findTab } from "@/lib/page-layout";
 import { indexSummary, pageMeta, previewText } from "@/lib/site-meta";
 import type { Snapshot } from "@/data/types";
-import { linkedHighlights } from "@/lib/highlight-link";
+import { linkedHighlights, linkedViews } from "@/lib/highlight-link";
 import { chartTitle } from "@/lib/metrics";
 import { resolveProfileChart } from "../og/route";
 import { isPreviewBot, isSearchBot, PreviewPage } from "@/lib/link-preview";
@@ -31,8 +31,8 @@ const getProfile = cache(async function getProfile(handle: string): Promise<Prof
 
 function profileWithLink(p: Profile, sp: Record<string, string | string[] | undefined>): Profile {
   const query = new URLSearchParams();
-  for (const key of ["hi", "hl"]) if (typeof sp[key] === "string") query.set(key, sp[key]);
-  return { ...p, indices: linkedHighlights(p.indices, query) };
+  for (const key of ["hi", "hl", "hv"]) if (typeof sp[key] === "string") query.set(key, sp[key]);
+  return { ...p, indices: linkedViews(linkedHighlights(p.indices, query), query) };
 }
 
 /** The words of a link preview: whose page, which index and chart, and who leads it today. */
@@ -48,7 +48,7 @@ function profileCard(p: Profile, sp: Record<string, string | string[] | undefine
 /** The link as shared, with only the params a preview or the page reads. */
 function shareHref(handle: string, sp: Record<string, string | string[] | undefined>) {
   const query = new URLSearchParams();
-  for (const key of ["c", "cv", "cm", "cs", "ls", "ch", "hl", "hi", ...RADAR_PARAM_KEYS]) {
+  for (const key of ["c", "cv", "cm", "cs", "ls", "ch", "hl", "hi", "hv", ...RADAR_PARAM_KEYS]) {
     const value = sp[key];
     for (const item of Array.isArray(value) ? value : typeof value === "string" ? [value] : []) query.append(key, item);
   }
@@ -64,13 +64,14 @@ export async function generateMetadata({ params, searchParams }: PageProps<"/[ha
   const { chart, index, title, description } = profileCard(p, sp, await loadSnapshot());
   const viewParams = `${typeof sp.cv === "string" ? `&cv=${sp.cv}` : ""}${typeof sp.cm === "string" ? `&cm=${sp.cm}` : ""}${typeof sp.cs === "string" ? `&cs=${sp.cs}` : ""}${typeof sp.ls === "string" ? `&ls=${encodeURIComponent(sp.ls)}` : ""}`;
   const radarQuery = RADAR_PARAM_KEYS.map((key) => typeof sp[key] === "string" ? `&${key}=${encodeURIComponent(sp[key] as string)}` : "").join("");
+  const viewIndexParam = typeof sp.hv === "string" ? `&hv=${encodeURIComponent(sp.hv)}` : "";
   const hiddenParams = (Array.isArray(sp.ch) ? sp.ch : typeof sp.ch === "string" ? [sp.ch] : []).map(value => `&ch=${encodeURIComponent(value)}`).join("");
   // `v` gives every saved version of the page its own image address, so a cached preview never outlives an edit.
   const v = Math.round((p as { updatedAt?: number }).updatedAt ?? 0);
   // A link to a chart, a selection or another tab unfurls as that index; the plain page link as the first.
   // The image names the page and the index instead of spelling the index out, which keeps its address short.
-  const image = (chart || typeof sp.hl === "string" || index !== p.indices[0]) && index
-    ? { url: `/og?handle=${handle}&hi=${encodeURIComponent(index.id)}${typeof sp.hl === "string" ? `&hl=${encodeURIComponent(sp.hl)}` : ""}${chart ? `&c=${encodeURIComponent(typeof sp.c === "string" ? sp.c : chart)}` : ""}${viewParams}${radarQuery}${hiddenParams}&v=${v}`, width: 1200, height: 630, alt: title }
+  const image = (chart || typeof sp.hl === "string" || typeof sp.hv === "string" || index !== p.indices[0]) && index
+    ? { url: `/og?handle=${handle}&hi=${encodeURIComponent(index.id)}${typeof sp.hl === "string" ? `&hl=${encodeURIComponent(sp.hl)}` : ""}${chart ? `&c=${encodeURIComponent(typeof sp.c === "string" ? sp.c : chart)}` : ""}${viewParams}${viewIndexParam}${radarQuery}${hiddenParams}&v=${v}`, width: 1200, height: 630, alt: title }
     : { url: `/${handle}/opengraph-image?v=${v}`, width: 1200, height: 630, alt: title };
   return pageMeta({ title, description, path: `/${handle}`, share: shareHref(handle, sp), image, type: "profile" });
 }
@@ -93,7 +94,9 @@ export default async function Page({ params, searchParams }: PageProps<"/[handle
   const open = findTab(p.indices, tab) ?? p.indices[0];
   // The index whose selection came from the link: its share link has to keep spelling that selection out.
   const linkedHighlight = typeof sp.hl === "string" ? open?.id : undefined;
-  if (await isSearchBot()) return <PageTransition><IndexPage profile={p} snapshot={clientSnapshot(snapshot)} edit={false} tab={tab} linkedHighlight={linkedHighlight} /></PageTransition>;
+  // Likewise the index whose display settings (hidden models and so on) came from the link.
+  const linkedView = typeof sp.hv === "string" ? open?.id : undefined;
+  if (await isSearchBot()) return <PageTransition><IndexPage profile={p} snapshot={clientSnapshot(snapshot)} edit={false} tab={tab} linkedHighlight={linkedHighlight} linkedView={linkedView} /></PageTransition>;
   const leaders = open ? selectVariants(computeIndex(snapshot, { ...open, variants: "all" }).ranked, chartVariantMode(open, "ranking")).slice(0, 10).map((r) => ({ name: r.model.name, score: r.score })) : [];
-  return <PageTransition><ProfileLoader key={`${p.handle}-${snapshot.generatedAt}`} profile={p} version={snapshot.generatedAt} edit={sp.edit === "1"} tab={tab} linkedHighlight={linkedHighlight} leaders={leaders} /></PageTransition>;
+  return <PageTransition><ProfileLoader key={`${p.handle}-${snapshot.generatedAt}`} profile={p} version={snapshot.generatedAt} edit={sp.edit === "1"} tab={tab} linkedHighlight={linkedHighlight} linkedView={linkedView} leaders={leaders} /></PageTransition>;
 }

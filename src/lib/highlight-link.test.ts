@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { decodeIndices, decodeIndex, encodeIndex } from "./url";
-import { chartLinkUrl, linkedHighlights, setHighlightParams } from "./highlight-link";
+import { chartLinkUrl, linkedHighlights, linkedViews, setHighlightParams, viewParam } from "./highlight-link";
 import { readChartHidden, setChartHidden } from "../components/chart/chart-visibility";
 
 const first = decodeIndex("First|swe:50", "first")!;
@@ -58,4 +58,32 @@ it("copies label size alongside removals and clears the old size for a different
   expect(readChartHidden(url.searchParams, "cost")).toEqual(hidden);
   expect(linkedHighlights([first, second], url.searchParams)[1].highlight).toEqual(second.highlight);
   expect(chartLinkUrl(url.toString(), "time-per-task", {}).searchParams.has("ls")).toBe(false);
+});
+
+describe("display settings in profile links", () => {
+  const saved = decodeIndex("WebDev|arena:60,swe:40|pareto=best", "webdev")!;
+  const curated = { ...saved, excludeModels: ["gpt-5.5", "grok-4.3"], releasedAfter: "2026-06-01", paretoVariants: "all" as const };
+  it("names only what differs from the saved page", () => {
+    expect(viewParam(saved, saved)).toBe("");
+    expect(viewParam(curated, saved)).toBe("ex=gpt-5.5,grok-4.3|after=2026-06-01|pareto=all");
+  });
+  it("opens a linked page the way it was copied, without touching the other tabs", () => {
+    const url = chartLinkUrl("https://mypriors.com/adamholter", "webdev-cost", { cs: "log" }, { items: [], indexId: "second", view: viewParam(curated, saved) });
+    expect(url.searchParams.get("hv")).toBe("ex=gpt-5.5,grok-4.3|after=2026-06-01|pareto=all");
+    const other = { ...second, id: "second-saved" };
+    const opened = linkedViews([first, { ...saved, id: "second" }, other], new URLSearchParams(`hi=second&hv=${encodeURIComponent(url.searchParams.get("hv")!)}`));
+    expect(opened[1]).toMatchObject({ excludeModels: ["gpt-5.5", "grok-4.3"], releasedAfter: "2026-06-01", paretoVariants: "all", weights: saved.weights });
+    expect(opened[0]).toBe(first);
+    expect(opened[2]).toBe(other);
+  });
+  it("can say a hide list was cleared, and drops hv when nothing differs", () => {
+    const hiding = { ...saved, excludeModels: ["gpt-5.5"] };
+    expect(viewParam(saved, hiding)).toBe("ex=");
+    expect(linkedViews([hiding], new URLSearchParams("hv=ex="))[0].excludeModels).toEqual([]);
+    expect(chartLinkUrl("https://mypriors.com/adamholter?hv=ex%3Dx", "webdev-cost", {}, { items: [], indexId: "webdev", view: "" }).searchParams.has("hv")).toBe(false);
+  });
+  it("ignores anything but display settings, and a link naming no index", () => {
+    expect(linkedViews([saved], new URLSearchParams("hv=weights%3Dx|strict=5|ex=a"))[0]).toMatchObject({ weights: saved.weights, excludeModels: ["a"] });
+    expect(linkedViews([saved], new URLSearchParams("hi=gone&hv=ex=a"))).toEqual([saved]);
+  });
 });
