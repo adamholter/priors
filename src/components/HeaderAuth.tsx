@@ -1,5 +1,5 @@
 "use client";
-import { useUser, SignOutButton } from "@clerk/nextjs";
+import { useUser } from "@clerk/nextjs";
 import { storableIndex } from "../../convex/validators";
 import { useMutation, useQuery, useConvexAuth } from "convex/react";
 import { ConvexError } from "convex/values";
@@ -12,7 +12,7 @@ import { stashForPublish } from "@/lib/share";
 import { saveToPage } from "@/lib/page-layout";
 import { authEnabled } from "@/app/providers";
 import { track } from "@/lib/analytics";
-import { useForgetResume } from "@/components/ResumeSignIn";
+import { AccountMenu } from "@/components/AccountMenu";
 
 export function HeaderAuth({ indices }: { indices: IndexConfig[] }) {
   if (!authEnabled) return <span className="btn-quiet opacity-60" title="Sign-in not configured yet">Claim your page</span>;
@@ -22,11 +22,10 @@ export function HeaderAuth({ indices }: { indices: IndexConfig[] }) {
 const pageKey = () => { try { return sessionStorage.getItem(PAGE_KEY); } catch { return null; } };
 
 function Inner({ indices }: { indices: IndexConfig[] }) {
-  const { isSignedIn, isLoaded, user } = useUser();
+  const { isSignedIn, isLoaded } = useUser();
   const { isAuthenticated } = useConvexAuth();
   const mine = useQuery(api.profiles.mine, isAuthenticated ? {} : "skip");
   const update = useMutation(api.profiles.update);
-  const forgetResume = useForgetResume();
   const [saved, setSaved] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -41,9 +40,8 @@ function Inner({ indices }: { indices: IndexConfig[] }) {
   return (
     <div className="flex items-center gap-2">
       <button type="button" className="btn" disabled={saving} onClick={async () => { setSaving(true); setError(""); try { const next = saveToPage(mine.indices, indices.map(storableIndex), { from: indices.map((i) => pageIndexId(i, mine.handle, pageKey())) }); await update({ patch: { indices: next.indices } }); setSaved(next.added.length ? "Added to your page" : "Saved"); setTimeout(() => setSaved(""), next.added.length ? 2600 : 1400); } catch (e) { console.error("Save to page failed", e); setError(e instanceof ConvexError ? String(e.data) : "Save failed. Please try again."); } finally { setSaving(false); } }}>{saving ? "Saving…" : saved || "Save to my page"}</button>
-      <Link href={`/${mine.handle}`} transitionTypes={["nav-forward"]} className="flex items-center gap-2 btn-quiet">{(mine.avatarUrl ?? user?.imageUrl) && <img src={mine.avatarUrl ?? user?.imageUrl} alt="" className="w-5 h-5 rounded-full object-cover" />}<span>@{mine.handle}</span></Link>
       {error && <span role="alert" className="text-xs">{error}</span>}
-      <SignOutButton><button type="button" className="cap hover:text-ink" onClick={forgetResume}>sign out</button></SignOutButton>
+      <AccountMenu />
     </div>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { SignInLink } from "@/components/SignInLink";
+import { HeaderAccount } from "@/components/AccountMenu";
 import type { ProfileTheme, Section } from "../../../convex/validators";
 import { MixAssistant } from "../MixAssistant";
 import { ThemeToggle } from "../Theme";
@@ -205,7 +205,7 @@ export function IndexPage({ profile, snapshot, edit, tab: linkedTab, linkedHighl
           {active && <ShareCards indices={p.indices} active={active} profile={p} pageUrl={pageUrl.toString()} defaultDesign={p.theme?.cardDesign} top={topNames} pageTheme={p.theme?.preset} />}
           <Link href={builderHref as "/"} onClick={keepPageKey} className="btn-quiet">Open in builder</Link>
           {isOwner && <button type="button" className="btn" onClick={() => setEditing(!editing)}>{editing ? "Done editing" : "Edit page"}</button>}
-          <SignInLink />
+          <HeaderAccount />
           {followsSite && <ThemeToggle />}
         </div>
         <div className="ml-auto flex sm:hidden items-center gap-1">

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { SignInLink } from "@/components/SignInLink";
+import { HeaderAccount } from "@/components/AccountMenu";
 import Link from "next/link";
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "../../../convex/_generated/api";
@@ -49,7 +49,7 @@ export default async function Explore() {
     <header className="flex items-center gap-5 px-4 sm:px-8 h-14 border-b hairline">
       <Wordmark />
       <SiteNav current="explore" />
-      <span className="ml-auto flex items-center gap-2"><SignInLink /><SettingsButton /></span>
+      <span className="ml-auto flex items-center gap-2"><HeaderAccount /><SettingsButton /></span>
     </header>
     <div className="max-w-[1100px] mx-auto px-4 sm:px-8 py-10">
       <div className="flex flex-wrap items-end justify-between gap-4 mb-8">
