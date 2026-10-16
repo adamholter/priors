@@ -119,6 +119,8 @@ export function ScoreScatter({ pts: allPoints, labs, better, xName: baseXName, x
   // Easter egg (Konami code): marks off the frontier drop to the x-axis. See GravityLayer.
   const gravity = useGravity() && !!view.frontier;
   const fallen = useMemo(() => { if (!gravity) return undefined; const on = new Set(frontier.map((p) => p.r.variant.id)); return new Set(pts.filter((p) => !on.has(p.r.variant.id)).map((p) => p.r.variant.id)); }, [gravity, pts, frontier]);
+  // `dots` only reads the chart handle later, when ECharts runs the label layout (never while this renders).
+  // eslint-disable-next-line react-hooks/refs
   const option = useMemo<EChartsOption>(() => scatterOption({ pts, labs, better, xName, xShort, xUnit, scale, formatX, formatValue, view, pal, narrow, hasTitle: !!title, tooltipExtra, width: plotWidth, height: plotHeight, dots, highlight, fallen }),
     [pts, labs, better, view, narrow, xName, xShort, xUnit, scale, formatX, formatValue, tooltipExtra, title, pal, plotWidth, plotHeight, dots, highlight, fallen]);
   // Clicking a mark toggles that exact effort's highlight (several efforts per model are allowed).
