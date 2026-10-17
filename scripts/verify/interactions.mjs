@@ -33,6 +33,25 @@ try {
     assert.equal(await trigger.evaluate((el) => el === document.activeElement), true);
   });
 
+  await check("default cost chart labels do not overlap", async () => {
+    const chart = page.locator('[role="img"][aria-label*="cost per task"]').first();
+    await chart.scrollIntoViewIfNeeded();
+    await chart.locator("svg").waitFor({ timeout: 30000 });
+    const overlaps = await chart.evaluate((el) => {
+      const labels = [...el.querySelectorAll("text")].map((node) => {
+        const text = node.textContent.trim(), box = node.getBoundingClientRect();
+        return { text, left: box.left, right: box.right, top: box.top, bottom: box.bottom };
+      }).filter((b) => b.text && !/^(Index score|.*cost per task.*|\d+(\.\d+)?|\$.*|free)$/.test(b.text));
+      const found = [];
+      for (let i = 0; i < labels.length; i++) for (let j = i + 1; j < labels.length; j++) {
+        const a = labels[i], b = labels[j];
+        if (a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top) found.push([a.text, b.text]);
+      }
+      return found;
+    });
+    assert.deepEqual(overlaps, [], "model labels have disjoint rendered text boxes");
+  });
+
   // Settings are opened from each chart's own summary; wait out hydration, since a click before it does nothing.
   const openSettings = async (label) => {
     const summary = page.locator(`summary[aria-label="${label}"]`).first();

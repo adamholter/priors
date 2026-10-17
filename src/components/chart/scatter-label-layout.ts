@@ -25,7 +25,9 @@ export function scatterLabelLayout(width: () => number | undefined, height: () =
     // Other marks, not this one (it sits within a few pixels of its own center).
     const others = (dots?.() ?? []).filter((d) => Number.isFinite(d.x) && Number.isFinite(d.y) && Math.hypot(d.x - own.x, d.y - own.y) > 4);
     const step = Math.max(12, tall / 2);
-    for (const clear of [true, false]) for (const dy of [0, -1, 1, -2, 2, -3, 3, -4, 4, -5, 5].map((k) => k * step)) for (const right of [true, false]) {
+    const maxSteps = h ? Math.ceil(h / step) : 20;
+    const offsets = Array.from({ length: maxSteps * 2 + 1 }, (_, i) => i === 0 ? 0 : Math.ceil(i / 2) * (i % 2 ? -1 : 1) * step);
+    for (const clear of [true, false]) for (const dy of offsets) for (const right of [true, false]) {
       const x = right ? p.rect.x + p.rect.width + 7 : p.rect.x - 7;
       const y = p.rect.y + p.rect.height / 2 + dy;
       const box = { x: right ? x - 6 : x - tw - 6, y: y - tall / 2, width: reserve, height: tall };

@@ -55,6 +55,12 @@ describe("scatter label placement around marks", () => {
     const placed = scatterLabelLayout(() => 600, () => 420, [true], dotsAt(...wall))(mark(0, 160));
     expect(placed.hideOverlap).toBe(false);
   });
+  it("keeps a crowded frontier label when a free slot is beyond the old five-step search", () => {
+    const layout = scatterLabelLayout(() => 230, () => 420, Array(6).fill(true));
+    const placed = Array.from({ length: 6 }, (_, i) => layout(mark(i, 125)));
+    expect(placed.every((p) => p.hideOverlap === false)).toBe(true);
+    expect(new Set(placed.map((p) => `${p.x},${p.y}`)).size).toBe(6);
+  });
   it("reserves room in proportion to the text, so large labels do not run into each other", () => {
     const layout = scatterLabelLayout(() => 800, () => 420, [true, true]);
     const big = (i: number, x: number) => ({ dataIndex: i, rect: { x, y: 100, width: 9, height: 9 }, labelRect: { x: x + 16, y: 100, width: 220, height: 28 } });
