@@ -65,24 +65,31 @@ export function AccountMenuView({ photo, name, handle, hasPage, signInPhoto, bus
   }, [open, onClose]);
   // eslint-disable-next-line @next/next/no-img-element
   const face = (size: string) => photo ? <img src={photo} alt="" className={`${size} rounded-full object-cover shrink-0`} /> : <span className={`${size} rounded-full bg-hair-2 grid place-items-center serif text-ink-2 shrink-0`}>{(name || "?")[0]}</span>;
-  const item = "btn-quiet text-left w-full block !border-0 hover:bg-hair-2";
+  const item = "flex items-center gap-2.5 w-full px-2.5 py-2 rounded-sm text-left text-[13.5px] hover:bg-hair-2 focus-visible:outline-indigo";
+  const icon = { width: 16, height: 16, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.6, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, "aria-hidden": true, className: "shrink-0" };
+  const canEdit = hasPage && handle;
   return <div className="account-menu relative">
     <button type="button" className="grid place-items-center w-9 h-9 rounded-full hover:bg-hair-2 aria-expanded:bg-hair-2" aria-label="Account" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)}>{face("w-7 h-7")}</button>
-    <div className={`${open ? "grid" : "hidden"} absolute right-0 top-full mt-1.5 w-60 gap-1 p-3 bg-white border hairline rounded-md shadow-[0_18px_40px_-18px_var(--shadow)] z-30`} role="menu" aria-label="Account">
-      <div className="flex items-center gap-3 pb-2 mb-1 border-b hairline">
-        {face("w-10 h-10")}
-        <div className="min-w-0"><div className="text-[13.5px] text-ink truncate">{name}</div>{handle && <div className="cap truncate">@{handle}</div>}</div>
+    <div className={`${open ? "grid" : "hidden"} absolute right-0 top-full mt-1.5 w-64 gap-1 p-2 bg-white border hairline rounded-md shadow-[0_18px_40px_-18px_var(--shadow)] z-30`} role="menu" aria-label="Account">
+      <div className="flex items-center gap-3 p-1.5">
+        {canEdit
+          ? <button type="button" className="group relative shrink-0 rounded-full focus-visible:outline-indigo" aria-label={busy ? "Uploading photo" : "Change photo"} title="Change photo" disabled={busy} onClick={() => fileRef.current?.click()}>
+              {face("w-10 h-10")}
+              <span className={`absolute inset-0 rounded-full grid place-items-center bg-black/55 text-white transition-opacity ${busy ? "opacity-100" : "opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100"}`}>{busy ? <span className="text-[10px]">…</span> : <svg {...icon} width={15} height={15}><path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16v4ZM13.5 6.5l4 4" /></svg>}</span>
+            </button>
+          : face("w-10 h-10")}
+        <div className="min-w-0 flex-1"><div className="text-[13.5px] text-ink truncate">{name}</div>{handle && <div className="cap truncate">@{handle}</div>}</div>
+        {canEdit && <Link href={`/${handle}?edit=1` as "/"} role="menuitem" className="p-1.5 -mr-1 rounded-sm text-grey hover:text-ink hover:bg-hair-2 focus-visible:outline-indigo" aria-label="Edit profile" title="Edit profile" onClick={() => setOpen(false)}><svg {...icon} width={17} height={17}><path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16v4ZM13.5 6.5l4 4" /></svg></Link>}
       </div>
-      {hasPage && handle && <>
-        <button type="button" role="menuitem" className={item} disabled={busy} onClick={() => fileRef.current?.click()}>{busy ? "Uploading…" : "Change photo"}</button>
-        <input ref={fileRef} type="file" accept={IMAGE_ACCEPT} hidden onChange={async (e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f && await onUpload(f)) setOpen(false); }} />
-        {signInPhoto && <button type="button" role="menuitem" className={item} onClick={async () => { await onUseSignInPhoto(); setOpen(false); }}>Use my sign-in photo</button>}
-        <Link href={`/${handle}?edit=1` as "/"} role="menuitem" className={item} onClick={() => setOpen(false)}>Edit profile</Link>
-        <Link href={`/${handle}` as "/"} role="menuitem" className={item} onClick={() => setOpen(false)}>View my page</Link>
-      </>}
-      {!hasPage && <Link href="/claim" role="menuitem" className={item} onClick={() => { stashReturn(); setOpen(false); }}>Publish to Explore</Link>}
-      <button type="button" role="menuitem" className={item} onClick={onSignOut}>Sign out</button>
-      {error && <p role="alert" className="text-[12px] text-danger">{error}</p>}
+      {canEdit && <input ref={fileRef} type="file" accept={IMAGE_ACCEPT} hidden onChange={async (e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f && await onUpload(f)) setOpen(false); }} />}
+      {canEdit && signInPhoto && <button type="button" role="menuitem" className="cap text-left px-2.5 pb-1 hover:text-ink underline-offset-2 hover:underline" onClick={async () => { await onUseSignInPhoto(); setOpen(false); }}>Use my sign-in photo</button>}
+      {canEdit && <Link href={`/${handle}` as "/"} role="menuitem" className={`${item} !bg-[var(--indigo-fill)] !text-[var(--on-accent)] font-medium hover:brightness-110`} onClick={() => setOpen(false)}>
+        <svg {...icon}><path d="M14 4h6v6M20 4l-8 8M18 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4" /></svg>View my page
+      </Link>}
+      {!hasPage && <Link href="/claim" role="menuitem" className={`${item} !bg-[var(--indigo-fill)] !text-[var(--on-accent)] font-medium hover:brightness-110`} onClick={() => { stashReturn(); setOpen(false); }}><svg {...icon}><path d="M12 16V4M7 9l5-5 5 5M5 20h14" /></svg>Publish to Explore</Link>}
+      <div className="border-t hairline my-1" role="separator" />
+      <button type="button" role="menuitem" className={`${item} text-ink-2 hover:text-ink`} onClick={onSignOut}><svg {...icon}><path d="M9 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h3M15 8l4 4-4 4M19 12H9" /></svg>Sign out</button>
+      {error && <p role="alert" className="text-[12px] text-danger px-2.5">{error}</p>}
     </div>
   </div>;
 }
