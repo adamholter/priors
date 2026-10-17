@@ -10,8 +10,9 @@ describe("page themes", () => {
   });
   it("paired themes follow the visitor unless the owner locks the mode", () => {
     expect(resolvePreset({ preset: "aa" }, true).id).toBe("aa-dark");
-    expect(resolvePreset({ preset: "slop" }, false).id).toBe("slop");
-    expect(resolvePreset({ preset: "slop-light", mode: "fixed" }, false).id).toBe("slop");
+    expect(resolvePreset({ preset: "slop" }, false).id).toBe("slop-light");
+    expect(resolvePreset({ preset: "slop", mode: "fixed" }, false).id).toBe("slop");
+    expect(resolvePreset({ preset: "slop-light", mode: "fixed" }, true).id).toBe("slop-light");
   });
   it("custom accents carry across modes; theme defaults use each mode's own accent", () => {
     const night = resolvePreset({ preset: "bone" }, true);

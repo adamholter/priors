@@ -52,11 +52,8 @@ function ShareCardsContent({ indices, active, profile, pageUrl, defaultDesign, c
   const [themeChoice, setThemeChoice] = useState<string | null>(null);
   const cardThemeId = themeChoice ?? pageTheme ?? "bone";
   const cardThemeDef = presetOf({ preset: cardThemeId });
-  const lookalike = cardThemeDef.family === "aa" || cardThemeDef.family === "slop";
-  // A lookalike theme with one mode (Slop is dark only) has no other scheme to offer.
-  const oneScheme = lookalike && !cardThemeDef.pair;
-  // Priors Light follows the site; every other theme starts in its own mode (a page fixed to Priors Dark starts dark).
-  const scheme = oneScheme ? (cardThemeDef.dark ? "dark" : "light") : schemeChoice ?? ((cardThemeId === "bone" ? siteDark : cardThemeDef.dark) ? "dark" : "light");
+  // Priors Light follows the site; every other theme starts in its own mode (Slop, a page fixed to Priors Dark: dark).
+  const scheme = schemeChoice ?? ((cardThemeId === "bone" ? siteDark : cardThemeDef.dark) ? "dark" : "light");
   // A light card for a dark page has to be asked for: with no scheme, a profile's card takes the page's mode.
   const themeParam = (q: URLSearchParams) => { if (cardThemeId !== "bone" && cardThemeId !== "night") { q.set("theme", cardThemeId); q.set("scheme", scheme); } else if (scheme === "dark" || cardThemeId === "night") q.set("scheme", scheme); };
   const [design, setDesign] = useState<string>(SHARE_DESIGNS.some((d) => d.id === defaultDesign) ? defaultDesign! : SHARE_DESIGNS[0].id);
@@ -140,7 +137,7 @@ function ShareCardsContent({ indices, active, profile, pageUrl, defaultDesign, c
         <div className="my-4 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <p className="text-sm">{String(SHARE_DESIGNS.findIndex((d) => d.id === design) + 1).padStart(2, "0")} / {selected.name}</p>
-            <label className="inline-flex items-center gap-1.5 text-[12px] text-ink-2">Theme <select className="inp !w-auto !py-1 !text-[12px]" value={THEME_CHOICES.find((t) => t.id === cardThemeId || t.pair === cardThemeId)?.id ?? "bone"} onChange={(e) => { setThemeChoice(e.target.value); setScheme(null); setMessage(""); }}>{THEME_CHOICES.map((t) => <option key={t.id} value={t.id}>{t.name}{t.id === (THEME_CHOICES.find((x) => x.id === pageTheme || x.pair === pageTheme)?.id ?? "bone") ? " (page)" : ""}</option>)}</select></label>{!oneScheme && <div className="seg" role="group" aria-label="Card colors">{(["light", "dark"] as const).map((k) => <button key={k} type="button" aria-pressed={scheme === k} className="!px-2.5 text-[12px]" onClick={() => { setScheme(k); setMessage(""); }}>{k === "light" ? "Light" : "Dark"}</button>)}</div>}
+            <label className="inline-flex items-center gap-1.5 text-[12px] text-ink-2">Theme <select className="inp !w-auto !py-1 !text-[12px]" value={THEME_CHOICES.find((t) => t.id === cardThemeId || t.pair === cardThemeId)?.id ?? "bone"} onChange={(e) => { setThemeChoice(e.target.value); setScheme(null); setMessage(""); }}>{THEME_CHOICES.map((t) => <option key={t.id} value={t.id}>{t.name}{t.id === (THEME_CHOICES.find((x) => x.id === pageTheme || x.pair === pageTheme)?.id ?? "bone") ? " (page)" : ""}</option>)}</select></label>{<div className="seg" role="group" aria-label="Card colors">{(["light", "dark"] as const).map((k) => <button key={k} type="button" aria-pressed={scheme === k} className="!px-2.5 text-[12px]" onClick={() => { setScheme(k); setMessage(""); }}>{k === "light" ? "Light" : "Dark"}</button>)}</div>}
           </div>
           <div className="flex flex-wrap gap-2">
             <button type="button" className="btn-quiet inline-flex items-center gap-1.5 !border-black !bg-black !text-[#fff] hover:opacity-85" onClick={shareToX}><XLogo />Share on X</button>

@@ -44,7 +44,8 @@ const AA_LABS: Record<string, string> = {
   stepfun: "#00F5E7", inception: "#021B30", microsoft: "#0078D5", cohere: "#D18EE2", "ant-group": "#4fb5ff", tencent: "#3c8bff", cognition: "#1B818E", cursor: "#505050", other: "#909090",
 };
 const AA_DARK_LABS: Record<string, string> = { ...AA_LABS, openai: "#E6E6E6", inception: "#7A94B8", deepseek: "#5C78FF", cursor: "#A0A0A0" };
-/** Slopalytics' dark-mode lab colors. Labs it doesn't color fall back to neutral greys. */
+/** Slopalytics' light-dark() lab pairs. Labs it doesn't color fall back to neutral greys. */
+const SLOP_LIGHT_LABS: Record<string, string> = { openai: "#303840", anthropic: "#ae5235", google: "#218347", xai: "#6d55bd", spacexai: "#6d55bd", meta: "#236bbd", moonshot: "#ab3f83", zhipu: "#8e7318", deepseek: "#157d83", xiaomi: "#b85212", alibaba: "#8a5a9e", mistral: "#b0503a", minimax: "#9e6a1f", other: "#77716c" };
 const SLOP_DARK_LABS: Record<string, string> = { openai: "#f1f3f5", anthropic: "#df9477", google: "#56ca80", xai: "#9b94ee", spacexai: "#9b94ee", meta: "#5ea4ff", moonshot: "#ee86c4", zhipu: "#ecd36e", deepseek: "#52cdd2", xiaomi: "#ff8b45", alibaba: "#c79ae0", mistral: "#f08a6c", minimax: "#e8b45a", other: "#aaa39d" };
 
 export const PAGE_PRESETS: PagePreset[] = [
@@ -55,9 +56,11 @@ export const PAGE_PRESETS: PagePreset[] = [
     chart: { grid: "dotted", frontier: "dotted", frontierColor: "#000000", quadrant: "#DFF7DF", barLabels: "inside", barRadius: 3 } },
   { id: "aa-dark", name: "Analysis Dark", family: "aa", pair: "aa", dark: true, bg: "#0A0A0A", surface: "#141414", ink: "#FAFAFA", ink2: "#D4D4D8", grey: "#A1A1AA", hair: "#27272A", hair2: "#18181B", accent: "#A78BFA", panelAccent: "#7F4BF3", fonts: AA_FONTS, labColors: AA_DARK_LABS, radius: 8,
     chart: { grid: "dotted", frontier: "dotted", frontierColor: "#FAFAFA", quadrant: "#0F2716", barLabels: "inside", barRadius: 3 } },
-  /** Dark only, like Slopalytics itself: it shows dark to visitors in light mode too. */
-  { id: "slop", name: "Slop", family: "slop", dark: true, bg: "#000000", surface: "#000000", ink: "#FFFFFF", ink2: "#AAA39D", grey: "#77716C", hair: "#1C1A18", hair2: "#0D0B0A", accent: "#C5AC98", panelAccent: "#806047", fonts: SLOP_FONTS, labColors: SLOP_DARK_LABS, radius: 2,
+  /** Slopalytics' own look is dark: picking Slop starts dark, and the light version is a switch away. */
+  { id: "slop", name: "Slop", family: "slop", pair: "slop-light", dark: true, bg: "#000000", surface: "#000000", ink: "#FFFFFF", ink2: "#AAA39D", grey: "#77716C", hair: "#1C1A18", hair2: "#0D0B0A", accent: "#C5AC98", panelAccent: "#806047", fonts: SLOP_FONTS, labColors: SLOP_DARK_LABS, radius: 2,
     chart: { grid: "dotted", frontier: "solid", frontierColor: "#C5AC98", barLabels: "top", barRadius: 1 } },
+  { id: "slop-light", name: "Slop Light", family: "slop", pair: "slop", dark: false, bg: "#FFFFFF", surface: "#FFFFFF", ink: "#20201E", ink2: "#625D57", grey: "#77716C", hair: "#E8E4DF", hair2: "#F8F6F3", accent: "#806047", fonts: SLOP_FONTS, labColors: SLOP_LIGHT_LABS, radius: 2,
+    chart: { grid: "dotted", frontier: "solid", frontierColor: "#806047", barLabels: "top", barRadius: 1 } },
   { id: "paper", name: "Paper", family: "classic", dark: false, bg: "#FFFFFF", ink: "#141414", ink2: "#46463F", grey: "#8A8A80", hair: "#E2E1DB", hair2: "#EFEEE9", accent: "#1F6F5C", fonts: PRIORS_FONTS, radius: 4 },
   { id: "sand", name: "Sand", family: "classic", dark: false, bg: "#F4EFE6", ink: "#221D16", ink2: "#51483C", grey: "#8E8475", hair: "#DFD6C6", hair2: "#E9E2D5", accent: "#B4532A", fonts: PRIORS_FONTS, radius: 4 },
   { id: "graphite", name: "Graphite", family: "classic", dark: true, bg: "#151515", ink: "#F2F1EC", ink2: "#CBCAC2", grey: "#8F8E87", hair: "#2F2F2C", hair2: "#252523", accent: "#9DB2FF", panelAccent: "#2F4FB0", fonts: PRIORS_FONTS, radius: 4 },
@@ -65,8 +68,6 @@ export const PAGE_PRESETS: PagePreset[] = [
   { id: "forest", name: "Forest", family: "classic", dark: true, bg: "#0F1A15", ink: "#EDF3EE", ink2: "#C3D1C7", grey: "#8BA195", hair: "#233B2F", hair2: "#1A2D23", accent: "#6FD3A0", panelAccent: "#1F7A52", fonts: PRIORS_FONTS, radius: 4 },
 ];
 const byId = new Map(PAGE_PRESETS.map((p) => [p.id, p]));
-// Slop once had a light version; pages saved with it show the dark theme.
-byId.set("slop-light", byId.get("slop")!);
 const NIGHT = byId.get("night")!;
 /** Themes shown in the picker, one card per light/dark pair, in each theme's signature mode. */
 export const THEME_CHOICES = ["bone", "aa", "slop", "paper", "sand", "graphite", "midnight", "forest"].map((id) => byId.get(id)!);

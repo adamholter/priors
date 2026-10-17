@@ -28,7 +28,7 @@ export function PageSettings({ profile, set, open, onClose, lab }: { profile: Pr
   if (!open || !mounted) return null;
   const chosen = presetOf(profile.theme);
   const family = THEME_CHOICES.find((t) => t.id === chosen.id || t.pair === chosen.id) ?? chosen;
-  const setTheme = (t: PagePreset) => set({ theme: { ...profile.theme, preset: t.id, surface: undefined, accent: undefined, ...(t.pair ? {} : { mode: undefined }) } });
+  const setTheme = (t: PagePreset) => set({ theme: { ...profile.theme, preset: t.id, surface: undefined, accent: undefined, ...(!t.pair ? { mode: undefined } : t.dark ? { mode: "fixed" } : {}) } });
   const cardQuery = lab ? encodeIndices(profile.indices.slice(0, 1)).toString() : profile.indices[0] ? `${encodeIndices([profile.indices[0]]).toString()}&handle=${profile.handle}` : `handle=${profile.handle}`;
   return createPortal(
     <aside className="page-editor fixed top-0 right-0 bottom-0 w-[400px] max-w-full bg-white border-l hairline overflow-auto p-5 grid gap-7 content-start text-[13px] z-50 shadow-[-24px_0_60px_-30px_var(--shadow)]" aria-label="Page settings">

@@ -21,7 +21,7 @@ export function SettingsButton({ className = "icon-btn" }: { className?: string 
       <div className="settings-head"><h2 id="settings-title">Settings</h2><button data-settings-close type="button" className="icon-btn" aria-label="Close settings" onClick={() => dialog.current?.close()}><IconX size={18} stroke={1.5} aria-hidden="true" /></button></div>
       <section className="settings-section" aria-labelledby="settings-theme">
         <h3 id="settings-theme">Theme</h3>
-        <div className="settings-themes">{THEME_CHOICES.map((t) => <ThemeSwatch key={t.id} theme={t} selected={chosen.id === t.id} onClick={() => setSiteTheme(t.id)} />)}</div>
+        <div className="settings-themes">{THEME_CHOICES.map((t) => <ThemeSwatch key={t.id} theme={t} selected={chosen.id === t.id} onClick={() => { setSiteTheme(t.id); if (t.dark) setMode("dark"); }} />)}</div>
         <p className="settings-note">For the builder, Explore and model pages on this device. Published pages keep the theme their owner picked.</p>
       </section>
       <section className="settings-section" aria-labelledby="settings-mode">
