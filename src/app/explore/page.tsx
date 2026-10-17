@@ -12,13 +12,14 @@ import { SiteNav } from "@/components/SiteNav";
 import { SettingsButton } from "@/components/SiteSettings";
 import { encodeIndices, prettyQuery } from "@/lib/url";
 import { rankedCount } from "@/lib/ranked-count";
+import { ExploreCard, type ExploreCardData } from "@/components/explore/ExploreCard";
 import { pageMeta } from "@/lib/site-meta";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = pageMeta({ title: "Explore rankings", description: "AI model rankings people have built and published on Priors.", path: "/explore" });
 
 /** `indices` holds the main index only; the page's other tabs come as names. */
-type Published = { handle: string; displayName: string; bio?: string; avatarUrl?: string; updatedAt: number; indices: IndexConfig[]; others: string[]; more: number };
+type Published = { handle: string; displayName: string; bio?: string; avatarUrl?: string; theme?: ExploreCardData["theme"]; socials?: { label: string; url: string }[]; updatedAt: number; indices: IndexConfig[]; others: string[]; more: number };
 
 /** Leaders and biggest weights of a page's first index, computed against the current snapshot. */
 function summary(snapshot: Snapshot, index: IndexConfig) {
@@ -70,33 +71,14 @@ export default async function Explore() {
         {pages.map((p) => {
           const index = p.indices[0];
           const s = snapshot && index ? summary(snapshot, index) : null;
-          return <li key={p.handle} className="grid grid-rows-[1fr_auto] border hairline rounded-md bg-white overflow-hidden">
-            <Link href={`/${p.handle}` as "/"} className="explore-card group grid gap-3 p-4 hover:bg-hair-2 transition-colors">
-              <div className="flex items-center gap-3 min-w-0">
-                {p.avatarUrl
-                  // eslint-disable-next-line @next/next/no-img-element
-                  ? <img src={p.avatarUrl} alt="" width={36} height={36} className="w-9 h-9 rounded-full object-cover border hairline shrink-0" />
-                  : <span aria-hidden="true" className="w-9 h-9 rounded-full border hairline grid place-items-center text-grey shrink-0">{p.displayName.slice(0, 1).toUpperCase()}</span>}
-                <div className="min-w-0">
-                  <div className="text-[14.5px] text-ink truncate">{p.displayName}</div>
-                  <div className="cap truncate">@{p.handle} · {ago(p.updatedAt)}</div>
-                </div>
-              </div>
-              <div className="grid gap-1">
-                <div className="text-[19px] leading-snug text-ink group-hover:text-indigo" style={{ fontFamily: "var(--font-newsreader), Newsreader, Georgia, serif" }}>{index?.name ?? "Rankings"}</div>
-                {p.more > 0 && <p className="cap truncate" title={p.others.join(", ")}>Also {p.others.join(", ")}{p.more > p.others.length ? ` and ${p.more - p.others.length} more` : ""}</p>}
-              </div>
-              {s?.top.length ? <ol className="grid gap-1.5">
-                {s.top.map((r, i) => <li key={r.variant.id} className="grid grid-cols-[16px_minmax(0,1fr)_auto] items-center gap-2 text-[13px]">
-                  <span className="cap text-right">{i + 1}</span>
-                  <span className="flex items-center gap-2 min-w-0"><i aria-hidden="true" className="w-2 h-2 rounded-full shrink-0" style={{ background: colors.get(r.model.labId) ?? "#A3A39B" }} /><span className="truncate">{r.model.name}</span></span>
-                  <span className="num text-ink-2">{r.score.toFixed(1)}</span>
-                </li>)}
-              </ol> : <p className="cap">No ranked models on today&apos;s data.</p>}
-              {s && s.count > 0 && <p className="cap leading-relaxed mt-auto">{s.count} benchmark{s.count === 1 ? "" : "s"} · {s.benches.map((b) => `${b.benchmark.shortName ?? b.benchmark.name} ${Math.round(b.share)}%`).join(", ")}</p>}
-            </Link>
-            {index && <Link href={`/builder?${prettyQuery(encodeIndices([{ ...index, name: `From @${p.handle}` }]))}` as "/builder"} title={`Open @${p.handle}'s mix in the builder as your own copy`} className="border-t hairline px-4 py-2.5 text-[12px] text-ink-2 hover:text-indigo hover:bg-hair-2 transition-colors">Start from this</Link>}
-          </li>;
+          if (!index) return null;
+          const x = p.socials?.map((l) => l.url.match(/^https?:\/\/(?:www\.)?(?:x|twitter)\.com\/@?([A-Za-z0-9_]{1,15})\/?(?:[?#].*)?$/)?.[1]).find(Boolean);
+          return <ExploreCard key={p.handle} c={{
+            handle: p.handle, name: p.displayName, avatarUrl: p.avatarUrl, when: ago(p.updatedAt), index: index.name ?? "Rankings", others: p.others, more: p.more,
+            count: s?.count ?? 0, mix: (s?.benches ?? []).map((b) => ({ name: b.benchmark.shortName ?? b.benchmark.name, share: Math.round(b.share) })),
+            top: (s?.top ?? []).map((r) => ({ name: r.model.name, score: r.score, labId: r.model.labId, base: colors.get(r.model.labId) ?? "#A3A39B" })),
+            theme: p.theme, x, pageHref: `/${p.handle}`, remixHref: `/builder?${prettyQuery(encodeIndices([{ ...index, name: `From @${p.handle}` }]))}`,
+          }} />;
         })}
       </ul>}
     </div>

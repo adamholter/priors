@@ -73,12 +73,14 @@
 - An explicit `theme=` or `scheme=` on `/og` wins over the saved theme.
 - **Readable addresses.** `prettyQuery` in `src/lib/url.ts` writes builder links with `:`, `,` and `=` unescaped and `+` for spaces. The `|` between fields stays escaped, because chat apps cut a link at a bare pipe.
 
+## Explore cards
+Each card on `/explore` (`src/components/explore/ExploreCard.tsx`) wears its owner's page theme through `resolvePreset`: it follows the visitor's light/dark unless the owner fixed a mode, and single-mode themes stay as picked. The top three show as zoomed podium columns, the benchmark mix is one truncated line, the owner's X link (from `socials`, x.com or twitter.com) is a handle chip, and the footer splits View page | Remix (opens the mix in the builder as a copy). `profiles.explore` returns `theme` and `socials`; run `npx convex deploy` before pushing changes to it.
+
 ## Labs
 
 A lab is a noindex page under `/lab/` that shows three or four switchable variants of one design question, on the real page. When the question is settled, the winner goes live and the lab and losing variants are deleted.
 
 - `/lab/themes`: every page theme on a sample page, with edit mode available without signing in. Nothing saves. Kept as a tool.
-- `/lab/explore`: Explore card designs (bars, leader spotlight, filled rows, podium columns), X link as icon or chip, benchmark mix strip, bar scale. Pads real published pages with samples; X links are invented from the handle because `profiles.explore` doesn't return `socials` yet. Open question.
 - `/lab/index`: where "Publish to Explore" sits on the builder (`labPlacement` in `Builder.tsx`). Open question.
 
 ## History
