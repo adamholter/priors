@@ -171,7 +171,7 @@ export function IndexPage({ profile, snapshot, edit, tab: linkedTab, linkedHighl
   const renderSection = (s: Section): React.ReactNode => {
           const idx = p.indices.find((i) => i.id === sectionTab(s, p.indices));
           const r = idx ? results.get(idx.id) : undefined;
-          const title = s.title ?? defaultTitle(s, idx?.name);
+          const title = s.title ?? defaultTitle(s, idx?.name, effectiveBasis(idx?.costBasis, hasSubscriptionPrices(snapshot)) === "subscription");
           if (s.kind === "text") return <section key={s.id} className="max-w-[68ch]">{(s.title || editing) && heading(s, "Title (optional)", "text-[21px] sm:text-[24px] mb-3")}{editing ? <InlineText editing multiline label="Text" value={s.body ?? ""} placeholder="Write something." className="text-[15.5px] leading-[1.7] w-full" onChange={(body) => patchSection(s.id, { body })} /> : <p className="text-[15.5px] leading-[1.7] text-ink-2 whitespace-pre-wrap">{s.body}</p>}</section>;
           if (s.kind === "links") return <section key={s.id}>{heading(s, title, "text-[21px] sm:text-[24px] mb-3")}{editing ? <InlineText editing multiline label="Links, one per line: label then URL" value={(s.links ?? []).map((l) => `${l.label} ${l.url}`).join("\n")} placeholder="My blog https://example.com" className="text-[14px] w-full" onChange={(v) => patchSection(s.id, { links: parseLinks(v) })} /> : <ul className="grid gap-1.5 text-[14px]">{s.links?.map((l) => <li key={l.url}><a href={l.url} target="_blank" rel="noreferrer" style={{ color: accent }}>{l.label}</a></li>)}</ul>}</section>;
           if (s.kind === "benchmark") return (s.benchmarkId || editing) ? <section key={s.id} className="chart-panel">{heading(s, title, "text-[21px] sm:text-[24px] mb-3")}{editing && <select className="inp mb-3" aria-label="Benchmark" value={s.benchmarkId ?? ""} onChange={(e) => patchSection(s.id, { benchmarkId: e.target.value || undefined })}><option value="">Choose a benchmark</option>{snapshot.benchmarks.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</select>}{s.benchmarkId && <BenchmarkTable snapshot={snapshot} benchmarkId={s.benchmarkId} />}</section> : null;
@@ -339,10 +339,10 @@ function sanitizeCss(css: string) {
   return css.replace(/<\//g, "<\\/").replace(/expression\s*\(|javascript\s*:/gi, "blocked").slice(0, 10_000);
 }
 
-function defaultTitle(s: Section, indexName?: string) {
+function defaultTitle(s: Section, indexName?: string, subscription = false) {
   switch (s.kind) {
     case "rankings": return indexName ?? "Rankings";
-    case "pareto": return `${indexName ?? "Score"} vs cost per task`;
+    case "pareto": return `${indexName ?? "Score"} vs ${subscription ? "subscription " : ""}cost per task`;
     case "speed": return `${indexName ?? "Score"} vs speed`;
     case "gallery": return "More metrics";
     case "benchmark": return "Benchmark";
