@@ -8,6 +8,8 @@ import { echarts, themeFor, paletteFor, markColor, DARK_PALETTE, SANS_STATIC, MO
 import { scatterOption, DEFAULT_VIEW, guidePoints, type Highlight, type ScatterPoint } from "../components/chart/scatter-option";
 import { barsOption, defaultBarModels, filterBarModels, selectBars } from "../components/chart/bars-option";
 import { frameSvg } from "../components/chart/export-frame";
+import { answerHeight, answerOption } from "../components/chart/answer-option";
+import type { AnswerChart } from "./answer-chart";
 import { effectiveBasis } from "../data/subscription";
 import { chartKind, chartTitle, costChart, costChartFor, pickPoints, type MetricChart } from "./metrics";
 import { presetOf, themeById, type PagePreset } from "./page-presets";
@@ -190,4 +192,30 @@ export function renderRadarPng(radar: string, title: string, pal: ChartPalette):
   const inner = radar.replace(/<svg[^>]*>/, `<svg x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${(w * scale).toFixed(1)}" height="${(h * scale).toFixed(1)}" viewBox="0 0 ${w} ${h}">`);
   const canvas = `<svg xmlns="http://www.w3.org/2000/svg" width="${CHART_W}" height="${CHART_H}" viewBox="0 0 ${CHART_W} ${CHART_H}">${inner}</svg>`;
   return rasterize(frameSvg(canvas, title, undefined, { bg: pal.bg, ink: pal.ink, grey: pal.grey }, { footer: "right" }), pal.bg);
+}
+
+/**
+ * An assistant chart as a link-preview card: the same option the answer draws (answerOption), in the
+ * card's palette, rendered small and scaled up to fill the frame so text stays legible at preview size.
+ */
+export function renderAnswerChartPng(chart: AnswerChart, basePal: ChartPalette): Buffer {
+  const pal: ChartPalette = { ...basePal, fonts: { sans: SANS_STATIC, mono: MONO_STATIC } };
+  const ratio = CHART_W / CHART_H, key = chart.kind === "grouped" ? 26 : 0;
+  const h = Math.max(334, answerHeight(chart) + key), w = Math.round(h * ratio);
+  const theme = themeFor(pal, { sans: SANS_STATIC, mono: MONO_STATIC });
+  const view = echarts.init(null, theme, { renderer: "svg", ssr: true, width: w, height: h });
+  const opt = answerOption(chart, pal, () => w, [], 2.2);
+  const grid = opt.grid as Record<string, number>;
+  // The key for grouped bars (lighter = lower effort), which the page draws beside the title.
+  const swatches = chart.kind === "grouped" ? chart.series.slice().reverse().reduce<{ x: number; children: object[] }>((acc, name, n) => {
+    const si = chart.series.length - 1 - n, width = name.length * 7 + 22;
+    acc.children.push({ type: "rect", shape: { x: acc.x - width, y: 4, width: 9, height: 9 }, style: { fill: pal.ink2, opacity: si === chart.series.length - 1 ? 1 : 0.4 } },
+      { type: "text", x: acc.x - width + 14, y: 8.5, style: { text: name, fill: pal.ink2, font: `12px ${SANS_STATIC}`, verticalAlign: "middle" } });
+    acc.x -= width + 8;
+    return acc;
+  }, { x: w - 4, children: [] }).children : [];
+  view.setOption({ ...opt, animation: false, grid: { ...grid, top: (grid.top ?? 8) + key }, graphic: swatches.length ? [{ type: "group", silent: true, children: swatches }] : undefined } as EChartsOption);
+  const svg = view.renderToSVGString().replace(/<svg([^>]*)>/, (_m, attrs: string) => `<svg${attrs.replace(/width="[\d.]+"/, `width="${CHART_W}"`).replace(/height="[\d.]+"/, `height="${CHART_H}"`).replace(/\sviewBox="[^"]*"/, "")} viewBox="0 0 ${w} ${h}">`);
+  view.dispose();
+  return rasterize(frameSvg(svg, chart.title, undefined, { bg: pal.bg, ink: pal.ink, grey: pal.grey }, { footer: "right" }), pal.bg);
 }

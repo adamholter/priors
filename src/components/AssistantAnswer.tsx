@@ -6,6 +6,8 @@ import type { AnswerChart } from "@/lib/answer-chart";
 import { markColor, useChartPalette, useEChart } from "./chart/echarts";
 import { answerHeight, answerMarkAt, answerOption, answerRows } from "./chart/answer-option";
 import { chartLink } from "@/lib/answer-chart";
+import { useTheme } from "./Theme";
+import { SITE_THEME_KEY } from "@/lib/site-theme";
 import { ChartExpandIcon } from "./chart/ChartIcons";
 import { ChartExport } from "./chart/ChartExport";
 import { HighlightContext, HighlightMenu, toggleModel, type HighlightState } from "./chart/highlight";
@@ -35,10 +37,19 @@ export function AssistantAnswer({ text, charts = [], highlight }: { text: string
   })}</div>;
 }
 
+/** The viewer's theme and mode, so a pasted link previews in the look it was copied from: other themes by id, Priors Light/Dark by mode. */
+function linkLook(dark: boolean): { theme?: string; scheme?: "light" | "dark" } {
+  let id = "bone";
+  try { id = JSON.parse(localStorage.getItem(SITE_THEME_KEY) ?? "{}").id ?? "bone"; } catch { /* default theme */ }
+  const scheme = dark ? "dark" : "light";
+  return id !== "bone" && id !== "night" ? { theme: id, scheme } : dark ? { scheme } : {};
+}
+
 /** Copies a link that opens this chart on the index it was asked under. Nothing when the chart carries no recipe (older chats). */
 function ChartLinkButton({ chart, className = "assistant-icon" }: { chart: AnswerChart; className?: string }) {
   const [copied, setCopied] = useState(false);
-  const url = typeof window === "undefined" ? undefined : chartLink(window.location.origin, chart);
+  const { dark } = useTheme();
+  const url = typeof window === "undefined" ? undefined : chartLink(window.location.origin, chart, linkLook(dark));
   if (!url) return null;
   const copy = () => { void navigator.clipboard?.writeText(url).then(() => { setCopied(true); window.setTimeout(() => setCopied(false), 1600); }).catch(() => window.prompt("Copy this link", url)); };
   return <button type="button" className={className} onClick={copy} aria-label={`Copy a link to ${chart.title}`} title={copied ? "Link copied" : "Copy link to this chart"}>

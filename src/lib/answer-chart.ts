@@ -46,10 +46,13 @@ export function decodeSpec(s: string): ChartSpec | null {
     return v && typeof v === "object" && !Array.isArray(v) ? v as ChartSpec : null;
   } catch { return null; }
 }
-/** Link to the builder with this index and the chart open over it. */
-export function chartLink(origin: string, chart: Pick<AnswerChart, "spec" | "index">): string | undefined {
+/** Link to the builder with this index and the chart open over it. `look` is the theme and light/dark mode the preview image uses. */
+export function chartLink(origin: string, chart: Pick<AnswerChart, "spec" | "index">, look?: { theme?: string; scheme?: "light" | "dark" }): string | undefined {
   if (!chart.spec || !chart.index) return undefined;
   const q = new URLSearchParams({ i: chart.index, chart: encodeSpec(chart.spec) });
+  // The sharer's look, which the link's preview image is drawn in (as the share dialog's cards do).
+  if (look?.theme) q.set("theme", look.theme);
+  if (look?.scheme) q.set("scheme", look.scheme);
   // As prettyQuery in lib/url writes it: the `|` inside an index stays escaped, since chat apps cut a link at a bare pipe.
   return `${origin}/?${q.toString().replace(/%3A/g, ":").replace(/%2C/g, ",").replace(/%3D/g, "=").replace(/%2520/g, "+")}`;
 }

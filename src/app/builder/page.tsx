@@ -8,20 +8,32 @@ import { decodeIndices, prettyQuery } from "@/lib/url";
 import { indexSummary, pageMeta, previewText } from "@/lib/site-meta";
 import { chartTitle } from "@/lib/metrics";
 import { RADAR_PARAM_KEYS } from "@/components/chart/radar-view";
+import { formatMetric, type AnswerChart } from "@/lib/answer-chart";
+import { chartFromLink } from "@/agent/link-chart";
 import { isPreviewBot, isSearchBot, PreviewPage } from "@/lib/link-preview";
 
 export const dynamic = "force-dynamic";
 
 type SP = Record<string, string | string[] | undefined>;
 
+/** "Opus 5.5 low 55.2, GPT-5.6 Sol max 50.9": what a bar chart shows, for the preview text. */
+function chartGist(c: AnswerChart): string | undefined {
+  return c.kind === "bar" ? c.items.map((i) => `${i.label} ${formatMetric(c.metric, i.value)}`).join(", ") : undefined;
+}
+
 async function cardFor(sp: SP) {
   const query = new URLSearchParams();
-  for (const key of ["i", "design", "handle", "c", "cv", "cm", "cs", "ls", "ch", "scheme", "theme", ...RADAR_PARAM_KEYS]) {
+  for (const key of ["i", "design", "handle", "chart", "date", "c", "cv", "cm", "cs", "ls", "ch", "scheme", "theme", ...RADAR_PARAM_KEYS]) {
     const value = sp[key];
     for (const item of Array.isArray(value) ? value : value ? [value] : []) query.append(key, item);
   }
   const index = decodeIndices(query)[0];
   const ct = chartTitle(typeof sp.c === "string" ? sp.c : undefined);
+  // An assistant chart's link: the card is that chart, titled for it.
+  if (typeof sp.chart === "string" && typeof sp.i === "string") {
+    const r = await chartFromLink(sp.i, sp.chart, typeof sp.date === "string" ? sp.date : undefined);
+    if ("chart" in r) return { query, title: r.chart.title, desc: previewText([`${decodeIndices(query)[0]?.name ?? "Priors"} index.`, chartGist(r.chart)]) };
+  }
   // No index in the link: the builder itself, on the default mix.
   const base = index?.name ?? "Builder";
   const title = ct ? `${base} · ${ct}` : base;

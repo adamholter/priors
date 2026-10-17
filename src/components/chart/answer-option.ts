@@ -1,5 +1,5 @@
 import type { EChartsOption } from "echarts";
-import { formatMetric, type AnswerChart, type AnswerMark, type AnswerMetric } from "@/lib/answer-chart";
+import { formatMetric, type AnswerChart, type AnswerMark, type AnswerMetric } from "../../lib/answer-chart";
 import { CONTAIN_AXIS_LABELS, dimColor, insideLabels, markColor, markLabel, MONO, SANS, type ChartPalette } from "./theme";
 
 const ROW = 24;

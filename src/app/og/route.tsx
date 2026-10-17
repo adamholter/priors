@@ -12,6 +12,8 @@ import { defaultConfig } from "@/engine";
 import { resolveProfileChart } from "@/lib/profile-chart";
 import type { Profile } from "@/components/page/IndexPage";
 import { readChartHidden } from "@/components/chart/chart-visibility";
+import { chartFromLink } from "@/agent/link-chart";
+import { cardPalette, renderAnswerChartPng } from "@/lib/og-chart";
 import { readRadarParams } from "@/components/chart/radar-view";
 
 export const dynamic = "force-dynamic";
@@ -21,6 +23,16 @@ export async function GET(req: Request) {
   const u = new URL(req.url);
   const snap = await loadSnapshot(u.searchParams.get("date") ?? undefined);
   if (!snap) return new Response("no data", { status: 503 });
+  // An assistant chart's link: draw that chart, in the theme the link was copied from.
+  const linked = u.searchParams.get("chart"), linkedIndex = u.searchParams.get("i");
+  if (linked && linkedIndex) {
+    const r = await chartFromLink(linkedIndex, linked, u.searchParams.get("date") ?? undefined);
+    if ("chart" in r) {
+      const scheme = u.searchParams.get("scheme");
+      const png = renderAnswerChartPng(r.chart, cardPalette(u.searchParams.get("theme") ? { preset: u.searchParams.get("theme")! } : undefined, scheme === "dark" || scheme === "light" ? scheme : undefined));
+      return new Response(png as unknown as BodyInit, { headers: { "content-type": "image/png", "cache-control": "public, max-age=600, s-maxage=86400, stale-while-revalidate=86400" } });
+    }
+  }
   const handle = u.searchParams.get("handle");
   const profile = handle && process.env.NEXT_PUBLIC_CONVEX_URL ? await new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL).query(api.profiles.byHandle, { handle }) : null;
   const snapshot = profile ? mergeImports(snap, profile.imports).snapshot : snap;
