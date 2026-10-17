@@ -178,13 +178,8 @@ export function scatterOption({ pts, labs, better, xName, xShort, xUnit = "", sc
       ...(scale === "log" ? { min: (e: { min: number }) => e.min / 1.5, max: (e: { max: number }) => e.max * 1.8 } : {}),
     } as EChartsOption["xAxis"],
     yAxis: { type: "value", name: "Index score", nameTextStyle: { color: pal.grey, fontSize: 11 * t, align: "left", padding: [0, 0, 0, (narrow ? -22 : -30) * t] }, min: yMin, max: yMax },
-    tooltip: {
-      trigger: "item", confine: true, formatter: (p: unknown) => {
-        const d = (p as { data?: { extra?: ScatterPoint } }).data?.extra; if (!d) return "";
-        const lab = labs.find((l) => l.id === d.r.model.labId)?.name ?? d.r.model.labId;
-        return `<div style="font-weight:600">${escapeHtml(d.r.variant.sourceModel?.name ?? chartLabel(d.r))}</div><div style="color:${pal.grey};font-size:${11 * t}px">${escapeHtml(lab)}${view.frontier && onFrontier.has(d.r.variant.id) ? " · on the frontier" : ""}</div><div style="font-family:var(--font-jetbrains);margin-top:4px">${d.r.score.toFixed(1)} · ${escapeHtml((formatValue ?? formatX)(d.raw ?? d.x))}${xUnit ? ` ${xUnit}` : ""}${tooltipExtra ? escapeHtml(tooltipExtra(d)) : ""}</div>`;
-      },
-    },
+    // The point's details are a card in the chart's corner (ScoreScatter), so nothing floats beside the mark and covers its neighbours.
+    tooltip: { show: false },
     series,
   };
 }

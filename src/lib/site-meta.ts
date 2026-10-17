@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import type { Snapshot } from "@/data/types";
-import { chartVariantMode, computeIndex, selectVariants, type IndexConfig } from "@/engine";
+import { chartVariantMode, computeIndex, PAGE_VIEW, selectVariants, type IndexConfig } from "@/engine";
 
 export const SITE_NAME = "Priors";
 export const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://mypriors.com";
@@ -29,7 +29,7 @@ export function pageMeta({ title, description = SITE_DESCRIPTION, path, share = 
 /** "Opus 5.5 76.3, GPT-6 Astra 73.5, GPT-6.1 Sol 72.8. 6 benchmarks: Humanity's Last Exam 29%, …" */
 export function indexSummary(snapshot: Snapshot, index: IndexConfig): string | undefined {
   try {
-    const r = computeIndex(snapshot, { ...index, variants: "all" });
+    const r = computeIndex(snapshot, { ...index, variants: "all" }, PAGE_VIEW);
     const rows = selectVariants(r.ranked, chartVariantMode(index, "ranking"));
     if (!rows.length) return undefined;
     const leaders = rows.slice(0, 3).map((x) => `${x.model.name} ${x.score.toFixed(1)}`).join(", ");

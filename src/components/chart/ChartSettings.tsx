@@ -4,6 +4,7 @@ import { IconAdjustmentsHorizontal, IconStar, IconStarFilled, IconX } from "@tab
 import { COST_BASES, type CostBasis } from "@/data/subscription";
 import type { TaskMetricSource } from "@/data/task-metrics";
 import { useLightDismiss } from "@/lib/useLightDismiss";
+import { EFFORT_CHOICES } from "@/engine";
 import { isHighlighted, toggleModel, useHighlight } from "./highlight";
 import type { ScatterView } from "./ScoreScatter";
 import { labelScale } from "./label-size";
@@ -11,7 +12,9 @@ import { chartLinkUrl } from "@/lib/highlight-link";
 import { FormulaEditor, type FormulaSettings } from "./formula-chart";
 import styles from "./ChartSettings.module.css";
 
-export function ChartSettings({ label, mode, onChange, releasedAfter, onChangeReleased, models = [], excluded, onToggleModel, onShowAllModels, onHideAllModels, onShowOnly, view, onView, dataSource, costBasis, defaultScale, anchor, formula }: {
+const EFFORT_LABELS: Record<string, string> = { none: "none", low: "low", medium: "medium", high: "high", xhigh: "xhigh", max: "max" };
+
+export function ChartSettings({ label, mode, onChange, efforts, releasedAfter, onChangeReleased, models = [], excluded, onToggleModel, onShowAllModels, onHideAllModels, onShowOnly, view, onView, dataSource, costBasis, defaultScale, anchor, formula }: {
   /** Advanced: a custom formula for this chart's metric. Omitted where a chart has no formula support. */
   formula?: FormulaSettings;
   /** Cost charts: price tasks at API list prices or at each lab's subscription plan. */
@@ -21,6 +24,8 @@ export function ChartSettings({ label, mode, onChange, releasedAfter, onChangeRe
   defaultScale?: "log" | "linear";
   dataSource?: { value: TaskMetricSource; options: { id: TaskMetricSource; name: string; modelCount: number }[]; onChange: (source: TaskMetricSource) => void };
   label: string; mode: "all" | "best"; onChange: (mode: "all" | "best") => void;
+  /** Cost, time and speed charts: pick which reasoning efforts show, one by one, instead of the all/best dropdown. */
+  efforts?: { value: string[]; onChange: (efforts: string[]) => void };
   /** Model-age filter: ISO date cutoff; "" means all time. */
   releasedAfter?: string;
   onChangeReleased?: (value: string) => void;
@@ -58,7 +63,10 @@ export function ChartSettings({ label, mode, onChange, releasedAfter, onChangeRe
   useLightDismiss(root, dismiss);
   const releaseDate = (months: number) => { const d = new Date(); d.setMonth(d.getMonth() - months); return d.toISOString().slice(0, 10); };
   const releaseValue = releasedAfter === "" ? "all" : releasedAfter === undefined ? "6" : [6, 12, 24].find(m => Math.abs(Date.parse(releasedAfter) - Date.parse(releaseDate(m))) < 45 * 86400000)?.toString() ?? "custom";
-  const filtered = useMemo(() => models.filter(m => m.name.toLowerCase().includes(query.trim().toLowerCase())).sort((a, b) => Number(!!hl && isHighlighted(hl.items, b.id)) - Number(!!hl && isHighlighted(hl.items, a.id))), [models, query, hl]);
+  // Rows keep the order they had when the menu opened, so a model you untick stays under your cursor instead of jumping to the bottom.
+  const [openOrder, setOpenOrder] = useState<string[]>([]);
+  const place = useMemo(() => new Map(openOrder.map((id, i) => [id, i])), [openOrder]);
+  const filtered = useMemo(() => models.filter(m => m.name.toLowerCase().includes(query.trim().toLowerCase())).sort((a, b) => (place.get(a.id) ?? 1e9) - (place.get(b.id) ?? 1e9)).sort((a, b) => Number(!!hl && isHighlighted(hl.items, b.id)) - Number(!!hl && isHighlighted(hl.items, a.id))), [models, query, hl, place]);
   function tabKey(event: KeyboardEvent, current: "models" | "settings") {
     const arrows = ["ArrowLeft", "ArrowRight"];
     if (![...arrows, "Home", "End"].includes(event.key)) return;
@@ -84,7 +92,8 @@ export function ChartSettings({ label, mode, onChange, releasedAfter, onChangeRe
     </div>}
     {costBasis && <div className={styles.row}><span id={`${id}-basis-label`}>Pricing</span><div className={styles.choice} role="group" aria-labelledby={`${id}-basis-label`}>{COST_BASES.map(b => <button key={b.id} type="button" aria-pressed={costBasis.value === b.id} onClick={() => costBasis.onChange(b.id)}>{b.name}</button>)}</div></div>}
     {defaultScale && view && onView && view.kind !== "bars" && <div className={styles.row}><span id={`${id}-scale-label`}>Scale</span><div className={styles.choice} role="group" aria-labelledby={`${id}-scale-label`}>{(["log", "linear"] as const).map(value => <button key={value} type="button" aria-pressed={(view.scale ?? defaultScale) === value} onClick={() => onView({ ...view, scale: value })}>{value === "log" ? "Log" : "Linear"}</button>)}</div></div>}
-    <div className={styles.row}><label htmlFor={`${id}-effort`}>Reasoning efforts</label><select aria-label={`${label} reasoning efforts`} id={`${id}-effort`} value={mode} onChange={e => onChange(e.target.value as "all" | "best")}><option value="all">All efforts</option><option value="best">Best per model</option></select></div>
+    {efforts ? <div className={styles.row}><span id={`${id}-efforts-label`}>Reasoning</span><div className={styles.efforts} role="group" aria-labelledby={`${id}-efforts-label`}>{EFFORT_CHOICES.map(e => { const on = efforts.value.includes(e); return <button key={e} type="button" aria-pressed={on} data-effort={e} title={e === "none" ? "Models run with no reasoning" : undefined} onClick={() => efforts.onChange(EFFORT_CHOICES.filter(x => x === e ? !on : efforts.value.includes(x)))}>{EFFORT_LABELS[e]}</button>; })}</div></div>
+    : <div className={styles.row}><label htmlFor={`${id}-effort`}>Reasoning efforts</label><select aria-label={`${label} reasoning efforts`} id={`${id}-effort`} value={mode} onChange={e => onChange(e.target.value as "all" | "best")}><option value="all">All efforts</option><option value="best">Best per model</option></select></div>}
     {view && onView && view.kind !== "bars" && <>
       <div className={styles.labels}><div><label htmlFor={`${id}-density`}>Labels</label><span>{view.density === 0 ? "Frontier only" : view.density === 1 ? "All" : `${Math.round(view.density * 100)}%`}</span></div><input aria-label={`${label} label density`} id={`${id}-density`} type="range" min={0} max={100} step={5} value={Math.round(view.density * 100)} onChange={e => onView({ ...view, density: +e.target.value / 100 })} /></div>
     </>}
@@ -109,7 +118,7 @@ export function ChartSettings({ label, mode, onChange, releasedAfter, onChangeRe
     </details>}
   </>;
   return <details ref={root} open={open} className={styles.picker} name="chart-settings">
-    <summary ref={trigger} aria-label={`${label} settings`} title={`${label} settings`} onClick={e => { e.preventDefault(); if (!open) setTab(hasModels ? "models" : "settings"); setOpen(!open); }}><IconAdjustmentsHorizontal size={16} stroke={1.5} aria-hidden="true" /></summary>
+    <summary ref={trigger} aria-label={`${label} settings`} title={`${label} settings`} onClick={e => { e.preventDefault(); if (!open) { setTab(hasModels ? "models" : "settings"); setOpenOrder(models.map(m => m.id)); } setOpen(!open); }}><IconAdjustmentsHorizontal size={16} stroke={1.5} aria-hidden="true" /></summary>
     <div className={`${styles.menu} chart-settings-menu`} data-above={placement.above} style={{ "--picker-space": `${placement.height}px` } as CSSProperties}>
       <div className={styles.heading}><span>Chart settings</span><button type="button" aria-label="Close chart settings" onClick={() => dismiss("escape")}><IconX size={16} stroke={1.5} aria-hidden="true" /></button></div>
       {hasModels && <div className={styles.tabs} role="tablist" aria-label={`${label} settings sections`}>

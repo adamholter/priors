@@ -89,3 +89,17 @@ describe("readable links", () => {
     expect(pageIndexId(index, "adamholter", "k3y")).toBeUndefined();
   });
 });
+
+describe("effort and visibility codec", () => {
+  const base = () => ({ ...decodeIndex("General|swe:50,term:50", "a")! });
+  it("round-trips chosen efforts, including none chosen", () => {
+    for (const efforts of [["low", "high"], ["none", "max"], []]) {
+      const c = decodeIndex(encodeIndex({ ...base(), efforts }), "x")!;
+      expect(c.efforts).toEqual(efforts);
+    }
+  });
+  it("round-trips an explicit empty exclusion, which means show everything", () => {
+    expect(decodeIndex(encodeIndex({ ...base(), excludeModels: [] }), "x")!.excludeModels).toEqual([]);
+    expect(decodeIndex(encodeIndex(base()), "x")!.excludeModels).toBeUndefined();
+  });
+});

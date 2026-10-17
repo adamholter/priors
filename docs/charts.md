@@ -19,7 +19,8 @@ All charts are ECharts with the `priors` theme, set up in `src/components/chart/
 
 ## Per-chart settings
 
-- The gear menu is `ChartSettings.tsx`: effort mode (best or all), model-visibility checkboxes (they write `excludeModels`), the release-age filter, the cost Pricing toggle, "Highlight guides", and a collapsed Advanced section.
+- Scatter marks have no floating tooltip. The mark under the cursor (or the one a click pinned) gets crosshair guides and a card in the chart's lower right (`PointCard` in `ScoreScatter.tsx`), so details never cover neighbouring marks.
+- The gear menu is `ChartSettings.tsx`: reasoning efforts (on the cost, time and speed charts a row of toggles, `none` off by default, saved as `IndexConfig.efforts`, link key `eff`; the ranking keeps its best-or-all dropdown), model-visibility checkboxes (they write `excludeModels`; rows keep their order while the menu is open), the release-age filter, the cost Pricing toggle, "Highlight guides", and a collapsed Advanced section.
 - A chart's display preferences are a `ScatterView`, read through `useScatterView(key, …)` and stored in `localStorage["priors:chart:<key>"]`. On a profile page the owner's choices are saved as the page default instead (`section.view`, or `section.metrics[].view` in the gallery).
 - **Custom formulas.** Advanced takes a formula such as `score / (cost * time)` that replaces the chart's metric. The parser is `src/lib/formula.ts` (no `eval`). Variables and the derived chart are `formulaInputs` and `formulaChart` in `metrics.ts`. The formula lives in the chart view (`formula`, `formulaBetter`), so it follows localStorage, owner defaults (`chartView` in `convex/validators.ts`) and chart links (`cf`, `cb`).
 

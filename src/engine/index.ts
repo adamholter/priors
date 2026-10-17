@@ -1,4 +1,5 @@
 import { effectiveBasis, subscriptionPrices, type CostBasis, type SubscriptionPrice } from "../data/subscription";
+import { supersededModelIds } from "./superseded";
 import { taskMetricData, taskMetricDescription, type TaskMetricSource } from "../data/task-metrics";
 import type { Benchmark, FocusId, Model, Observation, Snapshot, Variant } from "../data/types";
 
@@ -24,6 +25,8 @@ export interface IndexConfig {
   optional?: string[];
   rankingVariants?: "all" | "best";
   paretoVariants?: "all" | "best";
+  /** Reasoning efforts the cost, time and speed charts show; unset shows every effort except `none`. Models without effort levels always show. */
+  efforts?: string[];
   costSource?: TaskMetricSource;
   /** Price cost per task at API list prices (default) or at the lab's subscription plan. */
   costBasis?: CostBasis;
@@ -57,6 +60,16 @@ export function minMeasuredShare(config: IndexConfig): number {
 
 export function chartVariantMode(config: IndexConfig, chart: "ranking" | "pareto"): "all" | "best" {
   return chart === "ranking" ? config.rankingVariants ?? "best" : config.paretoVariants ?? "all";
+}
+
+/** The efforts an index shows on its metric charts when it names none: `none` is off. */
+export const EFFORT_CHOICES = ["none", "low", "medium", "high", "xhigh", "max"] as const;
+export const DEFAULT_EFFORTS: string[] = EFFORT_CHOICES.filter((e) => e !== "none");
+
+/** Ranked variants limited to the chosen efforts. `minimal` counts as `low`; a variant with no effort levels (`default`) always stays. */
+export function filterEfforts<T extends { variant: { effort: string } }>(ranked: T[], efforts?: string[]): T[] {
+  const on = new Set(efforts ?? DEFAULT_EFFORTS);
+  return ranked.filter(({ variant: { effort } }) => effort === "default" || on.has(effort === "minimal" ? "low" : effort));
 }
 
 export function selectVariants(ranked: RankedVariant[], mode: "all" | "best"): RankedVariant[] {
@@ -139,6 +152,8 @@ export interface IndexResult {
   excluded: { variant: Variant; model: Model; missing: string[]; reason: "required" | "coverage"; measuredShare: number }[];
   /** modelIds that pass every filter except the user's model visibility picks (for the model picker) */
   candidateModelIds: string[];
+  /** Older versions of a model line that a default view leaves out (see `supersededModelIds`); empty when it was applied. */
+  autoHidden: string[];
 }
 
 /* ------------------------------------------------------------------ */
@@ -288,7 +303,11 @@ export const subscriptionShare = (ratio: number) => `${(ratio * 100).toFixed(rat
 
 export const SPEED_BENCHMARK = "aa-output-speed";
 
-export function computeIndex(snapshot: Snapshot, config: IndexConfig): IndexResult {
+/** Pages that show an index pass `PAGE_VIEW` so an uncurated one leaves out superseded model versions; internal callers see every model. */
+export interface ViewOptions { defaultView?: boolean }
+export const PAGE_VIEW: ViewOptions = { defaultView: true };
+
+export function computeIndex(snapshot: Snapshot, config: IndexConfig, view: ViewOptions = {}): IndexResult {
   const benches = new Map(snapshot.benchmarks.map((b) => [b.id, b]));
   const models = new Map(snapshot.models.map((m) => [m.id, m]));
   const idx = indexObservations(snapshot);
@@ -297,7 +316,7 @@ export function computeIndex(snapshot: Snapshot, config: IndexConfig): IndexResu
 
   const used = Object.entries(config.weights).filter(([id, w]) => w > 0 && benches.has(id));
   const total = used.reduce((a, [, w]) => a + w, 0);
-  if (!used.length || total <= 0) return { config, benchmarks: [], ranked: [], excluded: [], candidateModelIds: [] };
+  if (!used.length || total <= 0) return { config, benchmarks: [], ranked: [], excluded: [], candidateModelIds: [], autoHidden: [] };
   const strictness = strictnessOf(config);
   const shares = used.map(([id, w]) => ({ benchmark: benches.get(id)!, share: (w / total) * 100, required: isBenchmarkRequired(config, id) }));
   const normalizeMeasured = new Map(snapshot.benchmarks.map((b) => [b.id, makeNormalizer(b, [...(idx.get(b.id)?.values() ?? [])].map((o) => o.value))]));
@@ -392,7 +411,11 @@ export function computeIndex(snapshot: Snapshot, config: IndexConfig): IndexResu
   out.sort((a, b) => b.score - a.score);
   out.forEach((r, i) => (r.rank = i + 1));
   markFrontier(out);
-  return { config, benchmarks: shares, ranked: out, excluded, candidateModelIds };
+  // A view nobody has curated leaves out superseded, off-frontier versions. Scores are unchanged: the models still shaped the normalization.
+  const superseded = view.defaultView ? supersededModelIds(out, (config.highlight ?? []).map((h) => h.split("@")[0])) : new Set<string>();
+  const curated = !view.defaultView || config.excludeModels !== undefined || config.onlyModels !== undefined;
+  if (!curated && superseded.size) { out = out.filter((r) => !superseded.has(r.model.id)); out.forEach((r, i) => (r.rank = i + 1)); }
+  return { config, benchmarks: shares, ranked: out, excluded, candidateModelIds, autoHidden: curated ? [] : [...superseded] };
 }
 
 /**

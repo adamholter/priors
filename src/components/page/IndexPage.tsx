@@ -6,7 +6,7 @@ import { MixAssistant } from "../MixAssistant";
 import { ThemeToggle } from "../Theme";
 import { Fragment, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { Snapshot } from "@/data/types";
-import { chartVariantMode, computeIndex, selectVariants, type IndexConfig } from "@/engine";
+import { chartVariantMode, computeIndex, PAGE_VIEW, DEFAULT_EFFORTS, filterEfforts, selectVariants, type IndexConfig } from "@/engine";
 import { effectiveBasis } from "@/data/subscription";
 import { costDescription, hasSubscriptionPrices, taskMetricOptions } from "@/data/task-metrics";
 import { formulaInputs, pickPoints, speedChart } from "@/lib/metrics";
@@ -49,7 +49,7 @@ export function IndexPage({ profile, snapshot, edit, tab: linkedTab, linkedHighl
   const [prevProfile, setPrevProfile] = useState(profile);
   if (profile !== prevProfile) { setPrevProfile(profile); setPState(profile); }
   const setP = setPState;
-  const results = useMemo(() => new Map(p.indices.map((i) => [i.id, computeIndex(snapshot, { ...i, variants: "all" })])), [snapshot, p.indices]);
+  const results = useMemo(() => new Map(p.indices.map((i) => [i.id, computeIndex(snapshot, { ...i, variants: "all" }, PAGE_VIEW)])), [snapshot, p.indices]);
   const { dark: siteDark } = useTheme();
   const preset = resolvePreset(p.theme, siteDark);
   // The visitor's light/dark toggle matters only when the theme has both versions and the owner didn't lock one.
@@ -188,29 +188,31 @@ export function IndexPage({ profile, snapshot, edit, tab: linkedTab, linkedHighl
             for (const id of idx.excludeModels ?? []) add(id);
             return [...seen.values()];
           })();
+          const effortProps = { efforts: { value: idx.efforts ?? DEFAULT_EFFORTS, onChange: (efforts: string[]) => updateIndex({ efforts }) } };
+          const metricRanked = filterEfforts(r.ranked, idx.efforts);
           const pickerIds = pickerModels.map((m) => m.id);
-          const excludedIds = hiddenIds(idx, pickerIds);
-          const toggleModel = (id: string) => updateIndex(toggleVisibility(idx, id, pickerIds));
+          const excludedIds = hiddenIds(idx, pickerIds, r.autoHidden);
+          const toggleModel = (id: string) => updateIndex(toggleVisibility(idx, id, pickerIds, r.autoHidden));
           const modelPicker = { models: pickerModels, excluded: excludedIds, onToggleModel: toggleModel, onShowAllModels: () => updateIndex(SHOW_ALL), onHideAllModels: () => updateIndex({ excludeModels: pickerIds, onlyModels: undefined }), onShowOnly: (ids: string[]) => updateIndex({ excludeModels: pickerIds.filter((id) => !ids.includes(id)), onlyModels: undefined }) };
           const wrap = (el: React.ReactNode) => <HighlightContext.Provider key={s.id} value={{ items: idx.highlight ?? [], indexId: tabKey(p.indices, idx), view: viewParam(idx, savedViews.get(idx.id)), set: (h) => {
             updateIndex({ highlight: h.length ? h : undefined });
             window.history.replaceState(null, "", setHighlightParams(new URL(window.location.href), tabKey(p.indices, idx), h).toString());
           }, models: pickerModels }}>{el}</HighlightContext.Provider>;
-          if (s.kind === "gallery") return wrap(<section key={s.id} className="chart-panel">{heading(s, title, "text-[21px] sm:text-[24px] mb-1")}{!editing && <p className="cap mb-3">More metrics · expand a row</p>}<MetricGallery layout={s.metrics} editing={editing} onLayout={(metrics) => patchSection(s.id, { metrics })} timeSource={idx.timeSource} onTimeSourceChange={(timeSource) => updateIndex({ timeSource })} ranked={r.ranked} mode={paretoMode} snapshot={snapshot} labs={snapshot.labs} benchmarks={r.benchmarks} config={idx} settings={{ releasedAfter: idx.releasedAfter, onChangeReleased: (v) => updateIndex({ releasedAfter: v }), ...modelPicker }} /></section>);
+          if (s.kind === "gallery") return wrap(<section key={s.id} className="chart-panel">{heading(s, title, "text-[21px] sm:text-[24px] mb-1")}{!editing && <p className="cap mb-3">More metrics · expand a row</p>}<MetricGallery layout={s.metrics} editing={editing} onLayout={(metrics) => patchSection(s.id, { metrics })} timeSource={idx.timeSource} onTimeSourceChange={(timeSource) => updateIndex({ timeSource })} ranked={metricRanked} mode={paretoMode} snapshot={snapshot} labs={snapshot.labs} benchmarks={r.benchmarks} config={idx} settings={{ releasedAfter: idx.releasedAfter, onChangeReleased: (v) => updateIndex({ releasedAfter: v }), ...effortProps, ...modelPicker }} /></section>);
           const settings = (label: string, mode: "all" | "best", key: "rankingVariants" | "paretoVariants") => <ChartSettings label={label} mode={mode} onChange={(v) => updateIndex({ [key]: v })} releasedAfter={idx.releasedAfter} onChangeReleased={(v) => updateIndex({ releasedAfter: v })} models={pickerModels} excluded={excludedIds} onToggleModel={toggleModel} onShowAllModels={() => updateIndex(SHOW_ALL)} onHideAllModels={() => updateIndex({ excludeModels: pickerIds, onlyModels: undefined })} onShowOnly={modelPicker.onShowOnly} />;
           if (s.kind === "rankings") return wrap(
             <section key={s.id} className="chart-panel">
               <Rankings anchor={anchorOf(title)} title={heading(s, title, "text-[21px] sm:text-[24px]")} actions={settings("Ranking", rankingMode, "rankingVariants")} ranked={selectVariants(r.ranked, rankingMode)} showEffort={rankingMode === "all"} labs={snapshot.labs} limit={25} selected={selected} onSelect={(x) => setSelected(x?.variant.id ?? null)} />
             </section>
           );
-          if (s.kind === "pareto") return wrap(<section key={s.id} className="chart-panel"><WithView id={`pareto-${s.id}`} owner={s.view} onOwner={editing ? (view) => patchSection(s.id, { view }) : undefined}>{(paretoView, setParetoView) => <ParetoChart formulaInputs={formulaInputs(snapshot, r.ranked, idx.timeSource)} basis={effectiveBasis(idx.costBasis, hasSubscriptionPrices(snapshot))} description={costDescription(idx.costSource ?? "aa", effectiveBasis(idx.costBasis, hasSubscriptionPrices(snapshot)))} anchor={anchorOf(title)} ranked={r.ranked} mode={paretoMode} labs={snapshot.labs} height={440} view={paretoView} onView={setParetoView} title={heading(s, title, "text-[21px] sm:text-[24px]")} actions={(barModels) => {
+          if (s.kind === "pareto") return wrap(<section key={s.id} className="chart-panel"><WithView id={`pareto-${s.id}`} owner={s.view} onOwner={editing ? (view) => patchSection(s.id, { view }) : undefined}>{(paretoView, setParetoView) => <ParetoChart formulaInputs={formulaInputs(snapshot, r.ranked, idx.timeSource)} basis={effectiveBasis(idx.costBasis, hasSubscriptionPrices(snapshot))} description={costDescription(idx.costSource ?? "aa", effectiveBasis(idx.costBasis, hasSubscriptionPrices(snapshot)))} anchor={anchorOf(title)} ranked={metricRanked} mode={paretoMode} labs={snapshot.labs} height={440} view={paretoView} onView={setParetoView} title={heading(s, title, "text-[21px] sm:text-[24px]")} actions={(barModels) => {
             const models = barModels?.models ?? pickerModels, excluded = barModels?.excluded ?? excludedIds;
             const onToggleModel = barModels?.onToggleModel ?? toggleModel;
             const onShowAllModels = barModels?.onShowAllModels ?? (() => updateIndex(SHOW_ALL));
             const onHideAllModels = barModels?.onHideAllModels ?? (() => updateIndex({ excludeModels: pickerIds, onlyModels: undefined }));
-            return <ChartSettings anchor={anchorOf(title)} defaultScale={barModels ? barModels.defaultScale : "log"} formula={barModels?.formula} dataSource={{ value: idx.costSource ?? "aa", options: taskMetricOptions(snapshot, "cost"), onChange: (costSource) => updateIndex({ costSource }) }} costBasis={hasSubscriptionPrices(snapshot) ? { value: effectiveBasis(idx.costBasis), onChange: (basis) => updateIndex({ costBasis: basis === "subscription" ? undefined : basis }) } : undefined} label="Pareto" mode={paretoMode} onChange={(v) => updateIndex({ paretoVariants: v })} view={paretoView} onView={setParetoView} releasedAfter={idx.releasedAfter} onChangeReleased={(v) => updateIndex({ releasedAfter: v })} models={models} excluded={excluded} onToggleModel={onToggleModel} onShowAllModels={onShowAllModels} onHideAllModels={onHideAllModels} />;
+            return <ChartSettings anchor={anchorOf(title)} defaultScale={barModels ? barModels.defaultScale : "log"} formula={barModels?.formula} dataSource={{ value: idx.costSource ?? "aa", options: taskMetricOptions(snapshot, "cost"), onChange: (costSource) => updateIndex({ costSource }) }} costBasis={hasSubscriptionPrices(snapshot) ? { value: effectiveBasis(idx.costBasis), onChange: (basis) => updateIndex({ costBasis: basis === "subscription" ? undefined : basis }) } : undefined} label="Pareto" mode={paretoMode} onChange={(v) => updateIndex({ paretoVariants: v })} {...effortProps} view={paretoView} onView={setParetoView} releasedAfter={idx.releasedAfter} onChangeReleased={(v) => updateIndex({ releasedAfter: v })} models={models} excluded={excluded} onToggleModel={onToggleModel} onShowAllModels={onShowAllModels} onHideAllModels={onHideAllModels} />;
           }} />}</WithView></section>);
-          if (s.kind === "speed") return wrap(<section key={s.id} className="chart-panel"><WithView id={`speed-${s.id}`} owner={s.view} onOwner={editing ? (view) => patchSection(s.id, { view }) : undefined}>{(speedView, setSpeedView) => <SpeedChart onView={setSpeedView} anchor={anchorOf(title)} pts={pickPoints(speedChart, r.ranked, paretoMode)} labs={snapshot.labs} view={speedView} title={heading(s, title, "text-[21px] sm:text-[24px]")} actions={<ChartSettings anchor={anchorOf(title)} label="Speed" mode={paretoMode} onChange={(v) => updateIndex({ paretoVariants: v })} view={speedView} onView={setSpeedView} releasedAfter={idx.releasedAfter} onChangeReleased={(v) => updateIndex({ releasedAfter: v })} {...modelPicker} />} />}</WithView></section>);
+          if (s.kind === "speed") return wrap(<section key={s.id} className="chart-panel"><WithView id={`speed-${s.id}`} owner={s.view} onOwner={editing ? (view) => patchSection(s.id, { view }) : undefined}>{(speedView, setSpeedView) => <SpeedChart onView={setSpeedView} anchor={anchorOf(title)} pts={pickPoints(speedChart, metricRanked, paretoMode)} labs={snapshot.labs} view={speedView} title={heading(s, title, "text-[21px] sm:text-[24px]")} actions={<ChartSettings anchor={anchorOf(title)} label="Speed" {...effortProps} mode={paretoMode} onChange={(v) => updateIndex({ paretoVariants: v })} view={speedView} onView={setSpeedView} releasedAfter={idx.releasedAfter} onChangeReleased={(v) => updateIndex({ releasedAfter: v })} {...modelPicker} />} />}</WithView></section>);
           return null;
   };
   return (

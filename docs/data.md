@@ -81,7 +81,8 @@ Subscription pricing is the default: `IndexConfig.costBasis` unset means subscri
 - **Missing values** above the floor are estimated from peers (release window, price tier) and marked, or the weights are renormalized when estimation is off. At strictness 50 and above, a model needs 2 measured benchmarks to seed estimates and peers need 2 shared benchmarks. The peer offset shrinks as `off/(n+1)`.
 - **Versioned benchmarks** use `versionPolicy`: `fallback` (DeepSWE 1.1 falls back to 1) or `fresh` (AA index versions).
 - **Defaults:** strictness 50. `releasedAfter` undefined means models released in the six months before the snapshot date; an empty string (empty `after=` in the URL) means all time. Models with unknown release dates are never age-filtered.
-- **Chart modes are independent.** `rankingVariants` defaults to `best`, `paretoVariants` to `all`. Compute the full variant set once, then call `selectVariants` per chart.
+- **Chart modes are independent.** `rankingVariants` defaults to `best`, `paretoVariants` to `all`. Compute the full variant set once, then call `selectVariants` per chart. `efforts` filters the cost, time and speed charts through `filterEfforts`.
+- **The default view drops superseded versions.** Pages that show an index call `computeIndex(..., PAGE_VIEW)`. When the index has no `excludeModels` or `onlyModels` (nobody curated it), `supersededModelIds` (`src/engine/superseded.ts`) leaves out an older version of a line (same lab, same name apart from the version number, newer one no older by release date) none of whose efforts is on the cost frontier. Scores do not change, `result.autoHidden` lists them, the picker shows them unticked, and "All" is `excludeModels: []`, an explicit choice that turns the rule off. Internal callers (solver, optimizer, history) never pass `PAGE_VIEW`.
 
 ## Index configs and URLs
 

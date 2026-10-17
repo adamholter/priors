@@ -36,3 +36,18 @@ describe("model visibility", () => {
     expect(hiddenIds(vis, [...picker, "new-model"]).has("new-model")).toBe(false);
   });
 });
+
+describe("default view", () => {
+  const auto = ["m1", "m2"];
+  it("hides the automatic picks until the view is curated", () => {
+    expect(hiddenIds({ excludeModels: undefined, onlyModels: undefined }, picker, auto)).toEqual(new Set(auto));
+  });
+  it("show all is an explicit choice that overrides them", () => {
+    expect(hiddenIds(SHOW_ALL, picker, auto).size).toBe(0);
+    expect(SHOW_ALL.excludeModels).toEqual([]);
+  });
+  it("toggling one model from the default keeps the others as hidden as shown", () => {
+    const vis = toggleVisibility({ excludeModels: undefined, onlyModels: undefined }, "m1", picker, auto);
+    expect(vis.excludeModels).toEqual(["m2"]);
+  });
+});

@@ -6,7 +6,7 @@ import { track } from "@/lib/analytics";
 import { HighlightContext } from "./chart/highlight";
 import { SettingsButton } from "./SiteSettings";
 import type { Snapshot } from "@/data/types";
-import { chartVariantMode, computeIndex, defaultConfig, selectVariants, type IndexConfig } from "@/engine";
+import { chartVariantMode, computeIndex, PAGE_VIEW, defaultConfig, DEFAULT_EFFORTS, filterEfforts, selectVariants, type IndexConfig } from "@/engine";
 import { ShareCards } from "./ShareCards";
 import { encodeIndex, encodeIndices, decodeIndices, prettyQuery } from "@/lib/url";
 import { PRIORS_MIX_COOKIE } from "@/onboarding/defaults";
@@ -55,7 +55,7 @@ export function Builder({ snapshot: base, initialIndices, labPlacement }: { snap
   }, []);
   const [activeId, setActiveId] = useState(indices[0].id);
   const active = indices.find((i) => i.id === activeId) ?? indices[0];
-  const result = useMemo(() => computeIndex(snapshot, { ...active, variants: "all" }), [snapshot, active]);
+  const result = useMemo(() => computeIndex(snapshot, { ...active, variants: "all" }, PAGE_VIEW), [snapshot, active]);
   const rankingMode = chartVariantMode(active, "ranking"), paretoMode = chartVariantMode(active, "pareto");
   const rankingRows = useMemo(() => selectVariants(result.ranked, rankingMode), [result, rankingMode]);
   // Settings-gear model picker: ranked models first (rank order), then the rest
@@ -74,12 +74,12 @@ export function Builder({ snapshot: base, initialIndices, labPlacement }: { snap
     return [...seen.values()];
   }, [result, active.excludeModels, snapshot, labColor]);
   const pickerIds = useMemo(() => pickerModels.map((m) => m.id), [pickerModels]);
-  const excludedIds = useMemo(() => hiddenIds(active, pickerIds), [active, pickerIds]);
+  const excludedIds = useMemo(() => hiddenIds(active, pickerIds, result.autoHidden), [active, pickerIds, result.autoHidden]);
   const setVisibility = useCallback((vis: Vis) => setIndices((list) => list.map((i) => i.id === activeId ? { ...i, ...vis } : i)), [activeId]);
   const toggleModel = useCallback((id: string) => setIndices((list) => list.map((i) => {
     if (i.id !== activeId) return i;
-    return { ...i, ...toggleVisibility(i, id, pickerIds) };
-  })), [activeId, pickerIds]);
+    return { ...i, ...toggleVisibility(i, id, pickerIds, result.autoHidden) };
+  })), [activeId, pickerIds, result.autoHidden]);
   // Legacy allowlists are converted when the user changes model visibility.
   const modelPicker = { models: pickerModels, excluded: excludedIds, onToggleModel: toggleModel, onShowAllModels: () => setVisibility(SHOW_ALL), onHideAllModels: () => setVisibility({ excludeModels: pickerIds, onlyModels: undefined }), onShowOnly: (ids: string[]) => setVisibility({ excludeModels: pickerIds.filter((id) => !ids.includes(id)), onlyModels: undefined }) };
   const [paretoView, setParetoView] = useScatterView("pareto");
@@ -103,6 +103,8 @@ export function Builder({ snapshot: base, initialIndices, labPlacement }: { snap
     const t = setTimeout(() => track("index_changed", { benchmarks: Object.values(active.weights).filter((w) => w > 0).length }), 3000);
     return () => clearTimeout(t);
   }, [active, labPlacement]);
+  const effortProps = { efforts: { value: active.efforts ?? DEFAULT_EFFORTS, onChange: (efforts: string[]) => update({ ...active, efforts }) } };
+  const metricRanked = useMemo(() => filterEfforts(result.ranked, active.efforts), [result.ranked, active.efforts]);
   const releaseProps = { releasedAfter: active.releasedAfter, onChangeReleased: (v: string) => update({ ...active, releasedAfter: v }) };
 
   // write URL (debounced) when indices change
@@ -176,12 +178,12 @@ export function Builder({ snapshot: base, initialIndices, labPlacement }: { snap
           </div>
           {labPlacement === "inline" && <IndexLabActions active={active} date={snapshot.date} top={topNames} placement="inline" />}
           <div className="builder-cost">
-            <ParetoChart formulaInputs={formulaInputs(snapshot, result.ranked, active.timeSource)} basis={effectiveBasis(active.costBasis, hasSubscriptionPrices(snapshot))} description={costDescription(active.costSource ?? "aa", effectiveBasis(active.costBasis, hasSubscriptionPrices(snapshot)))} anchor="cost" ranked={result.ranked} mode={paretoMode} labs={snapshot.labs} view={paretoView} onView={setParetoView} title={<h2 className="text-[22px]">{effectiveBasis(active.costBasis, hasSubscriptionPrices(snapshot)) === "subscription" ? "Score vs subscription cost per task" : "Score vs cost per task"}</h2>}
-              actions={(barModels) => <ChartSettings anchor="cost" defaultScale="log" dataSource={{ value: active.costSource ?? "aa", options: taskMetricOptions(snapshot, "cost"), onChange: (costSource) => update({ ...active, costSource }) }} costBasis={hasSubscriptionPrices(snapshot) ? { value: effectiveBasis(active.costBasis), onChange: (basis) => update({ ...active, costBasis: basis === "subscription" ? undefined : basis }) } : undefined} label="Pareto" mode={paretoMode} onChange={(paretoVariants) => update({ ...active, paretoVariants })} view={paretoView} onView={setParetoView} {...releaseProps} {...modelPicker} {...(barModels ?? {})} />} />
+            <ParetoChart formulaInputs={formulaInputs(snapshot, result.ranked, active.timeSource)} basis={effectiveBasis(active.costBasis, hasSubscriptionPrices(snapshot))} description={costDescription(active.costSource ?? "aa", effectiveBasis(active.costBasis, hasSubscriptionPrices(snapshot)))} anchor="cost" ranked={metricRanked} mode={paretoMode} labs={snapshot.labs} view={paretoView} onView={setParetoView} title={<h2 className="text-[22px]">{effectiveBasis(active.costBasis, hasSubscriptionPrices(snapshot)) === "subscription" ? "Score vs subscription cost per task" : "Score vs cost per task"}</h2>}
+              actions={(barModels) => <ChartSettings anchor="cost" defaultScale="log" dataSource={{ value: active.costSource ?? "aa", options: taskMetricOptions(snapshot, "cost"), onChange: (costSource) => update({ ...active, costSource }) }} costBasis={hasSubscriptionPrices(snapshot) ? { value: effectiveBasis(active.costBasis), onChange: (basis) => update({ ...active, costBasis: basis === "subscription" ? undefined : basis }) } : undefined} label="Pareto" mode={paretoMode} onChange={(paretoVariants) => update({ ...active, paretoVariants })} view={paretoView} onView={setParetoView} {...releaseProps} {...effortProps} {...modelPicker} {...(barModels ?? {})} />} />
           </div>
           <div className="builder-more">
             <h2 className="text-[22px] mb-1">More metrics</h2>
-            <MetricGallery timeSource={active.timeSource} onTimeSourceChange={(timeSource) => update({ ...active, timeSource })} ranked={result.ranked} mode={paretoMode} snapshot={snapshot} labs={snapshot.labs} benchmarks={result.benchmarks} config={active} settings={{ ...releaseProps, ...modelPicker }} />
+            <MetricGallery timeSource={active.timeSource} onTimeSourceChange={(timeSource) => update({ ...active, timeSource })} ranked={metricRanked} mode={paretoMode} snapshot={snapshot} labs={snapshot.labs} benchmarks={result.benchmarks} config={active} settings={{ ...releaseProps, ...effortProps, ...modelPicker }} />
           </div>
         </section>
       </main>

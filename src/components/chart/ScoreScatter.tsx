@@ -11,7 +11,8 @@ import { ChartLink, type ChartLinkParams } from "./ChartLink";
 import { useChartExpand } from "./ChartExpand";
 import { chartLabel } from "@/lib/metrics";
 import { scatterOption, frontierOf, featuredPoints, guidePoints, highlightedModels, pickLabels, DEFAULT_VIEW, restoreScatterView, type Highlight, type ScatterPoint, type ScatterView } from "./scatter-option";
-import { dimColor } from "./theme";
+import { dimColor, type ChartPalette } from "./theme";
+import { IconX } from "@tabler/icons-react";
 import { labelScale } from "./label-size";
 import { ChartContextMenu, useChartContextMenu, useChartVisibility } from "./ChartContextMenu";
 import { useGravity } from "@/lib/konami";
@@ -75,6 +76,16 @@ function escapeHtml(s: string) { return s.replace(/[&<>"']/g, (c) => ({ "&": "&a
  * Index score vs one metric. Lab-colored marks, reasoning efforts of one model joined by a thin line,
  * Pareto frontier traced in ink, labels thinned by density. Title, settings and export share one row.
  */
+/** The selected point's details, pinned to the chart's lower right so it never covers the marks it describes. */
+function PointCard({ point, labs, pal, onFrontier, format, unit, extra, onClose }: { point: ScatterPoint; labs: Lab[]; pal: ChartPalette; onFrontier: boolean; format: (v: number) => string; unit: string; extra?: string; onClose?: () => void }) {
+  const lab = labs.find((l) => l.id === point.r.model.labId)?.name ?? point.r.model.labId;
+  return <div role="status" aria-label="Selected model" className="absolute right-3 bottom-12 z-10 w-[min(250px,calc(100%-24px))] rounded-[4px] border px-3 py-2.5 text-[12px] leading-[1.45] pointer-events-none" style={{ background: pal.tipBg, borderColor: pal.tipBorder, color: pal.ink }}>
+    <div className="flex items-start justify-between gap-2"><div className="font-semibold">{point.r.variant.sourceModel?.name ?? chartLabel(point.r)}</div>{onClose && <button type="button" aria-label="Close selection" className="pointer-events-auto -mr-1 -mt-0.5 p-0.5" style={{ color: pal.grey }} onClick={onClose}><IconX size={13} aria-hidden="true" /></button>}</div>
+    <div style={{ color: pal.grey, fontSize: 11 }}>{lab}{onFrontier ? " · on the frontier" : ""}</div>
+    <div className="mt-1.5 font-mono">{point.r.score.toFixed(1)} · {format(point.raw ?? point.x)}{unit ? ` ${unit}` : ""}{extra}</div>
+  </div>;
+}
+
 export function ScoreScatter({ pts: allPoints, labs, better, xName: baseXName, xShort: baseXShort, xUnit = "", scale: defaultScale = "linear", formatX, formatValue, height = 420, aria, title, actions, view, exportName, extraRows, tooltipExtra, anchor, linkParams }: {
   pts: ScatterPoint[]; labs: Lab[]; better: "lower" | "higher"; xName: string; xShort?: string; xUnit?: string;
   scale?: "linear" | "log" | "time"; formatX: (x: number) => string; formatValue?: (x: number) => string;
@@ -123,14 +134,18 @@ export function ScoreScatter({ pts: allPoints, labs, better, xName: baseXName, x
   // eslint-disable-next-line react-hooks/refs
   const option = useMemo<EChartsOption>(() => scatterOption({ pts, labs, better, xName, xShort, xUnit, scale, formatX, formatValue, view, pal, narrow, hasTitle: !!title, tooltipExtra, width: plotWidth, height: plotHeight, dots, highlight, fallen }),
     [pts, labs, better, view, narrow, xName, xShort, xUnit, scale, formatX, formatValue, tooltipExtra, title, pal, plotWidth, plotHeight, dots, highlight, fallen]);
+  const [hover, setHover] = useState<ScatterPoint | null>(null), [pinned, setPinned] = useState<ScatterPoint | null>(null);
   // Clicking a mark toggles that exact effort's highlight (several efforts per model are allowed).
   const pick = useRef<(p: ScatterPoint) => void>(() => {});
-  useEffect(() => { pick.current = (p) => { if (hl) hl.set(togglePoint(hl.items, pts, p)); }; }, [hl, pts]);
+  useEffect(() => { pick.current = (p) => { setPinned((cur) => (cur?.r.variant.id === p.r.variant.id ? null : p)); if (hl) hl.set(togglePoint(hl.items, pts, p)); }; }, [hl, pts]);
   // Rebuild series so mark traversal follows the new label priority after slider/filter changes.
   // Merge mode retains the previous graphic order even when the data array is reordered.
   const { ref, chart } = useEChart(option, [option], (c) => {
     handle.current = c;
     c.on("click", (e) => { const d = (e.data as { extra?: ScatterPoint } | undefined)?.extra; if (d) pick.current(d); });
+    c.on("mouseover", (e) => { const d = (e.data as { extra?: ScatterPoint } | undefined)?.extra; if (d) setHover(d); });
+    c.on("mouseout", () => setHover(null));
+    c.getZr().on("click", (e) => { if (!e.target) setPinned(null); });
     c.on("contextmenu", (e) => {
       const d = (e.data as { extra?: ScatterPoint } | undefined)?.extra;
       const event = e.event?.event as MouseEvent | undefined;
@@ -140,7 +155,15 @@ export function ScoreScatter({ pts: allPoints, labs, better, xName: baseXName, x
 
   // Guide lines for highlighted models, drawn in pixel space so they stop exactly at the axes on every
   // scale (log, linear, time) and carry value badges on the axes. Part of the SVG, so exports include them.
-  const guides = useMemo(() => guidePoints(pts, highlight), [pts, highlight]);
+  // The point under the cursor, or the one a click pinned (a tap on touch screens), is drawn with crosshair guides and described in a corner card.
+  const focus = useMemo(() => {
+    const pick = hover ?? pinned;
+    return pick ? pts.find((p) => p.r.variant.id === pick.r.variant.id) ?? null : null;
+  }, [hover, pinned, pts]);
+  const guides = useMemo(() => {
+    const base = guidePoints(pts, highlight);
+    return focus && !base.some((p) => p.r.variant.id === focus.r.variant.id) ? [...base, focus] : base;
+  }, [pts, highlight, focus]);
   useEffect(() => {
     const c = chart.current; if (!c) return;
     const colorOf = new Map(labs.map((l) => [l.id, markColor(l.color, pal, l.id)]));
@@ -248,6 +271,7 @@ export function ScoreScatter({ pts: allPoints, labs, better, xName: baseXName, x
         <div ref={ref} role="img" aria-label={aria} tabIndex={0} onContextMenu={context.onContextMenu} onKeyDown={context.onKeyDown} style={{ width: "100%", height: expand.expanded ? "100%" : Math.round(height * (pal.size?.height ?? 1)), overflow: "hidden", position: "relative", isolation: "isolate" }} />
         {fall && !!fallen?.size && <GravityLayer key={fall.run} dots={fall.dots} width={fall.width} height={fall.height} floor={fall.floor} left={fall.left} right={fall.right} stroke={pal.bg} />}
         {!pts.length && <p className="cap absolute inset-0 grid place-items-center">No model in this view has this metric.</p>}
+        {focus && <PointCard point={focus} labs={labs} pal={pal} onFrontier={view.frontier && onFrontierIds.has(focus.r.variant.id)} format={formatValue ?? formatX} unit={xUnit} extra={tooltipExtra?.(focus)} onClose={pinned && !hover ? () => setPinned(null) : undefined} />}
       </div>
       <ChartContextMenu exportControl={exportControl} state={context.menu} close={context.close} name={exportName} points={pts} visibility={visibility} chart={chart} wrap={wrapRef} expanded={expand.expanded} anchor={anchor} />
     </div></>

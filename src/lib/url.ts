@@ -1,6 +1,6 @@
 import { isCostBasis } from "../data/subscription";
 import { isTaskMetricSource } from "../data/task-metrics";
-import { DEFAULT_CUTOFF, type IndexConfig } from "../engine";
+import { DEFAULT_CUTOFF, EFFORT_CHOICES, type IndexConfig } from "../engine";
 import { FOCUS_IDS, type FocusId } from "../data/types";
 
 /**
@@ -32,12 +32,13 @@ export function encodeIndex(c: FromPage, keepPage = false): string {
   if (c.strictness != null) parts.push(`strict=${round(c.strictness)}`);
   if (c.rankingVariants) parts.push(`bars=${c.rankingVariants}`);
   if (c.paretoVariants) parts.push(`pareto=${c.paretoVariants}`);
+  if (c.efforts) parts.push(`eff=${c.efforts.join(",")}`);
   if (c.cutoff !== DEFAULT_CUTOFF) parts.push(`cut=${round(c.cutoff)}`);
   if (!c.estimateMissing) parts.push("est=0");
   if (c.variants !== "all") parts.push(`var=${c.variants}`);
   if (c.effortMatching) parts.push(`effort=${c.effortMatching}`);
   if (c.labs?.length) parts.push(`labs=${c.labs.join(",")}`);
-  if (c.excludeModels?.length) parts.push(`ex=${c.excludeModels.join(",")}`);
+  if (c.excludeModels) parts.push(`ex=${c.excludeModels.join(",")}`);
   if (c.onlyModels !== undefined) parts.push(`only=${c.onlyModels.join(",")}`);
   if (c.releasedAfter !== undefined) parts.push(`after=${c.releasedAfter}`);
   if (c.costSource && c.costSource !== "aa") parts.push(`costsrc=${c.costSource}`);
@@ -81,6 +82,7 @@ export function decodeIndex(s: string, id: string): IndexConfig | null {
     else if (k === "strict" && Number.isFinite(Number(v))) c.strictness = Math.max(0, Math.min(100, Number(v)));
     else if (k === "bars" && (v === "all" || v === "best")) c.rankingVariants = v;
     else if (k === "pareto" && (v === "all" || v === "best")) c.paretoVariants = v;
+    else if (k === "eff") c.efforts = v.split(",").filter((e) => (EFFORT_CHOICES as readonly string[]).includes(e));
     else if (k === "cut") { const n = parseFloat(v); if (Number.isFinite(n)) c.cutoff = n; }
     else if (k === "est") c.estimateMissing = v !== "0";
     else if (k === "var" && (v === "all" || v === "best")) c.variants = v;
