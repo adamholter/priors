@@ -183,6 +183,21 @@ try {
     await close();
   });
 
+  await check("usage chart switches between share and volume without squashing the axis", async () => {
+    const row = page.getByText("Usage", { exact: true }).first();
+    await row.scrollIntoViewIfNeeded();
+    const stream = page.locator(".usage-stream");
+    for (let tries = 0; tries < 5 && !(await stream.isVisible().catch(() => false)); tries++) { await row.click(); await page.waitForTimeout(500); }
+    await stream.waitFor({ timeout: 10000 });
+    await stream.getByRole("button", { name: "Volume", exact: true }).click();
+    await page.waitForTimeout(600);
+    const ticks = await stream.locator("svg text").allTextContents();
+    assert.ok(ticks.some((t) => /^\d+(\.\d+)?[KM]$/.test(t.trim())), `volume axis shows turn counts, got ${ticks.slice(0, 12).join(" | ")}`);
+    await stream.getByRole("button", { name: "Share", exact: true }).click();
+    await page.waitForTimeout(600);
+    assert.ok((await stream.locator("svg text").allTextContents()).some((t) => t.trim() === "100%"), "share axis returns to percentages");
+  });
+
   await check("hovering a mark opens its card with crosshair guides", async () => {
     const chart = page.locator('[role="img"][aria-label*="subscription cost"], [role="img"][aria-label*="cost per task"]').first();
     await chart.scrollIntoViewIfNeeded();

@@ -60,7 +60,8 @@ export function UsageStream({ snapshot, labs, extra }: { snapshot: Snapshot; lab
       })),
     };
   }, [data, stack, colors, view, pal, t]);
-  const { ref } = useEChart(option, [option]);
+  // Replace rather than merge: Share pins the axis at 100 with an interval, which would otherwise survive the switch to Volume and squash the turns into two blocks.
+  const { ref } = useEChart(option, [option], undefined, true);
   if (!data || !stack) return <>{extra}</>;
   const window = data.window?.replace(" to ", " – ");
   return (
