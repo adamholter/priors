@@ -104,10 +104,12 @@ export function barLabelFit(texts: string[], fontSize: number, slots: number, pl
   return widest + 4 <= bar ? "inside" : widest <= slot ? "above" : "vertical";
 }
 
-export function barsOption({ bars, labs, xName, formatValue, pal, narrow, highlight, labelScale, width, height = 400 }: {
+export function barsOption({ bars, labs, xName, formatValue, pal, narrow, highlight, labelScale, width, height = 400, zoomAxis }: {
   bars: ScatterPoint[]; labs: Lab[]; xName: string; formatValue: (x: number) => string; pal: ChartPalette; narrow: boolean; highlight?: string[]; labelScale?: number;
   /** Chart size in px; inside labels need it to know whether they fit. Unknown width means they sit above the bars. */
   width?: number; height?: number;
+  /** Start the value axis near the data (a whole number below the lowest bar) instead of at 0. */
+  zoomAxis?: boolean;
 }): EChartsOption {
   const t = textSize(pal), fontScale = normalizeLabelScale(labelScale) * t;
   const hl = highlightedModels(highlight ?? []), on = hl.size > 0, featured = new Set(featuredPoints(bars, highlight ?? []).map((p) => p.r.variant.id));
@@ -117,7 +119,7 @@ export function barsOption({ bars, labs, xName, formatValue, pal, narrow, highli
   const fit = width === undefined ? "above" : barLabelFit(bars.map((p) => fmt(value(p))), fontSize, layout.entries.length, width - 52 * t - 30, maxBar);
   const inside = pal.style?.barLabels === "inside" && fit === "inside";
   // Bars shorter than their value (y max is at least the top bar, so this errs short) show it above.
-  const top = Math.max(...bars.map(value)), plot = height - 52 - 100 * t, short = (p: ScatterPoint) => (value(p) / top) * plot * 0.9 < fontSize + 14;
+  const top = Math.max(...bars.map(value)), low = Math.min(...bars.map(value)), yMin = zoomAxis && bars.length ? Math.max(0, Math.floor(+(low - Math.max((top - low) * 2, 0.5)).toFixed(6))) : undefined, plot = height - 52 - 100 * t, short = (p: ScatterPoint) => ((value(p) - (yMin ?? 0)) / (top - (yMin ?? 0) || 1)) * plot * 0.9 < fontSize + 14;
   // Dimmed bars are too pale for white text, so their values sit above in grey.
   const above = { position: "top" as const, distance: 5, color: pal.ink, textBorderWidth: 0, ...(fit === "vertical" ? { rotate: 90, align: "left" as const, verticalAlign: "middle" as const } : { rotate: 0 }) };
   return {
@@ -126,7 +128,7 @@ export function barsOption({ bars, labs, xName, formatValue, pal, narrow, highli
       { type: "category", data: layout.effortLabels.map((label, i) => on && layout.entries[i] && featured.has(layout.entries[i]!.point.r.variant.id) ? { value: label, textStyle: { color: pal.ink, fontWeight: 600 } } : label), axisLabel: { rotate: 0, interval: 0, hideOverlap: true, fontSize: 9.5 * fontScale, color: pal.ink2, fontFamily: pal.fonts?.sans ?? "var(--font-inter), Inter, sans-serif", width: 84 * fontScale, overflow: "truncate" }, axisTick: { show: false }, axisLine: { show: false } },
       { type: "category", data: layout.modelLabels.map((label, i) => { const p = layout.entries[i]?.point, featuredModel = p && bars.some((bar) => bar.r.model.id === p.r.model.id && featured.has(bar.r.variant.id)); return on && label && p && (hl.has(p.r.model.id) || featuredModel) ? { value: label, textStyle: { color: pal.ink, fontWeight: 600 } } : label; }), position: "bottom", offset: 32 * t, axisLabel: { rotate: 0, interval: 0, hideOverlap: true, margin: 4, fontSize: 9.5 * fontScale, color: pal.ink, fontWeight: 500, fontFamily: pal.fonts?.sans ?? "var(--font-inter), Inter, sans-serif", width: 100 * fontScale, overflow: "truncate" }, axisTick: { show: false }, axisLine: { show: false } },
     ],
-    yAxis: { type: "value", name: xName, nameTextStyle: { color: pal.grey, fontSize: 11 * t, align: "left", padding: [0, 0, 0, -30 * t] }, axisLabel: { formatter: (v: number) => compact(formatValue)(v) } },
+    yAxis: { type: "value", ...(yMin !== undefined ? { min: yMin } : {}), name: xName, nameTextStyle: { color: pal.grey, fontSize: 11 * t, align: "left", padding: [0, 0, 0, -30 * t] }, axisLabel: { formatter: (v: number) => compact(formatValue)(v) } },
     tooltip: { trigger: "item", confine: true, formatter: (p: unknown) => { const d = (p as { data?: { point?: ScatterPoint } }).data?.point; return d ? `<div style="font-weight:600">${chartLabel(d.r)}</div><div style="font-family:var(--font-jetbrains);margin-top:4px">${d.free ? "free" : formatValue(value(d))} · index ${d.r.score.toFixed(1)}</div>` : ""; } },
     series: [{
       type: "bar", id: "bars", barMaxWidth: maxBar,

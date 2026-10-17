@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ScatterPoint } from "./scatter-option";
-import { barLayout, defaultBarModels, filterBarModels, barLabelFit, selectBars } from "./bars-option";
+import { barLayout, barsOption, defaultBarModels, filterBarModels, barLabelFit, selectBars } from "./bars-option";
+import { LIGHT_PALETTE } from "./theme";
 
 const point = (model: string, effort: string, score: number, metric: number): ScatterPoint => ({
   x: metric,
@@ -73,5 +74,21 @@ describe("barLabelFit", () => {
     expect(barLabelFit(["87s", "320s"], 10, 10, 1200, 28)).toBe("inside");
     expect(barLabelFit(["87.0s", "320s"], 10, 30, 1200, 28)).toBe("above");
     expect(barLabelFit(["87.0s"], 10, 60, 330, 28)).toBe("vertical");
+  });
+});
+
+describe("zoomed value axis", () => {
+  const yMin = (zoom: boolean, values: number[]) => {
+    const bars = values.map((v, i) => point(`m${i}`, "default", 90 - i, v));
+    const opt = barsOption({ bars, labs: [], xName: "Uptime (%)", formatValue: (x) => `${x}%`, pal: LIGHT_PALETTE, narrow: false, zoomAxis: zoom });
+    return (opt.yAxis as { min?: number }).min;
+  };
+  it("starts near the data for measures that all sit near the top, such as uptime", () => {
+    expect(yMin(true, [99.6, 99.9, 99.9])).toBe(99);
+    expect(yMin(true, [99.9, 85])).toBe(55);
+    expect(yMin(true, [99.9])).toBe(99);
+  });
+  it("leaves the axis alone by default", () => {
+    expect(yMin(false, [99.6, 99.9])).toBeUndefined();
   });
 });

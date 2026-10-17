@@ -26,6 +26,8 @@ export interface MetricChart {
   defaultKind?: "bars" | "scatter";
   /** Release chronology has no frontier until the viewer enables it. */
   defaultFrontier?: boolean;
+  /** Bar charts start the value axis near the data instead of at 0: for measures that all sit near the top (uptime), where 0 to 100 hides every difference. */
+  zoomAxis?: boolean;
 }
 
 export interface MetricPanel {
@@ -86,7 +88,7 @@ export function metricPanels(snapshot: Snapshot, ranked: RankedVariant[], timeSo
   if (has(uptime)) {
     // "Nines" axis: plot -log10(downtime) so 90%, 99%, 99.9% get equal spacing.
     const nines = (rows: RankedVariant[]) => uptime(rows).map((p) => ({ r: p.r, raw: p.x, x: -Math.log10(Math.max(0.01, 100 - p.x)) }));
-    panels.push({ id: "uptime", title: "Uptime", desc: "OpenRouter provider uptime, trailing 7 days", chart: { better: "higher", points: nines, xLabel: "", xName: "Uptime (%)", formatX: (t) => `${parseFloat((100 - 10 ** -t).toFixed(3))}%`, formatValue: fmt("%"), aria: "Index score versus OpenRouter uptime", defaultKind: "bars" } });
+    panels.push({ id: "uptime", title: "Uptime", desc: "OpenRouter provider uptime, trailing 7 days", chart: { better: "higher", points: nines, xLabel: "", xName: "Uptime (%)", formatX: (t) => `${parseFloat((100 - 10 ** -t).toFixed(3))}%`, formatValue: fmt("%"), aria: "Index score versus OpenRouter uptime", defaultKind: "bars", zoomAxis: true } });
   }
   // Model-level (no effort): one point per model, on its best-scoring ranked variant.
   const usageByModel = new Map<string, number>();

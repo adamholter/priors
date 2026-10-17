@@ -161,7 +161,7 @@ export async function renderChartPng(spec: ChartSpec, labs: Lab[], pal: ChartPal
     const modelCount = new Set(barPts.map((p) => p.r.model.id)).size;
     const bars = selectBars(barPts, spec.chart.better, Math.max(24, modelCount), highlight);
     if (!bars.length) return null;
-    const opt = barsOption({ bars, labs, xName: spec.chart.xName.replace(", log", ""), formatValue: spec.chart.xLabel === costChart.xLabel ? costChart.formatX : spec.chart.formatValue ?? spec.chart.formatX, pal, narrow: false, highlight, labelScale: spec.labelScale, width: CHART_W, height: CHART_H });
+    const opt = barsOption({ bars, labs, xName: spec.chart.xName.replace(", log", ""), formatValue: spec.chart.xLabel === costChart.xLabel ? costChart.formatX : spec.chart.formatValue ?? spec.chart.formatX, pal, narrow: false, highlight, labelScale: spec.labelScale, zoomAxis: spec.chart.zoomAxis, width: CHART_W, height: CHART_H });
     // Rotated category labels need deep bottom margin; keep them clear of X's bottom-left pill (~y550).
     chart.setOption({ ...opt, animation: false, grid: { ...(opt.grid as Record<string, number>), bottom: 132 } });
     svg = chart.renderToSVGString();
