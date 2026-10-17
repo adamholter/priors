@@ -153,6 +153,23 @@ export function ScoreScatter({ pts: allPoints, labs, better, xName: baseXName, x
     });
   }, true);
 
+  // A long press on a touch screen sends a plain contextmenu event to the wrapper, which ECharts never matches to a mark,
+  // so find the dot under (or near, for a fingertip) the press ourselves and open its menu instead of the chart's.
+  const onContextMenu = (event: React.MouseEvent) => {
+    const c = chart.current, box = event.currentTarget.getBoundingClientRect();
+    if (c) {
+      const x = event.clientX - box.left, y = event.clientY - box.top;
+      let best: ScatterPoint | undefined, bestD = 22;
+      for (const p of pts) {
+        let px: number[]; try { px = c.convertToPixel({ xAxisIndex: 0, yAxisIndex: 0 }, [p.x, p.r.score]) as number[]; } catch { continue; }
+        const d = Math.hypot(px[0] - x, px[1] - y);
+        if (Number.isFinite(d) && d < bestD) { best = p; bestD = d; }
+      }
+      if (best) { event.preventDefault(); contextPick.current(best, event.clientX, event.clientY); return; }
+    }
+    context.onContextMenu(event);
+  };
+
   // Guide lines for highlighted models, drawn in pixel space so they stop exactly at the axes on every
   // scale (log, linear, time) and carry value badges on the axes. Part of the SVG, so exports include them.
   // The point under the cursor, or the one a click pinned (a tap on touch screens), is drawn with crosshair guides and described in a corner card.
@@ -268,7 +285,7 @@ export function ScoreScatter({ pts: allPoints, labs, better, xName: baseXName, x
         </div>
       </div>
       <div className={`relative ${expand.expanded ? "flex-1 min-h-0" : ""}`}>
-        <div ref={ref} role="img" aria-label={aria} data-points={pts.map((p) => p.r.variant.id).sort().join(",")} tabIndex={0} onContextMenu={context.onContextMenu} onKeyDown={context.onKeyDown} style={{ width: "100%", height: expand.expanded ? "100%" : Math.round(height * (pal.size?.height ?? 1)), overflow: "hidden", position: "relative", isolation: "isolate" }} />
+        <div ref={ref} role="img" aria-label={aria} data-points={pts.map((p) => p.r.variant.id).sort().join(",")} tabIndex={0} onContextMenu={onContextMenu} onKeyDown={context.onKeyDown} style={{ width: "100%", height: expand.expanded ? "100%" : Math.round(height * (pal.size?.height ?? 1)), overflow: "hidden", position: "relative", isolation: "isolate" }} />
         {fall && !!fallen?.size && <GravityLayer key={fall.run} dots={fall.dots} width={fall.width} height={fall.height} floor={fall.floor} left={fall.left} right={fall.right} stroke={pal.bg} />}
         {!pts.length && <p className="cap absolute inset-0 grid place-items-center">No model in this view has this metric.</p>}
         {focus && <PointCard point={focus} labs={labs} pal={pal} onFrontier={view.frontier && onFrontierIds.has(focus.r.variant.id)} format={formatValue ?? formatX} unit={xUnit} extra={tooltipExtra?.(focus)} onClose={pinned && !hover ? () => setPinned(null) : undefined} />}
