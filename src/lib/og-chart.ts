@@ -112,8 +112,9 @@ function addHighlightGuides(chart: ReturnType<typeof echarts.init>, pts: Scatter
   if (!placed.length) return;
 
   const width = chart.getWidth();
-  const xs = placed.map(({ p, px }) => { const text = formatX(p.x); return { text, at: px[0], size: text.length * 6.6 + 10 }; });
-  const ys = placed.map(({ p, px }) => ({ text: p.r.score.toFixed(1), at: px[1], size: 16 }));
+  // The server renderer sizes badge boxes wider than the browser does (about 10px a character), so the spread allows for that.
+  const xs = placed.map(({ p, px }) => { const text = formatX(p.x); return { text, at: px[0], size: text.length * 10 + 8 }; });
+  const ys = placed.map(({ p, px }) => ({ text: p.r.score.toFixed(1), at: px[1], size: 18 }));
   const spread = (items: { at: number; size: number }[], lo: number, hi: number) => {
     const order = items.map((_, i) => i).sort((i, j) => items[i].at - items[j].at), pos = items.map((item) => item.at);
     for (let k = 0; k < order.length; k++) {
