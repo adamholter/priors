@@ -6,7 +6,7 @@ import { track } from "@/lib/analytics";
 import { HighlightContext } from "./chart/highlight";
 import { SettingsButton } from "./SiteSettings";
 import type { Snapshot } from "@/data/types";
-import { chartVariantMode, computeIndex, PAGE_VIEW, defaultConfig, DEFAULT_EFFORTS, filterEfforts, selectVariants, type IndexConfig } from "@/engine";
+import { chartVariantMode, computeIndex, PAGE_VIEW, defaultConfig, DEFAULT_EFFORTS, EFFORT_CHOICES, filterEfforts, rankingRows as rankingRowsOf, type IndexConfig } from "@/engine";
 import { ShareCards } from "./ShareCards";
 import { encodeIndex, encodeIndices, decodeIndices, prettyQuery } from "@/lib/url";
 import { PRIORS_MIX_COOKIE } from "@/onboarding/defaults";
@@ -57,7 +57,7 @@ export function Builder({ snapshot: base, initialIndices, labPlacement }: { snap
   const active = indices.find((i) => i.id === activeId) ?? indices[0];
   const result = useMemo(() => computeIndex(snapshot, { ...active, variants: "all" }, PAGE_VIEW), [snapshot, active]);
   const rankingMode = chartVariantMode(active, "ranking"), paretoMode = chartVariantMode(active, "pareto");
-  const rankingRows = useMemo(() => selectVariants(result.ranked, rankingMode), [result, rankingMode]);
+  const rankingRows = useMemo(() => rankingRowsOf(result.ranked, active), [result, active]);
   // Settings-gear model picker: ranked models first (rank order), then the rest
   // of the candidate pool, then any excluded ids resolved from the catalog so
   // they can be re-checked.
@@ -174,7 +174,7 @@ export function Builder({ snapshot: base, initialIndices, labPlacement }: { snap
         {/* Keep the assistant clearance inside this column so the sidebar stays below the header at the page bottom. */}
         <section className="builder-charts grid gap-10 min-w-0 content-start pb-20 [&>div]:min-w-0">
           <div className="builder-rank">
-            <Rankings anchor="rankings" limit={labPlacement ? 10 : undefined} title={<h2 className="text-[26px]">{active.name}</h2>} actions={<ChartSettings label="Ranking" mode={rankingMode} onChange={(rankingVariants) => update({ ...active, rankingVariants })} {...releaseProps} {...modelPicker} />} onSelect={(r) => { if (r) calculations.current?.inspect(r.variant.id); }} ranked={rankingRows} labs={snapshot.labs} showEffort={rankingMode === "all"} />
+            <Rankings anchor="rankings" limit={labPlacement ? 10 : undefined} title={<h2 className="text-[26px]">{active.name}</h2>} actions={<ChartSettings label="Ranking" efforts={{ value: active.rankingEfforts ?? [...EFFORT_CHOICES], onChange: (rankingEfforts) => update({ ...active, rankingEfforts }), withMode: true }} mode={rankingMode} onChange={(rankingVariants) => update({ ...active, rankingVariants })} {...releaseProps} {...modelPicker} />} onSelect={(r) => { if (r) calculations.current?.inspect(r.variant.id); }} ranked={rankingRows} labs={snapshot.labs} showEffort={rankingMode === "all"} />
           </div>
           {labPlacement === "inline" && <IndexLabActions active={active} date={snapshot.date} top={topNames} placement="inline" />}
           <div className="builder-cost">

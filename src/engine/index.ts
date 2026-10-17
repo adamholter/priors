@@ -27,6 +27,8 @@ export interface IndexConfig {
   paretoVariants?: "all" | "best";
   /** Reasoning efforts the cost, time and speed charts show; unset shows every effort except `none`. Models without effort levels always show. */
   efforts?: string[];
+  /** Efforts the ranking list shows; unset shows them all. */
+  rankingEfforts?: string[];
   costSource?: TaskMetricSource;
   /** Price cost per task at API list prices (default) or at the lab's subscription plan. */
   costBasis?: CostBasis;
@@ -67,9 +69,14 @@ export const EFFORT_CHOICES = ["none", "low", "medium", "high", "xhigh", "max"] 
 export const DEFAULT_EFFORTS: string[] = EFFORT_CHOICES.filter((e) => e !== "none");
 
 /** Ranked variants limited to the chosen efforts. `minimal` counts as `low`; a variant with no effort levels (`default`) always stays. */
-export function filterEfforts<T extends { variant: { effort: string } }>(ranked: T[], efforts?: string[]): T[] {
-  const on = new Set(efforts ?? DEFAULT_EFFORTS);
+export function filterEfforts<T extends { variant: { effort: string } }>(ranked: T[], efforts?: string[], unset: readonly string[] = DEFAULT_EFFORTS): T[] {
+  const on = new Set(efforts ?? unset);
   return ranked.filter(({ variant: { effort } }) => effort === "default" || on.has(effort === "minimal" ? "low" : effort));
+}
+
+/** The ranking list: the efforts the index shows there (unset: all, since a model's best effort may be `none`), then best or all per model. */
+export function rankingRows(ranked: RankedVariant[], config: IndexConfig): RankedVariant[] {
+  return selectVariants(filterEfforts(ranked, config.rankingEfforts, EFFORT_CHOICES), chartVariantMode(config, "ranking"));
 }
 
 export function selectVariants(ranked: RankedVariant[], mode: "all" | "best"): RankedVariant[] {

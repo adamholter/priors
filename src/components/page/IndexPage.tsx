@@ -6,7 +6,7 @@ import { MixAssistant } from "../MixAssistant";
 import { ThemeToggle } from "../Theme";
 import { Fragment, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { Snapshot } from "@/data/types";
-import { chartVariantMode, computeIndex, PAGE_VIEW, DEFAULT_EFFORTS, filterEfforts, selectVariants, type IndexConfig } from "@/engine";
+import { chartVariantMode, computeIndex, PAGE_VIEW, DEFAULT_EFFORTS, EFFORT_CHOICES, filterEfforts, rankingRows, type IndexConfig } from "@/engine";
 import { effectiveBasis } from "@/data/subscription";
 import { costDescription, hasSubscriptionPrices, taskMetricOptions } from "@/data/task-metrics";
 import { formulaInputs, pickPoints, speedChart } from "@/lib/metrics";
@@ -89,9 +89,9 @@ export function IndexPage({ profile, snapshot, edit, tab: linkedTab, linkedHighl
   // The comparison a visitor carries away is with the page's first index, whichever tab is open.
   const firstIndex = p.indices[0];
   const firstResult = firstIndex ? results.get(firstIndex.id) : undefined;
-  const topIds = useMemo(() => firstIndex && firstResult ? [...new Set(selectVariants(firstResult.ranked, chartVariantMode(firstIndex, "ranking")).map((r) => r.model.id))].slice(0, 20) : [], [firstIndex, firstResult]);
-  const viaNames = useMemo(() => firstIndex && firstResult ? [...new Set(selectVariants(firstResult.ranked, chartVariantMode(firstIndex, "ranking")).map((r) => r.model.name))].slice(0, 5) : [], [firstIndex, firstResult]);
-  const topNames = useMemo(() => active && activeResult ? [...new Set(selectVariants(activeResult.ranked, chartVariantMode(active, "ranking")).map((r) => r.model.name))].slice(0, 5) : [], [active, activeResult]);
+  const topIds = useMemo(() => firstIndex && firstResult ? [...new Set(rankingRows(firstResult.ranked, firstIndex).map((r) => r.model.id))].slice(0, 20) : [], [firstIndex, firstResult]);
+  const viaNames = useMemo(() => firstIndex && firstResult ? [...new Set(rankingRows(firstResult.ranked, firstIndex).map((r) => r.model.name))].slice(0, 5) : [], [firstIndex, firstResult]);
+  const topNames = useMemo(() => active && activeResult ? [...new Set(rankingRows(activeResult.ranked, active).map((r) => r.model.name))].slice(0, 5) : [], [active, activeResult]);
   const footerMix = useMemo(() => activeResult ? [...activeResult.benchmarks].sort((a, b) => b.share - a.share).map((b) => ({ id: b.benchmark.id, name: b.benchmark.shortName ?? b.benchmark.name, share: b.share })) : [], [activeResult]);
   // The editor autosaves what it shows, so a page opened through a link's overrides (hl, hv) must not turn editing on in place:
   // it reloads through the server path that ignores them (the saved page), keeping the tab.
@@ -199,10 +199,10 @@ export function IndexPage({ profile, snapshot, edit, tab: linkedTab, linkedHighl
             window.history.replaceState(null, "", setHighlightParams(new URL(window.location.href), tabKey(p.indices, idx), h).toString());
           }, models: pickerModels }}>{el}</HighlightContext.Provider>;
           if (s.kind === "gallery") return wrap(<section key={s.id} className="chart-panel">{heading(s, title, "text-[21px] sm:text-[24px] mb-1")}{!editing && <p className="cap mb-3">More metrics · expand a row</p>}<MetricGallery layout={s.metrics} editing={editing} onLayout={(metrics) => patchSection(s.id, { metrics })} timeSource={idx.timeSource} onTimeSourceChange={(timeSource) => updateIndex({ timeSource })} ranked={metricRanked} mode={paretoMode} snapshot={snapshot} labs={snapshot.labs} benchmarks={r.benchmarks} config={idx} settings={{ releasedAfter: idx.releasedAfter, onChangeReleased: (v) => updateIndex({ releasedAfter: v }), ...effortProps, ...modelPicker }} /></section>);
-          const settings = (label: string, mode: "all" | "best", key: "rankingVariants" | "paretoVariants") => <ChartSettings label={label} mode={mode} onChange={(v) => updateIndex({ [key]: v })} releasedAfter={idx.releasedAfter} onChangeReleased={(v) => updateIndex({ releasedAfter: v })} models={pickerModels} excluded={excludedIds} onToggleModel={toggleModel} onShowAllModels={() => updateIndex(SHOW_ALL)} onHideAllModels={() => updateIndex({ excludeModels: pickerIds, onlyModels: undefined })} onShowOnly={modelPicker.onShowOnly} />;
+          const settings = (label: string, mode: "all" | "best", key: "rankingVariants" | "paretoVariants") => <ChartSettings label={label} efforts={{ value: idx.rankingEfforts ?? [...EFFORT_CHOICES], onChange: (rankingEfforts) => updateIndex({ rankingEfforts }), withMode: true }} mode={mode} onChange={(v) => updateIndex({ [key]: v })} releasedAfter={idx.releasedAfter} onChangeReleased={(v) => updateIndex({ releasedAfter: v })} models={pickerModels} excluded={excludedIds} onToggleModel={toggleModel} onShowAllModels={() => updateIndex(SHOW_ALL)} onHideAllModels={() => updateIndex({ excludeModels: pickerIds, onlyModels: undefined })} onShowOnly={modelPicker.onShowOnly} />;
           if (s.kind === "rankings") return wrap(
             <section key={s.id} className="chart-panel">
-              <Rankings anchor={anchorOf(title)} title={heading(s, title, "text-[21px] sm:text-[24px]")} actions={settings("Ranking", rankingMode, "rankingVariants")} ranked={selectVariants(r.ranked, rankingMode)} showEffort={rankingMode === "all"} labs={snapshot.labs} limit={25} selected={selected} onSelect={(x) => setSelected(x?.variant.id ?? null)} />
+              <Rankings anchor={anchorOf(title)} title={heading(s, title, "text-[21px] sm:text-[24px]")} actions={settings("Ranking", rankingMode, "rankingVariants")} ranked={rankingRows(r.ranked, idx)} showEffort={rankingMode === "all"} labs={snapshot.labs} limit={25} selected={selected} onSelect={(x) => setSelected(x?.variant.id ?? null)} />
             </section>
           );
           if (s.kind === "pareto") return wrap(<section key={s.id} className="chart-panel"><WithView id={`pareto-${s.id}`} owner={s.view} onOwner={editing ? (view) => patchSection(s.id, { view }) : undefined}>{(paretoView, setParetoView) => <ParetoChart formulaInputs={formulaInputs(snapshot, r.ranked, idx.timeSource)} basis={effectiveBasis(idx.costBasis, hasSubscriptionPrices(snapshot))} description={costDescription(idx.costSource ?? "aa", effectiveBasis(idx.costBasis, hasSubscriptionPrices(snapshot)))} anchor={anchorOf(title)} ranked={metricRanked} mode={paretoMode} labs={snapshot.labs} height={440} view={paretoView} onView={setParetoView} title={heading(s, title, "text-[21px] sm:text-[24px]")} actions={(barModels) => {

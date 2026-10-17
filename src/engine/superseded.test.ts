@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { filterEfforts } from "./index";
+import { filterEfforts, rankingRows } from "./index";
+import type { IndexConfig } from "./index";
 import { modelLine, supersededModelIds } from "./superseded";
 import type { RankedVariant } from "./index";
 
@@ -82,5 +83,17 @@ describe("the default view on the real snapshot", () => {
     const curated = computeIndex(snapshot, { ...config, excludeModels: [] }, PAGE_VIEW);
     expect(curated.ranked.length).toBe(everything.ranked.length);
     expect(curated.autoHidden).toEqual([]);
+  });
+});
+
+describe("rankingRows", () => {
+  const rows = [row("A", 90, 1, false, "l", undefined, "high"), row("A", 80, 1, false, "l", undefined, "low"), row("B", 70, 1, false, "l", undefined, "none"), row("B", 60, 1, false, "l", undefined, "default")];
+  const config = (extra: Partial<IndexConfig>) => ({ id: "x", name: "x", weights: {}, required: [], cutoff: 5, estimateMissing: true, variants: "all", ...extra }) as IndexConfig;
+  it("shows each model's best effort, none included, until efforts are chosen", () => {
+    expect(rankingRows(rows, config({})).map((r) => r.variant.id)).toEqual(["A@high", "B@none"]);
+  });
+  it("limits the list to the chosen efforts, then picks the best of what is left", () => {
+    expect(rankingRows(rows, config({ rankingEfforts: ["low"] })).map((r) => r.variant.id)).toEqual(["A@low", "B@default"]);
+    expect(rankingRows(rows, config({ rankingEfforts: ["low"], rankingVariants: "all" })).map((r) => r.variant.id)).toEqual(["A@low", "B@default"]);
   });
 });

@@ -24,8 +24,8 @@ export function setHighlightParams(url: URL, indexId: string, items: string[]) {
  * the effort mode, release window, cost and time sources. A chart link carries the ones that differ from
  * the saved page (`hv`), written in the index codec's own keys, so it opens looking the way it did when copied.
  */
-const VIEW_KEYS = ["ex", "only", "after", "costsrc", "costbasis", "timesrc", "pareto", "bars", "eff"] as const;
-const VIEW_FIELD: Record<(typeof VIEW_KEYS)[number], keyof IndexConfig> = { ex: "excludeModels", only: "onlyModels", after: "releasedAfter", costsrc: "costSource", costbasis: "costBasis", timesrc: "timeSource", pareto: "paretoVariants", bars: "rankingVariants", eff: "efforts" };
+const VIEW_KEYS = ["ex", "only", "after", "costsrc", "costbasis", "timesrc", "pareto", "bars", "eff", "reff"] as const;
+const VIEW_FIELD: Record<(typeof VIEW_KEYS)[number], keyof IndexConfig> = { ex: "excludeModels", only: "onlyModels", after: "releasedAfter", costsrc: "costSource", costbasis: "costBasis", timesrc: "timeSource", pareto: "paretoVariants", bars: "rankingVariants", eff: "efforts", reff: "rankingEfforts" };
 
 const viewParts = (index?: IndexConfig) => {
   const parts = new Map<string, string>();

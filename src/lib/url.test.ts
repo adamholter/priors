@@ -98,6 +98,11 @@ describe("effort and visibility codec", () => {
       expect(c.efforts).toEqual(efforts);
     }
   });
+  it("round-trips the ranking list's efforts apart from the charts'", () => {
+    const c = decodeIndex(encodeIndex({ ...base(), rankingEfforts: ["none", "high"], efforts: ["low"] }), "x")!;
+    expect(c.rankingEfforts).toEqual(["none", "high"]);
+    expect(c.efforts).toEqual(["low"]);
+  });
   it("round-trips an explicit empty exclusion, which means show everything", () => {
     expect(decodeIndex(encodeIndex({ ...base(), excludeModels: [] }), "x")!.excludeModels).toEqual([]);
     expect(decodeIndex(encodeIndex(base()), "x")!.excludeModels).toBeUndefined();

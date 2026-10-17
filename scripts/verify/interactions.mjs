@@ -101,6 +101,21 @@ try {
     assert.match(page.url(), /eff=/, "the choice is in the link");
   });
 
+  await check("the ranking list has its own effort row", async () => {
+    const before = await page.locator(".ranking-list [data-k]").count();
+    const menu = await openSettings("Ranking settings");
+    await menu.getByRole("tab", { name: "Settings" }).click();
+    const row = menu.getByRole("group", { name: "Reasoning" });
+    assert.equal(await row.getByRole("button", { name: "none", exact: true }).getAttribute("aria-pressed"), "true", "the ranking starts with every effort, none included");
+    for (const effort of ["none", "low", "medium", "high", "xhigh"]) await row.getByRole("button", { name: effort, exact: true }).click();
+    await close();
+    await page.waitForTimeout(400);
+    assert.match(page.url(), /reff=max/, "the choice is in the link");
+    assert.ok(await page.locator(".ranking-list [data-k]").count() <= before, "only max-effort rows remain");
+    for (const effort of ["none", "low", "medium", "high", "xhigh"]) await (await openSettings("Ranking settings").then(async (m) => { await m.getByRole("tab", { name: "Settings" }).click(); return m; })).getByRole("group", { name: "Reasoning" }).getByRole("button", { name: effort, exact: true }).click();
+    await close();
+  });
+
   await check("hovering a mark opens its card with crosshair guides", async () => {
     const chart = page.locator('[role="img"][aria-label*="subscription cost"], [role="img"][aria-label*="cost per task"]').first();
     await chart.scrollIntoViewIfNeeded();

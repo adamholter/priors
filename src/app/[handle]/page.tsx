@@ -11,7 +11,7 @@ import { IndexPage } from "@/components/page/IndexPage";
 import { ProfileLoader } from "@/components/page/ProfileLoader";
 import { clientSnapshot } from "@/data/client-snapshot";
 import { PageTransition } from "@/components/PageTransition";
-import { chartVariantMode, computeIndex, PAGE_VIEW, selectVariants } from "@/engine";
+import { computeIndex, PAGE_VIEW, rankingRows } from "@/engine";
 import { prettyQuery } from "@/lib/url";
 import { findTab } from "@/lib/page-layout";
 import { indexSummary, pageMeta, previewText } from "@/lib/site-meta";
@@ -99,6 +99,6 @@ export default async function Page({ params, searchParams }: PageProps<"/[handle
   // Likewise the index whose display settings (hidden models and so on) came from the link.
   const linkedView = typeof sp.hv === "string" && sp.edit !== "1" ? open?.id : undefined;
   if (await isSearchBot()) return <PageTransition><IndexPage profile={p} snapshot={clientSnapshot(snapshot)} edit={false} tab={tab} linkedHighlight={linkedHighlight} linkedView={linkedView} /></PageTransition>;
-  const leaders = open ? selectVariants(computeIndex(snapshot, { ...open, variants: "all" }, PAGE_VIEW).ranked, chartVariantMode(open, "ranking")).slice(0, 10).map((r) => ({ name: r.model.name, score: r.score })) : [];
+  const leaders = open ? rankingRows(computeIndex(snapshot, { ...open, variants: "all" }, PAGE_VIEW).ranked, open).slice(0, 10).map((r) => ({ name: r.model.name, score: r.score })) : [];
   return <PageTransition><ProfileLoader key={`${p.handle}-${snapshot.generatedAt}`} profile={p} version={snapshot.generatedAt} edit={sp.edit === "1"} tab={tab} linkedHighlight={linkedHighlight} linkedView={linkedView} leaders={leaders} /></PageTransition>;
 }

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "../../../convex/_generated/api";
 import { loadSnapshot } from "@/data/load";
-import { chartVariantMode, computeIndex, PAGE_VIEW, selectVariants, type IndexConfig } from "@/engine";
+import { computeIndex, PAGE_VIEW, rankingRows, type IndexConfig } from "@/engine";
 import type { Snapshot } from "@/data/types";
 import { Wordmark } from "@/components/Wordmark";
 import { SiteNav } from "@/components/SiteNav";
@@ -23,7 +23,7 @@ type Published = { handle: string; displayName: string; bio?: string; avatarUrl?
 function summary(snapshot: Snapshot, index: IndexConfig) {
   try {
     const r = computeIndex(snapshot, { ...index, variants: "all" }, PAGE_VIEW);
-    const top = selectVariants(r.ranked, chartVariantMode(index, "ranking")).slice(0, 3);
+    const top = rankingRows(r.ranked, index).slice(0, 3);
     const benches = [...r.benchmarks].sort((a, b) => b.share - a.share);
     return { top, benches: benches.slice(0, 3), count: benches.length };
   } catch {

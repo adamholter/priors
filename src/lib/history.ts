@@ -2,7 +2,7 @@ import { readdir } from "node:fs/promises";
 import path from "node:path";
 import { loadSnapshot, readSnapshot } from "@/data/load";
 import { applyOpenWeights } from "@/data/open-weights";
-import { chartVariantMode, computeIndex, selectVariants, type IndexConfig } from "@/engine";
+import { computeIndex, rankingRows, type IndexConfig } from "@/engine";
 import { TOP, type HistoryData, type HistoryFrame } from "./history-frames";
 
 /** A benchmark counts for "adapting" once this many models have a published score for it. */
@@ -50,7 +50,7 @@ async function build(config: IndexConfig, mode: "fixed" | "adapting"): Promise<H
     const weights = mode === "adapting" && established.length ? Object.fromEntries(established.map((id) => [id, config.weights[id]])) : config.weights;
     const required = (config.required ?? []).filter((id) => weights[id] !== undefined);
     const result = computeIndex(snap, { ...config, weights, required, variants: "all" });
-    const ranked = selectVariants(result.ranked, chartVariantMode(config, "ranking")).filter((r) => Number.isFinite(r.score));
+    const ranked = rankingRows(result.ranked, config).filter((r) => Number.isFinite(r.score));
     const best: { open?: number; closed?: number } = {};
     for (const r of ranked) {
       const k = r.model.openWeights === true ? "open" : r.model.openWeights === false ? "closed" : undefined;
