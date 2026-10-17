@@ -7,6 +7,7 @@ import { ThemeToggle } from "../Theme";
 import { Fragment, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { Snapshot } from "@/data/types";
 import { chartVariantMode, computeIndex, PAGE_VIEW, DEFAULT_EFFORTS, EFFORT_CHOICES, filterEfforts, rankingRows, type IndexConfig } from "@/engine";
+import { track } from "@/lib/analytics";
 import { effectiveBasis } from "@/data/subscription";
 import { costDescription, hasSubscriptionPrices, taskMetricOptions } from "@/data/task-metrics";
 import { formulaInputs, pickPoints, speedChart } from "@/lib/metrics";
@@ -226,16 +227,19 @@ export function IndexPage({ profile, snapshot, edit, tab: linkedTab, linkedHighl
         <span className="max-sm:hidden"><SiteNav /></span>
         <div className="ml-auto hidden sm:flex flex-wrap items-center justify-end gap-3">
           {active && <ShareCards indices={p.indices} active={active} profile={p} pageUrl={pageUrl.toString()} defaultDesign={p.theme?.cardDesign} top={topNames} pageTheme={p.theme?.preset} />}
-          <Link href={builderHref as "/"} onClick={keepPageKey} className="btn-quiet">Open in builder</Link>
+          {isOwner || lab
+            ? <Link href={builderHref as "/"} onClick={keepPageKey} className="btn-quiet">Open in builder</Link>
+            : <Link href={builderHref as "/"} onClick={() => track("remix_clicked", { from: "profile", handle: p.handle })} className="btn inline-flex items-center gap-2" title={`Open @${p.handle}'s mix in the builder as your own copy`}><RemixIcon />Remix</Link>}
           {isOwner && <button type="button" className="btn" onClick={toggleEditing}>{editing ? "Done editing" : "Edit page"}</button>}
           <HeaderAccount />
           {followsSite && <ThemeToggle />}
         </div>
         <div className="ml-auto flex sm:hidden items-center gap-1">
           {active && <ShareCards compact indices={p.indices} active={active} profile={p} pageUrl={pageUrl.toString()} defaultDesign={p.theme?.cardDesign} top={topNames} pageTheme={p.theme?.preset} />}
+          {!isOwner && !lab && <Link href={builderHref as "/"} onClick={() => track("remix_clicked", { from: "profile", handle: p.handle })} className="btn !px-3 !py-1.5 inline-flex items-center gap-1.5 text-[12.5px]"><RemixIcon size={13} />Remix</Link>}
           {followsSite && <ThemeToggle />}
           <MobileMenu>
-            <Link href={builderHref as "/"} onClick={keepPageKey} className="btn-quiet text-center">Open in builder</Link>
+            {(isOwner || lab) && <Link href={builderHref as "/"} onClick={keepPageKey} className="btn-quiet text-center">Open in builder</Link>}
             <Link href="/explore" className="btn-quiet text-center">Explore rankings</Link>
             <Link href="/rank" className="btn-quiet text-center">Rank models</Link>
             {isOwner && <button type="button" className="btn text-center" onClick={toggleEditing}>{editing ? "Done editing" : "Edit page"}</button>}
@@ -338,6 +342,8 @@ function MobileMenu({ children }: { children: React.ReactNode }) {
 function sanitizeCss(css: string) {
   return css.replace(/<\//g, "<\\/").replace(/expression\s*\(|javascript\s*:/gi, "blocked").slice(0, 10_000);
 }
+
+const RemixIcon = ({ size = 14 }: { size?: number }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6 3v6a3 3 0 0 0 3 3h6a3 3 0 0 1 3 3v6M6 3a2 2 0 1 0 0 .01M18 21a2 2 0 1 0 0-.01M6 21a2 2 0 1 0 0-.01M6 9v12" /></svg>;
 
 function defaultTitle(s: Section, indexName?: string, subscription = false) {
   switch (s.kind) {

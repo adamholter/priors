@@ -3,6 +3,7 @@ import Link from "next/link";
 import type { CSSProperties } from "react";
 import { markColor, paletteFor } from "@/components/chart/theme";
 import { useTheme } from "@/components/Theme";
+import { track } from "@/lib/analytics";
 import { presetStyle, resolveAccent, resolvePreset } from "@/lib/page-presets";
 import "./explore-card.css";
 
@@ -37,7 +38,7 @@ export function ExploreCard({ c }: { c: ExploreCardData }) {
         ? <img src={c.avatarUrl} alt="" width={36} height={36} className="ex-avatar" style={{ width: 36, height: 36 }} />
         : <span aria-hidden="true" className="ex-avatar ex-avatar-ph" style={{ width: 36, height: 36 }}>{c.name.slice(0, 1).toUpperCase()}</span>}
       <div className="ex-who"><div className="ex-name">{c.name}</div><div className="cap ex-sub">@{c.handle} · {c.when}</div></div>
-      {c.x && <a className="ex-chip" href={`https://x.com/${c.x}`} target="_blank" rel="noreferrer" aria-label={`${c.name} on X`}><svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" /></svg>@{c.x}</a>}
+      {c.x && <a className="ex-chip" href={`https://x.com/${c.x}`} target="_blank" rel="noreferrer" onClick={() => track("explore_x_clicked", { handle: c.handle })} aria-label={`${c.name} on X`}><svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" /></svg>@{c.x}</a>}
     </div>
     <div className="ex-index">{c.index}</div>
     {c.more > 0 && <p className="cap ex-also" title={c.others.join(", ")}>Also {c.others.join(", ")}{c.more > c.others.length ? ` and ${c.more - c.others.length} more` : ""}</p>}
@@ -49,7 +50,7 @@ export function ExploreCard({ c }: { c: ExploreCardData }) {
     {c.count > 0 && <p className="cap ex-mix">{c.count} benchmark{c.count === 1 ? "" : "s"} · {c.mix.slice(0, 3).map((b) => `${b.name} ${b.share}%`).join(", ")}</p>}
     <div className="ex-foot">
       <Link href={c.pageHref as "/"}><Icon d={OPEN} />View page</Link>
-      <Link href={c.remixHref as "/builder"} title={`Open @${c.handle}'s mix in the builder as your own copy`}><Icon d={FORK} />Remix</Link>
+      <Link href={c.remixHref as "/builder"} onClick={() => track("remix_clicked", { from: "explore", handle: c.handle })} title={`Open @${c.handle}'s mix in the builder as your own copy`}><Icon d={FORK} />Remix</Link>
     </div>
   </li>;
 }
