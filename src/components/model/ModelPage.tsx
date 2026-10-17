@@ -1,4 +1,5 @@
 "use client";
+import { SiteFooter } from "@/components/SiteFooter";
 import Link from "next/link";
 import { HeaderAccount } from "@/components/AccountMenu";
 import { SettingsButton } from "../SiteSettings";
@@ -110,6 +111,7 @@ export function ModelPage({ snapshot, modelId }: { snapshot: Snapshot; modelId: 
         </details>}
       </div>
       <BenchmarkInfo snapshot={snapshot} benchmarkId={info} onClose={() => setInfo(null)} />
+      <SiteFooter />
     </main>
   );
 }

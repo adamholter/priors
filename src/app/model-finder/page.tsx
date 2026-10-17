@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { SiteFooter } from "@/components/SiteFooter";
 import { HeaderAccount } from "@/components/AccountMenu";
 import Link from "next/link";
 import { loadSnapshot } from "@/data/load";
@@ -26,5 +27,6 @@ export default async function ModelFinderPage({ searchParams }: { searchParams: 
       <span className="ml-auto flex items-center gap-2"><HeaderAccount /><SettingsButton /></span>
     </header>
     {snapshot ? <ModelFinder data={buildModelFinder(snapshot)} initialGroup={typeof params.use === "string" ? params.use : "overall"} initialBudget={Number.isFinite(budget) ? Math.round(Math.max(0, Math.min(100, budget))) : 100} initialMix={typeof params.mix === "string" ? params.mix : undefined} /> : <p className="p-8 text-ink-2">Model data is temporarily unavailable.</p>}
+    <SiteFooter />
   </main>;
 }

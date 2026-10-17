@@ -19,6 +19,7 @@ import { useBuilderSize } from "./builder-size";
 import "./builder.css";
 import { useScatterView } from "./chart/ScoreScatter";
 import { Wordmark } from "./Wordmark";
+import { SiteFooter } from "./SiteFooter";
 import { SiteNav } from "./SiteNav";
 import { IndexTabs } from "./IndexTabs";
 import { CalculationSettings, type CalculationSettingsHandle } from "./CalculationSettings";
@@ -145,12 +146,12 @@ export function Builder({ snapshot: base, initialIndices, labPlacement }: { snap
     <ChartPaletteContext.Provider value={palette}>
     <div className="builder min-h-dvh">
       <header className="builder-header grid grid-cols-[auto_minmax(0,1fr)_auto] lg:flex items-center gap-x-4 gap-y-2 px-4 sm:px-8 py-2 lg:py-0 lg:h-14 border-b hairline lg:sticky top-0 bg-bone z-40">
-        <div className="shrink-0 flex items-center gap-5"><Wordmark transitionTypes={["nav-back"]} /><span className="max-sm:hidden"><SiteNav /></span></div>
+        <div className="shrink-0 flex items-center gap-5"><Wordmark transitionTypes={["nav-back"]} /><span className="max-sm:hidden"><SiteNav current="builder" /></span></div>
         <div className="min-w-0 flex-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <IndexTabs indices={indices} activeId={active.id} onSelect={setActiveId} onRename={(id, name) => update({ ...indices.find((i) => i.id === id)!, name })} onAdd={add} onRemove={remove} />
         </div>
         <div className="col-span-3 row-start-2 lg:w-auto lg:ml-auto flex flex-wrap items-center gap-2 shrink-0">
-          <span className="sm:hidden mr-auto"><SiteNav /></span>
+          <span className="sm:hidden mr-auto"><SiteNav current="builder" /></span>
           <span className="cap">Data as of {snapshot.date}</span>
           {!labPlacement && <><ShareCards indices={indices} active={active} top={topNames} hint={shareHint} onOpen={() => setShareHint(false)} /><HeaderAuth indices={indices} /></>}
         </div>
@@ -187,6 +188,7 @@ export function Builder({ snapshot: base, initialIndices, labPlacement }: { snap
           </div>
         </section>
       </main>
+      {!labPlacement && <SiteFooter />}
       </HighlightContext.Provider>
       {labPlacement === "dock" && <IndexLabActions active={active} date={snapshot.date} top={topNames} placement="dock" />}
       {!labPlacement && <SharedChart highlight={active.highlight} onHighlight={(items) => update({ ...active, highlight: items.length ? items : undefined })} />}

@@ -7,6 +7,7 @@ import { loadSnapshot } from "@/data/load";
 import { computeIndex, PAGE_VIEW, rankingRows, type IndexConfig } from "@/engine";
 import type { Snapshot } from "@/data/types";
 import { Wordmark } from "@/components/Wordmark";
+import { SiteFooter } from "@/components/SiteFooter";
 import { SiteNav } from "@/components/SiteNav";
 import { SettingsButton } from "@/components/SiteSettings";
 import { encodeIndices, prettyQuery } from "@/lib/url";
@@ -99,5 +100,6 @@ export default async function Explore() {
         })}
       </ul>}
     </div>
+    <SiteFooter />
   </main>;
 }
