@@ -35,6 +35,13 @@ Every benchmark comes from a live scraper. No frozen datasets are merged at load
 Notes on sources whose behavior is not obvious from the file:
 
 - `surge-sudo-l7` reads the live sudo L7 leaderboard's primary rows, excluding the related benchmark cards. It keeps the existing `bg-sudo-l7` id for saved mixes and excludes the secondary dashboard copy in `boggs.COVERED`. It preserves the published percentage, reasoning effort and agent harness. Scores come from the leaderboard, which can differ from the launch blog. The page's static rank fields all read 1, so they are omitted. Raw HTML is retained; missing or malformed rows fail the refresh and preserve the prior snapshot. Coding category, `defaultWeight: 0`.
+- `snorkel-ale` reads Snorkel's Agents' Last Exam leaderboard (first, Overall table). Each row lists every effort measured for a model and harness; the best harness per model and effort wins. Value is the rubric score (pass rate is in the note). Agentic, `defaultWeight: 0`.
+- `surge-chartography` reads Surge's Chartography board (professional chart reading), between its "Chartography Leaderboard" heading and "More benchmarks" so the sudo L7 and DAYJOB teasers are skipped. Reasoning category.
+- `unipat-babyvision` reads UniPat's BabyVision table (human baseline skipped). Runs marked "(with tools)" are their own benchmark, `babyvision-tools`.
+- `zerobench` reads ZeroBench's official leaderboard (first table only): `zerobench-main`, pass@5 as the page sorts it, pass@1 in the note.
+- `matharena-apex` reads MathArena's `competition_tables/<comp>` JSON for Apex and the Apex shortlist, with 95% CIs. The ⚠️ contamination marker is dropped from labels and kept in the note.
+- `scale-hle-text` reads Scale's text-only Humanity's Last Exam board from the RSC payload (`hle-text-only`), effort from the parenthetical, CIs kept.
+- `llmlearner` reads LLMLearner's per-benchmark rankings for boards with no official live feed (today NL2Repo-Bench). Every row is a vendor or paper report, noted as self-reported.
   `BASE=https://mypriors.com npx tsx scripts/verify/sudo-l7.ts` checks source agreement, search, adding, reload, every displayed score, and desktop/mobile rendering.
 
 | Source | Note |
