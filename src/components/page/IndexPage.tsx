@@ -8,6 +8,7 @@ import { Fragment, useCallback, useEffect, useMemo, useState, type ReactNode } f
 import type { Snapshot } from "@/data/types";
 import { chartVariantMode, computeIndex, PAGE_VIEW, DEFAULT_EFFORTS, EFFORT_CHOICES, filterEfforts, rankingRows, type IndexConfig } from "@/engine";
 import { track } from "@/lib/analytics";
+import { indexNote, withoutPristineDefault } from "@/lib/default-index";
 import { effectiveBasis } from "@/data/subscription";
 import { costDescription, hasSubscriptionPrices, taskMetricOptions } from "@/data/task-metrics";
 import { formulaInputs, pickPoints, speedChart } from "@/lib/metrics";
@@ -46,9 +47,9 @@ export interface Profile {
 }
 
 export function IndexPage({ profile, snapshot, edit, tab: linkedTab, linkedHighlight, linkedView, lab, onProfileChange }: { profile: Profile; snapshot: Snapshot; edit: boolean; /** The index a link opens on (`hi`: an id or a name slug). */ tab?: string; /** The id of the index whose display settings came from the link (`hv`: hidden models and so on). */ linkedView?: string; /** The id of the index whose selection came from the link (`hl`) rather than the saved page. */ linkedHighlight?: string; /** Lab preview: act as the owner, never save. */ lab?: boolean; /** Lab: mirror edits outward so the theme switcher keeps them. */ onProfileChange?: (p: Profile) => void }) {
-  const [p, setPState] = useState(profile);
+  const [p, setPState] = useState(() => tidyProfile(profile));
   const [prevProfile, setPrevProfile] = useState(profile);
-  if (profile !== prevProfile) { setPrevProfile(profile); setPState(profile); }
+  if (profile !== prevProfile) { setPrevProfile(profile); setPState(tidyProfile(profile)); }
   const setP = setPState;
   const results = useMemo(() => new Map(p.indices.map((i) => [i.id, computeIndex(snapshot, { ...i, variants: "all" }, PAGE_VIEW)])), [snapshot, p.indices]);
   const { dark: siteDark } = useTheme();
@@ -282,6 +283,7 @@ export function IndexPage({ profile, snapshot, edit, tab: linkedTab, linkedHighl
         </section>
 
         {p.indices.length > 1 && active && <PageTabs indices={p.indices} activeId={active.id} accent={accent} editing={editing} onSelect={openTab} onRename={(id, name) => patchIndex(id, { name })} onMove={moveIndex} onRemove={dropIndex} />}
+        {p.indices.length > 1 && active && indexNote(active, p.displayName) && <p className="cap mt-2">{indexNote(active, p.displayName)}</p>}
 
         {shownSections.filter((s) => editing || !s.hidden).map((s, i, list) => {
           const el = renderSection(s);
@@ -344,6 +346,14 @@ function sanitizeCss(css: string) {
 }
 
 const RemixIcon = ({ size = 14 }: { size?: number }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6 3v6a3 3 0 0 0 3 3h6a3 3 0 0 1 3 3v6M6 3a2 2 0 1 0 0 .01M18 21a2 2 0 1 0 0-.01M6 21a2 2 0 1 0 0-.01M6 9v12" /></svg>;
+
+/** A page whose owner has an index of their own does not show the untouched default beside it. */
+function tidyProfile(profile: Profile): Profile {
+  const indices = withoutPristineDefault(profile.indices);
+  if (indices.length === profile.indices.length) return profile;
+  const ids = new Set(indices.map((i) => i.id));
+  return { ...profile, indices, sections: profile.sections.filter((s) => !s.indexId || ids.has(s.indexId)) };
+}
 
 function defaultTitle(s: Section, indexName?: string, subscription = false) {
   switch (s.kind) {

@@ -1,3 +1,4 @@
+import { withoutPristineDefault } from "./default-index";
 import type { IndexConfig } from "@/engine";
 import { encodeIndices } from "./url";
 
@@ -66,7 +67,7 @@ export function stashReturn() {
 
 /** Saves the indices to publish, and the page to return to, across the sign-in hop. */
 export function stashForPublish(indices: IndexConfig[]) {
-  try { localStorage.setItem("priors:pending", encodeIndices(indices).toString()); } catch { /* private mode */ }
+  try { localStorage.setItem("priors:pending", encodeIndices(withoutPristineDefault(indices)).toString()); } catch { /* private mode */ }
   stashReturn();
 }
 
