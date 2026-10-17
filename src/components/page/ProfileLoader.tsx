@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Snapshot } from "@/data/types";
 import { mergeImports } from "@/lib/import";
 import { findTab } from "@/lib/page-layout";
@@ -8,6 +8,7 @@ import { presetStyle, resolveAccent, resolvePreset } from "@/lib/page-presets";
 import { useTheme } from "../Theme";
 import { Wordmark } from "../Wordmark";
 import { IndexPage, type Profile } from "./IndexPage";
+import { snapshotVersionChanged } from "./profile-version";
 
 /** Render the profile identity immediately, then load calculation rows for its charts. */
 export function ProfileLoader({ profile, version, edit, tab, linkedHighlight, linkedView, leaders }: {
@@ -18,6 +19,7 @@ export function ProfileLoader({ profile, version, edit, tab, linkedHighlight, li
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [error, setError] = useState("");
   const [retry, setRetry] = useState(0);
+  const currentVersion = useRef(version);
   useEffect(() => {
     const controller = new AbortController();
     fetch(`/api/snapshot?view=core&version=${encodeURIComponent(version)}`, { signal: controller.signal })
@@ -37,6 +39,41 @@ export function ProfileLoader({ profile, version, edit, tab, linkedHighlight, li
       .catch((cause) => { if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : "Could not load benchmark data."); });
     return () => controller.abort();
   }, [version, profile.imports, retry]);
+  useEffect(() => {
+    let checking = false;
+    let loading = false;
+    let disposed = false;
+    let controller: AbortController | undefined;
+    const loadLatest = async () => {
+      if (loading || disposed) return;
+      loading = true;
+      controller = new AbortController();
+      try {
+        const response = await fetch("/api/snapshot?view=core", { signal: controller.signal, cache: "no-store" });
+        if (!response.ok) return;
+        const payload = await response.json();
+        if (!controller.signal.aborted && snapshotVersionChanged(currentVersion.current, payload.snapshot?.generatedAt)) {
+          currentVersion.current = payload.snapshot.generatedAt;
+          setSnapshot(mergeImports(payload.snapshot as Snapshot, profile.imports ?? []).snapshot);
+        }
+      } catch { /* Keep the current page if a background refresh fails. */ }
+      finally { loading = false; }
+    };
+    const checkVersion = async () => {
+      if (document.visibilityState !== "visible" || checking || disposed) return;
+      checking = true;
+      try {
+        const response = await fetch("/api/snapshot?view=meta", { cache: "no-store" });
+        if (!response.ok) return;
+        const meta = await response.json();
+        if (snapshotVersionChanged(currentVersion.current, meta.generatedAt)) await loadLatest();
+      } catch { /* A later visibility or timer check can retry. */ }
+      finally { checking = false; }
+    };
+    const interval = window.setInterval(checkVersion, 30 * 60 * 1000);
+    document.addEventListener("visibilitychange", checkVersion);
+    return () => { disposed = true; window.clearInterval(interval); document.removeEventListener("visibilitychange", checkVersion); controller?.abort(); };
+  }, [version, profile.imports]);
   if (snapshot) return <IndexPage profile={profile} snapshot={snapshot} edit={edit} tab={tab} linkedHighlight={linkedHighlight} linkedView={linkedView} />;
   const preset = resolvePreset(profile.theme, siteDark);
   const surface = preset.bg;

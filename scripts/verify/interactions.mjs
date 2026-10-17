@@ -20,6 +20,19 @@ try {
   await page.goto(`${BASE}/builder`, { waitUntil: "domcontentloaded" });
   await page.locator(".ranking-list [data-k]").first().waitFor({ timeout: 30000 });
 
+  await check("site settings opens as a named modal and Escape restores focus", async () => {
+    const trigger = page.getByRole("button", { name: "Settings", exact: true });
+    await trigger.focus();
+    await trigger.click();
+    const dialog = page.getByRole("dialog", { name: "Settings" });
+    await dialog.waitFor();
+    assert.equal(await dialog.getAttribute("aria-modal"), "true");
+    assert.equal(await page.evaluate(() => document.activeElement?.getAttribute("aria-label")), "Close settings");
+    await page.keyboard.press("Escape");
+    await dialog.waitFor({ state: "detached" }).catch(async () => assert.equal(await dialog.isVisible(), false));
+    assert.equal(await trigger.evaluate((el) => el === document.activeElement), true);
+  });
+
   // Settings are opened from each chart's own summary; wait out hydration, since a click before it does nothing.
   const openSettings = async (label) => {
     const summary = page.locator(`summary[aria-label="${label}"]`).first();
@@ -99,6 +112,14 @@ try {
     assert.equal(await row.getByRole("button", { name: "none", exact: true }).getAttribute("aria-pressed"), "true", "none switches on");
     await close();
     assert.match(page.url(), /eff=/, "the choice is in the link");
+  });
+
+  await check("cost data source options show model counts", async () => {
+    const menu = await openSettings("Pareto settings");
+    await menu.getByRole("tab", { name: "Settings" }).click();
+    const source = menu.getByLabel("Pareto data source");
+    assert.ok((await source.locator("option").allTextContents()).every((text) => /\(\d+ models\)$/.test(text)));
+    await close();
   });
 
   await check("the ranking list has its own effort row", async () => {
