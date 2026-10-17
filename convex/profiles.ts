@@ -69,7 +69,7 @@ export const explore = query({
   handler: async (ctx) => {
     const rows = await ctx.db.query("profiles").order("desc").take(300);
     const list = await Promise.all(rows.map(async (p) => ({
-      handle: p.handle, displayName: p.displayName, bio: p.bio, updatedAt: p.updatedAt, createdAt: p._creationTime,
+      handle: p.handle, displayName: p.displayName, bio: p.bio, updatedAt: p.updatedAt, createdAt: p._creationTime, theme: p.theme, socials: p.socials,
       avatarUrl: (p.avatarStorageId ? await ctx.storage.getUrl(p.avatarStorageId) : p.avatarUrl) ?? undefined,
       // The card ranks the main index; the page's other tabs are listed by name.
       indices: p.indices.slice(0, 1), others: p.indices.slice(1, 4).map((i) => i.name), more: Math.max(0, p.indices.length - 1),

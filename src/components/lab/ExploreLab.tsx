@@ -1,11 +1,15 @@
 "use client";
 import { useState, type CSSProperties } from "react";
+import { resolvePreset, presetStyle, resolveAccent } from "@/lib/page-presets";
+import { markColor } from "@/components/chart/theme";
+import { paletteFor } from "@/components/chart/theme";
+import { useTheme } from "@/components/Theme";
 import "./lab.css";
 import "./explore-lab.css";
 
 export interface LabCard {
   handle: string; name: string; avatarUrl?: string; when: string; index: string; others: string[]; more: number; count: number;
-  top: { name: string; score: number; color: string }[]; mix: { name: string; share: number }[]; x?: string;
+  top: { name: string; score: number; labId: string; base: string }[]; theme?: { preset?: string; accent?: string; mode?: "auto" | "fixed" }; mix: { name: string; share: number }[]; x?: string;
 }
 type Design = "bars" | "spotlight" | "fill" | "columns";
 const DESIGNS: { id: Design; label: string; note: string }[] = [
@@ -51,7 +55,8 @@ function Mix({ c, mode }: { c: LabCard; mode: "bars" | "text" }) {
   </div>;
 }
 
-function Models({ c, design, zoom }: { c: LabCard; design: Design; zoom: boolean }) {
+function Models({ c: card, design, zoom, colorOf }: { c: LabCard; design: Design; zoom: boolean; colorOf: (m: LabCard["top"][number]) => string }) {
+  const c = { ...card, top: card.top.map((m) => ({ ...m, color: colorOf(m) })) };
   const lead = c.top[0]?.score || 1, low = c.top[c.top.length - 1]?.score ?? lead, floor = lead - Math.max(10, (lead - low) * 2);
   const frac = (v: number) => (zoom ? Math.max(0.12, (v - floor) / (lead - floor || 1)) : v / 100);
   if (!c.top.length) return <p className="cap">No ranked models on today&apos;s data.</p>;
@@ -74,7 +79,14 @@ function Models({ c, design, zoom }: { c: LabCard; design: Design; zoom: boolean
   </div>;
 }
 
+/** The card wears its owner's page theme: resolved for the viewer's light/dark unless the owner fixed a mode. */
+function lookOf(c: LabCard, dark: boolean) {
+  const preset = resolvePreset(c.theme, dark), pal = paletteFor(preset);
+  return { preset, style: presetStyle(preset, resolveAccent(c.theme, preset)) as CSSProperties, color: (m: LabCard["top"][number]) => markColor(m.base, pal, m.labId) };
+}
+
 export function ExploreLab({ cards }: { cards: LabCard[] }) {
+  const { dark, mode, setMode } = useTheme();
   const [design, setDesign] = useState<Design>("bars");
   const [mix, setMix] = useState<"bars" | "text">("bars");
   const [xStyle, setXStyle] = useState<"icon" | "chip">("icon");
@@ -87,6 +99,7 @@ export function ExploreLab({ cards }: { cards: LabCard[] }) {
       {opt("Benchmark mix", mix, setMix, [{ id: "bars", label: "Strip + text" }, { id: "text", label: "Text only" }])}
       {opt("X link", xStyle, setXStyle, [{ id: "icon", label: "Icon by name" }, { id: "chip", label: "@handle chip" }])}
       {opt("Bar scale", zoom ? "zoom" : "zero", (v) => setZoom(v === "zoom"), [{ id: "zero", label: "From zero (0-100)" }, { id: "zoom", label: "Zoomed to the top 3" }])}
+      {opt("Site mode", mode, setMode, [{ id: "system", label: "System" }, { id: "light", label: "Light" }, { id: "dark", label: "Dark" }])}
       {opt("Columns", cols, setCols, [{ id: 3, label: "3" }, { id: 2, label: "2" }])}
     </div>
     <div className="xl-page">
@@ -94,15 +107,15 @@ export function ExploreLab({ cards }: { cards: LabCard[] }) {
       <p className="text-ink-2 text-[14px] mt-1 mb-2">Rankings people have built and published. Open one to see the full page and every chart, or start from it and make it yours.</p>
       <p className="cap mb-8">Lab: real published pages plus a few samples. X links are made up from each handle (the page data has none yet), and the last of every four cards has none.</p>
       <ul className="xl-grid" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
-        {cards.map((c) => <li key={c.handle} className="xl-card">
+        {cards.map((c) => { const look = lookOf(c, dark); return <li key={c.handle} className="xl-card" style={look.style} data-theme-preset={look.preset.id}>
           <a className="xl-stretch" href="#" onClick={(e) => e.preventDefault()} aria-label={`Open ${c.name}'s page`} />
           <Head c={c} xStyle={xStyle} size={design === "spotlight" ? 40 : 36} />
           <div className="xl-index">{c.index}</div>
           {c.more > 0 && <p className="cap xl-also">Also {c.others.join(", ")}{c.more > c.others.length ? ` and ${c.more - c.others.length} more` : ""}</p>}
-          <Models c={c} design={design} zoom={zoom} />
+          <Models c={c} design={design} zoom={zoom} colorOf={look.color} />
           <Mix c={c} mode={mix} />
           <div className="xl-foot"><a href="#" onClick={(e) => e.preventDefault()}>Start from this</a></div>
-        </li>)}
+        </li>; })}
       </ul>
     </div>
   </div>;
