@@ -78,6 +78,7 @@
 A lab is a noindex page under `/lab/` that shows three or four switchable variants of one design question, on the real page. When the question is settled, the winner goes live and the lab and losing variants are deleted.
 
 - `/lab/themes`: every page theme on a sample page, with edit mode available without signing in. Nothing saves. Kept as a tool.
+- `/lab/explore`: Explore card designs (bars, leader spotlight, filled rows, podium columns), X link as icon or chip, benchmark mix strip, bar scale. Pads real published pages with samples; X links are invented from the handle because `profiles.explore` doesn't return `socials` yet. Open question.
 - `/lab/index`: where "Publish to Explore" sits on the builder (`labPlacement` in `Builder.tsx`). Open question.
 
 ## History
