@@ -22,3 +22,11 @@ describe("history frames", () => {
     expect(placeAt(data, -3).length).toBe(2);
   });
 });
+
+describe("the cut at the top 20", () => {
+  it("shows exactly 20 rows at rest on a frame, never a half-faded 21st", () => {
+    const rows = Array.from({ length: 25 }, (_, k) => ({ id: `m${k}`, modelId: `m${k}`, name: `M${k}`, effort: "high", labId: "l", score: 90 - k }));
+    const data = { name: "x", frames: [{ date: "2026-10-01", rows }, { date: "2026-10-02", rows }], domain: [0, 100] } as never;
+    for (const pos of [0, 1]) expect(placeAt(data, pos)).toHaveLength(20);
+  });
+});

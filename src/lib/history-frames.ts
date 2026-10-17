@@ -25,7 +25,7 @@ export function placeAt(data: HistoryData, pos: number, top = TOP): Placed[] {
     const ka = x?.k ?? Math.max(top, a.rows.length), kb = y?.k ?? Math.max(top, b.rows.length);
     const row = ka + (kb - ka) * f, score = x && y ? x.r.score + (y.r.score - x.r.score) * f : (x ?? y)!.r.score;
     // A row fades as it nears the cut, so entering and leaving the top never pops.
-    out.push({ id, modelId: near.modelId, name: near.name, effort: near.effort, labId: near.labId, open: near.open, score, y: row, opacity: Math.max(0, Math.min(x && y ? 1 : x ? 1 - f : f, top + 0.5 - row)) });
+    out.push({ id, modelId: near.modelId, name: near.name, effort: near.effort, labId: near.labId, open: near.open, score, y: row, opacity: Math.max(0, Math.min(x && y ? 1 : x ? 1 - f : f, top - row)) });
   }
   return out.filter((m) => m.opacity > 0.01).sort((u, v) => u.y - v.y);
 }
