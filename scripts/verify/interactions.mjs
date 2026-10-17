@@ -27,13 +27,16 @@ try {
       for (const route of ["/explore", "/models/claude-opus-5.5", "/model-finder", "/builder", "/lab/themes", "/privacy", "/skill", "/import", "/history"]) {
         await mobile.goto(`${BASE}${route}`, { waitUntil: "domcontentloaded" });
         if (route === "/lab/themes") {
+          // The editor opens from the header on a wide screen; the bug was how it looked after narrowing.
+          await mobile.setViewportSize({ width: 1440, height: 900 });
           const edit = mobile.getByRole("button", { name: "Edit page", exact: true }).first();
           await edit.waitFor();
           for (let attempt = 0; attempt < 5 && !(await mobile.locator(".page-root").evaluate((el) => el.classList.contains("is-editing"))); attempt++) {
             await edit.click();
-            await mobile.waitForTimeout(100);
+            await mobile.waitForTimeout(200);
           }
           assert.equal(await mobile.locator(".page-root").evaluate((el) => el.classList.contains("is-editing")), true, "themes lab entered edit mode");
+          await mobile.setViewportSize({ width: 390, height: 844 });
         }
         await mobile.waitForTimeout(800);
         const widths = await mobile.evaluate(() => ({ inner: innerWidth, scroll: document.documentElement.scrollWidth }));

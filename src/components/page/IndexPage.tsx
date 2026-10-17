@@ -273,7 +273,7 @@ export function IndexPage({ profile, snapshot, edit, tab: linkedTab, linkedHighl
               <span className="mono text-grey">mypriors.com/{p.handle}</span>
               {p.socials?.map((s) => <a key={s.url} href={s.url} target="_blank" rel="noreferrer" className="hover:text-ink" style={{ color: accent }}>{s.label}</a>)}
             </div>
-            {editing ? <InlineText editing multiline label="Bio" value={p.bio ?? ""} placeholder="A sentence or two about how you pick models." className="text-[15px] text-ink-2 w-[min(62ch,78vw)] mt-1" onChange={(bio) => change({ ...p, bio: bio || undefined })} /> : p.bio && <p className="text-[15px] text-ink-2 max-w-[62ch] mt-1">{p.bio}</p>}
+            {editing ? <InlineText editing multiline label="Bio" value={p.bio ?? ""} placeholder="A sentence or two about how you pick models." className="text-[15px] text-ink-2 w-full max-w-[62ch] mt-1" onChange={(bio) => change({ ...p, bio: bio || undefined })} /> : p.bio && <p className="text-[15px] text-ink-2 max-w-[62ch] mt-1">{p.bio}</p>}
           </div>
         </section>
 
