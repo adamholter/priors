@@ -42,7 +42,7 @@ function ctxFor(snapshot:Snapshot,index:IndexConfig,who:Ctx["who"],opts?:{accent
  if(!p){p=(async()=>{const r=computeIndex(snapshot,{...index,variants:"all"},PAGE_VIEW),mode=chartVariantMode(index,"ranking"),list=selectVariants(r.ranked,mode),pareto=selectVariants(r.ranked,chartVariantMode(index,"pareto")),link=`https://mypriors.com${who.handle?`/${who.handle}`:""}`;return{...k,index,who,top:list.slice(0,5),board:list.slice(0,10),pts:pareto.filter(x=>x.costUsd!=null&&x.costUsd>=0),ranked:r.ranked,pareto,benches:r.benchmarks.map(b=>({id:b.benchmark.id,name:b.benchmark.shortName??b.benchmark.name,share:b.share})),colors:new Map(snapshot.labs.map(l=>[l.id,themed?.labColors?themed.labColors[l.id]??themed.labColors.other??l.color:scheme==="dark"?DARK_LAB_COLORS[l.id]??l.color:l.color])),accent:themed?opts?.accent??k.accent:scheme==="dark"?(opts?.accent&&opts.accent.toLowerCase()!=="#2f4fb0"?mixHex(opts.accent,"#ffffff",0.38):k.accent):opts?.accent??k.accent,bg:themed||scheme==="dark"?k.bg:opts?.surface??k.bg,dark:scheme==="dark",date:snapshot.date,qr:await QRCode.toDataURL(link,{margin:0,width:300,color:{dark:"#1A1A1A",light:"#00000000"}}),snapshot}})();ctxCache.set(key,p);if(ctxCache.size>24)ctxCache.delete(ctxCache.keys().next().value!);}
  return p;
 }
-export async function renderShareCard(snapshot: Snapshot,index:IndexConfig,who:{name:string;handle?:string;avatarUrl?:string},opts?:{accent?:string;surface?:string;design?:string;chart?:string;cv?:string;cm?:string;cs?:string;hidden?:ChartHidden;labelScale?:number;scheme?:CardScheme;theme?:{preset?:string;surface?:"bone"|"white"};radar?:RadarSettings}) {
+export async function renderShareCard(snapshot: Snapshot,index:IndexConfig,who:{name:string;handle?:string;avatarUrl?:string},opts?:{accent?:string;surface?:string;design?:string;chart?:string;cv?:string;cm?:string;cs?:string;hidden?:ChartHidden;labelScale?:number;scheme?:CardScheme;theme?:{preset?:string;surface?:"bone"|"white"};radar?:RadarSettings;/** Answer with the chart's model-and-effort ids as JSON instead of an image: what the card draws, for parity checks. */points?:boolean}) {
  const design:ShareDesign|null=isShareDesign(opts?.design)?opts.design:null;
  // Themed cards keep the components' font names but load the theme's files under them.
  const family=cardTheme(opts?.theme,opts?.scheme)?.family;
@@ -65,6 +65,7 @@ export async function renderShareCard(snapshot: Snapshot,index:IndexConfig,who:{
  else{
   const spec=scatterSpec(snapshot,c.ranked,index,opts?.chart,opts?.cm,opts?.cs,opts?.hidden,opts?.labelScale);
   if(spec){
+   if(opts?.points)return Response.json({title:spec.title,points:spec.pts.map(p=>p.r.variant.id).sort()});
    const png=await renderChartPng(spec,snapshot.labs,cardPalette(opts?.theme,opts?.scheme),opts?.cv);
    if(png)return new Response(png as unknown as BodyInit,{headers:{"content-type":"image/png"}});
   }

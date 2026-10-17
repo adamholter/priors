@@ -3,7 +3,7 @@ import { Resvg } from "@resvg/resvg-js";
 import type { EChartsOption } from "echarts";
 import type { Lab, Snapshot } from "../data/types";
 import type { RankedVariant, IndexConfig } from "../engine";
-import { chartVariantMode } from "../engine";
+import { chartVariantMode, filterEfforts } from "../engine";
 import { echarts, themeFor, paletteFor, markColor, DARK_PALETTE, SANS_STATIC, MONO_STATIC, type ChartPalette } from "../components/chart/theme";
 import { scatterOption, DEFAULT_VIEW, guidePoints, type Highlight, type ScatterPoint } from "../components/chart/scatter-option";
 import { barsOption, defaultBarModels, filterBarModels, selectBars } from "../components/chart/bars-option";
@@ -33,6 +33,8 @@ export interface ChartSpec {
  * best mode keeps each model's best *measured* effort rather than dropping the model.
  */
 export function scatterSpec(snapshot: Snapshot, ranked: RankedVariant[], index: IndexConfig, c: string | undefined, cm?: string, cs?: string, hidden: ChartHidden = EMPTY_HIDDEN, labelScale?: number): ChartSpec | null {
+  // The page draws its cost, time and speed charts from the efforts the index shows; the card must start from the same set.
+  ranked = filterEfforts(ranked, index.efforts);
   const mode = cm === "best" || cm === "all" ? cm : chartVariantMode(index, "pareto");
   const from = (chart: MetricChart, title: string, hasTitle: boolean): ChartSpec => {
     const metricPoints = chart.points(ranked), defaults = defaultBarModels(metricPoints, chart.better, ranked);

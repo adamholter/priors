@@ -12,7 +12,7 @@ const BASE = process.env.BASE ?? "http://localhost:48740";
 const browser = await chromium.launch();
 const errors = [];
 const checks = [];
-const check = async (name, fn) => { await fn(); checks.push(name); };
+const check = async (name, fn) => { try { await fn(); } catch (e) { e.message = `${name}: ${e.message}`; throw e; } checks.push(name); };
 
 try {
   const page = await (await browser.newContext({ viewport: { width: 1440, height: 1000 } })).newPage();
@@ -116,6 +116,60 @@ try {
     assert.ok(found, "a card appears over some mark");
     const bbox = await card.boundingBox();
     assert.ok(bbox.x > box.x + box.width / 2 && bbox.y > box.y + box.height / 2, "the card sits in the lower right, not beside the mark");
+  });
+
+
+  // The link you copy must open (and unfurl) as the chart you were looking at. For each setting, change it,
+  // then ask the card endpoint what it would draw for this page's own address and compare it with the points on screen.
+  const costChart = () => page.locator('[role="img"][aria-label*="cost per task"]').first();
+  const onScreen = async () => (await costChart().getAttribute("data-points")).split(",").filter(Boolean).sort();
+  const inCard = async () => {
+    await page.waitForTimeout(500); // the address bar follows the index after a short debounce
+    const url = new URL(page.url());
+    const card = new URL("/og", BASE);
+    for (const [k, v] of url.searchParams) card.searchParams.append(k, v);
+    card.searchParams.set("c", "cost"); card.searchParams.set("debug", "points");
+    const res = await page.context().request.get(card.toString());
+    assert.equal(res.status(), 200, "card endpoint answers");
+    return (await res.json()).points;
+  };
+  const settings = async () => { const menu = await openSettings("Pareto settings"); await menu.getByRole("tab", { name: "Settings" }).click(); return menu; };
+  const same = async (what) => {
+    const shown = await onScreen();
+    assert.ok(shown.length > 3, `${what}: the chart draws points`);
+    assert.deepEqual(await inCard(), shown, `${what}: the card draws what the page shows`);
+  };
+  await check("link parity: default view", async () => { await same("default"); });
+  await check("link parity: reasoning efforts", async () => {
+    const menu = await settings();
+    const row = menu.getByRole("group", { name: "Reasoning" });
+    await row.getByRole("button", { name: "max", exact: true }).click();
+    await close(); await same("max off");
+    await (await settings()).getByRole("group", { name: "Reasoning" }).getByRole("button", { name: "none", exact: true }).click();
+    await close(); await same("none on");
+    await (await settings()).getByRole("group", { name: "Reasoning" }).getByRole("button", { name: "low", exact: true }).click();
+    await close(); await same("low off");
+  });
+  await check("link parity: pricing basis and release window", async () => {
+    const menu = await settings();
+    await menu.getByRole("button", { name: "API", exact: true }).click();
+    await close(); await same("API pricing");
+    await (await settings()).getByLabel("Pareto release window").selectOption("24");
+    await close(); await same("last 2 years");
+  });
+  await check("link parity: hidden models", async () => {
+    const menu = await openSettings("Pareto settings");
+    for (let i = 0; i < 3; i++) { await menu.locator("[class*=model] input[type=checkbox]").nth(i).click(); await page.waitForTimeout(150); }
+    await close(); await same("three models unticked");
+    const again = await openSettings("Pareto settings");
+    await again.getByRole("button", { name: "None", exact: true }).click();
+    await close();
+    // With nothing shown the card has no chart to describe and falls back to an image, never a populated chart.
+    assert.deepEqual(await costChart().getAttribute("data-points").catch(() => ""), "", "no models: the chart is empty");
+    const empty = new URL("/og", BASE);
+    for (const [k, v] of new URL(page.url()).searchParams) empty.searchParams.append(k, v);
+    empty.searchParams.set("c", "cost"); empty.searchParams.set("debug", "points");
+    assert.match((await page.context().request.get(empty.toString())).headers()["content-type"], /image\/png/, "no models: the card is an image, not chart data");
   });
 
   assert.deepEqual(errors, [], "no page errors");

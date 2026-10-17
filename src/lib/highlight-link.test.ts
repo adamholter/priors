@@ -63,6 +63,13 @@ it("copies label size alongside removals and clears the old size for a different
 describe("display settings in profile links", () => {
   const saved = decodeIndex("WebDev|arena:60,swe:40|pareto=best", "webdev")!;
   const curated = { ...saved, excludeModels: ["gpt-5.5", "grok-4.3"], releasedAfter: "2026-06-01", paretoVariants: "all" as const };
+  it("carries every display setting a visitor can change: efforts, pricing, sources, window, hidden models", () => {
+    const all = { ...saved, efforts: ["none", "high"], costBasis: "api" as const, costSource: "aa" as const, timeSource: "aa" as const, releasedAfter: "2026-01-01", excludeModels: ["a"], onlyModels: undefined, rankingVariants: "all" as const };
+    const opened = linkedViews([saved], new URLSearchParams(`hv=${encodeURIComponent(viewParam(all, saved))}`))[0];
+    expect(opened).toMatchObject({ efforts: ["none", "high"], costBasis: "api", releasedAfter: "2026-01-01", excludeModels: ["a"], rankingVariants: "all" });
+    // Choosing no effort at all is a choice, and survives the link.
+    expect(linkedViews([saved], new URLSearchParams(`hv=${encodeURIComponent(viewParam({ ...saved, efforts: [] }, saved))}`))[0].efforts).toEqual([]);
+  });
   it("names only what differs from the saved page", () => {
     expect(viewParam(saved, saved)).toBe("");
     expect(viewParam(curated, saved)).toBe("ex=gpt-5.5,grok-4.3|after=2026-06-01|pareto=all");

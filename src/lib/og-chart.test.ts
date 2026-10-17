@@ -128,3 +128,19 @@ describe("link previews follow the page theme", () => {
     expect(profileCardLook(undefined)).toEqual({ theme: undefined, accent: undefined, surface: "#FBFBF9" });
   });
 });
+
+describe("share-card chart follows the page's reasoning efforts", () => {
+  const withEfforts = (efforts?: string[]): IndexConfig => ({ ...index([]), efforts });
+  const ids = (efforts?: string[]) => scatterSpec({} as Snapshot, points, withEfforts(efforts), "cost")!.pts.map((p) => p.r.variant.id).sort();
+  it("shows every effort except none by default", () => {
+    const withNone = [...points, ranked("alpha", "Alpha", "anthropic", "none", 60, 0.01)];
+    const spec = scatterSpec({} as Snapshot, withNone, withEfforts(), "cost")!;
+    expect(spec.pts.map((p) => p.r.variant.id)).not.toContain("alpha@none");
+    expect(spec.pts).toHaveLength(4);
+  });
+  it("draws exactly the chosen efforts", () => {
+    expect(ids(["low"])).toEqual(["alpha@low", "beta@low"]);
+    expect(ids(["high"])).toEqual(["alpha@high", "beta@high"]);
+    expect(ids([])).toEqual([]);
+  });
+});
