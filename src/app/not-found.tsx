@@ -8,10 +8,10 @@ export const metadata = { title: "Page not found", robots: { index: false } };
 /** Any address that leads nowhere: a mistyped handle, a model that left the data, a broken link. */
 export default function NotFound() {
   return <main className="min-h-dvh">
-    <header className="flex items-center gap-5 px-4 sm:px-8 h-14 border-b hairline">
-      <Wordmark />
-      <SiteNav />
+    <header className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 sm:px-8 py-2 sm:h-14 border-b hairline">
+      <div className="flex items-center gap-5"><Wordmark /><span className="max-sm:hidden"><SiteNav /></span></div>
       <span className="ml-auto"><SettingsButton /></span>
+      <span className="sm:hidden w-full"><SiteNav /></span>
     </header>
     <div className="max-w-[640px] mx-auto px-4 sm:px-8 py-16 sm:py-24 grid gap-4">
       <p className="cap">404</p>

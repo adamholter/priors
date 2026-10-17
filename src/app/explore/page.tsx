@@ -47,10 +47,10 @@ export default async function Explore() {
   const colors = new Map(snapshot?.labs.map((l) => [l.id, l.color]) ?? []);
 
   return <main className="min-h-dvh">
-    <header className="flex items-center gap-5 px-4 sm:px-8 h-14 border-b hairline">
-      <Wordmark />
-      <SiteNav current="explore" />
+    <header className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 sm:px-8 py-2 sm:h-14 border-b hairline">
+      <div className="flex items-center gap-5"><Wordmark /><span className="max-sm:hidden"><SiteNav current="explore" /></span></div>
       <span className="ml-auto flex items-center gap-2"><HeaderAccount /><SettingsButton /></span>
+      <span className="sm:hidden w-full"><SiteNav current="explore" /></span>
     </header>
     <div className="max-w-[1100px] mx-auto px-4 sm:px-8 py-10">
       <div className="flex flex-wrap items-end justify-between gap-4 mb-8">

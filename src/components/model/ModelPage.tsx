@@ -9,6 +9,7 @@ import type { Benchmark, Snapshot } from "@/data/types";
 import { computeIndex, defaultConfig, type IndexConfig, type RankedVariant } from "@/engine";
 import { decodeIndices, encodeIndices, prettyQuery } from "@/lib/url";
 import { Wordmark } from "../Wordmark";
+import { SiteNav } from "../SiteNav";
 import { CONTAIN_AXIS_LABELS, insideLabels, markColor, useChartPalette, useEChart } from "../chart/echarts";
 import { BenchmarkInfo, InfoIcon } from "../BenchmarkInfo";
 import { ModelStrengths } from "./ModelStrengths";
@@ -75,7 +76,7 @@ export function ModelPage({ snapshot, modelId }: { snapshot: Snapshot; modelId: 
 
   return (
     <main className="min-h-screen">
-      <header className="flex items-center gap-6 px-4 sm:px-8 h-14 border-b hairline"><Wordmark /><Link href={`/builder?${prettyQuery(encodeIndices([mix]))}` as "/builder"} className="text-grey text-[13px] hover:text-ink">Builder</Link><span className="ml-auto flex items-center gap-2"><HeaderAccount /><SettingsButton /></span></header>
+      <header className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 sm:px-8 py-2 sm:h-14 border-b hairline"><div className="flex items-center gap-5"><Wordmark /><Link href={`/builder?${prettyQuery(encodeIndices([mix]))}` as "/builder"} className="max-sm:hidden text-grey text-[13px] hover:text-ink">Builder</Link></div><span className="ml-auto flex items-center gap-2"><HeaderAccount /><SettingsButton /></span><span className="sm:hidden w-full"><SiteNav /></span></header>
       <div className="max-w-[1100px] mx-auto px-5 sm:px-8 py-10 grid gap-12">
         <section className="grid gap-5 sm:grid-cols-[1fr_auto] items-end">
           <div>

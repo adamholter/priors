@@ -14,4 +14,4 @@
 
 .ob-lab-check select{max-width:145px;padding:5px 7px;border:1px solid var(--hair);border-radius:4px;background:var(--bone);color:var(--ink);font-size:11px}
 
-@media(max-width:640px){.ob-lab-bar{position:relative;padding:10px 16px;gap:8px}.ob-lab-options{flex-wrap:nowrap;overflow:auto;width:100%}.ob-lab-options button{min-width:130px}.ob-lab-group:first-child{width:100%}}
+@media(max-width:640px){.ob-lab-bar{position:relative;box-sizing:border-box;width:100%;padding:10px 16px;gap:8px}.ob-lab-group{min-width:0;max-width:100%}.ob-lab-options{box-sizing:border-box;min-width:0;max-width:100%;flex-wrap:nowrap;overflow:auto;width:100%}.ob-lab-options button{flex-shrink:0;min-width:130px}.ob-lab-group:first-child{width:100%}}
