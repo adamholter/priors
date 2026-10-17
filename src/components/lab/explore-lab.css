@@ -51,3 +51,22 @@
 .xl-foot{margin:4px -16px 0;border-top:1px solid var(--hair);padding:10px 16px;font-size:12px}
 .xl-foot a{color:var(--ink-2)}
 .xl-foot a:hover{color:var(--indigo)}
+
+.xl-foot a{display:inline-flex;align-items:center;gap:6px}
+.xl-foot-split{display:grid;grid-template-columns:1fr 1fr;padding:0}
+.xl-foot-split a{justify-content:center;padding:11px 16px;position:relative}
+.xl-foot-split a:first-child{border-right:1px solid var(--hair);color:var(--ink-2)}
+.xl-foot-split a:last-child{color:var(--ink);font-weight:500}
+.xl-foot-split a:hover{background:var(--hair-2);color:var(--indigo)}
+.xl-foot-pad{height:4px}
+.xl-titlerow{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.xl-ghost{display:inline-flex;align-items:center;gap:6px;flex:none;padding:4px 10px;border:1px solid var(--hair);border-radius:999px;font-size:12px;color:var(--ink-2)}
+.xl-ghost:hover{border-color:var(--ink);color:var(--ink)}
+.xl-iconbtn{display:inline-grid;place-items:center;flex:none;width:28px;height:28px;border:1px solid var(--hair);border-radius:6px;color:var(--ink-2)}
+.xl-iconbtn:hover{border-color:var(--ink);color:var(--ink);background:var(--hair-2)}
+.xl-modelswrap{position:relative}
+.xl-hoverpill{position:absolute!important;right:0;bottom:0;display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:999px;background:var(--ink);color:var(--bone);font-size:12.5px;box-shadow:0 8px 20px -10px var(--shadow);opacity:0;transform:translateY(4px);transition:opacity .15s,transform .15s}
+.xl-card:hover .xl-hoverpill,.xl-hoverpill:focus-visible{opacity:1;transform:none}
+@media(hover:none){.xl-hoverpill{opacity:1;transform:none}}
+.xl-card{padding-bottom:12px}
+.xl-act-footer,.xl-act-split{padding-bottom:0}
