@@ -12,11 +12,12 @@ export interface ExploreCardData {
   top: { name: string; score: number; labId: string; base: string }[]; mix: { name: string; share: number }[];
   theme?: { preset?: string; accent?: string; surface?: "bone" | "white"; mode?: "auto" | "fixed" };
   /** X handle, from the page's links. */ x?: string;
-  pageHref: string; remixHref: string;
+  pageHref: string; remixHref: string; compareHref: string;
 }
 
 const Icon = ({ d, size = 13 }: { d: string; size?: number }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={d} /></svg>;
 const FORK = "M6 3v6a3 3 0 0 0 3 3h6a3 3 0 0 1 3 3v6M6 3a2 2 0 1 0 0 .01M18 21a2 2 0 1 0 0-.01M6 21a2 2 0 1 0 0-.01M6 9v12";
+const COMPARE = "M7 4 3 8l4 4M3 8h14M17 20l4-4-4-4M21 16H7";
 const OPEN = "M14 4h6v6M20 4l-8 8M18 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4";
 
 /**
@@ -50,6 +51,7 @@ export function ExploreCard({ c }: { c: ExploreCardData }) {
     {c.count > 0 && <p className="cap ex-mix">{c.count} benchmark{c.count === 1 ? "" : "s"} · {c.mix.slice(0, 3).map((b) => `${b.name} ${b.share}%`).join(", ")}</p>}
     <div className="ex-foot">
       <Link href={c.pageHref as "/"}><Icon d={OPEN} />View page</Link>
+      <Link href={c.compareHref as "/compare"} onClick={() => track("compare_opened", { from: "explore", handle: c.handle })} title={`Compare your ranking with @${c.handle}'s`}><Icon d={COMPARE} />Compare</Link>
       <Link href={c.remixHref as "/builder"} onClick={() => track("remix_clicked", { from: "explore", handle: c.handle })} title={`Open @${c.handle}'s mix in the builder as your own copy`}><Icon d={FORK} />Remix</Link>
     </div>
   </li>;

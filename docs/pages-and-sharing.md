@@ -9,6 +9,7 @@
 | `/builder` | The explorer: weights, rankings, charts. State lives in the URL. |
 | `/[handle]` | A published page. |
 | `/explore` | Published pages. |
+| `/compare` | Two rankings side by side. See Compare below. |
 | `/models/[id]`, `/model-finder` | One model's results (Strengths: a radar against the index leader and field median, and where it sits on each benchmark; Cost and speed: index score against cost per task by effort, and field strips for cost, time per task, output speed, time to first token and output tokens, naming any it lacks; per-benchmark cards plot score against cost, or the field's spread when cost is unknown); a guided model picker. |
 | `/claim`, `/sign-in` | Pick a handle; Clerk sign-in. |
 | `/import`, `/skill` | Benchmark import; the agent skill. |
@@ -74,13 +75,22 @@
 - **Readable addresses.** `prettyQuery` in `src/lib/url.ts` writes builder links with `:`, `,` and `=` unescaped and `+` for spaces. The `|` between fields stays escaped, because chat apps cut a link at a bare pipe.
 
 ## Explore cards
-Each card on `/explore` (`src/components/explore/ExploreCard.tsx`) wears its owner's page theme through `resolvePreset`: it follows the visitor's light/dark unless the owner fixed a mode, and single-mode themes stay as picked. The top three show as zoomed podium columns, the benchmark mix is one truncated line, the owner's X link (from `socials`, x.com or twitter.com) is a handle chip, and the footer splits View page | Remix (opens the mix in the builder as a copy). `profiles.explore` returns `theme` and `socials`; run `npx convex deploy` before pushing changes to it.
+Each card on `/explore` (`src/components/explore/ExploreCard.tsx`) wears its owner's page theme through `resolvePreset`: it follows the visitor's light/dark unless the owner fixed a mode, and single-mode themes stay as picked. The top three show as zoomed podium columns, the benchmark mix is one truncated line, the owner's X link (from `socials`, x.com or twitter.com) is a handle chip, and the footer splits View page | Compare (your ranking against theirs, `/compare?a=me&b=@handle`) | Remix (opens the mix in the builder as a copy). `profiles.explore` returns `theme` and `socials`; run `npx convex deploy` before pushing changes to it.
+
+## Compare
+`/compare?a=<ref>&b=<ref>` puts any two rankings side by side. A ref (`src/lib/compare-ref.ts`) is `me` (the visitor's own: their published page's main index, else the first index in their builder), `@handle` or `@handle~tab` (a page, its main index or the tab a link would name), `preset:aa` or `preset:general`, or an index spelled in the builder's codec, so an unsaved ranking compares too. `n` is the length of the top lists (5, 10 or 20) and `same=1` keeps only models both sides rank and ranks them again among themselves. The address follows every change, so it is the share link; a side that is the visitor's own is written as their handle or their spelled index, never as `me`. A link to `/compare` with no `a` fills the left side with the visitor's own ranking.
+- **Entry points.** The Compare action on every Explore card, a Compare button in a published page's header (it names the open tab), and Compare beside the Explore header's actions. Visitors with no ranking get "Rank models · 1 min" in the picker.
+- **Each side** is one index run on today's data with its owner's imported benchmarks and the page default view (`rankSide` in `src/components/compare/choice.ts`), shown as models (best variant each) by rank. The picker offers the visitor's rankings, published pages (a page with several tabs asks which), the presets, and a pasted link or handle.
+- **What it says** (`src/lib/compare.ts`, tested): how many of the top `n` are on both lists, Spearman rank correlation over the models both rank, the two models with the biggest rank gap, and the share of weight the two mixes put on the same benchmarks. Ranks are as each side publishes them unless `same=1`. The slope draws a line from each model to its place on the other list; a model off the other top list keeps a stub and its rank there, or a dash when that side does not rank it.
+- **Narrow screens** get the matched table instead of the slope (`.cmp-wide` and `.cmp-narrow`).
+- The page's description for link previews is computed from the same numbers (`generateMetadata` in `src/app/compare/page.tsx`); the image is the default card.
 
 ## Labs
 
 A lab is a noindex page under `/lab/` that shows three or four switchable variants of one design question, on the real page. When the question is settled, the winner goes live and the lab and losing variants are deleted.
 
 - `/lab/themes`: every page theme on a sample page, with edit mode available without signing in. Nothing saves. Kept as a tool.
+- `/lab/compare`: the compare page with its open questions switchable on sample people: layout (slope, boards, matched table, gaps, podiums), summary, how a side is chosen (menu, faces, sheet) and where Compare lives (card footer, pick two, page header). Open question.
 - `/lab/index`: where "Publish to Explore" sits on the builder (`labPlacement` in `Builder.tsx`). Open question.
 
 ## History

@@ -111,6 +111,7 @@ export function IndexPage({ profile, snapshot, edit, tab: linkedTab, linkedHighl
   // even after a rename. The key makes the reference good for this tab only (see FromPage); visitors get a plain link.
   const [pageKey] = useState(() => crypto.randomUUID().replace(/-/g, ""));
   const inBuilder = active ? [active, ...p.indices.filter((i) => i.id !== active.id)] : [];
+  const compareHref = isOwner && !lab ? "/compare?a=me" : `/compare?a=me&b=@${p.handle}${active && active !== p.indices[0] ? `~${tabKey(p.indices, active)}` : ""}`;
   const builderHref = `/?${prettyQuery(encodeIndices(isOwner && !lab ? inBuilder.map((i) => ({ ...i, page: pageRef(p.handle, i.id, pageKey) })) : inBuilder, true))}`;
   const keepPageKey = () => { try { sessionStorage.setItem(PAGE_KEY, pageKey); } catch { /* storage can be disabled */ } };
   // The link people share: the bare page address unless it has to name another tab or a changed selection.
@@ -228,6 +229,7 @@ export function IndexPage({ profile, snapshot, edit, tab: linkedTab, linkedHighl
         <span className="max-sm:hidden"><SiteNav /></span>
         <div className="ml-auto hidden sm:flex flex-wrap items-center justify-end gap-3">
           {active && <ShareCards indices={p.indices} active={active} profile={p} pageUrl={pageUrl.toString()} defaultDesign={p.theme?.cardDesign} top={topNames} pageTheme={p.theme?.preset} />}
+          {!lab && <Link href={compareHref as "/compare"} onClick={() => track("compare_opened", { from: "profile", handle: p.handle })} className="btn-quiet" title={isOwner ? "Compare your ranking with someone else's" : `Compare your ranking with @${p.handle}'s`}>Compare</Link>}
           {isOwner || lab
             ? <Link href={builderHref as "/"} onClick={keepPageKey} className="btn-quiet">Open in builder</Link>
             : <Link href={builderHref as "/"} onClick={() => track("remix_clicked", { from: "profile", handle: p.handle })} className="btn inline-flex items-center gap-2" title={`Open @${p.handle}'s mix in the builder as your own copy`}><RemixIcon />Remix</Link>}
@@ -241,6 +243,7 @@ export function IndexPage({ profile, snapshot, edit, tab: linkedTab, linkedHighl
           {followsSite && <ThemeToggle />}
           <MobileMenu>
             {(isOwner || lab) && <Link href={builderHref as "/"} onClick={keepPageKey} className="btn-quiet text-center">Open in builder</Link>}
+            {!lab && <Link href={compareHref as "/compare"} className="btn-quiet text-center">Compare</Link>}
             <Link href="/explore" className="btn-quiet text-center">Explore rankings</Link>
             <Link href="/rank" className="btn-quiet text-center">Rank models</Link>
             {isOwner && <button type="button" className="btn text-center" onClick={toggleEditing}>{editing ? "Done editing" : "Edit page"}</button>}

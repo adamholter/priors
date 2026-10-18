@@ -19,8 +19,8 @@
 .ex-col-bar b{display:block;width:100%;border-radius:4px 4px 0 0}
 .ex-col-name{max-width:100%;font-size:12px;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ex-mix{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-bottom:4px}
-.ex-foot{display:grid;grid-template-columns:1fr 1fr;margin:auto -16px 0;border-top:1px solid var(--hair);font-size:12px}
-.ex-foot a{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:11px 16px}
-.ex-foot a:first-child{border-right:1px solid var(--hair);color:var(--ink-2)}
+.ex-foot{display:grid;grid-template-columns:repeat(3,1fr);margin:auto -16px 0;border-top:1px solid var(--hair);font-size:12px}
+.ex-foot a{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:11px 6px;white-space:nowrap}
+.ex-foot a:not(:last-child){border-right:1px solid var(--hair);color:var(--ink-2)}
 .ex-foot a:last-child{color:var(--ink);font-weight:500}
 .ex-foot a:hover{background:color-mix(in srgb,var(--ink) 8%,transparent);color:var(--ink)}

@@ -24,7 +24,7 @@ try {
     const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
     const mobile = await context.newPage();
     try {
-      for (const route of ["/explore", "/models/claude-opus-5.5", "/model-finder", "/builder", "/lab/themes", "/privacy", "/skill", "/import", "/history"]) {
+      for (const route of ["/explore", "/compare?a=preset:aa&b=preset:general", "/models/claude-opus-5.5", "/model-finder", "/builder", "/lab/themes", "/privacy", "/skill", "/import", "/history"]) {
         await mobile.goto(`${BASE}${route}`, { waitUntil: "domcontentloaded" });
         if (route === "/lab/themes") {
           // The editor opens from the header on a wide screen; the bug was how it looked after narrowing.
@@ -267,6 +267,53 @@ try {
     for (const [k, v] of new URL(page.url()).searchParams) empty.searchParams.append(k, v);
     empty.searchParams.set("c", "cost"); empty.searchParams.set("debug", "points");
     assert.match((await page.context().request.get(empty.toString())).headers()["content-type"], /image\/png/, "no models: the card is an image, not chart data");
+  });
+
+  await check("compare: two rankings side by side, switchable and linkable", async () => {
+    const c = await (await browser.newContext({ viewport: { width: 1280, height: 900 } })).newPage();
+    c.on("pageerror", (e) => errors.push(`${c.url()}: ${e.message}`));
+    try {
+      await c.goto(`${BASE}/compare?a=preset:aa&b=preset:general`, { waitUntil: "domcontentloaded" });
+      const rowsA = c.locator(".cmp-wide .cmp-list-a .cmp-row");
+      await rowsA.first().waitFor({ timeout: 30000 });
+      assert.equal(await rowsA.count(), 10, "top 10 on the left");
+      assert.equal(await c.locator(".cmp-wide .cmp-list-b .cmp-row").count(), 10, "top 10 on the right");
+      assert.ok(await c.locator(".cmp-wide .cmp-line").count() >= 10, "a line for each model");
+      assert.match(await c.locator(".cmp-lead").innerText(), /top 10/, "the headline names the top list");
+      assert.ok(await c.locator(".cmp-mix-row").count() >= 2, "benchmark weights are listed");
+      const left = (await c.locator(".cmp-sides .cmp-card-title").first().innerText()).trim();
+      await c.getByRole("button", { name: "Top 5", exact: true }).click();
+      assert.equal(await rowsA.count(), 5, "Top 5 cuts the lists");
+      assert.match(c.url(), /[?&]n=5/, "the link carries the cut");
+      await c.getByLabel("Same models only").check();
+      assert.match(c.url(), /same=1/, "the link carries same models");
+      await c.getByRole("button", { name: "Swap the two rankings" }).click();
+      assert.notEqual((await c.locator(".cmp-sides .cmp-card-title").first().innerText()).trim(), left, "swap puts the other ranking on the left");
+      assert.match(c.url(), /a=preset(:|%3A)general&b=preset(:|%3A)aa/, "the link follows the swap");
+      // Choose the left side from the picker.
+      await c.getByRole("button", { name: /First ranking/ }).click();
+      await c.getByPlaceholder(/Search people/).fill("artificial");
+      await c.getByRole("button", { name: /Artificial Analysis/ }).first().click();
+      assert.equal((await c.locator(".cmp-sides .cmp-card-title").first().innerText()).trim(), "Artificial Analysis", "the picker sets the side");
+      // A reload from the link shows the same comparison.
+      await c.reload({ waitUntil: "domcontentloaded" });
+      await rowsA.first().waitFor({ timeout: 30000 });
+      assert.equal(await rowsA.count(), 5, "the link restores the cut");
+      assert.equal(await c.locator(".cmp-sides .cmp-card-title").first().innerText().then((t) => t.trim()), "Artificial Analysis", "the link restores the sides");
+      // Each model keeps its place: hovering a row lights its line.
+      await rowsA.first().hover();
+      assert.equal(await c.locator(".cmp-wide .cmp-line[data-state=on]").count() >= 0, true);
+    } finally { await c.context().close(); }
+  });
+  await check("compare: a phone gets the matched table, not the slope", async () => {
+    const m = await (await browser.newContext({ viewport: { width: 390, height: 844 } })).newPage();
+    m.on("pageerror", (e) => errors.push(`${m.url()}: ${e.message}`));
+    try {
+      await m.goto(`${BASE}/compare?a=preset:aa&b=preset:general`, { waitUntil: "domcontentloaded" });
+      await m.locator(".cmp-narrow .cmp-table tbody tr").first().waitFor({ timeout: 30000 });
+      assert.equal(await m.locator(".cmp-wide").isVisible(), false, "the slope is hidden");
+      assert.ok(await m.locator(".cmp-narrow .cmp-table tbody tr").count() >= 10, "one row per model");
+    } finally { await m.context().close(); }
   });
 
   assert.deepEqual(errors, [], "no page errors");

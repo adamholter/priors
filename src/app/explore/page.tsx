@@ -62,6 +62,7 @@ export default async function Explore() {
         </div>
         <div className="flex flex-wrap gap-2">
           <Link href="/rank" className="btn">Rank models · 1 min</Link>
+          <Link href="/compare?a=me" className="btn-quiet">Compare</Link>
           <Link href="/model-finder" className="btn-quiet">Model finder</Link>
           <Link href="/builder" className="btn-quiet">Publish yours</Link>
         </div>
@@ -77,7 +78,7 @@ export default async function Explore() {
             handle: p.handle, name: p.displayName, avatarUrl: p.avatarUrl, when: ago(p.updatedAt), index: index.name ?? "Rankings", others: p.others, more: p.more,
             count: s?.count ?? 0, mix: (s?.benches ?? []).map((b) => ({ name: b.benchmark.shortName ?? b.benchmark.name, share: Math.round(b.share) })),
             top: (s?.top ?? []).map((r) => ({ name: r.model.name, score: r.score, labId: r.model.labId, base: colors.get(r.model.labId) ?? "#A3A39B" })),
-            theme: p.theme, x, pageHref: `/${p.handle}`, remixHref: `/builder?${prettyQuery(encodeIndices([{ ...index, name: `From @${p.handle}` }]))}`,
+            theme: p.theme, x, pageHref: `/${p.handle}`, compareHref: `/compare?a=me&b=@${p.handle}`, remixHref: `/builder?${prettyQuery(encodeIndices([{ ...index, name: `From @${p.handle}` }]))}`,
           }} />;
         })}
       </ul>}
