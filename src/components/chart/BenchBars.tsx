@@ -19,7 +19,7 @@ function barOption(axis: RadarAxis, index: number, series: RadarSeries[], pal: C
     grid: { left: 6, right: 6, top: 24, bottom: (narrow ? 64 : 76) * t, ...CONTAIN_AXIS_LABELS },
     xAxis: { type: "category", data: bars.map((b) => b.s.name), axisLabel: { rotate: 40, interval: 0, fontSize: 10.5 * t, color: pal.ink2, fontFamily: sans, width: 110 * t, overflow: "truncate" }, axisTick: { show: false }, axisLine: { show: false } },
     yAxis: { type: "value", min: 0, axisLabel: { show: false } },
-    tooltip: { trigger: "item", confine: true, formatter: (p: unknown) => { const b = bars[(p as { dataIndex: number }).dataIndex]; return b ? `<div style="font-weight:600">${b.s.name}</div><div style="font-family:var(--font-jetbrains);margin-top:4px">${formatValue(b.p, axis)}${b.p.estimated ? " (estimated)" : ""} · ${axis.name}</div>` : ""; } },
+    tooltip: { trigger: "item", confine: true, formatter: (p: unknown) => { const b = bars[(p as { dataIndex: number }).dataIndex]; return b ? `<div style="font-weight:600">${b.s.name}</div><div style="font-family:var(--font-jetbrains);margin-top:4px">${formatValue(b.p, axis)}${b.p.estimated ? (b.p.estimateRange ? ` (estimated, ${b.p.estimateRange[0].toFixed(0)} to ${b.p.estimateRange[1].toFixed(0)})` : " (estimated)") : ""} · ${axis.name}</div>` : ""; } },
     series: [{
       type: "bar", id: "bench", barMaxWidth: 34 * markSize(pal), barCategoryGap: "22%",
       data: bars.map((b) => ({ value: b.height, itemStyle: { color: b.s.color, opacity: focus && focus !== b.s.id ? 0.3 : b.p.estimated ? 0.6 : 1, borderRadius: [pal.style?.barRadius ?? 2, pal.style?.barRadius ?? 2, 0, 0] } })),

@@ -16,7 +16,7 @@ export type RadarNorm = "field" | "score" | "rank";
 const FLOOR = 0.1;
 
 export interface RadarAxis { id: string; label: string; name: string; description: string; share: number; category: BenchmarkCategory; unit: Benchmark["unit"]; min: number; max: number; median: number }
-export interface RadarPoint { r: number | null; value?: number; raw?: number; estimated: boolean }
+export interface RadarPoint { r: number | null; value?: number; raw?: number; estimated: boolean; estimateRange?: [number, number] }
 export interface RadarModel { id: string; name: string; labId: string; score: number; rank: number; points: RadarPoint[] }
 
 const CATEGORY_ORDER: BenchmarkCategory[] = ["coding", "agentic", "reasoning", "math", "long-context", "knowledge", "instruction", "economics", "creative", "safety", "composite", "reliability", "speed", "cost", "other"];
@@ -48,7 +48,7 @@ export function radarModels(rows: RankedVariant[], axes: RadarAxis[], norm: Rada
     points: axes.map((a) => {
       const v = r.values.find((x) => x.benchmarkId === a.id);
       if (!v) return { r: null, estimated: false };
-      return { r: normalize(v.value, a, norm, pools.get(a.id)!), value: v.value, raw: v.raw, estimated: v.estimated };
+      return { r: normalize(v.value, a, norm, pools.get(a.id)!), value: v.value, raw: v.raw, estimated: v.estimated, estimateRange: v.estimateRange };
     }),
   }));
 }

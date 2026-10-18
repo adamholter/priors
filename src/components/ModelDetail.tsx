@@ -4,6 +4,7 @@ import type { Snapshot } from "@/data/types";
 import type { IndexResult, RankedVariant } from "@/engine";
 import Link from "next/link";
 import { variantLabel } from "./chart/ParetoChart";
+import { peerNote } from "@/lib/peer-note";
 import { useLabColor } from "./chart/echarts";
 
 /** Per-benchmark breakdown for one ranked variant. */
@@ -11,6 +12,8 @@ export function ModelDetail({ r, snapshot, result, onClose }: { r: RankedVariant
   const benches = new Map(snapshot.benchmarks.map((b) => [b.id, b]));
   const lab = snapshot.labs.find((l) => l.id === r.model.labId);
   const labColor = useLabColor();
+  const modelNames = new Map(snapshot.models.map((m) => [m.id, m.name]));
+  const donorName = (variantId: string) => modelNames.get(variantId.split("@")[0]) ?? variantId;
   const siblings = result.ranked.filter((x) => x.model.id === r.model.id && x.variant.id !== r.variant.id);
   return (
     <div className="border hairline rounded-md bg-white p-5">
@@ -31,7 +34,7 @@ export function ModelDetail({ r, snapshot, result, onClose }: { r: RankedVariant
             const sourceRaw = v.raw;
             const b = benches.get(v.benchmarkId)!; const share = result.benchmarks.find((x) => x.benchmark.id === v.benchmarkId)!.share;
             return [
-              <span key={v.benchmarkId + "n"} className="min-w-0" title={b.description}>{b.name}{v.estimated && <span className="block text-indigo">{v.effortFactor != null ? `${v.sourceVariantId?.split("@")[1] ?? "Source effort"} → ${r.variant.effort}: ×${v.effortFactor.toFixed(3)} from ${v.evidence?.length ?? 0} comparisons` : "Calibrated or inferred evidence"}<span className="block text-grey">{v.evidence?.map((id) => benches.get(id)?.name ?? id).join(", ")}</span></span>}{v.sourceUrl && /^https?:\/\//.test(v.sourceUrl) && <a href={v.sourceUrl} target="_blank" rel="noreferrer" className="ml-1 text-indigo underline">source</a>}{v.from && v.from !== v.benchmarkId && <span className="cap ml-1">via {benches.get(v.from)?.shortName ?? v.from}</span>}{v.estimated && <span className="cap ml-1 text-indigo">estimated</span>}</span>,
+              <span key={v.benchmarkId + "n"} className="min-w-0" title={b.description}>{b.name}{v.estimated && <span className="block text-indigo">{v.effortFactor != null ? `${v.sourceVariantId?.split("@")[1] ?? "Source effort"} → ${r.variant.effort}: ×${v.effortFactor.toFixed(3)} from ${v.evidence?.length ?? 0} comparisons` : peerNote(v, donorName) ?? "Calibrated or inferred evidence"}<span className="block text-grey">{v.evidence?.map((id) => benches.get(id)?.name ?? id).join(", ")}</span></span>}{v.sourceUrl && /^https?:\/\//.test(v.sourceUrl) && <a href={v.sourceUrl} target="_blank" rel="noreferrer" className="ml-1 text-indigo underline">source</a>}{v.from && v.from !== v.benchmarkId && <span className="cap ml-1">via {benches.get(v.from)?.shortName ?? v.from}</span>}{v.estimated && <span className="cap ml-1 text-indigo">estimated</span>}</span>,
               <span key={v.benchmarkId + "r"} className="num text-right text-ink-2">{!v.estimated && sourceRaw != null ? fmt(sourceRaw, b.unit) : "—"}</span>,
               <span key={v.benchmarkId + "v"} className="num text-right">{v.value.toFixed(1)} <span className="text-grey">· {share.toFixed(0)}%</span></span>,
             ];

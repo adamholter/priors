@@ -53,7 +53,7 @@ export function CalculationSettings({ ref, config, result, snapshot, onChange, c
             </label>
             <p>For a missing effort score, we compare that same model’s target and source efforts on other benchmarks. Their performance ratios adjust the nearest measured result. Comparisons in the same category receive double weight; with five or more comparisons, we trim the most extreme 20% at each end. Missing evidence stays missing—not an unchanged copy of a maximum-effort score.</p>
             <label className="flex items-start gap-2"><input type="checkbox" className="accent-indigo mt-1" checked={config.estimateMissing} onChange={(e) => onChange({ ...config, estimateMissing: e.target.checked })} /><span>Estimate optional missing benchmarks from similar models</span></label>
-            <p>Peer estimates use measured scores only, with release-date and price-tier constraints where those metadata exist. Otherwise optional missing values are left out and the remaining weights are renormalized. Cost and speed always come from measured results at the displayed effort.</p>
+            <p>Peer estimates use measured scores only, with release-date and price-tier constraints where those metadata exist. Each one averages two guesses: the models closest on this mix, and the models whose scores track the target most closely across every benchmark they share. The model detail lists the donors and a likely range. Otherwise optional missing values are left out and the remaining weights are renormalized. Cost and speed always come from measured results at the displayed effort.</p>
           </section>
           <section className="grid gap-2 border-t hairline pt-5">
             <h3 className="text-lg text-ink">AA v4.3 baseline</h3>

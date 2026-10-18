@@ -127,7 +127,13 @@ export interface BenchValue {
   substituted?: boolean;
   effortFactor?: number;
   evidence?: string[];
+  /** peer estimates only: typical range, in the same units as `value` */
+  estimateRange?: [number, number];
+  /** peer estimates only: the models whose scores produced it, heaviest first */
+  donors?: PeerDonor[];
 }
+
+export interface PeerDonor { variantId: string; value: number; weight: number }
 
 export interface RankedVariant {
   variant: Variant;
@@ -311,7 +317,11 @@ export const subscriptionShare = (ratio: number) => `${(ratio * 100).toFixed(rat
 export const SPEED_BENCHMARK = "aa-output-speed";
 
 /** Pages that show an index pass `PAGE_VIEW` so an uncurated one leaves out superseded model versions; internal callers see every model. */
-export interface ViewOptions { defaultView?: boolean }
+export interface ViewOptions {
+  defaultView?: boolean;
+  /** Peer estimation method. Default blends the mix match with a full-panel ratio match; "mix" is the original, kept for backtests. */
+  peerMethod?: "blend" | "mix";
+}
 export const PAGE_VIEW: ViewOptions = { defaultView: true };
 
 export function computeIndex(snapshot: Snapshot, config: IndexConfig, view: ViewOptions = {}): IndexResult {
@@ -360,6 +370,18 @@ export function computeIndex(snapshot: Snapshot, config: IndexConfig, view: View
   const norm = new Map(shares.map((s) => [s.benchmark.id, makeNormalizer(s.benchmark, [...rawByBench.get(s.benchmark.id)!.values()].map((x) => x.raw))]));
   const normValue = (bid: string, vid: string) => { const r = rawByBench.get(bid)!.get(vid); return r ? { ...r, value: clamp(norm.get(bid)!(r.raw) * (r.effortFactor ?? 1), 0, 100) } : undefined; };
   const observedValue = (bid: string, vid: string) => { const v = normValue(bid, vid); return v?.substituted ? undefined : v; };
+  // Every directly measured percent score a variant has, whether or not the mix uses it: the evidence for who resembles whom.
+  const panelCache = new Map<string, Map<string, number>>();
+  const panelBenchmarks = snapshot.benchmarks.filter((b) => b.unit === "percent" && b.higherIsBetter && !b.proxy && !["cost", "speed", "composite"].includes(b.category));
+  const panel = (vid: string) => {
+    let m = panelCache.get(vid);
+    if (!m) {
+      m = new Map();
+      for (const b of panelBenchmarks) { const o = idx.get(b.id)?.get(vid); if (o && !inferredObservation(o) && Number.isFinite(o.value)) m.set(b.id, o.value); }
+      panelCache.set(vid, m);
+    }
+    return m;
+  };
 
   // eligibility: explicit required gates first, then the measured-coverage floor —
   // a variant is ranked only when observed or effort-substituted values cover at
@@ -391,8 +413,8 @@ export function computeIndex(snapshot: Snapshot, config: IndexConfig, view: View
         num += nv.value * s.share; den += s.share; if (!nv.substituted) covered += s.share; continue;
       }
       if (!config.estimateMissing || strictness === 100) continue; // renormalize: just skip
-      const est = estimate(v, s.benchmark.id, pool, shares.map((x) => x.benchmark.id), observedValue, models, 5, strictness);
-      if (est != null) { values.push({ benchmarkId: s.benchmark.id, value: est, estimated: true, estimateKind: "peer" }); num += est * s.share; den += s.share; }
+      const est = estimate(v, s.benchmark.id, pool, shares.map((x) => x.benchmark.id), observedValue, models, 5, strictness, view.peerMethod === "mix" ? undefined : { benchmark: s.benchmark, panel }, );
+      if (est != null) { values.push({ benchmarkId: s.benchmark.id, value: est.value, estimated: true, estimateKind: "peer", estimateRange: est.range, donors: est.donors }); num += est.value * s.share; den += s.share; }
     }
     if (den <= 0) continue;
     const measuredCost = costData.get(v.id);
@@ -425,39 +447,78 @@ export function computeIndex(snapshot: Snapshot, config: IndexConfig, view: View
   return { config, benchmarks: shares, ranked: out, excluded, candidateModelIds, autoHidden: curated ? [] : [...superseded] };
 }
 
+interface PeerEstimate { value: number; range: [number, number]; donors: PeerDonor[] }
+interface PeerGuess { variantId: string; pred: number; weight: number }
+
 /**
- * Peer estimate for a missing benchmark: k nearest variants (by mean abs diff on shared
- * normalized scores) that do have the benchmark, restricted to a release window when dates
- * exist. Returns the peers' value shifted by the target's average offset on shared benchmarks.
+ * Peer estimate for a missing benchmark: the weighted average of up to two guesses.
+ * Mix match: the k variants closest on the benchmarks in the mix, each shifted by the target's average offset on them.
+ * Panel match (percent benchmarks, with `panel`): the k variants whose scores are closest, as ratios, across every
+ * benchmark both have; each is scaled by the median ratio. Restricted to a release window, price tier and other
+ * models. The range is the spread between the donors' own guesses, never narrower than 1.5 points.
  */
 function estimate(
   target: Variant, benchmarkId: string, pool: Variant[], benchIds: string[],
   normValue: (bid: string, vid: string) => { value: number } | undefined, models: Map<string, Model>, k = 5, strictness = 50,
-): number | undefined {
+  panelCtx?: { benchmark: Benchmark; panel: (vid: string) => Map<string, number> },
+): PeerEstimate | undefined {
   const tm = models.get(target.modelId);
+  const eligible = (p: Variant) => {
+    if (p.modelId === target.modelId) return false; // don't lean on sibling efforts; they share the gap
+    const pm = models.get(p.modelId);
+    if (tm?.releaseDate && pm?.releaseDate && Math.abs(daysBetween(tm.releaseDate, pm.releaseDate)) > 365 - strictness * 2.75) return false;
+    if (tm?.priceTier && pm?.priceTier && tm.priceTier !== pm.priceTier) return false;
+    return true;
+  };
   const tVals = new Map(benchIds.filter((b) => b !== benchmarkId).map((b) => [b, normValue(b, target.id)?.value]).filter((x): x is [string, number] => x[1] != null));
   // Above moderate strictness a target needs real measured evidence of its own —
   // a single strong benchmark must not seed estimates across the whole mix.
   if (tVals.size < (strictness >= 50 ? 2 : 1)) return undefined;
-  const cands: { dist: number; adj: number }[] = [];
+  const mix: { dist: number; guess: PeerGuess }[] = [];
   for (const p of pool) {
-    if (p.modelId === target.modelId) continue; // don't lean on sibling efforts; they share the gap
+    if (!eligible(p)) continue;
     const pv = normValue(benchmarkId, p.id); if (!pv) continue;
-    const pm = models.get(p.modelId);
-    if (tm?.releaseDate && pm?.releaseDate && Math.abs(daysBetween(tm.releaseDate, pm.releaseDate)) > 365 - strictness * 2.75) continue;
-    if (tm?.priceTier && pm?.priceTier && tm.priceTier !== pm.priceTier) continue;
     let d = 0, n = 0, off = 0;
     for (const [b, tv] of tVals) { const x = normValue(b, p.id)?.value; if (x == null) continue; d += Math.abs(tv - x); off += tv - x; n++; }
     if (n < (strictness >= 75 ? 3 : strictness >= 50 ? 2 : 1)) continue;
     // Shrink the peer offset by evidence: off/(n+1) applies half the gap on
     // one shared benchmark, converging to the full offset as evidence grows.
-    cands.push({ dist: d / n + (n < 2 ? 10 : 0), adj: pv.value + off / (n + 1) });
+    mix.push({ dist: d / n + (n < 2 ? 10 : 0), guess: { variantId: p.id, pred: pv.value + off / (n + 1), weight: 0 } });
   }
-  if (!cands.length) return undefined;
-  cands.sort((a, b) => a.dist - b.dist);
-  const top = cands.slice(0, k);
-  const wsum = top.reduce((a, c) => a + 1 / (1 + c.dist), 0);
-  return clamp(top.reduce((a, c) => a + (c.adj * (1 / (1 + c.dist))) / wsum, 0), 0, 100);
+  const panelGuesses: { dist: number; guess: PeerGuess }[] = [];
+  if (panelCtx && panelCtx.benchmark.unit === "percent" && panelCtx.benchmark.higherIsBetter) {
+    const tp = panelCtx.panel(target.id);
+    const minShared = strictness >= 75 ? 10 : 8;
+    for (const p of pool) {
+      if (!eligible(p)) continue;
+      const pv = normValue(benchmarkId, p.id); if (!pv) continue;
+      const pp = panelCtx.panel(p.id);
+      const ratios: number[] = []; let d = 0;
+      for (const [b, tv] of tp) {
+        const x = pp.get(b);
+        if (b === benchmarkId || x == null || x < 5 || tv <= 0) continue;
+        ratios.push(tv / x); d += Math.abs(Math.log(tv / x));
+      }
+      if (ratios.length < minShared) continue;
+      ratios.sort((a, b) => a - b);
+      panelGuesses.push({ dist: d / ratios.length, guess: { variantId: p.id, pred: pv.value * ratios[Math.floor(ratios.length / 2)], weight: 0 } });
+    }
+  }
+  const top = (list: { dist: number; guess: PeerGuess }[], soft: number) => {
+    const best = [...list].sort((a, b) => a.dist - b.dist).slice(0, k);
+    const w = best.map((c) => 1 / (soft + c.dist)), sum = w.reduce((a, x) => a + x, 0);
+    return best.map((c, i) => ({ ...c.guess, weight: w[i] / sum }));
+  };
+  const a = top(mix, 1), c = top(panelGuesses, 0.05);
+  const methods = [a, c].filter((g) => g.length);
+  if (!methods.length) return undefined;
+  const all = methods.flatMap((g) => g.map((x) => ({ ...x, weight: x.weight / methods.length })));
+  const value = clamp(all.reduce((sum, g) => sum + g.pred * g.weight, 0), 0, 100);
+  const sd = Math.sqrt(all.reduce((sum, g) => sum + g.weight * (g.pred - value) ** 2, 0));
+  const half = Math.max(1.5, 1.5 * sd);
+  const byVariant = new Map<string, PeerDonor>();
+  for (const g of all) { const prev = byVariant.get(g.variantId); byVariant.set(g.variantId, { variantId: g.variantId, value: g.pred, weight: (prev?.weight ?? 0) + g.weight }); }
+  return { value, range: [clamp(value - half, 0, 100), clamp(value + half, 0, 100)], donors: [...byVariant.values()].sort((x, y) => y.weight - x.weight) };
 }
 
 function daysBetween(a: string, b: string) { return (new Date(a).getTime() - new Date(b).getTime()) / 86_400_000; }
