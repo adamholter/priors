@@ -358,6 +358,21 @@ try {
     } finally { await c.context().close(); }
   });
 
+  await check("benchmark gear: another cut of a benchmark takes the weight of the one it replaces", async () => {
+    const c = await (await browser.newContext({ viewport: { width: 1360, height: 950 } })).newPage();
+    c.on("pageerror", (e) => errors.push(`${c.url()}: ${e.message}`));
+    try {
+      await c.goto(`${BASE}/builder`, { waitUntil: "domcontentloaded" });
+      const gear = c.getByRole("button", { name: /^AA-Omniscience: choose a category or subset/ }).first();
+      await gear.waitFor({ timeout: 30000 });
+      const rows = await c.getByRole("slider").count();
+      await gear.click();
+      await c.getByRole("option", { name: "Accuracy" }).click();
+      await c.getByText("AA-Omniscience Accuracy").first().waitFor({ timeout: 10000 });
+      assert.equal(await c.getByRole("slider").count(), rows, "the mix keeps its size");
+    } finally { await c.context().close(); }
+  });
+
   assert.deepEqual(errors, [], "no page errors");
   console.log(`PASS interactions: ${checks.length} checks\n  ${checks.join("\n  ")}`);
 } finally {

@@ -9,6 +9,8 @@ import { searchBenchmarks } from "@/lib/benchmark-search";
 import { BenchmarkInfo, InfoIcon } from "./BenchmarkInfo";
 import { useLabColor } from "./chart/echarts";
 import { groupBySource, tierBenchmarks } from "@/lib/benchmark-groups";
+import { benchmarkFamilies } from "@/lib/benchmark-family";
+import { FamilyGear } from "./FamilyGear";
 import { benchmarkQuality } from "@/onboarding/quality";
 
 const CATS: Record<string, string> = { coding: "Coding", agentic: "Agentic", reasoning: "Reasoning", knowledge: "Knowledge", math: "Math", "long-context": "Long context", instruction: "Instruction following", creative: "Creative", safety: "Safety", economics: "Economics", composite: "Composite indices", speed: "Speed", cost: "Cost", other: "Other" };
@@ -42,7 +44,10 @@ export function WeightsPanel({ snapshot, config, onChange }: { snapshot: Snapsho
   const counts = useMemo(() => { const m = new Map<string, Set<string>>(); for (const o of snapshot.observations) (m.get(o.benchmarkId) ?? m.set(o.benchmarkId, new Set()).get(o.benchmarkId)!).add(o.variantId.split("@")[0]); return m; }, [snapshot]);
   const coverage = (id: string) => counts.get(id)?.size ?? 0;
   const [recent, setRecent] = useState<string | null>(null);
-  const listable = useMemo(() => snapshot.benchmarks.filter((b) => !b.proxy && b.category !== "speed").sort((a, b) => a.category.localeCompare(b.category) || a.name.localeCompare(b.name)), [snapshot]);
+  const searchable = useMemo(() => snapshot.benchmarks.filter((b) => !b.proxy && b.category !== "speed").sort((a, b) => a.category.localeCompare(b.category) || a.name.localeCompare(b.name)), [snapshot]);
+  // A benchmark's other cuts (categories, prompts, subsets) hide behind its gear; searching still finds them.
+  const listable = useMemo(() => searchable.filter((b) => !b.variantOf), [searchable]);
+  const families = useMemo(() => benchmarkFamilies(snapshot.benchmarks), [snapshot]);
   // Who is on top of each benchmark right now, shown as a lab-colored dot.
   const leaders = useMemo(() => {
     const model = new Map(snapshot.variants.map((v) => [v.id, v.modelId])), names = new Map(snapshot.models.map((m) => [m.id, m]));
@@ -53,31 +58,41 @@ export function WeightsPanel({ snapshot, config, onChange }: { snapshot: Snapsho
       const cur = best.get(o.benchmarkId);
       if (!cur || (b.higherIsBetter === false ? o.value < cur.value : o.value > cur.value)) best.set(o.benchmarkId, { modelId, value: o.value });
     }
-    const out = new Map<string, { name: string; labId: string; value: number }>();
-    for (const [id, l] of best) { const m = names.get(l.modelId); if (m) out.set(id, { name: m.name, labId: m.labId, value: l.value }); }
+    const out = new Map<string, { name: string; labId: string; value: number; released?: string }>();
+    for (const [id, l] of best) { const m = names.get(l.modelId); if (m) out.set(id, { name: m.name, labId: m.labId, value: l.value, released: m.releaseDate }); }
     return out;
   }, [snapshot, benches]);
   const labs = useMemo(() => new Map(snapshot.labs.map((l) => [l.id, l.color])), [snapshot]);
-  const tiers = useMemo(() => tierBenchmarks(listable, new Map(benchmarkQuality(snapshot).map((q) => [q.id, q]))), [listable, snapshot]);
+  const tiers = useMemo(() => tierBenchmarks(listable, new Map(benchmarkQuality(snapshot).map((q) => [q.id, q])), new Map([...leaders].map(([id, l]) => [id, l.released])), snapshot.date), [listable, snapshot, leaders]);
   const [by, setBy] = useState<"topic" | "source">("topic");
   // Rows hold still while the list is open: what was in the mix when it opened stays pinned on top,
   // and anything added while browsing is checked in place instead of jumping away.
   const [pinnedIds, setPinnedIds] = useState<Set<string>>(new Set());
   const openList = () => { if (!open) setPinnedIds(new Set(active.map((b) => b.id))); setOpen(true); };
-  const inactive = listable.filter((b) => !pinnedIds.has(b.id));
   const terms = query.trim().split(/\s+/).filter(Boolean);
+  const inactive = (terms.length ? searchable : listable).filter((b) => !pinnedIds.has(b.id));
   // Names rank first, then other fields, then descriptions (src/lib/benchmark-search.ts). A search shows one list, best match first; browsing groups by category.
   const catName = (c: string) => CATS[c] ?? c;
   const matches = searchBenchmarks(inactive, query, catName);
-  const pinned = searchBenchmarks(listable.filter((b) => pinnedIds.has(b.id)), query, catName);
+  const pinned = searchBenchmarks(searchable.filter((b) => pinnedIds.has(b.id)), query, catName);
   const unpinned = (l: Benchmark[]) => l.filter((b) => !pinnedIds.has(b.id));
   const mainList = unpinned(tiers.main), popularList = unpinned(tiers.popular), oldList = unpinned(tiers.old);
   const sections: [string, Benchmark[]][] = by === "source" ? groupBySource(mainList) : Object.entries(mainList.reduce<Record<string, Benchmark[]>>((acc, b) => ((acc[b.category] ??= []).push(b), acc), {})).map(([c, l]) => [catName(c), l]);
-  const row = (b: Benchmark) => <BenchRow key={b.id} b={b} on={config.weights[b.id] > 0} models={coverage(b.id)} fresh={recent === b.id} leader={leaders.get(b.id)} labColor={labs.get(leaders.get(b.id)?.labId ?? "")} onToggle={() => toggle(b.id)} onInfo={() => setInfo(b.id)} />;
+  const row = (b: Benchmark) => <BenchRow key={b.id} b={b} on={config.weights[b.id] > 0} models={coverage(b.id)} fresh={recent === b.id} leader={leaders.get(b.id)} labColor={labs.get(leaders.get(b.id)?.labId ?? "")} gear={gear(b, "add")} onToggle={() => toggle(b.id)} onInfo={() => setInfo(b.id)} />;
   const groups = terms.length ? { "Best matches": matches } : matches.reduce<Record<string, Benchmark[]>>((acc, b) => ((acc[b.category] ??= []).push(b), acc), {});
   // Adding keeps the list open and the query intact: people often add several while browsing.
   const toggle = (id: string) => { const on = config.weights[id] > 0; setW(id, on ? 0 : 10); setRecent(on ? null : id); };
   const addBenchmark = (id: string) => { setW(id, 10); setRecent(id); };
+  /** Rank on another cut of the same benchmark: it takes the weight (and the required or optional mark) of the one it replaces. */
+  const swap = (from: string, to: string) => {
+    if (from === to) return;
+    const w = config.weights[from];
+    const weights = Object.fromEntries(Object.entries(config.weights).map(([k, v]) => (k === from ? [to, w ?? v] : [k, v])));
+    const map = (l: string[]) => l.map((x) => (x === from ? to : x));
+    onChange({ ...config, weights, required: map(config.required), ...(config.optional ? { optional: map(config.optional) } : {}) });
+    setRecent(to);
+  };
+  const gear = (b: Benchmark, mode: "swap" | "add") => { const f = families.get(b.id); return f ? <FamilyGear family={f} name={b.name} mode={mode} selected={f.options.map((o) => o.id).filter((id) => config.weights[id] > 0)} onPick={(id) => (mode === "swap" ? swap(b.id, id) : toggle(id))} /> : null; };
 
   return (
     <div className="grid gap-5">
@@ -87,7 +102,7 @@ export function WeightsPanel({ snapshot, config, onChange }: { snapshot: Snapsho
           return (
             <div key={b.id} className="grid gap-1.5">
               <div className="flex items-center justify-between gap-2 min-w-0">
-                <span className="flex items-center gap-1 min-w-0"><LeaderDot leader={leaders.get(b.id)} color={labs.get(leaders.get(b.id)?.labId ?? "")} /><span className="truncate text-[13px]" title={b.description}>{b.name}</span><InfoIcon name={b.name} onClick={() => setInfo(b.id)} />{req && <span className="cap shrink-0" title="Models without a measured score here are not ranked. Change this in Calculation settings.">required</span>}</span>
+                <span className="flex items-center gap-1 min-w-0"><LeaderDot leader={leaders.get(b.id)} color={labs.get(leaders.get(b.id)?.labId ?? "")} /><span className="truncate text-[13px]" title={b.description}>{b.name}</span><InfoIcon name={b.name} onClick={() => setInfo(b.id)} />{gear(b, "swap")}{req && <span className="cap shrink-0" title="Models without a measured score here are not ranked. Change this in Calculation settings.">required</span>}</span>
                 <span className="flex items-center shrink-0"><span className="num text-right text-[12.5px] w-9">{share.toFixed(0)}%</span><button type="button" onClick={() => setW(b.id, 0)} className="bench-remove" aria-label={`Remove ${b.name}`} title={`Remove ${b.name}`}>×</button></span>
               </div>
               <input type="range" min={0} max={Math.max(70, Math.ceil(share))} step={1} value={Math.round(share)} onChange={(e) => setShare(b.id, +e.target.value)} className="w-full h-[3px]" aria-label={`${b.name} weight`} />
@@ -155,7 +170,7 @@ function BenchGroup({ label, children }: { label: string; children: React.ReactN
 }
 
 /** One benchmark: the whole row toggles it in or out of the mix; the info icon opens its leaderboard. */
-function BenchRow({ b, on, models, fresh, leader, labColor, onToggle, onInfo }: { b: Benchmark; on: boolean; models: number; fresh: boolean; leader?: Leader; labColor?: string; onToggle: () => void; onInfo: () => void }) {
+function BenchRow({ b, on, models, fresh, leader, labColor, gear, onToggle, onInfo }: { b: Benchmark; on: boolean; models: number; fresh: boolean; leader?: Leader; labColor?: string; gear?: React.ReactNode; onToggle: () => void; onInfo: () => void }) {
   return (
     <div className={`bench-row flex items-center gap-1 min-w-0 rounded-sm ${fresh ? "bench-fresh" : ""}`}>
       <button type="button" role="checkbox" aria-checked={on} onClick={onToggle} title={b.description} className="min-w-0 flex-1 flex items-center gap-2 py-[5px] px-1 text-left text-[12.5px]">
@@ -164,6 +179,7 @@ function BenchRow({ b, on, models, fresh, leader, labColor, onToggle, onInfo }: 
         <span className="truncate flex-1">{b.name}</span>
         <span className="cap shrink-0">{models} models</span>
       </button>
+      {gear}
       <InfoIcon name={b.name} onClick={onInfo} />
     </div>
   );

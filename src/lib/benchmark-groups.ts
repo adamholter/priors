@@ -5,9 +5,14 @@ import { PREFERRED, SUPERSEDED, type BenchmarkQuality } from "@/onboarding/quali
 const OLD_BEFORE = "2024-07-01";
 const POPULAR = 12;
 
-/** Old, superseded or niche: no top model has been measured on it, it scores poorly on quality, or it predates the current generation. */
-export function isOldOrNiche(b: Benchmark, q: BenchmarkQuality | undefined): boolean {
+const DAY = 86_400_000;
+/** The best model on a benchmark released more than this long before the snapshot: nothing current has beaten it, so the benchmark no longer ranks today's models. */
+const STALE_LEADER_DAYS = 365;
+
+/** Old, superseded or niche: no top model has been measured on it, it scores poorly on quality, its leader is over a year old, or it predates the current generation. */
+export function isOldOrNiche(b: Benchmark, q: BenchmarkQuality | undefined, leaderReleased?: string, today?: string): boolean {
   if (SUPERSEDED.has(b.id) || b.sourceId.includes("archived")) return true;
+  if (leaderReleased && today && Date.parse(today) - Date.parse(leaderReleased) > STALE_LEADER_DAYS * DAY) return true;
   if (!q) return false;
   return q.frontierMeasured === 0 || q.score < 40 || (q.dateConfidence === "verified" && !!q.releaseDate && q.releaseDate < OLD_BEFORE);
 }
@@ -15,10 +20,10 @@ export function isOldOrNiche(b: Benchmark, q: BenchmarkQuality | undefined): boo
 export interface BenchTiers { popular: Benchmark[]; main: Benchmark[]; old: Benchmark[] }
 
 /** The current benchmarks with the most-used ones lifted out, and the old and niche ones set apart. Order within each follows quality. */
-export function tierBenchmarks(list: Benchmark[], quality: Map<string, BenchmarkQuality>): BenchTiers {
+export function tierBenchmarks(list: Benchmark[], quality: Map<string, BenchmarkQuality>, leaderReleased: Map<string, string | undefined> = new Map(), today?: string): BenchTiers {
   const score = (b: Benchmark) => (PREFERRED as readonly string[]).includes(b.id) ? 100 + (quality.get(b.id)?.score ?? 0) : quality.get(b.id)?.score ?? 50;
   const byQuality = (a: Benchmark, b: Benchmark) => score(b) - score(a) || a.name.localeCompare(b.name);
-  const old = list.filter((b) => isOldOrNiche(b, quality.get(b.id))).sort((a, b) => a.name.localeCompare(b.name));
+  const old = list.filter((b) => isOldOrNiche(b, quality.get(b.id), leaderReleased.get(b.id), today)).sort((a, b) => a.name.localeCompare(b.name));
   const current = list.filter((b) => !old.includes(b)).sort(byQuality);
   return { popular: current.slice(0, POPULAR), main: current.slice(POPULAR), old };
 }

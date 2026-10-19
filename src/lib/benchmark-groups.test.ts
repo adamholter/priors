@@ -14,6 +14,9 @@ describe("tierBenchmarks", () => {
     expect(isOldOrNiche(bench("arc-agi-1"), q("arc-agi-1"))).toBe(true);
     expect(isOldOrNiche(bench("vals-aime", "vals-archived"), q("vals-aime"))).toBe(true);
     expect(isOldOrNiche(bench("good"), q("good"))).toBe(false);
+    // The best model on it shipped over a year before today: nothing current has topped it.
+    expect(isOldOrNiche(bench("aged"), q("aged"), "2025-06-01", "2026-10-19")).toBe(true);
+    expect(isOldOrNiche(bench("fresh"), q("fresh"), "2026-01-01", "2026-10-19")).toBe(false);
     expect(isOldOrNiche(bench("unscored"), undefined)).toBe(false);
   });
   it("lifts the preferred and best-scoring current benchmarks to the top and keeps the rest in quality order", () => {

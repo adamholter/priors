@@ -176,6 +176,19 @@ details.gallery-panel > summary::-webkit-details-marker { display: none; }
 @keyframes bench-in { from { opacity: 0; transform: translateY(8px) scale(.99); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .bench-dialog[open] { animation: none; } }
 .bench-row:hover { background: var(--hair-2); }
+.family-gear { display: inline-flex; flex: none; }
+.bench-icon { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 4px; color: var(--grey); }
+.bench-icon:hover, .bench-icon[aria-expanded="true"] { color: var(--ink); background: var(--hair-2); }
+.family-menu { position: fixed; z-index: 90; width: 232px; max-height: min(360px, 60dvh); display: grid; grid-template-rows: auto minmax(0, 1fr); border: 1px solid var(--hair); border-radius: 8px; background: var(--white); box-shadow: 0 14px 36px var(--shadow); padding: 6px; }
+.family-menu-head { padding: 4px 8px 6px; }
+.family-menu-list { overflow-y: auto; display: grid; gap: 1px; }
+.family-opt { display: flex; align-items: center; gap: 10px; padding: 7px 8px; border-radius: 5px; text-align: left; font-size: 13px; color: var(--ink); }
+.family-opt:hover { background: var(--hair-2); }
+.family-radio, .family-check { flex: none; width: 14px; height: 14px; border: 1.5px solid var(--hair-3); }
+.family-radio { border-radius: 50%; }
+.family-check { border-radius: 3px; }
+.family-radio[data-on] { border-color: var(--indigo); background: var(--indigo); box-shadow: inset 0 0 0 2.5px var(--white); }
+.family-check[data-on] { border-color: var(--indigo); background: var(--indigo); }
 .bench-dot { flex: none; width: 9px; height: 9px; border-radius: 50%; }
 .bench-old > summary { list-style: none; }
 .bench-old > summary::-webkit-details-marker { display: none; }

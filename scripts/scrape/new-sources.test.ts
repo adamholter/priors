@@ -140,6 +140,25 @@ describe("Arena from the Hugging Face dataset", () => {
   });
 });
 
+describe("Arena categories and agent signals", () => {
+  const many = (n: number, category: string, base = 1500) => Array.from({ length: n }, (_, i) => ({ model_name: `Model ${i}`, organization: "x", rating: base - i, rank: i + 1, category }));
+  const r = parseArenaDataset({
+    "arena-text": [...many(10, "overall"), ...many(9, "coding", 1600), ...many(3, "math")],
+    "arena-agent-success": Array.from({ length: 9 }, (_, i) => ({ model_name: `Model ${i}`, score: 0.2 - i * 0.01, rank: i + 1, category: "overall" })),
+  });
+  it("keeps the overall board as the main benchmark and each full category as a variant of it", () => {
+    expect(r.benchmarks.find((b) => b.id === "arena-text")?.variantOf).toBeUndefined();
+    expect(r.benchmarks.find((b) => b.id === "arena-text-coding")).toMatchObject({ variantOf: "arena-text", variantLabel: "Coding", defaultWeight: 0, eligibleForDefault: false });
+    expect(r.rows.filter((x) => x.benchmarkId === "arena-text")).toHaveLength(10);
+    expect(r.rows.filter((x) => x.benchmarkId === "arena-text-coding")).toHaveLength(9);
+  });
+  it("skips a category too thin to rank", () => { expect(r.benchmarks.some((b) => b.id === "arena-text-math")).toBe(false); });
+  it("reads an agent signal as percentage points, a variant of Agent Arena", () => {
+    expect(r.benchmarks.find((b) => b.id === "arena-agent-success")).toMatchObject({ variantOf: "arena-agent", unit: "percent", higherIsBetter: true });
+    expect(r.rows.find((x) => x.benchmarkId === "arena-agent-success")!.value).toBeCloseTo(20);
+  });
+});
+
 describe("boggs.tech dashboard", () => {
   const res = (benchmark_id: string, n: number, over: Record<string, unknown> = {}) => Array.from({ length: n }, (_, i) => ({ benchmark_id, model: `m${i}`, raw_score: 10 + i, reported_score: (10 + i) / 100, score_direction: "higher", metric: "accuracy", source_url: `https://x.example/${benchmark_id}`, ...over }));
   const data = {

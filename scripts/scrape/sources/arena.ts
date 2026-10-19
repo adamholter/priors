@@ -60,7 +60,29 @@ const agentBenchmark = (url: string, advanced: { id: string; name: string }[]): 
  */
 const HF_REPO = "https://huggingface.co/datasets/lmarena-ai/leaderboard-dataset";
 const HF_BOARDS: Record<string, string> = { "arena-text": "text_style_control", "arena-webdev": "webdev", "arena-search": "search", "arena-vision": "vision_style_control", "arena-document": "document" };
-interface HfRow { model_name: string; organization?: string; rating?: number; rating_lower?: number; rating_upper?: number; vote_count?: number; rank?: number; score?: number; score_ci_lower?: number; score_ci_upper?: number; session_count?: number; leaderboard_publish_date?: string }
+interface HfRow { model_name: string; organization?: string; rating?: number; rating_lower?: number; rating_upper?: number; vote_count?: number; rank?: number; score?: number; score_ci_lower?: number; score_ci_upper?: number; session_count?: number; leaderboard_publish_date?: string; category?: string }
+
+/**
+ * Other categories of the same boards: each becomes its own benchmark marked as a variant of the main one, so the
+ * picker lists "Arena Text" once and offers Coding, Math and the rest from its settings.
+ */
+const CATEGORY_VARIANTS: Record<string, { category: string; id: string; label: string }[]> = {
+  "arena-text": [["coding", "Coding"], ["math", "Math"], ["creative_writing", "Creative writing"], ["hard_prompts", "Hard prompts"], ["instruction_following", "Instruction following"], ["longer_query", "Longer queries"], ["expert", "Expert"], ["english", "English"], ["chinese", "Chinese"], ["french", "French"], ["german", "German"], ["japanese", "Japanese"], ["korean", "Korean"]]
+    .map(([category, label]) => ({ category, id: `arena-text-${category.replace(/_/g, "-")}`, label })),
+  "arena-webdev": [{ category: "webdev-html", id: "arena-webdev-html", label: "HTML" }, { category: "webdev-react", id: "arena-webdev-react", label: "React" }, { category: "image_to_webdev", id: "arena-image-to-webdev", label: "Image to WebDev" }],
+  "arena-vision": [["ocr", "OCR"], ["diagram", "Diagrams"], ["captioning", "Captioning"], ["homework", "Homework"], ["humor", "Humor"], ["entity_recognition", "Entity recognition"], ["creative_writing_vision", "Creative writing"], ["chinese", "Chinese"]]
+    .map(([category, label]) => ({ category, id: `arena-vision-${category.replace(/_/g, "-").replace("-vision", "")}`, label })),
+};
+
+/** Agent Arena's signals, each a ranking of its own on the dataset: what a model contributes to one thing about a session. */
+const AGENT_SIGNALS: { id: string; config: string; label: string; desc: string; higherIsBetter: boolean }[] = [
+  { id: "arena-agent-success", config: "agent_task_outcome_explicit", label: "Confirmed success", desc: "how much a model raises the chance that a user confirms the task is done", higherIsBetter: true },
+  { id: "arena-agent-praise", config: "agent_praise_complaint", label: "Praise vs complaint", desc: "positive responses relative to negative ones", higherIsBetter: true },
+  { id: "arena-agent-steerability", config: "agent_steerability", label: "Steerability", desc: "how well it lands user corrections", higherIsBetter: true },
+  { id: "arena-agent-bash-reliability", config: "agent_bash_reliability", label: "Shell reliability", desc: "running shell commands with the fewest failures", higherIsBetter: true },
+  { id: "arena-agent-bash-recovery", config: "agent_bash_recovery_steps", label: "Shell recovery", desc: "recovering in few steps after a failed shell command", higherIsBetter: true },
+  { id: "arena-agent-tool-hallucination", config: "agent_tool_hallucination", label: "Tool hallucination", desc: "calling tools that do not exist (lower is better)", higherIsBetter: false },
+];
 
 /** Parquet integers come back as BigInt. */
 const plain = (row: Record<string, unknown>): HfRow => Object.fromEntries(Object.entries(row).map(([k, v]) => [k, typeof v === "bigint" ? Number(v) : v])) as unknown as HfRow;
@@ -82,13 +104,14 @@ async function hfRows(config: string): Promise<HfRow[]> {
     path = found.path;
   }
   const buf = await (await get(`${HF_REPO}/resolve/main/${path}`)).arrayBuffer();
-  return (await parquetReadObjects({ file: buf }) as Record<string, unknown>[]).filter((r) => r.category === "overall").map(plain);
+  return (await parquetReadObjects({ file: buf }) as Record<string, unknown>[]).map(plain);
 }
 
 export function parseArenaDataset(boards: Record<string, HfRow[]>): Pick<ScrapeResult, "benchmarks" | "rows" | "notes"> {
   const rows: RawRow[] = [], benchmarks: Benchmark[] = [], notes: string[] = [];
-  const agent = boards["arena-agent"];
-  if (agent?.length) {
+  const overall = (list: HfRow[] | undefined) => (list ?? []).filter((r) => !r.category || r.category === "overall");
+  const agent = overall(boards["arena-agent"]);
+  if (agent.length) {
     const url = `${SITE}/leaderboard/agent`;
     for (const r of agent) {
       if (!Number.isFinite(r.score)) continue;
@@ -101,8 +124,8 @@ export function parseArenaDataset(boards: Record<string, HfRow[]>): Pick<ScrapeR
     notes.push(`agent: ${agent.length} rows (dataset)`);
   }
   for (const b of ELO_BOARDS) {
-    const data = boards[b.id];
-    if (!data?.length) continue;
+    const data = overall(boards[b.id]);
+    if (!data.length) continue;
     const url = `${SITE}${b.path}`;
     for (const r of data) {
       if (!Number.isFinite(r.rating)) continue;
@@ -113,6 +136,30 @@ export function parseArenaDataset(boards: Record<string, HfRow[]>): Pick<ScrapeR
     }
     benchmarks.push({ id: b.id, name: b.name, sourceId: "arena", url, description: b.desc, unit: "elo", higherIsBetter: true, category: b.category, eligibleForDefault: b.weight > 0, defaultWeight: b.weight });
     notes.push(`${b.id}: ${data.length} rows (dataset)`);
+    for (const v of CATEGORY_VARIANTS[b.id] ?? []) {
+      const sub = (boards[b.id] ?? []).filter((r) => r.category === v.category && Number.isFinite(r.rating));
+      if (sub.length < 8) continue;
+      for (const r of sub) {
+        const { label, harness } = splitHarness(r.model_name);
+        rows.push({ benchmarkId: v.id, modelLabel: label, value: r.rating!, rank: r.rank, harness, sourceUrl: url, labHint: r.organization,
+          ci: r.rating_lower != null && r.rating_upper != null ? [r.rating_lower, r.rating_upper] : undefined,
+          note: `${r.vote_count ?? "?"} votes in the ${v.label} category; Hugging Face dataset lmarena-ai/leaderboard-dataset, published ${r.leaderboard_publish_date ?? "?"}` });
+      }
+      benchmarks.push({ id: v.id, name: `${b.name} · ${v.label}`, sourceId: "arena", url, description: `${b.desc} Only the ${v.label} category.`, unit: "elo", higherIsBetter: true, category: b.category, eligibleForDefault: false, defaultWeight: 0, variantOf: b.id, variantLabel: v.label });
+      notes.push(`${v.id}: ${sub.length} rows (dataset)`);
+    }
+  }
+  for (const sig of AGENT_SIGNALS) {
+    const data = overall(boards[sig.id]).filter((r) => Number.isFinite(r.score));
+    if (data.length < 8) continue;
+    const url = `${SITE}/leaderboard/agent`;
+    for (const r of data) {
+      rows.push({ benchmarkId: sig.id, modelLabel: r.model_name, value: r.score! * 100, rank: r.rank, sourceUrl: url, labHint: r.organization,
+        ci: r.score_ci_lower != null && r.score_ci_upper != null ? [r.score_ci_lower * 100, r.score_ci_upper * 100] : undefined,
+        note: `Agent Arena signal "${sig.label}"; Hugging Face dataset lmarena-ai/leaderboard-dataset, published ${r.leaderboard_publish_date ?? "?"}` });
+    }
+    benchmarks.push({ id: sig.id, name: `Agent Arena · ${sig.label}`, shortName: sig.label, sourceId: "arena", url, description: `Agent Arena signal: ${sig.desc}. A model's contribution to real agentic sessions, in percentage points.`, unit: "percent", higherIsBetter: sig.higherIsBetter, category: "agentic", eligibleForDefault: false, defaultWeight: 0, variantOf: "arena-agent", variantLabel: sig.label });
+    notes.push(`${sig.id}: ${data.length} rows (dataset)`);
   }
   if (!rows.length) throw new Error("Arena dataset returned no rows");
   return { benchmarks, rows, notes };
@@ -121,7 +168,7 @@ export function parseArenaDataset(boards: Record<string, HfRow[]>): Pick<ScrapeR
 async function scrapeDataset(ctx: ScrapeContext): Promise<ScrapeResult> {
   const boards: Record<string, HfRow[]> = {};
   const raw: Record<string, string> = {};
-  for (const [id, config] of Object.entries({ "arena-agent": "agent", ...HF_BOARDS })) {
+  for (const [id, config] of Object.entries({ "arena-agent": "agent", ...HF_BOARDS, ...Object.fromEntries(AGENT_SIGNALS.map((x) => [x.id, x.config])) })) {
     try { boards[id] = await hfRows(config); raw[`${config}.json`] = JSON.stringify(boards[id]); }
     catch (e) { ctx.log(`${id} dataset skipped: ${e instanceof Error ? e.message : String(e)}`); }
   }

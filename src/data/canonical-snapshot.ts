@@ -1,5 +1,6 @@
 import { normalizeLabel } from "./normalize";
 import { isBaselineVariant } from "./variant-identity";
+import { withFamilies } from "./benchmark-families";
 import type { Snapshot, Variant } from "./types";
 
 /** Repair the source-scoped alias regression in both old snapshots and new scrape output.
@@ -74,7 +75,7 @@ export function canonicalizeSnapshot(snapshot: Snapshot): Snapshot {
     };
   }).sort((a, b) => a.id.localeCompare(b.id));
   const remap = (id: string) => ids.get(id) ?? id;
-  return { ...snapshot, variants,
+  return { ...snapshot, variants, ...(snapshot.benchmarks ? { benchmarks: withFamilies(snapshot.benchmarks) } : {}),
     observations: snapshot.observations.map(o => ({ ...o, variantId: remap(o.variantId) })),
     series: snapshot.series.map(s => ({ ...s, variantId: remap(s.variantId) })),
     ...(snapshot.estimates ? { estimates: snapshot.estimates.map(e => ({ ...e, variantId: remap(e.variantId), ...(e.sourceVariantId ? { sourceVariantId: remap(e.sourceVariantId) } : {}) })) } : {}),

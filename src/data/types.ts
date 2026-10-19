@@ -81,6 +81,10 @@ export interface Benchmark {
   }[];
   /** Sub-splits or advanced knobs a user may expose; UI hides these by default. */
   advanced?: { id: string; name: string }[];
+  /** Another view of the benchmark with this id (a category, prompt or subset): the picker lists the main one and offers this through its settings. */
+  variantOf?: string;
+  /** What the variant is called next to its main benchmark ("Coding", "Simple prompt"). */
+  variantLabel?: string;
   /** True when it's a proxy (e.g. token price) rather than a measured quantity. */
   proxy?: boolean;
   /** Suggested default weight in the "General" starter index (0 = present but off). */
