@@ -78,6 +78,7 @@ publish_live() {
     [ -e "data/snapshots/$f" ] && cp "data/snapshots/$f" "$tmp/data/snapshots/"
   done
   rm -rf "$tmp/public/intro" && cp -R public/intro "$tmp/public/intro" || return 1
+  [ -n "${LIB_BUILT:-}" ] && echo "$LIB_BUILT" > "$tmp/library-built-at"
   cutoff=$(date -v-3d +%F 2>/dev/null || date -d '3 days ago' +%F)
   for f in "$tmp"/data/snapshots/20??-??-??*.json.gz; do
     [ -e "$f" ] || continue
@@ -125,8 +126,19 @@ case "$CHANGE_STATUS" in
   *) notify "Priors snapshot change check failed — see logs/scrape.log"; exit 1 ;;
 esac
 # Only a changed snapshot needs the mix library (its lineup fits reuse every fit whose data is unchanged) and intro cards.
-if ! npm run library -- --date "$DATE" 2>&1 | tee -a "$LOG"; then
-  notify "Priors library build failed for $DATE — see logs/scrape.log"
+# The library is the slow part and drifts slowly, so with a 15-minute schedule it is rebuilt at most every two hours;
+# the snapshot itself is published every time.
+NOW=$(date +%s)
+LIB_AT=$(git show "origin/$LIVE:library-built-at" 2>/dev/null || echo 0)
+if [ -n "$HAVE_LIVE" ] && [ -e data/snapshots/latest.library.json.gz ] && [ $((NOW - ${LIB_AT:-0})) -lt "${PRIORS_LIBRARY_EVERY:-7200}" ]; then
+  echo "Mix library built $(( (NOW - LIB_AT) / 60 )) min ago; reusing it."
+  [ -e "data/snapshots/$DATE.library.json.gz" ] || cp data/snapshots/latest.library.json.gz "data/snapshots/$DATE.library.json.gz"
+else
+  if ! npm run library -- --date "$DATE" 2>&1 | tee -a "$LOG"; then
+    notify "Priors library build failed for $DATE — see logs/scrape.log"
+  else
+    LIB_BUILT=$NOW
+  fi
 fi
 if grep -q "DEFAULT_FIT_MISSING" "$LOG"; then
   notify "Priors: the default lineup has no exact fit on today's data — see logs/scrape.log"
