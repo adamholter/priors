@@ -38,4 +38,10 @@ describe("placePoints", () => {
     expect(valueAt(axes[0], 0, true)).toBeCloseTo(100);
     expect(valueAt(axes[1], 1, false)).toBeCloseTo(60);
   });
+
+  it("marks the zone that beats the median on every axis", () => {
+    const { points, zone } = placePoints(rows, inputs, ["time", "score", "cost"], true);
+    expect(zone.every((m) => m >= 0 && m <= 1)).toBe(true);
+    for (const p of points) expect(p.inZone).toBe(p.pos.every((u, i) => u >= zone[i]));
+  });
 });

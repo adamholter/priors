@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Snapshot } from "@/data/types";
 import { effectiveBasis } from "@/data/subscription";
 import { hasSubscriptionPrices } from "@/data/task-metrics";
@@ -18,8 +18,11 @@ import { choiceFromIndex, choiceFromPage, choiceFromPreset, rankSide, type Choic
 import { loadPage } from "../compare/load-page";
 import { SidePicker, type Sources } from "../compare/SidePicker";
 import { useMyRankings } from "../my-rankings";
+import { useLightDismiss } from "@/lib/useLightDismiss";
 import { Scene3D, type LabelMode, type ViewPreset } from "./Scene3D";
+import { AxisIcon, CAMERA_ICONS, MeasureIcon, TOGGLE_ICONS } from "./icons";
 import "../compare/compare.css";
+import "./threed.css";
 
 const VIEWS = {
   perspective: { label: "Perspective", ortho: false, dir: [1, 0.8, 1.25] },
@@ -82,10 +85,12 @@ export function ThreeDApp({ initial, wantMine, axes: axesParam, published }: { i
   const labColors = useMemo(() => new Map((snapshot?.labs ?? []).map((l) => [l.id, markColor(l.color, pal, l.id)])), [snapshot, pal]);
   const colorOf = useCallback((p: Point3) => labColors.get(p.r.model.labId) ?? pal.grey, [labColors, pal]);
   const nameOf = useCallback((p: Point3) => chartLabel(p.r), []);
-  const scenePal = useMemo(() => ({ ink: pal.ink, grey: pal.grey, hair: pal.hair }), [pal]);
+  const scenePal = useMemo(() => ({ ink: pal.ink, grey: pal.grey, hair: pal.hair, bg: pal.tipBg }), [pal]);
   const view = useMemo<ViewPreset>(() => ({ ortho: VIEWS[viewKey].ortho, dir: [...VIEWS[viewKey].dir] as [number, number, number], nonce }), [viewKey, nonce]);
   const byId = useMemo(() => new Map((placed?.points ?? []).map((p) => [p.id, p])), [placed]);
   const nearest = useMemo(() => [...(placed?.points ?? [])].sort((a, b) => a.gap - b.gap).slice(0, 6), [placed]);
+  const inZone = useMemo(() => (placed?.points ?? []).filter((p) => p.inZone).length, [placed]);
+  const labelModes: LabelMode[] = ["key", "all", "none"];
 
   useEffect(() => {
     if (!choice) return;
@@ -107,55 +112,81 @@ export function ThreeDApp({ initial, wantMine, axes: axesParam, published }: { i
     </header>
     <div className="max-w-[1280px] mx-auto px-4 sm:px-8 py-8 grid gap-5">
       <div className="flex flex-wrap items-end justify-between gap-4">
-        <div><h1 className="text-[36px] leading-tight">3D</h1><p className="text-[13.5px] text-ink-2 mt-1 max-w-[60ch]">Every model as a point. The best end of each axis is at the far corner, so the closer to it, the better.</p></div>
+        <div><h1 className="text-[36px] leading-tight">3D</h1><p className="text-[13.5px] text-ink-2 mt-1 max-w-[62ch]">Every model as a point. The better end of each axis is at the far corner, and the green zone is where a model beats the median on all three.</p></div>
         <div className="w-full sm:w-[360px]"><SidePicker tone="a" label="Ranking" value={choice} sources={sources} onPick={(c) => { setPicked(c); setSelected(null); }} /></div>
       </div>
-      {loading ? <div role="status" aria-busy={!error} className="grid gap-4"><div className="load-bar h-14 w-full" /><div className="load-bar h-[480px] w-full" />
+      {loading ? <div role="status" aria-busy={!error} className="grid gap-4"><div className="load-bar h-[480px] w-full" />
         <p className="text-[12px] text-grey">{error ? <>{error} <button type="button" className="underline" onClick={() => { setError(""); setRetry((n) => n + 1); }}>Retry</button></> : "Loading benchmark data…"}</p></div>
         : !placed ? <p className="text-[14px] text-ink-2">This ranking does not have three measures with enough models to chart. Choose another ranking above.</p>
-        : <>
-          <div className="flex flex-wrap items-center gap-x-5 gap-y-3 text-[13px]">
-            {(["Across", "Up", "Depth"] as const).map((name, i) => <label key={name} className="inline-flex items-center gap-2 text-ink-2">{name}
-              <select className="inp !w-auto !py-1 !text-[12.5px] max-w-[210px]" value={usable[i]} onChange={(e) => setAxis(i, e.target.value)} aria-label={`${name} axis`}>{options.map((o) => <option key={o.name} value={o.name}>{short(o.label)}</option>)}</select>
-            </label>)}
-            <div className="seg" role="group" aria-label="Models shown"><button type="button" aria-pressed={!allEfforts} onClick={() => setAllEfforts(false)}>Best per model</button><button type="button" aria-pressed={allEfforts} onClick={() => setAllEfforts(true)}>Every effort</button></div>
-          </div>
-          <div className="flex flex-wrap items-center gap-x-5 gap-y-3 text-[13px]">
-            <div className="seg" role="group" aria-label="Camera">{(Object.keys(VIEWS) as ViewKey[]).map((k) => <button key={k} type="button" aria-pressed={viewKey === k} onClick={() => { setViewKey(k); setNonce((n) => n + 1); }}>{VIEWS[k].label}</button>)}</div>
-            <div className="seg" role="group" aria-label="Labels">{(["key", "all", "none"] as const).map((m) => <button key={m} type="button" aria-pressed={labels === m} onClick={() => setLabels(m)}>{m === "key" ? "Key labels" : m === "all" ? "All labels" : "No labels"}</button>)}</div>
-            <label className="cmp-check"><input type="checkbox" className="accent-indigo" checked={dropLines} onChange={(e) => setDropLines(e.target.checked)} />Drop lines</label>
-            <label className="cmp-check"><input type="checkbox" className="accent-indigo" checked={frontier} onChange={(e) => setFrontier(e.target.checked)} />Glow the frontier</label>
-            <label className="cmp-check"><input type="checkbox" className="accent-indigo" checked={spin} onChange={(e) => setSpin(e.target.checked)} />Auto-rotate</label>
-            <button type="button" className="btn-quiet" onClick={() => setNonce((n) => n + 1)}>Reset camera</button>
-          </div>
-          <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_300px]">
-            <div className="relative rounded-lg border hairline overflow-hidden h-[min(72dvh,720px)] min-h-[420px]" style={{ background: "var(--white)" }}>
-              <Scene3D points={placed.points} axes={placed.axes} titles={titles} palette={scenePal} colorOf={colorOf} nameOf={nameOf} view={view} labels={labels} dropLines={dropLines} frontier={frontier} autoRotate={spin} selected={selected} onSelect={setSelected} onHover={setHover} />
-              <p className="cap absolute left-3 bottom-2 pointer-events-none">Drag to orbit · scroll to zoom · right-drag to pan · click a point</p>
-              {tip && hover && <div role="status" className="pointer-events-none fixed z-50 rounded-md border hairline px-3 py-2 text-[12.5px] shadow-lg" style={{ left: hover.x + 14, top: hover.y + 14, background: "var(--white)" }}>
-                <div className="font-semibold">{nameOf(tip)}</div>
-                {([0, 1, 2] as const).map((i) => <div key={i} className="flex justify-between gap-4 text-ink-2"><span>{titles[i]}</span><span className="num text-ink">{fmt(tip, i)}</span></div>)}
-              </div>}
+        : <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_300px]">
+          <div className="t3d-stage">
+            <AxisPanel axes={usable} options={options} onPick={setAxis} onRotate={() => setAxes([usable[2], usable[0], usable[1]])} />
+            <div className="t3d-panel t3d-tools" role="group" aria-label="Camera">
+              {(Object.keys(VIEWS) as ViewKey[]).map((k) => <button key={k} type="button" className="t3d-tool" aria-pressed={viewKey === k} data-tip={VIEWS[k].label} aria-label={VIEWS[k].label} onClick={() => { setViewKey(k); setNonce((n) => n + 1); }}>{CAMERA_ICONS[k]}</button>)}
             </div>
-            <aside className="grid content-start gap-5 text-[13px]">
-              {sel && <section className="grid gap-1.5 rounded-lg border hairline p-4" style={{ background: "var(--white)" }} aria-label="Selected model">
-                <div className="flex items-start justify-between gap-2"><h2 className="font-serif text-[20px] leading-tight">{nameOf(sel)}</h2><button type="button" className="text-grey hover:text-ink" aria-label="Clear selection" onClick={() => setSelected(null)}>×</button></div>
-                {([0, 1, 2] as const).map((i) => <div key={i} className="flex justify-between text-ink-2"><span>{titles[i]}</span><span className="num text-ink">{fmt(sel, i)}</span></div>)}
-                <p className="cap">{sel.frontier ? "On the frontier: nothing beats it on all three." : `${sel.gap.toFixed(2)} from the best corner.`}</p>
-                <Link href={`/models/${sel.modelId}` as "/models/x"} className="text-indigo hover:underline w-fit">Open the model page</Link>
-              </section>}
-              <section aria-label="Closest to the best corner">
-                <h2 className="font-serif text-[18px] mb-2">Closest to the best corner</h2>
-                <ol className="grid gap-1">{nearest.map((p, i) => <li key={p.id}><button type="button" className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left hover:bg-hair-2" aria-pressed={selected === p.id} onClick={() => setSelected(selected === p.id ? null : p.id)}>
-                  <span className="num text-grey w-4">{i + 1}</span><i aria-hidden="true" className="inline-block w-2.5 h-2.5 rounded-full" style={{ background: colorOf(p) }} /><span className="truncate flex-1">{nameOf(p)}</span><span className="num text-ink-2">{p.gap.toFixed(2)}</span>
-                </button></li>)}</ol>
-                <p className="cap mt-2">Distance in the cube, 0 is the corner itself. Scales are logarithmic where a measure spans orders of magnitude.</p>
-              </section>
-              <section><p className="cap">{placed.points.length} {allEfforts ? "model variants" : "models"} with all three measures{choice ? ` · ${choice.title === "You" ? choice.sub : `${choice.title}'s ${choice.sub}`}` : ""}</p></section>
-            </aside>
+            <Scene3D points={placed.points} axes={placed.axes} zone={placed.zone} titles={titles} palette={scenePal} colorOf={colorOf} nameOf={nameOf} view={view} labels={labels} dropLines={dropLines} frontier={frontier} autoRotate={spin} selected={selected} onSelect={setSelected} onHover={setHover} />
+            <div className="t3d-panel t3d-tools t3d-tools-bottom" role="group" aria-label="Display">
+              <button type="button" className="t3d-tool" aria-pressed={labels !== "none"} data-tip={labels === "key" ? "Key labels (click for all)" : labels === "all" ? "All labels (click for none)" : "No labels (click for key)"} aria-label="Cycle labels" onClick={() => setLabels(labelModes[(labelModes.indexOf(labels) + 1) % 3])}>{TOGGLE_ICONS.labels}</button>
+              <button type="button" className="t3d-tool" aria-pressed={dropLines} data-tip="Drop lines" aria-label="Drop lines" onClick={() => setDropLines((v) => !v)}>{TOGGLE_ICONS.drops}</button>
+              <button type="button" className="t3d-tool" aria-pressed={frontier} data-tip="Glow the frontier" aria-label="Glow the frontier" onClick={() => setFrontier((v) => !v)}>{TOGGLE_ICONS.glow}</button>
+              <button type="button" className="t3d-tool" aria-pressed={allEfforts} data-tip={allEfforts ? "Every effort" : "Best effort per model"} aria-label="Show every effort" onClick={() => setAllEfforts((v) => !v)}><MeasureIcon name="tokens" /></button>
+              <button type="button" className="t3d-tool" aria-pressed={spin} data-tip="Auto-rotate" aria-label="Auto-rotate" onClick={() => setSpin((v) => !v)}>{TOGGLE_ICONS.spin}</button>
+              <button type="button" className="t3d-tool" data-tip="Reset camera" aria-label="Reset camera" onClick={() => setNonce((n) => n + 1)}>{TOGGLE_ICONS.reset}</button>
+            </div>
+            <p className="cap t3d-hint">Drag to orbit · scroll to zoom · right-drag to pan</p>
+            {tip && hover && <div role="status" className="t3d-tip" style={{ left: hover.x + 14, top: hover.y + 14 }}>
+              <div className="font-semibold">{nameOf(tip)}</div>
+              {([0, 1, 2] as const).map((i) => <div key={i} className="flex justify-between gap-4 text-ink-2"><span>{titles[i]}</span><span className="num text-ink">{fmt(tip, i)}</span></div>)}
+            </div>}
           </div>
-        </>}
+          <aside className="grid content-start gap-5 text-[13px]">
+            {sel && <section className="grid gap-1.5 rounded-lg border hairline p-4" style={{ background: "var(--white)" }} aria-label="Selected model">
+              <div className="flex items-start justify-between gap-2"><h2 className="font-serif text-[20px] leading-tight">{nameOf(sel)}</h2><button type="button" className="text-grey hover:text-ink" aria-label="Clear selection" onClick={() => setSelected(null)}>×</button></div>
+              {([0, 1, 2] as const).map((i) => <div key={i} className="flex items-center justify-between text-ink-2"><span className="inline-flex items-center gap-2"><MeasureIcon name={usable[i]} size={15} />{titles[i]}</span><span className="num text-ink">{fmt(sel, i)}</span></div>)}
+              <p className="cap">{sel.inZone ? "In the green zone. " : ""}{sel.frontier ? "On the frontier: nothing beats it on all three." : `${sel.gap.toFixed(2)} from the best corner.`}</p>
+              <Link href={`/models/${sel.modelId}` as "/models/x"} className="text-indigo hover:underline w-fit">Open the model page</Link>
+            </section>}
+            <section aria-label="Closest to the best corner">
+              <h2 className="font-serif text-[18px] mb-1">Closest to the best corner</h2>
+              <p className="cap mb-2 flex items-center gap-2"><i className="t3d-zone-key" aria-hidden="true" />{inZone} of {placed.points.length} beat the median on all three</p>
+              <ol className="grid gap-1">{nearest.map((p, i) => <li key={p.id}><button type="button" className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left hover:bg-hair-2" aria-pressed={selected === p.id} onClick={() => setSelected(selected === p.id ? null : p.id)}>
+                <span className="num text-grey w-4">{i + 1}</span><i aria-hidden="true" className="inline-block w-2.5 h-2.5 rounded-full" style={{ background: colorOf(p) }} /><span className="truncate flex-1">{nameOf(p)}</span><span className="num text-ink-2">{p.gap.toFixed(2)}</span>
+              </button></li>)}</ol>
+              <p className="cap mt-2">Distance in the cube, 0 is the corner itself. Axes are logarithmic where a measure spans orders of magnitude.</p>
+            </section>
+            <section><p className="cap">{placed.points.length} {allEfforts ? "model variants" : "models"} with all three measures{choice ? ` · ${choice.title === "You" ? choice.sub : `${choice.title}'s ${choice.sub}`}` : ""}</p></section>
+          </aside>
+        </div>}
     </div>
     <SiteFooter />
   </main>;
+}
+
+const ROLES = ["Across", "Up", "Depth"] as const;
+interface Option { name: string; label: string }
+
+/** The three axes as a card of rows; each opens a list of measures with a glyph and which end is better. */
+function AxisPanel({ axes, options, onPick, onRotate }: { axes: [string, string, string]; options: Option[]; onPick: (i: number, name: string) => void; onRotate: () => void }) {
+  const [open, setOpen] = useState<number | null>(null);
+  const root = useRef<HTMLDivElement>(null);
+  const close = useCallback(() => setOpen(null), []);
+  useLightDismiss(root, close);
+  return <div ref={root} className="t3d-panel t3d-axes" role="group" aria-label="Axes">
+    {ROLES.map((role, i) => {
+      const name = axes[i], current = options.find((o) => o.name === name);
+      return <div key={role} className="t3d-axis">
+        <button type="button" aria-haspopup="listbox" aria-expanded={open === i} aria-label={`${role} axis: ${current ? short(current.label) : name}. Change`} onClick={() => setOpen(open === i ? null : i)}>
+          <span className="t3d-glyph"><AxisIcon axis={i as 0 | 1 | 2} /></span>
+          <span className="t3d-axis-name"><small>{role}</small><span>{short(current?.label ?? name)}</span></span>
+          <span className="text-grey">{TOGGLE_ICONS.chevron}</span>
+        </button>
+        {open === i && <div className="t3d-menu" role="listbox" aria-label={`${role} axis`}>
+          {options.map((o) => <button key={o.name} type="button" role="option" aria-selected={o.name === name} aria-current={o.name === name} className="t3d-opt" onClick={() => { onPick(i, o.name); setOpen(null); }}>
+            <span className="t3d-glyph"><MeasureIcon name={o.name} /></span><span>{short(o.label)}</span><small>{metaFor(o.name).better === "lower" ? "lower is better" : "higher is better"}</small>
+          </button>)}
+        </div>}
+      </div>;
+    })}
+    <button type="button" className="t3d-rotate" onClick={onRotate}>{TOGGLE_ICONS.rotate}Rotate the axes</button>
+  </div>;
 }

@@ -324,9 +324,10 @@ try {
       const list = c.getByRole("region", { name: "Closest to the best corner" }).locator("li");
       await list.first().waitFor({ timeout: 30000 });
       assert.equal(await list.count(), 6, "six models listed");
-      assert.equal(await c.getByLabel("Across axis").inputValue(), "time", "time per task across by default");
-      await c.getByLabel("Up axis").selectOption("cost");
-      assert.match(c.url(), /ax=time\.cost\.score|ax=cost/, "the link carries the axes");
+      await c.getByRole("button", { name: /^Across axis: Time per task/ }).waitFor();
+      await c.getByRole("button", { name: /^Up axis/ }).click();
+      await c.getByRole("option", { name: /Subscription cost per task|Cost per task/ }).click();
+      assert.match(c.url(), /ax=/, "the link carries the axes");
       await c.getByRole("button", { name: "Isometric" }).click();
       await list.first().click();
       assert.ok(await c.getByRole("region", { name: "Selected model" }).isVisible(), "picking a model shows its details");

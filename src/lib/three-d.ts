@@ -32,12 +32,14 @@ export interface Point3 {
   frontier: boolean;
   /** Distance from the best corner in the unit cube; smaller is better. */
   gap: number;
+  /** Better than the median model on all three axes: inside the best-corner zone. */
+  inZone: boolean;
 }
 
 export interface Axis { name: string; min: number; max: number; meta: AxisMeta }
 
 /** Points with a value on all three axes, one per model (its best-scoring row) unless `all`; placed in the unit cube. */
-export function placePoints(ranked: RankedVariant[], inputs: FormulaInputs, axes: [string, string, string], all = false): { points: Point3[]; axes: [Axis, Axis, Axis] } {
+export function placePoints(ranked: RankedVariant[], inputs: FormulaInputs, axes: [string, string, string], all = false): { points: Point3[]; axes: [Axis, Axis, Axis]; zone: [number, number, number] } {
   const { of } = inputs.get();
   const rows: { r: RankedVariant; raw: [number, number, number] }[] = [];
   for (const r of ranked) {
@@ -57,11 +59,15 @@ export function placePoints(ranked: RankedVariant[], inputs: FormulaInputs, axes
   const unit = (d: (typeof dims)[number], v: number) => { const u = (d.t(v) - d.lo) / d.span; return d.meta.better === "higher" ? u : 1 - u; };
   const points = kept.map((k): Point3 => {
     const pos = k.raw.map((v, i) => unit(dims[i], v)) as [number, number, number];
-    return { id: k.r.variant.id, modelId: k.r.model.id, r: k.r, raw: k.raw, pos, frontier: false, gap: Math.hypot(1 - pos[0], 1 - pos[1], 1 - pos[2]) };
+    return { id: k.r.variant.id, modelId: k.r.model.id, r: k.r, raw: k.raw, pos, frontier: false, gap: Math.hypot(1 - pos[0], 1 - pos[1], 1 - pos[2]), inZone: false };
   });
+  // The best-corner zone runs from the median model on each axis to the better end, like the shaded quadrant on a 2D chart.
+  const median = (i: number) => { const v = points.map((p) => p.pos[i]).sort((a, b) => a - b); return v.length ? (v[(v.length - 1) >> 1] + v[v.length >> 1]) / 2 : 0.5; };
+  const zone: [number, number, number] = [median(0), median(1), median(2)];
+  for (const p of points) p.inZone = p.pos.every((u, i) => u >= zone[i]);
   // On the frontier when no other point is at least as good on every axis and better on one.
   for (const p of points) p.frontier = !points.some((q) => q !== p && q.pos.every((u, i) => u >= p.pos[i]) && q.pos.some((u, i) => u > p.pos[i]));
-  return { points, axes: dims.map(({ name, meta, min, max }) => ({ name, meta, min, max })) as [Axis, Axis, Axis] };
+  return { points, zone, axes: dims.map(({ name, meta, min, max }) => ({ name, meta, min, max })) as [Axis, Axis, Axis] };
 }
 
 /** The axis value at fraction `u` of the way from the worse end to the better end, for tick labels. */

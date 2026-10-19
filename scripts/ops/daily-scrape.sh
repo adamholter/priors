@@ -16,6 +16,13 @@ if [ "${1:-}" != "--synced" ]; then
     notify "Priors scrape did not run: wrong checkout — see logs/scrape.log"
     exit 1
   fi
+  # One run at a time: a slow run (a library search can take minutes) must not overlap the next scheduled one.
+  LOCKDIR=${TMPDIR:-/tmp}/priors-scrape.lock
+  if ! mkdir "$LOCKDIR" 2>/dev/null; then
+    if kill -0 "$(cat "$LOCKDIR/pid" 2>/dev/null)" 2>/dev/null; then echo "Previous run (pid $(cat "$LOCKDIR/pid")) still going; skipping."; exit 0; fi
+    rm -rf "$LOCKDIR"; mkdir "$LOCKDIR" || exit 1
+  fi
+  echo $$ > "$LOCKDIR/pid"
   if ! git fetch -q origin main || ! git checkout -q -f --detach origin/main; then
     notify "Priors scrape could not update to origin/main — see logs/scrape.log"
     exit 1
@@ -89,6 +96,9 @@ publish_live() {
   return $status
 }
 
+# exec kept the pid but dropped nothing else: release the lock when this run ends, however it ends.
+LOCKDIR=${TMPDIR:-/tmp}/priors-scrape.lock
+trap '[ "$(cat "$LOCKDIR/pid" 2>/dev/null)" = "$$" ] && rm -rf "$LOCKDIR"' EXIT
 LOG=$(mktemp "${TMPDIR:-/tmp}/priors-scrape.XXXXXX") || exit 1
 # --no-library: the library (the slow part) is built below, once, and only if the data changed.
 if ! npx tsx scripts/scrape/build.ts --date "$DATE" --no-library 2>&1 | tee "$LOG"; then
