@@ -14,6 +14,7 @@ export const FAMILIES: Record<string, { mainLabel: string; variants: Record<stri
   "aa-omniscience": { mainLabel: "Index", variants: { "aa-omniscience-accuracy": "Accuracy", "aa-omniscience-non-hallucination": "Non-hallucination" } },
   "bh-scale-swe-bench-pro-v2-full": { mainLabel: "Full set", variants: { "bh-scale-swe-bench-pro-v2-hard": "Hard subset" } },
   "arena-agent": { mainLabel: "Net improvement", variants: {} },
+  "arena-text": { mainLabel: "Overall", variants: { "arena-text-multi-turn": "Multi-turn" } },
 };
 const BY_VARIANT = new Map(Object.entries(FAMILIES).flatMap(([main, f]) => Object.entries(f.variants).map(([id, label]) => [id, { main, label }] as const)));
 
