@@ -39,9 +39,14 @@ function Inner({ indices }: { indices: IndexConfig[] }) {
   if (!mine) return <Link href="/claim" onClick={stash} transitionTypes={["nav-forward"]} className="btn">Publish to Explore</Link>;
   return (
     <div className="flex items-center gap-2">
-      <button type="button" className="btn" disabled={saving} onClick={async () => { setSaving(true); setError(""); try { const next = saveToPage(mine.indices, indices.map(storableIndex), { from: indices.map((i) => pageIndexId(i, mine.handle, pageKey())) }); await update({ patch: { indices: next.indices } }); setSaved(next.added.length ? "Added to your page" : "Saved"); setTimeout(() => setSaved(""), next.added.length ? 2600 : 1400); } catch (e) { console.error("Save to page failed", e); setError(e instanceof ConvexError ? String(e.data) : "Save failed. Please try again."); } finally { setSaving(false); } }}>{saving ? "Saving…" : saved || "Save to my page"}</button>
+      <button type="button" className="icon-btn" aria-label="Save to my page" data-tip={saving ? "Saving…" : saved || "Save to my page"} data-tip-open={saving || saved ? "" : undefined} aria-busy={saving} disabled={saving} onClick={async () => { setSaving(true); setError(""); try { const next = saveToPage(mine.indices, indices.map(storableIndex), { from: indices.map((i) => pageIndexId(i, mine.handle, pageKey())) }); await update({ patch: { indices: next.indices } }); setSaved(next.added.length ? "Added to your page" : "Saved"); setTimeout(() => setSaved(""), next.added.length ? 2600 : 1400); } catch (e) { console.error("Save to page failed", e); setError(e instanceof ConvexError ? String(e.data) : "Save failed. Please try again."); } finally { setSaving(false); } }}><SaveIcon /></button>
       {error && <span role="alert" className="text-xs">{error}</span>}
       <AccountMenu />
     </div>
   );
+}
+
+/** A floppy disk: save this to my page. */
+function SaveIcon() {
+  return <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M5 3h11l4 4v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z" /><path d="M7 3v5h8V3M7 21v-7h10v7" /></svg>;
 }

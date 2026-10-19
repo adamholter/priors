@@ -79,9 +79,9 @@ Each card on `/explore` (`src/components/explore/ExploreCard.tsx`) wears its own
 
 ## Compare
 `/compare?a=<ref>&b=<ref>` puts any two rankings side by side. A ref (`src/lib/compare-ref.ts`) is `me` (the visitor's own: their published page's main index, else the first index in their builder), `@handle` or `@handle~tab` (a page, its main index or the tab a link would name), `preset:aa` or `preset:general`, or an index spelled in the builder's codec, so an unsaved ranking compares too. `n` is the length of the top lists (5, 10 or 20) and `same=1` keeps only models both sides rank and ranks them again among themselves. The address follows every change, so it is the share link; a side that is the visitor's own is written as their handle or their spelled index, never as `me`. A link to `/compare` with no `a` fills the left side with the visitor's own ranking.
-- **Entry points.** The Compare action on every Explore card, a Compare button in a published page's header (it names the open tab), and Compare beside the Explore header's actions. Visitors with no ranking get "Rank models · 1 min" in the picker.
+- **Entry points.** The Compare action on every Explore card, a Compare icon in a published page's header (its hover label names the open tab), and Compare beside the Explore header's actions. Visitors with no ranking get "Rank models · 1 min" in the picker.
 - **Each side** is one index run on today's data with its owner's imported benchmarks and the page default view (`rankSide` in `src/components/compare/choice.ts`), shown as models (best variant each) by rank. The picker offers the visitor's rankings, published pages (a page with several tabs asks which), the presets, and a pasted link or handle.
-- **What it says** (`src/lib/compare.ts`, tested): how many of the top `n` are on both lists, Spearman rank correlation over the models both rank, the two models with the biggest rank gap, and the share of weight the two mixes put on the same benchmarks. Ranks are as each side publishes them unless `same=1`. The slope draws a line from each model to its place on the other list; a model off the other top list keeps a stub and its rank there, or a dash when that side does not rank it.
+- **What it says** (`src/lib/compare.ts`, tested): one line, how many of the top `n` are on both lists and the model with the biggest rank gap. "Why they differ" is a sentence about where each side puts its weight and the share of weight on the same benchmarks (`mixLead`), then each ranking's whole mix as one stacked bar. Spearman correlation (`rankCorrelation`) feeds the link-preview text. Ranks are as each side publishes them unless `same=1`. The slope draws a line from each model to its place on the other list; a model off the other top list keeps a stub and its rank there, or a dash when that side does not rank it.
 - **Narrow screens** get the matched table instead of the slope (`.cmp-wide` and `.cmp-narrow`).
 - The page's description for link previews is computed from the same numbers (`generateMetadata` in `src/app/compare/page.tsx`); the image is the default card.
 
@@ -90,7 +90,6 @@ Each card on `/explore` (`src/components/explore/ExploreCard.tsx`) wears its own
 A lab is a noindex page under `/lab/` that shows three or four switchable variants of one design question, on the real page. When the question is settled, the winner goes live and the lab and losing variants are deleted.
 
 - `/lab/themes`: every page theme on a sample page, with edit mode available without signing in. Nothing saves. Kept as a tool.
-- `/lab/compare`: the compare page with its open questions switchable on sample people: layout (slope, boards, matched table, gaps, podiums), summary, how a side is chosen (menu, faces, sheet) and where Compare lives (card footer, pick two, page header). Open question.
 - `/lab/index`: where "Publish to Explore" sits on the builder (`labPlacement` in `Builder.tsx`). Open question.
 
 ## History
