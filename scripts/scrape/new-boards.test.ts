@@ -7,6 +7,7 @@ import { parseZeroBench } from "./sources/zerobench";
 import { parseApexTable } from "./sources/matharena-apex";
 import { parseHleText } from "./sources/scale-hle-text";
 import { parseRanking } from "./sources/llmlearner";
+import { parseClockBench } from "./sources/clockbench";
 
 describe("splitLabel", () => {
   it("takes the effort and tools marker off a label, leaving other parentheses alone", () => {
@@ -64,5 +65,11 @@ describe("new leaderboards", () => {
     const li = (rank: number, name: string, setting: string, score: string) => `<li class="border-b border-ll-line py-4"><span class="w-8 tabular-nums">${rank}</span><a href="/models/x">${name}</a><p class="mt-0.5 break-words">${setting}</p><span class="font-num text-lg leading-7 tabular-nums">${score}</span></li>`;
     const rows = parseRanking(`${li(1, "Claude Opus 5", "Anthropic · Max (With Tools)", "75.3")}${li(2, "Qwen3.8-Max-0902", "Alibaba · Extra-High (With Tools)", "64.9")}${li(3, "Hy4 Preview", "Tencent · Thinking High (With Tools)", "58.9")}`, "nl2repo-bench", "p");
     expect(rows.map((r) => [r.modelLabel, r.effort, r.value, r.labHint])).toEqual([["Claude Opus 5", "max", 75.3, "Anthropic"], ["Qwen3.8-Max-0902", "xhigh", 64.9, "Alibaba"], ["Hy4 Preview", "high", 58.9, "Tencent"]]);
+  });
+
+  it("reads ClockBench rows, taking a trailing effort word off the model and skipping the human baselines", () => {
+    const tr = (rank: string, name: string, acc: string, lab: string) => `<tr><td>${rank}</td><td><a href="x">${name}</a></td><td>${acc}</td><td>${lab}</td></tr>`;
+    const html = `<section id="leaderboard"><tr><td></td><td>Top Human Performance</td><td>95%</td><td></td></tr>${tr("1", "Gemini 4 Argon High", "83.3%", "Google")}${tr("2", "Grok 4.5", "21.7%", "xAI")}</section>`;
+    expect(parseClockBench(html).map((r) => [r.modelLabel, r.effort, r.value, r.labHint])).toEqual([["Gemini 4 Argon", "high", 83.3, "Google"], ["Grok 4.5", undefined, 21.7, "xAI"]]);
   });
 });

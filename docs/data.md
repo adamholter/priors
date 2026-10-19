@@ -41,6 +41,7 @@ Notes on sources whose behavior is not obvious from the file:
 - `zerobench` reads ZeroBench's official leaderboard (first table only): `zerobench-main`, pass@5 as the page sorts it, pass@1 in the note.
 - `matharena-apex` reads MathArena's `competition_tables/<comp>` JSON for Apex and the Apex shortlist, with 95% CIs. The ⚠️ contamination marker is dropped from labels and kept in the note.
 - `scale-hle-text` reads Scale's text-only Humanity's Last Exam board from the RSC payload (`hle-text-only`), effort from the parenthetical, CIs kept.
+- `clockbench` reads ClockBench's leaderboard table (human baselines skipped); effort is the model name's trailing word. Reasoning category, `defaultWeight: 0`.
 - `llmlearner` reads LLMLearner's per-benchmark rankings for boards with no official live feed (today NL2Repo-Bench). Every row is a vendor or paper report, noted as self-reported.
   `BASE=https://mypriors.com npx tsx scripts/verify/sudo-l7.ts` checks source agreement, search, adding, reload, every displayed score, and desktop/mobile rendering.
 
