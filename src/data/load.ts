@@ -26,6 +26,14 @@ async function fetchRemote(file: string): Promise<Buffer | null> {
   } catch { return null; }
 }
 
+const WINDOW_DAYS = 30;
+/** Only a dated file from the last month can be live: anything else is not worth a network call or a cache slot. */
+function withinLiveWindow(file: string, liveDate: string): boolean {
+  const day = Date.parse(`${file.slice(0, 10)}T00:00:00Z`), live = Date.parse(`${liveDate}T00:00:00Z`);
+  return Number.isFinite(day) && Number.isFinite(live) && day <= live && live - day <= WINDOW_DAYS * 86_400_000;
+}
+const MAX_REMOTE_ENTRIES = 40;
+
 /** One remote file, kept for the TTL; when a refresh fails the last good copy keeps serving. */
 function remoteCache<T>(parse: (raw: Buffer) => T) {
   const entries = new Map<string, { at: number; value: T | null; pending?: Promise<T | null> }>();
@@ -37,6 +45,7 @@ function remoteCache<T>(parse: (raw: Buffer) => T) {
       let value: T | null = hit?.value ?? null;
       if (raw) try { value = parse(raw); } catch { /* keep the last good copy */ }
       entries.set(file, { at: Date.now(), value });
+      while (entries.size > MAX_REMOTE_ENTRIES) entries.delete(entries.keys().next().value!);
       return value;
     });
     entries.set(file, { at: hit?.at ?? 0, value: hit?.value ?? null, pending });
@@ -61,7 +70,7 @@ export function loadSnapshot(date?: string): Promise<Snapshot | null> {
   return remoteSnapshot("latest.json.gz").then(async (live) => {
     // Today's dated file is rewritten all day, so a build's copy of it is old: the live latest is today's.
     if (file === "latest.json.gz" || (live && file === `${live.date}.json.gz`)) return live ?? bundledSnapshot("latest.json.gz");
-    return (await bundledSnapshot(file)) ?? remoteSnapshot(file);
+    return (await bundledSnapshot(file)) ?? (live && withinLiveWindow(file, live.date) ? remoteSnapshot(file) : null);
   });
 }
 

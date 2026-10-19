@@ -11,7 +11,10 @@ const nextConfig: NextConfig = {
   // renders from the repo's newest copy rather than from the build.
   async rewrites() {
     if (!process.env.VERCEL) return [];
-    return { beforeFiles: [{ source: "/intro/:path*", destination: "https://raw.githubusercontent.com/adamholter/priors/main/public/intro/:path*" }], afterFiles: [], fallback: [] };
+    return { beforeFiles: [{ source: "/intro/:file([a-z0-9-]+\\.png)", destination: "https://raw.githubusercontent.com/adamholter/priors/main/public/intro/:file" }], afterFiles: [], fallback: [] };
+  },
+  async headers() {
+    return [{ source: "/intro/:file([a-z0-9-]+\\.png)", headers: [{ key: "X-Content-Type-Options", value: "nosniff" }, { key: "Cache-Control", value: "public, max-age=300, s-maxage=300" }] }];
   },
   outputFileTracingIncludes: {
     "/og": ["./src/lib/og-fonts/*"],

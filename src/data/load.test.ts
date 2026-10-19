@@ -54,4 +54,14 @@ describe("live snapshot source", () => {
     expect(await loadSnapshot()).not.toBeNull();
     expect(fetchMock).not.toHaveBeenCalled();
   });
+
+  it("does not fetch dated files outside the last month", async () => {
+    const fetchMock = vi.fn(async (_url: string) => new Response(latest));
+    vi.stubGlobal("fetch", fetchMock);
+    const { loadSnapshot } = await fresh();
+    await loadSnapshot();
+    expect(await loadSnapshot("2020-01-01")).toBeNull();
+    expect(await loadSnapshot("2999-01-01")).toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
 });
