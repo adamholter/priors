@@ -106,7 +106,7 @@ export function CompareLab({ snapshot, published, initialA, initialB }: { snapsh
       </div>}
       {(entry === "footer" || entry === "tray") && <section className="cmp-lab-explore" aria-label="Explore, sample">
         <p className="cap cmp-lab-label">Explore, sample people{entry === "tray" ? ". Tick two." : ". Compare puts you on the left and them on the right."}</p>
-        <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <ul className="grid grid-cols-[minmax(0,1fr)] gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {cards.map((c) => entry === "footer"
             ? <div key={c.handle} role="presentation" onClickCapture={(e) => { const link = (e.target as HTMLElement).closest("a"); if (!link) return; e.preventDefault(); if (link.textContent?.includes("Compare")) { setA(mineChoice); setB(c.choice); toCompare(); } }}><ExploreCard c={c} /></div>
             : <div key={c.handle} className="cmp-pick" data-on={picked.includes(c.handle) || undefined}><label className="cmp-pick-box"><input type="checkbox" className="accent-indigo" checked={picked.includes(c.handle)} onChange={() => togglePick(c.handle)} />Compare</label><ExploreCard c={c} /></div>)}

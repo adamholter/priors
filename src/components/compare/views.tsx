@@ -52,6 +52,8 @@ export function SlopeView({ a, b, pairs, n, names, heads, lines: showLines = tru
   </div>;
 }
 
+const initial = (name: string) => name.trim().charAt(0).toUpperCase();
+
 /** One list, every model once, A's order: its rank on each side and the gap between them. Dense, so it is what a phone gets. */
 export function TableView({ a, b, pairs, n, names, heads, labs }: ViewProps) {
   const labColor = useLabColor();
@@ -60,7 +62,7 @@ export function TableView({ a, b, pairs, n, names, heads, labs }: ViewProps) {
   rows.sort((x, y) => (x.a?.rank ?? 1e3) - (y.a?.rank ?? 1e3) || (x.b?.rank ?? 1e3) - (y.b?.rank ?? 1e3));
   const span = Math.max(4, ...rows.map((p) => Math.abs(p.shift ?? 0)));
   return <table className="cmp-table">
-    <thead><tr><th scope="col" className="cmp-a">{heads.a}</th><th scope="col">Model</th><th scope="col" className="cmp-b">{heads.b}</th><th scope="col" className="cmp-gap-head">Gap</th></tr></thead>
+    <thead><tr><th scope="col" className="cmp-a" title={heads.a}><span className="cmp-th-full">{names.a}</span><span className="cmp-th-init" aria-hidden="true">{initial(names.a)}</span></th><th scope="col">Model</th><th scope="col" className="cmp-b" title={heads.b}><span className="cmp-th-full">{names.b}</span><span className="cmp-th-init" aria-hidden="true">{initial(names.b)}</span></th><th scope="col" className="cmp-gap-head">Gap</th></tr></thead>
     <tbody>{rows.map((p) => <tr key={p.modelId}>
       <td className="num">{p.a ? p.a.rank : "–"}</td>
       <td><i className="cmp-dot" style={{ background: labColor(p.labId, labs.get(p.labId)) }} aria-hidden="true" />{p.name}</td>

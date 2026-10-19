@@ -91,6 +91,7 @@
 .cmp-table th { text-align: left; font: 500 11px var(--font-mono); color: var(--grey); padding: 0 6px 8px; border-bottom: 1px solid var(--hair-2); }
 .cmp-table th.cmp-a, .cmp-table th.cmp-b { text-align: right; width: 22%; }
 .cmp-table th.cmp-a { color: var(--a); }
+.cmp-th-init { display: none; }
 .cmp-table td { padding: 8px 6px; border-bottom: 1px solid var(--hair-2); }
 .cmp-table td.num { text-align: right; color: var(--ink-2); }
 .cmp-gap-head { width: 26%; }
@@ -142,12 +143,19 @@
   .cmp-mix-head, .cmp-mix-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 2px 14px; }
   .cmp-mix-head > span:nth-child(2) { display: none; }
   .cmp-mix-head .cmp-a { justify-content: flex-start; }
-  .cmp-mix-row { margin-bottom: 6px; }
   .cmp-mix-name { grid-column: 1 / -1; grid-row: 1; text-align: left; }
   .cmp-mix-a { justify-content: flex-start; flex-direction: row-reverse; }
-  .cmp-table th.cmp-a, .cmp-table th.cmp-b { width: 14%; }
-  .cmp-gap-head { width: 18%; }
-  .cmp-table td:nth-child(2) { white-space: nowrap; }
+  .cmp-table { table-layout: fixed; }
+  .cmp-th-full { display: none; }
+  .cmp-th-init { display: inline; font-size: 13px; }
+  .cmp-table th { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-inline: 4px; }
+  .cmp-table th.cmp-a, .cmp-table th.cmp-b { width: 20%; }
+  .cmp-table th:nth-child(2) { width: auto; }
+  .cmp-gap-head { width: 17%; }
+  .cmp-table td { padding-inline: 4px; }
+  .cmp-table td:nth-child(2) { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .cmp-table td.cmp-gap { overflow: hidden; }
+  .cmp-mix-row { margin-bottom: 2px; }
   .cmp-gaps-axis, .cmp-gaps-row { grid-template-columns: 96px 1fr 52px; }
 }
 @media (prefers-reduced-motion: reduce) { .cmp-line, .cmp-row, .cmp-mix-a b, .cmp-mix-b b { transition: none; } }
