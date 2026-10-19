@@ -8,12 +8,12 @@ import { canonicalizeSnapshot } from "./canonical-snapshot";
 const SNAP_DIR = path.resolve(process.cwd(), "data/snapshots");
 
 /**
- * Where the live data comes from. The scrape job pushes snapshots to `main` all day, and a push that only
- * touches data does not redeploy the site (`ignoreCommand` in vercel.json), so production reads the newest
- * files straight from the public repo instead of from the build. A few minutes old at worst. Local runs and
+ * Where the live data comes from. The scrape job publishes each changed snapshot to the repo's `data-live`
+ * branch (one commit, rewritten every time), not to `main`, so production reads the newest files from there
+ * instead of from the build, and a data refresh never redeploys the site. A few minutes old at worst. Local runs and
  * tests read the checkout; `SNAPSHOT_BASE_URL` points anywhere else (empty turns it off).
  */
-const REMOTE_DEFAULT = "https://raw.githubusercontent.com/adamholter/priors/main/data/snapshots";
+const REMOTE_DEFAULT = "https://raw.githubusercontent.com/adamholter/priors/data-live/data/snapshots";
 export const remoteBase = () => (process.env.SNAPSHOT_BASE_URL ?? (process.env.VERCEL ? REMOTE_DEFAULT : "")).replace(/\/$/, "");
 const REMOTE_TTL_MS = 5 * 60_000;
 

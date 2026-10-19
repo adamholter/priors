@@ -15,6 +15,9 @@ import { formulaInputs, pickPoints, speedChart } from "@/lib/metrics";
 import { encodeIndices, PAGE_KEY, pageRef, prettyQuery } from "@/lib/url";
 import { ShareCards } from "../ShareCards";
 import { BuilderIcon, CompareIcon } from "../compare/icons";
+import { MixPie } from "../MixPie";
+import { pageRef as refForPage, threeDUrl } from "@/lib/compare-ref";
+import { useTripleD } from "@/lib/use-triple-d";
 import { Wordmark } from "../Wordmark";
 import { SiteNav } from "../SiteNav";
 import { Rankings } from "../Rankings";
@@ -112,6 +115,7 @@ export function IndexPage({ profile, snapshot, edit, tab: linkedTab, linkedHighl
   // even after a rename. The key makes the reference good for this tab only (see FromPage); visitors get a plain link.
   const [pageKey] = useState(() => crypto.randomUUID().replace(/-/g, ""));
   const inBuilder = active ? [active, ...p.indices.filter((i) => i.id !== active.id)] : [];
+  useTripleD(lab || !active ? null : threeDUrl(refForPage(p.handle, p.indices, active)));
   const compareHref = isOwner && !lab ? "/compare?a=me" : `/compare?a=me&b=@${p.handle}${active && active !== p.indices[0] ? `~${tabKey(p.indices, active)}` : ""}`;
   const builderHref = `/?${prettyQuery(encodeIndices(isOwner && !lab ? inBuilder.map((i) => ({ ...i, page: pageRef(p.handle, i.id, pageKey) })) : inBuilder, true))}`;
   const keepPageKey = () => { try { sessionStorage.setItem(PAGE_KEY, pageKey); } catch { /* storage can be disabled */ } };
@@ -318,7 +322,7 @@ export function IndexPage({ profile, snapshot, edit, tab: linkedTab, linkedHighl
           </div>
           {footerMix.length > 0 && <div className="grid gap-2 min-w-0">
             <p className="cap">{active?.name ?? "This index"} · {footerMix.length} benchmark{footerMix.length === 1 ? "" : "s"}</p>
-            <ul className="flex flex-wrap gap-1.5">{footerMix.map((b) => <li key={b.id} className="text-[12px] border hairline rounded-sm px-2 py-0.5 text-ink-2"><span className="text-ink">{b.name}</span> <span className="num">{Math.round(b.share)}%</span></li>)}</ul>
+            <MixPie slices={footerMix} />
           </div>}
           <details className="text-[12px] text-grey">
             <summary className="cursor-pointer hover:text-ink w-fit">Data as of {snapshot.date} · {footerSources.length} sources</summary>

@@ -60,7 +60,7 @@ export function parsePasted(text: string): Ref | undefined {
   return parseRef(t) ?? parseRef(`@${t}`);
 }
 
-const RESERVED = new Set(["builder", "explore", "rank", "compare", "history", "models", "model-finder", "import", "skill", "privacy", "claim", "sign-in", "lab", "api", "og"]);
+const RESERVED = new Set(["builder", "explore", "rank", "compare", "history", "models", "model-finder", "import", "skill", "privacy", "claim", "sign-in", "lab", "api", "og", "3d"]);
 
 /** The address of a comparison: `/compare?a=&b=`, plus `n` (top list length, 10 when absent) and `same` (same models only). */
 export function compareUrl(a: Ref | undefined, b: Ref | undefined, opts: { top?: number; same?: boolean } = {}): string {
@@ -70,4 +70,10 @@ export function compareUrl(a: Ref | undefined, b: Ref | undefined, opts: { top?:
   if (opts.top && opts.top !== 10) q.set("n", String(opts.top));
   if (opts.same) q.set("same", "1");
   return `/compare${q.size ? `?${prettyQuery(q).replace(/%40/g, "@").replace(/%7E/gi, "~")}` : ""}`;
+}
+
+/** The address of the 3D view of one ranking: `/3d?a=`, the same refs `/compare` takes. */
+export function threeDUrl(ref: Ref): string {
+  const q = new URLSearchParams({ a: formatRef(ref) });
+  return `/3d?${prettyQuery(q).replace(/%40/g, "@").replace(/%7E/gi, "~")}`;
 }

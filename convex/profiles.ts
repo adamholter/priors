@@ -5,7 +5,7 @@ import type { IndexConfig } from "../src/engine";
 import type { Id } from "./_generated/dataModel";
 
 const HANDLE = /^[a-z0-9][a-z0-9-]{1,29}$/;
-const RESERVED = new Set(["sign-in", "sign-up", "api", "skill", "import", "me", "og", "about", "admin", "priors", "u", "settings", "privacy", "terms", "builder", "claim", "models", "explore", "rank"]);
+const RESERVED = new Set(["sign-in", "sign-up", "api", "skill", "import", "me", "og", "about", "admin", "priors", "u", "settings", "privacy", "terms", "builder", "claim", "models", "explore", "rank", "compare", "3d", "lab", "history", "model-finder", "ingest"]);
 
 async function me(ctx: QueryCtx | MutationCtx) {
   const identity = await ctx.auth.getUserIdentity();

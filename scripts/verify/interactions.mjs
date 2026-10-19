@@ -316,6 +316,47 @@ try {
     } finally { await m.context().close(); }
   });
 
+  await check("3d: a ranking charted on three measures, with the best corner listed", async () => {
+    const c = await (await browser.newContext({ viewport: { width: 1280, height: 900 } })).newPage();
+    c.on("pageerror", (e) => errors.push(`${c.url()}: ${e.message}`));
+    try {
+      await c.goto(`${BASE}/3d?a=preset:aa`, { waitUntil: "domcontentloaded" });
+      const list = c.getByRole("region", { name: "Closest to the best corner" }).locator("li");
+      await list.first().waitFor({ timeout: 30000 });
+      assert.equal(await list.count(), 6, "six models listed");
+      assert.equal(await c.getByLabel("Across axis").inputValue(), "time", "time per task across by default");
+      await c.getByLabel("Up axis").selectOption("cost");
+      assert.match(c.url(), /ax=time\.cost\.score|ax=cost/, "the link carries the axes");
+      await c.getByRole("button", { name: "Isometric" }).click();
+      await list.first().click();
+      assert.ok(await c.getByRole("region", { name: "Selected model" }).isVisible(), "picking a model shows its details");
+    } finally { await c.context().close(); }
+  });
+
+  await check("3d: pressing D three times in the builder opens the 3D view", async () => {
+    const c = await (await browser.newContext({ viewport: { width: 1280, height: 900 } })).newPage();
+    c.on("pageerror", (e) => errors.push(`${c.url()}: ${e.message}`));
+    try {
+      await c.goto(`${BASE}/builder`, { waitUntil: "domcontentloaded" });
+      await c.getByRole("button", { name: "Share" }).first().waitFor({ timeout: 30000 });
+      await c.waitForTimeout(2500); // the builder settles its address before it listens
+      for (let i = 0; i < 3; i++) await c.keyboard.press("d");
+      await c.waitForURL(/\/3d\?a=/, { timeout: 15000 });
+    } finally { await c.context().close(); }
+  });
+
+  await check("model page: a ranking picker, and a model with no data in one ranking can be placed in another", async () => {
+    const c = await (await browser.newContext({ viewport: { width: 1280, height: 900 } })).newPage();
+    c.on("pageerror", (e) => errors.push(`${c.url()}: ${e.message}`));
+    try {
+      await c.goto(`${BASE}/models/claude-opus-5.5`, { waitUntil: "domcontentloaded" });
+      const pick = c.getByLabel("Ranking to place this model in");
+      await pick.waitFor({ timeout: 30000 });
+      await pick.selectOption("preset:aa");
+      await c.getByText(/#\d+ of \d+ models/).waitFor({ timeout: 30000 });
+    } finally { await c.context().close(); }
+  });
+
   assert.deepEqual(errors, [], "no page errors");
   console.log(`PASS interactions: ${checks.length} checks\n  ${checks.join("\n  ")}`);
 } finally {

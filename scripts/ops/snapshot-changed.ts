@@ -30,15 +30,17 @@ export function snapshotChanged(previous: Snapshot, current: Snapshot): boolean 
 }
 
 // Exit 0 = unchanged, 10 = changed, 1 = failure. Never turn a read/parse/Git
-// failure into an unchanged decision. Compare with published history, not the
+// failure into an unchanged decision. Compare with what is published, not the
 // previous local refresh, so skipped refreshes cannot mask cumulative changes.
+// SNAPSHOT_BASELINE_REF names the published ref (the live data branch); default HEAD.
 if (process.argv[1]?.endsWith("snapshot-changed.ts")) {
   try {
     const file = "data/snapshots/latest.json.gz";
     const decode = (bytes: Buffer): Snapshot => JSON.parse(gunzipSync(bytes).toString("utf8"));
     const current = decode(readFileSync(file));
-    const tracked = execFileSync("git", ["ls-tree", "HEAD", "--", file], { encoding: "utf8" });
-    const changed = !tracked.trim() || snapshotChanged(decode(execFileSync("git", ["show", `HEAD:${file}`], { maxBuffer: 64 * 1024 * 1024 })), current);
+    const ref = process.env.SNAPSHOT_BASELINE_REF || "HEAD";
+    const tracked = execFileSync("git", ["ls-tree", ref, "--", file], { encoding: "utf8" });
+    const changed = !tracked.trim() || snapshotChanged(decode(execFileSync("git", ["show", `${ref}:${file}`], { maxBuffer: 64 * 1024 * 1024 })), current);
     console.log(changed ? "Snapshot data changed; publishing update." : "No new snapshot data; skipping commit and push.");
     process.exitCode = changed ? 10 : 0;
   } catch (error) {

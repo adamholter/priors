@@ -1,11 +1,12 @@
 #!/bin/bash
-# Every 2h: scrape all sources -> data/snapshots/<date>.json.gz + mix library, commit and push (data-only pushes do not deploy; the site reads the repo).
+# Every 15 min: scrape all sources -> data/snapshots/<date>.json.gz + mix library. A changed snapshot goes to the single-commit
+# live branch (the site reads it; no deploy, no history growth). Finished days are archived to main once, by the first run of the next day.
 # Runs in its own checkout (~/priors-scrape, marked by .scrape-checkout) that holds nothing but origin/main,
 # so app work in other checkouts can never block the push. See docs/operations.md.
 set -uo pipefail
 cd "$(dirname "$0")/../.."
 export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
-DATE=$(date +%F)
+DATE=${PRIORS_DATE:-$(date +%F)}
 notify() { osascript -e "display notification \"$1\" with title \"Priors\"" 2>/dev/null || true; }
 if [ "${1:-}" != "--synced" ]; then
   echo "== $(date -Iseconds) scrape $DATE"
@@ -27,6 +28,67 @@ if [ "${1:-}" != "--synced" ]; then
   # This file may just have changed underneath the running shell: start over on the new copy.
   exec /bin/bash "$0" --synced
 fi
+LIVE=${PRIORS_LIVE_BRANCH:-data-live}
+HAVE_LIVE=
+git fetch -q origin "$LIVE" 2>/dev/null && git rev-parse -q --verify "origin/$LIVE" >/dev/null && HAVE_LIVE=1
+
+# Days that are over move from the live branch to main (their final copy, plus the latest files so a fresh build
+# starts close to today), so main grows by one commit a day instead of one per scrape.
+archive_finished_days() {
+  [ -n "$HAVE_LIVE" ] || return 0
+  local f d files=()
+  for f in $(git ls-tree --name-only "origin/$LIVE" data/snapshots/ | grep -E '/[0-9]{4}-[0-9]{2}-[0-9]{2}(\.library)?\.json\.gz$'); do
+    d=$(basename "$f" | cut -c1-10)
+    [ "$d" \< "$DATE" ] || continue
+    git diff --quiet HEAD "origin/$LIVE" -- "$f" || files+=("$f")
+  done
+  [ ${#files[@]} -gt 0 ] || return 0
+  files+=(data/snapshots/latest.json.gz data/snapshots/latest.library.json.gz public/intro)
+  git checkout -q "origin/$LIVE" -- "${files[@]}" || return 1
+  git diff --cached --quiet && return 0
+  git commit -q -m "data: archive finished days" -- "${files[@]}" || return 1
+  local pushed=
+  for _ in 1 2 3; do
+    if git push -q origin HEAD:main; then pushed=1; break; fi
+    git fetch -q origin main && git rebase -q origin/main || { git rebase --abort 2>/dev/null; break; }
+  done
+  [ -n "$pushed" ]
+}
+if ! archive_finished_days; then
+  notify "Priors: archiving finished days to main failed — see logs/scrape.log"
+fi
+# Scrape from what is live now: the build merges a source outage with the previous latest, and the library reuses its fits.
+[ -n "$HAVE_LIVE" ] && git checkout -q "origin/$LIVE" -- data/snapshots public/intro
+
+# The live branch is one commit with only what the site reads: latest files, today's file, intro cards.
+publish_live() {
+  local tmp cutoff f d
+  tmp=$(mktemp -d "${TMPDIR:-/tmp}/priors-live.XXXXXX") || return 1
+  [ -n "$HAVE_LIVE" ] && git archive "origin/$LIVE" | tar -x -C "$tmp"
+  mkdir -p "$tmp/data/snapshots" "$tmp/public"
+  cp data/snapshots/latest.json.gz "$tmp/data/snapshots/" || return 1
+  for f in latest.library.json.gz "$DATE.json.gz" "$DATE.library.json.gz"; do
+    [ -e "data/snapshots/$f" ] && cp "data/snapshots/$f" "$tmp/data/snapshots/"
+  done
+  rm -rf "$tmp/public/intro" && cp -R public/intro "$tmp/public/intro" || return 1
+  cutoff=$(date -v-3d +%F 2>/dev/null || date -d '3 days ago' +%F)
+  for f in "$tmp"/data/snapshots/20??-??-??*.json.gz; do
+    [ -e "$f" ] || continue
+    d=$(basename "$f" | cut -c1-10)
+    [ "$d" \< "$cutoff" ] && rm -f "$f"
+  done
+  # This branch is not the app: tell Vercel never to build it.
+  printf '{ "ignoreCommand": "exit 0", "git": { "deploymentEnabled": false } }\n' > "$tmp/vercel.json"
+  (
+    cd "$tmp" && git init -q -b "$LIVE" && git add -A \
+      && git -c user.name="$(git -C "$OLDPWD" config user.name || echo priors-scrape)" -c user.email="$(git -C "$OLDPWD" config user.email || echo scrape@mypriors.com)" commit -q -m "live data $DATE $(date -u +%H:%MZ)" \
+      && git push -q --force "$(git -C "$OLDPWD" remote get-url origin)" "HEAD:refs/heads/$LIVE"
+  )
+  local status=$?
+  rm -rf "$tmp"
+  return $status
+}
+
 LOG=$(mktemp "${TMPDIR:-/tmp}/priors-scrape.XXXXXX") || exit 1
 # --no-library: the library (the slow part) is built below, once, and only if the data changed.
 if ! npx tsx scripts/scrape/build.ts --date "$DATE" --no-library 2>&1 | tee "$LOG"; then
@@ -45,7 +107,7 @@ done
 if grep -qE '^[[:space:]]*failed[[:space:]]' "$LOG"; then
   notify "Priors scrape $DATE finished with source failures — see logs/scrape.log"
 fi
-npx tsx scripts/ops/snapshot-changed.ts
+SNAPSHOT_BASELINE_REF=${HAVE_LIVE:+origin/$LIVE} npx tsx scripts/ops/snapshot-changed.ts
 CHANGE_STATUS=$?
 case "$CHANGE_STATUS" in
   0) echo "== done $(date -Iseconds)"; exit 0 ;;
@@ -62,18 +124,8 @@ fi
 if ! npx tsx scripts/scrape/intro-cards.ts 2>&1 | tee -a "$LOG"; then
   notify "Priors intro cards failed for $DATE — see logs/scrape.log"
 fi
-git add data/snapshots public/intro || exit 1
-if ! git diff --cached --quiet -- data/snapshots public/intro; then
-  git commit -q -m "data: snapshot $DATE" -- data/snapshots public/intro || exit 1
-  # main may have moved during the scrape (an app deploy): replay the snapshot on top and try again.
-  PUSHED=
-  for _ in 1 2 3; do
-    if git push -q origin HEAD:main; then PUSHED=1; break; fi
-    git fetch -q origin main && git rebase -q origin/main || { git rebase --abort 2>/dev/null; break; }
-  done
-  if [ -z "$PUSHED" ]; then
-    notify "Priors snapshot $DATE was not pushed — see logs/scrape.log"
-    exit 1
-  fi
+if ! publish_live; then
+  notify "Priors live data $DATE was not published — see logs/scrape.log"
+  exit 1
 fi
 echo "== done $(date -Iseconds)"

@@ -1,43 +1,25 @@
 "use client";
-import { useConvexAuth, useQuery } from "convex/react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { api } from "../../../convex/_generated/api";
-import { authEnabled, convexEnabled } from "@/app/providers";
+import { useMyRankings } from "../my-rankings";
 import { HeaderAccount } from "../AccountMenu";
 import { SiteFooter } from "../SiteFooter";
 import { SiteNav } from "../SiteNav";
 import { SettingsButton } from "../SiteSettings";
 import { Wordmark } from "../Wordmark";
 import type { Snapshot } from "@/data/types";
-import type { IndexConfig } from "@/engine";
 import { PRESET_IDS } from "@/lib/compare-ref";
-import { decodeIndices } from "@/lib/url";
 import { Compare, compareHref, TOPS } from "./Compare";
-import { choiceFromIndex, choiceFromPage, choiceFromPreset, type Choice, type PageData, type Published } from "./choice";
+import { choiceFromIndex, choiceFromPage, choiceFromPreset, type Choice, type Published } from "./choice";
 import { loadPage } from "./load-page";
 import type { Sources } from "./SidePicker";
-
-/** The visitor's own page, when signed in with one: just its handle, loaded as a page once known. */
-function MineProbe({ onHandle }: { onHandle: (handle: string | null) => void }) {
-  const { isAuthenticated, isLoading } = useConvexAuth();
-  const mine = useQuery(api.profiles.mine, isAuthenticated ? {} : "skip");
-  useEffect(() => { if (!isLoading && (!isAuthenticated || mine !== undefined)) onHandle(mine?.handle ?? null); }, [isAuthenticated, isLoading, mine, onHandle]);
-  return null;
-}
-
-function readBuilder(): IndexConfig[] {
-  try { const saved = localStorage.getItem("priors:indices"); return saved ? decodeIndices(JSON.parse(saved) as string[]) : []; } catch { return []; }
-}
 
 /** `/compare`: loads the benchmark data and the visitor's own rankings, then hands them to the view. */
 export function CompareApp({ initialA, initialB, wantMine, top: top0, same: same0, published }: { initialA?: Choice; initialB?: Choice; wantMine: boolean; top: number; same: boolean; published: Published[] }) {
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [error, setError] = useState("");
   const [retry, setRetry] = useState(0);
-  const [handle, setHandle] = useState<string | null | undefined>(authEnabled && convexEnabled ? undefined : null);
-  const [page, setPage] = useState<PageData | null | undefined>();
-  const [builder, setBuilder] = useState<IndexConfig[]>([]);
+  const { probe, handle, page, builder, builderReady } = useMyRankings();
   const [pickA, setA] = useState(initialA), [pickB, setB] = useState(initialB);
   const [top, setTop] = useState(top0), [same, setSame] = useState(same0);
   useEffect(() => {
@@ -46,9 +28,6 @@ export function CompareApp({ initialA, initialB, wantMine, top: top0, same: same
       .then((s) => { if (!c.signal.aborted) setSnapshot(s); }).catch((e) => { if (!c.signal.aborted) setError(e instanceof Error ? e.message : "Could not load benchmark data."); });
     return () => c.abort();
   }, [retry]);
-  const [builderReady, setBuilderReady] = useState(false);
-  useEffect(() => { const id = requestAnimationFrame(() => { setBuilder(readBuilder()); setBuilderReady(true); }); return () => cancelAnimationFrame(id); }, []);
-  useEffect(() => { if (!handle) return; let live = true; void loadPage(handle).then((p) => { if (live) setPage(p); }).catch(() => { if (live) setPage(null); }); return () => { live = false; }; }, [handle]);
   // The left side nobody chose is the visitor's own ranking: their page, else the first index in their builder, else (with a note) the standard one.
   const mineReady = wantMine && handle !== undefined && builderReady && (!handle || page !== undefined);
   const mine = useMemo(() => (page ? choiceFromPage(page, undefined, true) : builder[0] ? choiceFromIndex(builder[0], { title: "You", short: "you", mine: true }) : undefined), [page, builder]);
@@ -65,7 +44,7 @@ export function CompareApp({ initialA, initialB, wantMine, top: top0, same: same
   const swap = useCallback(() => { setA(b); setB(a); }, [a, b]);
   const labs = useMemo(() => new Map((snapshot?.labs ?? []).map((l) => [l.id, l.color])), [snapshot]);
   return <main className="min-h-dvh">
-    {authEnabled && convexEnabled && <MineProbe onHandle={setHandle} />}
+    {probe}
     <header className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 sm:px-8 py-2 sm:h-14 border-b hairline">
       <div className="flex items-center gap-5"><Wordmark /><span className="max-sm:hidden"><SiteNav /></span></div>
       <span className="ml-auto flex items-center gap-2"><HeaderAccount /><SettingsButton /></span>

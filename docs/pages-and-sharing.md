@@ -10,6 +10,7 @@
 | `/[handle]` | A published page. |
 | `/explore` | Published pages. |
 | `/compare` | Two rankings side by side. See Compare below. |
+| `/3d` | One ranking as a 3D chart. See 3D below. |
 | `/models/[id]`, `/model-finder` | One model's results (Strengths: a radar against the index leader and field median, and where it sits on each benchmark; Cost and speed: index score against cost per task by effort, and field strips for cost, time per task, output speed, time to first token and output tokens, naming any it lacks; per-benchmark cards plot score against cost, or the field's spread when cost is unknown); a guided model picker. |
 | `/claim`, `/sign-in` | Pick a handle; Clerk sign-in. |
 | `/import`, `/skill` | Benchmark import; the agent skill. |
@@ -84,6 +85,13 @@ Each card on `/explore` (`src/components/explore/ExploreCard.tsx`) wears its own
 - **What it says** (`src/lib/compare.ts`, tested): one line, how many of the top `n` are on both lists and the model with the biggest rank gap. "Why they differ" is a sentence about where each side puts its weight and the share of weight on the same benchmarks (`mixLead`), then each ranking's whole mix as one stacked bar. Spearman correlation (`rankCorrelation`) feeds the link-preview text. Ranks are as each side publishes them unless `same=1`. The slope draws a line from each model to its place on the other list; a model off the other top list keeps a stub and its rank there, or a dash when that side does not rank it.
 - **Narrow screens** get the matched table instead of the slope (`.cmp-wide` and `.cmp-narrow`).
 - The page's description for link previews is computed from the same numbers (`generateMetadata` in `src/app/compare/page.tsx`); the image is the default card.
+
+## 3D
+`/3d?a=<ref>` draws one ranking as a 3D scatter (`src/components/threed/`, three.js, loaded only on this page). `a` is any ref `/compare` takes: `me`, `@handle`, `@handle~tab`, `preset:aa`, or an index spelled in the builder's codec; `ax=time.score.cost` names the three axes. The axes are chosen from the measures the ranking's models have (`formulaInputs`: score, cost, time, speed, latency, tokens, uptime, usage, age); the default is time per task across, score up, cost per task deep, where cost is the subscription price when the index prices that way. `placePoints` (`src/lib/three-d.ts`, tested) puts each point in a unit cube with the better end of every axis at the far corner, so the best corner is always (1, 1, 1); log axes where a measure spans orders of magnitude. Points on the 3D Pareto frontier glow; the list beside the chart ranks models by distance from the best corner. Camera: perspective, isometric, front, side and top, with orbit, zoom and pan.
+- **Easter egg.** Pressing D three times in a row (not while typing) opens the 3D view of the ranking on screen: a published page's open tab (anyone's, yours or another's) and the builder's active index (`useTripleD` in `src/lib/use-triple-d.ts`).
+
+## Model pages
+`/models/<id>` ranks the model in one of the visitor's rankings: their published page's indices, their builder's indices, then General frontier and Artificial Analysis. It opens on the first that ranks the model, so a mix that lacks the model's data no longer leaves a blank page, and a "Ranked in" picker switches to any of them (`ModelPage.tsx`).
 
 ## Labs
 

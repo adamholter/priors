@@ -40,8 +40,12 @@ async function build(config: IndexConfig, mode: "fixed" | "adapting"): Promise<H
   // Older snapshots predate the open-weights flag: take it from today's models (a model's weights don't change).
   const flags = new Map<string, boolean>();
   for (const m of (await loadSnapshot())?.models ?? []) if (m.openWeights !== undefined) flags.set(m.id, m.openWeights);
-  for (const date of await snapshotDates()) {
-    const snap = await readSnapshot(date);
+  // The build's dated files stop at its deploy; today's live copy supplies the newest frame.
+  const live = await loadSnapshot();
+  const dates = await snapshotDates();
+  if (live && !dates.includes(live.date)) dates.push(live.date);
+  for (const date of dates) {
+    const snap = live && date === live.date ? { ...live } : await readSnapshot(date);
     if (!snap) continue;
     snap.models = applyOpenWeights(snap, flags).models;
     const counts = new Map<string, Set<string>>();

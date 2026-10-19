@@ -33,6 +33,8 @@ import { costDescription, hasSubscriptionPrices, taskMetricOptions } from "@/dat
 import { formulaInputs } from "@/lib/metrics";
 import { MetricGallery } from "./page/MetricGallery";
 import { IndexLabActions, type PublishPlacement } from "./lab/IndexLabActions";
+import { threeDUrl } from "@/lib/compare-ref";
+import { useTripleD } from "@/lib/use-triple-d";
 
 export function Builder({ snapshot: base, initialIndices, labPlacement }: { snapshot: Snapshot; initialIndices: IndexConfig[]; labPlacement?: PublishPlacement }) {
   // Benchmarks imported in this browser (via /import without an account) are merged client-side.
@@ -57,6 +59,7 @@ export function Builder({ snapshot: base, initialIndices, labPlacement }: { snap
   }, []);
   const [activeId, setActiveId] = useState(indices[0].id);
   const active = indices.find((i) => i.id === activeId) ?? indices[0];
+  useTripleD(active ? threeDUrl({ kind: "index", config: active }) : null);
   const result = useMemo(() => computeIndex(snapshot, { ...active, variants: "all" }, PAGE_VIEW), [snapshot, active]);
   const rankingMode = chartVariantMode(active, "ranking"), paretoMode = chartVariantMode(active, "pareto");
   const rankingRows = useMemo(() => rankingRowsOf(result.ranked, active), [result, active]);

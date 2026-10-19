@@ -84,7 +84,23 @@ describe("scheduled snapshot change gate", () => {
       expect(run()).toBe(1);
     } finally { rmSync(cwd, { recursive: true, force: true }); }
   });
-  it("scheduled shell skips timestamp-only pushes and commits meaningful data without staged app edits", () => {
+  it("CLI compares to the ref named by SNAPSHOT_BASELINE_REF when given", () => {
+    const cwd = mkdtempSync(path.join(tmpdir(), "priors-gate-ref-"));
+    const file = path.join(cwd, "data/snapshots/latest.json.gz");
+    const cli = path.resolve("scripts/ops/snapshot-changed.ts");
+    const git = (...args: string[]) => execFileSync("git", ["-c", "user.name=Test", "-c", "user.email=test@example.com", ...args], { cwd, encoding: "utf8" });
+    const run = (ref?: string) => spawnSync(process.execPath, ["--import", path.resolve("node_modules/tsx/dist/loader.mjs"), cli], { cwd, encoding: "utf8", env: { ...process.env, SNAPSHOT_BASELINE_REF: ref ?? "" } }).status;
+    try {
+      git("init", "-q", "-b", "main"); mkdirSync(path.dirname(file), { recursive: true });
+      writeFileSync(file, gzipSync(JSON.stringify(fixture()))); git("add", "."); git("commit", "-qm", "main");
+      const live = fixture(); live.observations[0].value = 77;
+      git("checkout", "-q", "-b", "live"); writeFileSync(file, gzipSync(JSON.stringify(live))); git("commit", "-qam", "live"); git("checkout", "-q", "main");
+      writeFileSync(file, gzipSync(JSON.stringify(live)));
+      expect(run()).toBe(10); // against main the new value is a change
+      expect(run("live")).toBe(0); // against what is live it is not
+    } finally { rmSync(cwd, { recursive: true, force: true }); }
+  });
+  it("scheduled shell skips timestamp-only refreshes and publishes meaningful data to the live branch without touching main or staged app edits", () => {
     const cwd = mkdtempSync(path.join(tmpdir(), "priors-schedule-"));
     const git = (...args: string[]) => execFileSync("git", args, { cwd, encoding: "utf8" });
     try {
@@ -95,6 +111,7 @@ describe("scheduled snapshot change gate", () => {
       writeFileSync(path.join(cwd, "public/intro/test.png"), "fixture");
       writeFileSync(path.join(cwd, "scripts/ops/daily-scrape.sh"), readFileSync("scripts/ops/daily-scrape.sh"));
       git("add", "."); git("commit", "-qm", "initial");
+      git("remote", "add", "origin", path.join(cwd, "no-such-origin.git"));
       writeFileSync(path.join(cwd, "app-edit.txt"), "user edit"); git("add", "app-edit.txt");
       const next = fixture(); next.generatedAt = "refresh";
       writeFileSync(file, gzipSync(JSON.stringify(next)));
@@ -126,9 +143,10 @@ describe("scheduled snapshot change gate", () => {
       writeFileSync(file, gzipSync(JSON.stringify(next)));
       const update = run();
       expect(update.status, update.stderr).toBe(0);
+      // One forced push of the live branch; main gets no commit, and the staged edit is untouched.
       expect(readFileSync(path.join(cwd, "push.log"), "utf8")).toBe("push\n");
+      expect(git("rev-parse", "HEAD")).toBe(initial);
       expect(git("diff", "--cached", "--name-only")).toBe("app-edit.txt\n");
-      expect(git("show", "--format=", "--name-only", "HEAD")).toBe("data/snapshots/latest.json.gz\n");
     } finally { rmSync(cwd, { recursive: true, force: true }); }
   });
 });

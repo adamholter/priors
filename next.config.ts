@@ -7,11 +7,11 @@ const nextConfig: NextConfig = {
   devIndicators: false,
   // PostHog posts to trailing-slash endpoints through /ingest (src/app/ingest); don't redirect them.
   skipTrailingSlashRedirect: true,
-  // Data-only pushes do not redeploy (vercel.json ignoreCommand), so production serves the intro cards the scrape
-  // renders from the repo's newest copy rather than from the build.
+  // The scrape publishes the intro cards it renders to the repo's data-live branch, so production serves them from
+  // there rather than from the build.
   async rewrites() {
     if (!process.env.VERCEL) return [];
-    return { beforeFiles: [{ source: "/intro/:file([a-z0-9-]+\\.png)", destination: "https://raw.githubusercontent.com/adamholter/priors/main/public/intro/:file" }], afterFiles: [], fallback: [] };
+    return { beforeFiles: [{ source: "/intro/:file([a-z0-9-]+\\.png)", destination: "https://raw.githubusercontent.com/adamholter/priors/data-live/public/intro/:file" }], afterFiles: [], fallback: [] };
   },
   async headers() {
     return [{ source: "/intro/:file([a-z0-9-]+\\.png)", headers: [{ key: "X-Content-Type-Options", value: "nosniff" }, { key: "Cache-Control", value: "public, max-age=300, s-maxage=300" }] }];

@@ -7,7 +7,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { EChartsOption } from "echarts";
 import type { Benchmark, Snapshot } from "@/data/types";
 import { computeIndex, defaultConfig, type IndexConfig, type RankedVariant } from "@/engine";
-import { decodeIndices, encodeIndices, prettyQuery } from "@/lib/url";
+import { encodeIndices, prettyQuery } from "@/lib/url";
+import { defaultPriorsMix } from "@/onboarding/defaults";
+import { mergeImports } from "@/lib/import";
+import { pageIndex } from "@/lib/compare-ref";
+import { useMyRankings } from "../my-rankings";
+import type { PageData } from "../compare/choice";
 import { Wordmark } from "../Wordmark";
 import { SiteNav } from "../SiteNav";
 import { CONTAIN_AXIS_LABELS, insideLabels, markColor, useChartPalette, useEChart } from "../chart/echarts";
@@ -26,24 +31,45 @@ function fmt(b: Benchmark, v: number) {
   return v.toFixed(b.unit === "elo" ? 0 : 1);
 }
 
-/** The browser's last builder mix (what the user was exploring), else the default index. */
-function useCachedMix(snapshot: Snapshot): IndexConfig {
-  const [mix, setMix] = useState<IndexConfig>(() => defaultConfig(snapshot));
-  useEffect(() => {
-    const id = requestAnimationFrame(() => { try { const saved = localStorage.getItem("priors:indices"); const list = saved ? decodeIndices(JSON.parse(saved) as string[]) : []; if (list[0]) setMix(list[0]); } catch { /* ignore */ } });
-    return () => cancelAnimationFrame(id);
-  }, []);
-  return mix;
+type Imports = Parameters<typeof mergeImports>[1];
+/** A ranking this model can be shown in: who it belongs to, and what to rank it with. */
+interface Option { key: string; label: string; group: string; config: IndexConfig; imports?: Imports }
+
+/** Everything the visitor could rank this model in, best guess first: their page, their builder, then the standard mixes. */
+function useOptions(snapshot: Snapshot, page: PageData | null | undefined, builder: IndexConfig[]): Option[] {
+  return useMemo(() => {
+    const out: Option[] = [];
+    if (page) {
+      const main = pageIndex(page.indices);
+      page.indices.forEach((c, i) => out.push({ key: `page:${i}`, label: i === 0 || c === main ? `${c.name} (your page)` : c.name, group: "Your page", config: c, imports: page.imports }));
+    }
+    builder.forEach((c, i) => out.push({ key: `builder:${i}`, label: c.name, group: "In your builder", config: c }));
+    out.push({ key: "preset:general", label: "General frontier", group: "Standard", config: defaultConfig(snapshot) });
+    out.push({ key: "preset:aa", label: "Artificial Analysis", group: "Standard", config: defaultPriorsMix(snapshot) });
+    return out;
+  }, [snapshot, page, builder]);
 }
 
-export function ModelPage({ snapshot, modelId }: { snapshot: Snapshot; modelId: string }) {
+const withImports = (snapshot: Snapshot, o: Option): Snapshot => (o.imports?.length ? mergeImports(snapshot, o.imports).snapshot : snapshot);
+
+export function ModelPage({ snapshot: base, modelId }: { snapshot: Snapshot; modelId: string }) {
+  const mine0 = useMyRankings();
+  const options = useOptions(base, mine0.page, mine0.builder);
+  const [picked, setPicked] = useState<string | null>(null);
+  // Unless the visitor picks one: the first of their rankings that ranks this model, else the standard mix (with estimates).
+  const auto = useMemo(() => {
+    if (!mine0.ready) return undefined;
+    return options.find((o) => computeIndex(withImports(base, o), { ...o.config, variants: "all" }).ranked.some((r) => r.model.id === modelId)) ?? options.find((o) => o.key === "preset:general");
+  }, [mine0.ready, options, base, modelId]);
+  const current = options.find((o) => o.key === picked) ?? auto ?? options.find((o) => o.key === "preset:general")!;
+  const snapshot = useMemo(() => withImports(base, current), [base, current]);
   const model = snapshot.models.find((m) => m.id === modelId)!;
   const lab = snapshot.labs.find((l) => l.id === model.labId);
   const names = useMemo(() => new Map(snapshot.models.map((m) => [m.id, m.name])), [snapshot]);
   const pal = useChartPalette();
   const labC = markColor(lab?.color ?? "#2F4FB0", pal, lab?.id);
   const color = useMemo(() => ({ lab: labC, name: (id: string) => names.get(id) ?? id }), [labC, names]);
-  const mix = useCachedMix(snapshot);
+  const mix = current.config;
   const result = useMemo(() => computeIndex(snapshot, { ...mix, variants: "all" }), [snapshot, mix]);
   // Cost per task is measured per variant; the full-pool "all time" index supplies it for every variant.
   const costs = useMemo(() => { const r = computeIndex(snapshot, { ...defaultConfig(snapshot), variants: "all", releasedAfter: "", strictness: 0 }); const m = new Map<string, number>(); for (const x of r.ranked) if (x.costUsd) { m.set(x.variant.id, x.costUsd); const base = x.variant.id.split("~")[0]; if (!m.has(base)) m.set(base, x.costUsd); } return m; }, [snapshot]);
@@ -76,6 +102,7 @@ export function ModelPage({ snapshot, modelId }: { snapshot: Snapshot; modelId: 
 
   return (
     <main className="min-h-screen">
+      {mine0.probe}
       <header className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 sm:px-8 py-2 sm:h-14 border-b hairline"><div className="flex items-center gap-5"><Wordmark /><Link href={`/builder?${prettyQuery(encodeIndices([mix]))}` as "/builder"} className="max-sm:hidden text-grey text-[13px] hover:text-ink">Builder</Link></div><span className="ml-auto flex items-center gap-2"><HeaderAccount /><SettingsButton /></span><span className="sm:hidden w-full"><SiteNav /></span></header>
       <div className="max-w-[1100px] mx-auto px-5 sm:px-8 py-10 grid gap-12">
         <section className="grid gap-5 sm:grid-cols-[1fr_auto] items-end">
@@ -85,14 +112,18 @@ export function ModelPage({ snapshot, modelId }: { snapshot: Snapshot; modelId: 
             <p className="text-[13.5px] text-ink-2 mt-2">Measured on {measured.length} benchmarks{mine.length > 1 ? ` across ${mine.length} reasoning efforts` : ""}.</p>
           </div>
           <div className="sm:text-right">
-            <p className="cap">{mix.name}</p>
+            <label className="cap inline-flex items-center gap-2">Ranked in
+              <select className="inp !w-auto !py-1 !text-[12px] max-w-[220px] normal-case" value={current.key} onChange={(e) => setPicked(e.target.value)} aria-label="Ranking to place this model in">
+                {[...new Set(options.map((o) => o.group))].map((g) => <optgroup key={g} label={g}>{options.filter((o) => o.group === g).map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}</optgroup>)}
+              </select>
+            </label>
             {top ? <><p className="num text-[52px] leading-none mt-1" style={{ color: "var(--indigo)" }}>{top.score.toFixed(1)}</p><p className="text-[13px] text-ink-2 mt-1">#{place + 1} of {bestRows.length} models{top.variant.effort !== "default" ? ` · best at ${top.variant.effort}` : ""}</p>{loose && <p className="cap mt-1 max-w-[30ch] sm:ml-auto">includes estimates: {Math.round(top.measuredShare * 100)}% of the mix is measured for this model</p>}</>
-              : <p className="text-[13px] text-ink-2 mt-2 max-w-[28ch]">Not ranked in this mix — too little measured data for its benchmarks.</p>}
+              : <p className="text-[13px] text-ink-2 mt-2 max-w-[28ch]">Not ranked in this one: too little measured data for its benchmarks. Pick another ranking above.</p>}
           </div>
         </section>
 
         {mine.length > 1 && <section className="border-t-2 border-ink pt-3">
-          <h2 className="text-[20px] mb-2">Reasoning efforts in your mix</h2>
+          <h2 className="text-[20px] mb-2">Reasoning efforts in this ranking</h2>
           <div className="grid gap-[5px]">{mine.map((r) => <EffortRow key={r.variant.id} r={r} rank={shown.ranked.indexOf(r) + 1} total={shown.ranked.length} max={mine[0].score} color={labC} />)}</div>
         </section>}
 
@@ -101,9 +132,9 @@ export function ModelPage({ snapshot, modelId }: { snapshot: Snapshot; modelId: 
         {mine.length > 0 && <ModelCostSpeed snapshot={snapshot} ranked={shown.ranked} modelId={modelId} name={model.name} color={labC} timeSource={mix.timeSource} />}
 
         <section className="grid gap-4">
-          <div className="flex items-baseline justify-between border-b hairline pb-2"><h2 className="text-[26px]">Your mix&rsquo;s benchmarks</h2><span className="cap">{inMix.length} of {Object.values(mix.weights).filter((w) => w > 0).length} measured</span></div>
+          <div className="flex items-baseline justify-between border-b hairline pb-2"><h2 className="text-[26px]">This ranking&rsquo;s benchmarks</h2><span className="cap">{inMix.length} of {Object.values(mix.weights).filter((w) => w > 0).length} measured</span></div>
           {inMix.length ? <div className="grid gap-8 lg:grid-cols-2">{inMix.map((b) => <BenchCard key={b.id} b={b} rows={perBench.get(b.id)!} modelId={modelId} color={color} onInfo={() => setInfo(b.id)} />)}</div>
-            : <p className="cap">This model has no results on your mix&rsquo;s benchmarks.</p>}
+            : <p className="cap">This model has no results on this ranking&rsquo;s benchmarks.</p>}
         </section>
 
         {others.length > 0 && <details className="group border-t hairline pt-4">
