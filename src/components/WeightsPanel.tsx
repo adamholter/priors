@@ -7,6 +7,9 @@ import Link from "next/link";
 import { useLightDismiss } from "@/lib/useLightDismiss";
 import { searchBenchmarks } from "@/lib/benchmark-search";
 import { BenchmarkInfo, InfoIcon } from "./BenchmarkInfo";
+import { useLabColor } from "./chart/echarts";
+import { groupBySource, tierBenchmarks } from "@/lib/benchmark-groups";
+import { benchmarkQuality } from "@/onboarding/quality";
 
 const CATS: Record<string, string> = { coding: "Coding", agentic: "Agentic", reasoning: "Reasoning", knowledge: "Knowledge", math: "Math", "long-context": "Long context", instruction: "Instruction following", creative: "Creative", safety: "Safety", economics: "Economics", composite: "Composite indices", speed: "Speed", cost: "Cost", other: "Other" };
 
@@ -40,6 +43,23 @@ export function WeightsPanel({ snapshot, config, onChange }: { snapshot: Snapsho
   const coverage = (id: string) => counts.get(id)?.size ?? 0;
   const [recent, setRecent] = useState<string | null>(null);
   const listable = useMemo(() => snapshot.benchmarks.filter((b) => !b.proxy && b.category !== "speed").sort((a, b) => a.category.localeCompare(b.category) || a.name.localeCompare(b.name)), [snapshot]);
+  // Who is on top of each benchmark right now, shown as a lab-colored dot.
+  const leaders = useMemo(() => {
+    const model = new Map(snapshot.variants.map((v) => [v.id, v.modelId])), names = new Map(snapshot.models.map((m) => [m.id, m]));
+    const best = new Map<string, { modelId: string; value: number }>();
+    for (const o of snapshot.observations) {
+      const b = benches.get(o.benchmarkId); if (!b || !Number.isFinite(o.value)) continue;
+      const modelId = model.get(o.variantId) ?? model.get(o.variantId.split("~")[0]) ?? o.variantId.split("@")[0];
+      const cur = best.get(o.benchmarkId);
+      if (!cur || (b.higherIsBetter === false ? o.value < cur.value : o.value > cur.value)) best.set(o.benchmarkId, { modelId, value: o.value });
+    }
+    const out = new Map<string, { name: string; labId: string; value: number }>();
+    for (const [id, l] of best) { const m = names.get(l.modelId); if (m) out.set(id, { name: m.name, labId: m.labId, value: l.value }); }
+    return out;
+  }, [snapshot, benches]);
+  const labs = useMemo(() => new Map(snapshot.labs.map((l) => [l.id, l.color])), [snapshot]);
+  const tiers = useMemo(() => tierBenchmarks(listable, new Map(benchmarkQuality(snapshot).map((q) => [q.id, q]))), [listable, snapshot]);
+  const [by, setBy] = useState<"topic" | "source">("topic");
   // Rows hold still while the list is open: what was in the mix when it opened stays pinned on top,
   // and anything added while browsing is checked in place instead of jumping away.
   const [pinnedIds, setPinnedIds] = useState<Set<string>>(new Set());
@@ -50,6 +70,10 @@ export function WeightsPanel({ snapshot, config, onChange }: { snapshot: Snapsho
   const catName = (c: string) => CATS[c] ?? c;
   const matches = searchBenchmarks(inactive, query, catName);
   const pinned = searchBenchmarks(listable.filter((b) => pinnedIds.has(b.id)), query, catName);
+  const unpinned = (l: Benchmark[]) => l.filter((b) => !pinnedIds.has(b.id));
+  const mainList = unpinned(tiers.main), popularList = unpinned(tiers.popular), oldList = unpinned(tiers.old);
+  const sections: [string, Benchmark[]][] = by === "source" ? groupBySource(mainList) : Object.entries(mainList.reduce<Record<string, Benchmark[]>>((acc, b) => ((acc[b.category] ??= []).push(b), acc), {})).map(([c, l]) => [catName(c), l]);
+  const row = (b: Benchmark) => <BenchRow key={b.id} b={b} on={config.weights[b.id] > 0} models={coverage(b.id)} fresh={recent === b.id} leader={leaders.get(b.id)} labColor={labs.get(leaders.get(b.id)?.labId ?? "")} onToggle={() => toggle(b.id)} onInfo={() => setInfo(b.id)} />;
   const groups = terms.length ? { "Best matches": matches } : matches.reduce<Record<string, Benchmark[]>>((acc, b) => ((acc[b.category] ??= []).push(b), acc), {});
   // Adding keeps the list open and the query intact: people often add several while browsing.
   const toggle = (id: string) => { const on = config.weights[id] > 0; setW(id, on ? 0 : 10); setRecent(on ? null : id); };
@@ -63,7 +87,7 @@ export function WeightsPanel({ snapshot, config, onChange }: { snapshot: Snapsho
           return (
             <div key={b.id} className="grid gap-1.5">
               <div className="flex items-center justify-between gap-2 min-w-0">
-                <span className="flex items-center gap-1 min-w-0"><span className="truncate text-[13px]" title={b.description}>{b.name}</span><InfoIcon name={b.name} onClick={() => setInfo(b.id)} />{req && <span className="cap shrink-0" title="Models without a measured score here are not ranked. Change this in Calculation settings.">required</span>}</span>
+                <span className="flex items-center gap-1 min-w-0"><LeaderDot leader={leaders.get(b.id)} color={labs.get(leaders.get(b.id)?.labId ?? "")} /><span className="truncate text-[13px]" title={b.description}>{b.name}</span><InfoIcon name={b.name} onClick={() => setInfo(b.id)} />{req && <span className="cap shrink-0" title="Models without a measured score here are not ranked. Change this in Calculation settings.">required</span>}</span>
                 <span className="flex items-center shrink-0"><span className="num text-right text-[12.5px] w-9">{share.toFixed(0)}%</span><button type="button" onClick={() => setW(b.id, 0)} className="bench-remove" aria-label={`Remove ${b.name}`} title={`Remove ${b.name}`}>×</button></span>
               </div>
               <input type="range" min={0} max={Math.max(70, Math.ceil(share))} step={1} value={Math.round(share)} onChange={(e) => setShare(b.id, +e.target.value)} className="w-full h-[3px]" aria-label={`${b.name} weight`} />
@@ -98,11 +122,23 @@ export function WeightsPanel({ snapshot, config, onChange }: { snapshot: Snapsho
               <div className="flex items-center justify-between mt-2.5"><span className="cap">{terms.length ? `${pinned.length + matches.length} matching` : `${active.length} in your mix · ${listable.length - active.length} more`}</span><button type="button" className="btn-quiet !py-1" onClick={() => { setOpen(false); setQuery(""); }}>Done</button></div>
             </div>
             <div className="bench-sheet-body grid gap-4">
-              {pinned.length > 0 && <BenchGroup label="In your mix">{pinned.map((b) => <BenchRow key={b.id} b={b} on={config.weights[b.id] > 0} models={coverage(b.id)} fresh={recent === b.id} onToggle={() => toggle(b.id)} onInfo={() => setInfo(b.id)} />)}</BenchGroup>}
+              {pinned.length > 0 && <BenchGroup label="In your mix">{pinned.map(row)}</BenchGroup>}
               {!matches.length && !pinned.length && <p className="cap py-2" role="status">No matching benchmarks.</p>}
-              {Object.entries(groups).map(([cat, list]) => (
-                <BenchGroup key={cat} label={terms.length ? cat : catName(cat)}>{list.map((b) => <BenchRow key={b.id} b={b} on={config.weights[b.id] > 0} models={coverage(b.id)} fresh={recent === b.id} onToggle={() => toggle(b.id)} onInfo={() => setInfo(b.id)} />)}</BenchGroup>
-              ))}
+              {terms.length
+                ? Object.entries(groups).map(([cat, list]) => <BenchGroup key={cat} label={cat}>{list.map(row)}</BenchGroup>)
+                : <>
+                  {popularList.length > 0 && <BenchGroup label="Popular">{popularList.map(row)}</BenchGroup>}
+                  <div className="flex items-center justify-between gap-3 border-t hairline pt-3">
+                    <span className="cap">All benchmarks</span>
+                    <div className="seg" role="group" aria-label="Group benchmarks"><button type="button" aria-pressed={by === "topic"} onClick={() => setBy("topic")}>By topic</button><button type="button" aria-pressed={by === "source"} onClick={() => setBy("source")}>By source</button></div>
+                  </div>
+                  {sections.map(([label, list]) => <BenchGroup key={label} label={label}>{list.map(row)}</BenchGroup>)}
+                  {oldList.length > 0 && <details className="bench-old">
+                    <summary className="cap cursor-pointer hover:text-ink w-fit">Older and niche · {oldList.length}</summary>
+                    <p className="text-[12px] text-ink-2 my-2 max-w-[48ch]">Earlier-generation tests, superseded versions and benchmarks no top model has been run on.</p>
+                    <div className="grid">{oldList.map(row)}</div>
+                  </details>}
+                </>}
               <p className="text-[12px] text-ink-2 border-t hairline pt-3">Missing one? <Link className="text-indigo hover:underline" href="/skill" transitionTypes={["nav-forward"]}>Have your agent add it</Link> or <Link className="text-indigo hover:underline" href="/import" transitionTypes={["nav-forward"]}>import JSON</Link>.</p>
             </div>
           </div>
@@ -119,15 +155,26 @@ function BenchGroup({ label, children }: { label: string; children: React.ReactN
 }
 
 /** One benchmark: the whole row toggles it in or out of the mix; the info icon opens its leaderboard. */
-function BenchRow({ b, on, models, fresh, onToggle, onInfo }: { b: Benchmark; on: boolean; models: number; fresh: boolean; onToggle: () => void; onInfo: () => void }) {
+function BenchRow({ b, on, models, fresh, leader, labColor, onToggle, onInfo }: { b: Benchmark; on: boolean; models: number; fresh: boolean; leader?: Leader; labColor?: string; onToggle: () => void; onInfo: () => void }) {
   return (
     <div className={`bench-row flex items-center gap-1 min-w-0 rounded-sm ${fresh ? "bench-fresh" : ""}`}>
       <button type="button" role="checkbox" aria-checked={on} onClick={onToggle} title={b.description} className="min-w-0 flex-1 flex items-center gap-2 py-[5px] px-1 text-left text-[12.5px]">
         <span className={`bench-check ${on ? "on" : ""}`} aria-hidden="true">{on && <svg viewBox="0 0 12 12" width="10" height="10"><path d="M2.5 6.2 5 8.6l4.6-5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>}</span>
+        <LeaderDot leader={leader} color={labColor} />
         <span className="truncate flex-1">{b.name}</span>
         <span className="cap shrink-0">{models} models</span>
       </button>
       <InfoIcon name={b.name} onClick={onInfo} />
     </div>
   );
+}
+
+type Leader = { name: string; labId: string; value: number };
+
+/** The lab color of whichever model is on top of this benchmark; hover for who. */
+function LeaderDot({ leader, color }: { leader?: Leader; color?: string }) {
+  const lab = useLabColor();
+  if (!leader) return <span className="bench-dot" aria-hidden="true" />;
+  const c = lab(leader.labId, color);
+  return <span className="bench-dot" role="img" aria-label={`Top: ${leader.name}`} title={`Top: ${leader.name}`} style={{ background: c }} />;
 }

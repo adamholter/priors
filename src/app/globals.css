@@ -176,6 +176,11 @@ details.gallery-panel > summary::-webkit-details-marker { display: none; }
 @keyframes bench-in { from { opacity: 0; transform: translateY(8px) scale(.99); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .bench-dialog[open] { animation: none; } }
 .bench-row:hover { background: var(--hair-2); }
+.bench-dot { flex: none; width: 9px; height: 9px; border-radius: 50%; }
+.bench-old > summary { list-style: none; }
+.bench-old > summary::-webkit-details-marker { display: none; }
+.bench-old > summary::before { content: "▸ "; }
+.bench-old[open] > summary::before { content: "▾ "; }
 .bench-row button[role="checkbox"]:focus-visible { outline: 2px solid var(--indigo); outline-offset: -2px; }
 .bench-check { width: 14px; height: 14px; flex: none; display: grid; place-items: center; border: 1px solid var(--hair-3); border-radius: 3px; color: var(--on-accent); transition: background .15s, border-color .15s; }
 .bench-check.on { background: var(--indigo-fill); border-color: var(--indigo-fill); }
