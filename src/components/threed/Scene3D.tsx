@@ -93,7 +93,7 @@ export function Scene3D(props: SceneProps) {
         const at = (i: number, t: number, e: [number, number]) => { const v = new THREE.Vector3(); const o = [0, 1, 2].filter((k) => k !== i); v.setComponent(i, t); v.setComponent(o[0], e[0] * HALF); v.setComponent(o[1], e[1] * HALF); return v; };
         for (let i = 0; i < 3; i++) {
           // Far from the middle, but with both ends on screen: an edge that runs off the canvas helps nobody.
-          const inside = (v: T.Vector3) => { const q = project(v); return q.x > 70 && q.x < el.clientWidth - 70 && q.y > 50 && q.y < el.clientHeight - 60; };
+          const inside = (v: T.Vector3) => { const q = project(v); const mx = Math.min(70, el.clientWidth * 0.1); return q.x > mx && q.x < el.clientWidth - mx && q.y > 50 && q.y < el.clientHeight - 60; };
           const far = (k: number) => { const m = project(at(i, 0, corners[k])); return Math.hypot(m.x - c.x, m.y - c.y) * (inside(at(i, -HALF, corners[k])) && inside(at(i, HALF, corners[k])) ? 1 : 0.35); };
           let best = edgeSel[i];
           for (let k = 0; k < 4; k++) if (far(k) > far(best) * 1.08) best = k;
@@ -113,12 +113,11 @@ export function Scene3D(props: SceneProps) {
           }
           const len = Math.hypot(dx, dy) || 1; dx /= len; dy /= len;
           if (s.u != null) off += (Math.abs(dx) * s.w + Math.abs(dy) * s.h) / 2 - 6;
-          const x = q.x + dx * off - s.w / 2, y = q.y + dy * off - s.h / 2;
+          // Keep every fixed label on the canvas, however the camera is turned.
+          const x = Math.max(4, Math.min(el.clientWidth - s.w - 4, q.x + dx * off - s.w / 2)), y = Math.max(4, Math.min(el.clientHeight - s.h - 4, q.y + dy * off - s.h / 2));
           s.node.style.visibility = q.ok ? "visible" : "hidden"; place(s.node, x, y);
           taken.push({ x, y, w: s.w, h: s.h });
         }
-        const hostBox = el.getBoundingClientRect();
-        for (const pnl of el.parentElement?.querySelectorAll<HTMLElement>(".t3d-panel") ?? []) { const r = pnl.getBoundingClientRect(); taken.push({ x: r.left - hostBox.left, y: r.top - hostBox.top, w: r.width, h: r.height }); }
         const screen = new Map(anchors.map((a) => [a.id, { ...project(a.v), a }]));
         for (const [id, s] of screen) taken.push({ x: s.x - 8, y: s.y - 8, w: 16, h: 16, owner: id });
         const hot = [p.selected, hoverId].filter((x): x is string => !!x);
@@ -151,7 +150,7 @@ export function Scene3D(props: SceneProps) {
         const w = el.clientWidth || 600, h = el.clientHeight || 500, a = w / h;
         renderer.setSize(w, h, false); dom.style.width = "100%"; dom.style.height = "100%";
         persp.aspect = a; persp.updateProjectionMatrix();
-        const v = 10.4; ortho.left = -v * a; ortho.right = v * a; ortho.top = v; ortho.bottom = -v; ortho.updateProjectionMatrix();
+        const v = 10.2 / Math.min(1, a * 1.05); ortho.left = -v * a; ortho.right = v * a; ortho.top = v; ortho.bottom = -v; ortho.updateProjectionMatrix();
         request();
       };
 
@@ -170,7 +169,8 @@ export function Scene3D(props: SceneProps) {
         makeControls();
         if (camera === ortho) { ortho.zoom = 1; ortho.updateProjectionMatrix(); }
         const flat = v.dir[0] === 0 && v.dir[2] === 0;
-        camera.position.set(...v.dir).normalize().multiplyScalar(v.ortho ? 26 : 31);
+        const aspect = (el.clientWidth || 600) / (el.clientHeight || 500);
+        camera.position.set(...v.dir).normalize().multiplyScalar(v.ortho ? 26 : Math.min(44, 28 / Math.min(1, aspect * 1.05)));
         camera.up.set(0, flat ? 0 : 1, flat ? -1 : 0);
         camera.lookAt(0, 0, 0); controls.target.set(0, 0, 0); controls.update();
         animating = performance.now() + 50; request();

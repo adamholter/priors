@@ -120,24 +120,30 @@ export function ThreeDApp({ initial, wantMine, axes: axesParam, published }: { i
         : !placed ? <p className="text-[14px] text-ink-2">This ranking does not have three measures with enough models to chart. Choose another ranking above.</p>
         : <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_300px]">
           <div className="t3d-stage">
-            <AxisPanel axes={usable} options={options} onPick={setAxis} onRotate={() => setAxes([usable[2], usable[0], usable[1]])} />
-            <div className="t3d-panel t3d-tools" role="group" aria-label="Camera">
-              {(Object.keys(VIEWS) as ViewKey[]).map((k) => <button key={k} type="button" className="t3d-tool" aria-pressed={viewKey === k} data-tip={VIEWS[k].label} aria-label={VIEWS[k].label} onClick={() => { setViewKey(k); setNonce((n) => n + 1); }}>{CAMERA_ICONS[k]}</button>)}
+            <div className="t3d-bar t3d-bar-top">
+              <AxisPanel axes={usable} options={options} onPick={setAxis} onRotate={() => setAxes([usable[2], usable[0], usable[1]])} />
+              <div className="t3d-tools" role="group" aria-label="Camera">
+                {(Object.keys(VIEWS) as ViewKey[]).map((k) => <button key={k} type="button" className="t3d-tool" aria-pressed={viewKey === k} data-tip={VIEWS[k].label} aria-label={VIEWS[k].label} onClick={() => { setViewKey(k); setNonce((n) => n + 1); }}>{CAMERA_ICONS[k]}</button>)}
+              </div>
             </div>
-            <Scene3D points={placed.points} axes={placed.axes} zone={placed.zone} titles={titles} palette={scenePal} colorOf={colorOf} nameOf={nameOf} view={view} labels={labels} dropLines={dropLines} frontier={frontier} autoRotate={spin} selected={selected} onSelect={setSelected} onHover={setHover} />
-            <div className="t3d-panel t3d-tools t3d-tools-bottom" role="group" aria-label="Display">
-              <button type="button" className="t3d-tool" aria-pressed={labels !== "none"} data-tip={labels === "key" ? "Key labels (click for all)" : labels === "all" ? "All labels (click for none)" : "No labels (click for key)"} aria-label="Cycle labels" onClick={() => setLabels(labelModes[(labelModes.indexOf(labels) + 1) % 3])}>{TOGGLE_ICONS.labels}</button>
-              <button type="button" className="t3d-tool" aria-pressed={dropLines} data-tip="Drop lines" aria-label="Drop lines" onClick={() => setDropLines((v) => !v)}>{TOGGLE_ICONS.drops}</button>
-              <button type="button" className="t3d-tool" aria-pressed={frontier} data-tip="Glow the frontier" aria-label="Glow the frontier" onClick={() => setFrontier((v) => !v)}>{TOGGLE_ICONS.glow}</button>
-              <button type="button" className="t3d-tool" aria-pressed={allEfforts} data-tip={allEfforts ? "Every effort" : "Best effort per model"} aria-label="Show every effort" onClick={() => setAllEfforts((v) => !v)}><MeasureIcon name="tokens" /></button>
-              <button type="button" className="t3d-tool" aria-pressed={spin} data-tip="Auto-rotate" aria-label="Auto-rotate" onClick={() => setSpin((v) => !v)}>{TOGGLE_ICONS.spin}</button>
-              <button type="button" className="t3d-tool" data-tip="Reset camera" aria-label="Reset camera" onClick={() => setNonce((n) => n + 1)}>{TOGGLE_ICONS.reset}</button>
+            <div className="t3d-canvas">
+              <Scene3D points={placed.points} axes={placed.axes} zone={placed.zone} titles={titles} palette={scenePal} colorOf={colorOf} nameOf={nameOf} view={view} labels={labels} dropLines={dropLines} frontier={frontier} autoRotate={spin} selected={selected} onSelect={setSelected} onHover={setHover} />
+              <p className="cap t3d-hint">Drag to orbit · scroll to zoom · right-drag to pan</p>
+              {tip && hover && <div role="status" className="t3d-tip" style={{ left: hover.x + 14, top: hover.y + 14 }}>
+                <div className="font-semibold">{nameOf(tip)}</div>
+                {([0, 1, 2] as const).map((i) => <div key={i} className="flex justify-between gap-4 text-ink-2"><span>{titles[i]}</span><span className="num text-ink">{fmt(tip, i)}</span></div>)}
+              </div>}
             </div>
-            <p className="cap t3d-hint">Drag to orbit · scroll to zoom · right-drag to pan</p>
-            {tip && hover && <div role="status" className="t3d-tip" style={{ left: hover.x + 14, top: hover.y + 14 }}>
-              <div className="font-semibold">{nameOf(tip)}</div>
-              {([0, 1, 2] as const).map((i) => <div key={i} className="flex justify-between gap-4 text-ink-2"><span>{titles[i]}</span><span className="num text-ink">{fmt(tip, i)}</span></div>)}
-            </div>}
+            <div className="t3d-bar t3d-bar-bottom">
+              <div className="t3d-tools t3d-tools-bottom" role="group" aria-label="Display">
+                <button type="button" className="t3d-tool" aria-pressed={labels !== "none"} data-tip={labels === "key" ? "Key labels (click for all)" : labels === "all" ? "All labels (click for none)" : "No labels (click for key)"} aria-label="Cycle labels" onClick={() => setLabels(labelModes[(labelModes.indexOf(labels) + 1) % 3])}>{TOGGLE_ICONS.labels}</button>
+                <button type="button" className="t3d-tool" aria-pressed={dropLines} data-tip="Drop lines" aria-label="Drop lines" onClick={() => setDropLines((v) => !v)}>{TOGGLE_ICONS.drops}</button>
+                <button type="button" className="t3d-tool" aria-pressed={frontier} data-tip="Glow the frontier" aria-label="Glow the frontier" onClick={() => setFrontier((v) => !v)}>{TOGGLE_ICONS.glow}</button>
+                <button type="button" className="t3d-tool" aria-pressed={allEfforts} data-tip={allEfforts ? "Every effort" : "Best effort per model"} aria-label="Show every effort" onClick={() => setAllEfforts((v) => !v)}><MeasureIcon name="tokens" /></button>
+                <button type="button" className="t3d-tool" aria-pressed={spin} data-tip="Auto-rotate" aria-label="Auto-rotate" onClick={() => setSpin((v) => !v)}>{TOGGLE_ICONS.spin}</button>
+                <button type="button" className="t3d-tool" data-tip="Reset camera" aria-label="Reset camera" onClick={() => setNonce((n) => n + 1)}>{TOGGLE_ICONS.reset}</button>
+              </div>
+            </div>
           </div>
           <aside className="grid content-start gap-5 text-[13px]">
             {sel && <section className="grid gap-1.5 rounded-lg border hairline p-4" style={{ background: "var(--white)" }} aria-label="Selected model">
@@ -171,7 +177,7 @@ function AxisPanel({ axes, options, onPick, onRotate }: { axes: [string, string,
   const root = useRef<HTMLDivElement>(null);
   const close = useCallback(() => setOpen(null), []);
   useLightDismiss(root, close);
-  return <div ref={root} className="t3d-panel t3d-axes" role="group" aria-label="Axes">
+  return <div ref={root} className="t3d-axes" role="group" aria-label="Axes">
     {ROLES.map((role, i) => {
       const name = axes[i], current = options.find((o) => o.name === name);
       return <div key={role} className="t3d-axis">
@@ -187,6 +193,6 @@ function AxisPanel({ axes, options, onPick, onRotate }: { axes: [string, string,
         </div>}
       </div>;
     })}
-    <button type="button" className="t3d-rotate" onClick={onRotate}>{TOGGLE_ICONS.rotate}Rotate the axes</button>
+    <button type="button" className="t3d-tool t3d-rotate" onClick={onRotate} data-tip="Rotate the axes" aria-label="Rotate the axes">{TOGGLE_ICONS.rotate}</button>
   </div>;
 }
