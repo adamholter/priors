@@ -373,6 +373,20 @@ try {
     } finally { await c.context().close(); }
   });
 
+  await check("support: every header links to /support, and the support page has the amount picker", async () => {
+    const c = await (await browser.newContext({ viewport: { width: 1360, height: 900 } })).newPage();
+    c.on("pageerror", (e) => errors.push(`${c.url()}: ${e.message}`));
+    try {
+      await c.goto(`${BASE}/builder`, { waitUntil: "domcontentloaded" });
+      await c.getByRole("slider").first().waitFor({ timeout: 30000 });
+      await c.waitForTimeout(1500);
+      await c.getByRole("link", { name: "Support Priors" }).first().click();
+      await c.waitForURL(/\/support$/, { timeout: 30000 });
+      await c.getByRole("radio", { name: /\$25/ }).click();
+      await c.getByRole("link", { name: "Support Priors for $25 a month" }).waitFor({ timeout: 10000 });
+    } finally { await c.context().close(); }
+  });
+
   assert.deepEqual(errors, [], "no page errors");
   console.log(`PASS interactions: ${checks.length} checks\n  ${checks.join("\n  ")}`);
 } finally {

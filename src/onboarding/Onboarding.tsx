@@ -3,6 +3,7 @@ import { track } from "@/lib/analytics";
 import Link from "next/link";
 import { useLabColor } from "@/components/chart/echarts";
 import { useTheme } from "@/components/Theme";
+import { SupportLink } from "@/components/SupportLink";
 import { SettingsButton } from "@/components/SiteSettings";
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent } from "react";
 import type { Snapshot } from "@/data/types";
@@ -307,7 +308,7 @@ export function Onboarding({ snapshot, lineup, seeds, quality, observedModelIds,
 
   return <div className={`onboarding stage-${stage} ${running ? "is-running" : ""}`}>
     {convexEnabled && <LineupRecorder onRegister={(fn) => { recordLineup.current = fn; }} />}
-    <header className="onboard-header"><Wordmark size={32} href={null} /><div className="header-links"><Link className="text-control" href="/explore">Explore</Link><button className="text-control" onClick={() => intro.current?.showModal()}>How it works</button><Link className="text-control" href="/privacy">Privacy</Link><button className="text-control" onClick={() => openDialog("quality")} aria-label="About the evidence"><span className="label-long">About the evidence</span><span className="label-short">Evidence</span><span aria-hidden="true">↗</span></button><SettingsButton className="text-control theme-icon" /></div></header>
+    <header className="onboard-header"><Wordmark size={32} href={null} /><div className="header-links"><Link className="text-control" href="/explore">Explore</Link><button className="text-control" onClick={() => intro.current?.showModal()}>How it works</button><Link className="text-control" href="/privacy">Privacy</Link><button className="text-control" onClick={() => openDialog("quality")} aria-label="About the evidence"><span className="label-long">About the evidence</span><span className="label-short">Evidence</span><span aria-hidden="true">↗</span></button><SupportLink from="onboarding" className="text-control support-link" /><SettingsButton className="text-control theme-icon" support={false} /></div></header>
     <main className="onboard-main">
       <div className="step-line"><span className={stage === "compare" ? "current" : "passed"}>01 <span>Your calls</span></span><i /><span className={stage === "order" ? "current" : stage === "fit" ? "passed" : ""}>02 <span>Your ranking</span></span><i /><span className={stage === "fit" ? "current" : ""}>03 <span>The evidence</span></span></div>
       <div className="onboard-intro" key={stage}>
