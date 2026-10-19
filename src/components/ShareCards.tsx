@@ -114,7 +114,7 @@ function ShareCardsContent({ indices, active, profile, pageUrl, defaultDesign, c
   };
   const openCard = () => { onOpen?.(); const saved = new URLSearchParams(window.location.search).get("design"); if (!openedBefore.current && SHARE_DESIGNS.some((d) => d.id === saved)) setDesign(saved!); openedBefore.current = true; setOrigin(window.location.origin); setMessage(""); dialog.current?.showModal(); setOpen(true); track("share_card_opened"); };
   return <>
-    {compact ? <button type="button" className="icon-btn" onClick={openCard} aria-label="Share" title="Share"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v12M7.5 7.5 12 3l4.5 4.5M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7" /></svg></button> : <>
+    {compact ? <button type="button" className="icon-btn" onClick={openCard} aria-label="Share" data-tip="Share"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v12M7.5 7.5 12 3l4.5 4.5M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7" /></svg></button> : <>
     <span className="relative inline-flex items-center">
       <button type="button" className="btn-quiet inline-flex items-center gap-1.5" onClick={openCard}><svg aria-hidden="true" className={iconClass} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v12M7.5 7.5 12 3l4.5 4.5M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7" /></svg>Share</button>
       {hint && <span role="status" className="share-hint">Like this mix? Share it</span>}

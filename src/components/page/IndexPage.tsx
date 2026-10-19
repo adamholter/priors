@@ -14,6 +14,7 @@ import { costDescription, hasSubscriptionPrices, taskMetricOptions } from "@/dat
 import { formulaInputs, pickPoints, speedChart } from "@/lib/metrics";
 import { encodeIndices, PAGE_KEY, pageRef, prettyQuery } from "@/lib/url";
 import { ShareCards } from "../ShareCards";
+import { BuilderIcon, CompareIcon } from "../compare/icons";
 import { Wordmark } from "../Wordmark";
 import { SiteNav } from "../SiteNav";
 import { Rankings } from "../Rankings";
@@ -228,10 +229,13 @@ export function IndexPage({ profile, snapshot, edit, tab: linkedTab, linkedHighl
         <span className="text-grey text-[13px] max-sm:hidden">/ {p.handle}</span>
         <span className="max-sm:hidden"><SiteNav /></span>
         <div className="ml-auto hidden sm:flex flex-wrap items-center justify-end gap-3">
-          {active && <ShareCards indices={p.indices} active={active} profile={p} pageUrl={pageUrl.toString()} defaultDesign={p.theme?.cardDesign} top={topNames} pageTheme={p.theme?.preset} />}
-          {!lab && <Link href={compareHref as "/compare"} onClick={() => track("compare_opened", { from: "profile", handle: p.handle })} className="btn-quiet" title={isOwner ? "Compare your ranking with someone else's" : `Compare your ranking with @${p.handle}'s`}>Compare</Link>}
+          <span className="flex items-center">
+            {active && <ShareCards compact indices={p.indices} active={active} profile={p} pageUrl={pageUrl.toString()} defaultDesign={p.theme?.cardDesign} top={topNames} pageTheme={p.theme?.preset} />}
+            {!lab && <Link href={compareHref as "/compare"} onClick={() => track("compare_opened", { from: "profile", handle: p.handle })} className="icon-btn" aria-label="Compare" data-tip={isOwner ? "Compare with someone" : `Compare with @${p.handle}`}><CompareIcon /></Link>}
+            {(isOwner || lab) && <Link href={builderHref as "/"} onClick={keepPageKey} className="icon-btn" aria-label="Open in builder" data-tip="Open in builder"><BuilderIcon /></Link>}
+          </span>
           {isOwner || lab
-            ? <Link href={builderHref as "/"} onClick={keepPageKey} className="btn-quiet">Open in builder</Link>
+            ? null
             : <Link href={builderHref as "/"} onClick={() => track("remix_clicked", { from: "profile", handle: p.handle })} className="btn inline-flex items-center gap-2" title={`Open @${p.handle}'s mix in the builder as your own copy`}><RemixIcon />Remix</Link>}
           {isOwner && <button type="button" className="btn" onClick={toggleEditing}>{editing ? "Done editing" : "Edit page"}</button>}
           <HeaderAccount />
@@ -239,11 +243,11 @@ export function IndexPage({ profile, snapshot, edit, tab: linkedTab, linkedHighl
         </div>
         <div className="ml-auto flex sm:hidden items-center gap-1">
           {active && <ShareCards compact indices={p.indices} active={active} profile={p} pageUrl={pageUrl.toString()} defaultDesign={p.theme?.cardDesign} top={topNames} pageTheme={p.theme?.preset} />}
+          {!lab && <Link href={compareHref as "/compare"} onClick={() => track("compare_opened", { from: "profile", handle: p.handle })} className="icon-btn" aria-label="Compare"><CompareIcon /></Link>}
           {!isOwner && !lab && <Link href={builderHref as "/"} onClick={() => track("remix_clicked", { from: "profile", handle: p.handle })} className="btn !px-3 !py-1.5 inline-flex items-center gap-1.5 text-[12.5px]"><RemixIcon size={13} />Remix</Link>}
           {followsSite && <ThemeToggle />}
           <MobileMenu>
             {(isOwner || lab) && <Link href={builderHref as "/"} onClick={keepPageKey} className="btn-quiet text-center">Open in builder</Link>}
-            {!lab && <Link href={compareHref as "/compare"} className="btn-quiet text-center">Compare</Link>}
             <Link href="/explore" className="btn-quiet text-center">Explore rankings</Link>
             <Link href="/rank" className="btn-quiet text-center">Rank models</Link>
             {isOwner && <button type="button" className="btn text-center" onClick={toggleEditing}>{editing ? "Done editing" : "Edit page"}</button>}

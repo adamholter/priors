@@ -196,6 +196,11 @@ details.gallery-panel > summary::-webkit-details-marker { display: none; }
 @media (prefers-reduced-motion: reduce) { .bench-sheet { animation: none; } }
 .icon-btn { display: inline-grid; place-items: center; width: 36px; height: 36px; border-radius: 6px; color: var(--ink-2); background: transparent; border: 0; }
 .icon-btn:hover, .icon-btn[aria-expanded="true"] { background: var(--hair-2); color: var(--ink); }
+/* A word for an icon: shows on hover and keyboard focus, under the button. */
+.icon-btn[data-tip] { position: relative; }
+.icon-btn[data-tip]::after { content: attr(data-tip); position: absolute; top: calc(100% + 6px); left: 50%; transform: translateX(-50%); padding: 4px 8px; border-radius: 4px; background: var(--ink); color: var(--bone); font: 500 12px var(--font-sans); white-space: nowrap; pointer-events: none; opacity: 0; transition: opacity .12s; z-index: 40; }
+.icon-btn[data-tip]:hover::after, .icon-btn[data-tip]:focus-visible::after { opacity: 1; }
+@media (hover: none) { .icon-btn[data-tip]::after { display: none; } }
 /* Expanded chart: fills most of the viewport; the chart stays mounted and resizes. */
 .chart-expand-backdrop { position: fixed; inset: 0; z-index: 70; background: var(--backdrop); backdrop-filter: blur(3px); animation: chart-fade .2s both; }
 .chart-expanded { position: fixed !important; inset: 2.5dvh 2.5vw; z-index: 71; margin: 0 !important; display: flex; flex-direction: column; padding: 16px 20px 12px; background: var(--bone); border: 1px solid var(--hair); border-radius: 10px; box-shadow: 0 30px 120px var(--shadow); animation: chart-pop .24s cubic-bezier(.16, 1, .3, 1) both; }

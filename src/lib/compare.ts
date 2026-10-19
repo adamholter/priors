@@ -64,6 +64,18 @@ export function mixRows(a: IndexResult["benchmarks"], b: IndexResult["benchmarks
   return [...rows.values()].sort((x, y) => Math.abs(y.a - y.b) - Math.abs(x.a - x.b) || Math.max(y.a, y.b) - Math.max(x.a, x.b) || x.name.localeCompare(y.name));
 }
 
+/** One plain sentence per side about where its weight sits, then how much of it lands on the same benchmarks. */
+export function mixLead(rows: MixRow[], names: { a: string; b: string }): string {
+  const lean = (k: "a" | "b", name: string) => {
+    const r = rows.filter((x) => x[k] > 0).sort((x, y) => y[k] - x[k]);
+    if (r.length === 0) return `${name} has no benchmarks.`;
+    if (r.length === 1) return `${name} uses only ${r[0].name}.`;
+    return r[0][k] >= 60 ? `${name} is mostly ${r[0].name} (${Math.round(r[0][k])}%).` : `${name} leans on ${r[0].name} and ${r[1].name}.`;
+  };
+  const same = mixOverlap(rows);
+  return `${lean("a", names.a)} ${lean("b", names.b)} ${same === 0 ? "They share no benchmarks." : `${same}% of the weight is on the same benchmarks.`}`;
+}
+
 /** The weight the two mixes put on the same benchmarks: 100 when identical, 0 when nothing is shared. */
 export function mixOverlap(rows: MixRow[]): number {
   return Math.round(rows.reduce((s, r) => s + Math.min(r.a, r.b), 0));

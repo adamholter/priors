@@ -9,12 +9,6 @@
 .cmp-lab-options button[aria-pressed="true"] { border-color: var(--indigo); box-shadow: inset 0 -2px 0 var(--indigo); color: var(--indigo); position: relative; }
 .cmp-lab-explore { margin-bottom: 36px; padding-bottom: 28px; border-bottom: 1px dashed var(--hair-3); display: grid; gap: 12px; }
 .cmp-lab-label { margin: 0; }
-.cmp-lab-mock { margin-bottom: 36px; padding-bottom: 28px; border-bottom: 1px dashed var(--hair-3); display: grid; gap: 10px; }
-.cmp-lab-mock-bar { display: flex; align-items: center; gap: 16px; padding: 10px 16px; border: 1px solid var(--hair); border-radius: 6px; background: var(--white); }
-.cmp-pick { position: relative; }
-.cmp-pick-box { position: absolute; z-index: 5; top: 10px; right: 10px; display: inline-flex; align-items: center; gap: 6px; padding: 3px 8px; border: 1px solid var(--hair); border-radius: 4px; background: var(--white); font-size: 12px; cursor: pointer; }
-.cmp-pick[data-on] .ex-card { box-shadow: 0 0 0 2px var(--indigo); }
-.cmp-tray { position: sticky; bottom: 16px; z-index: 40; justify-self: center; display: none; align-items: center; gap: 14px; padding: 10px 14px; border: 1px solid var(--ink); border-radius: 8px; background: var(--white); box-shadow: 0 10px 30px var(--shadow); font-size: 13px; }
-.cmp-tray[data-show] { display: flex; }
 .cmp-lab-foot { text-align: center; padding: 12px; }
 .cmp-lab-foot a { color: var(--indigo); }
+@media (max-width: 700px) { .cmp-lab-bar { position: static; } }

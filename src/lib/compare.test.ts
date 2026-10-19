@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { biggestGaps, mixOverlap, mixRows, pairUp, rankCorrelation, topOverlap, verdict, type Placed } from "./compare";
+import { biggestGaps, mixLead, mixOverlap, mixRows, pairUp, rankCorrelation, topOverlap, verdict, type Placed } from "./compare";
 
 const list = (ids: string[]): Placed[] => ids.map((id, i) => ({ modelId: id, name: id.toUpperCase(), labId: "x", rank: i + 1, score: 90 - i, effort: "max" }));
 const bench = (id: string, share: number) => ({ benchmark: { id, name: id, shortName: id.toUpperCase() } as never, share, required: false });
@@ -55,5 +55,13 @@ describe("mixRows", () => {
     const rows = mixRows([bench("x", 50), bench("y", 30), bench("z", 20)], [bench("x", 10), bench("y", 30), bench("w", 60)]);
     expect(rows.map((r) => [r.id, r.a, r.b])).toEqual([["w", 0, 60], ["x", 50, 10], ["z", 20, 0], ["y", 30, 30]]);
     expect(mixOverlap(rows)).toBe(40);
+  });
+
+  it("says where each side puts its weight in one sentence", () => {
+    const rows = mixRows([bench("x", 100)], [bench("x", 40), bench("y", 35), bench("z", 25)]);
+    const text = mixLead(rows, { a: "Ana", b: "Bo" });
+    expect(text).toContain("Ana uses only X.");
+    expect(text).toContain("Bo leans on X and Y.");
+    expect(text).toContain("40% of the weight is on the same benchmarks.");
   });
 });

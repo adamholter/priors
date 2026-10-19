@@ -8,10 +8,10 @@ import { prettyQuery, encodeIndex } from "@/lib/url";
 import { track } from "@/lib/analytics";
 import { rankSide, type Choice } from "./choice";
 import { SidePicker, Strip, type Sources } from "./SidePicker";
-import { GapsView, PodiumView, SlopeView, TableView, type ViewProps } from "./views";
+import { SlopeView, TableView, type ViewProps } from "./views";
+import { MixView, type MixStyle } from "./mix-views";
 import "./compare.css";
 
-export type Layout = "slope" | "boards" | "table" | "gaps" | "podium";
 export type SummaryStyle = "sentence" | "scoreboard" | "minimal";
 export type PickerStyle = "popover" | "strip" | "sheet";
 export const TOPS = [5, 10, 20] as const;
@@ -19,9 +19,9 @@ export const TOPS = [5, 10, 20] as const;
 /** The address that reopens this comparison. */
 export const compareHref = (a?: Choice, b?: Choice, opts: { top?: number; same?: boolean } = {}) => compareUrl(a?.ref, b?.ref, opts);
 
-export function Compare({ snapshot, a, b, onA, onB, sources, top, onTop, same, onSame, layout, summary = "sentence", picker = "popover", onSwap, labs }: {
+export function Compare({ snapshot, a, b, onA, onB, sources, top, onTop, same, onSame, summary = "sentence", picker = "popover", mixStyle = "grouped", onSwap, labs }: {
   snapshot: Snapshot; a?: Choice; b?: Choice; onA: (c: Choice) => void; onB: (c: Choice) => void; sources: Sources;
-  top: number; onTop: (n: number) => void; same: boolean; onSame: (v: boolean) => void; layout?: Layout; summary?: SummaryStyle; picker?: PickerStyle; onSwap: () => void; labs: Map<string, string>;
+  top: number; onTop: (n: number) => void; same: boolean; onSame: (v: boolean) => void; summary?: SummaryStyle; picker?: PickerStyle; mixStyle?: MixStyle; onSwap: () => void; labs: Map<string, string>;
 }) {
   const [target, setTarget] = useState<"a" | "b">("b");
   const sa = useMemo(() => (a ? rankSide(snapshot, a) : undefined), [snapshot, a]);
@@ -48,12 +48,10 @@ export function Compare({ snapshot, a, b, onA, onB, sources, top, onTop, same, o
         <label className="cmp-check"><input type="checkbox" className="accent-indigo" checked={same} onChange={(e) => onSame(e.target.checked)} />Same models only</label>
       </div>
       <section className="cmp-view" aria-label="Rankings side by side">
-        {layout === "table" ? <TableView {...view} /> : layout === "gaps" ? <GapsView {...view} /> : layout === "podium" ? <PodiumView {...view} /> : layout === "boards" ? <SlopeView {...view} lines={false} /> : <>
-          <div className="cmp-wide"><SlopeView {...view} /></div>
-          <div className="cmp-narrow"><TableView {...view} /></div>
-        </>}
+        <div className="cmp-wide"><SlopeView {...view} /></div>
+        <div className="cmp-narrow"><TableView {...view} /></div>
       </section>
-      <MixView key={`${a?.title}|${a?.sub}|${b?.title}|${b?.sub}`} rows={mix} names={heads} />
+      <MixView key={`${a?.title}|${a?.sub}|${b?.title}|${b?.sub}`} rows={mix} names={heads} style={mixStyle} />
       <Actions a={a as Choice} b={b as Choice} />
     </>}
   </div>;
@@ -89,25 +87,6 @@ function Summary({ style, a, b, pairs, names, mix, n }: { style: SummaryStyle; a
       <div><dt className="cap">Order agreement</dt><dd className="num">{rho == null ? "–" : rho.toFixed(2)}{strength && <span className="cap"> {strength}, {common} models</span>}</dd></div>
       <div><dt className="cap">Benchmark overlap</dt><dd className="num">{mix}%</dd></div>
     </dl>
-  </section>;
-}
-
-/** Each benchmark's weight in the two mixes, mirrored on a shared axis; the ones they weigh most differently first. */
-function MixView({ rows, names }: { rows: ReturnType<typeof mixRows>; names: { a: string; b: string } }) {
-  const [all, setAll] = useState(false);
-  const shown = all ? rows : rows.slice(0, 7);
-  const max = Math.max(10, ...rows.map((r) => Math.max(r.a, r.b)));
-  const pct = (v: number) => `${(v / max) * 100}%`;
-  return <section className="cmp-mix" aria-label="Benchmark weights">
-    <h3 className="cmp-h3">Why they differ</h3>
-    <p className="cap cmp-mix-sub">Share of each ranking&apos;s weight, by benchmark.</p>
-    <div className="cmp-mix-head cap"><span className="cmp-a"><i aria-hidden="true" />{names.a}</span><span /><span className="cmp-b"><i aria-hidden="true" />{names.b}</span></div>
-    <ul className="cmp-mix-list">{shown.map((r) => <li key={r.id} className="cmp-mix-row">
-      <span className="cmp-mix-a"><span className="num cap">{r.a ? Math.round(r.a) : ""}</span><b className="cmp-a" style={{ width: pct(r.a) }} /></span>
-      <span className="cmp-mix-name" title={r.name}>{r.name}</span>
-      <span className="cmp-mix-b"><b className="cmp-b" style={{ width: pct(r.b) }} /><span className="num cap">{r.b ? Math.round(r.b) : ""}</span></span>
-    </li>)}</ul>
-    {rows.length > 7 && <button type="button" className="cmp-more" onClick={() => setAll((v) => !v)}>{all ? "Show fewer" : `Show all ${rows.length}`}</button>}
   </section>;
 }
 

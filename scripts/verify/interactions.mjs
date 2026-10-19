@@ -280,7 +280,7 @@ try {
       assert.equal(await c.locator(".cmp-wide .cmp-list-b .cmp-row").count(), 10, "top 10 on the right");
       assert.ok(await c.locator(".cmp-wide .cmp-line").count() >= 10, "a line for each model");
       assert.match(await c.locator(".cmp-lead").innerText(), /top 10/, "the headline names the top list");
-      assert.ok(await c.locator(".cmp-mix-row").count() >= 2, "benchmark weights are listed");
+      assert.ok(await c.locator(".cmp-grow, .cmp-prow").count() >= 2, "benchmark weights are listed");
       const left = (await c.locator(".cmp-sides .cmp-card-title").first().innerText()).trim();
       await c.getByRole("button", { name: "Top 5", exact: true }).click();
       assert.equal(await rowsA.count(), 5, "Top 5 cuts the lists");
