@@ -1,5 +1,5 @@
 #!/bin/bash
-# Every 2h: scrape all sources -> data/snapshots/<date>.json.gz + mix library, commit and push (main deploys on push).
+# Every 2h: scrape all sources -> data/snapshots/<date>.json.gz + mix library, commit and push (data-only pushes do not deploy; the site reads the repo).
 # Runs in its own checkout (~/priors-scrape, marked by .scrape-checkout) that holds nothing but origin/main,
 # so app work in other checkouts can never block the push. See docs/operations.md.
 set -uo pipefail
