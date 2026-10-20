@@ -116,6 +116,7 @@ const NON_BENCHMARK_FIELDS = new Set([
 const IGNORED_PAGES = new Set([
   "artificial-analysis-intelligence-index", // read separately as the composite
   "artificial-analysis-decision-index", // ranks single-call "decision models", not chat models
+  "aa-personalitybench", // scraped by sources/aa-personality.ts
 ]);
 const IGNORED_ARTICLES = new Set([
   "artificial-analysis-decision-index",
