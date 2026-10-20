@@ -19,13 +19,15 @@ export function WeightsPanel({ snapshot, config, onChange }: { snapshot: Snapsho
   const [open, setOpen] = useState(false);
   const picker = useRef<HTMLDivElement>(null);
   const search = useRef<HTMLInputElement>(null);
-  const dismiss = useCallback((reason: "outside" | "escape") => {
-    setOpen(false);
-    if (reason === "escape") search.current?.focus();
-  }, []);
-  useLightDismiss(picker, dismiss);
   const [query, setQuery] = useState("");
   const [info, setInfo] = useState<string | null>(null);
+  // The info dialog sits outside the picker, so clicking or focusing inside it must not read as leaving the list.
+  const dismiss = useCallback((reason: "outside" | "escape") => {
+    if (info) return;
+    setOpen(false);
+    if (reason === "escape") search.current?.focus();
+  }, [info]);
+  useLightDismiss(picker, dismiss);
   const resultsId = useId();
   const benches = useMemo(() => new Map(snapshot.benchmarks.map((b) => [b.id, b])), [snapshot]);
   const active = Object.entries(config.weights).filter(([, w]) => w > 0).map(([id]) => benches.get(id)).filter((b): b is Benchmark => !!b);

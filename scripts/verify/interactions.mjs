@@ -401,6 +401,21 @@ try {
     } finally { await c.context().close(); }
   });
 
+  await check("builder: reading a benchmark's info keeps the browse list open", async () => {
+    const c = await (await browser.newContext({ viewport: { width: 1360, height: 900 } })).newPage();
+    c.on("pageerror", (e) => errors.push(`${c.url()}: ${e.message}`));
+    try {
+      await c.goto(`${BASE}/builder`, { waitUntil: "domcontentloaded" });
+      await c.getByRole("button", { name: "Browse all benchmarks" }).click({ timeout: 30000 });
+      const sheet = c.getByLabel("Benchmarks", { exact: true });
+      await sheet.waitFor();
+      await sheet.getByRole("button", { name: /^About / }).first().click();
+      await c.getByRole("dialog").getByRole("button", { name: "Close" }).click();
+      await c.waitForTimeout(500);
+      assert.ok(await sheet.isVisible(), "the list is still open after closing the info dialog");
+    } finally { await c.context().close(); }
+  });
+
   assert.deepEqual(errors, [], "no page errors");
   console.log(`PASS interactions: ${checks.length} checks\n  ${checks.join("\n  ")}`);
 } finally {
