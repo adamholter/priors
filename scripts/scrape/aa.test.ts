@@ -66,6 +66,17 @@ describe("Artificial Analysis v4.3", () => {
     expect(computeIndex(snapshot, config).ranked).toHaveLength(0);
   });
 
+  it("publishes AA-Omniscience by domain on the index's -100..100 scale, as variants of the index", async () => {
+    const domains = { "Software Engineering (SWE)": 49.6, "Humanities & Social Sciences": 21.4, Law: 19.7, "Science, Engineering & Mathematics": 19.1, Business: 14.4, Health: -6.7 };
+    const r = await scrape([{ ...astra, omniscienceBreakdown: { ...astra.omniscienceBreakdown, byDomain: domains } }] as unknown as typeof astra[]);
+    const health = r.benchmarks.find((b) => b.id === "aa-omniscience-health")!;
+    expect(health).toMatchObject({ unit: "score", higherIsBetter: true, normalization: { kind: "linear", min: -100, max: 100 }, defaultWeight: 0 });
+    expect(r.rows.find((o) => o.benchmarkId === "aa-omniscience-health")).toMatchObject({ value: -6.7, costUsd: undefined });
+    expect(r.rows.find((o) => o.benchmarkId === "aa-omniscience-software-engineering")?.value).toBe(49.6);
+    expect(r.rows.filter((o) => /^aa-omniscience-(software-engineering|humanities|law|science|business|health)$/.test(o.benchmarkId))).toHaveLength(6);
+    expect(r.rows.find((o) => o.benchmarkId === "aa-omniscience-accuracy")?.value).toBeCloseTo(62.6);
+  });
+
   it("retains measured zero, keeps null missing, and preserves unknown catalog identities", async () => {
     const unknown = { ...astra, id: "future-uuid", name: "Future Bench Model", slug: "future-bench-model", hle: 0, critpt: null };
     const r = await scrape([astra, unknown] as typeof astra[]);

@@ -29,6 +29,11 @@ describe("Slopalytics T3 Code usage", () => {
     // The total counts the catch-all buckets too, so shares stay shares of everything.
     expect(astra.dayTotals.slice(0, 3)).toEqual([60, 40, 0]);
   });
+  it("keeps reading when the publisher adds fields and bumps schemaVersion (v3 broke an allow-list)", async () => {
+    const v3 = { ...payload, schemaVersion: 3, sent: [{ day: "2026-09-01", harness: "codex", turns: 70 }], prices: { rates: {} } };
+    const r = await source.scrape({ fetchJson: async () => v3 } as unknown as Parameters<typeof source.scrape>[0]);
+    expect(r.rows).toHaveLength(2);
+  });
   it("rejects an unexpected payload", async () => {
     await expect(source.scrape({ fetchJson: async () => ({ schemaVersion: 9, models: [] }) } as unknown as Parameters<typeof source.scrape>[0])).rejects.toThrow();
   });

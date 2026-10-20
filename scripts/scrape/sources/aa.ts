@@ -58,6 +58,16 @@ const ci95 = (key: string) => (m: Json): [number, number] | undefined => {
   return undefined;
 };
 
+/** AA's `omniscienceBreakdown.byDomain` keys, the id stem Priors uses, and the label. */
+const OMNISCIENCE_DOMAINS: [key: string, id: string, label: string][] = [
+  ["Software Engineering (SWE)", "software-engineering", "Software Engineering"],
+  ["Humanities & Social Sciences", "humanities", "Humanities & Social Sciences"],
+  ["Law", "law", "Law"],
+  ["Science, Engineering & Mathematics", "science", "Science, Engineering & Math"],
+  ["Business", "business", "Business"],
+  ["Health", "health", "Health"],
+];
+
 const EVALS: EvalDef[] = [
   // ---- current Intelligence Index components
   { field: "briefcaseElo", normalization: { kind: "linear", min: 500, max: 2500 }, breakdown: "briefcaseBreakdown", harness: "Stirrup", slug: "aa-briefcase", name: "AA-Briefcase", unit: "elo", category: "agentic", description: "AA-Briefcase: agentic office-work tasks over real files (xlsx/pptx/docx/pdf) judged pairwise; reported as Elo.", ciFrom: ci95("briefcaseBreakdown") },
@@ -74,6 +84,12 @@ const EVALS: EvalDef[] = [
   { field: "terminalBenchScience", slug: "terminalbench-science", page: "terminal-bench-science", name: "Terminal-Bench Science-AA", unit: "percent", category: "coding", scale: 100, description: "Terminal-Bench Science (AA): scientific-computing terminal tasks; pass rate." },
   { field: "omniscienceBreakdown", id: "aa-omniscience-accuracy", read: (m) => m.omniscienceBreakdown?.accuracy, slug: "omniscience", name: "AA-Omniscience Accuracy", unit: "percent", category: "knowledge", scale: 100, description: "Correct answers divided by all questions. AA v4.3 gives this component 10%." },
   { field: "omniscienceBreakdown", id: "aa-omniscience-non-hallucination", read: (m) => isNum(m.omniscienceBreakdown?.hallucinationRate) ? 1 - m.omniscienceBreakdown.hallucinationRate : undefined, slug: "omniscience", name: "AA-Omniscience Non-hallucination", unit: "percent", category: "knowledge", scale: 100, description: "One minus AA's hallucination rate. AA v4.3 gives this component 5%; it is not the combined Omniscience Index." },
+  // ---- AA-Omniscience Index cut by domain (same -100..100 scale; wrong answers cost as much as right ones earn)
+  ...OMNISCIENCE_DOMAINS.map(([key, id, label]): EvalDef => ({
+    field: "omniscienceBreakdown", id: `aa-omniscience-${id}`, slug: `omniscience-${id}`, page: "omniscience", read: (m) => m.omniscienceBreakdown?.byDomain?.[key],
+    normalization: { kind: "linear", min: -100, max: 100 }, name: `AA-Omniscience ${label}`, unit: "score", category: "knowledge",
+    description: `AA-Omniscience Index (-100..100) on the ${label} questions only: right answers minus made-up ones, abstaining scores 0.`,
+  })),
   // ---- other evaluations AA publishes
   { field: "gpqa", slug: "gpqa-diamond", name: "GPQA Diamond", unit: "percent", category: "knowledge", scale: 100, description: "GPQA Diamond: graduate-level science multiple choice; accuracy." },
   { field: "ifbench", slug: "ifbench", name: "IFBench", unit: "percent", category: "instruction", scale: 100, description: "IFBench: precise instruction-following with verifiable constraints; accuracy." },

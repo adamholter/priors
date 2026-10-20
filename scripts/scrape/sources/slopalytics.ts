@@ -27,7 +27,9 @@ const source: Source = {
   url: SITE,
   async scrape(ctx): Promise<ScrapeResult> {
     const json = await ctx.fetchJson(API) as Usage;
-    if (![1, 2].includes(json.schemaVersion) || !Array.isArray(json.models) || !json.models.length) throw new Error("Slopalytics: unexpected usage payload");
+    // Check the shape we read, not the version number: v3 only added fields (`sent`, `prices`, ...) and a version allow-list broke on it.
+    const sample = Array.isArray(json.models) ? json.models[0] : undefined;
+    if (!sample || typeof sample.day !== "string" || typeof sample.model !== "string" || typeof sample.turns !== "number" || typeof json.start !== "string" || typeof json.endExclusive !== "string") throw new Error(`Slopalytics: unexpected usage payload (schemaVersion ${json.schemaVersion})`);
     // Turns per day for each model (and all models), over the window's days in order, for the usage-over-time chart.
     const days: string[] = [];
     for (let t = Date.parse(`${json.start}T00:00:00Z`); t < Date.parse(`${json.endExclusive}T00:00:00Z`) && days.length < 400; t += 86_400_000) days.push(new Date(t).toISOString().slice(0, 10));

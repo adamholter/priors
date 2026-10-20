@@ -68,6 +68,17 @@ fi
 [ -n "$HAVE_LIVE" ] && git checkout -q "origin/$LIVE" -- data/snapshots public/intro
 
 # The live branch is one commit with only what the site reads: latest files, today's file, intro cards.
+# GitHub sometimes drops a push mid-pack (HTTP 408, "remote end hung up"). Retry before calling it a failure.
+push_retry() {
+  local n
+  for n in 1 2 3; do
+    git push -q --force "$1" "HEAD:refs/heads/$LIVE" && return 0
+    echo "live push attempt $n failed" >&2
+    sleep $((n * 10))
+  done
+  return 1
+}
+
 publish_live() {
   local tmp cutoff f d
   tmp=$(mktemp -d "${TMPDIR:-/tmp}/priors-live.XXXXXX") || return 1
@@ -90,7 +101,7 @@ publish_live() {
   (
     cd "$tmp" && git init -q -b "$LIVE" && git add -A \
       && git -c user.name="$(git -C "$OLDPWD" config user.name || echo priors-scrape)" -c user.email="$(git -C "$OLDPWD" config user.email || echo scrape@mypriors.com)" commit -q -m "live data $DATE $(date -u +%H:%MZ)" \
-      && git push -q --force "$(git -C "$OLDPWD" remote get-url origin)" "HEAD:refs/heads/$LIVE"
+      && push_retry "$(git -C "$OLDPWD" remote get-url origin)"
   )
   local status=$?
   rm -rf "$tmp"
@@ -115,8 +126,12 @@ grep -E '^NEW_BENCHMARK ' "$LOG" | sort -u | while IFS= read -r line; do
     notify "New benchmark to add: ${item//\"/}"
   fi
 done
-if grep -qE '^[[:space:]]*failed[[:space:]]' "$LOG"; then
-  notify "Priors scrape $DATE finished with source failures — see logs/scrape.log"
+# One notification per change in the set of failing sources, not one every 15 minutes while a source stays broken.
+FAILED_NOW=$(grep -E '^[[:space:]]*failed[[:space:]]' "$LOG" | awk '{print $2}' | sort | tr '\n' ' ')
+FAILED_FILE="${PRIORS_FAILED_FILE:-$HOME/priors/logs/failing-sources.txt}"
+if [ "$FAILED_NOW" != "$(cat "$FAILED_FILE" 2>/dev/null)" ]; then
+  echo "$FAILED_NOW" > "$FAILED_FILE" 2>/dev/null
+  [ -n "$FAILED_NOW" ] && notify "Priors scrape $DATE: failing sources: $FAILED_NOW— see logs/scrape.log"
 fi
 SNAPSHOT_BASELINE_REF=${HAVE_LIVE:+origin/$LIVE} npx tsx scripts/ops/snapshot-changed.ts
 CHANGE_STATUS=$?
