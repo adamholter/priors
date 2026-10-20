@@ -387,6 +387,20 @@ try {
     } finally { await c.context().close(); }
   });
 
+  await check("builder: with many indices the + stays reachable", async () => {
+    const c = await (await browser.newContext({ viewport: { width: 1100, height: 800 } })).newPage();
+    c.on("pageerror", (e) => errors.push(`${c.url()}: ${e.message}`));
+    try {
+      await c.goto(`${BASE}/builder`, { waitUntil: "domcontentloaded" });
+      const plus = c.getByRole("button", { name: "Copy this index as a new index" });
+      await plus.waitFor({ timeout: 30000 });
+      for (let i = 0; i < 5; i++) { await plus.click(); await c.keyboard.press("Enter"); }
+      const box = await plus.boundingBox();
+      assert.ok(box && box.x + box.width <= 1100 && box.x >= 0, "the + is inside the viewport");
+      await plus.click({ timeout: 5000 });
+    } finally { await c.context().close(); }
+  });
+
   assert.deepEqual(errors, [], "no page errors");
   console.log(`PASS interactions: ${checks.length} checks\n  ${checks.join("\n  ")}`);
 } finally {

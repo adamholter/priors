@@ -16,6 +16,7 @@ export function IndexTabs({ indices, activeId, onSelect, onRename, onAdd, onRemo
   const input = useRef<HTMLInputElement>(null);
   const triggers = useRef(new Map<string, HTMLButtonElement>());
   const finished = useRef(false);
+  useEffect(() => { triggers.current.get(activeId)?.scrollIntoView({ block: "nearest", inline: "nearest" }); }, [activeId, indices.length]);
   useEffect(() => { if (editing) { input.current?.focus(); input.current?.select(); } }, [editing]);
   const start = (id: string, name: string) => { finished.current = false; onSelect(id); setDraft(name); setEditing(id); };
   const finish = (id: string, save: boolean, restoreFocus: boolean) => {
@@ -26,8 +27,10 @@ export function IndexTabs({ indices, activeId, onSelect, onRename, onAdd, onRemo
     if (restoreFocus) requestAnimationFrame(() => triggers.current.get(id)?.focus());
   };
   return (
-    <div className="flex items-center gap-1 min-w-0" aria-label="Your indices">
-      <span className="text-grey text-[13px] mr-1">Index:</span>
+    <div className="flex items-center gap-1 min-w-0 max-w-full" aria-label="Your indices">
+      <span className="text-grey text-[13px] mr-1 shrink-0">Index:</span>
+      {/* Tabs scroll sideways when there are many; the + and the reference link stay put so adding is always reachable. */}
+      <div className="index-tabs-scroll flex items-center gap-1 min-w-0 overflow-x-auto">
       {indices.map((i) => {
         const on = i.id === activeId;
         return (
@@ -47,8 +50,9 @@ export function IndexTabs({ indices, activeId, onSelect, onRename, onAdd, onRemo
           </span>
         );
       })}
-      <button type="button" onClick={() => { const added = onAdd(); start(added.id, added.name); }} className="w-6 h-6 rounded-full border hairline grid place-items-center text-grey hover:text-ink hover:border-ink text-[15px] leading-none" title="Copy this index as a new one" aria-label="Copy this index as a new index">+</button>
-      {reference && <button type="button" onClick={reference.onAdd} className="cap ml-2 underline-offset-2 hover:underline hover:text-ink whitespace-nowrap">{reference.label}</button>}
+      </div>
+      <button type="button" onClick={() => { const added = onAdd(); start(added.id, added.name); }} className="shrink-0 w-6 h-6 rounded-full border hairline grid place-items-center text-grey hover:text-ink hover:border-ink text-[15px] leading-none" title="Copy this index as a new one" aria-label="Copy this index as a new index">+</button>
+      {reference && <button type="button" onClick={reference.onAdd} className="cap ml-2 shrink-0 underline-offset-2 hover:underline hover:text-ink whitespace-nowrap">{reference.label}</button>}
     </div>
   );
 }

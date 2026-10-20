@@ -353,3 +353,6 @@ p.share-change { display: grid; grid-template-columns: minmax(0, 1fr) 40% 38px; 
 .support-link-foot:hover { background: transparent; text-decoration: underline; }
 .support-label { display: none; }
 @media (min-width: 640px) { .support-label { display: inline; } }
+
+.index-tabs-scroll { scrollbar-width: none; }
+.index-tabs-scroll::-webkit-scrollbar { display: none; }
