@@ -1,11 +1,8 @@
-import { readFile } from "node:fs/promises";
-import path from "node:path";
+import { readRuntimeFile } from "@/lib/runtime-files";
 import { gunzipSync } from "node:zlib";
 import type { Snapshot } from "./types";
 import type { MixLibrary } from "../onboarding/library";
 import { canonicalizeSnapshot } from "./canonical-snapshot";
-
-const SNAP_DIR = path.resolve(process.cwd(), "data/snapshots");
 
 /**
  * Where the live data comes from. The scrape job publishes each changed snapshot to the repo's `data-live`
@@ -14,7 +11,7 @@ const SNAP_DIR = path.resolve(process.cwd(), "data/snapshots");
  * tests read the checkout; `SNAPSHOT_BASE_URL` points anywhere else (empty turns it off).
  */
 const REMOTE_DEFAULT = "https://raw.githubusercontent.com/adamholter/priors/data-live/data/snapshots";
-export const remoteBase = () => (process.env.SNAPSHOT_BASE_URL ?? (process.env.VERCEL ? REMOTE_DEFAULT : "")).replace(/\/$/, "");
+export const remoteBase = () => (process.env.SNAPSHOT_BASE_URL ?? ((process.env.VERCEL || process.env.PRIORS_CLOUDFLARE === "1") ? REMOTE_DEFAULT : "")).replace(/\/$/, "");
 const REMOTE_TTL_MS = 5 * 60_000;
 
 async function fetchRemote(file: string): Promise<Buffer | null> {
@@ -78,7 +75,7 @@ function bundledSnapshot(file: string): Promise<Snapshot | null> {
   let p = snapshots.get(file);
   if (!p) {
     p = (async () => {
-      try { return canonicalizeSnapshot(JSON.parse(gunzipSync(await readFile(path.join(SNAP_DIR, file))).toString("utf8")) as Snapshot); }
+      try { return canonicalizeSnapshot(JSON.parse(gunzipSync(await readRuntimeFile(`data/snapshots/${file}`)).toString("utf8")) as Snapshot); }
       catch { return null; }
     })();
     snapshots.set(file, p);
@@ -88,7 +85,7 @@ function bundledSnapshot(file: string): Promise<Snapshot | null> {
 
 /** One snapshot by date, uncached: for walking every date without keeping them all in memory. */
 export async function readSnapshot(date: string): Promise<Snapshot | null> {
-  try { return canonicalizeSnapshot(JSON.parse(gunzipSync(await readFile(path.join(SNAP_DIR, `${date}.json.gz`))).toString("utf8")) as Snapshot); }
+  try { return canonicalizeSnapshot(JSON.parse(gunzipSync(await readRuntimeFile(`data/snapshots/${date}.json.gz`)).toString("utf8")) as Snapshot); }
   catch { return null; }
 }
 
@@ -96,6 +93,6 @@ export async function readSnapshot(date: string): Promise<Snapshot | null> {
 export async function loadMixLibrary(date?: string): Promise<MixLibrary | null> {
   const file = date ? `${date}.library.json.gz` : "latest.library.json.gz";
   if (!date && remoteBase()) { const live = await remoteLibrary(file); if (live) return live; }
-  try { return JSON.parse(gunzipSync(await readFile(path.join(SNAP_DIR, file))).toString("utf8")) as MixLibrary; }
+  try { return JSON.parse(gunzipSync(await readRuntimeFile(`data/snapshots/${file}`)).toString("utf8")) as MixLibrary; }
   catch { return null; }
 }

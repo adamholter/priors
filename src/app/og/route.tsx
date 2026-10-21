@@ -29,7 +29,7 @@ export async function GET(req: Request) {
     const r = await chartFromLink(linkedIndex, linked, u.searchParams.get("date") ?? undefined);
     if ("chart" in r) {
       const scheme = u.searchParams.get("scheme");
-      const png = renderAnswerChartPng(r.chart, cardPalette(u.searchParams.get("theme") ? { preset: u.searchParams.get("theme")! } : undefined, scheme === "dark" || scheme === "light" ? scheme : undefined));
+      const png = await renderAnswerChartPng(r.chart, cardPalette(u.searchParams.get("theme") ? { preset: u.searchParams.get("theme")! } : undefined, scheme === "dark" || scheme === "light" ? scheme : undefined));
       return new Response(png as unknown as BodyInit, { headers: { "content-type": "image/png", "cache-control": "public, max-age=600, s-maxage=86400, stale-while-revalidate=86400" } });
     }
   }

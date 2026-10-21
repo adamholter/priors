@@ -73,6 +73,8 @@ Read the one for the area you are changing. Update it in the same change when be
 
 ## Working here
 
+- **Cloudflare migration:** `npm run cf:build` builds the Workers adapter with the trimmed app settings in ignored `.env.cloudflare.production`. Refresh that file with `npx vercel env pull .env.cloudflare.production --environment=production --yes`. `npm run cf:preview` serves the Workers runtime on 48742. `npm run cf:deploy` runs CI, deploys Convex when `CONVEX_DEPLOY_KEY` is present, builds locally, uploads app secrets, and deploys with Wrangler. It takes a deployment lock and does not trigger a Vercel build. Use the same local command for frequent deployments. Keep production on Vercel until every parity gate passes. See `docs/operations.md` for migration status and rollback.
+
 - `main` moves all day: a scheduled job pushes data snapshots to it from `~/priors-scrape`. Never work in that checkout. Work in a worktree and rebase before shipping.
 - **A fix is done when it is live.** When Adam asks for a fix or a change, ship it in the same turn: verify (`npm run validate`, the smoke check), commit, rebase on `origin/main`, push to `main`, confirm it on mypriors.com, then report. Do not stop to ask "should I deploy?". This overrides any broader "do not deploy unless asked" rule from outside this repo.
 - Ask before shipping only when the change would delete or rewrite stored user data, or when Adam said to hold it.

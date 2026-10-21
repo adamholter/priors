@@ -1,5 +1,4 @@
-import { readdir } from "node:fs/promises";
-import path from "node:path";
+import { bundledSnapshotDates } from "./runtime-files";
 import { loadSnapshot, readSnapshot } from "@/data/load";
 import { applyOpenWeights } from "@/data/open-weights";
 import { computeIndex, rankingRows, type IndexConfig } from "@/engine";
@@ -9,10 +8,7 @@ import { TOP, type HistoryData, type HistoryFrame } from "./history-frames";
 export const MIN_MODELS = 8;
 const KEEP = TOP + 5;
 
-export async function snapshotDates(): Promise<string[]> {
-  const files = await readdir(path.resolve(process.cwd(), "data/snapshots")).catch(() => [] as string[]);
-  return files.map((f) => f.match(/^(\d{4}-\d{2}-\d{2})\.json\.gz$/)?.[1]).filter((d): d is string => !!d).sort();
-}
+export const snapshotDates = bundledSnapshotDates;
 
 const cache = new Map<string, Promise<HistoryData>>();
 /**

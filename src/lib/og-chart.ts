@@ -1,5 +1,5 @@
-import path from "node:path";
-import { Resvg } from "@resvg/resvg-js";
+import { rasterize } from "@/lib/rasterize";
+export { rasterize } from "@/lib/rasterize";
 import type { EChartsOption } from "echarts";
 import type { Lab, Snapshot } from "../data/types";
 import type { RankedVariant, IndexConfig } from "../engine";
@@ -82,19 +82,8 @@ export function cardPalette(theme?: { preset?: string; surface?: "bone" | "white
   return scheme === "dark" && preset.id === "bone" ? DARK_PALETTE : paletteFor(preset);
 }
 
-const FONT_FILES = ["Newsreader-400.ttf", "Inter-400.ttf", "Inter-500.ttf", "Inter-600.ttf", "JetBrainsMono-400.ttf", "JetBrainsMono-500.ttf"].map((f) => path.join(process.cwd(), "src/lib/og-fonts", f));
-
 // 1200×630 card: frameSvg wraps the chart with pad 32, a 22px title band, and a 34px footer.
 const CHART_W = 1200 - 64, CHART_H = 630 - 88;
-
-export function rasterize(svg: string, bg: string): Buffer {
-  const png = new Resvg(svg, {
-    fitTo: { mode: "width", value: 2400 },
-    background: bg,
-    font: { fontFiles: FONT_FILES, loadSystemFonts: false, defaultFontFamily: "Inter", sansSerifFamily: "Inter", serifFamily: "Newsreader", monospaceFamily: "JetBrains Mono" },
-  }).render().asPng();
-  return Buffer.from(png);
-}
 
 /** Add the same axis guides and value badges used by ScoreScatter before server-side SVG rendering. */
 function addHighlightGuides(chart: ReturnType<typeof echarts.init>, pts: ScatterPoint[], highlight: Highlight | undefined, labs: Lab[], pal: ChartPalette, formatX: (x: number) => string) {
@@ -186,7 +175,7 @@ export async function renderChartPng(spec: ChartSpec, labs: Lab[], pal: ChartPal
 }
 
 /** A static radar (radar-view radarSvg) centered in the 1200×630 card frame, rasterized like chart cards. */
-export function renderRadarPng(radar: string, title: string, pal: ChartPalette): Buffer {
+export async function renderRadarPng(radar: string, title: string, pal: ChartPalette): Promise<Buffer> {
   const open = radar.match(/<svg[^>]*>/)?.[0] ?? "";
   const w = Number(open.match(/width="([\d.]+)/)?.[1] ?? CHART_W), h = Number(open.match(/height="([\d.]+)/)?.[1] ?? CHART_H);
   const scale = Math.min(CHART_W / w, CHART_H / h, 1.25), x = (CHART_W - w * scale) / 2, y = (CHART_H - h * scale) / 2;
@@ -199,7 +188,7 @@ export function renderRadarPng(radar: string, title: string, pal: ChartPalette):
  * An assistant chart as a link-preview card: the same option the answer draws (answerOption), in the
  * card's palette, rendered small and scaled up to fill the frame so text stays legible at preview size.
  */
-export function renderAnswerChartPng(chart: AnswerChart, basePal: ChartPalette): Buffer {
+export async function renderAnswerChartPng(chart: AnswerChart, basePal: ChartPalette): Promise<Buffer> {
   const pal: ChartPalette = { ...basePal, fonts: { sans: SANS_STATIC, mono: MONO_STATIC } };
   const ratio = CHART_W / CHART_H, key = chart.kind === "grouped" ? 26 : 0;
   const h = Math.max(334, answerHeight(chart) + key), w = Math.round(h * ratio);

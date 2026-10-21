@@ -1,0 +1,16 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "priors",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2026-10-21",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "workers_dev": true,
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS",
+    "run_worker_first": ["/intro/*"]
+  },
+  "services": [{ "binding": "WORKER_SELF_REFERENCE", "service": "priors" }],
+  "vars": { "PRIORS_CLOUDFLARE": "1", "NEXT_PUBLIC_SITE_URL": "https://mypriors.com" },
+  "observability": { "enabled": true, "head_sampling_rate": 0.01 }
+}
