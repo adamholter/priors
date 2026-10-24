@@ -305,6 +305,28 @@ try {
       assert.equal(await c.locator(".cmp-wide .cmp-line[data-state=on]").count() >= 0, true);
     } finally { await c.context().close(); }
   });
+  await check("builder: every index tab has a visible delete, and the last one resets instead of vanishing", async () => {
+    const tabs = page.locator('[aria-label="Your indices"] .index-tabs-scroll > span');
+    const removes = page.locator("[data-remove-index]");
+    const before = await tabs.count();
+    await page.getByRole("button", { name: "Copy this index as a new index" }).click();
+    await page.keyboard.press("Escape");
+    assert.equal(await tabs.count(), before + 1, "the + added an index");
+    assert.equal(await removes.count(), before + 1, "each tab has its own ×");
+    for (const handle of await removes.all()) assert.ok(await handle.isVisible(), "× is visible without hovering");
+    // Delete a tab that is not the open one.
+    const open = await page.locator('[aria-label="Your indices"] [aria-pressed=true]').first().innerText();
+    await removes.first().click();
+    assert.equal(await tabs.count(), before, "the × removed its index");
+    assert.ok(await page.locator('[aria-label="Your indices"] [aria-pressed=true]').count() === 1, "one index stays open");
+    void open;
+    // Down to one, the × resets rather than deleting the last index.
+    while ((await tabs.count()) > 1) await removes.first().click();
+    await removes.first().click();
+    assert.equal(await tabs.count(), 1, "the builder never has zero indices");
+    await page.locator(".ranking-list [data-k]").first().waitFor({ timeout: 30000 });
+  });
+
   await check("compare: a phone gets the matched table, not the slope", async () => {
     const m = await (await browser.newContext({ viewport: { width: 390, height: 844 } })).newPage();
     m.on("pageerror", (e) => errors.push(`${m.url()}: ${e.message}`));

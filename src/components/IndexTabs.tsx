@@ -46,7 +46,12 @@ export function IndexTabs({ indices, activeId, onSelect, onRename, onAdd, onRemo
                 onClick={() => onSelect(i.id)} onDoubleClick={() => start(i.id, i.name)}
                 onKeyDown={(e) => { if (e.key === "F2") { e.preventDefault(); start(i.id, i.name); } }}
                 className="serif text-[17px] whitespace-nowrap px-0.5 border-b-[1.5px] border-transparent" title="Double-click or press F2 to rename">{labels?.[i.id] ?? i.name}</button>}
-            {indices.length > 1 && on && <button type="button" onClick={() => { const next = indices.find((x) => x.id !== i.id); onRemove(i.id); if (next) requestAnimationFrame(() => triggers.current.get(next.id)?.focus()); }} className="cap opacity-70 sm:opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 hover:text-ink p-1" aria-label="Remove index">×</button>}
+            {/* Every tab carries its own ×, always visible, so deleting never needs a hover or a click to open it first.
+                Deleting the only index puts the untouched default mix back. */}
+            <button type="button" onClick={() => { const next = indices.find((x) => x.id !== i.id); onRemove(i.id); if (on && next) requestAnimationFrame(() => triggers.current.get(next.id)?.focus()); }}
+              className="cap opacity-60 hover:opacity-100 focus-visible:opacity-100 hover:text-ink p-1" data-remove-index={i.id}
+              aria-label={indices.length > 1 ? `Delete index ${labels?.[i.id] ?? i.name}` : "Reset index to the default mix"}
+              title={indices.length > 1 ? "Delete this index" : "Reset to the default mix"}>×</button>
           </span>
         );
       })}
