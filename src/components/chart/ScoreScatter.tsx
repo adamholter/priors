@@ -132,8 +132,11 @@ export function ScoreScatter({ pts: allPoints, labs, better, xName: baseXName, x
   const fallen = useMemo(() => { if (!gravity) return undefined; const on = new Set(frontier.map((p) => p.r.variant.id)); return new Set(pts.filter((p) => !on.has(p.r.variant.id)).map((p) => p.r.variant.id)); }, [gravity, pts, frontier]);
   // `dots` only reads the chart handle later, when ECharts runs the label layout (never while this renders).
   // eslint-disable-next-line react-hooks/refs
-  const option = useMemo<EChartsOption>(() => scatterOption({ pts, labs, better, xName, xShort, xUnit, scale, formatX, formatValue, view, pal, narrow, hasTitle: !!title, tooltipExtra, width: plotWidth, height: plotHeight, dots, highlight, fallen }),
-    [pts, labs, better, view, narrow, xName, xShort, xUnit, scale, formatX, formatValue, tooltipExtra, title, pal, plotWidth, plotHeight, dots, highlight, fallen]);
+  // Where each label landed after the layout ran, so draw() can join a label that was nudged off its dot back to it.
+  const labelAt = useRef(new Map<string, { x: number; y: number; align: "left" | "right" }>());
+  const onLabel = useCallback((id: string, at: { x: number; y: number; align: "left" | "right" } | null) => { if (at) labelAt.current.set(id, at); else labelAt.current.delete(id); }, []);
+  const option = useMemo<EChartsOption>(() => scatterOption({ pts, labs, better, xName, xShort, xUnit, scale, formatX, formatValue, view, pal, narrow, hasTitle: !!title, tooltipExtra, width: plotWidth, height: plotHeight, dots, onLabel, highlight, fallen }),
+    [pts, labs, better, view, narrow, xName, xShort, xUnit, scale, formatX, formatValue, tooltipExtra, title, pal, plotWidth, plotHeight, dots, onLabel, highlight, fallen]);
   const [hover, setHover] = useState<ScatterPoint | null>(null), [pinned, setPinned] = useState<ScatterPoint | null>(null);
   // Clicking a mark toggles that exact effort's highlight (several efforts per model are allowed).
   const pick = useRef<(p: ScatterPoint) => void>(() => {});
@@ -213,17 +216,25 @@ export function ScoreScatter({ pts: allPoints, labs, better, xName: baseXName, x
           { type: "text", x: grid.x - 5, y: yAt[i], style: { ...badge, text: ys[i].text, backgroundColor: col, align: "right", verticalAlign: "middle" }, z: 20 },
         ];
       });
-      const key = JSON.stringify(children);
+      // A thin leader from each label that sits away from its own dot, so a crowded label still says which point it names.
+      const byId = new Map(pts.map((p) => [p.r.variant.id, p]));
+      const leaders = [...labelAt.current].flatMap(([id, at]) => {
+        const p = byId.get(id); if (!p || fallen?.has(id)) return [];
+        const px = c.convertToPixel({ seriesId: "marks" }, [p.x, p.r.score]) as unknown as number[] | undefined;
+        if (!px || !Number.isFinite(px[0]) || !Number.isFinite(px[1]) || Math.hypot(at.x - px[0], at.y - px[1]) < 15) return [];
+        return [{ type: "line", shape: { x1: Math.round(px[0]), y1: Math.round(px[1]), x2: Math.round(at.x + (at.align === "left" ? -3 : 3)), y2: Math.round(at.y) }, style: { stroke: pal.grey, lineWidth: 0.8, opacity: 0.7 }, z: 3, silent: true }];
+      });
+      const key = JSON.stringify([...children, ...leaders]);
       if (key === last && (present() || !children.length)) return;
       last = key;
       // Guides stay behind model labels; only the axis badges draw above the series.
-      c.setOption({ graphic: [{ id: "guides", type: "group", silent: true, z: 3, children }] } as EChartsOption, { replaceMerge: ["graphic"] });
+      c.setOption({ graphic: [{ id: "guides", type: "group", silent: true, z: 3, children: [...children, ...leaders] }] } as EChartsOption, { replaceMerge: ["graphic"] });
     };
     let frame = requestAnimationFrame(draw);
     const scheduleDraw = () => { cancelAnimationFrame(frame); frame = requestAnimationFrame(draw); };
     c.on("finished", scheduleDraw);
     return () => { cancelAnimationFrame(frame); c.off("finished", scheduleDraw); };
-  }, [guides, labs, pal, formatX, chart, option]);
+  }, [guides, labs, pal, formatX, chart, option, pts, fallen]);
   // Where each dropped mark starts, measured from the laid-out chart. The least Pareto-optimal
   // (furthest below the frontier at its position) lets go first.
   const [fall, setFall] = useState<{ dots: FallingDot[]; width: number; height: number; floor: number; left: number; right: number; run: number } | null>(null);

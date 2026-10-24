@@ -1,8 +1,8 @@
 /** Place selected labels in priority order, trying both sides before hiding a crowded label.
  * Labels keep clear of each other and, where a slot allows, of the other marks (`dots`: the marks' pixel
  * positions, when the chart can supply them). `fontPx` is each label's font size: ECharts hands over the label box at the
- * size it had before a size change, so the box is scaled up to the configured size. Self-contained so standalone HTML exports can use the same function. */
-export function scatterLabelLayout(width: () => number | undefined, height: () => number | undefined, visible: boolean[], dots?: () => ({ x: number; y: number }[] | undefined), fontPx?: number[]) {
+ * size it had before a size change, so the box is scaled up to the configured size. `placed` hears where each label landed (null when hidden), so a leader line can join it to its dot. Self-contained so standalone HTML exports can use the same function. */
+export function scatterLabelLayout(width: () => number | undefined, height: () => number | undefined, visible: boolean[], dots?: () => ({ x: number; y: number }[] | undefined), fontPx?: number[], placed?: (index: number, at: { x: number; y: number; align: "left" | "right" } | null) => void) {
   let visited = new Set<number>();
   let occupied: { x: number; y: number; width: number; height: number }[] = [];
   return (p: { dataIndex?: number; rect: { x: number; y: number; width: number; height: number }; labelRect: { x: number; y: number; width: number; height: number } }): { hideOverlap: boolean; x?: number; y?: number; align?: "left" | "right"; verticalAlign?: "middle" } => {
@@ -14,7 +14,7 @@ export function scatterLabelLayout(width: () => number | undefined, height: () =
     const w = width(), h = height(), r = p.labelRect;
     const fallback: { hideOverlap: boolean; x?: number; align?: "right" } = { hideOverlap: true };
     if (w && r.x + r.width > w - 4) { fallback.x = p.rect.x - 7; fallback.align = "right"; }
-    if (!visible[index]) return fallback;
+    if (!visible[index]) { placed?.(index, null); return fallback; }
     // The label box can be stale: after the label size is raised ECharts still reports the old, smaller box (a 150% label
     // came through at 100%). Scale it up to the configured font size, which is known. The canvas also measures text with a
     // fallback font that is a few percent narrower than the web font, so the reserve is a little wider than the text.
@@ -35,10 +35,12 @@ export function scatterLabelLayout(width: () => number | undefined, height: () =
       if (occupied.some(b => box.x < b.x + b.width + 3 && box.x + box.width + 3 > b.x && box.y < b.y + b.height + 3 && box.y + box.height + 3 > b.y)) continue;
       if (clear && others.some((d) => d.x + 5 > box.x && d.x - 5 < box.x + box.width && d.y + 5 > box.y && d.y - 5 < box.y + box.height)) continue;
       occupied.push(box);
+      placed?.(index, { x, y, align: right ? "left" : "right" });
       return { x, y, align: right ? "left" : "right", verticalAlign: "middle", hideOverlap: false };
     }
     // No nearby slot fits. Keep this label outside the clipped canvas, rather than letting the
     // renderer's mark-size heuristic hide a higher-priority label that already has a safe slot.
+    placed?.(index, null);
     return { x: -10000, y: -10000, hideOverlap: true };
   };
 }

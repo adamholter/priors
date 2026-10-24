@@ -103,7 +103,7 @@ function quadrantArea(pts: ScatterPoint[], better: "lower" | "higher", scale: "l
   return [{ xAxis: better === "lower" ? edge[0] : mx, yAxis: my }, { xAxis: better === "lower" ? mx : edge[1], yAxis: 1e9 }] as [{ xAxis: number | string; yAxis: number | string }, { xAxis: number | string; yAxis: number | string }];
 }
 
-export function scatterOption({ pts, labs, better, xName, xShort, xUnit = "", scale = "linear", formatX, formatValue, view, pal, narrow, hasTitle = false, tooltipExtra, width, height, dots, highlight, fallen }: {
+export function scatterOption({ pts, labs, better, xName, xShort, xUnit = "", scale = "linear", formatX, formatValue, view, pal, narrow, hasTitle = false, tooltipExtra, width, height, dots, highlight, fallen, onLabel }: {
   pts: ScatterPoint[]; labs: Lab[]; better: "lower" | "higher"; xName: string; xShort?: string; xUnit?: string;
   scale?: "linear" | "log" | "time"; formatX: (x: number) => string; formatValue?: (x: number) => string;
   view: ScatterView; pal: ChartPalette; narrow: boolean; hasTitle?: boolean; tooltipExtra?: (p: ScatterPoint) => string;
@@ -112,6 +112,8 @@ export function scatterOption({ pts, labs, better, xName, xShort, xUnit = "", sc
   height?: () => number | undefined;
   /** Pixel positions of every mark, once the chart can say (labels steer around them). */
   dots?: () => { x: number; y: number }[] | undefined;
+  /** Hears where each mark's label landed (by variant id; null when hidden), for leader lines from label to dot. */
+  onLabel?: (id: string, at: { x: number; y: number; align: "left" | "right" } | null) => void;
   highlight?: Highlight;
   /** Marks the gravity easter egg has dropped: kept in the data so the axes hold still, drawn by GravityLayer instead. */
   fallen?: Set<string>;
@@ -154,7 +156,7 @@ export function scatterOption({ pts, labs, better, xName, xShort, xUnit = "", sc
       type: "scatter", id: "marks", z: 5,
       data: marks,
       label: { ...markLabel(pal), fontSize: (narrow ? 10.5 : 11.5) * fontScale },
-      labelLayout: scatterLabelLayout(width ?? (() => undefined), height ?? (() => undefined), marks.map(p => p.label.show), dots, marks.map(p => (p.label as { fontSize?: number }).fontSize ?? (narrow ? 10.5 : 11.5) * fontScale)),
+      labelLayout: scatterLabelLayout(width ?? (() => undefined), height ?? (() => undefined), marks.map(p => p.label.show), dots, marks.map(p => (p.label as { fontSize?: number }).fontSize ?? (narrow ? 10.5 : 11.5) * fontScale), onLabel && ((i, at) => onLabel(marks[i].id, at))),
       emphasis: { scale: 1.4, label: { show: true, fontWeight: 600 } },
       clip: true, universalTransition: { enabled: false },
       // AA-style themes shade the better corner: better-than-median metric and above-median score.

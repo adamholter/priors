@@ -13,6 +13,17 @@ describe("scatter label placement", () => {
     expect(second.x).toBe(158);
   });
 
+  it("reports where each label landed, and null for hidden ones, so a leader line can join it to its dot", () => {
+    const heard = new Map<number, { x: number; y: number; align: string } | null>();
+    const layout = scatterLabelLayout(() => 320, () => 420, [true, true, false], undefined, undefined, (i, at) => heard.set(i, at));
+    layout(mark(0, 160));
+    layout(mark(1, 165));
+    layout(mark(2, 40));
+    expect(heard.get(0)).toMatchObject({ align: "left", x: 176 });
+    expect(heard.get(1)).toMatchObject({ align: "right", x: 158 });
+    expect(heard.get(2)).toBeNull();
+  });
+
   it("resets occupied slots on resize and ignores unlabeled efforts", () => {
     const layout = scatterLabelLayout(() => 320, () => 420, [false, true]);
     layout(mark(0, 160));
