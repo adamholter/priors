@@ -12,6 +12,9 @@ describe("vercel ignoreCommand", () => {
   it("builds (exit 1, not a failed deploy) when the previous deploy's commit is missing from the shallow clone", () => {
     expect(run("84e2c70265f0468bc198609ede5985007188316a").status).toBe(1);
   });
+  it("builds when git itself dies (exit 128) on a malformed previous SHA", () => {
+    expect(run("not-a-sha").status).toBe(1);
+  });
   it("builds when there is no previous deploy", () => {
     expect(run(undefined).status).toBe(1);
   });
