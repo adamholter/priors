@@ -82,13 +82,15 @@ export function ModelPage({ snapshot: base, modelId }: { snapshot: Snapshot; mod
   const place = bestRows.findIndex((r) => r.model.id === modelId);
   const variants = new Map(snapshot.variants.map((v) => [v.id, v]));
   const perBench = useMemo(() => {
-    const out = new Map<string, Row[]>();
+    const out = new Map<string, Row[]>(), byVariant = new Map<string, Map<string, Row>>();
     for (const o of snapshot.observations) {
       const base = o.variantId.split("~")[0], v = variants.get(o.variantId) ?? variants.get(base);
       const list = out.get(o.benchmarkId) ?? out.set(o.benchmarkId, []).get(o.benchmarkId)!;
-      const prev = list.find((r) => r.variantId === base);
+      const seen = byVariant.get(o.benchmarkId) ?? byVariant.set(o.benchmarkId, new Map()).get(o.benchmarkId)!;
+      const prev = seen.get(base);
       if (prev) { if (o.value > prev.value) prev.value = o.value; continue; }
-      list.push({ variantId: base, modelId: v?.modelId ?? base.split("@")[0], effort: v?.effort ?? "default", value: o.value, cost: costs.get(base), rank: 0 });
+      const row: Row = { variantId: base, modelId: v?.modelId ?? base.split("@")[0], effort: v?.effort ?? "default", value: o.value, cost: costs.get(base), rank: 0 };
+      list.push(row); seen.set(base, row);
     }
     for (const [id, list] of out) { const b = snapshot.benchmarks.find((x) => x.id === id); list.sort((a, c) => b?.higherIsBetter === false ? a.value - c.value : c.value - a.value).forEach((r, i) => { r.rank = i + 1; }); }
     return out;

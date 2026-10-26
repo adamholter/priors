@@ -9,7 +9,15 @@ const ACCENT = "#2F4FB0";
 const W = 1200, H = 630;
 
 /** Where a model stands: its place in the default index, its best benchmark placements, its radar. */
+const standings = new WeakMap<Snapshot, Map<string, ReturnType<typeof computeStanding>>>();
+/** Memoized per loaded snapshot: link-preview metadata and the OG image both ask, and each ask re-ranks every model. */
 export function modelStanding(snapshot: Snapshot, modelId: string) {
+  const byModel = standings.get(snapshot) ?? standings.set(snapshot, new Map()).get(snapshot)!;
+  if (!byModel.has(modelId)) byModel.set(modelId, computeStanding(snapshot, modelId));
+  return byModel.get(modelId)!;
+}
+
+function computeStanding(snapshot: Snapshot, modelId: string) {
   const model = snapshot.models.find((m) => m.id === modelId);
   if (!model) return null;
   const lab = snapshot.labs.find((l) => l.id === model.labId);

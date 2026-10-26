@@ -404,6 +404,7 @@ export function computeIndex(snapshot: Snapshot, config: IndexConfig, view: View
     if (measuredShare < floor - 1e-9) { excluded.push({ variant: v, model, missing: unmeasured, reason: "coverage", measuredShare }); continue; }
 
     const values: BenchValue[] = [];
+    let peers: Variant[] | undefined;
     let num = 0, den = 0, covered = 0;
     for (const s of shares) {
       const nv = normValue(s.benchmark.id, v.id);
@@ -413,7 +414,8 @@ export function computeIndex(snapshot: Snapshot, config: IndexConfig, view: View
         num += nv.value * s.share; den += s.share; if (!nv.substituted) covered += s.share; continue;
       }
       if (!config.estimateMissing || strictness === 100) continue; // renormalize: just skip
-      const est = estimate(v, s.benchmark.id, pool, shares.map((x) => x.benchmark.id), observedValue, models, 5, strictness, view.peerMethod === "mix" ? undefined : { benchmark: s.benchmark, panel }, );
+      peers ??= eligiblePeers(v, pool, models, strictness);
+      const est = estimate(v, s.benchmark.id, peers, shares.map((x) => x.benchmark.id), observedValue, models, 5, strictness, view.peerMethod === "mix" ? undefined : { benchmark: s.benchmark, panel }, );
       if (est != null) { values.push({ benchmarkId: s.benchmark.id, value: est.value, estimated: true, estimateKind: "peer", estimateRange: est.range, donors: est.donors }); num += est.value * s.share; den += s.share; }
     }
     if (den <= 0) continue;
@@ -447,8 +449,23 @@ export function computeIndex(snapshot: Snapshot, config: IndexConfig, view: View
   return { config, benchmarks: shares, ranked: out, excluded, candidateModelIds, autoHidden: curated ? [] : [...superseded] };
 }
 
+const eligibility = new WeakMap<Map<string, Model>, Map<string, boolean>>();
+
 interface PeerEstimate { value: number; range: [number, number]; donors: PeerDonor[] }
 interface PeerGuess { variantId: string; pred: number; weight: number }
+
+/** Peers an estimate may lean on: other models of a similar age and price tier. Depends on the target only, so callers filter once per target, not once per benchmark. */
+function eligiblePeers(target: Variant, pool: Variant[], models: Map<string, Model>, strictness: number): Variant[] {
+  const tm = models.get(target.modelId);
+  const window = 365 - strictness * 2.75;
+  return pool.filter((p) => {
+    if (p.modelId === target.modelId) return false; // don't lean on sibling efforts; they share the gap
+    const pm = models.get(p.modelId);
+    if (tm?.releaseDate && pm?.releaseDate && Math.abs(daysBetween(tm.releaseDate, pm.releaseDate)) > window) return false;
+    if (tm?.priceTier && pm?.priceTier && tm.priceTier !== pm.priceTier) return false;
+    return true;
+  });
+}
 
 /**
  * Peer estimate for a missing benchmark: the weighted average of up to two guesses.
@@ -458,25 +475,16 @@ interface PeerGuess { variantId: string; pred: number; weight: number }
  * models. The range is the spread between the donors' own guesses, never narrower than 1.5 points.
  */
 function estimate(
-  target: Variant, benchmarkId: string, pool: Variant[], benchIds: string[],
+  target: Variant, benchmarkId: string, pool: Variant[] /* already filtered by eligiblePeers */, benchIds: string[],
   normValue: (bid: string, vid: string) => { value: number } | undefined, models: Map<string, Model>, k = 5, strictness = 50,
   panelCtx?: { benchmark: Benchmark; panel: (vid: string) => Map<string, number> },
 ): PeerEstimate | undefined {
-  const tm = models.get(target.modelId);
-  const eligible = (p: Variant) => {
-    if (p.modelId === target.modelId) return false; // don't lean on sibling efforts; they share the gap
-    const pm = models.get(p.modelId);
-    if (tm?.releaseDate && pm?.releaseDate && Math.abs(daysBetween(tm.releaseDate, pm.releaseDate)) > 365 - strictness * 2.75) return false;
-    if (tm?.priceTier && pm?.priceTier && tm.priceTier !== pm.priceTier) return false;
-    return true;
-  };
   const tVals = new Map(benchIds.filter((b) => b !== benchmarkId).map((b) => [b, normValue(b, target.id)?.value]).filter((x): x is [string, number] => x[1] != null));
   // Above moderate strictness a target needs real measured evidence of its own —
   // a single strong benchmark must not seed estimates across the whole mix.
   if (tVals.size < (strictness >= 50 ? 2 : 1)) return undefined;
   const mix: { dist: number; guess: PeerGuess }[] = [];
   for (const p of pool) {
-    if (!eligible(p)) continue;
     const pv = normValue(benchmarkId, p.id); if (!pv) continue;
     let d = 0, n = 0, off = 0;
     for (const [b, tv] of tVals) { const x = normValue(b, p.id)?.value; if (x == null) continue; d += Math.abs(tv - x); off += tv - x; n++; }
@@ -490,8 +498,7 @@ function estimate(
     const tp = panelCtx.panel(target.id);
     const minShared = strictness >= 75 ? 10 : 8;
     for (const p of pool) {
-      if (!eligible(p)) continue;
-      const pv = normValue(benchmarkId, p.id); if (!pv) continue;
+        const pv = normValue(benchmarkId, p.id); if (!pv) continue;
       const pp = panelCtx.panel(p.id);
       const ratios: number[] = []; let d = 0;
       for (const [b, tv] of tp) {
@@ -521,7 +528,10 @@ function estimate(
   return { value, range: [clamp(value - half, 0, 100), clamp(value + half, 0, 100)], donors: [...byVariant.values()].sort((x, y) => y.weight - x.weight) };
 }
 
-function daysBetween(a: string, b: string) { return (new Date(a).getTime() - new Date(b).getTime()) / 86_400_000; }
+// Release dates repeat across every variant pair the estimator compares; parse each string once.
+const dateMs = new Map<string, number>();
+const msOf = (d: string) => { let t = dateMs.get(d); if (t === undefined) { t = new Date(d).getTime(); dateMs.set(d, t); } return t; };
+function daysBetween(a: string, b: string) { return (msOf(a) - msOf(b)) / 86_400_000; }
 
 /** Pareto frontier over (cost asc, score): a point is on the frontier if no cheaper point scores >= it. */
 export function markFrontier(ranked: RankedVariant[]) {
