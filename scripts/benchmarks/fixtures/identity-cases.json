@@ -1,0 +1,2115 @@
+{
+  "version": 1,
+  "capturedAt": "2026-10-06T18:32:00.563Z",
+  "cases": [
+    {
+      "id": "aa/claude-fable-5-1-high",
+      "kind": "aa",
+      "record": {
+        "id": "9d7d72cd-d95d-45a0-b109-4ad292c9aabd",
+        "slug": "claude-fable-5-1-high",
+        "name": "Claude Fable 5.1 (High, Default Fallback)",
+        "isReasoning": true,
+        "effort": {
+          "slug": "high",
+          "label": "high",
+          "level": 40
+        },
+        "release": {
+          "slug": "claude-fable-5-1",
+          "name": "Claude Fable 5.1"
+        }
+      },
+      "expected": {
+        "modelId": "claude-fable-5.1",
+        "effort": "high",
+        "canonical": true
+      },
+      "legacyVariantId": "claude-fable-5.1@high~aa-claude-fable-5-1-high-9d7d72cd"
+    },
+    {
+      "id": "aa/claude-fable-5-1-low",
+      "kind": "aa",
+      "record": {
+        "id": "05776db7-f5c0-40f7-b824-079160f8cfa8",
+        "slug": "claude-fable-5-1-low",
+        "name": "Claude Fable 5.1 (Low, Default Fallback)",
+        "isReasoning": true,
+        "effort": {
+          "slug": "low",
+          "label": "low",
+          "level": 20
+        },
+        "release": {
+          "slug": "claude-fable-5-1",
+          "name": "Claude Fable 5.1"
+        }
+      },
+      "expected": {
+        "modelId": "claude-fable-5.1",
+        "effort": "low",
+        "canonical": true
+      },
+      "legacyVariantId": "claude-fable-5.1@low~aa-claude-fable-5-1-low-05776db7"
+    },
+    {
+      "id": "aa/claude-fable-5-1",
+      "kind": "aa",
+      "record": {
+        "id": "3e87c73e-a257-495e-9730-367a66229811",
+        "slug": "claude-fable-5-1",
+        "name": "Claude Fable 5.1 (Max, Default Fallback)",
+        "isReasoning": true,
+        "effort": {
+          "slug": "max",
+          "label": "max",
+          "level": 60
+        },
+        "release": {
+          "slug": "claude-fable-5-1",
+          "name": "Claude Fable 5.1"
+        }
+      },
+      "expected": {
+        "modelId": "claude-fable-5.1",
+        "effort": "max",
+        "canonical": true
+      },
+      "legacyVariantId": "claude-fable-5.1@max~aa-claude-fable-5-1-3e87c73e"
+    },
+    {
+      "id": "aa/claude-fable-5-1-medium",
+      "kind": "aa",
+      "record": {
+        "id": "3b7de71c-e034-4591-8ca6-6b6be2fa471f",
+        "slug": "claude-fable-5-1-medium",
+        "name": "Claude Fable 5.1 (Medium, Default Fallback)",
+        "isReasoning": true,
+        "effort": {
+          "slug": "medium",
+          "label": "medium",
+          "level": 30
+        },
+        "release": {
+          "slug": "claude-fable-5-1",
+          "name": "Claude Fable 5.1"
+        }
+      },
+      "expected": {
+        "modelId": "claude-fable-5.1",
+        "effort": "medium",
+        "canonical": true
+      },
+      "legacyVariantId": "claude-fable-5.1@medium~aa-claude-fable-5-1-medium-3b7de71c"
+    },
+    {
+      "id": "aa/claude-fable-5-1-xhigh",
+      "kind": "aa",
+      "record": {
+        "id": "9b166bf3-42db-4f63-8338-1c4a1244ffe8",
+        "slug": "claude-fable-5-1-xhigh",
+        "name": "Claude Fable 5.1 (Xhigh, Default Fallback)",
+        "isReasoning": true,
+        "effort": {
+          "slug": "xhigh",
+          "label": "xhigh",
+          "level": 50
+        },
+        "release": {
+          "slug": "claude-fable-5-1",
+          "name": "Claude Fable 5.1"
+        }
+      },
+      "expected": {
+        "modelId": "claude-fable-5.1",
+        "effort": "xhigh",
+        "canonical": true
+      },
+      "legacyVariantId": "claude-fable-5.1@xhigh~aa-claude-fable-5-1-xhigh-9b166bf3"
+    },
+    {
+      "id": "aa/claude-opus-5-5-high",
+      "kind": "aa",
+      "record": {
+        "id": "f314eade-2232-44bf-a3ab-9b326bc67de6",
+        "slug": "claude-opus-5-5-high",
+        "name": "Claude Opus 5.5 (High, Default Fallback)",
+        "isReasoning": true,
+        "effort": {
+          "slug": "high",
+          "label": "high",
+          "level": 40
+        },
+        "release": {
+          "slug": "claude-opus-5-5",
+          "name": "Claude Opus 5.5"
+        }
+      },
+      "expected": {
+        "modelId": "claude-opus-5.5",
+        "effort": "high",
+        "canonical": true
+      },
+      "legacyVariantId": "claude-opus-5.5@high~aa-claude-opus-5-5-high-f314eade"
+    },
+    {
+      "id": "aa/claude-opus-5-5-low",
+      "kind": "aa",
+      "record": {
+        "id": "4416ca93-fde6-4b7b-abbc-3a6be109cc3d",
+        "slug": "claude-opus-5-5-low",
+        "name": "Claude Opus 5.5 (Low, Default Fallback)",
+        "isReasoning": true,
+        "effort": {
+          "slug": "low",
+          "label": "low",
+          "level": 20
+        },
+        "release": {
+          "slug": "claude-opus-5-5",
+          "name": "Claude Opus 5.5"
+        }
+      },
+      "expected": {
+        "modelId": "claude-opus-5.5",
+        "effort": "low",
+        "canonical": true
+      },
+      "legacyVariantId": "claude-opus-5.5@low~aa-claude-opus-5-5-low-4416ca93"
+    },
+    {
+      "id": "aa/claude-opus-5-5",
+      "kind": "aa",
+      "record": {
+        "id": "2f3c4dc9-a450-4303-8697-0237257cf08f",
+        "slug": "claude-opus-5-5",
+        "name": "Claude Opus 5.5 (Max, Default Fallback)",
+        "isReasoning": true,
+        "effort": {
+          "slug": "max",
+          "label": "max",
+          "level": 60
+        },
+        "release": {
+          "slug": "claude-opus-5-5",
+          "name": "Claude Opus 5.5"
+        }
+      },
+      "expected": {
+        "modelId": "claude-opus-5.5",
+        "effort": "max",
+        "canonical": true
+      },
+      "legacyVariantId": "claude-opus-5.5@max~aa-claude-opus-5-5-2f3c4dc9"
+    },
+    {
+      "id": "aa/claude-opus-5-5-medium",
+      "kind": "aa",
+      "record": {
+        "id": "ea9e0da6-169f-43c6-92f5-730a10d6ff8d",
+        "slug": "claude-opus-5-5-medium",
+        "name": "Claude Opus 5.5 (Medium, Default Fallback)",
+        "isReasoning": true,
+        "effort": {
+          "slug": "medium",
+          "label": "medium",
+          "level": 30
+        },
+        "release": {
+          "slug": "claude-opus-5-5",
+          "name": "Claude Opus 5.5"
+        }
+      },
+      "expected": {
+        "modelId": "claude-opus-5.5",
+        "effort": "medium",
+        "canonical": true
+      },
+      "legacyVariantId": "claude-opus-5.5@medium~aa-claude-opus-5-5-medium-ea9e0da6"
+    },
+    {
+      "id": "aa/claude-opus-5-5-xhigh",
+      "kind": "aa",
+      "record": {
+        "id": "df5bf99d-d228-4715-b41b-19ca86118777",
+        "slug": "claude-opus-5-5-xhigh",
+        "name": "Claude Opus 5.5 (Xhigh, Default Fallback)",
+        "isReasoning": true,
+        "effort": {
+          "slug": "xhigh",
+          "label": "xhigh",
+          "level": 50
+        },
+        "release": {
+          "slug": "claude-opus-5-5",
+          "name": "Claude Opus 5.5"
+        }
+      },
+      "expected": {
+        "modelId": "claude-opus-5.5",
+        "effort": "xhigh",
+        "canonical": true
+      },
+      "legacyVariantId": "claude-opus-5.5@xhigh~aa-claude-opus-5-5-xhigh-df5bf99d"
+    },
+    {
+      "id": "aa/claude-sonnet-5-5-high",
+      "kind": "aa",
+      "record": {
+        "id": "268525e2-f873-4178-bc07-e6a0ee1f002d",
+        "slug": "claude-sonnet-5-5-high",
+        "name": "Claude Sonnet 5.5 (High, Default Fallback)",
+        "isReasoning": true,
+        "effort": {
+          "slug": "high",
+          "label": "high",
+          "level": 40
+        },
+        "release": {
+          "slug": "claude-sonnet-5-5",
+          "name": "Claude Sonnet 5.5"
+        }
+      },
+      "expected": {
+        "modelId": "claude-sonnet-5.5",
+        "effort": "high",
+        "canonical": true
+      },
+      "legacyVariantId": "claude-sonnet-5.5@high~aa-claude-sonnet-5-5-high-268525e2"
+    },
+    {
+      "id": "aa/claude-sonnet-5-5-low",
+      "kind": "aa",
+      "record": {
+        "id": "bbc2ffea-cf6b-43be-8c41-1769347e234d",
+        "slug": "claude-sonnet-5-5-low",
+        "name": "Claude Sonnet 5.5 (Low, Default Fallback)",
+        "isReasoning": true,
+        "effort": {
+          "slug": "low",
+          "label": "low",
+          "level": 20
+        },
+        "release": {
+          "slug": "claude-sonnet-5-5",
+          "name": "Claude Sonnet 5.5"
+        }
+      },
+      "expected": {
+        "modelId": "claude-sonnet-5.5",
+        "effort": "low",
+        "canonical": true
+      },
+      "legacyVariantId": "claude-sonnet-5.5@low~aa-claude-sonnet-5-5-low-bbc2ffea"
+    },
+    {
+      "id": "aa/claude-sonnet-5-5",
+      "kind": "aa",
+      "record": {
+        "id": "b171d979-5ec1-45de-b8b9-db1ee65e77ec",
+        "slug": "claude-sonnet-5-5",
+        "name": "Claude Sonnet 5.5 (Max, Default Fallback)",
+        "isReasoning": true,
+        "effort": {
+          "slug": "max",
+          "label": "max",
+          "level": 60
+        },
+        "release": {
+          "slug": "claude-sonnet-5-5",
+          "name": "Claude Sonnet 5.5"
+        }
+      },
+      "expected": {
+        "modelId": "claude-sonnet-5.5",
+        "effort": "max",
+        "canonical": true
+      },
+      "legacyVariantId": "claude-sonnet-5.5@max~aa-claude-sonnet-5-5-b171d979"
+    },
+    {
+      "id": "aa/claude-sonnet-5-5-medium",
+      "kind": "aa",
+      "record": {
+        "id": "042e8a37-fcd0-40f4-8f41-99215fb68eda",
+        "slug": "claude-sonnet-5-5-medium",
+        "name": "Claude Sonnet 5.5 (Medium, Default Fallback)",
+        "isReasoning": true,
+        "effort": {
+          "slug": "medium",
+          "label": "medium",
+          "level": 30
+        },
+        "release": {
+          "slug": "claude-sonnet-5-5",
+          "name": "Claude Sonnet 5.5"
+        }
+      },
+      "expected": {
+        "modelId": "claude-sonnet-5.5",
+        "effort": "medium",
+        "canonical": true
+      },
+      "legacyVariantId": "claude-sonnet-5.5@medium~aa-claude-sonnet-5-5-medium-042e8a37"
+    },
+    {
+      "id": "aa/claude-sonnet-5-5-xhigh",
+      "kind": "aa",
+      "record": {
+        "id": "975aeaef-50bd-4a65-9c73-f1015adcd4d4",
+        "slug": "claude-sonnet-5-5-xhigh",
+        "name": "Claude Sonnet 5.5 (Xhigh, Default Fallback)",
+        "isReasoning": true,
+        "effort": {
+          "slug": "xhigh",
+          "label": "xhigh",
+          "level": 50
+        },
+        "release": {
+          "slug": "claude-sonnet-5-5",
+          "name": "Claude Sonnet 5.5"
+        }
+      },
+      "expected": {
+        "modelId": "claude-sonnet-5.5",
+        "effort": "xhigh",
+        "canonical": true
+      },
+      "legacyVariantId": "claude-sonnet-5.5@xhigh~aa-claude-sonnet-5-5-xhigh-975aeaef"
+    },
+    {
+      "id": "aa/gpt-5-6-luna-high",
+      "kind": "aa",
+      "record": {
+        "id": "aa55297e-8fbf-4372-b4ab-9b068dc6396c",
+        "slug": "gpt-5-6-luna-high",
+        "name": "GPT-5.6 Luna (High)",
+        "isReasoning": true,
+        "effort": {
+          "slug": "high",
+          "label": "high",
+          "level": 40
+        },
+        "release": {
+          "slug": "gpt-5-6-luna",
+          "name": "GPT-5.6 Luna"
+        }
+      },
+      "expected": {
+        "modelId": "gpt-5.6-luna",
+        "effort": "high",
+        "canonical": true
+      },
+      "legacyVariantId": "gpt-5.6-luna@high"
+    },
+    {
+      "id": "aa/gpt-5-6-luna-low",
+      "kind": "aa",
+      "record": {
+        "id": "050c61cd-cddc-463a-a30a-a82aaa37be59",
+        "slug": "gpt-5-6-luna-low",
+        "name": "GPT-5.6 Luna (Low)",
+        "isReasoning": true,
+        "effort": {
+          "slug": "low",
+          "label": "low",
+          "level": 20
+        },
+        "release": {
+          "slug": "gpt-5-6-luna",
+          "name": "GPT-5.6 Luna"
+        }
+      },
+      "expected": {
+        "modelId": "gpt-5.6-luna",
+        "effort": "low",
+        "canonical": true
+      },
+      "legacyVariantId": "gpt-5.6-luna@low"
+    },
+    {
+      "id": "aa/gpt-5-6-luna",
+      "kind": "aa",
+      "record": {
+        "id": "426d24c8-49ae-482a-b4a8-20f1c53f21c1",
+        "slug": "gpt-5-6-luna",
+        "name": "GPT-5.6 Luna (Max)",
+        "isReasoning": true,
+        "effort": {
+          "slug": "max",
+          "label": "max",
+          "level": 60
+        },
+        "release": {
+          "slug": "gpt-5-6-luna",
+          "name": "GPT-5.6 Luna"
+        }
+      },
+      "expected": {
+        "modelId": "gpt-5.6-luna",
+        "effort": "max",
+        "canonical": true
+      },
+      "legacyVariantId": "gpt-5.6-luna@max"
+    },
+    {
+      "id": "aa/gpt-5-6-luna-medium",
+      "kind": "aa",
+      "record": {
+        "id": "58b812bf-8498-46db-b834-f43ccc614b61",
+        "slug": "gpt-5-6-luna-medium",
+        "name": "GPT-5.6 Luna (Medium)",
+        "isReasoning": true,
+        "effort": {
+          "slug": "medium",
+          "label": "medium",
+          "level": 30
+        },
+        "release": {
+          "slug": "gpt-5-6-luna",
+          "name": "GPT-5.6 Luna"
+        }
+      },
+      "expected": {
+        "modelId": "gpt-5.6-luna",
+        "effort": "medium",
+        "canonical": true
+      },
+      "legacyVariantId": "gpt-5.6-luna@medium"
+    },
+    {
+      "id": "aa/gpt-5-6-luna-non-reasoning",
+      "kind": "aa",
+      "record": {
+        "id": "dc64f856-3ded-497d-9527-d41d31267ed5",
+        "slug": "gpt-5-6-luna-non-reasoning",
+        "name": "GPT-5.6 Luna (Non-reasoning)",
+        "isReasoning": false,
+        "release": {
+          "slug": "gpt-5-6-luna",
+          "name": "GPT-5.6 Luna"
+        }
+      },
+      "expected": {
+        "modelId": "gpt-5.6-luna",
+        "effort": "none",
+        "canonical": true
+      },
+      "legacyVariantId": "gpt-5.6-luna@none~aa-gpt-5-6-luna-non-reasoning-dc64f856"
+    },
+    {
+      "id": "aa/gpt-5-6-luna-xhigh",
+      "kind": "aa",
+      "record": {
+        "id": "87110ff0-1f79-41b4-9976-eda250597317",
+        "slug": "gpt-5-6-luna-xhigh",
+        "name": "GPT-5.6 Luna (Xhigh)",
+        "isReasoning": true,
+        "effort": {
+          "slug": "xhigh",
+          "label": "xhigh",
+          "level": 50
+        },
+        "release": {
+          "slug": "gpt-5-6-luna",
+          "name": "GPT-5.6 Luna"
+        }
+      },
+      "expected": {
+        "modelId": "gpt-5.6-luna",
+        "effort": "xhigh",
+        "canonical": true
+      },
+      "legacyVariantId": "gpt-5.6-luna@xhigh"
+    },
+    {
+      "id": "aa/gpt-6-sol-high",
+      "kind": "aa",
+      "record": {
+        "id": "52eebe3e-6ede-4e46-92db-c5dea49fc410",
+        "slug": "gpt-6-sol-high",
+        "name": "GPT-6 Sol (High)",
+        "isReasoning": true,
+        "effort": {
+          "slug": "high",
+          "label": "high",
+          "level": 40
+        },
+        "release": {
+          "slug": "gpt-6-sol",
+          "name": "GPT-6 Sol"
+        }
+      },
+      "expected": {
+        "modelId": "gpt-6-sol",
+        "effort": "high",
+        "canonical": true
+      },
+      "legacyVariantId": "gpt-6-sol@high"
+    },
+    {
+      "id": "aa/gpt-6-sol-low",
+      "kind": "aa",
+      "record": {
+        "id": "01459872-433a-4ab2-8e99-7083162172eb",
+        "slug": "gpt-6-sol-low",
+        "name": "GPT-6 Sol (Low)",
+        "isReasoning": true,
+        "effort": {
+          "slug": "low",
+          "label": "low",
+          "level": 20
+        },
+        "release": {
+          "slug": "gpt-6-sol",
+          "name": "GPT-6 Sol"
+        }
+      },
+      "expected": {
+        "modelId": "gpt-6-sol",
+        "effort": "low",
+        "canonical": true
+      },
+      "legacyVariantId": "gpt-6-sol@low"
+    },
+    {
+      "id": "aa/gpt-6-sol",
+      "kind": "aa",
+      "record": {
+        "id": "c50ea08c-88c0-4eb7-85b8-27f2bbf6d527",
+        "slug": "gpt-6-sol",
+        "name": "GPT-6 Sol (Max)",
+        "isReasoning": true,
+        "effort": {
+          "slug": "max",
+          "label": "max",
+          "level": 60
+        },
+        "release": {
+          "slug": "gpt-6-sol",
+          "name": "GPT-6 Sol"
+        }
+      },
+      "expected": {
+        "modelId": "gpt-6-sol",
+        "effort": "max",
+        "canonical": true
+      },
+      "legacyVariantId": "gpt-6-sol@max"
+    },
+    {
+      "id": "aa/gpt-6-sol-medium",
+      "kind": "aa",
+      "record": {
+        "id": "780a4a85-17ff-4175-a8dd-ebca4823e61b",
+        "slug": "gpt-6-sol-medium",
+        "name": "GPT-6 Sol (Medium)",
+        "isReasoning": true,
+        "effort": {
+          "slug": "medium",
+          "label": "medium",
+          "level": 30
+        },
+        "release": {
+          "slug": "gpt-6-sol",
+          "name": "GPT-6 Sol"
+        }
+      },
+      "expected": {
+        "modelId": "gpt-6-sol",
+        "effort": "medium",
+        "canonical": true
+      },
+      "legacyVariantId": "gpt-6-sol@medium"
+    },
+    {
+      "id": "aa/gpt-6-sol-non-reasoning",
+      "kind": "aa",
+      "record": {
+        "id": "d3e20e76-9e1a-45b6-b809-ad6aa37430cf",
+        "slug": "gpt-6-sol-non-reasoning",
+        "name": "GPT-6 Sol (Non-reasoning)",
+        "isReasoning": false,
+        "release": {
+          "slug": "gpt-6-sol",
+          "name": "GPT-6 Sol"
+        }
+      },
+      "expected": {
+        "modelId": "gpt-6-sol",
+        "effort": "none",
+        "canonical": true
+      },
+      "legacyVariantId": "gpt-6-sol@none~aa-gpt-6-sol-non-reasoning-d3e20e76"
+    },
+    {
+      "id": "aa/gpt-6-sol-xhigh",
+      "kind": "aa",
+      "record": {
+        "id": "da2642fe-9f73-4788-b5af-24edcd55b37e",
+        "slug": "gpt-6-sol-xhigh",
+        "name": "GPT-6 Sol (Xhigh)",
+        "isReasoning": true,
+        "effort": {
+          "slug": "xhigh",
+          "label": "xhigh",
+          "level": 50
+        },
+        "release": {
+          "slug": "gpt-6-sol",
+          "name": "GPT-6 Sol"
+        }
+      },
+      "expected": {
+        "modelId": "gpt-6-sol",
+        "effort": "xhigh",
+        "canonical": true
+      },
+      "legacyVariantId": "gpt-6-sol@xhigh"
+    },
+    {
+      "id": "aa/grok-4-5",
+      "kind": "aa",
+      "record": {
+        "id": "794f69b5-cede-482b-b1cc-d769478497cd",
+        "slug": "grok-4-5",
+        "name": "Grok 4.5 (High)",
+        "isReasoning": true,
+        "effort": {
+          "slug": "high",
+          "label": "high",
+          "level": 40
+        },
+        "release": {
+          "slug": "grok-4-5",
+          "name": "Grok 4.5"
+        }
+      },
+      "expected": {
+        "modelId": "grok-4.5",
+        "effort": "high",
+        "canonical": true
+      },
+      "legacyVariantId": "grok-4.5@high"
+    },
+    {
+      "id": "aa/grok-4-6",
+      "kind": "aa",
+      "record": {
+        "id": "c8adc5cf-fd5a-407b-af51-dc3bede3e49c",
+        "slug": "grok-4-6",
+        "name": "Grok 4.6 (High)",
+        "isReasoning": true,
+        "effort": {
+          "slug": "high",
+          "label": "high",
+          "level": 40
+        },
+        "release": {
+          "slug": "grok-4-6",
+          "name": "Grok 4.6"
+        }
+      },
+      "expected": {
+        "modelId": "grok-4.6",
+        "effort": "high",
+        "canonical": true
+      },
+      "legacyVariantId": "grok-4.6@high"
+    },
+    {
+      "id": "aa/grok-4-6-low",
+      "kind": "aa",
+      "record": {
+        "id": "c07e65e6-32fc-451e-938d-7477a1c3ffcc",
+        "slug": "grok-4-6-low",
+        "name": "Grok 4.6 (Low)",
+        "isReasoning": true,
+        "effort": {
+          "slug": "low",
+          "label": "low",
+          "level": 20
+        },
+        "release": {
+          "slug": "grok-4-6",
+          "name": "Grok 4.6"
+        }
+      },
+      "expected": {
+        "modelId": "grok-4.6",
+        "effort": "low",
+        "canonical": true
+      },
+      "legacyVariantId": "grok-4.6@low"
+    },
+    {
+      "id": "aa/grok-4-6-medium",
+      "kind": "aa",
+      "record": {
+        "id": "26614164-6840-4e17-a65a-2deb2fe7e87b",
+        "slug": "grok-4-6-medium",
+        "name": "Grok 4.6 (Medium)",
+        "isReasoning": true,
+        "effort": {
+          "slug": "medium",
+          "label": "medium",
+          "level": 30
+        },
+        "release": {
+          "slug": "grok-4-6",
+          "name": "Grok 4.6"
+        }
+      },
+      "expected": {
+        "modelId": "grok-4.6",
+        "effort": "medium",
+        "canonical": true
+      },
+      "legacyVariantId": "grok-4.6@medium"
+    },
+    {
+      "id": "aa/grok-4-6-xhigh",
+      "kind": "aa",
+      "record": {
+        "id": "d6f43d0a-e8c4-447c-9ff7-5cf0a9d59aa3",
+        "slug": "grok-4-6-xhigh",
+        "name": "Grok 4.6 (Xhigh)",
+        "isReasoning": true,
+        "effort": {
+          "slug": "xhigh",
+          "label": "xhigh",
+          "level": 50
+        },
+        "release": {
+          "slug": "grok-4-6",
+          "name": "Grok 4.6"
+        }
+      },
+      "expected": {
+        "modelId": "grok-4.6",
+        "effort": "xhigh",
+        "canonical": true
+      },
+      "legacyVariantId": "grok-4.6@xhigh"
+    },
+    {
+      "id": "aa/qwen3-8-max-0803",
+      "kind": "aa",
+      "record": {
+        "id": "5e5b4ce7-bc54-47b2-b911-21b9cad8394c",
+        "slug": "qwen3-8-max-0803",
+        "name": "Qwen3.8 Max",
+        "isReasoning": true,
+        "release": {
+          "slug": "qwen3-8-max",
+          "name": "Qwen3.8 Max"
+        }
+      },
+      "expected": {
+        "modelId": "qwen-3.8-max",
+        "effort": "max",
+        "canonical": false
+      },
+      "legacyVariantId": "qwen-3.8-max@max~aa-qwen3-8-max-0803-5e5b4ce7"
+    },
+    {
+      "id": "aa/qwen3-8-max",
+      "kind": "aa",
+      "record": {
+        "id": "b112af07-3bd5-4647-b09f-b23204361bb2",
+        "slug": "qwen3-8-max",
+        "name": "Qwen3.8 Max (0902)",
+        "isReasoning": true,
+        "release": {
+          "slug": "qwen3-8-max-0902",
+          "name": "Qwen3.8 Max (0902)"
+        }
+      },
+      "expected": {
+        "modelId": "qwen-3.8-max",
+        "effort": "max",
+        "canonical": false
+      },
+      "legacyVariantId": "qwen-3.8-max@max~aa-qwen3-8-max-b112af07"
+    },
+    {
+      "id": "vals/anthropic/claude-sonnet-5-5@high",
+      "kind": "vals",
+      "record": {
+        "sourceModelId": "anthropic/claude-sonnet-5-5",
+        "modelLabel": "Claude Sonnet 5.5",
+        "effort": "high"
+      },
+      "expected": {
+        "modelId": "claude-sonnet-5.5",
+        "effort": "high",
+        "canonical": true
+      },
+      "legacyVariantId": "claude-sonnet-5.5@high~vals-d123610543e5"
+    },
+    {
+      "id": "vals/anthropic/claude-sonnet-5-5@max",
+      "kind": "vals",
+      "record": {
+        "sourceModelId": "anthropic/claude-sonnet-5-5",
+        "modelLabel": "Claude Sonnet 5.5",
+        "effort": "max"
+      },
+      "expected": {
+        "modelId": "claude-sonnet-5.5",
+        "effort": "max",
+        "canonical": true
+      },
+      "legacyVariantId": "claude-sonnet-5.5@max~vals-d123610543e5"
+    },
+    {
+      "id": "vals/openai/gpt-5.6-luna@max",
+      "kind": "vals",
+      "record": {
+        "sourceModelId": "openai/gpt-5.6-luna",
+        "modelLabel": "GPT-5.6 Luna",
+        "effort": "max"
+      },
+      "expected": {
+        "modelId": "gpt-5.6-luna",
+        "effort": "max",
+        "canonical": true
+      },
+      "legacyVariantId": "gpt-5.6-luna@max~vals-65a8fc1dec61"
+    },
+    {
+      "id": "vals/anthropic/claude-fable-5-1@high",
+      "kind": "vals",
+      "record": {
+        "sourceModelId": "anthropic/claude-fable-5-1",
+        "modelLabel": "Claude Fable 5.1",
+        "effort": "high"
+      },
+      "expected": {
+        "modelId": "claude-fable-5.1",
+        "effort": "high",
+        "canonical": true
+      },
+      "legacyVariantId": "claude-fable-5.1@high~vals-98ee7005cf45"
+    },
+    {
+      "id": "vals/anthropic/claude-fable-5-1@max",
+      "kind": "vals",
+      "record": {
+        "sourceModelId": "anthropic/claude-fable-5-1",
+        "modelLabel": "Claude Fable 5.1",
+        "effort": "max"
+      },
+      "expected": {
+        "modelId": "claude-fable-5.1",
+        "effort": "max",
+        "canonical": true
+      },
+      "legacyVariantId": "claude-fable-5.1@max~vals-98ee7005cf45"
+    },
+    {
+      "id": "vals/anthropic/claude-opus-5-5@high",
+      "kind": "vals",
+      "record": {
+        "sourceModelId": "anthropic/claude-opus-5-5",
+        "modelLabel": "Claude Opus 5.5",
+        "effort": "high"
+      },
+      "expected": {
+        "modelId": "claude-opus-5.5",
+        "effort": "high",
+        "canonical": true
+      },
+      "legacyVariantId": "claude-opus-5.5@high~vals-cfe0652e9d68"
+    },
+    {
+      "id": "vals/anthropic/claude-opus-5-5@max",
+      "kind": "vals",
+      "record": {
+        "sourceModelId": "anthropic/claude-opus-5-5",
+        "modelLabel": "Claude Opus 5.5",
+        "effort": "max"
+      },
+      "expected": {
+        "modelId": "claude-opus-5.5",
+        "effort": "max",
+        "canonical": true
+      },
+      "legacyVariantId": "claude-opus-5.5@max~vals-cfe0652e9d68"
+    },
+    {
+      "id": "vals/anthropic/claude-opus-5-5@xhigh",
+      "kind": "vals",
+      "record": {
+        "sourceModelId": "anthropic/claude-opus-5-5",
+        "modelLabel": "Claude Opus 5.5",
+        "effort": "xhigh"
+      },
+      "expected": {
+        "modelId": "claude-opus-5.5",
+        "effort": "xhigh",
+        "canonical": true
+      },
+      "legacyVariantId": "claude-opus-5.5@xhigh~vals-cfe0652e9d68"
+    },
+    {
+      "id": "vals/anthropic/claude-opus-4-8@max",
+      "kind": "vals",
+      "record": {
+        "sourceModelId": "anthropic/claude-opus-4-8",
+        "modelLabel": "Claude Opus 4.8",
+        "effort": "max"
+      },
+      "expected": {
+        "modelId": "claude-opus-4.8",
+        "effort": "max",
+        "canonical": true
+      },
+      "legacyVariantId": "claude-opus-4.8@max~vals-cccbc1ce3042"
+    },
+    {
+      "id": "vals/anthropic/claude-opus-4-8-claude-code@max",
+      "kind": "vals",
+      "record": {
+        "sourceModelId": "anthropic/claude-opus-4-8-claude-code",
+        "modelLabel": "Claude Opus 4.8",
+        "effort": "max"
+      },
+      "expected": {
+        "modelId": "claude-opus-4.8",
+        "effort": "max",
+        "canonical": false
+      },
+      "legacyVariantId": "claude-opus-4.8@max~vals-25a3c9d4b86b"
+    },
+    {
+      "id": "vals/anthropic/claude-sonnet-5@max",
+      "kind": "vals",
+      "record": {
+        "sourceModelId": "anthropic/claude-sonnet-5",
+        "modelLabel": "Claude Sonnet 5",
+        "effort": "max"
+      },
+      "expected": {
+        "modelId": "claude-sonnet-5",
+        "effort": "max",
+        "canonical": true
+      },
+      "legacyVariantId": "claude-sonnet-5@max~vals-2cd37409a483"
+    },
+    {
+      "id": "vals/anthropic/claude-sonnet-5-range@max",
+      "kind": "vals",
+      "record": {
+        "sourceModelId": "anthropic/claude-sonnet-5-range",
+        "modelLabel": "Claude Sonnet 5 (Cyber Range)",
+        "effort": "max"
+      },
+      "expected": {
+        "modelId": "claude-sonnet-5",
+        "effort": "max",
+        "canonical": false
+      },
+      "legacyVariantId": "claude-sonnet-5@max~vals-a7e9f8929235"
+    },
+    {
+      "id": "vals/anthropic/claude-opus-5-5-range@max",
+      "kind": "vals",
+      "record": {
+        "sourceModelId": "anthropic/claude-opus-5-5-range",
+        "modelLabel": "Claude Opus 5.5 (CVP)",
+        "effort": "max"
+      },
+      "expected": {
+        "modelId": "claude-opus-5.5",
+        "effort": "max",
+        "canonical": false
+      },
+      "legacyVariantId": "claude-opus-5.5@max~vals-230866ae180f"
+    },
+    {
+      "id": "vals/anthropic/claude-fable-5@max",
+      "kind": "vals",
+      "record": {
+        "sourceModelId": "anthropic/claude-fable-5",
+        "modelLabel": "Claude Fable 5",
+        "effort": "max"
+      },
+      "expected": {
+        "modelId": "claude-fable-5",
+        "effort": "max",
+        "canonical": true
+      },
+      "legacyVariantId": "claude-fable-5@max~vals-86c0c8bf10aa"
+    },
+    {
+      "id": "vals/anthropic/claude-fable-5-exa@max",
+      "kind": "vals",
+      "record": {
+        "sourceModelId": "anthropic/claude-fable-5-exa",
+        "modelLabel": "Claude Fable 5",
+        "effort": "max"
+      },
+      "expected": {
+        "modelId": "claude-fable-5",
+        "effort": "max",
+        "canonical": false
+      },
+      "legacyVariantId": "claude-fable-5@max~vals-050aba9ebe02"
+    },
+    {
+      "id": "vals/openai/gpt-5.6-sol@max",
+      "kind": "vals",
+      "record": {
+        "sourceModelId": "openai/gpt-5.6-sol",
+        "modelLabel": "GPT-5.6 Sol",
+        "effort": "max"
+      },
+      "expected": {
+        "modelId": "gpt-5.6-sol",
+        "effort": "max",
+        "canonical": true
+      },
+      "legacyVariantId": "gpt-5.6-sol@max~vals-0510680735d3"
+    },
+    {
+      "id": "vals/openai/gpt-5.6-sol-exa@max",
+      "kind": "vals",
+      "record": {
+        "sourceModelId": "openai/gpt-5.6-sol-exa",
+        "modelLabel": "GPT-5.6 Sol",
+        "effort": "max"
+      },
+      "expected": {
+        "modelId": "gpt-5.6-sol",
+        "effort": "max",
+        "canonical": false
+      },
+      "legacyVariantId": "gpt-5.6-sol@max~vals-73119118b4c3"
+    },
+    {
+      "id": "vals/openai/gpt-6-sol@max",
+      "kind": "vals",
+      "record": {
+        "sourceModelId": "openai/gpt-6-sol",
+        "modelLabel": "GPT-6 Sol",
+        "effort": "max"
+      },
+      "expected": {
+        "modelId": "gpt-6-sol",
+        "effort": "max",
+        "canonical": true
+      },
+      "legacyVariantId": "gpt-6-sol@max~vals-3b5ea6fdfa94"
+    },
+    {
+      "id": "vals/openai/gpt-6-luna@max",
+      "kind": "vals",
+      "record": {
+        "sourceModelId": "openai/gpt-6-luna",
+        "modelLabel": "GPT-6 Luna",
+        "effort": "max"
+      },
+      "expected": {
+        "modelId": "gpt-6-luna",
+        "effort": "max",
+        "canonical": true
+      },
+      "legacyVariantId": "gpt-6-luna@max~vals-e5d076977e95"
+    },
+    {
+      "id": "vals/openai/gpt-6.1-sol@max",
+      "kind": "vals",
+      "record": {
+        "sourceModelId": "openai/gpt-6.1-sol",
+        "modelLabel": "GPT-6.1 Sol",
+        "effort": "max"
+      },
+      "expected": {
+        "modelId": "gpt-6.1-sol",
+        "effort": "max",
+        "canonical": true
+      },
+      "legacyVariantId": "gpt-6.1-sol@max~vals-0f7beea535ab"
+    },
+    {
+      "id": "vals/openai/gpt-6-astra@max",
+      "kind": "vals",
+      "record": {
+        "sourceModelId": "openai/gpt-6-astra",
+        "modelLabel": "GPT-6 Astra",
+        "effort": "max"
+      },
+      "expected": {
+        "modelId": "gpt-6-astra",
+        "effort": "max",
+        "canonical": true
+      },
+      "legacyVariantId": "gpt-6-astra@max~vals-5553b7ca5f3e"
+    },
+    {
+      "id": "vals/openai/gpt-5.5@high",
+      "kind": "vals",
+      "record": {
+        "sourceModelId": "openai/gpt-5.5",
+        "modelLabel": "GPT 5.5",
+        "effort": "high"
+      },
+      "expected": {
+        "modelId": "gpt-5.5",
+        "effort": "high",
+        "canonical": true
+      },
+      "legacyVariantId": "gpt-5.5@high~vals-9a8f4a62b182"
+    },
+    {
+      "id": "vals/openai/gpt-5.5@xhigh",
+      "kind": "vals",
+      "record": {
+        "sourceModelId": "openai/gpt-5.5",
+        "modelLabel": "GPT 5.5",
+        "effort": "xhigh"
+      },
+      "expected": {
+        "modelId": "gpt-5.5",
+        "effort": "xhigh",
+        "canonical": true
+      },
+      "legacyVariantId": "gpt-5.5@xhigh~vals-9a8f4a62b182"
+    },
+    {
+      "id": "vals/openai/gpt-5.5-factory@xhigh",
+      "kind": "vals",
+      "record": {
+        "sourceModelId": "openai/gpt-5.5-factory",
+        "modelLabel": "GPT 5.5",
+        "effort": "xhigh"
+      },
+      "expected": {
+        "modelId": "gpt-5.5",
+        "effort": "xhigh",
+        "canonical": false
+      },
+      "legacyVariantId": "gpt-5.5@xhigh~vals-24b8b70e2d47"
+    },
+    {
+      "id": "vals/openai/gpt-5.5-codex@xhigh",
+      "kind": "vals",
+      "record": {
+        "sourceModelId": "openai/gpt-5.5-codex",
+        "modelLabel": "GPT 5.5",
+        "effort": "xhigh"
+      },
+      "expected": {
+        "modelId": "gpt-5.5",
+        "effort": "xhigh",
+        "canonical": false
+      },
+      "legacyVariantId": "gpt-5.5@xhigh~vals-94fc2579c0a8"
+    },
+    {
+      "id": "vals/grok/grok-4.5@high",
+      "kind": "vals",
+      "record": {
+        "sourceModelId": "grok/grok-4.5",
+        "modelLabel": "Grok 4.5",
+        "effort": "high"
+      },
+      "expected": {
+        "modelId": "grok-4.5",
+        "effort": "high",
+        "canonical": true
+      },
+      "legacyVariantId": "grok-4.5@high~vals-252b94f88e3a"
+    },
+    {
+      "id": "vals/grok/grok-4.5-exa@high",
+      "kind": "vals",
+      "record": {
+        "sourceModelId": "grok/grok-4.5-exa",
+        "modelLabel": "Grok 4.5",
+        "effort": "high"
+      },
+      "expected": {
+        "modelId": "grok-4.5",
+        "effort": "high",
+        "canonical": false
+      },
+      "legacyVariantId": "grok-4.5@high~vals-2d3d15b0a363"
+    },
+    {
+      "id": "vals/grok/grok-4.6@high",
+      "kind": "vals",
+      "record": {
+        "sourceModelId": "grok/grok-4.6",
+        "modelLabel": "Grok 4.6",
+        "effort": "high"
+      },
+      "expected": {
+        "modelId": "grok-4.6",
+        "effort": "high",
+        "canonical": true
+      },
+      "legacyVariantId": "grok-4.6@high~vals-3f051bd13a59"
+    },
+    {
+      "id": "vals/grok/grok-4.6@max",
+      "kind": "vals",
+      "record": {
+        "sourceModelId": "grok/grok-4.6",
+        "modelLabel": "Grok 4.6",
+        "effort": "max"
+      },
+      "expected": {
+        "modelId": "grok-4.6",
+        "effort": "max",
+        "canonical": true
+      },
+      "legacyVariantId": "grok-4.6@max~vals-3f051bd13a59"
+    },
+    {
+      "id": "vals/grok/grok-4.7@max",
+      "kind": "vals",
+      "record": {
+        "sourceModelId": "grok/grok-4.7",
+        "modelLabel": "Grok 4.7",
+        "effort": "max"
+      },
+      "expected": {
+        "modelId": "grok-4.7",
+        "effort": "max",
+        "canonical": true
+      },
+      "legacyVariantId": "grok-4.7@max~vals-5d7354979860"
+    },
+    {
+      "id": "vals/grok/grok-4.7@xhigh",
+      "kind": "vals",
+      "record": {
+        "sourceModelId": "grok/grok-4.7",
+        "modelLabel": "Grok 4.7",
+        "effort": "xhigh"
+      },
+      "expected": {
+        "modelId": "grok-4.7",
+        "effort": "xhigh",
+        "canonical": true
+      },
+      "legacyVariantId": "grok-4.7@xhigh~vals-5d7354979860"
+    },
+    {
+      "id": "vals/google/gemini-3.8-flash@high",
+      "kind": "vals",
+      "record": {
+        "sourceModelId": "google/gemini-3.8-flash",
+        "modelLabel": "Gemini 3.8 Flash",
+        "effort": "high"
+      },
+      "expected": {
+        "modelId": "gemini-3.8-flash",
+        "effort": "high",
+        "canonical": true
+      },
+      "legacyVariantId": "gemini-3.8-flash@high~vals-422e5ba87859"
+    },
+    {
+      "id": "vals/google/gemini-3.8-flash@max",
+      "kind": "vals",
+      "record": {
+        "sourceModelId": "google/gemini-3.8-flash",
+        "modelLabel": "Gemini 3.8 Flash",
+        "effort": "max"
+      },
+      "expected": {
+        "modelId": "gemini-3.8-flash",
+        "effort": "max",
+        "canonical": true
+      },
+      "legacyVariantId": "gemini-3.8-flash@max~vals-422e5ba87859"
+    },
+    {
+      "id": "vals/google/gemini-3.5-flash@high",
+      "kind": "vals",
+      "record": {
+        "sourceModelId": "google/gemini-3.5-flash",
+        "modelLabel": "Gemini 3.5 Flash",
+        "effort": "high"
+      },
+      "expected": {
+        "modelId": "gemini-3.5-flash",
+        "effort": "high",
+        "canonical": true
+      },
+      "legacyVariantId": "gemini-3.5-flash@high~vals-8d99798a7e24"
+    },
+    {
+      "id": "vals/google/gemini-3.5-flash-exa@high",
+      "kind": "vals",
+      "record": {
+        "sourceModelId": "google/gemini-3.5-flash-exa",
+        "modelLabel": "Gemini 3.5 Flash",
+        "effort": "high"
+      },
+      "expected": {
+        "modelId": "gemini-3.5-flash",
+        "effort": "high",
+        "canonical": false
+      },
+      "legacyVariantId": "gemini-3.5-flash@high~vals-8f8042104a73"
+    },
+    {
+      "id": "vals/google/gemini-1.5-flash-001@none",
+      "kind": "vals",
+      "record": {
+        "sourceModelId": "google/gemini-1.5-flash-001",
+        "modelLabel": "Gemini 1.5 Flash (001)",
+        "effort": "none"
+      },
+      "expected": {
+        "modelId": "gemini-1.5-flash",
+        "effort": "none",
+        "canonical": false
+      },
+      "legacyVariantId": "gemini-1.5-flash@none~vals-07a7bd13e0f0"
+    },
+    {
+      "id": "vals/google/gemini-1.5-flash-002@none",
+      "kind": "vals",
+      "record": {
+        "sourceModelId": "google/gemini-1.5-flash-002",
+        "modelLabel": "Gemini 1.5 Flash (002)",
+        "effort": "none"
+      },
+      "expected": {
+        "modelId": "gemini-1.5-flash",
+        "effort": "none",
+        "canonical": false
+      },
+      "legacyVariantId": "gemini-1.5-flash@none~vals-aef754c0de80"
+    },
+    {
+      "id": "vals/deepseek/deepseek-v4-flash-0731@high",
+      "kind": "vals",
+      "record": {
+        "sourceModelId": "deepseek/deepseek-v4-flash-0731",
+        "modelLabel": "DeepSeek V4 Flash 0731",
+        "effort": "high"
+      },
+      "expected": {
+        "modelId": "deepseek-v4-flash-0731",
+        "effort": "high",
+        "canonical": true
+      },
+      "legacyVariantId": "deepseek-v4-flash-0731@high~vals-3535a3e7891a"
+    },
+    {
+      "id": "vals/deepseek/deepseek-v4-flash-0731@max",
+      "kind": "vals",
+      "record": {
+        "sourceModelId": "deepseek/deepseek-v4-flash-0731",
+        "modelLabel": "DeepSeek V4 Flash 0731",
+        "effort": "max"
+      },
+      "expected": {
+        "modelId": "deepseek-v4-flash-0731",
+        "effort": "max",
+        "canonical": true
+      },
+      "legacyVariantId": "deepseek-v4-flash-0731@max~vals-3535a3e7891a"
+    },
+    {
+      "id": "vals/deepseek/deepseek-v4-pro-0813@max",
+      "kind": "vals",
+      "record": {
+        "sourceModelId": "deepseek/deepseek-v4-pro-0813",
+        "modelLabel": "DeepSeek V4 Pro 0813",
+        "effort": "max"
+      },
+      "expected": {
+        "modelId": "deepseek-v4-pro-0813",
+        "effort": "max",
+        "canonical": true
+      },
+      "legacyVariantId": "deepseek-v4-pro-0813@max~vals-f936349cbdb1"
+    },
+    {
+      "id": "vals/meta/muse_spark_1_3@xhigh",
+      "kind": "vals",
+      "record": {
+        "sourceModelId": "meta/muse_spark_1_3",
+        "modelLabel": "Muse Spark 1.3",
+        "effort": "xhigh"
+      },
+      "expected": {
+        "modelId": "muse-spark-1.3",
+        "effort": "xhigh",
+        "canonical": true
+      },
+      "legacyVariantId": "muse-spark-1.3@xhigh~vals-34a11b514a34"
+    },
+    {
+      "id": "vals/meta/muse_spark_1_3_max@max",
+      "kind": "vals",
+      "record": {
+        "sourceModelId": "meta/muse_spark_1_3_max",
+        "modelLabel": "Muse Spark 1.3 Max",
+        "effort": "max"
+      },
+      "expected": {
+        "modelId": "muse-spark-1.3",
+        "effort": "max",
+        "canonical": true
+      },
+      "legacyVariantId": "muse-spark-1.3@max~vals-b23eca9b6221"
+    },
+    {
+      "id": "vals/fireworks/ember-1@default",
+      "kind": "vals",
+      "record": {
+        "sourceModelId": "fireworks/ember-1",
+        "modelLabel": "Ember-1",
+        "effort": "default"
+      },
+      "expected": {
+        "modelId": "vals-model-9bbbb70a4dc1",
+        "effort": "default",
+        "canonical": false
+      },
+      "legacyVariantId": "vals-model-9bbbb70a4dc1@default~vals-9bbbb70a4dc1"
+    },
+    {
+      "id": "vals/stepfun/step-5-preview@default",
+      "kind": "vals",
+      "record": {
+        "sourceModelId": "stepfun/step-5-preview",
+        "modelLabel": "Step 5 Preview",
+        "effort": "default"
+      },
+      "expected": {
+        "modelId": "vals-model-f89262339661",
+        "effort": "default",
+        "canonical": false
+      },
+      "legacyVariantId": "vals-model-f89262339661@default~vals-f89262339661"
+    },
+    {
+      "id": "vals/anthropic/claude-opus-4-6-thinking@max",
+      "kind": "vals",
+      "record": {
+        "sourceModelId": "anthropic/claude-opus-4-6-thinking",
+        "modelLabel": "Claude Opus 4.6 (Thinking)",
+        "effort": "max"
+      },
+      "expected": {
+        "modelId": "claude-opus-4.6",
+        "effort": "max",
+        "canonical": false
+      },
+      "legacyVariantId": "claude-opus-4.6@max~vals-67e914af224e"
+    },
+    {
+      "id": "vals/anthropic/claude-opus-4-6@max",
+      "kind": "vals",
+      "record": {
+        "sourceModelId": "anthropic/claude-opus-4-6",
+        "modelLabel": "Claude Opus 4.6 (Nonthinking)",
+        "effort": "max"
+      },
+      "expected": {
+        "modelId": "claude-opus-4.6",
+        "effort": "max",
+        "canonical": false
+      },
+      "legacyVariantId": "claude-opus-4.6@max~vals-82f48fe438d4"
+    },
+    {
+      "id": "label/Grok 4.5 (High)",
+      "kind": "label",
+      "record": {
+        "modelLabel": "Grok 4.5 (High)",
+        "effort": "high"
+      },
+      "expected": {
+        "modelId": "grok-4.5",
+        "effort": "high",
+        "canonical": true
+      },
+      "legacyVariantId": "grok-4.5@high"
+    },
+    {
+      "id": "label/x-ai/grok-4-6-high",
+      "kind": "label",
+      "record": {
+        "modelLabel": "x-ai/grok-4-6-high",
+        "effort": "high"
+      },
+      "expected": {
+        "modelId": "grok-4.6",
+        "effort": "high",
+        "canonical": true
+      },
+      "legacyVariantId": "grok-4.6@high"
+    },
+    {
+      "id": "label/Grok 4.6 max",
+      "kind": "label",
+      "record": {
+        "modelLabel": "Grok 4.6 max",
+        "effort": "max"
+      },
+      "expected": {
+        "modelId": "grok-4.6",
+        "effort": "max",
+        "canonical": true
+      },
+      "legacyVariantId": "grok-4.6@max"
+    },
+    {
+      "id": "label/Grok 4.7 high",
+      "kind": "label",
+      "record": {
+        "modelLabel": "Grok 4.7 high",
+        "effort": "high"
+      },
+      "expected": {
+        "modelId": "grok-4.7",
+        "effort": "high",
+        "canonical": true
+      },
+      "legacyVariantId": "grok-4.7@high"
+    },
+    {
+      "id": "label/Sonnet 5.5 [max]",
+      "kind": "label",
+      "record": {
+        "modelLabel": "Sonnet 5.5 [max]",
+        "effort": "max"
+      },
+      "expected": {
+        "modelId": "claude-sonnet-5.5",
+        "effort": "max",
+        "canonical": true
+      },
+      "legacyVariantId": "claude-sonnet-5.5@max"
+    },
+    {
+      "id": "label/Claude Sonnet 5.5 (high)",
+      "kind": "label",
+      "record": {
+        "modelLabel": "Claude Sonnet 5.5 (high)",
+        "effort": "high"
+      },
+      "expected": {
+        "modelId": "claude-sonnet-5.5",
+        "effort": "high",
+        "canonical": true
+      },
+      "legacyVariantId": "claude-sonnet-5.5@high"
+    },
+    {
+      "id": "label/anthropic/claude-sonnet-5-5",
+      "kind": "label",
+      "record": {
+        "modelLabel": "anthropic/claude-sonnet-5-5",
+        "effort": "max"
+      },
+      "expected": {
+        "modelId": "claude-sonnet-5.5",
+        "effort": "max",
+        "canonical": true
+      },
+      "legacyVariantId": "claude-sonnet-5.5@max"
+    },
+    {
+      "id": "label/GPT-5.6 Luna (max)",
+      "kind": "label",
+      "record": {
+        "modelLabel": "GPT-5.6 Luna (max)",
+        "effort": "max"
+      },
+      "expected": {
+        "modelId": "gpt-5.6-luna",
+        "effort": "max",
+        "canonical": true
+      },
+      "legacyVariantId": "gpt-5.6-luna@max"
+    },
+    {
+      "id": "label/openai/gpt-5.6-luna",
+      "kind": "label",
+      "record": {
+        "modelLabel": "openai/gpt-5.6-luna",
+        "effort": "max"
+      },
+      "expected": {
+        "modelId": "gpt-5.6-luna",
+        "effort": "max",
+        "canonical": true
+      },
+      "legacyVariantId": "gpt-5.6-luna@max"
+    },
+    {
+      "id": "label/GPT-6 Sol (high)",
+      "kind": "label",
+      "record": {
+        "modelLabel": "GPT-6 Sol (high)",
+        "effort": "high"
+      },
+      "expected": {
+        "modelId": "gpt-6-sol",
+        "effort": "high",
+        "canonical": true
+      },
+      "legacyVariantId": "gpt-6-sol@high"
+    },
+    {
+      "id": "label/GPT-6.1 Sol (high)",
+      "kind": "label",
+      "record": {
+        "modelLabel": "GPT-6.1 Sol (high)",
+        "effort": "high"
+      },
+      "expected": {
+        "modelId": "gpt-6.1-sol",
+        "effort": "high",
+        "canonical": true
+      },
+      "legacyVariantId": "gpt-6.1-sol@high"
+    },
+    {
+      "id": "label/GPT-6 Luna (high)",
+      "kind": "label",
+      "record": {
+        "modelLabel": "GPT-6 Luna (high)",
+        "effort": "high"
+      },
+      "expected": {
+        "modelId": "gpt-6-luna",
+        "effort": "high",
+        "canonical": true
+      },
+      "legacyVariantId": "gpt-6-luna@high"
+    },
+    {
+      "id": "label/GPT-6 Astra (high)",
+      "kind": "label",
+      "record": {
+        "modelLabel": "GPT-6 Astra (high)",
+        "effort": "high"
+      },
+      "expected": {
+        "modelId": "gpt-6-astra",
+        "effort": "high",
+        "canonical": true
+      },
+      "legacyVariantId": "gpt-6-astra@high"
+    },
+    {
+      "id": "label/Qwen 3.8 Max",
+      "kind": "label",
+      "record": {
+        "modelLabel": "Qwen 3.8 Max",
+        "effort": "max"
+      },
+      "expected": {
+        "modelId": "qwen-3.8-max",
+        "effort": "max",
+        "canonical": true
+      },
+      "legacyVariantId": "qwen-3.8-max@max"
+    },
+    {
+      "id": "label/Qwen 3.8 Flash",
+      "kind": "label",
+      "record": {
+        "modelLabel": "Qwen 3.8 Flash",
+        "effort": "max"
+      },
+      "expected": {
+        "modelId": "qwen-3.8-flash",
+        "effort": "max",
+        "canonical": true
+      },
+      "legacyVariantId": "qwen-3.8-flash@max"
+    },
+    {
+      "id": "label/Qwen 3.8 27B",
+      "kind": "label",
+      "record": {
+        "modelLabel": "Qwen 3.8 27B",
+        "effort": "high"
+      },
+      "expected": {
+        "modelId": "qwen-3.8-27b",
+        "effort": "high",
+        "canonical": true
+      },
+      "legacyVariantId": "qwen-3.8-27b@high"
+    },
+    {
+      "id": "label/DeepSeek V4 Flash 0731",
+      "kind": "label",
+      "record": {
+        "modelLabel": "DeepSeek V4 Flash 0731",
+        "effort": "max"
+      },
+      "expected": {
+        "modelId": "deepseek-v4-flash-0731",
+        "effort": "max",
+        "canonical": true
+      },
+      "legacyVariantId": "deepseek-v4-flash-0731@max"
+    },
+    {
+      "id": "label/DeepSeek V4 Flash 0420",
+      "kind": "label",
+      "record": {
+        "modelLabel": "DeepSeek V4 Flash 0420",
+        "effort": "max"
+      },
+      "expected": {
+        "modelId": "deepseek-v4-flash-0420",
+        "effort": "max",
+        "canonical": true
+      },
+      "legacyVariantId": "deepseek-v4-flash-0420@max"
+    },
+    {
+      "id": "label/Muse Spark 1.2",
+      "kind": "label",
+      "record": {
+        "modelLabel": "Muse Spark 1.2",
+        "effort": "high"
+      },
+      "expected": {
+        "modelId": "muse-spark-1.2",
+        "effort": "high",
+        "canonical": true
+      },
+      "legacyVariantId": "muse-spark-1.2@high"
+    },
+    {
+      "id": "label/Muse Spark 1.3",
+      "kind": "label",
+      "record": {
+        "modelLabel": "Muse Spark 1.3",
+        "effort": "high"
+      },
+      "expected": {
+        "modelId": "muse-spark-1.3",
+        "effort": "high",
+        "canonical": true
+      },
+      "legacyVariantId": "muse-spark-1.3@high"
+    },
+    {
+      "id": "label/MiMo V2.5 Pro",
+      "kind": "label",
+      "record": {
+        "modelLabel": "MiMo V2.5 Pro",
+        "effort": "high"
+      },
+      "expected": {
+        "modelId": "mimo-v2.5-pro",
+        "effort": "high",
+        "canonical": true
+      },
+      "legacyVariantId": "mimo-v2.5-pro@high"
+    },
+    {
+      "id": "label/MiMo V2.6 Pro",
+      "kind": "label",
+      "record": {
+        "modelLabel": "MiMo V2.6 Pro",
+        "effort": "high"
+      },
+      "expected": {
+        "modelId": "mimo-v2.6-pro",
+        "effort": "high",
+        "canonical": true
+      },
+      "legacyVariantId": "mimo-v2.6-pro@high"
+    },
+    {
+      "id": "adversarial/0",
+      "kind": "aa",
+      "record": {
+        "id": "eeeeeee0-synthetic",
+        "slug": "claude-sonnet-5-5-no-fallback",
+        "name": "Claude Sonnet 5.5 (Max, No Fallback)",
+        "effort": {
+          "slug": "max"
+        }
+      },
+      "expected": {
+        "modelId": "claude-sonnet-5.5",
+        "effort": "max",
+        "canonical": false
+      },
+      "legacyVariantId": "claude-sonnet-5.5@max~aa-claude-sonnet-5-5-no-fallback-eeeeeee0"
+    },
+    {
+      "id": "adversarial/1",
+      "kind": "aa",
+      "record": {
+        "id": "eeeeeee1-synthetic",
+        "slug": "claude-sonnet-5-5-32k",
+        "name": "Claude Sonnet 5.5 (Max, 32k token budget)",
+        "effort": {
+          "slug": "max"
+        }
+      },
+      "expected": {
+        "modelId": "claude-sonnet-5.5",
+        "effort": "max",
+        "canonical": false
+      },
+      "legacyVariantId": "claude-sonnet-5.5@max~aa-claude-sonnet-5-5-32k-eeeeeee1"
+    },
+    {
+      "id": "adversarial/2",
+      "kind": "aa",
+      "record": {
+        "id": "eeeeeee2-synthetic",
+        "slug": "claude-sonnet-5-5-special",
+        "name": "Claude Sonnet 5.5 (Max, Special Harness)",
+        "effort": {
+          "slug": "max"
+        }
+      },
+      "expected": {
+        "modelId": "claude-sonnet-5.5",
+        "effort": "max",
+        "canonical": false
+      },
+      "legacyVariantId": "claude-sonnet-5.5@max~aa-claude-sonnet-5-5-special-eeeeeee2"
+    },
+    {
+      "id": "adversarial/3",
+      "kind": "aa",
+      "record": {
+        "id": "eeeeeee3-synthetic",
+        "slug": "claude-sonnet-5-5",
+        "name": "Claude Sonnet 5.5 (Max, Without Fallback)",
+        "effort": {
+          "slug": "max"
+        }
+      },
+      "expected": {
+        "modelId": "claude-sonnet-5.5",
+        "effort": "max",
+        "canonical": false
+      },
+      "legacyVariantId": "claude-sonnet-5.5@max~aa-claude-sonnet-5-5-eeeeeee3"
+    },
+    {
+      "id": "adversarial/4",
+      "kind": "aa",
+      "record": {
+        "id": "eeeeeee4-synthetic",
+        "slug": "claude-sonnet-5-5",
+        "name": "Claude Sonnet 5.5 (Max, 64k tokens)",
+        "effort": {
+          "slug": "max"
+        }
+      },
+      "expected": {
+        "modelId": "claude-sonnet-5.5",
+        "effort": "max",
+        "canonical": false
+      },
+      "legacyVariantId": "claude-sonnet-5.5@max~aa-claude-sonnet-5-5-eeeeeee4"
+    },
+    {
+      "id": "aa/qwen3-7-plus",
+      "kind": "aa",
+      "record": {
+        "id": "a87fce42-eea3-4e45-a96d-fe057814f371",
+        "slug": "qwen3-7-plus",
+        "name": "Qwen3.7 Plus",
+        "isReasoning": true,
+        "release": {
+          "slug": "qwen3-7-plus",
+          "name": "Qwen3.7 Plus"
+        }
+      },
+      "expected": {
+        "modelId": "qwen-3.7-plus",
+        "effort": "default",
+        "canonical": true
+      },
+      "legacyVariantId": "qwen-3.7-plus@default~aa-qwen3-7-plus-a87fce42"
+    },
+    {
+      "id": "aa/qwen3-8-27b-low",
+      "kind": "aa",
+      "record": {
+        "id": "7e30585f-fad7-40df-a8cb-03c1d96df38a",
+        "slug": "qwen3-8-27b-low",
+        "name": "Qwen3.8 27B (Low)",
+        "isReasoning": true,
+        "effort": {
+          "slug": "low",
+          "label": "low",
+          "level": 20
+        },
+        "release": {
+          "slug": "qwen3-8-27b",
+          "name": "Qwen3.8 27B"
+        }
+      },
+      "expected": {
+        "modelId": "qwen-3.8-27b",
+        "effort": "low",
+        "canonical": true
+      },
+      "legacyVariantId": "qwen-3.8-27b@low~aa-qwen3-8-27b-low-7e30585f"
+    },
+    {
+      "id": "aa/qwen3-8-27b-medium",
+      "kind": "aa",
+      "record": {
+        "id": "6657d7de-a2a9-40bc-a32f-86e80ad63698",
+        "slug": "qwen3-8-27b-medium",
+        "name": "Qwen3.8 27B (Medium)",
+        "isReasoning": true,
+        "effort": {
+          "slug": "medium",
+          "label": "medium",
+          "level": 30
+        },
+        "release": {
+          "slug": "qwen3-8-27b",
+          "name": "Qwen3.8 27B"
+        }
+      },
+      "expected": {
+        "modelId": "qwen-3.8-27b",
+        "effort": "medium",
+        "canonical": true
+      },
+      "legacyVariantId": "qwen-3.8-27b@medium~aa-qwen3-8-27b-medium-6657d7de"
+    },
+    {
+      "id": "aa/qwen3-8-27b-non-reasoning",
+      "kind": "aa",
+      "record": {
+        "id": "353c92f3-2148-4c2d-9231-aa7e1322a1fd",
+        "slug": "qwen3-8-27b-non-reasoning",
+        "name": "Qwen3.8 27B (Non-reasoning)",
+        "isReasoning": false,
+        "release": {
+          "slug": "qwen3-8-27b",
+          "name": "Qwen3.8 27B"
+        }
+      },
+      "expected": {
+        "modelId": "qwen-3.8-27b",
+        "effort": "none",
+        "canonical": true
+      },
+      "legacyVariantId": "qwen-3.8-27b@none~aa-qwen3-8-27b-non-reasoning-353c92f3"
+    },
+    {
+      "id": "aa/qwen3-8-27b",
+      "kind": "aa",
+      "record": {
+        "id": "b01dee41-c62b-48ed-8d16-984adc405e5c",
+        "slug": "qwen3-8-27b",
+        "name": "Qwen3.8 27B (Xhigh)",
+        "isReasoning": true,
+        "effort": {
+          "slug": "xhigh",
+          "label": "xhigh",
+          "level": 50
+        },
+        "release": {
+          "slug": "qwen3-8-27b",
+          "name": "Qwen3.8 27B"
+        }
+      },
+      "expected": {
+        "modelId": "qwen-3.8-27b",
+        "effort": "xhigh",
+        "canonical": true
+      },
+      "legacyVariantId": "qwen-3.8-27b@xhigh~aa-qwen3-8-27b-b01dee41"
+    },
+    {
+      "id": "aa/nex-derived",
+      "kind": "aa",
+      "record": {
+        "id": "3b5ba264-ad25-429b-a460-4d8698205f0d",
+        "slug": "nex-n2-pro",
+        "name": "Nex-N2-Pro (Based on Qwen3.5-397B-A17B)",
+        "isReasoning": true
+      },
+      "expected": {
+        "modelId": "nex-n2-pro",
+        "effort": "default",
+        "canonical": true
+      },
+      "legacyVariantId": "nex-n2-pro@default~aa-nex-n2-pro-3b5ba264"
+    },
+    {
+      "id": "aa/nex-own",
+      "kind": "aa",
+      "record": {
+        "id": "3b5ba264-ad25-429b-a460-4d8698205f0d",
+        "slug": "nex-n2-pro",
+        "name": "Nex-N2-Pro",
+        "isReasoning": true
+      },
+      "expected": {
+        "modelId": "nex-n2-pro",
+        "effort": "default",
+        "canonical": true
+      },
+      "legacyVariantId": "nex-n2-pro@default~aa-nex-n2-pro-3b5ba264"
+    },
+    {
+      "id": "aa/qwen-base",
+      "kind": "aa",
+      "record": {
+        "id": "0e66bae9-41f1-42fc-9276-ce8cb6f72919",
+        "slug": "qwen3-5-397b-a17b",
+        "name": "Qwen3.5 397B A17B (Reasoning)",
+        "isReasoning": true
+      },
+      "expected": {
+        "modelId": "qwen-3.5-397b-a17b",
+        "effort": "default",
+        "canonical": true
+      },
+      "legacyVariantId": "qwen-3.5-397b-a17b@default~aa-qwen3-5-397b-a17b-0e66bae9"
+    },
+    {
+      "id": "label/unknown-derived",
+      "kind": "label",
+      "record": {
+        "modelLabel": "Unknown Fine Tune (Based on Qwen3.5-397B-A17B)",
+        "effort": "default"
+      },
+      "expected": {
+        "modelId": "unresolved",
+        "effort": "default",
+        "canonical": false
+      },
+      "legacyVariantId": "unresolved"
+    },
+    {
+      "id": "label/unknown-derived-brackets",
+      "kind": "label",
+      "record": {
+        "modelLabel": "Unknown Fine Tune [Based on GPT-6 Astra]",
+        "effort": "default"
+      },
+      "expected": {
+        "modelId": "unresolved",
+        "effort": "default",
+        "canonical": false
+      },
+      "legacyVariantId": "unresolved"
+    }
+  ]
+}
