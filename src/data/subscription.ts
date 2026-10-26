@@ -46,6 +46,12 @@ export function blendedApiPrice(p: Prices, mix: TokenMix): number {
 }
 
 /**
+ * Models with no plan data of their own yet, priced at the share of API cost a sibling pays. Applied only while the
+ * model has no row of its own, so real data replaces it the day Real API Pricing lists the model.
+ */
+export const ASSUMED_PLAN_LIKE: Record<string, string> = { "gpt-6.1-terra": "gpt-6.1-sol" };
+
+/**
  * Share of API cost a subscriber pays, per model. A plan debits its allowance in proportion to API
  * list prices, so the same share applies to a measured cost per task at any reasoning effort.
  * List prices are the ones the source converted the plan with, falling back to Artificial Analysis
@@ -71,6 +77,10 @@ export function subscriptionPrices(snapshot: Snapshot): Map<string, Subscription
     if (!d?.mix || !prices) continue;
     const api = blendedApiPrice(prices, d.mix);
     if (positive(api)) out.set(modelId, { ratio: o.value / api, plan: d.plan, feeUsd: d.feeUsd, confidence: d.confidence });
+  }
+  for (const [modelId, like] of Object.entries(ASSUMED_PLAN_LIKE)) {
+    const base = out.get(like);
+    if (!out.has(modelId) && base) out.set(modelId, { ...base, confidence: `assumed: same share of API price as ${like}` });
   }
   return out;
 }
