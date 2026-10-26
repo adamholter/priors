@@ -20,8 +20,9 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   });
 }
 
-export default async function Page({ params }: { params: Promise<{ id: string }> }) {
+export default async function Page({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const { id } = await params;
+  const { r } = await searchParams;
   const snapshot = await loadSnapshot();
   const m = snapshot?.models.find((x) => x.id === id);
   if (!snapshot || !m) notFound();
@@ -30,5 +31,5 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
     const s = modelStanding(snapshot, id);
     return <PreviewPage title={`${m.name} · benchmarks`} description={s ? modelDescription(s) : `How ${m.name} scores on every benchmark Priors tracks, by reasoning effort.`} href={`/models/${id}`} />;
   }
-  return <ModelPage snapshot={snapshot} modelId={id} />;
+  return <ModelPage snapshot={snapshot} modelId={id} rank={typeof r === "string" ? r : undefined} />;
 }

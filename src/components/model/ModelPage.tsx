@@ -6,6 +6,7 @@ import { SettingsButton } from "../SiteSettings";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { EChartsOption } from "echarts";
 import type { Benchmark, Snapshot } from "@/data/types";
+import { findRanking, rankParam } from "@/lib/model-ranking-param";
 import { computeIndex, defaultConfig, type IndexConfig, type RankedVariant } from "@/engine";
 import { encodeIndices, prettyQuery } from "@/lib/url";
 import { defaultPriorsMix } from "@/onboarding/defaults";
@@ -52,16 +53,17 @@ function useOptions(snapshot: Snapshot, page: PageData | null | undefined, build
 
 const withImports = (snapshot: Snapshot, o: Option): Snapshot => (o.imports?.length ? mergeImports(snapshot, o.imports).snapshot : snapshot);
 
-export function ModelPage({ snapshot: base, modelId }: { snapshot: Snapshot; modelId: string }) {
+export function ModelPage({ snapshot: base, modelId, rank }: { snapshot: Snapshot; modelId: string; rank?: string }) {
   const mine0 = useMyRankings();
   const options = useOptions(base, mine0.page, mine0.builder);
-  const [picked, setPicked] = useState<string | null>(null);
+  // The ranking in the address (`?r=`), so a shared link opens in it; kept as the param, because a visitor's own rankings only load after mount.
+  const [picked, setPicked] = useState<string | null>(rank ?? null);
   // Unless the visitor picks one: the first of their rankings that ranks this model, else the standard mix (with estimates).
   const auto = useMemo(() => {
     if (!mine0.ready) return undefined;
     return options.find((o) => computeIndex(withImports(base, o), { ...o.config, variants: "all" }).ranked.some((r) => r.model.id === modelId)) ?? options.find((o) => o.key === "preset:general");
   }, [mine0.ready, options, base, modelId]);
-  const current = options.find((o) => o.key === picked) ?? auto ?? options.find((o) => o.key === "preset:general")!;
+  const current = findRanking(options, picked) ?? auto ?? options.find((o) => o.key === "preset:general")!;
   const snapshot = useMemo(() => withImports(base, current), [base, current]);
   const model = snapshot.models.find((m) => m.id === modelId)!;
   const lab = snapshot.labs.find((l) => l.id === model.labId);
@@ -115,8 +117,8 @@ export function ModelPage({ snapshot: base, modelId }: { snapshot: Snapshot; mod
           </div>
           <div className="sm:text-right">
             <label className="cap inline-flex items-center gap-2">Ranked in
-              <select className="inp !w-auto !py-1 !text-[12px] max-w-[220px] normal-case" value={current.key} onChange={(e) => setPicked(e.target.value)} aria-label="Ranking to place this model in">
-                {[...new Set(options.map((o) => o.group))].map((g) => <optgroup key={g} label={g}>{options.filter((o) => o.group === g).map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}</optgroup>)}
+              <select className="inp !w-auto !py-1 !text-[12px] max-w-[220px] normal-case" value={rankParam(current)} onChange={(e) => { setPicked(e.target.value); const url = new URL(window.location.href); url.searchParams.set("r", e.target.value); window.history.replaceState(window.history.state, "", url); }} aria-label="Ranking to place this model in">
+                {[...new Set(options.map((o) => o.group))].map((g) => <optgroup key={g} label={g}>{options.filter((o) => o.group === g).map((o) => <option key={o.key} value={rankParam(o)}>{o.label}</option>)}</optgroup>)}
               </select>
             </label>
             {top ? <><p className="num text-[52px] leading-none mt-1" style={{ color: "var(--indigo)" }}>{top.score.toFixed(1)}</p><p className="text-[13px] text-ink-2 mt-1">#{place + 1} of {bestRows.length} models{top.variant.effort !== "default" ? ` · best at ${top.variant.effort}` : ""}</p>{loose && <p className="cap mt-1 max-w-[30ch] sm:ml-auto">includes estimates: {Math.round(top.measuredShare * 100)}% of the mix is measured for this model</p>}</>
