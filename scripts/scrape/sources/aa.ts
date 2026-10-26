@@ -21,6 +21,7 @@ import type { Benchmark, BenchmarkCategory, BenchmarkUnit, RawRow, ScrapeContext
 
 import { AA_V43_WEIGHTS } from "../../../src/data/aa-index";
 import { resolveAAIdentity } from "../aa-identity";
+import { pendingPreviews } from "../aa-preview";
 
 const ORIGIN = "https://artificialanalysis.ai";
 const UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0 Safari/537.36";
@@ -324,6 +325,11 @@ const source: Source = {
     for (const m of evalModels ?? []) byId.set(m.id, { ev: m });
     for (const m of tableModels ?? []) byId.set(m.id, { ...(byId.get(m.id) ?? {}), tbl: m });
 
+    // Results AA has announced but not listed yet; none are added once AA lists the model.
+    const previews = pendingPreviews([...byId.values()].flatMap((x) => [x.ev, x.tbl]).filter((x): x is Json => !!x));
+    for (const p of previews) byId.set(p.id, { ev: p.ev, tbl: p.tbl });
+    if (previews.length) notes.push(`${previews.length} announced-but-unlisted AA rows from aa-preview.ts`);
+
     const rows: RawRow[] = [];
     const modelMeta: NonNullable<ScrapeResult["modelMeta"]> = [];
     const counts = new Map<string, number>();
@@ -342,7 +348,7 @@ const source: Source = {
       const labHint: string | undefined = base.creator?.name ?? tbl?.creator?.name;
       const releaseDateHint: string | undefined = base.releaseDate ?? tbl?.releaseDate ?? undefined;
       const deprecated = !!(base.deprecated ?? tbl?.deprecated);
-      const noteBits = deprecated ? ["deprecated on AA"] : [];
+      const noteBits = [...(deprecated ? ["deprecated on AA"] : []), ...(typeof base.previewNote === "string" ? [base.previewNote] : [])];
 
       const identity = resolveAAIdentity(base, tbl);
       const modelMetadata = Object.fromEntries(Object.entries({ ...tbl, ...base }).filter(([key]) => ["release", "creator", "releaseDate", "knowledgeCutoffDate", "isReasoning", "reasoningTokens", "effort", "deprecated", "deprecatedTo", "isOpenWeights", "openSourceCategorization", "parameters", "activeParams", "inferenceParametersActiveBillions", "sizeClass", "contextWindowTokens", "licenseName", "licenseUrl", "modelWeightsSourceUrl", "inputModalityText", "inputModalityImage", "inputModalitySpeech", "inputModalityVideo", "outputModalityText", "price1mInputTokens", "price1mOutputTokens", "cacheHitPrice", "cacheWritePrice", "performanceDataSource"].includes(key)));
