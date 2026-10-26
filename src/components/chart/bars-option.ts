@@ -96,10 +96,10 @@ export function selectBars(pts: ScatterPoint[], _better: "lower" | "higher", mod
 /** The ECharts option behind MetricBars — shared verbatim by the browser chart and /og rasterizer. */
 /**
  * Where bar values fit: inside the bar, above it, or turned vertical when even the category slot
- * is too narrow. JetBrains Mono advances 0.6em per glyph; a lone bar series fills 80% of its slot.
+ * is too narrow. JetBrains Mono advances 0.6em per glyph; a lone bar series fills 72% of its slot.
  */
 export function barLabelFit(texts: string[], fontSize: number, slots: number, plotWidth: number, maxBar: number): "inside" | "above" | "vertical" {
-  const slot = plotWidth / Math.max(1, slots), bar = Math.min(maxBar, slot * 0.8);
+  const slot = plotWidth / Math.max(1, slots), bar = Math.min(maxBar, slot * 0.72);
   const widest = Math.max(0, ...texts.map((text) => text.length)) * fontSize * 0.6;
   return widest + 4 <= bar ? "inside" : widest <= slot ? "above" : "vertical";
 }
@@ -115,7 +115,7 @@ export function barsOption({ bars, labs, xName, formatValue, pal, narrow, highli
   const hl = highlightedModels(highlight ?? []), on = hl.size > 0, featured = new Set(featuredPoints(bars, highlight ?? []).map((p) => p.r.variant.id));
   const color = new Map(labs.map((l) => [l.id, l.color]));
   const layout = barLayout(bars.map((p) => ({ modelId: p.r.model.id, modelName: p.r.model.name, effort: p.r.variant.effort, label: chartLabel(p.r), point: p })));
-  const fmt = compact(formatValue), fontSize = (narrow ? 9 : 10) * fontScale, maxBar = 28 * markSize(pal);
+  const fmt = compact(formatValue), fontSize = (narrow ? 9 : 10) * fontScale, maxBar = 64 * markSize(pal);
   const fit = width === undefined ? "above" : barLabelFit(bars.map((p) => fmt(value(p))), fontSize, layout.entries.length, width - 52 * t - 30, maxBar);
   const inside = pal.style?.barLabels === "inside" && fit === "inside";
   // Bars shorter than their value (y max is at least the top bar, so this errs short) show it above.
@@ -131,7 +131,7 @@ export function barsOption({ bars, labs, xName, formatValue, pal, narrow, highli
     yAxis: { type: "value", ...(yMin !== undefined ? { min: yMin } : {}), name: xName, nameTextStyle: { color: pal.grey, fontSize: 11 * t, align: "left", padding: [0, 0, 0, -30 * t] }, axisLabel: { formatter: (v: number) => compact(formatValue)(v) } },
     tooltip: { trigger: "item", confine: true, formatter: (p: unknown) => { const d = (p as { data?: { point?: ScatterPoint } }).data?.point; return d ? `<div style="font-weight:600">${chartLabel(d.r)}</div><div style="font-family:var(--font-jetbrains);margin-top:4px">${d.free ? "free" : formatValue(value(d))} · index ${d.r.score.toFixed(1)}</div>` : ""; } },
     series: [{
-      type: "bar", id: "bars", barMaxWidth: maxBar,
+      type: "bar", id: "bars", barMaxWidth: maxBar, barCategoryGap: "28%",
       data: layout.entries.map((entry) => { if (!entry) return { value: null, itemStyle: { color: "transparent" } }; const p = entry.point, c = markColor(color.get(p.r.model.labId), pal, p.r.model.labId), dim = on && !hl.has(p.r.model.id); return { value: value(p), point: p, extra: p, itemStyle: { color: dim ? dimColor(c, pal) : c, opacity: dim ? 0.6 : 1, borderRadius: [pal.style?.barRadius ?? 2, pal.style?.barRadius ?? 2, 0, 0] }, label: dim ? { ...above, color: pal.grey } : inside && short(p) ? above : on && featured.has(p.r.variant.id) ? { fontWeight: 700 } : undefined }; }),
       label: { show: true, ...(inside ? { position: "insideTop" as const, distance: 6, color: "#FFFFFF", textBorderColor: "rgba(0,0,0,.18)", textBorderWidth: 1.5 } : above), fontSize, fontFamily: pal.fonts?.mono ?? "var(--font-jetbrains), monospace", formatter: (p: { value?: unknown; data?: unknown }) => ((p.data as { point?: ScatterPoint } | null)?.point?.free ? "free" : fmt(Number(p.value))) }, labelLayout: { hideOverlap: true },
       animationDurationUpdate: 350,

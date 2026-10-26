@@ -77,6 +77,15 @@ describe("barLabelFit", () => {
   });
 });
 
+describe("bar spacing", () => {
+  it("lets bars grow to fill their slot (about 72%) instead of floating in wide gaps", () => {
+    const opt = barsOption({ bars: [point("a", "default", 80, 5), point("b", "default", 70, 4)], labs: [], xName: "x", formatValue: String, pal: LIGHT_PALETTE, narrow: false });
+    const series = (opt.series as { barMaxWidth: number; barCategoryGap: string }[])[0];
+    expect(series.barMaxWidth).toBeGreaterThanOrEqual(56);
+    expect(series.barCategoryGap).toBe("28%");
+  });
+});
+
 describe("zoomed value axis", () => {
   const yMin = (zoom: boolean, values: number[]) => {
     const bars = values.map((v, i) => point(`m${i}`, "default", 90 - i, v));
