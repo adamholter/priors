@@ -61,8 +61,16 @@ describe("model finder data", () => {
       expect(mix.variants.every((variant) => variant.measuredBenchmarks.includes(config.required[0]))).toBe(true);
       expect(mix.benchmarks.some((benchmark) => ["deepswe-1.1", "weirdml-v2"].includes(benchmark.id))).toBe(false);
     }
-    const leaders = affordableModels(mixes[0].variants, null).slice(0, 5);
-    expect(leaders.every((row) => row.measuredShare === 1)).toBe(true);
+  });
+
+  it("lets a half-measured model into the ranking at strictness 50, but only if it measures the shared coding benchmark", () => {
+    // Was a live-snapshot assertion that the top five were fully measured; it broke deploys the day a new model
+    // (Kimi K3.1, terminal-bench only) scored into the top five. Strictness 50 admits it by design.
+    const partial = { ...row("kimi@default", "kimi", "default", 90, 1), measuredShare: 0.5, measuredBenchmarks: ["aa-terminalbench-v4-0"] };
+    const full = { ...row("sonnet@max", "sonnet", "max", 80, 2), measuredBenchmarks: ["aa-terminalbench-v4-0", "vals-vibe-code-v1-1"] };
+    const ranked = affordableModels([full, partial], null);
+    expect(ranked.map((v) => v.modelId)).toEqual(["kimi", "sonnet"]);
+    expect(ranked.every((v) => v.measuredBenchmarks.includes("aa-terminalbench-v4-0"))).toBe(true);
   });
 
   it("moves coding mixes to a new benchmark release instead of reusing old-only observations", () => {
