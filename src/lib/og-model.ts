@@ -12,6 +12,8 @@ const W = 1200, H = 630;
 const standings = new WeakMap<Snapshot, Map<string, ReturnType<typeof computeStanding>>>();
 /** Memoized per loaded snapshot: link-preview metadata and the OG image both ask, and each ask re-ranks every model. */
 export function modelStanding(snapshot: Snapshot, modelId: string) {
+  // The id comes from the URL: only real models are remembered, so junk ids cannot grow the cache.
+  if (!snapshot.models.some((m) => m.id === modelId)) return null;
   const byModel = standings.get(snapshot) ?? standings.set(snapshot, new Map()).get(snapshot)!;
   if (!byModel.has(modelId)) byModel.set(modelId, computeStanding(snapshot, modelId));
   return byModel.get(modelId)!;
