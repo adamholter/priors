@@ -2,8 +2,9 @@
 import { track } from "@/lib/analytics";
 import { useImperativeHandle, useState, type Ref } from "react";
 import { useChartPalette } from "./echarts";
-import { escapeSvg, frameSvg } from "./export-frame";
+import { escapeSvg, frameSvg, trimRight } from "./export-frame";
 import { ChartDownloadIcon } from "./ChartIcons";
+import { IconBrush } from "@tabler/icons-react";
 
 export { escapeSvg };
 
@@ -21,7 +22,7 @@ function toCsv(rows: ExportRow[]) {
 }
 
 /** Export control: PNG is the primary button, a chevron opens the full format menu (PNG, SVG, CSV, JSON). */
-export function ChartExport({ name, getSvg, getRows, getHtml, frame, className = "", ref }: { name: string; getSvg: () => string | undefined; getRows?: () => ExportRow[]; getHtml?: () => string; frame?: boolean; className?: string; ref?: Ref<ChartExportHandle> }) {
+export function ChartExport({ name, title, trim = true, onEdit, getSvg, getRows, getHtml, frame, className = "", ref }: { name: string; /** Heading drawn in the framed image (default: `name`). */ title?: string; /** Crop blank space off the right of PNG and SVG exports (default on). */ trim?: boolean; /** Opens the screenshot editor; shows a brush beside PNG. */ onEdit?: () => void; getSvg: () => string | undefined; getRows?: () => ExportRow[]; getHtml?: () => string; frame?: boolean; className?: string; ref?: Ref<ChartExportHandle> }) {
   const pal = useChartPalette();
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState(false);
@@ -47,8 +48,9 @@ export function ChartExport({ name, getSvg, getRows, getHtml, frame, className =
       const raw = getSvg();
       if (!raw) throw new Error("Chart is still loading. Try again.");
       // Exports cannot inherit the page's CSS variables.
-      const clean = raw.replace(/var\(--font-[a-z0-9-]+\),?\s*/g, "");
-      const svg = frame ? frameSvg(clean, name, undefined, pal) : clean;
+      const clean0 = raw.replace(/var\(--font-[a-z0-9-]+\),?\s*/g, "");
+      const clean = trim ? trimRight(clean0) : clean0;
+      const svg = frame ? frameSvg(clean, title || name, undefined, pal) : clean;
       let blob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
       if (format === "png") {
         const source = URL.createObjectURL(blob);
@@ -75,6 +77,7 @@ export function ChartExport({ name, getSvg, getRows, getHtml, frame, className =
     <span className="text-grey"><ChartDownloadIcon /></span>
     <div className="export-split">
       <button type="button" disabled={busy} aria-label={`Download ${name} as PNG`} onClick={() => download("png")}>PNG</button>
+      {onEdit && <button type="button" className="export-edit" aria-label={`Edit ${name} screenshot`} title="Edit screenshot" onClick={onEdit}><IconBrush size={13} aria-hidden="true" /></button>}
       <button type="button" className="export-toggle" aria-haspopup="menu" aria-expanded={open} aria-label={`More export formats for ${name}`} onClick={() => setOpen(o => !o)}>
         <svg aria-hidden="true" width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 3.8 5 6.8 8 3.8" /></svg>
       </button>

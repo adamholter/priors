@@ -96,6 +96,10 @@ button, [role="button"] { cursor: pointer; }
 .export-split:hover { border-color: var(--ink); }
 .export-split > button { font-size: 12px; padding: 4px 9px; border: 0; background: transparent; color: var(--ink-2); cursor: pointer; }
 .export-split > button:hover { color: var(--ink); }
+/* The brush that opens the screenshot editor shows when PNG is hovered or focused, and always on touch screens. */
+.export-split > .export-edit { display: none; align-items: center; padding: 4px 6px; border-left: 1px solid var(--hair); }
+.export-split:hover > .export-edit, .export-split:focus-within > .export-edit { display: inline-flex; }
+@media (hover: none) { .export-split > .export-edit { display: inline-flex; } }
 .export-split > button:disabled { cursor: not-allowed; opacity: .5; }
 .export-split .export-toggle { border-left: 1px solid var(--hair); padding: 4px 6px; display: inline-flex; align-items: center; }
 .export-menu { position: absolute; right: 0; top: calc(100% + 5px); z-index: 30; min-width: 86px; background: var(--white); border: 1px solid var(--hair); border-radius: 4px; overflow: hidden; }
@@ -356,3 +360,35 @@ p.share-change { display: grid; grid-template-columns: minmax(0, 1fr) 40% 38px; 
 
 .index-tabs-scroll { scrollbar-width: none; }
 .index-tabs-scroll::-webkit-scrollbar { display: none; }
+
+/* screenshot editor (ExportEditor.tsx): the chart at image size on the left, controls on the right */
+.xe { width: min(1280px, calc(100vw - 24px)); height: min(860px, calc(100dvh - 24px)); max-width: none; margin: auto; padding: 0; border: 1px solid var(--hair); border-radius: 8px; background: var(--white); color: var(--ink); overflow: hidden; }
+.xe[open] { display: grid; grid-template-columns: minmax(0, 1fr) 280px; }
+.xe::backdrop { background: rgb(20 20 19 / 0.38); }
+.xe-stage { overflow: auto; background: var(--hair-2); padding: 20px; display: grid; align-content: start; justify-content: start; }
+.xe-card { padding: 32px 32px 34px; width: max-content; box-shadow: 0 1px 8px var(--shadow); }
+.xe-title { font-size: 24px; line-height: 1; height: 22px; margin-bottom: 0; }
+.xe-box { position: relative; margin-top: 8px; }
+.xe-foot { font: 11px "JetBrains Mono", Menlo, monospace; margin-top: 6px; }
+.xe-grip { position: absolute; right: -14px; bottom: -14px; width: 22px; height: 22px; border: 0; background: none; cursor: nwse-resize; touch-action: none; }
+.xe-grip::after { content: ""; position: absolute; right: 4px; bottom: 4px; width: 10px; height: 10px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; }
+.xe-side { display: flex; flex-direction: column; border-left: 1px solid var(--hair); overflow-y: auto; font-size: 13px; }
+.xe-side header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--hair-2); }
+.xe-side header h2 { margin: 0; font-size: 20px; }
+.xe-side header button { color: var(--grey); padding: 4px; }
+.xe-side header button:hover { color: var(--ink); }
+.xe-side section { padding: 12px 16px; border-bottom: 1px solid var(--hair-2); display: grid; gap: 8px; }
+.xe-side h3 { margin: 0; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--grey); font-weight: 500; }
+.xe-row { display: flex; flex-wrap: wrap; gap: 4px; }
+.xe-row button { border: 1px solid var(--hair); border-radius: 4px; padding: 3px 8px; font-size: 12px; color: var(--ink-2); }
+.xe-row button[aria-pressed="true"] { border-color: var(--ink); color: var(--ink); }
+.xe-size { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.xe-side label { display: grid; gap: 3px; color: var(--ink-2); }
+.xe-field span { float: right; color: var(--grey); }
+.xe-side input[type="number"], .xe-side input[type="text"], .xe-side select { border: 1px solid var(--hair); border-radius: 4px; padding: 4px 6px; background: var(--white); color: var(--ink); font-size: 13px; }
+.xe-side input:disabled { opacity: .5; }
+.xe-check { display: flex !important; align-items: center; gap: 6px; }
+.xe-side footer { margin-top: auto; padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; gap: 8px; border-top: 1px solid var(--hair-2); }
+.xe-copy { display: inline-flex; align-items: center; gap: 5px; border: 1px solid var(--hair); border-radius: 4px; padding: 4px 9px; font-size: 12px; color: var(--ink-2); }
+.xe-copy:hover { border-color: var(--ink); color: var(--ink); }
+@media (max-width: 760px) { .xe[open] { grid-template-columns: 1fr; grid-template-rows: minmax(0, 1fr) auto; } .xe-side { border-left: 0; border-top: 1px solid var(--hair); max-height: 45dvh; } }

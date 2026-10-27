@@ -61,6 +61,8 @@ Embeds inline the same rules.
 ## Exports, links and embeds
 
 - `ChartExport.tsx`: PNG, SVG and CSV. PNG and SVG follow the current palette.
+- PNG and SVG crop blank space off the right (`trimRight` in `export-frame.ts`, measured in the browser); a label that runs right keeps its room. `trim={false}` turns it off.
+- `ExportEditor.tsx`: the screenshot editor, opened by the brush beside PNG (or by a link). It renders a bare copy of the scatter at image size (drag the corner, pick a ratio), with its own theme, title and chart settings. Its state is the `xe` param (`src/lib/export-editor.ts`) next to `c=<chart id>`, so the link opens the modal over the same page, mix and highlights; closing drops `xe`.
 - `ChartLink.tsx` and `src/lib/highlight-link.ts`: a link to one chart (`c=<id>` plus view params `cv`, `cm`, `cs`, `cf`, `cb`, `hl` and, on pages, `hv` for the visit's unsaved model and effort settings). Such links unfurl as that chart, see `docs/pages-and-sharing.md`.
 - `embed.ts`: a standalone HTML file. It ships both palettes and follows the viewer's `prefers-color-scheme` (override with `?theme=` or `#dark`).
 

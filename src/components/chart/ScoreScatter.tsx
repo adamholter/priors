@@ -1,5 +1,7 @@
 "use client";
 import { ChartExport, type ExportRow, type ChartExportHandle } from "./ChartExport";
+import { decodeEditor, encodeEditor, type EditorState } from "@/lib/export-editor";
+import { chartLinkUrl } from "@/lib/highlight-link";
 import type { ECharts, EChartsOption } from "echarts";
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
@@ -20,6 +22,7 @@ import { FORMULA_MAX } from "@/lib/formula";
 import type { FallingDot } from "./GravityLayer";
 
 const GravityLayer = dynamic(() => import("./GravityLayer"), { ssr: false });
+const ExportEditor = dynamic(() => import("./ExportEditor"), { ssr: false });
 
 export { chartLabel };
 export type { Highlight, ScatterPoint, ScatterView };
@@ -86,12 +89,16 @@ function PointCard({ point, labs, pal, onFrontier, format, unit, extra, onClose 
   </div>;
 }
 
-export function ScoreScatter({ pts: allPoints, labs, better, xName: baseXName, xShort: baseXShort, xUnit = "", scale: defaultScale = "linear", formatX, formatValue, height = 420, aria, title, actions, view, exportName, extraRows, tooltipExtra, anchor, linkParams }: {
+type ScatterProps = {
   pts: ScatterPoint[]; labs: Lab[]; better: "lower" | "higher"; xName: string; xShort?: string; xUnit?: string;
   scale?: "linear" | "log" | "time"; formatX: (x: number) => string; formatValue?: (x: number) => string;
   height?: number; aria: string; title?: ReactNode; actions?: ReactNode; view: ScatterView; exportName: string;
   extraRows?: (p: ScatterPoint) => ExportRow; tooltipExtra?: (p: ScatterPoint) => string; anchor?: string; linkParams?: ChartLinkParams;
-}) {
+  /** The screenshot editor's own copy: the plot only, no toolbar or link, sized by its container. */ bare?: boolean; chartRef?: { current: ECharts | null };
+};
+
+export function ScoreScatter(props: ScatterProps) {
+  const { pts: allPoints, labs, better, xName: baseXName, xShort: baseXShort, xUnit = "", scale: defaultScale = "linear", formatX, formatValue, height = 420, aria, title, actions, view, exportName, extraRows, tooltipExtra, anchor, linkParams, bare, chartRef } = props;
   const scale = defaultScale === "time" ? "time" : view.scale ?? defaultScale;
   const xName = scale === "linear" ? baseXName.replace(/, log| \(log\)/g, "") : baseXName;
   const xShort = scale === "linear" ? baseXShort?.replace(/, log| \(log\)/g, "") : baseXShort;
@@ -155,6 +162,25 @@ export function ScoreScatter({ pts: allPoints, labs, better, xName: baseXName, x
       if (d && event) { event.preventDefault(); event.stopPropagation(); contextPick.current(d, event.clientX, event.clientY); }
     });
   }, true);
+
+  useEffect(() => { if (chartRef) chartRef.current = chart.current; });
+  // The screenshot editor opens from the toolbar, or from a link (`xe` on this chart's own `c=`), and closing it leaves the page as it was.
+  const [editor, setEditor] = useState<EditorState | null>(null);
+  useEffect(() => {
+    if (bare || !anchor) return;
+    const raf = requestAnimationFrame(() => {
+      const url = new URL(window.location.href);
+      const state = url.searchParams.get("c") === anchor ? decodeEditor(url.searchParams.get("xe")) : null;
+      if (state) setEditor(state);
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [bare, anchor]);
+  const openEditor = () => setEditor({ w: Math.round(wrapRef.current?.getBoundingClientRect().width ?? 960), h: Math.round(Math.max(height * (pal.size?.height ?? 1), 320)), view: {} });
+  const closeEditor = () => {
+    setEditor(null);
+    const url = new URL(window.location.href);
+    if (url.searchParams.has("xe")) { url.searchParams.delete("xe"); window.history.replaceState(null, "", url.toString()); }
+  };
 
   // A long press on a touch screen sends a plain contextmenu event to the wrapper, which ECharts never matches to a mark,
   // so find the dot under (or near, for a fingertip) the press ourselves and open its menu instead of the chart's.
@@ -283,26 +309,29 @@ export function ScoreScatter({ pts: allPoints, labs, better, xName: baseXName, x
     });
   };
   return (
-    <>{expand.backdrop}<div ref={wrapRef} id={anchor} className={`max-sm:-mx-4 scroll-mt-20 ${expand.expanded ? "chart-expanded" : ""}`} role={expand.expanded ? "dialog" : undefined} aria-modal={expand.expanded || undefined} aria-label={expand.expanded ? exportName : undefined}>
+    <>{expand.backdrop}<div ref={wrapRef} id={bare ? undefined : anchor} className={`${bare ? "" : "max-sm:-mx-4 "}scroll-mt-20 ${expand.expanded ? "chart-expanded" : ""}`} role={expand.expanded ? "dialog" : undefined} aria-modal={expand.expanded || undefined} aria-label={expand.expanded ? exportName : undefined}>
       {/* Untitled charts (gallery panels) float their controls over the plot's empty top margin. */}
-      <div className={`chart-toolbar flex flex-wrap items-center justify-between gap-x-4 gap-y-1 max-sm:px-4 min-h-8 ${title || expand.expanded ? "mb-1" : "-mb-8 relative z-10 pointer-events-none"}`}>
+      {!bare && <div className={`chart-toolbar flex flex-wrap items-center justify-between gap-x-4 gap-y-1 max-sm:px-4 min-h-8 ${title || expand.expanded ? "mb-1" : "-mb-8 relative z-10 pointer-events-none"}`}>
         <div className="min-w-0">{title ?? (expand.expanded && <h2 className="text-[22px]">{exportName}</h2>)}<HighlightList /></div>
         <div className="flex items-center gap-1 ml-auto pointer-events-auto">
           <HighlightMenu label={exportName} />
           {visibility.canUndo && <button type="button" className="cap hover:text-ink" onClick={visibility.undo} aria-label="Undo chart removal">Undo</button>}
           {actions}
           {anchor && <ChartLink id={anchor} name={exportName} params={{ ...effectiveLinkParams, hidden: visibility.hidden }} />}
-          <ChartExport ref={exportControl} name={exportName} frame getHtml={getHtml} getSvg={() => chart.current?.renderToSVGString()} getRows={() => pts.map((p) => ({ rank: p.r.rank, model: p.r.model.name, effort: p.r.variant.effort, score: +p.r.score.toFixed(2), lab: p.r.model.labId, [xName]: +(p.raw ?? p.x).toFixed(4), on_frontier: onFrontierIds.has(p.r.variant.id), ...extraRows?.(p) }))} />
+          <ChartExport ref={exportControl} name={exportName} frame onEdit={anchor ? openEditor : undefined} getHtml={getHtml} getSvg={() => chart.current?.renderToSVGString()} getRows={() => pts.map((p) => ({ rank: p.r.rank, model: p.r.model.name, effort: p.r.variant.effort, score: +p.r.score.toFixed(2), lab: p.r.model.labId, [xName]: +(p.raw ?? p.x).toFixed(4), on_frontier: onFrontierIds.has(p.r.variant.id), ...extraRows?.(p) }))} />
           {expand.button}
         </div>
-      </div>
+      </div>}
       <div className={`relative ${expand.expanded ? "flex-1 min-h-0" : ""}`}>
-        <div ref={ref} role="img" aria-label={aria} data-points={pts.map((p) => p.r.variant.id).sort().join(",")} tabIndex={0} onContextMenu={onContextMenu} onKeyDown={context.onKeyDown} style={{ width: "100%", height: expand.expanded ? "100%" : Math.round(height * (pal.size?.height ?? 1)), overflow: "hidden", position: "relative", isolation: "isolate" }} />
+        <div ref={ref} role="img" aria-label={aria} data-points={pts.map((p) => p.r.variant.id).sort().join(",")} tabIndex={0} onContextMenu={onContextMenu} onKeyDown={context.onKeyDown} style={{ width: "100%", height: expand.expanded ? "100%" : bare ? height : Math.round(height * (pal.size?.height ?? 1)), overflow: "hidden", position: "relative", isolation: "isolate" }} />
         {fall && !!fallen?.size && <GravityLayer key={fall.run} dots={fall.dots} width={fall.width} height={fall.height} floor={fall.floor} left={fall.left} right={fall.right} stroke={pal.bg} />}
         {!pts.length && <p className="cap absolute inset-0 grid place-items-center">No model in this view has this metric.</p>}
         {focus && <PointCard point={focus} labs={labs} pal={pal} onFrontier={view.frontier && onFrontierIds.has(focus.r.variant.id)} format={formatValue ?? formatX} unit={xUnit} extra={tooltipExtra?.(focus)} onClose={pinned && !hover ? () => setPinned(null) : undefined} />}
       </div>
-      <ChartContextMenu exportControl={exportControl} state={context.menu} close={context.close} name={exportName} points={pts} visibility={visibility} chart={chart} wrap={wrapRef} expanded={expand.expanded} anchor={anchor} />
+      {!bare && <ChartContextMenu exportControl={exportControl} state={context.menu} close={context.close} name={exportName} points={pts} visibility={visibility} chart={chart} wrap={wrapRef} expanded={expand.expanded} anchor={anchor} />}
+      {editor && <ExportEditor name={exportName} initial={editor} base={view} showScale={defaultScale !== "time"} onClose={closeEditor}
+        link={(xe) => chartLinkUrl(window.location.href, anchor ?? exportName, { ...effectiveLinkParams, hidden: visibility.hidden, extra: { ...effectiveLinkParams.extra, xe: encodeEditor(xe) } }, hl ?? undefined).toString()}
+        plot={(v, h, ref) => <ScoreScatter {...props} bare view={v} height={h} chartRef={ref} />} />}
     </div></>
   );
 }

@@ -20,3 +20,32 @@ export function frameSvg(raw: string, title: string, date?: string, pal: { bg: s
     + inner
     + `<text x="${footerX}" y="${H - 16}"${anchor} font-family="JetBrains Mono, Menlo, monospace" font-size="11" fill="${pal.grey}">mypriors.com${date ? ` · ${escapeSvg(date)}` : ""}</text></svg>`;
 }
+
+/**
+ * Crops empty space off the right of a chart SVG. Plots reserve room on the right for labels that may
+ * run past the last mark, so an export often has a blank band there. The svg is measured in the
+ * browser; whatever is drawn (marks, labels, axis titles) keeps `margin` px, and a full-width background rect does not count.
+ */
+export function trimRight(svg: string, margin = 10): string {
+  const host = document.createElement("div");
+  host.style.cssText = "position:fixed;left:-99999px;top:0;visibility:hidden;pointer-events:none";
+  host.innerHTML = svg.replace(/^<\?xml[^>]*>\s*/, "");
+  document.body.appendChild(host);
+  try {
+    const root = host.querySelector("svg"); if (!root) return svg;
+    const w = Number(root.getAttribute("width")), h = Number(root.getAttribute("height"));
+    if (!Number.isFinite(w) || !Number.isFinite(h) || w <= 0) return svg;
+    const left = root.getBoundingClientRect().left;
+    let right = 0;
+    for (const el of root.querySelectorAll("path,text,circle,line,polyline,polygon,ellipse,rect,image")) {
+      if (el.getAttribute("opacity") === "0" || (el.getAttribute("fill") === "none" && (!el.getAttribute("stroke") || el.getAttribute("stroke") === "none"))) continue;
+      const r = el.getBoundingClientRect();
+      if (!r.width && !r.height) continue;
+      if (el.tagName === "rect" && r.width >= w * 0.98) continue;
+      right = Math.max(right, r.right - left);
+    }
+    const next = Math.ceil(right + margin);
+    if (!right || next >= w) return svg;
+    return svg.replace(/<svg[^>]*>/, (open) => open.replace(/width="[\d.]+"/, `width="${next}"`).replace(/viewBox="[^"]*"/, `viewBox="0 0 ${next} ${h}"`));
+  } finally { host.remove(); }
+}

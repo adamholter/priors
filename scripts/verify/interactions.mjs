@@ -215,6 +215,45 @@ try {
     assert.ok(bbox.x > box.x + box.width / 2 && bbox.y > box.y + box.height / 2, "the card sits in the lower right, not beside the mark");
   });
 
+  await check("screenshot editor: brush opens it, ratio resizes live, the link reopens it over the page", async () => {
+    const group = page.locator('[role="group"][aria-label="Export Time per task"]').first();
+    await group.scrollIntoViewIfNeeded();
+    await group.hover();
+    await group.getByRole("button", { name: /Edit .* screenshot/ }).click();
+    const box = page.getByTestId("xe-box");
+    await box.waitFor({ timeout: 10000 });
+    await page.getByRole("button", { name: "1:1", exact: true }).click();
+    await page.waitForTimeout(600);
+    const b = await box.boundingBox();
+    assert.ok(Math.abs(b.width - b.height) < 2, `1:1 makes the plot square, got ${b.width}x${b.height}`);
+    await page.locator("dialog.xe input[type=text]").fill("Link test");
+    await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+    await page.locator(".xe-copy").click();
+    const link = await page.evaluate(() => navigator.clipboard.readText());
+    assert.ok(link.includes("xe=") && link.includes("c=time-per-task"), "the link carries the editor state");
+    const other = await page.context().newPage();
+    await other.goto(link, { waitUntil: "domcontentloaded" });
+    await other.getByTestId("xe-box").waitFor({ timeout: 15000 });
+    assert.equal(await other.locator("dialog.xe input[type=text]").inputValue(), "Link test", "the title survives the link");
+    const ob = await other.getByTestId("xe-box").boundingBox();
+    assert.ok(Math.abs(ob.width - ob.height) < 2, "the crop survives the link");
+    await other.keyboard.press("Escape");
+    await other.waitForTimeout(400);
+    assert.ok(!other.url().includes("xe="), "closing drops the editor from the address");
+    assert.equal(await other.locator('[role="group"][aria-label="Export Time per task"]').count(), 1, "the page is still there");
+    await other.close();
+    await page.keyboard.press("Escape");
+  });
+
+  await check("PNG export crops blank space off the right", async () => {
+    const group = page.locator('[role="group"][aria-label="Export Time per task"]').first();
+    await group.scrollIntoViewIfNeeded();
+    const [dl] = await Promise.all([page.waitForEvent("download"), group.getByRole("button", { name: /Download .* as PNG/ }).click()]);
+    const buf = await (await import("node:fs/promises")).readFile(await dl.path());
+    const width = buf.readUInt32BE(16), plot = await page.locator('[role="img"][aria-label*="time per task" i]').first().boundingBox().catch(() => null);
+    assert.ok(width > 0 && (!plot || width / 3 < plot.width + 64 + 8), `exported width ${width / 3} is no wider than the plot ${plot?.width} plus the frame`);
+  });
+
   await check("moving off a mark removes every crosshair guide", async () => {
     const chart = page.locator('[role="img"][aria-label*="subscription cost"], [role="img"][aria-label*="cost per task"]').first();
     const dashed = () => chart.evaluate((e) => [...e.querySelectorAll("*")].filter((n) => n.getAttribute("stroke-dasharray")).length);
