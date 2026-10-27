@@ -42,6 +42,7 @@ const RELEASES: Record<string, { date: string; url: string }> = {
   "frontiermath-tiers-1-3-v2": { date: "2026-06-12", url: "https://epoch.ai/benchmarks/frontiermath-tiers-1-3-v2" },
   "frontierswe-v1": { date: "2026-04-01", url: "https://www.proximal.ai/blog/frontierswe/" },
   "frontierswe-v2": { date: "2026-08-01", url: "https://www.frontierswe.com/blog/v2" },
+  "frontiercode-2.0-main": { date: "2026-10-27", url: "https://cognition.com/blog/frontier-code-2.0" },
   "frontiercode-1.1-main": { date: "2026-07-07", url: "https://cognition.com/blog/frontier-code-1.1" },
   "posttrainbench-v1.1": { date: "2026-07-28", url: "https://posttrainbench.com/" },
   "vals-programbench-v1": { date: "2026-05-05", url: "https://arxiv.org/abs/2605.03546" },
