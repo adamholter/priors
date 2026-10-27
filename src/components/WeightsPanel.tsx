@@ -136,7 +136,7 @@ export function WeightsPanel({ snapshot, config, onChange }: { snapshot: Snapsho
                   onKeyDown={(e) => { if (e.key === "Escape") { e.preventDefault(); setOpen(false); setQuery(""); search.current?.focus(); } if (e.key === "Enter" && terms.length && matches.length) { e.preventDefault(); addBenchmark(matches[0].id); } }}
                   className="min-w-0 flex-1 bg-transparent text-[13px] outline-none" />
               </div>
-              <div className="flex items-center justify-between mt-2.5"><span className="cap">{terms.length ? `${pinned.length + matches.length} matching` : `${active.length} in your mix · ${listable.length - active.length} more`}</span><button type="button" className="btn-quiet !py-1" onClick={() => { setOpen(false); setQuery(""); }}>Done</button></div>
+              <div className="flex items-center justify-between mt-2.5"><span className="cap">{terms.length ? `${pinned.length + matches.length} matching` : `${active.length} in your mix · ${listable.length - active.length} more`}</span><span className="flex items-center gap-3"><Link className="text-[12.5px] text-indigo hover:underline" href="/benchmarks" transitionTypes={["nav-forward"]}>Explore benchmarks</Link><button type="button" className="btn-quiet !py-1" onClick={() => { setOpen(false); setQuery(""); }}>Done</button></span></div>
             </div>
             <div className="bench-sheet-body grid gap-4">
               {pinned.length > 0 && <BenchGroup label="In your mix">{pinned.map(row)}</BenchGroup>}

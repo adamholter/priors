@@ -496,6 +496,17 @@ try {
     } finally { await c.context().close(); }
   });
 
+  await check("builder: clicking the benchmark search offers a link to explore all benchmarks", async () => {
+    const c = await (await browser.newContext({ viewport: { width: 1360, height: 900 } })).newPage();
+    try {
+      await c.goto(`${BASE}/builder`, { waitUntil: "domcontentloaded" });
+      await c.getByRole("searchbox", { name: "Add a benchmark" }).click({ timeout: 30000 });
+      const link = c.getByLabel("Benchmarks", { exact: true }).getByRole("link", { name: "Explore benchmarks" });
+      await link.waitFor();
+      assert.equal(await link.getAttribute("href"), "/benchmarks");
+    } finally { await c.context().close(); }
+  });
+
   await check("benchmark page: hide a model, switch pricing and scale, cost chart follows", async () => {
     const c = await browser.newPage({ viewport: { width: 1200, height: 1000 } });
     try {
