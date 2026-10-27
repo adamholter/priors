@@ -60,7 +60,7 @@ export function parsePasted(text: string): Ref | undefined {
   return parseRef(t) ?? parseRef(`@${t}`);
 }
 
-const RESERVED = new Set(["builder", "explore", "rank", "compare", "history", "models", "model-finder", "import", "skill", "privacy", "claim", "sign-in", "lab", "api", "og", "3d", "support"]);
+const RESERVED = new Set(["builder", "explore", "rank", "compare", "history", "models", "model-finder", "import", "skill", "cli", "mcp", "install", "privacy", "claim", "sign-in", "lab", "api", "og", "3d", "support"]);
 
 /** The address of a comparison: `/compare?a=&b=`, plus `n` (top list length, 10 when absent) and `same` (same models only). */
 export function compareUrl(a: Ref | undefined, b: Ref | undefined, opts: { top?: number; same?: boolean } = {}): string {

@@ -3,12 +3,12 @@ import { v } from "convex/values";
 
 /** Dev-only: seed or remove a demo profile without Clerk. `npx convex run dev:seed '{"handle":"demo"}'` */
 export const seed = internalMutation({
-  args: { handle: v.string(), indices: v.any() },
-  handler: async (ctx, { handle, indices }) => {
+  args: { handle: v.string(), indices: v.any(), tokenHash: v.optional(v.string()) },
+  handler: async (ctx, { handle, indices, tokenHash }) => {
     const existing = await ctx.db.query("profiles").withIndex("by_handle", (q) => q.eq("handle", handle)).unique();
     if (existing) await ctx.db.delete(existing._id);
     return ctx.db.insert("profiles", {
-      clerkId: `dev-${handle}`, handle, displayName: "Demo Person", bio: "A demo page seeded for QA.",
+      clerkId: `dev-${handle}`, agentTokenHash: tokenHash, handle, displayName: "Demo Person", bio: "A demo page seeded for QA.",
       socials: [{ label: "X", url: "https://x.com" }], indices,
       sections: [
         { id: "r1", kind: "rankings", indexId: indices[0].id },

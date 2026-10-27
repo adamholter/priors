@@ -16,7 +16,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   ]);
   const data = snapshot ? new Date(snapshot.generatedAt) : undefined;
   return [
-    ...[["/", 1], ["/rank", 0.9], ["/builder", 0.9], ["/explore", 0.8], ["/compare", 0.6], ["/model-finder", 0.8], ["/skill", 0.4], ["/import", 0.3], ["/support", 0.2], ["/privacy", 0.2]].map(([path, priority]) => ({ url: `${SITE_URL}${path}`, lastModified: data, changeFrequency: "daily" as const, priority: priority as number })),
+    ...[["/", 1], ["/rank", 0.9], ["/builder", 0.9], ["/explore", 0.8], ["/compare", 0.6], ["/model-finder", 0.8], ["/skill", 0.4], ["/cli", 0.4], ["/import", 0.3], ["/support", 0.2], ["/privacy", 0.2]].map(([path, priority]) => ({ url: `${SITE_URL}${path}`, lastModified: data, changeFrequency: "daily" as const, priority: priority as number })),
     ...pages.map((p) => ({ url: `${SITE_URL}/${p.handle}`, lastModified: new Date(p.updatedAt), changeFrequency: "daily" as const, priority: 0.7 })),
     ...(snapshot?.models ?? []).map((m) => ({ url: `${SITE_URL}/models/${encodeURIComponent(m.id)}`, lastModified: data, changeFrequency: "daily" as const, priority: 0.5 })),
   ];

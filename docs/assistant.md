@@ -50,3 +50,14 @@ A user's own agent edits their page through `POST /api/agent` with `Authorizatio
 - The token is minted on the owner's page under Page settings, Agent access. Only its hash is stored.
 - `public/skill/SKILL.md` is the skill users give their agent, served at `/skill`. It is user-facing: keep it in step with the API.
 - `GET /api/benchmarks` lists benchmark ids and model coverage for agents.
+
+## MCP server, CLI and tool API
+
+One registry, `src/mcp/tools.ts`, serves three front doors: the hosted MCP server (`POST /mcp`, `src/app/mcp/route.ts`, hand-rolled Streamable HTTP in stateless JSON mode, `src/mcp/protocol.ts`), a plain HTTP API (`POST /api/tools/<name>`, `GET /api/tools` for the catalog), and the CLI (`public/cli/priors.mjs`, one dependency-free file that calls the HTTP API and also runs as a stdio MCP server with `priors mcp`, which forwards each JSON-RPC line to `/mcp`). The docs page is `/cli` (`src/app/cli/page.tsx`); its tool list is generated from the registry.
+
+- Read tools are public. Tools marked `write` need `Authorization: Bearer pri_...` and go through `profiles.agentApply`, so the token, validators and `storableIndex()` rules are the agent API's. `upsert_index`, `upsert_section` and the other page tools read `whoami` and write the whole field back, so they never touch what they were not asked to change.
+- Analysis tools (`get_mix`, `explain_model`, `compare_models`, `find_benchmarks`, `search_benchmarks`, `try_mix`, `solve_edit`, `fit_ranking`, `query_data`, `make_chart`) are the in-app assistant's own tools (`runTool`), run over whatever index the call names, so answers match the site. They compute and never save.
+- `index` (see `src/mcp/index-ref.ts`) is a `@handle` or `@handle/index-id` (that page's imports are merged in), a mypriors.com link, an `i=` value, or an IndexConfig object merged onto the default.
+- New tool: add it to `readTools` or `writeTools`, with a schema; the docs page, `/api/tools`, `tools/list` and `priors tools` pick it up. `src/mcp/mcp.test.ts` checks the registry and `scripts/cli.test.ts` the CLI.
+- After editing `public/cli/priors.mjs`, bump `VERSION` if behavior changed and run `node scripts/build-cli.mjs`: it repacks `public/cli/priors-cli.tgz` (the `npm i -g` install), and a test fails while the two differ.
+- Not exposed: the assistant chat (needs a Clerk session), claiming a handle, image uploads, deleting a page, and removing one imported benchmark (re-importing an id replaces it). The last needs a new `agentApply` action and a Convex deploy.
