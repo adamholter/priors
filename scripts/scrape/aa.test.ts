@@ -85,6 +85,14 @@ describe("Artificial Analysis v4.3", () => {
     expect(r.modelMeta?.find((m) => m.modelLabel === "Future Bench Model")?.identity?.modelId).toBe("aa-future-bench-model");
   });
 
+  it("reads Code2Video-AA as an Elo with its 95% interval", async () => {
+    const r = await scrape([{ ...astra, code2videoElo: 1535.57, code2videoBreakdown: { elo: 1535.57, lower95ci: 1510.04, upper95ci: 1561.11 } }] as unknown as typeof astra[]);
+    const row = r.rows.find((o) => o.benchmarkId === "aa-code2video-aa");
+    expect(row?.value).toBe(1535.57);
+    expect(row?.ci).toEqual([1510.04, 1561.11]);
+    expect(r.discoveries?.some((d) => d.includes("code2video"))).toBeFalsy();
+  });
+
   it("announces unread evaluation pages and data fields without failing, and fills fields only a page carries", async () => {
     const inline = `self.__next_f.push([1,${JSON.stringify(`"initialModels":[${JSON.stringify({ id: astra.id, aa3dElo: 1165.2 })}]`)}])`;
     const future = { ...astra, futureBenchScore: 0.42 };
