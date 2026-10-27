@@ -3,7 +3,7 @@ import Link from "next/link";
 import { useCallback, useMemo, useState } from "react";
 import type { Benchmark, Snapshot } from "@/data/types";
 import { chartVariantMode, computeIndex, DEFAULT_EFFORTS, EFFORT_CHOICES, filterEfforts, rankingRows as rankingRowsOf, type IndexConfig, type RankedVariant } from "@/engine";
-import { costDescription, hasSubscriptionPrices } from "@/data/task-metrics";
+import { hasSubscriptionPrices } from "@/data/task-metrics";
 import { effectiveBasis, type CostBasis } from "@/data/subscription";
 import { subscriptionShare } from "@/engine";
 import { benchmarkIndex, benchmarkView, hasOwnCost } from "@/lib/benchmark-page";
@@ -74,7 +74,7 @@ export function BenchmarkPage({ snapshot, benchmarkId, models }: { snapshot: Sna
           </section>
 
           {hasCost && <section className="chart-panel">
-            <ParetoChart anchor="cost" basis={basis} description={costDescription(config.costSource ?? "aa", basis).replace(/^[^·]+/, `${b.name} · measured cost per task`)} ranked={metricRanked} mode={paretoMode} labs={snapshot.labs} height={440} view={paretoView} onView={setParetoView}
+            <ParetoChart anchor="cost" basis={basis} description={`${b.name} · measured cost per task${basis === "subscription" ? " · subscription-priced where plan data exists (Real API Pricing, full allowance used)" : ""}`} ranked={metricRanked} mode={paretoMode} labs={snapshot.labs} height={440} view={paretoView} onView={setParetoView}
               title={title(basis === "subscription" ? "Score vs subscription cost per task" : "Score vs cost per task")}
               actions={() => <ChartSettings anchor="cost" defaultScale="log" label="Pareto" mode={paretoMode} onChange={(paretoVariants) => patch({ paretoVariants })} {...effortProps}
                 costBasis={plans ? { value: effectiveBasis(config.costBasis), onChange: (next: CostBasis) => patch({ costBasis: next === "subscription" ? undefined : next }) } : undefined} />} />
