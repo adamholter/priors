@@ -1,3 +1,4 @@
+import { INDEX_SCORE_AXIS, scoreRange, type ScoreAxis } from "./score-axis";
 import type { EChartsOption } from "echarts";
 import type { Lab } from "../../data/types";
 import type { RankedVariant } from "../../engine";
@@ -103,7 +104,9 @@ function quadrantArea(pts: ScatterPoint[], better: "lower" | "higher", scale: "l
   return [{ xAxis: better === "lower" ? edge[0] : mx, yAxis: my }, { xAxis: better === "lower" ? mx : edge[1], yAxis: 1e9 }] as [{ xAxis: number | string; yAxis: number | string }, { xAxis: number | string; yAxis: number | string }];
 }
 
-export function scatterOption({ pts, labs, better, xName, xShort, xUnit = "", scale = "linear", formatX, formatValue, view, pal, narrow, hasTitle = false, tooltipExtra, width, height, dots, highlight, fallen, onLabel }: {
+export function scatterOption({ pts, labs, better, xName, xShort, xUnit = "", scale = "linear", formatX, formatValue, view, pal, narrow, hasTitle = false, tooltipExtra, width, height, dots, highlight, fallen, onLabel, axis = INDEX_SCORE_AXIS }: {
+  /** The vertical axis: index score unless a benchmark page plots its own published value. */
+  axis?: ScoreAxis;
   pts: ScatterPoint[]; labs: Lab[]; better: "lower" | "higher"; xName: string; xShort?: string; xUnit?: string;
   scale?: "linear" | "log" | "time"; formatX: (x: number) => string; formatValue?: (x: number) => string;
   view: ScatterView; pal: ChartPalette; narrow: boolean; hasTitle?: boolean; tooltipExtra?: (p: ScatterPoint) => string;
@@ -127,7 +130,7 @@ export function scatterOption({ pts, labs, better, xName, xShort, xUnit = "", sc
   for (const p of pts) (byModel.get(p.r.model.id) ?? byModel.set(p.r.model.id, []).get(p.r.model.id)!).push(p);
   const links = view.links && !fallen?.size ? [...byModel.values()].filter((v) => v.length > 1).map((v) => [...v].sort((a, b) => a.x - b.x)) : [];
   const ys = pts.map((p) => p.r.score);
-  const yMin = Math.max(0, Math.floor((Math.min(...ys, 100) - 6) / 5) * 5), yMax = Math.min(100, Math.ceil((Math.max(...ys, 0) + 4) / 5) * 5);
+  const [yMin, yMax] = scoreRange(ys, axis.fit);
   // ECharts resolves equal-sized overlapping labels in data order. Give the chosen labels their
   // selection priority so a repeat effort cannot hide a model's only label.
   const priority = new Map([...labeled].map((id, i) => [id, i]));
@@ -179,7 +182,7 @@ export function scatterOption({ pts, labs, better, xName, xShort, xUnit = "", sc
       axisLabel: scale === "time" ? { hideOverlap: true, showMinLabel: false, showMaxLabel: false } : { formatter: (v: number) => formatX(v), hideOverlap: true, showMinLabel: scale !== "log", showMaxLabel: scale !== "log" },
       ...(scale === "log" ? { min: (e: { min: number }) => e.min / 1.5, max: (e: { max: number }) => e.max * 1.8 } : {}),
     } as EChartsOption["xAxis"],
-    yAxis: { type: "value", name: "Index score", nameTextStyle: { color: pal.grey, fontSize: 11 * t, align: "left", padding: [0, 0, 0, (narrow ? -22 : -30) * t] }, min: yMin, max: yMax },
+    yAxis: { type: "value", name: axis.name, ...(axis.fit ? { axisLabel: { formatter: (v: number) => axis.format(v) } } : {}), nameTextStyle: { color: pal.grey, fontSize: 11 * t, align: "left", padding: [0, 0, 0, (narrow ? -22 : -30) * t] }, min: yMin, max: yMax },
     // The point's details are a card in the chart's corner (ScoreScatter), so nothing floats beside the mark and covers its neighbours.
     tooltip: { show: false },
     series,

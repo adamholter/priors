@@ -29,4 +29,25 @@ describe("benchmark pages", async () => {
     expect(adjusted.length).toBeGreaterThan(0);
     for (const r of adjusted) expect(r.costUsd).toBeCloseTo(raw.get(r.variant.id)! * r.costPlan!.ratio, 6);
   });
+
+  it("shows only what the benchmark published: no older-version fallback, no estimates", () => {
+    const fb = snap.benchmarks.find((b) => b.versionPolicy?.kind === "fallback");
+    expect(fb).toBeDefined();
+    const small = benchmarkSnapshot(snap, fb!.id);
+    const r = computeIndex(small, benchmarkIndex(small, fb!.id), benchmarkView(small, fb!.id));
+    const own = new Set(snap.observations.filter((o) => o.benchmarkId === fb!.id && !o.details?.priorsEstimate).map((o) => o.variantId));
+    expect(r.ranked.length).toBeGreaterThan(0);
+    for (const x of r.ranked) {
+      expect(own.has(x.variant.id)).toBe(true);
+      expect(x.values.every((v) => !v.estimated)).toBe(true);
+    }
+    expect(small.observations.every((o) => o.benchmarkId !== fb!.id || !o.details?.priorsEstimate)).toBe(true);
+  });
+
+  it("keeps the benchmark's series and full details, which the shared client snapshot drops", () => {
+    const withSeries = { ...snap, series: [{ benchmarkId: id, variantId: snap.observations.find((o) => o.benchmarkId === id)!.variantId, x: [1, 2], y: [3, 4], xLabel: "Day", yLabel: "Balance", sourceUrl: "" }] };
+    expect(benchmarkSnapshot(withSeries, id).series).toHaveLength(1);
+    const detailed = snap.observations.find((o) => o.benchmarkId === "vals-mmlu-pro" && o.details);
+    if (detailed) expect(benchmarkSnapshot(snap, "vals-mmlu-pro").observations.find((o) => o.variantId === detailed.variantId && o.benchmarkId === "vals-mmlu-pro")?.details).toEqual(detailed.details);
+  });
 });

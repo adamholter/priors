@@ -4,6 +4,7 @@ import { loadSnapshot } from "@/data/load";
 import { BenchmarkPage } from "@/components/benchmark/BenchmarkPage";
 import { benchmarkIndex, benchmarkSnapshot, benchmarkView } from "@/lib/benchmark-page";
 import { benchmarkPath, resolveBenchmark } from "@/lib/benchmark-slug";
+import { benchmarkRelatives } from "@/lib/benchmark-metrics";
 import { isPreviewBot, PreviewPage } from "@/lib/link-preview";
 import { pageMeta } from "@/lib/site-meta";
 import { computeIndex } from "@/engine";
@@ -34,5 +35,5 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
   if (await isPreviewBot()) return <PreviewPage title={`${b.name} · leaderboard`} description={describe(b.name, b.description)} href={benchmarkPath(b.id)} />;
   const small = benchmarkSnapshot(snapshot, b.id);
   const count = new Set(computeIndex(small, benchmarkIndex(small, b.id), benchmarkView(small, b.id)).ranked.map((r) => r.model.id)).size;
-  return <BenchmarkPage snapshot={small} benchmarkId={b.id} models={count} />;
+  return <BenchmarkPage snapshot={small} benchmarkId={b.id} models={count} relatives={benchmarkRelatives(snapshot, b)} />;
 }

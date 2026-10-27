@@ -77,7 +77,7 @@ function UsageGallery({ snapshot, labs, scatter }: { snapshot: Snapshot; labs: L
 }
 
 /** One gallery chart with its own effort mode and display settings; shared index filters pass through. */
-function GalleryChart({ id, anchor, title, chart, speed, ranked, defaultMode, labs, settings, dataSource, owner, onOwner, inputs }: { inputs: FormulaInputs; id: string; anchor: string; title: string; chart?: MetricChart; speed?: boolean; ranked: RankedVariant[]; defaultMode: "all" | "best"; labs: Lab[]; settings?: SharedSettings; dataSource?: React.ComponentProps<typeof ChartSettings>["dataSource"]; owner?: OwnerView; onOwner?: (view: OwnerView) => void }) {
+export function GalleryChart({ id, anchor, title, chart, speed, ranked, defaultMode, labs, settings, dataSource, owner, onOwner, inputs }: { inputs: FormulaInputs; id: string; anchor: string; title: string; chart?: MetricChart; speed?: boolean; ranked: RankedVariant[]; defaultMode: "all" | "best"; labs: Lab[]; settings?: SharedSettings; dataSource?: React.ComponentProps<typeof ChartSettings>["dataSource"]; owner?: OwnerView; onOwner?: (view: OwnerView) => void }) {
   const [modeState, setModeState] = useState<"all" | "best">(owner?.mode ?? defaultMode);
   const mode = onOwner ? owner?.mode ?? defaultMode : modeState;
   const base = speed ? speedChart : chart;
@@ -141,7 +141,7 @@ function GalleryChart({ id, anchor, title, chart, speed, ranked, defaultMode, la
   return <MetricScatter pts={pts} labs={labs} better={metric.better} xLabel={metric.xLabel} xName={metric.xName} scale={metric.scale} formatX={metric.formatX} formatValue={metric.formatValue} aria={metric.aria} view={view} actions={actions} exportName={title} anchor={anchor} linkParams={linkParams} />;
 }
 
-function Panel({ anchor, title, desc, defaultOpen, dim, tools, children }: { anchor: string; title: string; desc: string; defaultOpen?: boolean; dim?: boolean; tools?: React.ReactNode; children: React.ReactNode }) {
+export function Panel({ anchor, title, desc, defaultOpen, dim, tools, children }: { anchor: string; title: string; desc: string; defaultOpen?: boolean; dim?: boolean; tools?: React.ReactNode; children: React.ReactNode }) {
   const [open, setOpen] = useState(!!defaultOpen);
   const [mounted, setMounted] = useState(!!defaultOpen);
   // A deep link to a collapsed panel opens it.

@@ -9,7 +9,7 @@ import { ChartLink } from "./chart/ChartLink";
 import { RankingColumns } from "./chart/RankingColumns";
 
 /** Dense horizontal bars, color by lab, rows slide to their new position when the order changes. */
-type RankingsProps = { ranked: RankedVariant[]; labs: Lab[]; limit?: number; showEffort?: boolean; onSelect?: (r: RankedVariant | null) => void; selected?: string | null; title?: ReactNode; actions?: ReactNode; anchor?: string };
+type RankingsProps = { /** The number beside each bar; the index score by default. A benchmark page shows its published value. */ format?: (r: RankedVariant) => string; ranked: RankedVariant[]; labs: Lab[]; limit?: number; showEffort?: boolean; onSelect?: (r: RankedVariant | null) => void; selected?: string | null; title?: ReactNode; actions?: ReactNode; anchor?: string };
 
 /** Analysis-style themes draw the leaderboard as vertical columns; every other theme keeps the dense rows. */
 export function Rankings(props: RankingsProps) {
@@ -28,7 +28,7 @@ function RankingsColumns({ ranked, labs, limit = 30, onSelect, selected, showEff
     {ranked.length > cap && <button className="cap mt-3 hover:text-ink" onClick={() => setExpanded(!expanded)}>{expanded ? "Show fewer" : `Show all ${ranked.length} ${showEffort ? "variants" : "models"}`}</button>}</>;
 }
 
-function RankingsRows({ ranked, labs, limit = 30, onSelect, selected, showEffort = true, title, actions, anchor }: RankingsProps) {
+function RankingsRows({ ranked, labs, limit = 30, onSelect, selected, showEffort = true, title, actions, anchor, format }: RankingsProps) {
   const pal = useChartPalette();
   const color = new Map(labs.map((l) => [l.id, markColor(l.color, pal, l.id)]));
   const [expanded, setExpanded] = useState(false);
@@ -52,11 +52,11 @@ function RankingsRows({ ranked, labs, limit = 30, onSelect, selected, showEffort
       {rows.map((r, index) => (
         <button type="button" key={showEffort ? r.variant.id : r.model.id} title={r.variant.sourceModel?.name ?? variantLabel(r)} aria-label={`${r.variant.sourceModel?.name ?? variantLabel(r)}, ${r.score.toFixed(1)}`} data-k={r.variant.id} data-mixed={r.mixedEfforts || undefined} onClick={() => onSelect?.(selected === r.variant.id ? null : r)}
           style={{ transform: `translateY(${index * pitch}px)`, ...(pitch !== 30 ? { height: pitch - 4 } : {}) }}
-          className={`row-move absolute top-0 left-0 w-full grid grid-cols-[28px_minmax(0,140px)_minmax(0,1fr)_48px] sm:grid-cols-[28px_minmax(120px,210px)_minmax(0,1fr)_48px] items-center gap-2.5 h-[26px] text-left text-[12.5px] rounded-sm px-1 focus-visible:outline-offset-[-2px] ${selected === r.variant.id ? "bg-white" : "hover:bg-white/60"}`}>
+          className={`row-move absolute top-0 left-0 w-full grid ${format ? "grid-cols-[28px_minmax(0,140px)_minmax(0,1fr)_72px] sm:grid-cols-[28px_minmax(120px,210px)_minmax(0,1fr)_72px]" : "grid-cols-[28px_minmax(0,140px)_minmax(0,1fr)_48px] sm:grid-cols-[28px_minmax(120px,210px)_minmax(0,1fr)_48px]"} items-center gap-2.5 h-[26px] text-left text-[12.5px] rounded-sm px-1 focus-visible:outline-offset-[-2px] ${selected === r.variant.id ? "bg-white" : "hover:bg-white/60"}`}>
           <span className="cap text-right">{r.rank}</span>
           <span className="truncate">{r.model.name}{showEffort && r.variant.effort !== "default" && <em className="not-italic cap ml-1.5">{r.variant.effort}</em>}</span>
-          <span className="h-[12px] rounded-[2px] bg-hair-2 overflow-hidden"><i className="bar-fill block h-full rounded-[2px]" style={{ width: `${(r.score / max) * 100}%`, background: color.get(r.model.labId) ?? "#A3A39B" }} /></span>
-          <span className="num text-right">{r.score.toFixed(1)}</span>
+          <span className="h-[12px] rounded-[2px] bg-hair-2 overflow-hidden"><i className="bar-fill block h-full rounded-[2px]" style={{ width: `${((r.score / max) * 100).toFixed(2)}%`, background: color.get(r.model.labId) ?? "#A3A39B" }} /></span>
+          <span className="num text-right whitespace-nowrap">{format ? format(r) : r.score.toFixed(1)}</span>
         </button>
       ))}
       {rows[0] && <span className="sr-only">{variantLabel(rows[0])}</span>}

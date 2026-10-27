@@ -17,6 +17,8 @@ export function slimObservation(o: Observation): Observation {
 export function clientSnapshot(snapshot: Snapshot): Snapshot {
   return {
     ...snapshot,
+    // Long per-model time series (Vending-Bench balances) are only drawn on the benchmark's own page.
+    series: [],
     observations: snapshot.observations.map((full): Observation => {
       const observation = slimObservation(full);
       const details = observation.details;

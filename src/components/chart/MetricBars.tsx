@@ -1,4 +1,5 @@
 "use client";
+import { useScoreAxis } from "./score-axis";
 import { ChartExport, type ChartExportHandle } from "./ChartExport";
 import type { EChartsOption } from "echarts";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
@@ -30,6 +31,7 @@ export function MetricBars({ pts: allPoints, labs, better, xName, formatValue, h
   pts: ScatterPoint[]; labs: Lab[]; better: "lower" | "higher"; xName: string; formatValue: (x: number) => string;
   labelScale?: number; height?: number; aria: string; title?: ReactNode; actions?: ReactNode; limit?: number; exportName: string; anchor?: string; linkParams?: ChartLinkParams;
 }) {
+  const axis = useScoreAxis();
   const wrap = useRef<HTMLDivElement>(null);
   const fontScale = normalizeLabelScale(labelScale);
   const effectiveLinkParams = { ...linkParams, ls: Math.round(fontScale * 100) };
@@ -46,7 +48,7 @@ export function MetricBars({ pts: allPoints, labs, better, xName, formatValue, h
   const hl = useHighlight();
   const highlight = hl?.items;
   const bars = useMemo(() => { const ordered = selectBars(pts, better, cap, highlight); return bestFirst && better === "higher" ? ordered.reverse() : ordered; }, [pts, better, cap, highlight, bestFirst]);
-  const option = useMemo<EChartsOption>(() => barsOption({ bars, labs, xName, formatValue, pal, narrow, highlight, labelScale: fontScale, zoomAxis, width, height: Math.round(height * (pal.size?.height ?? 1)) }), [bars, labs, xName, formatValue, narrow, pal, highlight, fontScale, width, height, zoomAxis]);
+  const option = useMemo<EChartsOption>(() => barsOption({ axis, bars, labs, xName, formatValue, pal, narrow, highlight, labelScale: fontScale, zoomAxis, width, height: Math.round(height * (pal.size?.height ?? 1)) }), [axis, bars, labs, xName, formatValue, narrow, pal, highlight, fontScale, width, height, zoomAxis]);
   const pick = useRef<(p: ScatterPoint) => void>(() => {});
   useEffect(() => { pick.current = (p) => { if (hl) hl.set(togglePoint(hl.items, pts, p)); }; }, [hl, pts]);
   const { ref, chart } = useEChart(option, [option], (c) => {
@@ -68,7 +70,7 @@ export function MetricBars({ pts: allPoints, labs, better, xName, formatValue, h
           n: chartLabel(p.r), v: value(p), c, d, dc: dimColor(c, LIGHT_PALETTE), dd: dimColor(d, DARK_PALETTE),
           m: p.r.model.id, mn: p.r.model.name, id: p.r.variant.id, e: p.r.variant.effort,
           h: focusedModels.has(p.r.model.id), a: featured.has(p.r.variant.id),
-          t: `<b>${chartLabel(p.r)}</b><div style="font-family:'JetBrains Mono',monospace;margin-top:4px">${p.free ? "free" : compact(formatValue)(value(p))} · index ${p.r.score.toFixed(1)}</div>`,
+          t: `<b>${chartLabel(p.r)}</b><div style="font-family:'JetBrains Mono',monospace;margin-top:4px">${p.free ? "free" : compact(formatValue)(value(p))} · ${axis.fit ? "" : "index "}${axis.format(p.r.score)}</div>`,
         };
       }),
     });

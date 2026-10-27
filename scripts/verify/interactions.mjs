@@ -517,6 +517,21 @@ try {
     } finally { await c.close(); }
   });
 
+  await check("benchmark page: published extras (agent steps, breakdown), version menu, no hydration errors", async () => {
+    const c = await browser.newPage({ viewport: { width: 1200, height: 1000 } });
+    const consoleErrors = [];
+    c.on("console", (m) => { if (m.type() === "error" && /hydrat/i.test(m.text())) consoleErrors.push(m.text().slice(0, 160)); });
+    try {
+      await c.goto(`${BASE}/benchmarks/deepswe-1.1`, { waitUntil: "networkidle" });
+      assert.ok(await c.getByText("Agent steps per task", { exact: true }).first().isVisible(), "DeepSWE's agent steps get their own chart");
+      const versions = c.locator("label", { hasText: "Version" }).locator("select");
+      assert.ok((await versions.locator("option").allInnerTexts()).some((t) => /v1$|DeepSWE v1\b/.test(t)), "the version menu lists the older version");
+      await c.goto(`${BASE}/benchmarks/vals-mmlu-pro`, { waitUntil: "networkidle" });
+      assert.ok(await c.getByRole("heading", { name: "Breakdown" }).isVisible(), "category splits show as a breakdown");
+      assert.deepEqual(consoleErrors, [], "no hydration mismatch");
+    } finally { await c.close(); }
+  });
+
   assert.deepEqual(errors, [], "no page errors");
   console.log(`PASS interactions: ${checks.length} checks\n  ${checks.join("\n  ")}`);
 } finally {

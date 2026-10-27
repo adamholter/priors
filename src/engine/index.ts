@@ -194,7 +194,7 @@ function indexObservations(snapshot: Snapshot): ObsIndex {
   return idx;
 }
 
-function inferredObservation(o: Observation) {
+export function inferredObservation(o: Observation) {
   return Boolean(o.details?.priorsEstimate || (o.details?.realIndex as { effortAttribution?: string } | undefined)?.effortAttribution === "assumed-top");
 }
 

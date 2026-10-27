@@ -1,3 +1,4 @@
+import { INDEX_SCORE_AXIS, type ScoreAxis } from "./score-axis";
 import type { EChartsOption } from "echarts";
 import type { Lab } from "../../data/types";
 import { CONTAIN_AXIS_LABELS, dimColor, markColor, markSize, textSize, type ChartPalette } from "./theme";
@@ -104,7 +105,8 @@ export function barLabelFit(texts: string[], fontSize: number, slots: number, pl
   return widest + 4 <= bar ? "inside" : widest <= slot ? "above" : "vertical";
 }
 
-export function barsOption({ bars, labs, xName, formatValue, pal, narrow, highlight, labelScale, width, height = 400, zoomAxis }: {
+export function barsOption({ bars, labs, xName, formatValue, pal, narrow, highlight, labelScale, width, height = 400, zoomAxis, axis = INDEX_SCORE_AXIS }: {
+  axis?: ScoreAxis;
   bars: ScatterPoint[]; labs: Lab[]; xName: string; formatValue: (x: number) => string; pal: ChartPalette; narrow: boolean; highlight?: string[]; labelScale?: number;
   /** Chart size in px; inside labels need it to know whether they fit. Unknown width means they sit above the bars. */
   width?: number; height?: number;
@@ -129,7 +131,7 @@ export function barsOption({ bars, labs, xName, formatValue, pal, narrow, highli
       { type: "category", data: layout.modelLabels.map((label, i) => { const p = layout.entries[i]?.point, featuredModel = p && bars.some((bar) => bar.r.model.id === p.r.model.id && featured.has(bar.r.variant.id)); return on && label && p && (hl.has(p.r.model.id) || featuredModel) ? { value: label, textStyle: { color: pal.ink, fontWeight: 600 } } : label; }), position: "bottom", offset: 32 * t, axisLabel: { rotate: 0, interval: 0, hideOverlap: true, margin: 4, fontSize: 9.5 * fontScale, color: pal.ink, fontWeight: 500, fontFamily: pal.fonts?.sans ?? "var(--font-inter), Inter, sans-serif", width: 100 * fontScale, overflow: "truncate" }, axisTick: { show: false }, axisLine: { show: false } },
     ],
     yAxis: { type: "value", ...(yMin !== undefined ? { min: yMin } : {}), name: xName, nameTextStyle: { color: pal.grey, fontSize: 11 * t, align: "left", padding: [0, 0, 0, -30 * t] }, axisLabel: { formatter: (v: number) => compact(formatValue)(v) } },
-    tooltip: { trigger: "item", confine: true, formatter: (p: unknown) => { const d = (p as { data?: { point?: ScatterPoint } }).data?.point; return d ? `<div style="font-weight:600">${chartLabel(d.r)}</div><div style="font-family:var(--font-jetbrains);margin-top:4px">${d.free ? "free" : formatValue(value(d))} · index ${d.r.score.toFixed(1)}</div>` : ""; } },
+    tooltip: { trigger: "item", confine: true, formatter: (p: unknown) => { const d = (p as { data?: { point?: ScatterPoint } }).data?.point; return d ? `<div style="font-weight:600">${chartLabel(d.r)}</div><div style="font-family:var(--font-jetbrains);margin-top:4px">${d.free ? "free" : formatValue(value(d))} · ${axis.fit ? "" : "index "}${axis.format(d.r.score)}</div>` : ""; } },
     series: [{
       type: "bar", id: "bars", barMaxWidth: maxBar, barCategoryGap: "28%",
       data: layout.entries.map((entry) => { if (!entry) return { value: null, itemStyle: { color: "transparent" } }; const p = entry.point, c = markColor(color.get(p.r.model.labId), pal, p.r.model.labId), dim = on && !hl.has(p.r.model.id); return { value: value(p), point: p, extra: p, itemStyle: { color: dim ? dimColor(c, pal) : c, opacity: dim ? 0.6 : 1, borderRadius: [pal.style?.barRadius ?? 2, pal.style?.barRadius ?? 2, 0, 0] }, label: dim ? { ...above, color: pal.grey } : inside && short(p) ? above : on && featured.has(p.r.variant.id) ? { fontWeight: 700 } : undefined }; }),

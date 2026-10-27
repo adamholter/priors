@@ -1,4 +1,5 @@
 "use client";
+import { useScoreAxis } from "./score-axis";
 import { ChartExport, type ExportRow, type ChartExportHandle } from "./ChartExport";
 import { decodeEditor, encodeEditor, type EditorState } from "@/lib/export-editor";
 import { chartLinkUrl } from "@/lib/highlight-link";
@@ -81,11 +82,12 @@ function escapeHtml(s: string) { return s.replace(/[&<>"']/g, (c) => ({ "&": "&a
  */
 /** The selected point's details, pinned to the chart's lower right so it never covers the marks it describes. */
 function PointCard({ point, labs, pal, onFrontier, format, unit, extra, onClose }: { point: ScatterPoint; labs: Lab[]; pal: ChartPalette; onFrontier: boolean; format: (v: number) => string; unit: string; extra?: string; onClose?: () => void }) {
+  const axis = useScoreAxis();
   const lab = labs.find((l) => l.id === point.r.model.labId)?.name ?? point.r.model.labId;
   return <div role="status" aria-label="Selected model" className="absolute right-3 bottom-12 z-10 w-[min(250px,calc(100%-24px))] rounded-[4px] border px-3 py-2.5 text-[12px] leading-[1.45] pointer-events-none" style={{ background: pal.tipBg, borderColor: pal.tipBorder, color: pal.ink }}>
     <div className="flex items-start justify-between gap-2"><div className="font-semibold">{point.r.variant.sourceModel?.name ?? chartLabel(point.r)}</div>{onClose && <button type="button" aria-label="Close selection" className="pointer-events-auto -mr-1 -mt-0.5 p-0.5" style={{ color: pal.grey }} onClick={onClose}><IconX size={13} aria-hidden="true" /></button>}</div>
     <div style={{ color: pal.grey, fontSize: 11 }}>{lab}{onFrontier ? " · on the frontier" : ""}</div>
-    <div className="mt-1.5 font-mono">{point.r.score.toFixed(1)} · {format(point.raw ?? point.x)}{unit ? ` ${unit}` : ""}{extra}</div>
+    <div className="mt-1.5 font-mono">{axis.format(point.r.score)} · {format(point.raw ?? point.x)}{unit ? ` ${unit}` : ""}{extra}</div>
   </div>;
 }
 
@@ -98,6 +100,7 @@ type ScatterProps = {
 };
 
 export function ScoreScatter(props: ScatterProps) {
+  const axis = useScoreAxis();
   const { pts: allPoints, labs, better, xName: baseXName, xShort: baseXShort, xUnit = "", scale: defaultScale = "linear", formatX, formatValue, height = 420, aria, title, actions, view, exportName, extraRows, tooltipExtra, anchor, linkParams, bare, chartRef } = props;
   const scale = defaultScale === "time" ? "time" : view.scale ?? defaultScale;
   const xName = scale === "linear" ? baseXName.replace(/, log| \(log\)/g, "") : baseXName;
@@ -142,8 +145,8 @@ export function ScoreScatter(props: ScatterProps) {
   const onLabel = useCallback((id: string, at: { x: number; y: number; align: "left" | "right" } | null) => { if (at) labelAt.current.set(id, at); else labelAt.current.delete(id); }, []);
   // `dots` only reads the chart handle later, when ECharts runs the label layout (never while this renders).
   // eslint-disable-next-line react-hooks/refs
-  const option = useMemo<EChartsOption>(() => scatterOption({ pts, labs, better, xName, xShort, xUnit, scale, formatX, formatValue, view, pal, narrow, hasTitle: !!title, tooltipExtra, width: plotWidth, height: plotHeight, dots, onLabel, highlight, fallen }),
-    [pts, labs, better, view, narrow, xName, xShort, xUnit, scale, formatX, formatValue, tooltipExtra, title, pal, plotWidth, plotHeight, dots, onLabel, highlight, fallen]);
+  const option = useMemo<EChartsOption>(() => scatterOption({ axis, pts, labs, better, xName, xShort, xUnit, scale, formatX, formatValue, view, pal, narrow, hasTitle: !!title, tooltipExtra, width: plotWidth, height: plotHeight, dots, onLabel, highlight, fallen }),
+    [axis, pts, labs, better, view, narrow, xName, xShort, xUnit, scale, formatX, formatValue, tooltipExtra, title, pal, plotWidth, plotHeight, dots, onLabel, highlight, fallen]);
   const [hover, setHover] = useState<ScatterPoint | null>(null), [pinned, setPinned] = useState<ScatterPoint | null>(null);
   // Clicking a mark toggles that exact effort's highlight (several efforts per model are allowed).
   const pick = useRef<(p: ScatterPoint) => void>(() => {});
@@ -225,7 +228,7 @@ export function ScoreScatter(props: ScatterProps) {
       const placed = guides.map((p) => ({ p, px: c.convertToPixel({ seriesId: "marks" }, [p.x, p.r.score]) as unknown as number[] | undefined })).filter((g): g is { p: ScatterPoint; px: number[] } => !!g.px && Number.isFinite(g.px[0]) && Number.isFinite(g.px[1]));
       const W = c.getWidth();
       const xs = placed.map(({ p, px }) => { const text = formatX(p.x); return { text, at: px[0], size: text.length * 6.6 + 10 }; });
-      const ys = placed.map(({ p, px }) => ({ text: p.r.score.toFixed(1), at: px[1], size: 16 }));
+      const ys = placed.map(({ p, px }) => ({ text: axis.format(p.r.score), at: px[1], size: 16 }));
       const spread = (items: { at: number; size: number }[], lo: number, hi: number) => {
         const order = items.map((it, i) => i).sort((i, j) => items[i].at - items[j].at), pos = items.map((it) => it.at);
         for (let k = 0; k < order.length; k++) { const i = order[k], prev = order[k - 1]; pos[i] = Math.max(pos[i], lo + items[i].size / 2, prev == null ? -Infinity : pos[prev] + (items[prev].size + items[i].size) / 2 + 3); }
@@ -261,7 +264,7 @@ export function ScoreScatter(props: ScatterProps) {
     const scheduleDraw = () => { cancelAnimationFrame(frame); frame = requestAnimationFrame(draw); };
     c.on("finished", scheduleDraw);
     return () => { cancelAnimationFrame(frame); c.off("finished", scheduleDraw); };
-  }, [guides, labs, pal, formatX, chart, option, pts, fallen]);
+  }, [axis, guides, labs, pal, formatX, chart, option, pts, fallen]);
   // Where each dropped mark starts, measured from the laid-out chart. The least Pareto-optimal
   // (furthest below the frontier at its position) lets go first.
   const [fall, setFall] = useState<{ dots: FallingDot[]; width: number; height: number; floor: number; left: number; right: number; run: number } | null>(null);
@@ -299,7 +302,7 @@ export function ScoreScatter(props: ScatterProps) {
           m: p.r.model.id, id: p.r.variant.id, e: p.r.variant.effort, h: focusedModels.has(p.r.model.id), a: featured.has(p.r.variant.id), g: guides.has(p.r.variant.id),
           gx: guides.has(p.r.variant.id) ? formatX(p.x) : undefined,
           n: chartLabel(p.r), s: labeled.has(p.r.variant.id), f: view.frontier && onFrontierIds.has(p.r.variant.id),
-          t: `<b>${escapeHtml(p.r.variant.sourceModel?.name ?? chartLabel(p.r))}</b><div style="font-family:'JetBrains Mono',monospace;margin-top:4px">${p.r.score.toFixed(1)} · ${escapeHtml((formatValue ?? formatX)(p.raw ?? p.x))}${xUnit ? ` ${escapeHtml(xUnit)}` : ""}</div>` };
+          t: `<b>${escapeHtml(p.r.variant.sourceModel?.name ?? chartLabel(p.r))}</b><div style="font-family:'JetBrains Mono',monospace;margin-top:4px">${escapeHtml(axis.format(p.r.score))} · ${escapeHtml((formatValue ?? formatX)(p.raw ?? p.x))}${xUnit ? ` ${escapeHtml(xUnit)}` : ""}</div>` };
       }),
       frontier: view.frontier ? frontier.map((p) => [p.x, p.r.score]) : [],
       links: view.links ? [...byModel.values()].filter((v) => v.length > 1).map((v) => {
