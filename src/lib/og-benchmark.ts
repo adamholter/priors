@@ -1,21 +1,15 @@
-import type { Benchmark, Snapshot } from "@/data/types";
+import type { Snapshot } from "@/data/types";
 import { computeIndex, selectVariants, type RankedVariant } from "@/engine";
 import { markColor, LIGHT_PALETTE } from "@/components/chart/theme";
 import { escapeSvg } from "@/components/chart/export-frame";
 import { RADAR_PALETTES } from "@/components/chart/radar-view";
 import { benchmarkIndex, benchmarkSnapshot, benchmarkView, hasOwnCost } from "./benchmark-page";
 import { rasterize } from "./og-chart";
+import { formatBenchValue } from "./benchmark-format";
 
 const ACCENT = "#2F4FB0";
 const W = 1200, H = 630;
 
-/** A benchmark's published value, the way its page prints it. */
-export function formatBenchValue(b: Pick<Benchmark, "unit">, v: number) {
-  if (b.unit === "percent") return `${v.toFixed(1)}%`;
-  if (b.unit === "usd") return `$${v >= 100 ? Math.round(v).toLocaleString("en-US") : v.toFixed(2)}`;
-  if (b.unit === "seconds") return `${v.toFixed(v >= 10 ? 0 : 1)}s`;
-  return v.toFixed(b.unit === "elo" ? 0 : 1);
-}
 const usd = (v: number) => v === 0 ? "free" : `$${v >= 10 ? v.toFixed(0) : v >= 1 ? v.toFixed(2) : v.toFixed(v >= 0.1 ? 2 : 3)}`;
 const label = (r: RankedVariant) => `${r.model.name}${r.variant.effort && r.variant.effort !== "default" ? ` ${r.variant.effort}` : ""}`;
 

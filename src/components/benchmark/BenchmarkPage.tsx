@@ -8,7 +8,7 @@ import { effectiveBasis, type CostBasis } from "@/data/subscription";
 import { subscriptionShare } from "@/engine";
 import { hiddenIds, toggleVisibility, SHOW_ALL, type Vis } from "@/lib/model-visibility";
 import { formulaInputs } from "@/lib/metrics";
-import { formatBenchValue } from "@/lib/og-benchmark";
+import { formatBenchValue } from "@/lib/benchmark-format";
 import { benchmarkIndex, benchmarkView, hasOwnCost } from "@/lib/benchmark-page";
 import { SiteFooter } from "../SiteFooter";
 import { HeaderAccount } from "../AccountMenu";
