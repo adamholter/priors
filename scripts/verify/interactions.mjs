@@ -496,6 +496,27 @@ try {
     } finally { await c.context().close(); }
   });
 
+  await check("benchmark page: hide a model, switch pricing and scale, cost chart follows", async () => {
+    const c = await browser.newPage({ viewport: { width: 1200, height: 1000 } });
+    try {
+      await c.goto(`${BASE}/benchmarks/frontiercode-1.1-main`, { waitUntil: "networkidle" });
+      const first = () => c.locator("table tbody tr td").nth(1).innerText();
+      const leader = await first();
+      await c.getByLabel("Ranking settings", { exact: true }).click();
+      await c.getByRole("checkbox", { name: new RegExp(`^${leader}`) }).first().uncheck();
+      await c.waitForTimeout(400);
+      assert.notEqual(await first(), leader, "the hidden model leaves the table");
+      await c.keyboard.press("Escape");
+      await c.getByLabel("Pareto settings", { exact: true }).click();
+      await c.getByRole("tab", { name: "Settings" }).last().click();
+      await c.locator("button", { hasText: /^API$/ }).last().click();
+      await c.waitForTimeout(300);
+      assert.ok(await c.getByRole("heading", { name: "Score vs cost per task" }).isVisible(), "API pricing retitles the chart");
+      await c.locator("button", { hasText: /^Linear$/ }).last().click();
+      assert.ok(await c.locator("button", { hasText: /^Linear$/ }).last().getAttribute("aria-pressed") === "true", "scale switches to linear");
+    } finally { await c.close(); }
+  });
+
   assert.deepEqual(errors, [], "no page errors");
   console.log(`PASS interactions: ${checks.length} checks\n  ${checks.join("\n  ")}`);
 } finally {

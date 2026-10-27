@@ -6,6 +6,8 @@ import { chartVariantMode, computeIndex, DEFAULT_EFFORTS, EFFORT_CHOICES, filter
 import { hasSubscriptionPrices } from "@/data/task-metrics";
 import { effectiveBasis, type CostBasis } from "@/data/subscription";
 import { subscriptionShare } from "@/engine";
+import { hiddenIds, toggleVisibility, SHOW_ALL, type Vis } from "@/lib/model-visibility";
+import { formulaInputs } from "@/lib/metrics";
 import { benchmarkIndex, benchmarkView, hasOwnCost } from "@/lib/benchmark-page";
 import { SiteFooter } from "../SiteFooter";
 import { HeaderAccount } from "../AccountMenu";
@@ -44,12 +46,22 @@ export function BenchmarkPage({ snapshot, benchmarkId, models }: { snapshot: Sna
   const [paretoView, setParetoView] = useScatterView("benchmark-pareto");
   const [allRows, setAllRows] = useState(false);
   const [highlight, setHighlight] = useState<string[]>([]);
+  // Every model with a result, ranked first, then the ones hidden, so a hidden model can be shown again.
   const pickerModels = useMemo(() => {
     const col = new Map(snapshot.labs.map((l) => [l.id, markColor(l.color, pal, l.id)]));
     const seen = new Map<string, { id: string; name: string; color?: string; open?: boolean }>();
+    const add = (id: string) => { if (!seen.has(id)) { const m = snapshot.models.find((x) => x.id === id); if (m) seen.set(id, { id, name: m.name, color: col.get(m.labId), open: m.openWeights }); } };
     for (const r of result.ranked) if (!seen.has(r.model.id)) seen.set(r.model.id, { id: r.model.id, name: r.model.name, color: col.get(r.model.labId), open: r.model.openWeights });
+    for (const id of result.candidateModelIds) add(id);
+    for (const id of config.excludeModels ?? []) add(id);
     return [...seen.values()];
-  }, [result, snapshot.labs, pal]);
+  }, [result, config.excludeModels, snapshot, pal]);
+  const pickerIds = useMemo(() => pickerModels.map((m) => m.id), [pickerModels]);
+  const excludedIds = useMemo(() => hiddenIds(config, pickerIds, result.autoHidden), [config, pickerIds, result.autoHidden]);
+  const setVisibility = useCallback((vis: Vis) => setConfig((c) => ({ ...c, ...vis })), []);
+  const toggleModel = useCallback((id: string) => setConfig((c) => ({ ...c, ...toggleVisibility(c, id, pickerIds, result.autoHidden) })), [pickerIds, result.autoHidden]);
+  const modelPicker = { models: pickerModels, excluded: excludedIds, onToggleModel: toggleModel, onShowAllModels: () => setVisibility(SHOW_ALL), onHideAllModels: () => setVisibility({ excludeModels: pickerIds, onlyModels: undefined }), onShowOnly: (ids: string[]) => setVisibility({ excludeModels: pickerIds.filter((id) => !ids.includes(id)), onlyModels: undefined }) };
+  const releaseProps = { releasedAfter: config.releasedAfter, onChangeReleased: (v: string) => patch({ releasedAfter: v }) };
   const highlightState = useMemo(() => ({ items: highlight, set: setHighlight, models: pickerModels, linkIndices: [config] }), [highlight, pickerModels, config]);
   const host = (() => { try { return new URL(b.url).hostname.replace(/^www\./, ""); } catch { return ""; } })();
   const table = result.ranked; // best first; scores already account for direction
@@ -70,13 +82,13 @@ export function BenchmarkPage({ snapshot, benchmarkId, models }: { snapshot: Sna
 
           <section className="chart-panel">
             <Rankings anchor="rankings" title={title("Leaderboard")} ranked={rows} labs={snapshot.labs} showEffort={rankingMode === "all"} limit={25}
-              actions={<ChartSettings label="Ranking" efforts={{ value: config.rankingEfforts ?? [...EFFORT_CHOICES], onChange: (rankingEfforts) => patch({ rankingEfforts }), withMode: true }} mode={rankingMode} onChange={(rankingVariants) => patch({ rankingVariants })} />} />
+              actions={<ChartSettings label="Ranking" efforts={{ value: config.rankingEfforts ?? [...EFFORT_CHOICES], onChange: (rankingEfforts) => patch({ rankingEfforts }), withMode: true }} mode={rankingMode} onChange={(rankingVariants) => patch({ rankingVariants })} {...releaseProps} {...modelPicker} />} />
           </section>
 
           {hasCost && <section className="chart-panel">
-            <ParetoChart anchor="cost" basis={basis} description={`${b.name} · measured cost per task${basis === "subscription" ? " · subscription-priced where plan data exists (Real API Pricing, full allowance used)" : ""}`} ranked={metricRanked} mode={paretoMode} labs={snapshot.labs} height={440} view={paretoView} onView={setParetoView}
+            <ParetoChart formulaInputs={formulaInputs(snapshot, result.ranked, config.timeSource)} anchor="cost" basis={basis} description={`${b.name} · measured cost per task${basis === "subscription" ? " · subscription-priced where plan data exists (Real API Pricing, full allowance used)" : ""}`} ranked={metricRanked} mode={paretoMode} labs={snapshot.labs} height={440} view={paretoView} onView={setParetoView}
               title={title(basis === "subscription" ? "Score vs subscription cost per task" : "Score vs cost per task")}
-              actions={() => <ChartSettings anchor="cost" defaultScale="log" label="Pareto" mode={paretoMode} onChange={(paretoVariants) => patch({ paretoVariants })} {...effortProps}
+              actions={(barModels) => <ChartSettings anchor="cost" defaultScale="log" label="Pareto" mode={paretoMode} onChange={(paretoVariants) => patch({ paretoVariants })} view={paretoView} onView={setParetoView} {...releaseProps} {...effortProps} {...modelPicker} {...(barModels ?? {})}
                 costBasis={plans ? { value: effectiveBasis(config.costBasis), onChange: (next: CostBasis) => patch({ costBasis: next === "subscription" ? undefined : next }) } : undefined} />} />
           </section>}
 
