@@ -39,7 +39,8 @@ export function costDescription(source: TaskMetricSource, basis: CostBasis = "ap
 export const hasSubscriptionPrices = (snapshot: Snapshot) => snapshot.benchmarks.some((b) => b.id === SUBSCRIPTION_BENCHMARK);
 
 /** Measurements only. Match the same model, effort and configuration, including legacy aliases. */
-export function taskMetricData(snapshot: Snapshot, source: TaskMetricSource, metric: TaskMetric) {
+/** `source` is a task-metric source, or any benchmark id whose observations carry their own `costUsd` / `durationSec`. */
+export function taskMetricData(snapshot: Snapshot, source: string, metric: TaskMetric) {
   const benchmarkId = source !== "aa" ? source : metric === "cost" ? "aa-cost-per-task-index"
     : snapshot.benchmarks.filter((b) => b.id.startsWith("aa-intelligence-index")).sort((a, b) => b.id.localeCompare(a.id))[0]?.id;
   const rows = new Map<string, { value: number; observation: Observation }>();

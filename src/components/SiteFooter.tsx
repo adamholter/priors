@@ -10,6 +10,7 @@ export function SiteFooter() {
       <SupportLink from="footer" className="support-link support-link-foot" />
       <Link href="/privacy" className="hover:text-ink">Privacy</Link>
       <Link href="/skill" className="hover:text-ink">Agent skill</Link>
+      <Link href="/benchmarks" className="hover:text-ink">Benchmarks</Link>
       <Link href="/cli" className="hover:text-ink">CLI and MCP</Link>
       <Link href="/import" className="hover:text-ink">Import</Link>
     </nav>

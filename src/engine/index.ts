@@ -321,6 +321,8 @@ export interface ViewOptions {
   defaultView?: boolean;
   /** Peer estimation method. Default blends the mix match with a full-panel ratio match; "mix" is the original, kept for backtests. */
   peerMethod?: "blend" | "mix";
+  /** Price cost per task from this benchmark's own measured cost (its observations' `costUsd`) instead of the index's task-metric source. A benchmark's page sets it; it is not part of a stored index. */
+  costBenchmark?: string;
 }
 export const PAGE_VIEW: ViewOptions = { defaultView: true };
 
@@ -328,7 +330,7 @@ export function computeIndex(snapshot: Snapshot, config: IndexConfig, view: View
   const benches = new Map(snapshot.benchmarks.map((b) => [b.id, b]));
   const models = new Map(snapshot.models.map((m) => [m.id, m]));
   const idx = indexObservations(snapshot);
-  const costData = taskMetricData(snapshot, config.costSource ?? "aa", "cost");
+  const costData = taskMetricData(snapshot, view.costBenchmark ?? config.costSource ?? "aa", "cost");
   const plans = effectiveBasis(config.costBasis) === "subscription" ? subscriptionPrices(snapshot) : undefined;
 
   const used = Object.entries(config.weights).filter(([id, w]) => w > 0 && benches.has(id));
@@ -421,10 +423,10 @@ export function computeIndex(snapshot: Snapshot, config: IndexConfig, view: View
     if (den <= 0) continue;
     const measuredCost = costData.get(v.id);
     // Preserve AA's mix-weighted cost when every selected benchmark publishes it.
-    const aaCosts = (config.costSource ?? "aa") === "aa" ? shares.map((s) => ({ share: s.share, observation: idx.get(s.benchmark.id)?.get(v.id) })) : [];
+    const aaCosts = !view.costBenchmark && (config.costSource ?? "aa") === "aa" ? shares.map((s) => ({ share: s.share, observation: idx.get(s.benchmark.id)?.get(v.id) })) : [];
     const weightedAaCost = aaCosts.length && aaCosts.every(({ observation: o }) => o?.sourceModelId && o.costUsd != null && Number.isFinite(o.costUsd) && o.costUsd >= 0)
       ? aaCosts.reduce((sum, { share, observation: o }) => sum + o!.costUsd! * share / 100, 0) : undefined;
-    const cost = weightedAaCost != null ? { usd: weightedAaCost, source: "AA measured task costs, weighted by this mix" } : measuredCost ? { usd: measuredCost.value, source: taskMetricDescription(config.costSource ?? "aa", "cost") + (measuredCost.observation.harness ? ` · ${measuredCost.observation.harness}` : "") } : undefined;
+    const cost = weightedAaCost != null ? { usd: weightedAaCost, source: "AA measured task costs, weighted by this mix" } : measuredCost ? { usd: measuredCost.value, source: (view.costBenchmark ? `${benches.get(view.costBenchmark)?.name ?? view.costBenchmark} · measured cost per task` : taskMetricDescription(config.costSource ?? "aa", "cost")) + (measuredCost.observation.harness ? ` · ${measuredCost.observation.harness}` : "") } : undefined;
     // Subscription basis: the measured API cost scaled by the share of API price the plan works out to.
     // Models without a first-party plan keep their API cost — that is what they cost to use.
     const plan = cost && plans?.get(model.id);

@@ -104,3 +104,8 @@ Subscription pricing is the default: `IndexConfig.costBasis` unset means subscri
 - Stored configs (profiles) are validated by `convex/validators.ts`. `IndexConfig` is asserted exactly equal to the validator at compile time, so adding a field on one side without the other fails `tsc`. Every write goes through `storableIndex()`, which drops transient keys. `src/lib/stored-index.test.ts` checks every config producer.
 - Model visibility is stored as whichever is shorter: `excludeModels`, or an `onlyModels` allowlist once more than half the picker is hidden (new models then stay hidden). Hiding a model is the user's choice and reversible: excluded models can be re-checked in the chart-settings model picker.
 - `src/lib/import.ts` is the zod schema for user and agent benchmark imports, and merges them into a snapshot.
+
+
+## Benchmark pages
+
+`/benchmarks` lists every benchmark and `/benchmarks/<id>` is one benchmark's leaderboard (`src/app/benchmarks`). The address is the benchmark id; looser forms such as `frontier-code-2` redirect to it (`src/lib/benchmark-slug.ts`, the current non-variant version wins). The page ranks models by that benchmark alone (`src/lib/benchmark-page.ts`) and ships a trimmed snapshot to the browser. When the benchmark publishes cost per task, the cost chart uses that cost (`ViewOptions.costBenchmark` in the engine) and applies the same subscription adjustment as every other chart, with an API toggle. Benchmarks without their own cost show the leaderboard and table only.
