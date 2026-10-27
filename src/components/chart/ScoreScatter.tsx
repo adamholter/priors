@@ -227,8 +227,9 @@ export function ScoreScatter({ pts: allPoints, labs, better, xName: baseXName, x
       const key = JSON.stringify([...children, ...leaders]);
       if (key === last && (present() || !children.length)) return;
       last = key;
+      // `$action: replace` matters: a merge pairs children by index, so a shorter list leaves the old dashed lines behind.
       // Guides stay behind model labels; only the axis badges draw above the series.
-      c.setOption({ graphic: [{ id: "guides", type: "group", silent: true, z: 3, children: [...children, ...leaders] }] } as EChartsOption, { replaceMerge: ["graphic"] });
+      c.setOption({ graphic: [{ id: "guides", $action: "replace", type: "group", silent: true, z: 3, children: [...children, ...leaders] }] } as EChartsOption, { replaceMerge: ["graphic"] });
     };
     let frame = requestAnimationFrame(draw);
     const scheduleDraw = () => { cancelAnimationFrame(frame); frame = requestAnimationFrame(draw); };

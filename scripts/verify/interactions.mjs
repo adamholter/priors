@@ -215,6 +215,25 @@ try {
     assert.ok(bbox.x > box.x + box.width / 2 && bbox.y > box.y + box.height / 2, "the card sits in the lower right, not beside the mark");
   });
 
+  await check("moving off a mark removes every crosshair guide", async () => {
+    const chart = page.locator('[role="img"][aria-label*="subscription cost"], [role="img"][aria-label*="cost per task"]').first();
+    const dashed = () => chart.evaluate((e) => [...e.querySelectorAll("*")].filter((n) => n.getAttribute("stroke-dasharray")).length);
+    const base = await dashed();
+    const box = await chart.boundingBox();
+    const card = page.getByRole("status", { name: "Selected model" });
+    let hit = 0;
+    for (let y = box.y + 60; y < box.y + box.height - 60 && !hit; y += 14) {
+      for (let x = box.x + 80; x < box.x + box.width - 60 && !hit; x += 14) {
+        await page.mouse.move(x, y);
+        if (await card.isVisible()) { await page.waitForTimeout(150); if ((await dashed()) > base) hit = 1; }
+      }
+    }
+    assert.ok(hit, "hovering a mark adds dashed guides");
+    await page.mouse.move(box.x + 2, box.y + 2);
+    await page.waitForTimeout(400);
+    assert.equal(await dashed(), base, "guides are gone after the cursor leaves");
+  });
+
 
   // The link you copy must open (and unfurl) as the chart you were looking at. For each setting, change it,
   // then ask the card endpoint what it would draw for this page's own address and compare it with the points on screen.
