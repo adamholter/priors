@@ -185,6 +185,7 @@ const VALS_PUBLISHED_MODELS: Record<string, { id: string; name: string; lab: str
   "laguna xs.2": { id: "laguna-xs-2", name: "Laguna XS.2", lab: "poolside", reasoning: true },
   "muse spark": { id: "aa-muse-spark", name: "Muse Spark", lab: "meta", reasoning: true },
   "muse wonder": { id: "aa-muse-wonder", name: "Muse Wonder", lab: "meta", reasoning: true },
+  "muse wonder 1.0": { id: "aa-muse-wonder", name: "Muse Wonder", lab: "meta", reasoning: true },
   "muse wonder full": { id: "aa-muse-wonder-full", name: "Muse Wonder Full", lab: "meta", reasoning: true },
   "claude 3.7 sonnet nonthinking": { id: "claude-sonnet-3.7", name: "Sonnet 3.7", lab: "anthropic", reasoning: true },
   "claude 3.5 haiku latest": { id: "claude-haiku-3.5", name: "Haiku 3.5", lab: "anthropic", reasoning: true },

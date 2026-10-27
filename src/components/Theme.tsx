@@ -51,8 +51,10 @@ function apply(mode: ThemeMode, themeId: string, animate = true) {
   const doc = document as Document & { startViewTransition?: (cb: () => void) => unknown };
   if (animate && !same && doc.startViewTransition && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
     r.classList.add("theme-switching");
-    const t = doc.startViewTransition(set) as { finished?: Promise<void> };
+    const t = doc.startViewTransition(set) as { finished?: Promise<void>; skipTransition?: () => void };
     t.finished?.finally(() => r.classList.remove("theme-switching"));
+    // A transition started while the tab is hidden can stall and leave the old snapshot over the page.
+    setTimeout(() => t.skipTransition?.(), 1000);
   } else set();
 }
 
@@ -75,9 +77,11 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (mode !== "system") return;
     const mq = matchMedia("(prefers-color-scheme: dark)");
-    const on = () => apply("system", siteTheme);
+    const on = () => apply("system", siteTheme, false);
+    const show = () => { if (!document.hidden) on(); };
     mq.addEventListener("change", on);
-    return () => mq.removeEventListener("change", on);
+    document.addEventListener("visibilitychange", show);
+    return () => { mq.removeEventListener("change", on); document.removeEventListener("visibilitychange", show); };
   }, [mode, siteTheme]);
   const setMode = useCallback((m: ThemeMode) => {
     setModeState(m);
