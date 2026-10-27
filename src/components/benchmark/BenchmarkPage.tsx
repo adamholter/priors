@@ -8,6 +8,7 @@ import { effectiveBasis, type CostBasis } from "@/data/subscription";
 import { subscriptionShare } from "@/engine";
 import { hiddenIds, toggleVisibility, SHOW_ALL, type Vis } from "@/lib/model-visibility";
 import { formulaInputs } from "@/lib/metrics";
+import { formatBenchValue } from "@/lib/og-benchmark";
 import { benchmarkIndex, benchmarkView, hasOwnCost } from "@/lib/benchmark-page";
 import { SiteFooter } from "../SiteFooter";
 import { HeaderAccount } from "../AccountMenu";
@@ -25,12 +26,7 @@ import { INDEX_SCORE_AXIS, ScoreAxisContext, type ScoreAxis } from "../chart/sco
 import { BreakdownTable, metricChartOf, Relatives, SeriesChart } from "./BenchmarkExtras";
 import { benchmarkMetrics, benchmarkSeries, formatMetric, type BenchMetric } from "@/lib/benchmark-metrics";
 
-function fmt(b: Benchmark, v: number) {
-  if (b.unit === "percent") return `${v.toFixed(1)}%`;
-  if (b.unit === "usd") return `$${v >= 100 ? Math.round(v).toLocaleString() : v.toFixed(2)}`;
-  if (b.unit === "seconds") return `${v.toFixed(v >= 10 ? 0 : 1)}s`;
-  return v.toFixed(b.unit === "elo" ? 0 : 1);
-}
+const fmt = formatBenchValue;
 const usd = (v: number) => v === 0 ? "free" : `$${v >= 10 ? v.toFixed(0) : v >= 1 ? v.toFixed(2) : v.toFixed(v >= 0.1 ? 2 : 3)}`;
 
 /** One benchmark on its own: who leads it, and what each result costs, priced the way a subscriber pays when the lab has a plan. */
