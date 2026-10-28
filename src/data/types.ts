@@ -87,6 +87,8 @@ export interface Benchmark {
   variantLabel?: string;
   /** True when it's a proxy (e.g. token price) rather than a measured quantity. */
   proxy?: boolean;
+  /** A composite's published make-up: weight (percent) of each benchmark in this snapshot it averages, as the publisher weights them. */
+  components?: Record<string, number>;
   /** Suggested default weight in the "General" starter index (0 = present but off). */
   defaultWeight?: number;
   /** Included in the coverage-based default index if coverage of relevant models is high. */

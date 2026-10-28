@@ -71,6 +71,6 @@ The completion dialog (`Finish.tsx`) shows the ranking card with a share menu an
 
 - The lineup fit only determines benchmark weights. It must never silently exclude non-lineup models from exploration.
 - An unlisted model must never land in the overall top 5: the fit's loss ranks top-5 intruders above any order error, and a fit with intruders is not an exact match.
-- The default lineup (`defaults.ts`) is computed from the current snapshot under `DEFAULT_PRIORS_MIX` (the newest AA Intelligence Index). It is never a hand-edited list.
+- The default lineup (`defaults.ts`) is computed from the current snapshot under `defaultPriorsMix`: the newest AA Intelligence Index, built from its component evaluations at AA's weights (`Benchmark.components`, fitted by the scraper) with every component required, so it ranks exactly AA's models and shows per-evaluation strengths. Without components it falls back to the composite. It is never a hand-edited list.
 - `npm run library` pre-fits the default lineup and popular lineups into `fits` in the library, so the default fit stays exact. The client verifies stored fits first and stops searching once exact. Fits carry forward between builds; `--seed <json>` bootstraps one. The scrape raises a notification on `DEFAULT_FIT_MISSING`.
 - A completed fit sets the `priors:mix` cookie, which is what sends a returning visitor from `/` to the builder.

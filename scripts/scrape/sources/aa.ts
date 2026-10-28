@@ -13,13 +13,16 @@
  *  - /evaluations/* all share one manifest (`{ models, fallbackPriceByModelSlug }`) that carries the
  *    full evaluation columns (incl. Elo CIs, per-eval breakdowns). We merge it with the model table by id.
  *  - The Intelligence Index version and its component list are read from the page text
- *    ("Artificial Analysis Intelligence Index v4.2 incorporates 10 evaluations: ...").
+ *    ("Artificial Analysis Intelligence Index v5.0 incorporates 9 evaluations: ..."). A new version needs no code:
+ *    its components are the evaluations AA splits the index's cost across, and its weights are fitted from AA's own
+ *    scores (aa-weights.ts). If they cannot be reproduced, the composite ships alone and a discovery is raised.
+ *  - /trends carries the Progress Index (one IRT capability scale across model generations) in its own manifest.
  */
 import { createDecipheriv, createHash } from "node:crypto";
 import { gunzipSync } from "node:zlib";
 import type { Benchmark, BenchmarkCategory, BenchmarkUnit, RawRow, ScrapeContext, ScrapeResult, Source } from "../../../src/data/types";
 
-import { AA_V43_WEIGHTS } from "../../../src/data/aa-index";
+import { fitIndexWeights } from "../aa-weights";
 import { resolveAAIdentity } from "../aa-identity";
 import { pendingPreviews } from "../aa-preview";
 
@@ -51,6 +54,14 @@ interface EvalDef {
   ciFrom?: (m: Json) => [number, number] | undefined;
   /** Regex used to pick the display name out of the site nav (to keep versions like "GDPval-AA v2" current). */
   navName?: RegExp;
+  /** AA's slug for this evaluation in the Intelligence Index cost split (`intelligenceIndexCostPerTask.evaluations`). */
+  cost?: string;
+  /** Read for cost only: not one of the columns the index weights (Omniscience's combined score, whose parts are). */
+  costOnly?: boolean;
+  /** The older benchmark this version replaces. */
+  supersedes?: string;
+  variantOf?: string;
+  variantLabel?: string;
 }
 
 const ci95 = (key: string) => (m: Json): [number, number] | undefined => {
@@ -71,27 +82,36 @@ const OMNISCIENCE_DOMAINS: [key: string, id: string, label: string][] = [
 
 const EVALS: EvalDef[] = [
   // ---- current Intelligence Index components
-  { field: "briefcaseElo", normalization: { kind: "linear", min: 500, max: 2500 }, breakdown: "briefcaseBreakdown", harness: "Stirrup", slug: "aa-briefcase", name: "AA-Briefcase", unit: "elo", category: "agentic", description: "AA-Briefcase: agentic office-work tasks over real files (xlsx/pptx/docx/pdf) judged pairwise; reported as Elo.", ciFrom: ci95("briefcaseBreakdown") },
+  { field: "briefcaseElo", cost: "aa-briefcase", normalization: { kind: "linear", min: 500, max: 2500 }, breakdown: "briefcaseBreakdown", harness: "Stirrup", slug: "aa-briefcase", name: "AA-Briefcase", unit: "elo", category: "agentic", description: "AA-Briefcase: agentic office-work tasks over real files (xlsx/pptx/docx/pdf) judged pairwise; reported as Elo.", ciFrom: ci95("briefcaseBreakdown") },
   { field: "gdpval", normalization: { kind: "linear", min: 500, max: 2500 }, breakdown: "gdpvalBreakdown", harness: "Stirrup", slug: "gdpval-aa", name: "GDPval-AA v2", unit: "elo", category: "economics", description: "GDPval-AA: economically valuable knowledge-work tasks across occupations, graded pairwise by AA; reported as Elo.", ciFrom: ci95("gdpvalBreakdown"), navName: /^GDPval-AA/ },
   { field: "tauBanking", slug: "tau3-banking", name: "τ³-Banking", unit: "percent", category: "agentic", scale: 100, description: "τ³-Bench banking domain: multi-turn tool-using agent tasks with a simulated user; pass rate." },
   { field: "terminalBench21", read: (m) => m.terminalBench21 ?? m.terminalbenchV21, slug: "terminalbench-v2-1", page: "terminalbench-2-1", name: "Terminal-Bench v2.1-AA", unit: "percent", category: "coding", scale: 100, description: "Terminal-Bench v2.1 run by AA: agentic command-line software engineering tasks; task pass rate.", navName: /^Terminal-Bench v2\.1/ },
   { field: "scicode", slug: "scicode", name: "SciCode", unit: "percent", category: "coding", scale: 100, description: "SciCode: implementing scientific research code from paper descriptions; sub-problem accuracy." },
   { field: "hle", slug: "humanitys-last-exam", name: "Humanity's Last Exam", unit: "percent", category: "reasoning", scale: 100, description: "Humanity's Last Exam: frontier expert-level questions across disciplines; accuracy." },
-  { field: "gdpPdfAllPass", slug: "gdp-pdf", name: "GDP.pdf", unit: "percent", category: "economics", scale: 100, description: "GDP.pdf: document-heavy professional tasks over PDFs graded against rubric criteria; share of tasks passing all criteria." },
+  { field: "gdpPdfAllPass", cost: "gdp-pdf", slug: "gdp-pdf", name: "GDP.pdf", unit: "percent", category: "economics", scale: 100, description: "GDP.pdf: document-heavy professional tasks over PDFs graded against rubric criteria; share of tasks passing all criteria." },
   { field: "critpt", slug: "critpt", name: "CritPt", unit: "percent", category: "reasoning", scale: 100, description: "CritPt: research-level physics reasoning problems; accuracy." },
-  { field: "omniscience", slug: "omniscience", name: "AA-Omniscience", unit: "score", category: "knowledge", description: "AA-Omniscience Index (-100..100): knowledge accuracy minus hallucination penalty on 6,000 questions across 42 topics." },
   { field: "lcr", slug: "artificial-analysis-long-context-reasoning", name: "AA-LCR v1.1", unit: "percent", category: "long-context", scale: 100, description: "AA-LCR: long-context reasoning over ~100k-token document sets; pass rate.", navName: /^AA-LCR/ },
-  { field: "terminalBench40", read: (m) => m.terminalBench40 ?? m.terminalbenchV40, slug: "terminalbench-v4-0", page: "terminalbench-4-0", name: "Terminal-Bench v4-AA", unit: "percent", category: "coding", scale: 100, harness: "mini-SWE-agent", description: "AA's 66-task Terminal-Bench v4.0, three repeats, average pass@1. Distinct from the upstream leaderboard and v2.1." },
-  { field: "terminalBenchScience", slug: "terminalbench-science", page: "terminal-bench-science", name: "Terminal-Bench Science-AA", unit: "percent", category: "coding", scale: 100, description: "Terminal-Bench Science (AA): scientific-computing terminal tasks; pass rate." },
-  { field: "omniscienceBreakdown", id: "aa-omniscience-accuracy", read: (m) => m.omniscienceBreakdown?.accuracy, slug: "omniscience", name: "AA-Omniscience Accuracy", unit: "percent", category: "knowledge", scale: 100, description: "Correct answers divided by all questions. AA v4.3 gives this component 10%." },
-  { field: "omniscienceBreakdown", id: "aa-omniscience-non-hallucination", read: (m) => isNum(m.omniscienceBreakdown?.hallucinationRate) ? 1 - m.omniscienceBreakdown.hallucinationRate : undefined, slug: "omniscience", name: "AA-Omniscience Non-hallucination", unit: "percent", category: "knowledge", scale: 100, description: "One minus AA's hallucination rate. AA v4.3 gives this component 5%; it is not the combined Omniscience Index." },
-  // ---- AA-Omniscience Index cut by domain (same -100..100 scale; wrong answers cost as much as right ones earn)
+  { field: "terminalBench40", cost: "terminalbench-4-0", supersedes: "aa-terminalbench-v2-1", read: (m) => m.terminalBench40 ?? m.terminalbenchV40, slug: "terminalbench-v4-0", page: "terminalbench-4-0", name: "Terminal-Bench v4-AA", unit: "percent", category: "coding", scale: 100, harness: "mini-SWE-agent", description: "AA's 66-task Terminal-Bench v4.0, three repeats, average pass@1. Distinct from the upstream leaderboard and v2.1." },
+  { field: "terminalBenchScience", cost: "terminal-bench-science", breakdown: "terminalBenchSciencePassRateByDomain", harness: "Stirrup", slug: "terminalbench-science", page: "terminal-bench-science", name: "Terminal-Bench-Science-AA", unit: "percent", category: "reasoning", scale: 100, description: "Terminal-Bench-Science run by AA: 70 expert-curated scientific research workflows across five domains in a terminal; a task passes only if every one of its tests passes. Pass@1 over three repeats." },
+  { field: "frontierCode20", cost: "frontiercode-2-0", supersedes: "aa-frontiercode", harness: "Stirrup", slug: "frontiercode-2-0", name: "FrontierCode 2.0-AA", unit: "percent", category: "coding", scale: 100, navName: /-AA$/, description: "AA's run of Cognition's FrontierCode 2.0 (132 private tasks in real open-source repositories, three attempts each): would a maintainer merge the change? An attempt failing any blocking check scores 0. Separate from Cognition's own leaderboard, which uses different harnesses." },
+  { field: "hleDiamond", cost: "hle-diamond", supersedes: "aa-humanitys-last-exam", breakdown: "hleDiamondScoreByPartition", slug: "hle-diamond", name: "HLE-Diamond", unit: "percent", category: "reasoning", scale: 100, description: "HLE-Diamond: the refined 1,000-question version of Humanity's Last Exam from CAIS and Scale AI, split evenly between reasoning and knowledge questions; accuracy." },
+  { field: "critptAgentic", supersedes: "aa-critpt", harness: "Stirrup", slug: "critpt-v2", name: "CritPt v2", unit: "percent", category: "reasoning", scale: 100, description: "CritPt v2: the authors' revision of CritPt's 70 research-level physics challenges, solved with a code-execution tool in an offline Python sandbox; accuracy." },
+  { field: "critptAgenticHard", cost: "critpt-v2-hard", variantOf: "aa-critpt-v2", variantLabel: "Hard subset", harness: "Stirrup", slug: "critpt-v2-hard", page: "critpt-v2", name: "CritPt v2 Hard Subset", unit: "percent", category: "reasoning", scale: 100, description: "The private 40-question hard subset of CritPt v2: the 70 challenges minus the 30 that seven frontier models solved in all five attempts at launch. Code-execution tool in an offline sandbox; accuracy." },
+  // ---- AA-Omniscience v1.1 (the current dataset) and v1 (still published for the models it covered)
+  { field: "omniscience", id: "aa-omniscience-v1-1", cost: "omniscience", costOnly: true, supersedes: "aa-omniscience", slug: "omniscience", name: "AA-Omniscience v1.1", unit: "score", category: "knowledge", normalization: { kind: "linear", min: -100, max: 100 }, description: "AA-Omniscience v1.1 Index (-100..100): knowledge accuracy minus a hallucination penalty. v1.1 drops saturated and public questions, adds new ones and revises ambiguous ones; scores run about 2 points below v1." },
+  { field: "omniscienceBreakdown", id: "aa-omniscience-v1-1-accuracy", cost: "omniscience", supersedes: "aa-omniscience-accuracy", read: (m) => m.omniscienceBreakdown?.accuracy, slug: "omniscience", name: "AA-Omniscience v1.1 Accuracy", unit: "percent", category: "knowledge", scale: 100, description: "AA-Omniscience v1.1: correct answers divided by all questions." },
+  { field: "omniscienceBreakdown", id: "aa-omniscience-v1-1-non-hallucination", cost: "omniscience", supersedes: "aa-omniscience-non-hallucination", read: (m) => isNum(m.omniscienceBreakdown?.hallucinationRate) ? 1 - m.omniscienceBreakdown.hallucinationRate : undefined, slug: "omniscience", name: "AA-Omniscience v1.1 Non-hallucination", unit: "percent", category: "knowledge", scale: 100, description: "AA-Omniscience v1.1: one minus the hallucination rate (the share of wrong answers among questions the model did not decline). Not the combined Omniscience Index." },
+  { field: "omniscienceV1", id: "aa-omniscience", read: (m) => m.omniscienceV1?.index, slug: "omniscience", name: "AA-Omniscience v1", unit: "score", category: "knowledge", normalization: { kind: "linear", min: -100, max: 100 }, description: "AA-Omniscience v1 Index (-100..100): knowledge accuracy minus hallucination penalty on 6,000 questions across 42 topics. Superseded by v1.1." },
+  { field: "omniscienceV1", id: "aa-omniscience-accuracy", read: (m) => m.omniscienceV1?.accuracy, slug: "omniscience", name: "AA-Omniscience v1 Accuracy", unit: "percent", category: "knowledge", scale: 100, description: "AA-Omniscience v1: correct answers divided by all questions." },
+  { field: "omniscienceV1", id: "aa-omniscience-non-hallucination", read: (m) => isNum(m.omniscienceV1?.hallucinationRate) ? 1 - m.omniscienceV1.hallucinationRate : undefined, slug: "omniscience", name: "AA-Omniscience v1 Non-hallucination", unit: "percent", category: "knowledge", scale: 100, description: "AA-Omniscience v1: one minus AA's hallucination rate; not the combined Omniscience Index." },
+  // ---- AA-Omniscience v1.1 Index cut by domain (same -100..100 scale; wrong answers cost as much as right ones earn)
   ...OMNISCIENCE_DOMAINS.map(([key, id, label]): EvalDef => ({
-    field: "omniscienceBreakdown", id: `aa-omniscience-${id}`, slug: `omniscience-${id}`, page: "omniscience", read: (m) => m.omniscienceBreakdown?.byDomain?.[key],
-    normalization: { kind: "linear", min: -100, max: 100 }, name: `AA-Omniscience ${label}`, unit: "score", category: "knowledge",
-    description: `AA-Omniscience Index (-100..100) on the ${label} questions only: right answers minus made-up ones, abstaining scores 0.`,
+    field: "omniscienceBreakdown", id: `aa-omniscience-v1-1-${id}`, slug: `omniscience-${id}`, page: "omniscience", read: (m) => m.omniscienceBreakdown?.byDomain?.[key],
+    normalization: { kind: "linear", min: -100, max: 100 }, name: `AA-Omniscience v1.1 ${label}`, unit: "score", category: "knowledge", variantOf: "aa-omniscience-v1-1", variantLabel: label,
+    description: `AA-Omniscience v1.1 Index (-100..100) on the ${label} questions only: right answers minus made-up ones, abstaining scores 0.`,
   })),
   // ---- other evaluations AA publishes
+  { field: "omniscienceBreakdown", id: "aa-omniscience-v1-1-public", read: (m) => m.omniscienceBreakdown?.byQuestionSet?.public?.index, slug: "omniscience-public", page: "omniscience", normalization: { kind: "linear", min: -100, max: 100 }, name: "AA-Omniscience v1.1 Public set", unit: "score", category: "knowledge", variantOf: "aa-omniscience-v1-1", variantLabel: "Public set", description: "AA-Omniscience v1.1 Index on AA-Omniscience-Public-v1.1, the open subset AA released on Hugging Face, recalibrated to match the private set." },
   { field: "gpqa", slug: "gpqa-diamond", name: "GPQA Diamond", unit: "percent", category: "knowledge", scale: 100, description: "GPQA Diamond: graduate-level science multiple choice; accuracy." },
   { field: "ifbench", slug: "ifbench", name: "IFBench", unit: "percent", category: "instruction", scale: 100, description: "IFBench: precise instruction-following with verifiable constraints; accuracy." },
   { field: "terminalbenchHard", slug: "terminalbench-hard", name: "Terminal-Bench Hard-AA", unit: "percent", category: "coding", scale: 100, description: "Terminal-Bench Hard (AA subset of Terminal-Bench 2.0): agentic terminal tasks; pass rate." },
@@ -99,7 +119,7 @@ const EVALS: EvalDef[] = [
   { field: "apexAgents", slug: "apex-agents-aa", name: "APEX-Agents-AA", unit: "percent", category: "agentic", scale: 100, description: "APEX-Agents-AA: long-horizon professional-services agent tasks; pass rate." },
   { field: "itbenchSre", slug: "itbench-aa", name: "ITBench-AA", unit: "percent", category: "agentic", scale: 100, description: "ITBench-AA (SRE scenarios): diagnosing and remediating incidents in live Kubernetes environments; pass rate." },
   { field: "analystAgent", slug: "aa-analyst-agent", name: "AA-AnalystAgent", unit: "percent", category: "agentic", scale: 100, description: "AA-AnalystAgent: multi-step financial/data analysis agent tasks; pass rate." },
-  { field: "automationBenchPartialScore", breakdown: "automationBenchBreakdown", slug: "automationbench-aa", name: "AutomationBench-AA", unit: "percent", category: "agentic", scale: 100, description: "AutomationBench-AA: building workflow automations; partial-credit score." },
+  { field: "automationBenchPartialScore", cost: "automationbench-aa", breakdown: "automationBenchBreakdown", slug: "automationbench-aa", name: "AutomationBench-AA", unit: "percent", category: "agentic", scale: 100, description: "AutomationBench-AA: building workflow automations; partial-credit score." },
   { field: "enterpriseOpsGym", slug: "enterprise-ops-gym-aa", name: "EnterpriseOps-Gym-AA", unit: "percent", category: "agentic", scale: 100, description: "EnterpriseOps-Gym-AA: multi-turn enterprise operations tasks over simulated business systems; success rate." },
   { field: "harveyLab", breakdown: "harveyLabBreakdown", slug: "harvey-lab-aa", name: "Harvey LAB-AA", unit: "percent", category: "knowledge", scale: 100, description: "Harvey LAB-AA v1.1: 120 private agentic legal tasks built by Harvey. Hallucination-Gated All-Pass Rate: a task counts only when a three-judge panel passes every rubric criterion and the deliverables contain no material hallucination. Not comparable with v1.0 scores." },
   { field: "mlcrOverall", slug: "mlcr-aa", name: "MLCR-AA", unit: "percent", category: "long-context", scale: 100, description: "Medical Long Context Reasoning (MLCR-AA): reasoning over long medical records; overall score." },
@@ -206,6 +226,8 @@ function rscArrays(rsc: string, key: string): Json[][] {
 }
 
 const isNum = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
+/** A value on the 0-100 scale the engine ranks on: percent as is, fixed scales (Elo) clamped like the engine does. */
+const normalized = (d: EvalDef, v: number) => d.normalization ? Math.min(100, Math.max(0, (v - d.normalization.min) / (d.normalization.max - d.normalization.min) * 100)) : v;
 const decode = (s: string) => s.replace(/&#x27;/g, "'").replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/<!--.*?-->/g, "");
 
 // ---------------------------------------------------------------------------------------------
@@ -243,11 +265,13 @@ const source: Source = {
       }
     }));
     raw["methodology.html"] = await ctx.fetchText(`${ORIGIN}/methodology/intelligence-benchmarking`);
-    raw["index-v4.3-announcement.html"] = await ctx.fetchText(`${ORIGIN}/articles/artificial-analysis-intelligence-index-v4-3`);
+    // The Progress Index (one capability scale across model generations) is charted on /trends from its own payload.
+    let trendsHtml = "";
+    try { trendsHtml = await ctx.fetchText(`${ORIGIN}/trends`); raw["trends.html"] = trendsHtml; } catch { notes.push("trends page unavailable; no Progress Index this run"); }
     raw["evaluation-pages.json"] = JSON.stringify({ urls: [...pageHtml.keys()], failures: pageFailures });
     if (pageFailures.length) notes.push(`evaluation page failures: ${pageFailures.join(", ")}`);
     const manifests = new Map<string, Manifest>();
-    for (const html of [modelsHtml, ...pageHtml.values()]) for (const m of findManifests(html)) manifests.set(m.path, m);
+    for (const html of [modelsHtml, trendsHtml, ...pageHtml.values()]) for (const m of findManifests(html)) manifests.set(m.path, m);
     raw["manifests.json"] = JSON.stringify([...manifests.values()], null, 2);
     if (!manifests.size) throw new Error("no data manifests found in AA pages (site structure changed?)");
     ctx.log(`found ${manifests.size} data manifests`);
@@ -255,6 +279,7 @@ const source: Source = {
     let tableModels: Json[] | undefined; // /models table
     let hosts: Json[] | undefined; // per-provider endpoints
     let evalModels: Json[] | undefined; // /evaluations/* shared payload
+    const progress = new Map<string, number>(); // /trends: Progress Index score by model id
     for (const m of manifests.values()) {
       const { json, text } = await fetchDecrypt(m);
       const name = m.path.replace(/^\/data\//, "").replace(/\.txt$/, "");
@@ -262,6 +287,7 @@ const source: Source = {
       if (Array.isArray(json) && json[0]?.hostId) { hosts = json; raw[`hosts-${name}.json`] = text; }
       else if (Array.isArray(j.models) && j.models.some((m) => "canonicalEvalTokenCounts" in m)) { evalModels = [...new Map([...(evalModels ?? []), ...j.models].map((m) => [m.id, m])).values()]; raw[`evaluations-${name}.json`] = text; }
       else if (Array.isArray(j.models) && j.models.some((m) => "timescaleData" in m)) { tableModels = [...new Map([...(tableModels ?? []), ...j.models].map((m) => [m.id, m])).values()]; raw[`models-${name}.json`] = text; }
+      else if (Array.isArray(j.models) && j.models.some((m) => isNum(m.score))) { for (const m of j.models) if (m?.id && isNum(m.score)) progress.set(m.id, m.score); raw[`progress-${name}.json`] = text; }
       else raw[`unknown-${name}.json`] = text;
     }
     if (!tableModels?.length || !evalModels?.length) throw new Error("AA full model/evaluation table missing; refusing to replace the previous snapshot with incomplete coverage");
@@ -307,12 +333,13 @@ const source: Source = {
     // Intelligence Index version + component list from page text
     const verM = (modelsHtml + iiHtml).match(/Intelligence Index v(\d+(?:\.\d+)*)/);
     const iiVersion = verM?.[1];
-    if (!/^4\.3(?:\.\d+)?$/.test(iiVersion ?? "")) throw new Error(`AA index version ${iiVersion ?? "unknown"} needs a reviewed component/normalization map; preserving the previous snapshot`);
     // e.g. "Intelligence Index v4.2 incorporates 10 evaluations: AA-Briefcase, GDPval-AA v2, ..., AA-LCR v1.1</span>"
     const compM = decode(modelsHtml + iiHtml).match(/Intelligence Index v[\d.]+ (?:incorporates|includes)[^:<]*:\s*([^<·]+?)(?:\.\s|<|·|$)/);
-    const components = compM ? compM[1].split(/,\s*/).map((s) => s.trim().replace(/\.$/, "")).filter(Boolean) : [];
+    const components = compM ? compM[1].split(/,\s*/).map((s) => s.trim().replace(/^and\s+/, "").replace(/\.$/, "")).filter(Boolean) : [];
     if (components.length) notes.push(`II v${iiVersion} components: ${components.join(", ")}`);
     const iiId = iiVersion ? `aa-intelligence-index-v${iiVersion}` : "aa-intelligence-index";
+    const progressVersion = trendsHtml.match(/Progress Index v(\d+(?:\.\d+)*)/)?.[1];
+    const progressId = `aa-progress-index${progressVersion ? `-v${progressVersion}` : ""}`;
 
     // Display names for evaluations from nav anchors (keeps versions current)
     const navNames = new Map<string, string>();
@@ -330,6 +357,32 @@ const source: Source = {
     const previews = pendingPreviews([...byId.values()].flatMap((x) => [x.ev, x.tbl]).filter((x): x is Json => !!x));
     for (const p of previews) byId.set(p.id, { ev: p.ev, tbl: p.tbl });
     if (previews.length) notes.push(`${previews.length} announced-but-unlisted AA rows from aa-preview.ts`);
+
+    // ---- the index's components and weights, found from AA's own data so a new version is picked up on its own:
+    // the components are the evaluations AA splits the index's task cost across, and the weights are the ones that
+    // reproduce AA's published scores. A version that cannot be reproduced still ships its composite, with a notice.
+    const parts = new Map<string, EvalDef[]>();
+    const costSlugs = [...new Set((tableModels ?? []).flatMap((m) => (m.intelligenceIndexCostPerTask?.evaluations ?? []).map((e: Json) => e.slug as string)))];
+    const unmapped = costSlugs.filter((slug) => !EVALS.some((d) => d.cost === slug && !d.costOnly));
+    for (const slug of costSlugs) parts.set(slug, EVALS.filter((d) => d.cost === slug && !d.costOnly));
+    const columns = [...parts.values()].flat();
+    const valueOf = (d: EvalDef, ev: Json | undefined, tbl: Json | undefined): number | undefined => {
+      const v = d.read ? (d.read(ev ?? {}) ?? (tbl ? d.read(tbl) : undefined)) : ev?.[d.field] ?? tbl?.[d.field];
+      return isNum(v) ? v * (d.scale ?? 1) : undefined;
+    };
+    const fit = !unmapped.length && columns.length ? fitIndexWeights(
+      [...byId.values()].flatMap(({ ev, tbl }) => {
+        const base = ev ?? tbl!, ii = base.intelligenceIndex ?? tbl?.intelligenceIndex;
+        if (!isNum(ii) || base.intelligenceIndexIsEstimated || tbl?.intelligenceIndexIsEstimated || base.previewNote) return [];
+        const xs = columns.map((d) => { const v = valueOf(d, ev, tbl); return v == null ? undefined : normalized(d, v); });
+        return xs.every(isNum) ? [{ x: xs as number[], y: ii }] : [];
+      }),
+    ) : undefined;
+    const weights: Record<string, number> = fit ? Object.fromEntries(columns.map((d, i) => [d.id ?? bid(d.slug), fit.weights[i]]).filter(([, w]) => (w as number) > 0)) : {};
+    if (fit) notes.push(`II v${iiVersion} weights fitted from ${fit.n} models (median miss ${fit.median.toFixed(3)}, max ${fit.max.toFixed(3)}): ${Object.entries(weights).map(([k, w]) => `${k}=${w}`).join(", ")}`);
+    else discoveries.push(`AA Intelligence Index v${iiVersion}: ${unmapped.length ? `components not read yet: ${unmapped.join(", ")}` : "weights could not be reproduced from AA's scores"}; the composite is published without its parts`);
+    // Cost per task of each component: its share of the index's cost per task, divided by its weight.
+    const costShare = (slug: string) => [...parts.get(slug) ?? []].reduce((a, d) => a + (weights[d.id ?? bid(d.slug)] ?? 0), 0);
 
     const rows: RawRow[] = [];
     const modelMeta: NonNullable<ScrapeResult["modelMeta"]> = [];
@@ -373,6 +426,8 @@ const source: Source = {
         });
         bump(iiId);
       }
+      const prog = progress.get(base.id);
+      if (isNum(prog)) { rows.push({ ...common, benchmarkId: progressId, value: prog, sourceUrl: `${ORIGIN}/trends`, note: noteBits[0] }); bump(progressId); }
       if (isNum(runCost) && runCost > 0) { rows.push({ ...common, benchmarkId: "aa-cost-to-run-index", value: runCost, sourceUrl: modelUrl, note: noteBits[0] }); bump("aa-cost-to-run-index"); }
       if (isNum(perTask) && perTask > 0) { rows.push({ ...common, benchmarkId: "aa-cost-per-task-index", value: perTask, sourceUrl: modelUrl, note: noteBits[0] }); bump("aa-cost-per-task-index"); }
 
@@ -381,8 +436,8 @@ const source: Source = {
         const v = d.read ? (d.read(base) ?? (tbl ? d.read(tbl) : undefined)) : base[d.field] ?? tbl?.[d.field];
         if (!isNum(v)) continue;
         const id = d.id ?? bid(d.slug);
-        const costWeight = d.slug === "omniscience" ? 15 : AA_V43_WEIGHTS[id];
-        const contribution = tbl?.intelligenceIndexCostPerTask?.evaluations?.find((e: Json) => e.slug === d.slug)?.weightedCostPerTask;
+        const costWeight = d.cost ? costShare(d.cost) : 0;
+        const contribution = d.cost && tbl?.intelligenceIndexCostPerTask?.evaluations?.find((e: Json) => e.slug === d.cost)?.weightedCostPerTask;
         rows.push({
           ...common, benchmarkId: id, value: v * (d.scale ?? 1),
           costUsd: costWeight && isNum(contribution) ? contribution / (costWeight / 100) : undefined, sourceUrl: `${ORIGIN}/evaluations/${d.page ?? d.slug}`,
@@ -413,6 +468,12 @@ const source: Source = {
       url: iiUrl,
       description: `Artificial Analysis' composite intelligence score${iiVersion ? ` (v${iiVersion})` : ""}${components.length ? `, combining ${components.length} evaluations: ${components.join(", ")}` : ""}.`,
       normalization: { kind: "linear", min: 0, max: 100 }, unit: "score", higherIsBetter: true, category: "composite", versionPolicy: { kind: "fresh" }, defaultWeight: 0, eligibleForDefault: false,
+      ...(Object.keys(weights).length ? { components: weights } : {}),
+    });
+    if (have(progressId)) benchmarks.push({
+      id: progressId, name: `AA Progress Index${progressVersion ? ` v${progressVersion}` : ""}`, shortName: "AA Progress Index", sourceId: this.id, url: `${ORIGIN}/methodology/progress-index`,
+      description: "Artificial Analysis Progress Index: general capability on one scale that holds across years, fitted with item response theory over every evaluation AA has run since late 2022, so models tested on different benchmarks are still comparable. Built for trends over time; the Intelligence Index measures today's frontier.",
+      unit: "score", higherIsBetter: true, category: "composite", versionPolicy: { kind: "fresh" }, defaultWeight: 0, eligibleForDefault: false,
     });
     if (have("aa-cost-to-run-index")) benchmarks.push({
       id: "aa-cost-to-run-index", name: "Cost to Run AA Intelligence Index", shortName: "Cost to Run Index", sourceId: this.id, url: iiUrl,
@@ -432,8 +493,9 @@ const source: Source = {
       benchmarks.push({
         id, name, sourceId: this.id, url: `${ORIGIN}/evaluations/${d.page ?? d.slug}`, description: d.description,
         normalization: d.normalization, unit: d.unit, higherIsBetter: d.higherIsBetter ?? true, category: d.category,
-        defaultWeight: AA_V43_WEIGHTS[id] ?? 0, eligibleForDefault: id in AA_V43_WEIGHTS,
-        ...(id === "aa-terminalbench-v4-0" ? { versionPolicy: { kind: "fresh" as const, supersedes: "aa-terminalbench-v2-1" } } : {}),
+        defaultWeight: weights[id] ?? 0, eligibleForDefault: id in weights,
+        ...(d.supersedes ? { versionPolicy: { kind: "fresh" as const, supersedes: d.supersedes } } : {}),
+        ...(d.variantOf ? { variantOf: d.variantOf, variantLabel: d.variantLabel } : {}),
       });
     }
     if (have("aa-output-speed")) benchmarks.push({
@@ -452,8 +514,6 @@ const source: Source = {
       unit: "usd", higherIsBetter: false, category: "cost", proxy: true, defaultWeight: 0,
     });
 
-    const missingComponents = Object.keys(AA_V43_WEIGHTS).filter((id) => !have(id));
-    if (iiVersion?.startsWith("4.3") && missingComponents.length) throw new Error(`AA v${iiVersion} components missing: ${missingComponents.join(", ")}`);
     const identities = modelMeta.map((m) => m.identity!);
     const seenVariants = new Map<string, string>();
     for (const identity of identities) {

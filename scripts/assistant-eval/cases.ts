@@ -5,7 +5,7 @@
  */
 import type { Snapshot } from "../../src/data/types";
 import { computeIndex, defaultConfig, type IndexConfig } from "../../src/engine";
-import { DEFAULT_PRIORS_MIX } from "../../src/onboarding/defaults";
+import { defaultPriorsMix } from "../../src/onboarding/defaults";
 import { runTool, type ToolContext, type ViewState } from "../../src/agent/tools";
 import { toShares } from "../../src/agent/solver";
 import type { ChatMessage } from "../../src/agent/agent";
@@ -35,7 +35,7 @@ export interface Case {
 }
 
 export function configFor(c: Case, snapshot: Snapshot): IndexConfig {
-  const base = c.index === "aa" ? { ...DEFAULT_PRIORS_MIX } : defaultConfig(snapshot);
+  const base = c.index === "aa" ? defaultPriorsMix(snapshot) : defaultConfig(snapshot);
   return { ...base, ...(c.highlight ? { highlight: c.highlight } : {}), ...(c.exclude ? { excludeModels: c.exclude } : {}) };
 }
 

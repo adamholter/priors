@@ -1,6 +1,7 @@
 import type { Snapshot } from "../data/types";
 import { computeIndex, selectVariants, type IndexConfig } from "../engine";
 import { decodeIndex } from "../lib/url";
+import { aaComponentWeights, latestAAIndex } from "../data/aa-index";
 
 export const PRIORS_MIX_COOKIE = "priors:mix";
 
@@ -13,15 +14,21 @@ export const LEGACY_DEFAULTS = [
   ["claude-opus-5.5", "gpt-6-astra", "claude-fable-5.1", "claude-fable-5", "gpt-6-sol", "claude-opus-5", "grok-4.7", "gpt-6-luna", "glm-5.3", "gpt-5.6-terra", "gemini-3.8-flash", "grok-4.6", "gemini-3.7-flash", "claude-sonnet-5"],
 ];
 
-/** First-time ranking uses Artificial Analysis' measured composite, not a custom mix. */
+/** First-time ranking uses Artificial Analysis' index, not a custom mix. Settings only: the weights come from the snapshot (`defaultPriorsMix`). */
 export const DEFAULT_PRIORS_MIX: IndexConfig = decodeIndex(
-  "Artificial Analysis|aa-intelligence-index-v4.3.2:100|strict=50|bars=best|est=0|var=best|effort=strict|focus=capabilities",
+  "Artificial Analysis|aa-intelligence-index-v5.0:100|strict=50|bars=best|est=0|var=best|effort=strict|focus=capabilities",
   "default-priors",
 )!;
 
+/**
+ * Artificial Analysis' Intelligence Index, built from its evaluations at AA's own weights so each model's strengths
+ * show evaluation by evaluation. Every component is required (strictness 100, nothing estimated), so it ranks exactly
+ * the models AA scores. Falls back to the composite itself when the snapshot lacks the parts.
+ */
 export function defaultPriorsMix(snapshot: Snapshot): IndexConfig {
-  const latest = snapshot.benchmarks.filter(b => b.id.startsWith("aa-intelligence-index"))
-    .sort((a, b) => b.id.localeCompare(a.id, undefined, { numeric: true }))[0];
+  const parts = aaComponentWeights(snapshot);
+  if (parts) return { ...DEFAULT_PRIORS_MIX, weights: parts, strictness: 100 };
+  const latest = latestAAIndex(snapshot);
   return { ...DEFAULT_PRIORS_MIX, weights: latest ? { [latest.id]: 100 } : {} };
 }
 

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { clientSnapshot } from "@/data/client-snapshot";
 import { loadSnapshot } from "@/data/load";
-import { DEFAULT_PRIORS_MIX } from "@/onboarding/defaults";
+import { defaultPriorsMix } from "@/onboarding/defaults";
 import { ThemesLab } from "@/components/lab/ThemesLab";
 import type { Profile } from "@/components/page/IndexPage";
 
@@ -11,7 +11,7 @@ export const metadata: Metadata = { title: "Page themes lab", robots: { index: f
 export default async function Page() {
   const snapshot = await loadSnapshot();
   if (!snapshot) return <main role="alert" className="p-10">Benchmark data is unavailable.</main>;
-  const index = { ...DEFAULT_PRIORS_MIX, id: "lab", name: "My priors" };
+  const index = { ...defaultPriorsMix(snapshot), id: "lab", name: "My priors" };
   // A second index with no sections of its own, so every theme shows the index tabs and the copied layout.
   const second = { ...index, id: "lab-3d", name: "3D understanding", weights: { minebench: 10, "voxelbench-text": 10, threejseval: 10 }, required: [] };
   const profile: Profile = {

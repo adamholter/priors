@@ -42,13 +42,29 @@ describe("defaultLineup", () => {
   });
   it("uses the newest AA composite and never fills the lineup with an unmeasured Pro model", () => {
     const s = snapshot(20);
-    s.benchmarks.push({ ...s.benchmarks[0], id: "aa-intelligence-index-v4.10" });
-    s.observations.push(...s.models.map((m, i) => ({ ...s.observations[0], benchmarkId: "aa-intelligence-index-v4.10", variantId: `${m.id}@max`, value: i })));
+    s.benchmarks.push({ ...s.benchmarks[0], id: "aa-intelligence-index-v5.10" });
+    s.observations.push(...s.models.map((m, i) => ({ ...s.observations[0], benchmarkId: "aa-intelligence-index-v5.10", variantId: `${m.id}@max`, value: i })));
     s.models.push({ ...s.models[0], id: "gpt-6-pro" });
     s.variants.push({ id: "gpt-6-pro@max", modelId: "gpt-6-pro", effort: "max" });
-    expect(defaultPriorsMix(s).weights).toEqual({ "aa-intelligence-index-v4.10": 100 });
+    expect(defaultPriorsMix(s).weights).toEqual({ "aa-intelligence-index-v5.10": 100 });
     expect(defaultPriorsMix(s).strictness).toBe(50);
     expect(defaultLineup(s)).toEqual(Array.from({ length: 16 }, (_, i) => `m${19 - i}`));
+  });
+  it("ranks on AA's component evaluations at AA's weights when the composite lists them, every part required", () => {
+    const s = snapshot(20);
+    const parts = { "aa-frontiercode-2-0": 60, "aa-hle-diamond": 40 };
+    s.benchmarks = s.benchmarks.map((b) => ({ ...b, components: parts }));
+    s.benchmarks.push(...Object.keys(parts).map((id) => ({ ...s.benchmarks[0], id, components: undefined })));
+    s.observations.push(...s.models.flatMap((m, i) => Object.keys(parts).map((benchmarkId) => ({ ...s.observations[0], benchmarkId, variantId: `${m.id}@max`, value: 50 + i }))));
+    s.observations = s.observations.filter((o) => !(o.benchmarkId === "aa-hle-diamond" && o.variantId === "m19@max"));
+    const mix = defaultPriorsMix(s);
+    expect(mix.weights).toEqual(parts);
+    expect(mix.strictness).toBe(100);
+    // m19 leads both parts it has but is missing one: AA would not score it, so neither does the preset.
+    expect(defaultLineup(s, 3, mix)).toEqual(["m18", "m17", "m16"]);
+    // A part missing from the snapshot means the composite, not a partial copy of AA's index.
+    s.benchmarks = s.benchmarks.filter((b) => b.id !== "aa-hle-diamond");
+    expect(defaultPriorsMix(s).weights).toEqual({ [benchmarkIds[0]]: 100 });
   });
   it("respects a saved coverage floor and counts each model once even with all efforts", () => {
     const s = snapshot(20);
