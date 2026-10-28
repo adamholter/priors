@@ -4,7 +4,10 @@ import { decodeEditor, encodeEditor, clampSize } from "./export-editor";
 describe("screenshot link", () => {
   it("round-trips size, theme, title and chart settings", () => {
     const s = { w: 1200, h: 675, ratio: "16:9", theme: "night", title: "Speed vs score — é", view: { scale: "linear" as const, frontier: false, links: true, guides: false, density: 0.4, labelScale: 1.25 } };
-    expect(decodeEditor(encodeEditor(s))).toEqual(s);
+    // The heading as drawn defaults to the title.
+    expect(decodeEditor(encodeEditor(s))).toEqual({ ...s, heading: s.title });
+    const named = { ...s, title: undefined, heading: "Score vs cost", view: { ...s.view, allModels: true } };
+    expect(decodeEditor(encodeEditor(named))).toEqual({ ...named, title: undefined });
   });
   it("ignores mangled links and clamps absurd sizes", () => {
     expect(decodeEditor("%%%")).toBeNull();

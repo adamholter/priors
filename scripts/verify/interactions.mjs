@@ -215,7 +215,7 @@ try {
     assert.ok(bbox.x > box.x + box.width / 2 && bbox.y > box.y + box.height / 2, "the card sits in the lower right, not beside the mark");
   });
 
-  await check("screenshot editor: brush opens it, ratio resizes live, the link reopens it over the page", async () => {
+  await check("screenshot editor: brush opens it, ratio resizes live, the link opens the image full screen and Edit reopens the editor", async () => {
     const group = page.locator('[role="group"][aria-label="Export Time per task"]').first();
     await group.scrollIntoViewIfNeeded();
     await group.hover();
@@ -233,10 +233,13 @@ try {
     assert.ok(link.includes("xe=") && link.includes("c=time-per-task"), "the link carries the editor state");
     const other = await page.context().newPage();
     await other.goto(link, { waitUntil: "domcontentloaded" });
-    await other.getByTestId("xe-box").waitFor({ timeout: 15000 });
-    assert.equal(await other.locator("dialog.xe input[type=text]").inputValue(), "Link test", "the title survives the link");
+    // A shared editor link shows the image full screen as made, not the editor; Edit opens the editor with its settings.
+    await other.locator("dialog.xe-viewer[open]").waitFor({ timeout: 15000 });
+    assert.ok(await other.locator("dialog.xe-viewer .xe-title").innerText() === "Link test", "the title survives the link");
     const ob = await other.getByTestId("xe-box").boundingBox();
     assert.ok(Math.abs(ob.width - ob.height) < 2, "the crop survives the link");
+    await other.getByRole("button", { name: "Edit", exact: true }).click();
+    assert.equal(await other.locator("dialog.xe input[type=text]").inputValue(), "Link test", "Edit opens the editor with the link's title");
     await other.keyboard.press("Escape");
     await other.waitForTimeout(400);
     assert.ok(!other.url().includes("xe="), "closing drops the editor from the address");
