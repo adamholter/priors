@@ -30,7 +30,8 @@ for (const route of ROUTES) {
     bytes[k] += e.encodedDataLength;
   });
   const t0 = Date.now();
-  await page.goto(`${BASE}${route}`, { waitUntil: "networkidle", timeout: 90000 });
+  // Some pages keep a request open (polling); measure them once loaded rather than waiting for idle forever.
+  await page.goto(`${BASE}${route}`, { waitUntil: "networkidle", timeout: 30000 }).catch(() => page.waitForLoadState("load"));
   await page.waitForTimeout(1500);
   const settled = Date.now() - t0;
   await cdp.send("HeapProfiler.collectGarbage");
