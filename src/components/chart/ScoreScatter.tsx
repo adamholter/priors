@@ -21,6 +21,7 @@ import { ChartContextMenu, useChartContextMenu, useChartVisibility } from "./Cha
 import { useGravity } from "@/lib/konami";
 import { FORMULA_MAX } from "@/lib/formula";
 import { focusPoints } from "@/lib/chart-focus";
+import { viewParam } from "@/lib/export-editor";
 import type { FallingDot } from "./GravityLayer";
 
 const GravityLayer = dynamic(() => import("./GravityLayer"), { ssr: false });
@@ -114,7 +115,7 @@ export function ScoreScatter(props: ScatterProps) {
   const keepKey = (hl?.items ?? []).join(",");
   const allPoints = useMemo(() => trimmed ? focusPoints(chartPoints, better, keepKey ? keepKey.split(",") : []) : chartPoints, [trimmed, chartPoints, better, keepKey]);
   const trimmedModels = trimmed ? new Set(chartPoints.map((p) => p.r.model.id)).size - new Set(allPoints.map((p) => p.r.model.id)).size : 0;
-  const effectiveLinkParams = { ...linkParams, ls: Math.round(labelScale(view.labelScale) * 100), extra: { ...linkParams?.extra, cf: view.allModels ? "all" : undefined, xs: plotW > 0 ? `${plotW}x${Math.round(plotH)}` : undefined } };
+  const effectiveLinkParams = { ...linkParams, ls: Math.round(labelScale(view.labelScale) * 100), extra: { ...linkParams?.extra, cf: view.allModels ? "all" : undefined, xs: plotW > 0 ? `${plotW}x${Math.round(plotH)}` : undefined, xv: viewParam(view) } };
   const visibility = useChartVisibility(allPoints, anchor ?? exportName, effectiveLinkParams), pts = visibility.points;
   const context = useChartContextMenu();
   const exportControl = useRef<ChartExportHandle>(null);

@@ -61,6 +61,8 @@ Embeds inline the same rules.
 
 ## Exports, links and embeds
 
+- **Embed parity benchmark:** `BASE=http://localhost:<port> N=24 SEED=1 node scripts/verify/embed-parity.mjs` samples random pages, charts, settings and screenshot-editor states, exports the PNG and copies the link the way a person does, fetches the link's preview image as a bot, and scores the pair (aspect, background, gray and layout difference). Failures land in `/tmp/embed-parity/`. Use it before and after any change to chart links, `renderFramedPng` or the export frame.
+
 - `ChartExport.tsx`: PNG, SVG and CSV. PNG and SVG follow the current palette.
 - PNG and SVG crop blank space off the right (`trimRight` in `export-frame.ts`, measured in the browser); a label that runs right keeps its room. `trim={false}` turns it off.
 - `ExportEditor.tsx`: the screenshot editor, opened by the brush beside PNG (or by a link). It renders a bare copy of the scatter at image size (drag the corner, pick a ratio), with its own theme, title and chart settings. Its state is the `xe` param (`src/lib/export-editor.ts`) next to `c=<chart id>`, so the link opens the modal over the same page, mix and highlights; closing drops `xe`.

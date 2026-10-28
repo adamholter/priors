@@ -6,7 +6,7 @@ import type { RankedVariant, IndexConfig } from "../engine";
 import { chartVariantMode, filterEfforts } from "../engine";
 import { echarts, themeFor, paletteFor, markColor, DARK_PALETTE, SANS_STATIC, MONO_STATIC, type ChartPalette } from "../components/chart/theme";
 import { scatterOption, DEFAULT_VIEW, guidePoints, type Highlight, type ScatterPoint, type ScatterView } from "../components/chart/scatter-option";
-import { clampSize, decodeEditor, type EditorView } from "./export-editor";
+import { clampSize, decodeEditor, readViewParam, type EditorView } from "./export-editor";
 import { barsOption, defaultBarModels, filterBarModels, selectBars } from "../components/chart/bars-option";
 import { frameSvg } from "../components/chart/export-frame";
 import { answerHeight, answerOption } from "../components/chart/answer-option";
@@ -198,7 +198,8 @@ export async function renderChartPng(spec: ChartSpec, labs: Lab[], pal: ChartPal
 }
 
 /** The size and look a chart link was copied with: the screenshot editor's (`xe`), else the plain link's plot size (`xs`). */
-export interface LinkFrame { w: number; h: number; view?: EditorView; heading?: string; theme?: string }
+/** `trim`: crop the blank band on the right, as the toolbar PNG export does (the editor's export keeps its exact size). */
+export interface LinkFrame { w: number; h: number; view?: EditorView; heading?: string; theme?: string; trim?: boolean }
 /** A theme's chart fonts as the server can draw them: the bundled file for a font it has (DM Sans, Switzer), else Inter and JetBrains Mono. */
 const BUNDLED = ["DM Sans", "Switzer", "Source Serif 4", "JetBrains Mono", "Inter"];
 function staticFonts(pal: ChartPalette) {
@@ -215,7 +216,8 @@ export function linkFrame(q: URLSearchParams): LinkFrame | undefined {
   const m = q.get("xs")?.match(/^(\d{2,4})x(\d{2,4})$/);
   if (!m) return undefined;
   const { w, h } = clampSize(Number(m[1]), Number(m[2]));
-  return { w, h };
+  const view = readViewParam(q.get("xv"));
+  return { w, h, trim: true, ...(view ? { view: { ...view, allModels: q.get("cf") === "all" || undefined } } : {}) };
 }
 
 /**
@@ -238,7 +240,21 @@ export async function renderFramedPng(spec: ChartSpec, labs: Lab[], pal: ChartPa
     const label = el.getTextContent();
     if (label && (label.x < -w || label.y < -h)) label.ignore = true;
   });
-  const svg = chart.renderToSVGString();
+  let svg = chart.renderToSVGString();
+  if (frame.trim) {
+    // As trimRight does in the browser: the right edge of everything drawn, ignoring full-width backgrounds, plus 10px.
+    let right = 0;
+    for (const el of chart.getZr().storage.getDisplayList()) {
+      if (el.ignore || el.invisible || (el.style as { opacity?: number })?.opacity === 0) continue;
+      const r = el.getBoundingRect().clone();
+      if (el.transform) r.applyTransform(el.transform);
+      if (!r.width && !r.height) continue;
+      if (el.type === "rect" && r.width >= w * 0.98) continue;
+      right = Math.max(right, r.x + r.width);
+    }
+    const next = Math.ceil(right + 10);
+    if (right && next < w) svg = svg.replace(/<svg[^>]*>/, (open) => open.replace(/width="[\d.]+"/, `width="${next}"`).replace(/viewBox="[^"]*"/, `viewBox="0 0 ${next} ${h}"`));
+  }
   chart.dispose();
   return rasterize(frameSvg(svg, frame.heading ?? spec.title, undefined, { bg: pal.bg, ink: pal.ink, grey: pal.grey }), pal.bg);
 }

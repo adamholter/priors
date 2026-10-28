@@ -24,7 +24,7 @@ function chartGist(c: AnswerChart): string | undefined {
 
 async function cardFor(sp: SP) {
   const query = new URLSearchParams();
-  for (const key of ["i", "design", "handle", "chart", "date", "c", "cv", "cm", "cs", "ls", "ch", "cf", "xe", "xs", "scheme", "theme", ...RADAR_PARAM_KEYS]) {
+  for (const key of ["i", "design", "handle", "chart", "date", "c", "cv", "cm", "cs", "ls", "ch", "cf", "xe", "xs", "xv", "scheme", "theme", ...RADAR_PARAM_KEYS]) {
     const value = sp[key];
     for (const item of Array.isArray(value) ? value : value ? [value] : []) query.append(key, item);
   }

@@ -51,7 +51,7 @@ function profileCard(p: Profile, sp: Record<string, string | string[] | undefine
 /** The link as shared, with only the params a preview or the page reads. */
 function shareHref(handle: string, sp: Record<string, string | string[] | undefined>) {
   const query = new URLSearchParams();
-  for (const key of ["c", "cv", "cm", "cs", "ls", "ch", "cf", "xe", "xs", "scheme", "hl", "hi", "hv", ...RADAR_PARAM_KEYS]) {
+  for (const key of ["c", "cv", "cm", "cs", "ls", "ch", "cf", "xe", "xs", "xv", "scheme", "hl", "hi", "hv", ...RADAR_PARAM_KEYS]) {
     const value = sp[key];
     for (const item of Array.isArray(value) ? value : typeof value === "string" ? [value] : []) query.append(key, item);
   }
@@ -66,7 +66,7 @@ export async function generateMetadata({ params, searchParams }: PageProps<"/[ha
   const p = profileWithLink(saved, sp);
   const { chart, index, title, description } = profileCard(p, sp, await loadSnapshot());
   // The view and look the chart was copied with (`xe` screenshot editor, `xs` plot size, `cf` all models, `scheme`), so the preview is that image.
-  const viewParams = ["cv", "cm", "cs", "ls", "cf", "xe", "xs", "scheme"].map((key) => typeof sp[key] === "string" ? `&${key}=${encodeURIComponent(sp[key] as string)}` : "").join("");
+  const viewParams = ["cv", "cm", "cs", "ls", "cf", "xe", "xs", "xv", "scheme"].map((key) => typeof sp[key] === "string" ? `&${key}=${encodeURIComponent(sp[key] as string)}` : "").join("");
   const size = framedSize(chart ? linkFrame(new URLSearchParams(Object.entries({ c: chart, xe: sp.xe, xs: sp.xs }).filter((e): e is [string, string] => typeof e[1] === "string"))) : undefined);
   const radarQuery = RADAR_PARAM_KEYS.map((key) => typeof sp[key] === "string" ? `&${key}=${encodeURIComponent(sp[key] as string)}` : "").join("");
   const viewIndexParam = typeof sp.hv === "string" ? `&hv=${encodeURIComponent(sp.hv)}` : "";

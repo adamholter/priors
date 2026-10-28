@@ -4,7 +4,7 @@ import { loadSnapshot } from "@/data/load";
 import { BenchmarkPage } from "@/components/benchmark/BenchmarkPage";
 import { benchmarkIndex, benchmarkSnapshot, benchmarkView } from "@/lib/benchmark-page";
 import { benchmarkPath, resolveBenchmark } from "@/lib/benchmark-slug";
-import { benchmarkRelatives } from "@/lib/benchmark-metrics";
+import { benchmarkMetrics, benchmarkRelatives } from "@/lib/benchmark-metrics";
 import { isPreviewBot, PreviewPage } from "@/lib/link-preview";
 import { pageMeta } from "@/lib/site-meta";
 import { computeIndex } from "@/engine";
@@ -29,7 +29,7 @@ function describe(snapshot: Snapshot, b: Benchmark) {
 
 type Search = Promise<Record<string, string | string[] | undefined>>;
 /** A chart link's settings, as the card route reads them: which chart, the page's index, view and hidden models, and the look it was copied in. */
-const CHART_KEYS = ["c", "i", "cv", "cm", "cs", "ls", "ch", "cf", "xe", "xs", "bm", "scheme", "theme"];
+const CHART_KEYS = ["c", "i", "cv", "cm", "cs", "ls", "ch", "cf", "xe", "xs", "xv", "bm", "scheme", "theme"];
 function chartQuery(sp: Record<string, string | string[] | undefined>): URLSearchParams {
   const q = new URLSearchParams();
   for (const key of CHART_KEYS) for (const v of [sp[key]].flat()) if (typeof v === "string" && v) q.append(key, v);
@@ -44,7 +44,10 @@ export async function generateMetadata({ params, searchParams }: { params: Promi
   // A copied chart link previews that chart, with the settings and look it was copied with.
   const q = chartQuery(await searchParams), c = q.get("c");
   q.set("d", found.snapshot.date);
-  const chart = c ? CHART_NAMES[c] ?? (c.startsWith("metric-") ? "chart" : "leaderboard") : null;
+  // Named as the chart is titled: the cost chart by its pricing, a measure chart by its measure.
+  const measures = c?.startsWith("metric-") ? benchmarkMetrics(benchmarkSnapshot(found.snapshot, b.id), b) : null;
+  const measure = measures && (c === "metric-explore" ? [...measures.standard, ...measures.details].find((m) => m.id === q.get("bm")) ?? measures.details[0] : measures.standard.find((m) => `metric-${m.id}` === c));
+  const chart = !c ? null : c === "cost" ? (decodeIndices(q)[0]?.costBasis === "api" ? "score vs cost per task" : "score vs subscription cost per task") : measure ? `score vs ${measure.label.toLowerCase()}` : CHART_NAMES[c] ?? "leaderboard";
   return pageMeta({
     title: `${b.name} · ${chart ?? "leaderboard"}`, description: describe(found.snapshot, b), path: benchmarkPath(b.id),
     ...(c ? { share: `${benchmarkPath(b.id)}?${q.toString()}` } : {}),
