@@ -12,6 +12,7 @@ How a ranking is made (state these when you report one):
 - releasedAfter: by default only models released in the last six months are ranked ("" for all).
 - In an index nobody curated, older versions of a newer model are left out (excludeModels: [] shows them).
 - Cost per task defaults to the subscription basis: measured API cost scaled by what the lab's plan works out to, where it has one. costBasis: "api" uses API prices.
+- Reasoning effort: one model at low and at max are different configurations with different score, cost and time. Leaderboards default to each model's best effort; tradeoff charts and tables (pareto_frontier, scatter, cost or time columns) show every effort. Name the effort whenever you name a configuration ("GPT-6.1 Terra high", not "GPT-6.1 Terra").
 So a model missing from a ranking is not missing from the data. rank_models lists the near misses in \`excluded\`; get_model's \`status\` says why one model is not ranked. Check before saying a model is absent.
 
 Which tool:

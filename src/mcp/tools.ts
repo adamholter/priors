@@ -69,6 +69,9 @@ function excludedOut(s: Snapshot, res: IndexResult, limit = 25) {
   return { count: list.length, models: list.slice(0, limit).map((e) => ({ model: e.model.name, modelId: e.model.id, effort: e.variant.effort, reason: e.reason === "required" ? "missing a required benchmark" : "too little measured data", measuredPct: Math.round(e.measuredShare * 100), missing: e.missing.map((id) => names.get(id) ?? id) })) };
 }
 
+const TRADEOFF = new Set(["cost", "time", "speed", "latency", "tokens"]);
+const tradeoff = (a: Record<string, unknown>) => [a.metric, a.x_metric, ...(Array.isArray(a.metrics) ? a.metrics : [])].some((m) => TRADEOFF.has(String(m ?? "").toLowerCase()));
+
 /** The assistant's read tools, run over any index: the same code the in-app assistant uses, so answers match the site. */
 const reused = ["get_mix", "explain_model", "compare_models", "find_benchmarks", "search_benchmarks", "try_mix", "solve_edit", "fit_ranking", "query_data", "make_chart"] as const;
 const REUSED_NOTES: Record<string, string> = {
@@ -76,8 +79,8 @@ const REUSED_NOTES: Record<string, string> = {
   try_mix: "Evaluate a hand-written mix (benchmark → percent share) against the index: metrics, churn and the ranking with each model's previous rank. Nothing is saved.",
   solve_edit: "Optimizer: the smallest change to the index's mix that satisfies ranking moves and benchmark constraints. Returns candidates; nothing is saved. Apply one with upsert_index.",
   fit_ranking: "Build a fresh mix that reproduces a model order (the onboarding algorithm). Returns weights; nothing is saved. Apply with upsert_index.",
-  query_data: "A table of values per model under the index. Metrics: index (index score), cost (cost per task, USD), time (time per task, s), speed (output tok/s), latency (time to first token, s), tokens (output tokens per task), or any benchmark by name or id (its published value). Pick models by name, a lab, or the top N of the ranking (default 10, at most 200). efforts: best (one row per model, the default), all, or a list like [\"xhigh\",\"max\"]. Rows carry rank, effort and measuredPct (how much of the index score is measured, not estimated). Read `note`: it says which named models are unranked and why, and when the rows are only the top of a longer ranking. For a cost or time frontier use pareto_frontier instead.",
-  make_chart: "Draw a chart from the data and get it back as a PNG URL (`image`) to show the user and a link to the interactive chart on mypriors.com (`link`). Every value comes from the data. Types: bar (one value per model), effort_lines (a metric across reasoning efforts), effort_compare (grouped bars for listed efforts), effort_delta (to_effort minus from_effort), scatter (metric on y against x_metric). Metrics as in query_data. Default models: the top of the ranking (at most 40). `variants` draws exact model + effort configurations (\"GPT-6 Sol max\").",
+  query_data: "A table of values per model under the index. Metrics: index (index score), cost (cost per task, USD), time (time per task, s), speed (output tok/s), latency (time to first token, s), tokens (output tokens per task), or any benchmark by name or id (its published value). Pick models by name, a lab, or the top N of the ranking (default 10, at most 200). efforts: best (one row per model, its best-scoring effort), all, or a list like [\"xhigh\",\"max\"]. Default: all when a cost, time, speed, latency or tokens metric is asked for (each effort has its own score, cost and time), else best. Rows carry rank, effort and measuredPct (how much of the index score is measured, not estimated). Read `note`: it says which named models are unranked and why, and when the rows are only the top of a longer ranking. For a cost or time frontier use pareto_frontier instead.",
+  make_chart: "Draw a chart from the data and get it back as a PNG URL (`image`) to show the user and a link to the interactive chart on mypriors.com (`link`). Every value comes from the data. Types: bar (one value per model), effort_lines (a metric across reasoning efforts), effort_compare (grouped bars for listed efforts), effort_delta (to_effort minus from_effort), scatter (metric on y against x_metric; every reasoning effort is its own point unless efforts says otherwise). Metrics as in query_data. Default models: the top of the ranking (at most 40). `variants` draws exact model + effort configurations (\"GPT-6 Sol max\").",
 };
 const reusedTools: Tool[] = reused.map((name) => {
   const spec = TOOL_SPECS.find((t) => t.name === name)!, p = spec.parameters as { properties?: Record<string, unknown>; required?: string[] };
@@ -86,6 +89,8 @@ const reusedTools: Tool[] = reused.map((name) => {
     inputSchema: { type: "object", properties: { ...(p.properties ?? {}), index: INDEX_PARAM }, required: p.required ?? [], additionalProperties: false },
     async run(args, env) {
       const { index, ...rest } = args, { snapshot, config } = await resolveIndex(index);
+      // Each reasoning effort has its own score, cost and time: for tradeoff data, every effort is a row or point unless asked otherwise.
+      if (rest.efforts === undefined && !rest.variants && (name === "make_chart" ? rest.type === "scatter" : name === "query_data" && tradeoff(rest))) rest.efforts = "all";
       // A table may run past the in-app assistant's 40 rows; chart links cap at 40, so charts keep the default.
       // Tables and charts rank as rank_models and the site do (pageView), so every tool agrees on who is ranked.
       const ctx: ToolContext = { snapshot, original: config, charts: [], data: new DataView(snapshot, config, { pageView: true, maxRows: name === "query_data" ? 200 : 40 }) };
@@ -204,7 +209,7 @@ const readTools: Tool[] = [
       if (!spec) throw new ToolError(`No ${a.x} data for the models under this index.`, 404);
       const better = spec.chart.better, front = new Set(frontierOf(spec.pts, better).map((p) => p.r.variant.id));
       const xv = (p: (typeof spec.pts)[number]) => round(p.raw ?? p.x, 4);
-      const point = (p: (typeof spec.pts)[number]) => ({ model: p.r.model.name, effort: p.r.variant.effort, lab: labName(s, p.r.model.labId), score: round(p.r.score), x: xv(p), measuredPct: round(p.r.measuredShare * 100, 0), onFrontier: front.has(p.r.variant.id) });
+      const point = (p: (typeof spec.pts)[number]) => ({ label: p.r.variant.effort === "default" ? p.r.model.name : `${p.r.model.name} ${p.r.variant.effort}`, model: p.r.model.name, effort: p.r.variant.effort, lab: labName(s, p.r.model.labId), score: round(p.r.score), x: xv(p), measuredPct: round(p.r.measuredShare * 100, 0), onFrontier: front.has(p.r.variant.id) });
       const pts = [...spec.pts].sort((p, q) => better === "lower" ? p.x - q.x : q.x - p.x);
       const scored = new Set(res.ranked.map((r) => r.model.id)), withX = new Set(spec.pts.map((p) => p.r.model.id));
       const q = prettyQuery(encodeIndices([{ ...config, ...(mode !== chartVariantMode(config, "pareto") ? { paretoVariants: mode } : {}) }]));
@@ -216,7 +221,7 @@ const readTools: Tool[] = [
         missingX: [...scored].filter((id) => !withX.has(id)).map((id) => s.models.find((m) => m.id === id)?.name ?? id),
         excluded: excludedOut(s, res, 15),
         image: `${env.origin}/og?${q}&c=${c}${mode !== "all" ? `&cm=${mode}` : ""}`, link: `${env.origin}/builder?${q}&c=${c}`,
-        note: `${front.size} of ${pts.length} points are on the frontier. missingX are ranked models with no ${spec.chart.xName.replace(/ \(.*\)$/, "").toLowerCase()} measured, so they cannot be placed. The image shows the frontier and current flagships; points lists every one.`,
+        note: `${front.size} of ${pts.length} points are on the frontier.${mode === "all" ? " Each point is one model at one reasoning effort, so a model can sit on the frontier at several efforts: label points with \`label\` (model + effort), never the model name alone." : ""} missingX are ranked models with no ${spec.chart.xName.replace(/ \(.*\)$/, "").toLowerCase()} measured, so they cannot be placed. The image shows the frontier and current flagships; points lists every one.`,
       };
     },
   },

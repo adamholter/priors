@@ -118,6 +118,16 @@ describe("one ranking, explained", () => {
     const best = await ok("pareto_frontier", { x: "cost", efforts: "best" });
     expect(new Set(best.points.map((q: { model: string }) => q.model)).size).toBe(best.points.length);
   });
+  it("tradeoff data shows every reasoning effort, labelled with it", async () => {
+    const p = await ok("pareto_frontier", { x: "time" });
+    for (const q of p.points) expect(q.label).toBe(q.effort === "default" ? q.model : `${q.model} ${q.effort}`);
+    expect(p.note).toMatch(/one model at one reasoning effort/);
+    const perModel = (rows: { model: string }[]) => rows.length - new Set(rows.map((x) => x.model)).size;
+    // A time column brings every effort; a plain leaderboard stays one row per model.
+    expect(perModel((await ok("query_data", { metrics: ["index", "time"], top: 10 })).rows)).toBeGreaterThan(0);
+    expect(perModel((await ok("query_data", { metrics: ["index"], top: 10 })).rows)).toBe(0);
+    expect(perModel((await ok("query_data", { metrics: ["index", "time"], top: 10, efforts: "best" })).rows)).toBe(0);
+  });
   it("a make_chart link redraws in the view it was drawn in; the in-app assistant keeps older versions", async () => {
     const r = await ok("rank_models", { top: 1 }), older: string | undefined = r.settings.olderVersionsHidden?.[0];
     if (!older) return;
