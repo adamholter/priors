@@ -13,7 +13,7 @@ import type { Benchmark, BenchmarkCategory, RawRow, ScrapeResult, Source } from 
 const ORIGIN = "https://benchmarkheaven.com";
 
 /** Registry ids Priors reads directly from the publisher, or that are not a model-quality score. */
-export const SKIP = /^(aa-|vals-|openrouter-|arc-agi|frontiermath|frontier-math|furniture|epoch-|chess-puzzles|mystery-game|ebr-bench|mirrorcode|simple-bench|deepswe|frontierswe|frontiercode|osworld|posttrainbench|lmarena|terminal-bench|bullshitbench|swe-atlas-qna|scale-hss|zapier|automationbench|cyber|exploitbench|programbench|clutter|minebench|hearingbench|weirdml|roboflow|andon|vending|blueprint|butter|drone|agi-pilled|bsbench|simpleqa|voxel|threejs|slopalytics|gdpval|critpt|humanitys|hle|gpqa|openai-|scicode)/;
+export const SKIP = /^(aa-|vals-|openrouter-|arc-agi|frontiermath|frontier-math|furniture|epoch-|chess-puzzles|mystery-game|ebr-bench|mirrorcode|simple-bench|deepswe|frontierswe|frontiercode|osworld|posttrainbench|lmarena|terminal-bench|bullshitbench|swe-atlas-qna|scale-hss|zapier|automationbench|cyber|exploitbench|programbench|clutter|minebench|hearingbench|weirdml|roboflow|andon|vending|blueprint|butter|drone|agi-pilled|bsbench|simpleqa|voxel|threejs|slopalytics|gdpval|critpt|humanitys|hle|gpqa|openai-|scicode|kernelbench)/;
 const SKIP_MAINTAINER = /^(Vals AI|Artificial Analysis|OpenRouter|Epoch AI|ARC Prize|Terminal-Bench|Stanford \/ Harbor|Benchmark Heaven)/i;
 const MIN_MODELS = 5;
 /** A vendor's own claim counts only on a leaderboard with enough models to compare. */

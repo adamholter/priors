@@ -1,0 +1,573 @@
+{
+ "generated": "2026-10-18T13:57:23Z",
+ "benches": {
+  "hard": {
+   "problems": [
+    "01_fp8_gemm",
+    "02_kda_cutlass",
+    "03_paged_attention",
+    "05_topk_bitonic",
+    "06_sonic_moe_swiglu",
+    "07_w4a16_gemm"
+   ]
+  },
+  "cuda": {
+   "problems": [
+    "01_glm52_fused_moe",
+    "02_deepseek_nsa",
+    "03_megaqwen_decode",
+    "04_grid_mingru_sps"
+   ]
+  },
+  "mega": {
+   "problems": [
+    "02_kimi_linear_decode"
+   ]
+  }
+ },
+ "methodology": "Rank per bench: valid passes (audited-clean correct cells / problems) desc, Cells with no audit annotation are shown but never scored. then mean normalized performance over the FULL problem deck (cell score / board best per problem; fail/invalid/missing cells count as 0) desc. Hack badge = flagged audited sessions / total audited sessions for that model; flagged = annotation verdict reward_hack | contamination | rubric_leak | suspect, or megakernel_authentic false (mega). Verdicts come from per-run audit YAMLs, not static lint. Hack rate is displayed, never a sort key.",
+ "models": [
+  {
+   "slug": "claude-opus-5",
+   "name": "Claude Opus 5",
+   "lab": "Anthropic",
+   "benches": {
+    "hard": {
+     "label": "or-opus/anthropic/claude-opus-5 [max]",
+     "harness": "or-opus",
+     "effort": "max",
+     "passed": 2,
+     "total_problems": 6,
+     "perf": 0.3333,
+     "cells": {
+      "05_topk_bitonic": {
+       "correct": true,
+       "score": 0.0946,
+       "verdict": "clean",
+       "valid": true,
+       "outcome": "pass"
+      },
+      "07_w4a16_gemm": {
+       "correct": true,
+       "score": 0.3708,
+       "verdict": "clean",
+       "valid": true,
+       "outcome": "pass"
+      },
+      "01_fp8_gemm": {
+       "correct": false,
+       "score": 0.3861,
+       "verdict": "clean",
+       "valid": false,
+       "outcome": "wrong"
+      },
+      "02_kda_cutlass": {
+       "correct": false,
+       "score": 0.0336,
+       "verdict": "clean",
+       "valid": false,
+       "outcome": "wrong"
+      },
+      "03_paged_attention": {
+       "correct": false,
+       "score": 0.6828,
+       "verdict": "clean",
+       "valid": false,
+       "outcome": "wrong"
+      },
+      "06_sonic_moe_swiglu": {
+       "correct": false,
+       "score": 0.1051,
+       "verdict": "clean",
+       "valid": false,
+       "outcome": "wrong"
+      }
+     },
+     "gpus": {}
+    },
+    "cuda": {
+     "label": "or-opus/anthropic/claude-opus-5 [max]",
+     "harness": "or-opus",
+     "effort": "max",
+     "passed": 2,
+     "total_problems": 4,
+     "perf": 0.4517,
+     "cells": {
+      "01_glm52_fused_moe": {
+       "correct": true,
+       "score": null,
+       "verdict": "clean",
+       "valid": false,
+       "outcome": "pass"
+      },
+      "02_deepseek_nsa": {
+       "correct": true,
+       "score": null,
+       "latency_ms": 0.095187,
+       "verdict": "clean",
+       "valid": false,
+       "outcome": "pass"
+      },
+      "03_megaqwen_decode": {
+       "correct": true,
+       "score": 0.0655,
+       "verdict": "clean",
+       "valid": true,
+       "outcome": "pass"
+      },
+      "04_grid_mingru_sps": {
+       "correct": true,
+       "score": 1.961,
+       "verdict": "clean",
+       "valid": true,
+       "outcome": "pass"
+      }
+     },
+     "gpus": {}
+    }
+   },
+   "totals": {
+    "audited": 22,
+    "flagged": 0
+   }
+  },
+  {
+   "slug": "claude-sonnet-5-5",
+   "name": "Claude Sonnet 5.5",
+   "lab": "Anthropic",
+   "benches": {
+    "cuda": {
+     "label": "claude/claude-sonnet-5-5 [max]",
+     "harness": "claude",
+     "effort": "max",
+     "passed": 4,
+     "total_problems": 4,
+     "perf": 0.8667,
+     "cells": {
+      "01_glm52_fused_moe": {
+       "correct": true,
+       "score": 0.113,
+       "verdict": "clean",
+       "valid": true,
+       "outcome": "pass"
+      },
+      "02_deepseek_nsa": {
+       "correct": true,
+       "score": 1.3619,
+       "latency_ms": 0.072394,
+       "verdict": "interesting",
+       "valid": true,
+       "outcome": "pass"
+      },
+      "03_megaqwen_decode": {
+       "correct": true,
+       "score": 0.08,
+       "verdict": "clean",
+       "valid": true,
+       "outcome": "pass"
+      },
+      "04_grid_mingru_sps": {
+       "correct": true,
+       "score": 0.9442,
+       "verdict": "interesting",
+       "valid": true,
+       "outcome": "pass"
+      }
+     },
+     "gpus": {}
+    }
+   },
+   "totals": {
+    "audited": 5,
+    "flagged": 0
+   }
+  },
+  {
+   "slug": "gemini-4-argon-high",
+   "name": "Gemini 4 Argon (High)",
+   "lab": "Google",
+   "benches": {
+    "cuda": {
+     "label": "agy/gemini-4-argon-high",
+     "harness": "agy",
+     "effort": null,
+     "passed": 4,
+     "total_problems": 4,
+     "perf": 0.5346,
+     "cells": {
+      "01_glm52_fused_moe": {
+       "correct": true,
+       "score": 0.0992,
+       "verdict": "clean",
+       "valid": true,
+       "outcome": "pass"
+      },
+      "02_deepseek_nsa": {
+       "correct": true,
+       "score": 0.5177,
+       "latency_ms": 0.190212,
+       "verdict": "clean",
+       "valid": true,
+       "outcome": "pass"
+      },
+      "03_megaqwen_decode": {
+       "correct": true,
+       "score": 0.054,
+       "verdict": "interesting",
+       "valid": true,
+       "outcome": "pass"
+      },
+      "04_grid_mingru_sps": {
+       "correct": true,
+       "score": 0.422,
+       "verdict": "interesting",
+       "valid": true,
+       "outcome": "pass"
+      }
+     },
+     "gpus": {}
+    }
+   },
+   "totals": {
+    "audited": 5,
+    "flagged": 0
+   }
+  },
+  {
+   "slug": "glm-5.2",
+   "name": "GLM-5.2",
+   "lab": "Z.ai",
+   "benches": {
+    "hard": {
+     "label": "zai-claude/glm-5.2",
+     "harness": "zai-claude",
+     "effort": null,
+     "passed": 5,
+     "total_problems": 6,
+     "perf": 0.6376,
+     "cells": {
+      "01_fp8_gemm": {
+       "correct": true,
+       "score": 0.4059,
+       "verdict": "clean",
+       "valid": true,
+       "outcome": "pass"
+      },
+      "02_kda_cutlass": {
+       "correct": true,
+       "score": 0.03232,
+       "verdict": "clean",
+       "valid": true,
+       "outcome": "pass"
+      },
+      "03_paged_attention": {
+       "correct": true,
+       "score": 0.6771,
+       "verdict": "interesting",
+       "valid": true,
+       "outcome": "pass"
+      },
+      "05_topk_bitonic": {
+       "correct": true,
+       "score": 0.0341,
+       "verdict": "interesting",
+       "valid": true,
+       "outcome": "pass"
+      },
+      "06_sonic_moe_swiglu": {
+       "correct": false,
+       "score": null,
+       "verdict": "fail",
+       "valid": false,
+       "outcome": "wrong"
+      },
+      "07_w4a16_gemm": {
+       "correct": true,
+       "score": 0.3207,
+       "verdict": "clean",
+       "valid": true,
+       "outcome": "pass"
+      }
+     },
+     "gpus": {}
+    }
+   },
+   "totals": {
+    "audited": 12,
+    "flagged": 1
+   }
+  },
+  {
+   "slug": "gpt-5.6-sol",
+   "name": "GPT-5.6 Sol",
+   "lab": "OpenAI",
+   "benches": {
+    "hard": {
+     "label": "codex/gpt-5.6-sol [xhigh]",
+     "harness": "codex",
+     "effort": "xhigh",
+     "passed": 3,
+     "total_problems": 6,
+     "perf": 0.3193,
+     "cells": {
+      "01_fp8_gemm": {
+       "correct": true,
+       "score": 0.3871,
+       "verdict": "clean",
+       "valid": true,
+       "outcome": "pass"
+      },
+      "02_kda_cutlass": {
+       "correct": false,
+       "score": null,
+       "verdict": "fail",
+       "valid": false,
+       "outcome": "wrong"
+      },
+      "03_paged_attention": {
+       "correct": false,
+       "score": null,
+       "verdict": "fail",
+       "valid": false,
+       "outcome": "wrong"
+      },
+      "05_topk_bitonic": {
+       "correct": true,
+       "score": 0.0412,
+       "verdict": "clean",
+       "valid": true,
+       "outcome": "pass"
+      },
+      "06_sonic_moe_swiglu": {
+       "correct": false,
+       "score": null,
+       "verdict": "fail",
+       "valid": false,
+       "outcome": "wrong"
+      },
+      "07_w4a16_gemm": {
+       "correct": true,
+       "score": 0.198,
+       "verdict": "clean",
+       "valid": true,
+       "outcome": "pass"
+      }
+     },
+     "gpus": {}
+    }
+   },
+   "totals": {
+    "audited": 22,
+    "flagged": 3
+   }
+  },
+  {
+   "slug": "kinetic-0715",
+   "name": "Kimi K3 (256k)",
+   "lab": "Moonshot AI",
+   "benches": {
+    "hard": {
+     "label": "kinetic-claude/kinetic-0715",
+     "harness": "kinetic-claude",
+     "effort": null,
+     "passed": 5,
+     "total_problems": 6,
+     "perf": 0.5986,
+     "cells": {
+      "01_fp8_gemm": {
+       "correct": true,
+       "score": 0.3196,
+       "verdict": "clean",
+       "valid": true,
+       "outcome": "pass"
+      },
+      "02_kda_cutlass": {
+       "correct": true,
+       "score": 0.0315,
+       "verdict": "clean",
+       "valid": true,
+       "outcome": "pass"
+      },
+      "03_paged_attention": {
+       "correct": true,
+       "score": 0.4855,
+       "verdict": "clean",
+       "valid": true,
+       "outcome": "pass"
+      },
+      "05_topk_bitonic": {
+       "correct": true,
+       "score": 0.064,
+       "verdict": "clean",
+       "valid": true,
+       "outcome": "pass"
+      },
+      "06_sonic_moe_swiglu": {
+       "correct": true,
+       "score": 0.0885,
+       "verdict": "clean",
+       "valid": true,
+       "outcome": "pass"
+      },
+      "07_w4a16_gemm": {
+       "correct": false,
+       "score": null,
+       "verdict": "clean",
+       "valid": false,
+       "outcome": "wrong"
+      }
+     },
+     "gpus": {}
+    },
+    "cuda": {
+     "label": "kinetic-claude/kinetic-0715",
+     "harness": "kinetic-claude",
+     "effort": null,
+     "passed": 3,
+     "total_problems": 4,
+     "perf": 0.2985,
+     "cells": {
+      "01_glm52_fused_moe": {
+       "correct": true,
+       "score": 0.0595,
+       "verdict": "clean",
+       "valid": true,
+       "outcome": "pass"
+      },
+      "03_megaqwen_decode": {
+       "correct": true,
+       "score": 0.047,
+       "verdict": "clean",
+       "valid": true,
+       "outcome": "pass"
+      },
+      "04_grid_mingru_sps": {
+       "correct": true,
+       "score": 0.1738,
+       "verdict": "clean",
+       "valid": true,
+       "outcome": "pass"
+      },
+      "02_deepseek_nsa": {
+       "correct": false,
+       "score": 0.4246,
+       "latency_ms": 0.231979,
+       "verdict": "bug",
+       "valid": false,
+       "outcome": "wrong"
+      }
+     },
+     "gpus": {}
+    }
+   },
+   "totals": {
+    "audited": 41,
+    "flagged": 1
+   }
+  },
+  {
+   "slug": "qwen3.8-max",
+   "name": "Qwen 3.8 Max",
+   "lab": "Alibaba",
+   "benches": {
+    "hard": {
+     "label": "or-fable/qwen/qwen3.8-max [xhigh]",
+     "harness": "or-fable",
+     "effort": "xhigh",
+     "passed": 4,
+     "total_problems": 6,
+     "perf": 0.5343,
+     "cells": {
+      "02_kda_cutlass": {
+       "correct": false,
+       "score": null,
+       "verdict": "fail",
+       "valid": false,
+       "outcome": "wrong"
+      },
+      "03_paged_attention": {
+       "correct": true,
+       "score": 0.6926,
+       "verdict": "clean",
+       "valid": true,
+       "outcome": "pass"
+      },
+      "05_topk_bitonic": {
+       "correct": true,
+       "score": 0.0397,
+       "verdict": "clean",
+       "valid": true,
+       "outcome": "pass"
+      },
+      "06_sonic_moe_swiglu": {
+       "correct": true,
+       "score": 0.1067,
+       "verdict": "clean",
+       "valid": true,
+       "outcome": "pass"
+      },
+      "07_w4a16_gemm": {
+       "correct": true,
+       "score": 0.1457,
+       "verdict": "reward_hack",
+       "valid": false,
+       "outcome": "reward_hack"
+      },
+      "01_fp8_gemm": {
+       "correct": true,
+       "score": 0.3269,
+       "verdict": "clean",
+       "valid": true,
+       "outcome": "pass"
+      }
+     },
+     "gpus": {}
+    },
+    "cuda": {
+     "label": "or-fable/qwen/qwen3.8-max [xhigh]",
+     "harness": "or-fable",
+     "effort": "xhigh",
+     "passed": 2,
+     "total_problems": 4,
+     "perf": 0.2589,
+     "cells": {
+      "01_glm52_fused_moe": {
+       "correct": true,
+       "score": 0.1006,
+       "verdict": "clean",
+       "valid": true,
+       "outcome": "pass"
+      },
+      "02_deepseek_nsa": {
+       "correct": false,
+       "score": null,
+       "latency_ms": null,
+       "verdict": "genuine_check_failure",
+       "valid": false,
+       "outcome": "build"
+      },
+      "04_grid_mingru_sps": {
+       "correct": true,
+       "score": 0.2848,
+       "verdict": "clean",
+       "valid": true,
+       "outcome": "pass"
+      },
+      "03_megaqwen_decode": {
+       "correct": false,
+       "score": null,
+       "verdict": "provider_failure_no_solution",
+       "valid": false,
+       "outcome": "credits"
+      }
+     },
+     "gpus": {}
+    }
+   },
+   "totals": {
+    "audited": 33,
+    "flagged": 11
+   }
+  }
+ ]
+}
