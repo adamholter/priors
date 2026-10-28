@@ -1,10 +1,12 @@
+import { LIBRARY_CHOICE_IDS, LIBRARY_PRESETS } from "./theme-library";
+
 /**
  * Personal-page themes. A theme is a whole look: page colors, fonts, lab colors, card treatment and
  * chart style. `family` switches a scoped stylesheet (src/components/page/themes.css) that changes
  * layout details; colors and fonts arrive as CSS variables from `presetStyle`. Themes with a `pair`
  * have a light and a dark version; the visitor's site mode picks one unless the owner locks it.
  */
-export type ThemeFamily = "priors" | "aa" | "slop" | "classic";
+export type ThemeFamily = "priors" | "aa" | "slop" | "classic" | "sketch";
 export interface ChartStyle {
   /** Gridlines: hairline or AA's dotted rules. */
   grid?: "solid" | "dotted";
@@ -30,6 +32,10 @@ export interface PagePreset {
   chart?: ChartStyle;
   /** Corner radius for cards and controls, px. */
   radius?: number;
+  /** A theme-library preset (Explore themes): charts and share cards take its fonts, lab colors and style like the lookalike families. */
+  library?: boolean;
+  /** Share-card TTFs in src/lib/og-fonts: [display, text 400, 500, 600, number 400, 500]. Without them cards use Inter. */
+  cardFonts?: string[];
 }
 
 const PRIORS_FONTS = { sans: "var(--font-inter), Inter, system-ui, sans-serif", serif: "var(--font-newsreader), Newsreader, Georgia, serif", mono: "var(--font-jetbrains), 'JetBrains Mono', Menlo, monospace" };
@@ -48,7 +54,7 @@ const AA_DARK_LABS: Record<string, string> = { ...AA_LABS, openai: "#E6E6E6", in
 const SLOP_LIGHT_LABS: Record<string, string> = { openai: "#303840", anthropic: "#ae5235", google: "#218347", xai: "#6d55bd", spacexai: "#6d55bd", meta: "#236bbd", moonshot: "#ab3f83", zhipu: "#8e7318", deepseek: "#157d83", xiaomi: "#b85212", alibaba: "#8a5a9e", mistral: "#b0503a", minimax: "#9e6a1f", other: "#77716c" };
 const SLOP_DARK_LABS: Record<string, string> = { openai: "#f1f3f5", anthropic: "#df9477", google: "#56ca80", xai: "#9b94ee", spacexai: "#9b94ee", meta: "#5ea4ff", moonshot: "#ee86c4", zhipu: "#ecd36e", deepseek: "#52cdd2", xiaomi: "#ff8b45", alibaba: "#c79ae0", mistral: "#f08a6c", minimax: "#e8b45a", other: "#aaa39d" };
 
-export const PAGE_PRESETS: PagePreset[] = [
+const BUILT_IN_PRESETS: PagePreset[] = [
   { id: "bone", name: "Priors Light", family: "priors", pair: "night", dark: false, bg: "#FBFBF9", ink: "#1A1A1A", ink2: "#4A4A46", grey: "#8A8A80", hair: "#DDDBD4", hair2: "#ECEAE3", accent: "#2F4FB0", fonts: PRIORS_FONTS, radius: 4 },
   /** The site's own dark mode. Priors Light pages switch to it when the visitor uses dark mode. */
   { id: "night", name: "Priors Dark", family: "priors", pair: "bone", dark: true, bg: "#141413", ink: "#EDECE6", ink2: "#C2C1B9", grey: "#8C8B83", hair: "#34342F", hair2: "#1C1C1A", accent: "#9AABF5", panelAccent: "#3E5BC2", fonts: PRIORS_FONTS, radius: 4 },
@@ -67,10 +73,17 @@ export const PAGE_PRESETS: PagePreset[] = [
   { id: "midnight", name: "Midnight", family: "classic", dark: true, bg: "#0D1220", ink: "#EEF1F8", ink2: "#C4CADA", grey: "#8B94AA", hair: "#253149", hair2: "#1B2438", accent: "#7FB2FF", panelAccent: "#2B5FC2", fonts: PRIORS_FONTS, radius: 4 },
   { id: "forest", name: "Forest", family: "classic", dark: true, bg: "#0F1A15", ink: "#EDF3EE", ink2: "#C3D1C7", grey: "#8BA195", hair: "#233B2F", hair2: "#1A2D23", accent: "#6FD3A0", panelAccent: "#1F7A52", fonts: PRIORS_FONTS, radius: 4 },
 ];
+/** Every preset a stored id can name: the built-ins plus the Explore themes library. */
+export const PAGE_PRESETS: PagePreset[] = [...BUILT_IN_PRESETS, ...LIBRARY_PRESETS];
 const byId = new Map(PAGE_PRESETS.map((p) => [p.id, p]));
 const NIGHT = byId.get("night")!;
 /** Themes shown in the picker, one card per light/dark pair, in each theme's signature mode. */
 export const THEME_CHOICES = ["bone", "aa", "slop", "paper", "sand", "graphite", "midnight", "forest"].map((id) => byId.get(id)!);
+
+/** The Explore themes library: one card per theme, in its signature mode. Not in the default pickers. */
+export const LIBRARY_CHOICES = LIBRARY_CHOICE_IDS.map((id) => byId.get(id)!);
+/** The picker card (default or library) a preset belongs to, if any. */
+export const pickerThemeOf = (id: string | undefined) => [...THEME_CHOICES, ...LIBRARY_CHOICES].find((t) => t.id === id || t.pair === id);
 
 type ThemeRef = { preset?: string; surface?: "bone" | "white"; mode?: "auto" | "fixed" } | undefined;
 

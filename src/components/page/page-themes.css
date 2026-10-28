@@ -106,3 +106,52 @@ textarea.inline-edit { display: block; border: 1px dashed color-mix(in srgb, var
 .page-root[data-family="slop"] footer { border-top-color: var(--hair); }
 .page-root.is-editing main { grid-template-columns: minmax(0, 1fr); gap: 16px; }
 .page-root[data-family="slop"] .edit-body > .chart-panel { padding-top: 4px !important; padding-bottom: 4px !important; }
+
+/* ───────────── Sketch theme (Excalidraw look) ─────────────
+   Hand-drawn whiteboard: ink outlines with wobbly corners, flat (no shadows), Excalifont headings.
+   Colors/fonts arrive as CSS vars from presetStyle. The wobble radii below are the technique Excalidraw
+   fans use for "rough" borders; three variants rotate through cards so the grid looks hand-placed. */
+.page-root[data-family="sketch"] { --wob-a: 255px 18px 225px 18px / 18px 225px 18px 255px; --wob-b: 18px 235px 20px 245px / 245px 20px 235px 18px; --wob-c: 240px 20px 250px 16px / 16px 250px 20px 240px; --ink-line: 2px solid var(--ink); font-size: 16px; line-height: 1.45; }
+.page-root[data-family="sketch"] * { box-shadow: none !important; text-shadow: none !important; }
+.page-root[data-family="sketch"] header { background: var(--bone) !important; backdrop-filter: none !important; border-bottom: 0; padding-top: 14px; padding-bottom: 14px; }
+/* Handwriting headings (Excalifont has one weight: never fake bold). */
+.page-root[data-family="sketch"] h1, .page-root[data-family="sketch"] h2, .page-root[data-family="sketch"] h3, .page-root[data-family="sketch"] .serif, .page-root[data-family="sketch"] .wm,
+.page-root[data-family="sketch"] .gallery-title { font-family: var(--font-serif); font-weight: 400 !important; letter-spacing: 0; line-height: 1.12; }
+.page-root[data-family="sketch"] h1 { font-size: 46px !important; }
+.page-root[data-family="sketch"] main > section > h2, .page-root[data-family="sketch"] .chart-panel h2 { font-size: 30px !important; line-height: 1.15; position: relative; display: inline-block; }
+/* Wavy hand underline under section headings, in the accent. */
+.page-root[data-family="sketch"] main > section > h2::after, .page-root[data-family="sketch"] .chart-panel h2::after { content: ""; display: block; height: 8px; margin-top: 2px; width: min(100%, 11em);
+  background: var(--indigo); -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='40' height='8' viewBox='0 0 40 8'><path d='M1 5 Q6 0 11 4 T21 4 T31 3 T39 5' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round'/></svg>") repeat-x left center / 40px 8px;
+  mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='40' height='8' viewBox='0 0 40 8'><path d='M1 5 Q6 0 11 4 T21 4 T31 3 T39 5' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round'/></svg>") repeat-x left center / 40px 8px; }
+.page-root[data-family="sketch"] .cap { font-family: var(--font-sans); font-size: 14px; color: var(--grey); letter-spacing: 0; }
+.page-root[data-family="sketch"] .mono, .page-root[data-family="sketch"] .num { font-family: var(--font-mono); font-variant-numeric: normal; }
+/* Cards and panels: 2px ink border, irregular corners, flat fill. */
+.page-root[data-family="sketch"] .chart-panel, .page-root[data-family="sketch"] .gallery-panel { background: var(--white); border: var(--ink-line); border-radius: var(--wob-a); padding: 26px 30px 28px; }
+.page-root[data-family="sketch"] .chart-panel:nth-of-type(3n+2), .page-root[data-family="sketch"] .gallery-panel:nth-of-type(3n+2) { border-radius: var(--wob-b); }
+.page-root[data-family="sketch"] .chart-panel:nth-of-type(3n), .page-root[data-family="sketch"] .gallery-panel:nth-of-type(3n) { border-radius: var(--wob-c); }
+@media (max-width: 639px) { .page-root[data-family="sketch"] .chart-panel { padding: 16px 12px 18px; } }
+.page-root[data-family="sketch"] main { gap: 36px; }
+/* Buttons: ink outline, pastel-ish hover, little "press" offset instead of shadows. */
+.page-root[data-family="sketch"] .btn { font-family: var(--font-serif); font-size: 18px; font-weight: 400; padding: 5px 16px; background: var(--indigo-fill); color: var(--on-accent); border: var(--ink-line); border-radius: var(--wob-b); transition: transform .08s ease; }
+.page-root[data-family="sketch"] .btn:hover { background: var(--indigo-fill); color: var(--on-accent); transform: rotate(-1deg) scale(1.02); }
+.page-root[data-family="sketch"] .btn:active { transform: translate(1px, 2px); }
+.page-root[data-family="sketch"] .btn-quiet { font-family: var(--font-serif); font-size: 18px; padding: 5px 14px; background: transparent; color: var(--ink); border: 2px solid transparent; border-radius: var(--wob-c); }
+.page-root[data-family="sketch"] .btn-quiet:hover { border-color: var(--ink); background: var(--indigo-soft); color: var(--ink); }
+/* Segmented controls become a row of little hand-drawn tabs. */
+.page-root[data-family="sketch"] .seg { border: 0; gap: 6px; background: transparent; }
+.page-root[data-family="sketch"] .seg > button { font-family: var(--font-serif); font-size: 17px; border: 2px solid transparent !important; border-radius: var(--wob-c); padding: 2px 12px; color: var(--ink-2); background: transparent; }
+.page-root[data-family="sketch"] .seg > button:hover { border-color: var(--hair-3) !important; }
+.page-root[data-family="sketch"] .seg > button[aria-pressed="true"] { border-color: var(--ink) !important; background: var(--indigo-soft); color: var(--ink); border-radius: var(--wob-a); }
+/* Inputs. */
+.page-root[data-family="sketch"] input, .page-root[data-family="sketch"] select, .page-root[data-family="sketch"] textarea { font-family: var(--font-sans); border: 2px solid var(--ink); border-radius: var(--wob-b); background: var(--white); color: var(--ink); }
+.page-root[data-family="sketch"] input:focus-visible, .page-root[data-family="sketch"] select:focus-visible, .page-root[data-family="sketch"] textarea:focus-visible, .page-root[data-family="sketch"] .btn:focus-visible, .page-root[data-family="sketch"] .seg > button:focus-visible { outline: 3px solid var(--indigo); outline-offset: 2px; }
+/* Ranking bars: pastel fill + diagonal hachure + wobbly outline, like Excalidraw's "hachure" fill style. */
+.page-root[data-family="sketch"] .ranking-list .bar-fill, .page-root[data-family="sketch"] .ranking-list .rounded-\[2px\] { border-radius: 6px 3px 7px 3px / 3px 7px 3px 6px; border: 2px solid currentColor;
+  background-image: repeating-linear-gradient(-41deg, transparent 0 4px, color-mix(in srgb, currentColor 55%, transparent) 4px 5.5px) !important; background-color: color-mix(in srgb, currentColor 18%, var(--white)) !important; }
+.page-root[data-family="sketch"] .ranking-list .bg-hair-2 { background: transparent; border-bottom: 2px dashed var(--hair); border-radius: 0; }
+.page-root[data-family="sketch"] a:not(.btn) { text-decoration: underline wavy color-mix(in srgb, var(--indigo) 70%, transparent); text-underline-offset: 4px; text-decoration-thickness: 1.5px; }
+.page-root[data-family="sketch"] footer { border-top: 2px dashed var(--hair); font-size: 15px; }
+.page-root[data-family="sketch"] ::selection { background: var(--indigo-soft); }
+/* Optional: wobble a whole bitmap chart or screenshot slightly (SVG filter lives in the page, see notes). */
+.page-root[data-family="sketch"] .sketchy { filter: url(#sketch-wobble); }
+@media (prefers-reduced-motion: reduce) { .page-root[data-family="sketch"] .btn { transition: none; } }

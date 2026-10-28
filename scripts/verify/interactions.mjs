@@ -60,6 +60,32 @@ try {
     assert.equal(await trigger.evaluate((el) => el === document.activeElement), true);
   });
 
+  await check("Explore themes opens the library and applying a library theme restyles the site", async () => {
+    const c = await (await browser.newContext({ viewport: { width: 1440, height: 1000 } })).newPage();
+    try {
+      await c.goto(`${BASE}/builder`, { waitUntil: "domcontentloaded" });
+      await c.locator(".ranking-list [data-k]").first().waitFor({ timeout: 30000 });
+      const bg = () => c.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--bone").trim() + getComputedStyle(document.documentElement).backgroundColor);
+      const before = await bg();
+      await c.getByRole("button", { name: "Settings", exact: true }).click();
+      const settings = c.getByRole("dialog", { name: "Settings" });
+      assert.equal(await settings.locator(".settings-themes:not(.theme-library-grid) .theme-swatch").count(), 8, "the default picker keeps its eight themes");
+      await settings.getByRole("button", { name: "Explore themes" }).click();
+      const library = c.getByRole("dialog", { name: "Explore themes" });
+      await library.waitFor();
+      assert.ok((await library.locator(".theme-swatch").count()) >= 9, "the library lists the extra themes");
+      await library.locator(".theme-swatch", { hasText: "Terminal" }).click();
+      await c.waitForFunction(() => localStorage.getItem("priors:site-theme")?.includes('"terminal"'));
+      assert.notEqual(await bg(), before, "the page background changed");
+      assert.equal(await c.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--font-sans").toLowerCase().includes("plex")), true, "the theme's font reached the page");
+      await library.locator(".theme-swatch", { hasText: "Geist" }).first().click();
+      await c.waitForFunction(() => localStorage.getItem("priors:site-theme")?.includes('"geist"'));
+      assert.equal(await library.locator(".theme-swatch.is-on").count(), 1, "one library theme shows as selected");
+      await c.keyboard.press("Escape");
+      assert.equal(await settings.isVisible(), true, "Escape closes only the library");
+    } finally { await c.context().close(); }
+  });
+
   await check("default cost chart labels do not overlap", async () => {
     const chart = page.locator('[role="img"][aria-label*="cost per task"]').first();
     await chart.scrollIntoViewIfNeeded();

@@ -6,7 +6,8 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useUser } from "@clerk/nextjs";
 import { IMAGE_ACCEPT, useImageUpload } from "../useImageUpload";
-import { ACCENTS, THEME_CHOICES, presetOf, type PagePreset } from "@/lib/page-presets";
+import { ACCENTS, THEME_CHOICES, pickerThemeOf, presetOf, type PagePreset } from "@/lib/page-presets";
+import { ExploreThemes } from "../ExploreThemes";
 import { ThemeSwatch } from "../ThemeSwatch";
 import { SHARE_DESIGNS } from "@/lib/share-designs";
 import { api } from "../../../convex/_generated/api";
@@ -27,7 +28,7 @@ export function PageSettings({ profile, set, open, onClose, lab }: { profile: Pr
   const [pageKey] = useState(() => crypto.randomUUID().replace(/-/g, ""));
   if (!open || !mounted) return null;
   const chosen = presetOf(profile.theme);
-  const family = THEME_CHOICES.find((t) => t.id === chosen.id || t.pair === chosen.id) ?? chosen;
+  const family = pickerThemeOf(chosen.id) ?? chosen;
   const setTheme = (t: PagePreset) => set({ theme: { ...profile.theme, preset: t.id, surface: undefined, accent: undefined, ...(!t.pair ? { mode: undefined } : t.dark ? { mode: "fixed" } : {}) } });
   const cardQuery = lab ? encodeIndices(profile.indices.slice(0, 1)).toString() : profile.indices[0] ? `${encodeIndices([profile.indices[0]]).toString()}&handle=${profile.handle}` : `handle=${profile.handle}`;
   return createPortal(
@@ -36,6 +37,7 @@ export function PageSettings({ profile, set, open, onClose, lab }: { profile: Pr
 
       <Group title="Theme">
         <div className="grid grid-cols-2 gap-2">{THEME_CHOICES.map((t) => <ThemeSwatch key={t.id} theme={t} selected={family.id === t.id} onClick={() => setTheme(t)} />)}</div>
+        <ExploreThemes selectedId={family.library ? family.id : undefined} onPick={setTheme} />
         {chosen.pair && <Field label="Light and dark">
           <div className="seg w-fit" role="group" aria-label="Light and dark">
             <button type="button" aria-pressed={profile.theme?.mode !== "fixed"} onClick={() => set({ theme: { ...profile.theme, preset: family.id, mode: undefined } })}>Follow visitor</button>

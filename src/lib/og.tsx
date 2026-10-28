@@ -45,8 +45,8 @@ function ctxFor(snapshot:Snapshot,index:IndexConfig,who:Ctx["who"],opts?:{accent
 export async function renderShareCard(snapshot: Snapshot,index:IndexConfig,who:{name:string;handle?:string;avatarUrl?:string},opts?:{accent?:string;surface?:string;design?:string;chart?:string;cv?:string;cm?:string;allModels?:boolean;frame?:LinkFrame;cs?:string;hidden?:ChartHidden;labelScale?:number;scheme?:CardScheme;theme?:{preset?:string;surface?:"bone"|"white"};radar?:RadarSettings;/** Answer with the chart's model-and-effort ids as JSON instead of an image: what the card draws, for parity checks. */points?:boolean}) {
  const design:ShareDesign|null=isShareDesign(opts?.design)?opts.design:null;
  // Themed cards keep the components' font names but load the theme's files under them.
- const family=cardTheme(opts?.theme,opts?.scheme)?.family;
- const files=family==="aa"?["SourceSerif4-400.ttf","Switzer-400.ttf","Switzer-500.ttf","Switzer-600.ttf","Switzer-400.ttf","Switzer-500.ttf"]:family==="slop"?["DMSans-500.ttf","DMSans-400.ttf","DMSans-500.ttf","DMSans-600.ttf","DMSans-400.ttf","DMSans-500.ttf"]:["Newsreader-400.ttf","Inter-400.ttf","Inter-500.ttf","Inter-600.ttf","JetBrainsMono-400.ttf","JetBrainsMono-500.ttf"];
+ const lookalike=cardTheme(opts?.theme,opts?.scheme),family=lookalike?.family;
+ const files=lookalike?.cardFonts??(family==="aa"?["SourceSerif4-400.ttf","Switzer-400.ttf","Switzer-500.ttf","Switzer-600.ttf","Switzer-400.ttf","Switzer-500.ttf"]:family==="slop"?["DMSans-500.ttf","DMSans-400.ttf","DMSans-500.ttf","DMSans-600.ttf","DMSans-400.ttf","DMSans-500.ttf"]:["Newsreader-400.ttf","Inter-400.ttf","Inter-500.ttf","Inter-600.ttf","JetBrainsMono-400.ttf","JetBrainsMono-500.ttf"]);
  const [c,serif,s4,s5,s6,m4,m5]=await Promise.all([ctxFor(snapshot,index,who,opts),...files.map(font)]);
  // An explicit design wins; then the linked chart (rendered like the site's own PNG export);
  // then a head-to-head card for tiny fields; otherwise the default ranking bars.

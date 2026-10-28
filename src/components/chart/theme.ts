@@ -62,7 +62,7 @@ export function paletteFor(preset: PagePreset): ChartPalette {
   let p = chartPalettes.get(preset.id);
   // Night is the site's dark mode on a raised panel: same chart palette, gridlines tuned to the panel.
   if (!p && preset.id === "night") { p = { ...DARK_PALETTE, bg: preset.hair2, hair: "#2B2B28", tipBg: "#242422" }; chartPalettes.set(preset.id, p); }
-  if (!p && (preset.family === "aa" || preset.family === "slop")) {
+  if (!p && (preset.family === "aa" || preset.family === "slop" || preset.library)) {
     // Lookalike themes restyle charts completely: their fonts, lab colors, grids and frontier treatment.
     const surface = preset.surface ?? preset.bg;
     p = { dark: preset.dark, ink: preset.ink, ink2: preset.ink2, grey: preset.grey, hair: preset.dark ? preset.hair : preset.hair, bg: surface, tipBg: preset.dark ? preset.hair2 : "#FFFFFF", tipBorder: preset.hair,

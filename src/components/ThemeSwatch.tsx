@@ -3,7 +3,7 @@ import { themeById, type PagePreset } from "@/lib/page-presets";
 /** A miniature of the theme: its surface, a card, accent, two lab marks and its type. */
 export function ThemeSwatch({ theme, selected, onClick }: { theme: PagePreset; selected: boolean; onClick: () => void }) {
   const pair = themeById(theme.pair);
-  const labs = Object.values(theme.labColors ?? { a: "#C96A4A", b: "#3B78D8", c: "#2B2B2B" }).slice(0, 4);
+  const labs = Object.values(theme.labColors ?? (theme.library ? { a: theme.accent, b: theme.ink2, c: theme.grey } : { a: "#C96A4A", b: "#3B78D8", c: "#2B2B2B" })).slice(0, 4);
   return <button type="button" aria-pressed={selected} onClick={onClick} className={`theme-swatch ${selected ? "is-on" : ""}`} style={{ background: theme.bg, color: theme.ink, borderRadius: Math.min(theme.radius ?? 4, 8) }}>
     <span className="theme-swatch-card" style={{ background: theme.surface ?? (theme.dark ? theme.hair2 : "#fff"), borderColor: theme.hair, borderRadius: Math.min(theme.radius ?? 4, 6) }}>
       <span className="theme-swatch-type" style={{ fontFamily: theme.fonts?.serif }}>Aa</span>

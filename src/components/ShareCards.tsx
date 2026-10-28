@@ -8,7 +8,7 @@ import { api } from "../../convex/_generated/api";
 import { authEnabled } from "@/app/providers";
 import { SHARE_DESIGNS } from "@/lib/share-designs";
 import { useTheme } from "./Theme";
-import { THEME_CHOICES, presetOf } from "@/lib/page-presets";
+import { THEME_CHOICES, pickerThemeOf, presetOf } from "@/lib/page-presets";
 import Link from "next/link";
 import { shareCardToX, shareText, stashForPublish } from "@/lib/share";
 
@@ -136,7 +136,7 @@ function ShareCardsContent({ indices, active, profile, pageUrl, defaultDesign, c
         <div className="my-4 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <p className="text-sm">{String(SHARE_DESIGNS.findIndex((d) => d.id === design) + 1).padStart(2, "0")} / {selected.name}</p>
-            <label className="inline-flex items-center gap-1.5 text-[12px] text-ink-2">Theme <select className="inp !w-auto !py-1 !text-[12px]" value={THEME_CHOICES.find((t) => t.id === cardThemeId || t.pair === cardThemeId)?.id ?? "bone"} onChange={(e) => { setThemeChoice(e.target.value); setScheme(null); setMessage(""); }}>{THEME_CHOICES.map((t) => <option key={t.id} value={t.id}>{t.name}{t.id === (THEME_CHOICES.find((x) => x.id === pageTheme || x.pair === pageTheme)?.id ?? "bone") ? " (page)" : ""}</option>)}</select></label>{<div className="seg" role="group" aria-label="Card colors">{(["light", "dark"] as const).map((k) => <button key={k} type="button" aria-pressed={scheme === k} className="!px-2.5 text-[12px]" onClick={() => { setScheme(k); setMessage(""); }}>{k === "light" ? "Light" : "Dark"}</button>)}</div>}
+            <label className="inline-flex items-center gap-1.5 text-[12px] text-ink-2">Theme <select className="inp !w-auto !py-1 !text-[12px]" value={pickerThemeOf(cardThemeId)?.id ?? "bone"} onChange={(e) => { setThemeChoice(e.target.value); setScheme(null); setMessage(""); }}>{[...THEME_CHOICES, ...[pickerThemeOf(pageTheme), pickerThemeOf(themeChoice ?? undefined)].filter((t, i, all) => t?.library && all.indexOf(t) === i)].map((t) => t && <option key={t.id} value={t.id}>{t.name}{t.id === (pickerThemeOf(pageTheme)?.id ?? "bone") ? " (page)" : ""}</option>)}</select></label>{<div className="seg" role="group" aria-label="Card colors">{(["light", "dark"] as const).map((k) => <button key={k} type="button" aria-pressed={scheme === k} className="!px-2.5 text-[12px]" onClick={() => { setScheme(k); setMessage(""); }}>{k === "light" ? "Light" : "Dark"}</button>)}</div>}
           </div>
           <div className="flex flex-wrap gap-2">
             <button type="button" className="btn-quiet inline-flex items-center gap-1.5 !border-black !bg-black !text-[#fff] hover:opacity-85" onClick={shareToX}><XLogo />Share on X</button>

@@ -74,10 +74,10 @@ export function cardPreset(theme?: { preset?: string; surface?: "bone" | "white"
   return themeById(preset.pair) ?? preset;
 }
 
-/** Lookalike themes (Analysis, Slop) restyle whole cards. A requested scheme picks that theme's light or dark version. */
+/** Lookalike themes (Analysis, Slop, the theme library) restyle whole cards. A requested scheme picks that theme's light or dark version. */
 export function cardTheme(theme?: { preset?: string; surface?: "bone" | "white" }, scheme?: "light" | "dark"): PagePreset | null {
   const preset = cardPreset(theme, scheme);
-  return preset.family === "aa" || preset.family === "slop" ? preset : null;
+  return preset.family === "aa" || preset.family === "slop" || preset.library ? preset : null;
 }
 
 /** Card options for a saved page theme, so a profile's link previews look like its page (dark pages get dark cards). */

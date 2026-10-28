@@ -3,8 +3,9 @@ import { useRef } from "react";
 import { usePathname } from "next/navigation";
 import { IconSettings, IconX } from "@tabler/icons-react";
 import { SupportLink } from "./SupportLink";
-import { THEME_CHOICES } from "@/lib/page-presets";
+import { THEME_CHOICES, pickerThemeOf } from "@/lib/page-presets";
 import { siteThemeModes } from "@/lib/site-theme";
+import { ExploreThemes } from "./ExploreThemes";
 import { ThemeSwatch } from "./ThemeSwatch";
 import { useTheme, type ThemeMode } from "./Theme";
 
@@ -16,7 +17,7 @@ export function SettingsButton({ className = "icon-btn", support = true }: { cla
   const dialog = useRef<HTMLDialogElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const { mode, setMode, siteTheme, setSiteTheme } = useTheme();
-  const chosen = THEME_CHOICES.find((t) => t.id === siteTheme || t.pair === siteTheme) ?? THEME_CHOICES[0];
+  const chosen = pickerThemeOf(siteTheme) ?? THEME_CHOICES[0], pickTheme = (t: { id: string; dark: boolean }) => { setSiteTheme(t.id); if (t.dark) setMode("dark"); };
   const modes = siteThemeModes(chosen.id), single = !modes.light || !modes.dark;
   return <span className="inline-flex items-center gap-1">
     {support && path !== "/support" && <SupportLink from="header" />}
@@ -25,7 +26,8 @@ export function SettingsButton({ className = "icon-btn", support = true }: { cla
       <div className="settings-head"><h2 id="settings-title">Settings</h2><button data-settings-close type="button" className="icon-btn" aria-label="Close settings" onClick={() => dialog.current?.close()}><IconX size={18} stroke={1.5} aria-hidden="true" /></button></div>
       <section className="settings-section" aria-labelledby="settings-theme">
         <h3 id="settings-theme">Theme</h3>
-        <div className="settings-themes">{THEME_CHOICES.map((t) => <ThemeSwatch key={t.id} theme={t} selected={chosen.id === t.id} onClick={() => { setSiteTheme(t.id); if (t.dark) setMode("dark"); }} />)}</div>
+        <div className="settings-themes">{THEME_CHOICES.map((t) => <ThemeSwatch key={t.id} theme={t} selected={chosen.id === t.id} onClick={() => pickTheme(t)} />)}</div>
+        <div className="mt-3"><ExploreThemes selectedId={chosen.library ? chosen.id : undefined} onPick={pickTheme} /></div>
         <p className="settings-note">For the builder, Explore and model pages on this device. Published pages keep the theme their owner picked.</p>
       </section>
       <section className="settings-section" aria-labelledby="settings-mode">

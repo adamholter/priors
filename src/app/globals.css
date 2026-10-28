@@ -350,7 +350,9 @@ p.share-change { display: grid; grid-template-columns: minmax(0, 1fr) 40% 38px; 
 .settings-section + .settings-section { margin-top: 22px; padding-top: 20px; border-top: 1px solid var(--hair); }
 .settings-themes { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
 .settings-note { margin: 10px 0 0; font-size: 12px; color: var(--grey); }
-@media (max-width: 560px) { .settings-themes { grid-template-columns: repeat(2, minmax(0, 1fr)); } .settings-dialog { padding: 18px 16px 20px; } }
+.theme-library { width: min(720px, calc(100vw - 24px)); }
+.theme-library-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@media (max-width: 560px) { .theme-library-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .settings-themes { grid-template-columns: repeat(2, minmax(0, 1fr)); } .settings-dialog { padding: 18px 16px 20px; } }
 .support-link { display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 8px; border-radius: 6px; font-size: 13px; color: var(--indigo); }
 .support-link:hover { background: var(--hair-2); }
 .support-link-foot { height: auto; padding: 0; color: var(--indigo); }

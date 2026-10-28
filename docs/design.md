@@ -39,6 +39,8 @@ The builder grows with the screen (`src/components/builder.css`, `builder-size.t
 
 **Site theme.** The gear in every header (`SiteSettings.tsx`) opens Settings: any page theme (`THEME_CHOICES`) can be the visitor's theme for the builder, Explore, model pages and onboarding. `src/lib/site-theme.ts` turns a preset into site tokens (`presetStyle` plus the wordmark i and onboarding's surface tokens) and sets them inline on `<html>`; Priors sets nothing. `localStorage["priors:site-theme"]` holds the id and both modes' tokens so the no-flash script paints them before React. Single-mode themes force the scheme (Midnight is always dark). The root `ChartPaletteContext` uses `paletteFor(preset)`, so lab colors and chart style follow. `.page-root` sets its owner's tokens on top, so published pages are unchanged; family stylesheets (layout details) apply only on pages.
 
+The picker also has "Explore themes", a library of extra looks (see `docs/pages-and-sharing.md`); a library theme is a site theme the same way.
+
 - The no-flash script is first in `<body>`, not in `<head>`: in `<head>` it caused a hydration error on static pages.
 - The root `ChartPaletteContext` switches charts between `LIGHT_PALETTE` and `DARK_PALETTE` (or the site theme's palette).
 - Lab colors have dark-tuned versions. Never read `lab.color` directly for display: use `markColor()` in charts and `useLabColor()` in the DOM.
