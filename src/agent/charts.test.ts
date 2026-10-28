@@ -50,7 +50,7 @@ describe("assistant data tools on the real snapshot", async () => {
     expect(toShares(c.proposal!.weights)["deepswe-1.1"]).toBeCloseTo(0.3, 3);
     const alone = ctx();
     await runTool(alone, "propose", { weights: {}, pin: { "deepswe-1.1": 30 }, summary: "x" });
-    expect(Object.keys(alone.proposal?.weights ?? {}).length).toBe(Object.keys(config.weights).length);
+    expect(Object.keys(alone.proposal?.weights ?? {}).length).toBe(new Set([...Object.keys(config.weights), "deepswe-1.1"]).size);
   });
 
   it("records highlights and theme changes for the client to apply", async () => {

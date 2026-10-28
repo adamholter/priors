@@ -5,32 +5,12 @@ import { useMemo, useState } from "react";
 import type { EChartsOption } from "echarts";
 import type { Lab } from "@/data/types";
 import type { RankedVariant } from "@/engine";
-import type { MetricChart } from "@/lib/metrics";
 import { chartLabel } from "@/lib/metrics";
 import { formatMetric, type BenchMetric, type BenchSeries, type MetricGroup } from "@/lib/benchmark-metrics";
+import { valueFor } from "@/lib/benchmark-chart";
 import { benchmarkPath } from "@/lib/benchmark-slug";
 import { markColor, useChartPalette, useEChart } from "../chart/echarts";
 import { escapeSvg as esc } from "../chart/export-frame";
-
-/** Look a metric up for a ranked row: exact variant, then the variant without its configuration suffix. */
-const valueFor = (m: BenchMetric, r: RankedVariant) => m.values.get(r.variant.id) ?? m.values.get(r.variant.id.split("~")[0]);
-
-/** Score vs one of the benchmark's own measurements, in the shape the gallery charts take. */
-export function metricChartOf(m: BenchMetric, benchmarkName: string): MetricChart {
-  const all = [...m.values.values()];
-  const positive = all.every((v) => v > 0);
-  const log = positive && Math.max(...all) / Math.min(...all) >= 20;
-  return {
-    better: m.better,
-    points: (rows) => rows.flatMap((r) => { const x = valueFor(m, r); return x != null && Number.isFinite(x) && (!log || x > 0) ? [{ x, r }] : []; }),
-    xLabel: "",
-    xName: `${m.label}${log ? " (log)" : ""}`,
-    scale: log ? "log" : "linear",
-    secs: m.kind === "seconds",
-    formatX: (v) => formatMetric(m.kind, v),
-    aria: `${benchmarkName} score versus ${m.label.toLowerCase()}`,
-  };
-}
 
 /** Category splits (buttons, or a menu when there are many) and versions (always a menu, newest first): other boards of this benchmark. */
 export function Relatives({ current, family, versions }: { current: string; family: { id: string; label: string }[]; versions: { id: string; label: string }[] }) {

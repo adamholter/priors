@@ -1,4 +1,4 @@
-import { INDEX_SCORE_AXIS, scoreRange, type ScoreAxis } from "./score-axis";
+import { INDEX_SCORE_AXIS, scoreRange, type ScoreAxis } from "./score-scale";
 import type { EChartsOption } from "echarts";
 import type { Lab } from "../../data/types";
 import type { RankedVariant } from "../../engine";
@@ -8,7 +8,7 @@ import { chartLabel } from "../../lib/metrics";
 import { labelScale } from "./label-size";
 
 export interface ScatterPoint { x: number; r: RankedVariant; /** untransformed value for tooltips/export when x is transformed */ raw?: number; /** Costs nothing: drawn on the "free" line left of the cheapest paid point. */ free?: boolean }
-export interface ScatterView { labelScale?: number; scale?: "log" | "linear"; density: number; frontier: boolean; links: boolean; /** The user explicitly toggled the frontier rather than saving an old default. */ frontierChosen?: boolean; /** Dashed axis guides for highlighted efforts (default on). */ guides?: boolean; kind?: "scatter" | "bars"; /** The user picked `kind` (vs. the chart default). */ kindChosen?: boolean; /** Advanced: a custom formula that replaces the chart's metric (src/lib/formula.ts), and which direction is better. */ formula?: string; formulaBetter?: "higher" | "lower" }
+export interface ScatterView { labelScale?: number; scale?: "log" | "linear"; density: number; frontier: boolean; links: boolean; /** The user explicitly toggled the frontier rather than saving an old default. */ frontierChosen?: boolean; /** Dashed axis guides for highlighted efforts (default on). */ guides?: boolean; kind?: "scatter" | "bars"; /** The user picked `kind` (vs. the chart default). */ kindChosen?: boolean; /** Advanced: a custom formula that replaces the chart's metric (src/lib/formula.ts), and which direction is better. */ formula?: string; formulaBetter?: "higher" | "lower"; /** Every model on the chart, instead of the frontier and current flagships (src/lib/chart-focus.ts). */ allModels?: boolean }
 /**
  * Emphasis for chosen models. `items` are model ids (feature that model's best effort) or variant ids
  * (feature exactly that effort); a model may have several featured efforts. Everything else recedes

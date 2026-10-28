@@ -20,6 +20,7 @@ import { labelScale } from "./label-size";
 import { ChartContextMenu, useChartContextMenu, useChartVisibility } from "./ChartContextMenu";
 import { useGravity } from "@/lib/konami";
 import { FORMULA_MAX } from "@/lib/formula";
+import { focusPoints } from "@/lib/chart-focus";
 import type { FallingDot } from "./GravityLayer";
 
 const GravityLayer = dynamic(() => import("./GravityLayer"), { ssr: false });
@@ -37,11 +38,11 @@ export function ownerBase(owner?: OwnerView | null): ScatterView | null {
 }
 /** Only the fields an owner default stores. */
 export function toOwnerView(v: ScatterView, mode?: "all" | "best"): OwnerView {
-  const out: OwnerView = { kind: v.kind, scale: v.scale, frontier: v.frontier, links: v.links, guides: v.guides, density: v.density, labelScale: v.labelScale, formula: v.formula?.trim().slice(0, FORMULA_MAX) || undefined, formulaBetter: v.formula?.trim() ? v.formulaBetter : undefined, ...(mode ? { mode } : {}) };
+  const out: OwnerView = { kind: v.kind, scale: v.scale, frontier: v.frontier, links: v.links, guides: v.guides, density: v.density, labelScale: v.labelScale, formula: v.formula?.trim().slice(0, FORMULA_MAX) || undefined, formulaBetter: v.formula?.trim() ? v.formulaBetter : undefined, allModels: v.allModels || undefined, ...(mode ? { mode } : {}) };
   for (const k of Object.keys(out) as (keyof OwnerView)[]) if (out[k] === undefined) delete out[k];
   return out;
 }
-export type OwnerView = { kind?: "scatter" | "bars"; mode?: "all" | "best"; scale?: "log" | "linear"; frontier?: boolean; links?: boolean; guides?: boolean; density?: number; labelScale?: number; formula?: string; formulaBetter?: "higher" | "lower" };
+export type OwnerView = { kind?: "scatter" | "bars"; mode?: "all" | "best"; scale?: "log" | "linear"; frontier?: boolean; links?: boolean; guides?: boolean; density?: number; labelScale?: number; formula?: string; formulaBetter?: "higher" | "lower"; allModels?: boolean };
 
 /**
  * A chart's view state. Visitors start from the page owner's default (`owner`) and keep their own
@@ -101,12 +102,18 @@ type ScatterProps = {
 
 export function ScoreScatter(props: ScatterProps) {
   const axis = useScoreAxis();
-  const { pts: allPoints, labs, better, xName: baseXName, xShort: baseXShort, xUnit = "", scale: defaultScale = "linear", formatX, formatValue, height = 420, aria, title, actions, view, exportName, extraRows, tooltipExtra, anchor, linkParams, bare, chartRef } = props;
+  const { pts: chartPoints, labs, better, xName: baseXName, xShort: baseXShort, xUnit = "", scale: defaultScale = "linear", formatX, formatValue, height = 420, aria, title, actions, view, exportName, extraRows, tooltipExtra, anchor, linkParams, bare, chartRef } = props;
   const scale = defaultScale === "time" ? "time" : view.scale ?? defaultScale;
   const xName = scale === "linear" ? baseXName.replace(/, log| \(log\)/g, "") : baseXName;
   const xShort = scale === "linear" ? baseXShort?.replace(/, log| \(log\)/g, "") : baseXShort;
   const wrapRef = useRef<HTMLDivElement>(null);
-  const effectiveLinkParams = { ...linkParams, ls: Math.round(labelScale(view.labelScale) * 100) };
+  // Before anyone picks models, a Pareto chart shows its frontier and the current flagships only (src/lib/chart-focus.ts); "All models" in its settings shows the rest.
+  const hl = useHighlight();
+  const trimmed = defaultScale !== "time" && !view.allModels && !hl?.curated;
+  const keepKey = (hl?.items ?? []).join(",");
+  const allPoints = useMemo(() => trimmed ? focusPoints(chartPoints, better, keepKey ? keepKey.split(",") : []) : chartPoints, [trimmed, chartPoints, better, keepKey]);
+  const trimmedModels = trimmed ? new Set(chartPoints.map((p) => p.r.model.id)).size - new Set(allPoints.map((p) => p.r.model.id)).size : 0;
+  const effectiveLinkParams = { ...linkParams, ls: Math.round(labelScale(view.labelScale) * 100), extra: { ...linkParams?.extra, cf: view.allModels ? "all" : undefined } };
   const visibility = useChartVisibility(allPoints, anchor ?? exportName, effectiveLinkParams), pts = visibility.points;
   const context = useChartContextMenu();
   const exportControl = useRef<ChartExportHandle>(null);
@@ -134,7 +141,6 @@ export function ScoreScatter(props: ScatterProps) {
     const c = handle.current; if (!c) return undefined;
     try { return pts.map((p) => { const [x, y] = c.convertToPixel({ xAxisIndex: 0, yAxisIndex: 0 }, [p.x, p.r.score]) as number[]; return { x, y }; }); } catch { return undefined; }
   }, [pts]);
-  const hl = useHighlight();
   const hlItems = hl?.items;
   const highlight = useMemo<Highlight | undefined>(() => hlItems?.length ? { items: hlItems, guides: view.guides !== false } : undefined, [hlItems, view.guides]);
   // Easter egg (Konami code): marks off the frontier drop to the x-axis. See GravityLayer.
@@ -319,6 +325,7 @@ export function ScoreScatter(props: ScatterProps) {
         <div className="flex items-center gap-1 ml-auto pointer-events-auto">
           <HighlightMenu label={exportName} />
           {visibility.canUndo && <button type="button" className="cap hover:text-ink" onClick={visibility.undo} aria-label="Undo chart removal">Undo</button>}
+          {trimmedModels > 0 && <span className="cap max-sm:hidden" title="Older versions and models off the frontier are hidden. Show them with All models in this chart's settings.">{trimmedModels} more in settings</span>}
           {actions}
           {anchor && <ChartLink id={anchor} name={exportName} params={{ ...effectiveLinkParams, hidden: visibility.hidden }} />}
           <ChartExport ref={exportControl} name={exportName} frame onEdit={anchor ? openEditor : undefined} getHtml={getHtml} getSvg={() => chart.current?.renderToSVGString()} getRows={() => pts.map((p) => ({ rank: p.r.rank, model: p.r.model.name, effort: p.r.variant.effort, score: +p.r.score.toFixed(2), lab: p.r.model.labId, [xName]: +(p.raw ?? p.x).toFixed(4), on_frontier: onFrontierIds.has(p.r.variant.id), ...extraRows?.(p) }))} />

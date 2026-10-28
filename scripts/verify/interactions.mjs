@@ -396,6 +396,24 @@ try {
     } finally { await m.context().close(); }
   });
 
+  await check("rank: See the data is above the fold on desktop and phone, and opens the builder", async () => {
+    for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
+      const r = await (await browser.newContext({ viewport })).newPage();
+      r.on("pageerror", (e) => errors.push(`${r.url()}: ${e.message}`));
+      try {
+        await r.goto(`${BASE}/rank`, { waitUntil: "domcontentloaded" });
+        const link = r.getByRole("link", { name: "See the data" });
+        await link.waitFor({ timeout: 30000 });
+        assert.equal(await link.count(), 1, `${viewport.width}px: one data entry`);
+        assert.equal(await r.getByText("Skip to the data").count(), 0, `${viewport.width}px: the old link is gone`);
+        const box = await link.boundingBox(), duel = await r.locator(".duel-card").first().boundingBox();
+        assert.ok(box && box.y >= 0 && box.y + box.height <= viewport.height, `${viewport.width}px: See the data sits above the fold`);
+        assert.ok(viewport.width < 741 ? box.y < duel.y : box.x > duel.x + duel.width, `${viewport.width}px: before the matchup on a phone, beside it on desktop`);
+        assert.match(await link.getAttribute("href"), /^\/builder\?i=/, `${viewport.width}px: links to the builder on the default index`);
+      } finally { await r.context().close(); }
+    }
+  });
+
   await check("3d: a ranking charted on three measures, with the best corner listed", async () => {
     const c = await (await browser.newContext({ viewport: { width: 1280, height: 900 } })).newPage();
     c.on("pageerror", (e) => errors.push(`${c.url()}: ${e.message}`));
@@ -433,7 +451,7 @@ try {
       await c.goto(`${BASE}/models/claude-opus-5.5`, { waitUntil: "domcontentloaded" });
       const pick = c.getByLabel("Ranking to place this model in");
       await pick.waitFor({ timeout: 30000 });
-      await pick.selectOption("preset:aa");
+      await pick.selectOption({ label: "Artificial Analysis" });
       await c.getByText(/#\d+ of \d+ models/).waitFor({ timeout: 30000 });
     } finally { await c.context().close(); }
   });
@@ -442,13 +460,14 @@ try {
     const c = await (await browser.newContext({ viewport: { width: 1360, height: 950 } })).newPage();
     c.on("pageerror", (e) => errors.push(`${c.url()}: ${e.message}`));
     try {
-      await c.goto(`${BASE}/builder`, { waitUntil: "domcontentloaded" });
-      const gear = c.getByRole("button", { name: /^AA-Omniscience: choose a category or subset/ }).first();
+      // An explicit mix, so the check holds whatever the default is: AA-Omniscience's gear swaps in its accuracy cut.
+      await c.goto(`${BASE}/builder?i=${encodeURIComponent("Gear|aa-omniscience:50,aa-gdp-pdf:50")}`, { waitUntil: "domcontentloaded" });
+      const gear = c.getByRole("button", { name: /^AA-Omniscience( v1)?: choose a category or subset/ }).first();
       await gear.waitFor({ timeout: 30000 });
       const rows = await c.getByRole("slider").count();
       await gear.click();
       await c.getByRole("option", { name: "Accuracy" }).click();
-      await c.getByText("AA-Omniscience Accuracy").first().waitFor({ timeout: 10000 });
+      await c.getByRole("slider", { name: /^AA-Omniscience( v1)? Accuracy weight$/ }).waitFor({ timeout: 10000 });
       assert.equal(await c.getByRole("slider").count(), rows, "the mix keeps its size");
     } finally { await c.context().close(); }
   });
@@ -505,6 +524,24 @@ try {
       await link.waitFor();
       assert.equal(await link.getAttribute("href"), "/benchmarks");
     } finally { await c.context().close(); }
+  });
+
+  await check("pareto charts start on the frontier and each lab's current models; All models shows the rest", async () => {
+    const c = await browser.newPage({ viewport: { width: 1300, height: 1000 } });
+    try {
+      await c.goto(`${BASE}/benchmarks/frontiercode-2.0-main`, { waitUntil: "networkidle" });
+      const plot = c.locator('#cost [role="img"]');
+      const models = async () => new Set((await plot.getAttribute("data-points")).split(",").map((v) => v.split("@")[0]));
+      const before = await models();
+      for (const old of ["claude-opus-5", "gpt-5.5", "gpt-5.6-sol"]) assert.ok(!before.has(old), `${old} is hidden by default`);
+      assert.ok(before.has("claude-opus-5.5"), "the current Opus stays");
+      await c.getByLabel("Pareto settings", { exact: true }).click();
+      await c.getByRole("tab", { name: "Settings" }).last().click();
+      await c.getByRole("checkbox", { name: "All models" }).check();
+      await c.waitForTimeout(400);
+      const after = await models();
+      assert.ok(after.has("claude-opus-5") && after.size > before.size, "All models brings the older versions back");
+    } finally { await c.close(); }
   });
 
   await check("benchmark page: hide a model, switch pricing and scale, cost chart follows", async () => {

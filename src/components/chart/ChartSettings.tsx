@@ -109,6 +109,7 @@ export function ChartSettings({ label, mode, onChange, efforts, releasedAfter, o
       <div className={styles.toggles}>
         <label><span>Pareto frontier</span><input type="checkbox" checked={view.frontier} onChange={e => onView({ ...view, frontier: e.target.checked, frontierChosen: true })} /></label>
         <label><span>Connect efforts</span><input type="checkbox" checked={view.links} onChange={e => onView({ ...view, links: e.target.checked })} /></label>
+        <label title="Off: the frontier and each lab's current models only"><span>All models</span><input type="checkbox" checked={!!view.allModels} onChange={e => onView({ ...view, allModels: e.target.checked })} /></label>
         {!!hl?.items.length && <label><span>Highlight guides</span><input type="checkbox" checked={view.guides !== false} onChange={e => onView({ ...view, guides: e.target.checked })} /></label>}
       </div>
     </>}

@@ -20,11 +20,11 @@ describe("tierBenchmarks", () => {
     expect(isOldOrNiche(bench("unscored"), undefined)).toBe(false);
   });
   it("lifts the preferred and best-scoring current benchmarks to the top and keeps the rest in quality order", () => {
-    const list = ["a", "b", "c", "terminalbench-4", "old"].map((id) => bench(id));
-    const quality = new Map([q("a", { score: 90 }), q("b", { score: 70 }), q("c", { score: 80 }), q("terminalbench-4", { score: 50 }), q("old", { frontierMeasured: 0 })].map((x) => [x.id, x]));
+    const list = ["a", "b", "c", "aa-terminalbench-v4-0", "old"].map((id) => bench(id));
+    const quality = new Map([q("a", { score: 90 }), q("b", { score: 70 }), q("c", { score: 80 }), q("aa-terminalbench-v4-0", { score: 50 }), q("old", { frontierMeasured: 0 })].map((x) => [x.id, x]));
     const t = tierBenchmarks(list, quality);
     expect(t.old.map((b) => b.id)).toEqual(["old"]);
-    expect(t.popular.map((b) => b.id)).toEqual(["terminalbench-4", "a", "c", "b"]);
+    expect(t.popular.map((b) => b.id)).toEqual(["aa-terminalbench-v4-0", "a", "c", "b"]);
     expect(t.main).toEqual([]);
   });
 });

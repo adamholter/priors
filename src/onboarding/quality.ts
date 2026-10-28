@@ -2,11 +2,13 @@ import type { Benchmark, Snapshot } from "../data/types";
 import { focusMultiplier, type Focus } from "./focus";
 import { defaultLineup } from "./defaults";
 
-export const PREFERRED = ["deepswe-1.1", "terminalbench-4", "arc-agi-3", "simplebench", "bsbench-v2", "aa-humanitys-last-exam", "aa-omniscience", "frontiermath-tier-4-v2", "vals-programbench-v1"] as const;
+// AA's Terminal-Bench 4 run is preferred over tbench.ai's board: AA runs every new model on it, so fitted mixes that use it rank more models.
+// HLE-Diamond replaces Humanity's Last Exam, as it did in AA's index v5.
+export const PREFERRED = ["deepswe-1.1", "aa-terminalbench-v4-0", "arc-agi-3", "simplebench", "bsbench-v2", "aa-hle-diamond", "aa-omniscience", "frontiermath-tier-4-v2", "vals-programbench-v1"] as const;
 
 const FRONTIER_RELEASE_DATE = "2026-09-22";
 
-export const SUPERSEDED = new Set(["aa-terminalbench-v2-1", "arc-agi-1", "arc-agi-2", "deepswe-1", "aa-math-500"]);
+export const SUPERSEDED = new Set(["aa-terminalbench-v2-1", "arc-agi-1", "arc-agi-2", "deepswe-1", "aa-math-500", "aa-humanitys-last-exam"]);
 
 export interface BenchmarkQuality {
   id: string;
@@ -79,6 +81,7 @@ const RELEASES: Record<string, { date: string; url: string }> = {
   "aa-terminalbench-v2-1": { date: "2026-01-26", url: "https://artificialanalysis.ai/evaluations/terminalbench-2-1" },
   "aa-terminalbench-v4-0": { date: "2026-08-01", url: "https://artificialanalysis.ai/evaluations/terminalbench-4-0" },
   "aa-humanitys-last-exam": { date: "2025-01-23", url: "https://arxiv.org/abs/2501.14249" },
+  "aa-frontiercode-2-0": { date: "2026-10-27", url: "https://cognition.com/blog/frontier-code-2.0" },
   "aa-3d": { date: "2026-10-12", url: "https://artificialanalysis.ai/articles/aa-3d" },
   "aa-frontiercode": { date: "2026-07-07", url: "https://cognition.com/blog/frontier-code-1.1" },
   "aa-harvey-lab-aa": { date: "2026-10-08", url: "https://artificialanalysis.ai/articles/harvey-lab-aa-v1-1" },
@@ -103,6 +106,8 @@ const OBJECTIVITY: Record<string, number> = {
   simplebench: 86,
   "bsbench-v2": 65,
   "aa-humanitys-last-exam": 88,
+  "aa-terminalbench-v4-0": 92,
+  "aa-hle-diamond": 90,
   "aa-omniscience": 85,
   "frontiermath-tier-4-v2": 96,
   "vals-programbench-v1": 98,

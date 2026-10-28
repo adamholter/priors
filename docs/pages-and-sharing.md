@@ -110,3 +110,5 @@ A lab is a noindex page under `/lab/` that shows three or four switchable varian
 - `mode=adapting`: each day also drops benchmarks that fewer than 8 models had published scores for. Identical to fixed when every benchmark was well covered throughout (true for General frontier).
 - `/history?video=1` is the bare stage; `scripts/history-video.mjs <baseUrl> <out.mp4> [seconds]` steps it frame by frame with Playwright and encodes with ffmpeg.
 - History only goes back to the first snapshot (2026-09-05).
+
+**Chart links carry their look and, on benchmark pages, draw that chart.** `chartLinkUrl` adds `scheme=light|dark` (and the visitor's site theme as `theme` on the builder and benchmark pages), so a preview matches what was on screen. A benchmark page link with `c=` previews that chart (`renderBenchmarkChart` in `src/lib/og-benchmark.ts`: leaderboard, cost Pareto or a metric chart, from the benchmark's own snapshot and costs, with the link's `i` settings, hidden models and highlights) instead of the general benchmark card, and the page opens in those settings. The explored measure rides along as `bm`.

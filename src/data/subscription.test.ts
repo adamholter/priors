@@ -4,7 +4,7 @@ import { LABS } from "./normalize";
 import { computeIndex, type IndexConfig } from "../engine";
 import { decodeIndex, encodeIndex } from "../lib/url";
 import { clientSnapshot } from "./client-snapshot";
-import { blendedApiPrice, subscriptionPrices, SUBSCRIPTION_BENCHMARK, type SubscriptionDetails } from "./subscription";
+import { blendedApiPrice, CODEX_LIMITS_BENCHMARK, subscriptionPrices, SUBSCRIPTION_BENCHMARK, type SubscriptionDetails } from "./subscription";
 
 const standard = { cache: 0.97, input: 0.025, output: 0.005 };
 const plan = (name: string, extra: Partial<SubscriptionDetails> = {}): Record<string, unknown> => ({ plan: name, feeUsd: 20, confidence: "high", mix: standard, plans: [], ...extra });
@@ -53,15 +53,22 @@ describe("subscription cost basis", () => {
     expect(prices.get("b")!.ratio).toBeCloseTo(0.1, 6);
     expect(prices.has("c")).toBe(false);
   });
-  it("prices GPT-6.1 Terra at GPT-6.1 Sol's share until it has plan data of its own, then defers to it", () => {
+  it("prices a new OpenAI model from Codex's message limits against measured models, until it has plan data of its own", () => {
     const sn = snap();
-    const withSol = { ...sn, variants: [...sn.variants, { id: "gpt-6.1-sol@max", modelId: "gpt-6.1-sol", effort: "max" }] as Snapshot["variants"],
-      observations: [...sn.observations, { benchmarkId: SUBSCRIPTION_BENCHMARK, variantId: "gpt-6.1-sol@max", value: 0.03, observedAt: "", sourceUrl: "", details: plan("ChatGPT Plus", { ratio: 0.02 }) }] };
-    expect(subscriptionPrices(withSol).get("gpt-6.1-terra")).toMatchObject({ ratio: 0.02, plan: "ChatGPT Plus", confidence: "assumed: same share of API price as gpt-6.1-sol" });
-    const own = { ...withSol, variants: [...withSol.variants, { id: "gpt-6.1-terra@max", modelId: "gpt-6.1-terra", effort: "max" }] as Snapshot["variants"],
-      observations: [...withSol.observations, { benchmarkId: SUBSCRIPTION_BENCHMARK, variantId: "gpt-6.1-terra@max", value: 0.01, observedAt: "", sourceUrl: "", details: plan("ChatGPT Plus", { ratio: 0.01 }) }] };
+    const aa = (input: number, output: number) => ({ id: "t", slug: "t", name: "t", url: "", metadata: { price1mInputTokens: input, price1mOutputTokens: output } });
+    const codex = (variantId: string, value: number) => ({ benchmarkId: CODEX_LIMITS_BENCHMARK, variantId, value, observedAt: "", sourceUrl: "" });
+    // b pays 10% of API price and gets 50 messages; Terra costs twice b per token and gets 100: twice the messages at twice
+    // the price is four times the API value from the same allowance, so a quarter of b's share.
+    const withTerra = { ...sn, variants: [...sn.variants, { id: "gpt-6.1-terra@default", modelId: "gpt-6.1-terra", effort: "default", sourceModel: aa(4, 20) }] as Snapshot["variants"],
+      observations: [...sn.observations, codex("b@xhigh", 50), codex("gpt-6.1-terra@default", 100)] };
+    const terra = subscriptionPrices(withTerra).get("gpt-6.1-terra")!;
+    expect(terra.ratio).toBeCloseTo(0.025, 6);
+    expect(terra).toMatchObject({ plan: "ChatGPT Plus", confidence: "estimated from Codex Plus message limits against b" });
+    // Its own plan row wins.
+    const own = { ...withTerra, observations: [...withTerra.observations, { benchmarkId: SUBSCRIPTION_BENCHMARK, variantId: "gpt-6.1-terra@default", value: 0.01, observedAt: "", sourceUrl: "", details: plan("ChatGPT Plus", { ratio: 0.01 }) }] };
     expect(subscriptionPrices(own).get("gpt-6.1-terra")).toMatchObject({ ratio: 0.01, confidence: "high" });
-    expect(subscriptionPrices(sn).has("gpt-6.1-terra")).toBe(false);
+    // No limits published, no guess.
+    expect(subscriptionPrices({ ...withTerra, observations: sn.observations }).has("gpt-6.1-terra")).toBe(false);
   });
   it("leaves costs untouched when the index asks for the API basis", () => {
     expect(costs({ ...base, costBasis: "api" })).toEqual({ "a@max": 12, "a@high": 4, "b@xhigh": 7, "c@default": 5 });

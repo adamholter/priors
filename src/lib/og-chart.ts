@@ -16,6 +16,8 @@ import { presetOf, themeById, type PagePreset } from "./page-presets";
 import { EMPTY_HIDDEN, visiblePoints, type ChartHidden } from "../components/chart/chart-visibility";
 
 import { labelScale as normalizeLabelScale } from "../components/chart/label-size";
+import type { ScoreAxis } from "../components/chart/score-scale";
+import { focusPoints } from "./chart-focus";
 
 export interface ChartSpec {
   labelScale?: number;
@@ -27,6 +29,8 @@ export interface ChartSpec {
   hasTitle: boolean;
   /** Highlighted model ids or exact variant ids from the shared index URL. */
   highlight?: string[];
+  /** What the score axis shows: a benchmark page plots the published value (dollars, Elo), not Priors' 0 to 100 score. */
+  axis?: ScoreAxis;
 }
 
 /**
@@ -34,24 +38,31 @@ export interface ChartSpec {
  * from the full ranked set via pickPoints: `cm` overrides the index's pareto effort mode, and
  * best mode keeps each model's best *measured* effort rather than dropping the model.
  */
-export function scatterSpec(snapshot: Snapshot, ranked: RankedVariant[], index: IndexConfig, c: string | undefined, cm?: string, cs?: string, hidden: ChartHidden = EMPTY_HIDDEN, labelScale?: number): ChartSpec | null {
+export function scatterSpec(snapshot: Snapshot, ranked: RankedVariant[], index: IndexConfig, c: string | undefined, cm?: string, cs?: string, hidden: ChartHidden = EMPTY_HIDDEN, labelScale?: number, allModels = false): ChartSpec | null {
   // The page draws its cost, time and speed charts from the efforts the index shows; the card must start from the same set.
-  ranked = filterEfforts(ranked, index.efforts);
-  const mode = cm === "best" || cm === "all" ? cm : chartVariantMode(index, "pareto");
-  const from = (chart: MetricChart, title: string, hasTitle: boolean): ChartSpec => {
-    const metricPoints = chart.points(ranked), defaults = defaultBarModels(metricPoints, chart.better, ranked);
-    return {
-      title, hasTitle, labelScale: normalizeLabelScale(labelScale),
-      chart: chart.scale === "log" && cs === "linear" ? { ...chart, scale: "linear", xName: chart.xName.replace(/, log| \(log\)/g, "") } : chart,
-      pts: visiblePoints(pickPoints(chart, ranked, mode), hidden),
-      barPts: visiblePoints(filterBarModels(pickPoints(chart, ranked, mode), defaults), hidden),
-      highlight: index.highlight?.length ? [...index.highlight] : undefined,
-    };
-  };
+  const from = (chart: MetricChart, title: string, hasTitle: boolean) => metricSpec(chart, ranked, index, title, hasTitle, { cm, cs, hidden, labelScale, allModels });
   if (c === "cost") return from(costChartFor(effectiveBasis(index.costBasis)), effectiveBasis(index.costBasis) === "subscription" ? "Score vs subscription cost per task" : "Score vs cost per task", true);
   const ck = chartKind(snapshot, ranked, c, index.timeSource);
   if (ck?.kind !== "metric") return null;
   return from(ck.chart, chartTitle(c) ?? ck.chart.xName, false);
+}
+
+/** One metric chart (score against `chart`'s measure) as the page draws it from these ranked rows and the link's settings. */
+export function metricSpec(chart: MetricChart, ranked: RankedVariant[], index: IndexConfig, title: string, hasTitle: boolean, o: { cm?: string; cs?: string; hidden?: ChartHidden; labelScale?: number; axis?: ScoreAxis; allModels?: boolean } = {}): ChartSpec {
+  // The page draws its cost, time and speed charts from the efforts the index shows; the card must start from the same set.
+  ranked = filterEfforts(ranked, index.efforts);
+  const mode = o.cm === "best" || o.cm === "all" ? o.cm : chartVariantMode(index, "pareto"), hidden = o.hidden ?? EMPTY_HIDDEN;
+  const metricPoints = chart.points(ranked), defaults = defaultBarModels(metricPoints, chart.better, ranked);
+  // As ScoreScatter does: before anyone picks models, the frontier and current flagships only.
+  const trimmed = chart.scale !== "time" && !o.allModels && index.excludeModels === undefined && index.onlyModels === undefined;
+  const picked = pickPoints(chart, ranked, mode), shown = trimmed ? focusPoints(picked, chart.better, index.highlight ?? []) : picked;
+  return {
+    title, hasTitle, labelScale: normalizeLabelScale(o.labelScale), axis: o.axis,
+    chart: chart.scale === "log" && o.cs === "linear" ? { ...chart, scale: "linear", xName: chart.xName.replace(/, log| \(log\)/g, "") } : chart,
+    pts: visiblePoints(shown, hidden),
+    barPts: visiblePoints(filterBarModels(pickPoints(chart, ranked, mode), defaults), hidden),
+    highlight: index.highlight?.length ? [...index.highlight] : undefined,
+  };
 }
 
 /** Chart palette for a share card: the profile's scheme, else the site default. */
@@ -97,7 +108,7 @@ export function rasterize(svg: string, bg: string): Buffer {
 }
 
 /** Add the same axis guides and value badges used by ScoreScatter before server-side SVG rendering. */
-function addHighlightGuides(chart: ReturnType<typeof echarts.init>, pts: ScatterPoint[], highlight: Highlight | undefined, labs: Lab[], pal: ChartPalette, formatX: (x: number) => string) {
+function addHighlightGuides(chart: ReturnType<typeof echarts.init>, pts: ScatterPoint[], highlight: Highlight | undefined, labs: Lab[], pal: ChartPalette, formatX: (x: number) => string, formatY: (y: number) => string = (y) => y.toFixed(1)) {
   const guides = guidePoints(pts, highlight);
   if (!guides.length) return;
 
@@ -114,7 +125,7 @@ function addHighlightGuides(chart: ReturnType<typeof echarts.init>, pts: Scatter
   const width = chart.getWidth();
   // The server renderer sizes badge boxes wider than the browser does (about 10px a character), so the spread allows for that.
   const xs = placed.map(({ p, px }) => { const text = formatX(p.x); return { text, at: px[0], size: text.length * 10 + 8 }; });
-  const ys = placed.map(({ p, px }) => ({ text: p.r.score.toFixed(1), at: px[1], size: 18 }));
+  const ys = placed.map(({ p, px }) => ({ text: formatY(p.r.score), at: px[1], size: 18 }));
   const spread = (items: { at: number; size: number }[], lo: number, hi: number) => {
     const order = items.map((_, i) => i).sort((i, j) => items[i].at - items[j].at), pos = items.map((item) => item.at);
     for (let k = 0; k < order.length; k++) {
@@ -162,17 +173,17 @@ export async function renderChartPng(spec: ChartSpec, labs: Lab[], pal: ChartPal
     const modelCount = new Set(barPts.map((p) => p.r.model.id)).size;
     const bars = selectBars(barPts, spec.chart.better, Math.max(24, modelCount), highlight);
     if (!bars.length) return null;
-    const opt = barsOption({ bars, labs, xName: spec.chart.xName.replace(", log", ""), formatValue: spec.chart.xLabel === costChart.xLabel ? costChart.formatX : spec.chart.formatValue ?? spec.chart.formatX, pal, narrow: false, highlight, labelScale: spec.labelScale, zoomAxis: spec.chart.zoomAxis, width: CHART_W, height: CHART_H });
+    const opt = barsOption({ bars, labs, axis: spec.axis, xName: spec.chart.xName.replace(", log", ""), formatValue: spec.chart.xLabel === costChart.xLabel ? costChart.formatX : spec.chart.formatValue ?? spec.chart.formatX, pal, narrow: false, highlight, labelScale: spec.labelScale, zoomAxis: spec.chart.zoomAxis, width: CHART_W, height: CHART_H });
     // Rotated category labels need deep bottom margin; keep them clear of X's bottom-left pill (~y550).
     chart.setOption({ ...opt, animation: false, grid: { ...(opt.grid as Record<string, number>), bottom: 132 } });
     svg = chart.renderToSVGString();
   } else {
     if (!spec.pts.length) return null;
     const emphasis: Highlight | undefined = highlight ? { items: highlight, guides: true } : undefined;
-    const opt = scatterOption({ ...spec.chart, xUnit: spec.chart.xLabel, pts: spec.pts, hasTitle: spec.hasTitle, labs, view: { ...DEFAULT_VIEW, labelScale: spec.labelScale, frontier: spec.chart.defaultFrontier ?? DEFAULT_VIEW.frontier }, pal, narrow: false, width: () => CHART_W, height: () => CHART_H, dots: () => { try { return spec.pts.map((p) => { const [x, y] = chart.convertToPixel({ xAxisIndex: 0, yAxisIndex: 0 }, [p.x, p.r.score]) as number[]; return { x, y }; }); } catch { return undefined; } }, highlight: emphasis });
+    const opt = scatterOption({ ...spec.chart, axis: spec.axis, xUnit: spec.chart.xLabel, pts: spec.pts, hasTitle: spec.hasTitle, labs, view: { ...DEFAULT_VIEW, labelScale: spec.labelScale, frontier: spec.chart.defaultFrontier ?? DEFAULT_VIEW.frontier }, pal, narrow: false, width: () => CHART_W, height: () => CHART_H, dots: () => { try { return spec.pts.map((p) => { const [x, y] = chart.convertToPixel({ xAxisIndex: 0, yAxisIndex: 0 }, [p.x, p.r.score]) as number[]; return { x, y }; }); } catch { return undefined; } }, highlight: emphasis });
     // Lift the x-axis so tick labels and the axis name clear X's bottom-left title overlay (~y550).
     chart.setOption({ ...opt, animation: false, grid: { ...(opt.grid as Record<string, number>), bottom: 108 } });
-    addHighlightGuides(chart, spec.pts, emphasis, labs, pal, spec.chart.formatX);
+    addHighlightGuides(chart, spec.pts, emphasis, labs, pal, spec.chart.formatX, spec.axis?.format);
     // Browser clipping safely omits labels with no free slot. resvg's clip intersection can panic
     // for a label entirely outside the canvas, so omit those labels from the server SVG as well.
     for (const root of chart.getZr().storage.getRoots()) root.traverse(el => {

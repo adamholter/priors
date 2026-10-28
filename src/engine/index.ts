@@ -2,6 +2,7 @@ import { effectiveBasis, subscriptionPrices, type CostBasis, type SubscriptionPr
 import { supersededModelIds } from "./superseded";
 import { taskMetricData, taskMetricDescription, type TaskMetricSource } from "../data/task-metrics";
 import type { Benchmark, FocusId, Model, Observation, Snapshot, Variant } from "../data/types";
+import { AA_V5_WEIGHTS, aaComponentWeights } from "../data/aa-index";
 
 /* ------------------------------------------------------------------ */
 /* Config                                                              */
@@ -100,11 +101,16 @@ export function defaultReleasedAfter(from?: string): string {
   return d.toISOString().slice(0, 10);
 }
 
-export function defaultConfig(_snapshot: Snapshot, id = "general", name = "General frontier"): IndexConfig {
+/**
+ * The index every visitor starts with: Artificial Analysis' Intelligence Index evaluations at AA's weights (the newest
+ * version in the snapshot, else v5.0's), since AA runs every new model on all of them. Unlike the Artificial Analysis
+ * preset it keeps the usual coverage floor and peer estimates, so a model missing one evaluation is still ranked.
+ */
+export function defaultConfig(snapshot: Snapshot, id = "general", name = "General frontier"): IndexConfig {
   return {
     id, name,
-    weights: { "deepswe-1.1": 43, "terminalbench-4": 54, "arc-agi-3": 9, "simplebench": 38, "bsbench-v2": 12, "aa-humanitys-last-exam": 37, "aa-omniscience": 24, "frontiermath-tier-4-v2": 42 },
-    required: [], optional: ["deepswe-1.1"], strictness: 50, cutoff: DEFAULT_CUTOFF,
+    weights: (snapshot?.benchmarks && aaComponentWeights(snapshot)) || { ...AA_V5_WEIGHTS },
+    required: [], strictness: 50, cutoff: DEFAULT_CUTOFF,
     estimateMissing: true, variants: "best",
   };
 }

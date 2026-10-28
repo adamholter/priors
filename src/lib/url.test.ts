@@ -17,8 +17,8 @@ describe("effort matching URL state", () => {
   });
 });
 
-it("starts with the exact shared General frontier configuration", () => {
-  const shared = decodeIndex("General%20frontier|deepswe-1.1:43,terminalbench-4:54,arc-agi-3:9,simplebench:38,bsbench-v2:12,aa-humanitys-last-exam:37,aa-omniscience:24,frontiermath-tier-4-v2:42|opt=deepswe-1.1|strict=50|var=best", "general");
+it("starts on AA Intelligence Index v5's evaluations at AA's weights", () => {
+  const shared = decodeIndex("General%20frontier|aa-briefcase:15,aa-automationbench-aa:5,aa-gdp-pdf:5,aa-frontiercode-2-0:15,aa-terminalbench-v4-0:10,aa-terminalbench-science:15,aa-critpt-v2-hard:10,aa-omniscience-v1-1-accuracy:10,aa-omniscience-v1-1-non-hallucination:5,aa-hle-diamond:10|strict=50|var=best", "general");
   expect(defaultConfig({} as Snapshot)).toEqual(shared);
 });
 

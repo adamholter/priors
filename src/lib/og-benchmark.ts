@@ -1,10 +1,19 @@
-import type { Snapshot } from "@/data/types";
-import { computeIndex, selectVariants, type RankedVariant } from "@/engine";
-import { markColor, LIGHT_PALETTE } from "@/components/chart/theme";
-import { escapeSvg } from "@/components/chart/export-frame";
+import type { Benchmark, Lab, Snapshot } from "@/data/types";
+import { computeIndex, rankingRows, selectVariants, type IndexConfig, type RankedVariant } from "@/engine";
+import { markColor, LIGHT_PALETTE, type ChartPalette } from "@/components/chart/theme";
+import { escapeSvg, frameSvg } from "@/components/chart/export-frame";
 import { RADAR_PALETTES } from "@/components/chart/radar-view";
+import { INDEX_SCORE_AXIS, type ScoreAxis } from "@/components/chart/score-scale";
+import { readChartHidden } from "@/components/chart/chart-visibility";
+import { linkedLabelScale } from "@/components/chart/label-size";
+import { effectiveBasis } from "@/data/subscription";
+import { hasSubscriptionPrices } from "@/data/task-metrics";
+import { decodeIndices } from "./url";
+import { costChartFor } from "./metrics";
+import { benchmarkMetrics } from "./benchmark-metrics";
+import { metricChartOf } from "./benchmark-chart";
 import { benchmarkIndex, benchmarkSnapshot, benchmarkView, hasOwnCost } from "./benchmark-page";
-import { rasterize } from "./og-chart";
+import { cardPalette, metricSpec, rasterize, renderChartPng } from "./og-chart";
 import { formatBenchValue } from "./benchmark-format";
 
 const ACCENT = "#2F4FB0";
@@ -109,4 +118,67 @@ export function renderBenchmarkCard(full: Snapshot, benchmarkId: string): Buffer
   out.push(`<text x="${W - 50}" y="${H - 32}" text-anchor="end" font-family="Newsreader" font-size="36" fill="${pal.ink}">pr<tspan fill="${ACCENT}">i</tspan>ors</text>`);
   out.push("</svg>");
   return rasterize(out.join(""), pal.bg);
+}
+
+const CHART_W = 1200 - 64, CHART_H = 630 - 88;
+const linkedConfig = (snapshot: Snapshot, benchmarkId: string, q: URLSearchParams): IndexConfig => {
+  const base = benchmarkIndex(snapshot, benchmarkId), linked = decodeIndices(q)[0];
+  // The link carries the page's settings (hidden models, efforts, pricing, release window, highlights); the mix stays this benchmark alone.
+  return linked ? { ...linked, id: base.id, name: base.name, weights: base.weights, required: base.required, strictness: base.strictness, estimateMissing: false } : base;
+};
+
+/**
+ * A chart copied from a benchmark page, as its link preview: the chart the link names (`c`: rankings, cost, metric-…),
+ * computed the way the page computes it (the benchmark's own snapshot and costs), with the link's settings, hidden
+ * models and highlights, in the color scheme and theme it was copied in.
+ */
+export async function renderBenchmarkChart(full: Snapshot, benchmarkId: string, q: URLSearchParams): Promise<Buffer | null> {
+  const snapshot = benchmarkSnapshot(full, benchmarkId);
+  const b = snapshot.benchmarks.find((x) => x.id === benchmarkId);
+  if (!b) return null;
+  const c = q.get("c") ?? "rankings", config = linkedConfig(snapshot, benchmarkId, q);
+  const scheme = q.get("scheme"), theme = q.get("theme");
+  const pal = cardPalette(theme ? { preset: theme } : undefined, scheme === "dark" || scheme === "light" ? scheme : undefined);
+  const ranked = computeIndex(snapshot, { ...config, variants: "all" }, benchmarkView(snapshot, benchmarkId)).ranked;
+  if (!ranked.length) return null;
+  const raw = (r: RankedVariant) => r.values[0]?.raw;
+  // As on the page: plot the published value when higher is better there, else the Priors scale.
+  const plotRaw = b.higherIsBetter !== false && ranked.every((r) => raw(r) != null);
+  const axis: ScoreAxis = plotRaw ? { name: b.shortName ?? b.name, format: (v) => formatBenchValue(b, v), fit: true } : { ...INDEX_SCORE_AXIS, name: "Score (Priors scale)" };
+  const plotted = plotRaw ? ranked.map((r) => ({ ...r, score: raw(r)! })) : ranked;
+  const opts = { cm: q.get("cm") ?? undefined, cs: q.get("cs") ?? undefined, hidden: readChartHidden(q, c), labelScale: linkedLabelScale(q), axis, allModels: q.get("cf") === "all" };
+  const named = (title: string) => `${b.name} · ${title}`;
+  if (c === "cost") {
+    const basis = effectiveBasis(config.costBasis, hasSubscriptionPrices(snapshot));
+    const spec = metricSpec(costChartFor(basis), plotted, config, named(basis === "subscription" ? "Score vs subscription cost per task" : "Score vs cost per task"), true, opts);
+    return renderChartPng(spec, snapshot.labs, pal, q.get("cv") ?? undefined);
+  }
+  if (c.startsWith("metric-")) {
+    const metrics = benchmarkMetrics(snapshot, b), all = [...metrics.standard, ...metrics.details];
+    const m = c === "metric-explore" ? all.find((x) => x.id === q.get("bm")) ?? metrics.details[0] : metrics.standard.find((x) => `metric-${x.id}` === c);
+    if (!m) return null;
+    const spec = metricSpec(metricChartOf(m, b.name), plotted, config, named(m.label), true, opts);
+    return renderChartPng(spec, snapshot.labs, pal, q.get("cv") ?? undefined);
+  }
+  return leaderboardPng(b, rankingRows(ranked, config), snapshot.labs, pal, named("Leaderboard"));
+}
+
+/** The page's leaderboard: one bar per row, length from the score across the field, the published value at the end. */
+function leaderboardPng(b: Benchmark, rows: RankedVariant[], labs: Lab[], pal: ChartPalette, title: string): Buffer {
+  const e = escapeSvg, list = rows.slice(0, 14);
+  const max = Math.max(...rows.map((r) => r.score)), min = Math.min(...rows.map((r) => r.score));
+  const pitch = Math.min(38, (CHART_H - 24) / Math.max(list.length, 1)), nameW = 300, valueW = 110, barW = CHART_W - nameW - valueW - 40;
+  const color = (r: RankedVariant) => markColor(labs.find((l) => l.id === r.model.labId)?.color, pal, r.model.labId);
+  const out = [`<svg xmlns="http://www.w3.org/2000/svg" width="${CHART_W}" height="${CHART_H}">`];
+  list.forEach((r, i) => {
+    const y = 18 + i * pitch, value = r.values[0]?.raw;
+    const w = Math.max(0.03, max > min ? (r.score - min) / (max - min) : 1) * barW;
+    out.push(`<text x="0" y="${y + 6}" font-family="JetBrains Mono" font-size="15" fill="${pal.grey}">${i + 1}</text>`);
+    out.push(`<text x="34" y="${y + 6}" font-family="Inter" font-size="19" fill="${pal.ink}">${e(fit(label(r), 26))}</text>`);
+    out.push(`<rect x="${nameW}" y="${y - 8}" width="${barW}" height="16" rx="2" fill="${pal.hair}"/><rect x="${nameW}" y="${y - 8}" width="${w.toFixed(1)}" height="16" rx="2" fill="${color(r)}"/>`);
+    out.push(`<text x="${CHART_W}" y="${y + 6}" text-anchor="end" font-family="JetBrains Mono" font-weight="500" font-size="18" fill="${pal.ink}">${e(value != null ? formatBenchValue(b, value) : r.score.toFixed(1))}</text>`);
+  });
+  if (rows.length > list.length) out.push(`<text x="34" y="${18 + list.length * pitch + 4}" font-family="Inter" font-size="15" fill="${pal.grey}">and ${rows.length - list.length} more</text>`);
+  out.push("</svg>");
+  return rasterize(frameSvg(out.join(""), title, undefined, { bg: pal.bg, ink: pal.ink, grey: pal.grey }, { footer: "right" }), pal.bg);
 }

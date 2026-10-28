@@ -45,11 +45,10 @@ export function blendedApiPrice(p: Prices, mix: TokenMix): number {
   return mix.cache * cached + mix.input * p.input + (mix.cacheWrite ?? 0) * (p.cacheWrite ?? p.input * 1.25) + mix.output * p.output;
 }
 
-/**
- * Models with no plan data of their own yet, priced at the share of API cost a sibling pays. Applied only while the
- * model has no row of its own, so real data replaces it the day Real API Pricing lists the model.
- */
-export const ASSUMED_PLAN_LIKE: Record<string, string> = { "gpt-6.1-terra": "gpt-6.1-sol" };
+/** OpenAI's estimated Codex messages per five hours on Plus, per model (`scripts/scrape/sources/codex-limits.ts`). */
+export const CODEX_LIMITS_BENCHMARK = "codex-plus-messages";
+const STANDARD_MIX: TokenMix = { cache: 0.97, input: 0.025, output: 0.005 };
+const median = (xs: number[]) => { const s = [...xs].sort((a, b) => a - b); return s.length % 2 ? s[(s.length - 1) / 2] : (s[s.length / 2 - 1] + s[s.length / 2]) / 2; };
 
 /**
  * Share of API cost a subscriber pays, per model. A plan debits its allowance in proportion to API
@@ -59,6 +58,7 @@ export const ASSUMED_PLAN_LIKE: Record<string, string> = { "gpt-6.1-terra": "gpt
  */
 export function subscriptionPrices(snapshot: Snapshot): Map<string, SubscriptionPrice> {
   const out = new Map<string, SubscriptionPrice>();
+  const mixes = new Map<string, TokenMix>();
   const variants = new Map(snapshot.variants.map((v) => [v.id, v]));
   const aaPrices = new Map<string, Prices>();
   for (const v of snapshot.variants) {
@@ -76,11 +76,26 @@ export function subscriptionPrices(snapshot: Snapshot): Map<string, Subscription
     const prices = d?.listPrice ?? aaPrices.get(modelId);
     if (!d?.mix || !prices) continue;
     const api = blendedApiPrice(prices, d.mix);
-    if (positive(api)) out.set(modelId, { ratio: o.value / api, plan: d.plan, feeUsd: d.feeUsd, confidence: d.confidence });
+    if (positive(api)) { out.set(modelId, { ratio: o.value / api, plan: d.plan, feeUsd: d.feeUsd, confidence: d.confidence }); mixes.set(modelId, d.mix); }
   }
-  for (const [modelId, like] of Object.entries(ASSUMED_PLAN_LIKE)) {
-    const base = out.get(like);
-    if (!out.has(modelId) && base) out.set(modelId, { ...base, confidence: `assumed: same share of API price as ${like}` });
+  // An OpenAI model with no plan data yet, priced from Codex's published limits: a plan's five-hour allowance is the
+  // same budget whichever model spends it, so a model allowed k times the messages of a measured one at p times its
+  // API price per token pays 1/(k·p) of that model's share (same tokens per message assumed). The median over every
+  // measured model keeps one odd reference from setting the price. Real plan data replaces it once the model has some.
+  const messages = new Map<string, number>();
+  for (const o of snapshot.observations) if (o.benchmarkId === CODEX_LIMITS_BENCHMARK && positive(o.value)) messages.set(variants.get(o.variantId)?.modelId ?? o.variantId.split("@")[0], o.value);
+  const measured = [...messages.keys()].filter((id) => out.has(id) && aaPrices.has(id));
+  for (const [modelId, n] of messages) {
+    const prices = aaPrices.get(modelId);
+    if (out.has(modelId) || !prices) continue;
+    const refs = measured.map((ref) => {
+      const mix = mixes.get(ref) ?? STANDARD_MIX;
+      return { ref, ratio: out.get(ref)!.ratio * (messages.get(ref)! / n) * (blendedApiPrice(aaPrices.get(ref)!, mix) / blendedApiPrice(prices, mix)) };
+    }).filter((r) => positive(r.ratio));
+    if (!refs.length) continue;
+    const ratio = median(refs.map((r) => r.ratio));
+    const nearest = refs.reduce((a, b) => (Math.abs(b.ratio - ratio) < Math.abs(a.ratio - ratio) ? b : a));
+    out.set(modelId, { ...out.get(nearest.ref)!, ratio, confidence: `estimated from Codex Plus message limits against ${refs.map((r) => r.ref).join(", ")}` });
   }
   return out;
 }

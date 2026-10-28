@@ -77,6 +77,13 @@ export function chartLinkUrl(current: string, id: string, params?: { cv?: "bars"
       if (value) url.searchParams.set(key, value); else url.searchParams.delete(key);
     }
   }
+  // The look it was copied in, so the link preview matches what the visitor saw: light or dark, and on the builder and
+  // benchmark pages the visitor's site theme. A published page keeps its owner's theme, which the card already knows.
+  if (typeof document !== "undefined") {
+    const root = document.documentElement, scheme = root.dataset.theme;
+    if (scheme === "dark" || scheme === "light") url.searchParams.set("scheme", scheme);
+    if (root.dataset.siteTheme && /^\/(builder|benchmarks)(\/|$)/.test(url.pathname)) url.searchParams.set("theme", root.dataset.siteTheme);
+  }
   if (state?.linkIndices) {
     url.searchParams.delete("i");
     for (const encoded of encodeIndices(state.linkIndices).getAll("i")) url.searchParams.append("i", encoded);

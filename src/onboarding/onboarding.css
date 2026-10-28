@@ -199,7 +199,10 @@ body:has(.done-dialog[open]){overflow:hidden}
 .production-pairwise-action:focus-visible{outline:2px solid var(--indigo);outline-offset:3px}
 .production-pairwise-action svg{width:18px;height:18px}
 /* Social proof under the stage intro. */
-.skip-onboarding{display:inline-flex;align-items:center;gap:6px;margin-top:14px}
+.onboard-intro.has-skip{display:grid;grid-template-columns:minmax(0,1fr) 280px;column-gap:72px;grid-template-rows:auto 1fr;align-items:start}.onboard-intro.has-skip>:not(.skip-onboarding){grid-column:1}
+.skip-onboarding{grid-column:2;grid-row:1/span 2;align-self:start;padding:20px 20px 18px;background:var(--ob-ffffff);border:1px solid var(--ob-dddbd4);border-radius:6px}.skip-onboarding h2{font-size:24px;line-height:1.15;letter-spacing:-.015em;margin:0 0 8px}.skip-onboarding p{font-size:12px;line-height:1.6;color:var(--ob-686b61);margin:0 0 16px}.skip-onboarding .primary-action{padding:12px 16px}
+@media(max-width:1000px){.onboard-intro.has-skip{grid-template-columns:minmax(0,1fr) 230px;column-gap:36px}}
+@media(max-width:740px){.onboard-intro.has-skip{display:block}.skip-onboarding{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:4px 14px;margin-top:14px;padding:12px 12px 12px 14px}.skip-onboarding h2{font-size:19px;margin:0}.skip-onboarding p{grid-column:1;font-size:11px;line-height:1.45;margin:0}.skip-onboarding .primary-action{grid-column:2;grid-row:1/span 2;width:auto;padding:11px 14px;gap:10px}}
 .intro-proof{display:block;margin-top:8px;font:10.5px var(--font-mono);letter-spacing:.03em;color:var(--ob-87897f)}
 /* Compact focus: names only, no blurbs, so it reads as a setting rather than a decision. */
 .focus-picker.compact{align-items:center;padding-bottom:12px}

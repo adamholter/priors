@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Benchmark, Observation, Snapshot } from "@/data/types";
 import { chartVariantMode, computeIndex, DEFAULT_EFFORTS, EFFORT_CHOICES, filterEfforts, rankingRows as rankingRowsOf, type IndexConfig, type RankedVariant } from "@/engine";
 import { hasSubscriptionPrices } from "@/data/task-metrics";
@@ -23,16 +23,17 @@ import { HighlightContext } from "../chart/highlight";
 import { markColor, useChartPalette } from "../chart/echarts";
 import { GalleryChart, Panel } from "../page/MetricGallery";
 import { INDEX_SCORE_AXIS, ScoreAxisContext, type ScoreAxis } from "../chart/score-axis";
-import { BreakdownTable, metricChartOf, Relatives, SeriesChart } from "./BenchmarkExtras";
+import { BreakdownTable, Relatives, SeriesChart } from "./BenchmarkExtras";
+import { metricChartOf } from "@/lib/benchmark-chart";
 import { benchmarkMetrics, benchmarkSeries, formatMetric, type BenchMetric } from "@/lib/benchmark-metrics";
 
 const fmt = formatBenchValue;
 const usd = (v: number) => v === 0 ? "free" : `$${v >= 10 ? v.toFixed(0) : v >= 1 ? v.toFixed(2) : v.toFixed(v >= 0.1 ? 2 : 3)}`;
 
 /** One benchmark on its own: who leads it, and what each result costs, priced the way a subscriber pays when the lab has a plan. */
-export function BenchmarkPage({ snapshot, benchmarkId, models, relatives }: { snapshot: Snapshot; benchmarkId: string; models: number; relatives: { family: { id: string; label: string }[]; versions: { id: string; label: string }[] } }) {
+export function BenchmarkPage({ snapshot, benchmarkId, models, relatives, initial }: { snapshot: Snapshot; benchmarkId: string; models: number; relatives: { family: { id: string; label: string }[]; versions: { id: string; label: string }[] }; /** Settings from a copied link. */ initial?: IndexConfig }) {
   const b = snapshot.benchmarks.find((x) => x.id === benchmarkId)!;
-  const [config, setConfig] = useState<IndexConfig>(() => benchmarkIndex(snapshot, benchmarkId));
+  const [config, setConfig] = useState<IndexConfig>(() => initial ?? benchmarkIndex(snapshot, benchmarkId));
   const patch = useCallback((p: Partial<IndexConfig>) => setConfig((c) => ({ ...c, ...p })), []);
   const result = useMemo(() => computeIndex(snapshot, { ...config, variants: "all" }, benchmarkView(snapshot, benchmarkId)), [snapshot, config, benchmarkId]);
   const pal = useChartPalette();
@@ -45,7 +46,7 @@ export function BenchmarkPage({ snapshot, benchmarkId, models, relatives }: { sn
   const apiObs = useMemo(() => new Map(snapshot.observations.filter((o) => o.benchmarkId === benchmarkId).map((o) => [o.variantId, o])), [snapshot, benchmarkId]);
   const [paretoView, setParetoView] = useScatterView("benchmark-pareto");
   const [allRows, setAllRows] = useState(false);
-  const [highlight, setHighlight] = useState<string[]>([]);
+  const [highlight, setHighlight] = useState<string[]>(() => initial?.highlight ?? []);
   // Every model with a result, ranked first, then the ones hidden, so a hidden model can be shown again.
   const pickerModels = useMemo(() => {
     const col = new Map(snapshot.labs.map((l) => [l.id, markColor(l.color, pal, l.id)]));
@@ -62,7 +63,7 @@ export function BenchmarkPage({ snapshot, benchmarkId, models, relatives }: { sn
   const toggleModel = useCallback((id: string) => setConfig((c) => ({ ...c, ...toggleVisibility(c, id, pickerIds, result.autoHidden) })), [pickerIds, result.autoHidden]);
   const modelPicker = { models: pickerModels, excluded: excludedIds, onToggleModel: toggleModel, onShowAllModels: () => setVisibility(SHOW_ALL), onHideAllModels: () => setVisibility({ excludeModels: pickerIds, onlyModels: undefined }), onShowOnly: (ids: string[]) => setVisibility({ excludeModels: pickerIds.filter((id) => !ids.includes(id)), onlyModels: undefined }) };
   const releaseProps = { releasedAfter: config.releasedAfter, onChangeReleased: (v: string) => patch({ releasedAfter: v }) };
-  const highlightState = useMemo(() => ({ items: highlight, set: setHighlight, models: pickerModels, linkIndices: [config] }), [highlight, pickerModels, config]);
+  const highlightState = useMemo(() => ({ items: highlight, set: setHighlight, models: pickerModels, linkIndices: [{ ...config, highlight: highlight.length ? highlight : undefined }], curated: config.excludeModels !== undefined || config.onlyModels !== undefined }), [highlight, pickerModels, config]);
   const host = (() => { try { return new URL(b.url).hostname.replace(/^www\./, ""); } catch { return ""; } })();
   const table = result.ranked; // best first; scores already account for direction
   const effortProps = { efforts: { value: config.efforts ?? DEFAULT_EFFORTS, onChange: (efforts: string[]) => patch({ efforts }) } };
@@ -71,6 +72,12 @@ export function BenchmarkPage({ snapshot, benchmarkId, models, relatives }: { sn
   const metrics = useMemo(() => benchmarkMetrics(snapshot, b), [snapshot, b]);
   const series = useMemo(() => benchmarkSeries(snapshot, benchmarkId), [snapshot, benchmarkId]);
   const [explore, setExplore] = useState(() => metrics.details[0]?.id);
+  // The measure being explored rides in the address (`bm`), so a copied link to that chart previews and opens on it.
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => { const id = new URL(window.location.href).searchParams.get("bm"); if (id && metrics.details.some((m) => m.id === id)) setExplore(id); });
+    return () => cancelAnimationFrame(frame);
+  }, [metrics]);
+  const pickExplore = (id: string) => { setExplore(id); const url = new URL(window.location.href); url.searchParams.set("bm", id); window.history.replaceState(window.history.state, "", url); };
   const exploring = metrics.details.find((m) => m.id === explore) ?? metrics.details[0];
   const inputs = useMemo(() => formulaInputs(snapshot, result.ranked, config.timeSource), [snapshot, result.ranked, config.timeSource]);
   // Charts plot the benchmark's published value (a dollar balance, an Elo), not Priors' 0 to 100 index score, when
@@ -120,7 +127,7 @@ export function BenchmarkPage({ snapshot, benchmarkId, models, relatives }: { sn
               <GalleryChart id={`bench-${m.id}`} anchor={`metric-${m.id}`} title={m.label} chart={metricChartOf(m, b.name)} ranked={plotted} defaultMode="all" labs={snapshot.labs} settings={gallerySettings} inputs={inputs} />
             </Panel>)}
             {exploring && <Panel anchor="metric-explore" title="Score vs any published measure" desc={`${metrics.details.length} measures: sub-scores, splits, counts`} defaultOpen={!metrics.standard.length}
-              tools={<span onClick={(e) => e.stopPropagation()}><select aria-label="Measure" className="inp !w-auto !py-0.5 !text-[12px] max-w-[260px]" value={exploring.id} onChange={(e) => setExplore(e.target.value)}>{metrics.details.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}</select></span>}>
+              tools={<span onClick={(e) => e.stopPropagation()}><select aria-label="Measure" className="inp !w-auto !py-0.5 !text-[12px] max-w-[260px]" value={exploring.id} onChange={(e) => pickExplore(e.target.value)}>{metrics.details.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}</select></span>}>
               <GalleryChart key={exploring.id} id={`bench-explore`} anchor="metric-explore" title={exploring.label} chart={metricChartOf(exploring, b.name)} ranked={plotted} defaultMode="all" labs={snapshot.labs} settings={gallerySettings} inputs={inputs} />
             </Panel>}
           </section>}

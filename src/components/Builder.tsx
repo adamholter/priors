@@ -133,7 +133,7 @@ export function Builder({ snapshot: base, initialIndices, labPlacement }: { snap
   }, [indices, active, labPlacement]);
 
   const update = useCallback((c: IndexConfig) => setIndices((list) => list.map((i) => (i.id === c.id ? c : i))), []);
-  const highlightState = useMemo(() => ({ items: active.highlight ?? [], set: (h: string[]) => update({ ...active, highlight: h.length ? h : undefined }), models: pickerModels, linkIndices: [active, ...indices.filter((i) => i.id !== active.id)] }), [active, indices, update, pickerModels]);
+  const highlightState = useMemo(() => ({ items: active.highlight ?? [], set: (h: string[]) => update({ ...active, highlight: h.length ? h : undefined }), models: pickerModels, linkIndices: [active, ...indices.filter((i) => i.id !== active.id)], curated: active.excludeModels !== undefined || active.onlyModels !== undefined }), [active, indices, update, pickerModels]);
   // The + copies the index you are viewing (weights, filters, highlights), so a variation never starts from a blank mix.
   const add = () => {
     const id = `i${Date.now().toString(36)}`;
