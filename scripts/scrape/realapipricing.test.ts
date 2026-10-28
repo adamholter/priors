@@ -6,7 +6,7 @@ const conventions: Conventions = {
   usdPerCny: 8, standardTokenMix: { cache: 0.97, input: 0.025, output: 0.005 }, lowCacheTokenMix: { cache: 0.85, input: 0.145, output: 0.005 },
   anthropicTokenMix: { cache: 0.97, cacheWrite: 0.025, output: 0.005 },
 };
-const channels: Channels = { channels: [["chatgpt", "OpenAI"], ["claude", "Anthropic"], ["cursor", "Cursor"], ["glm", "Zhipu"], ["devin", "Devin"]] };
+const channels: Channels = { channels: [["chatgpt", "OpenAI"], ["claude", "Anthropic"], ["cursor", "Cursor"], ["glm", "Zhipu"], ["devin", "Devin"], ["google_ai", "Google"]] };
 const point = (id: string, plan: string, vendor: string, real: number, extra: Partial<Points["points"][number]> = {}): Points["points"][number] => {
   const model = id.split("::")[1];
   return { id, plan, billing: "subscription", model, model_display: model, vendor, real_usd_per_mtok: real, confidence: "medium", workload: "standard", price_usd: 20, ...extra };
@@ -26,6 +26,8 @@ const payload: Points = { generatedAt: "2026-10-08", points: [
   point("droid_max::qwen3.8-max", "Droid Max", "Alibaba", 0.04, { model_display: "Qwen3.8 Max", price_usd: 200 }),
   point("scam_plan::qwen3.8-max", "Cheap Plan", "Alibaba", 0.001, { model_display: "Qwen3.8 Max", confidence: "low" }),
   point("devin_pro::swe-2", "Devin Pro", "Cognition", 0, { model_display: "SWE-2", unmetered: true }),
+  point("google_ai_pro_us::gemini-4-argon", "Google AI Pro", "Google", 0.303, { model_display: "Gemini 4 Argon", confidence: "low", workload: "lowCache", price_usd: 19.99 }),
+  point("opencode_go::gemini-4-argon-contributor", "OpenCode Go", "Google", 0.131, { model_display: "Gemini 4 Argon Contributor", price_usd: 10 }),
 ] };
 
 describe("Real API Pricing subscriptions", () => {
@@ -33,7 +35,7 @@ describe("Real API Pricing subscriptions", () => {
   const row = (label: string) => rows.find((r) => r.modelLabel === label)!;
   const computed = rows.filter((r) => !(r.details as { source?: string }).source);
   it("keeps one row per model on its lab's own plans: no resellers, metered APIs or unmetered promos", () => {
-    expect(computed.map((r) => r.modelLabel)).toEqual(["GPT 5.6 Sol", "Claude Opus 5.5", "Claude Fable 5", "GLM 5.3", "Qwen3.8 Max"]);
+    expect(computed.map((r) => r.modelLabel)).toEqual(["GPT 5.6 Sol", "Claude Opus 5.5", "Claude Fable 5", "GLM 5.3", "Gemini 4 Argon", "Qwen3.8 Max"]);
     expect(row("GPT 5.6 Sol").details).toMatchObject({ plans: [{ plan: "ChatGPT Pro 10x" }, { plan: "ChatGPT Plus" }, { plan: "ChatGPT Pro 5x" }] });
   });
   it("prices plans measured before an allowance cut at the allowance they sell with now", () => {
@@ -45,9 +47,11 @@ describe("Real API Pricing subscriptions", () => {
     expect(row("Qwen3.8 Max")).toMatchObject({ value: 0.04, details: { plan: "Droid Max", confidence: "medium" } });
     expect(row("Qwen3.8 Max").note).toContain("best of 2 reseller plans");
   });
+  it("finds a model whose Priors id differs from the source's slug: Gemini 4 Argon is gemini-4, priced on Google's own plan", () => {
+    expect(rows.filter((r) => r.modelLabel.startsWith("Gemini 4 Argon"))).toHaveLength(1);
+    expect(row("Gemini 4 Argon")).toMatchObject({ value: 0.303, details: { plan: "Google AI Pro", confidence: "low", mix: { cache: 0.85, input: 0.145, output: 0.005 } } });
+  });
   it("lets a curated published allowance replace a computed row, as a direct share of API price", () => {
-    expect(rows.filter((r) => r.modelLabel === "Gemini 4 Argon")).toHaveLength(1);
-    expect(row("Gemini 4 Argon")).toMatchObject({ details: { ratio: 10 / 60, plan: expect.stringContaining("OpenCode Go") } });
     expect(row("Muse Wonder (Max)")).toMatchObject({ identity: { modelId: "aa-muse-wonder" }, details: { ratio: 100 / 150 } });
   });
   it("takes the median plan rather than the cheapest, and low-confidence rows only as a last resort", () => {

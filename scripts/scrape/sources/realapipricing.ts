@@ -30,6 +30,8 @@ export type Conventions = { usdPerCny: number; standardTokenMix: TokenMix; lowCa
 export type Channels = { channels: [string, string][] };
 
 const squash = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
+/** Real API Pricing model slugs whose Priors id differs. Gemini 4 Argon was Gemini 4's first tier, so it keeps the bare id. */
+const PRIORS_IDS: Record<string, string> = { "gemini-4-argon": "gemini-4" };
 
 /** One row per model: the median first-party subscription, with every first-party plan in details. */
 export function parseSubscriptions(json: Points, conventions: Conventions, channels: Channels): RawRow[] {
@@ -63,7 +65,7 @@ export function parseSubscriptions(json: Points, conventions: Conventions, chann
   // price for one must not be shown as the other's, so the label has to survive normalization whole.
   const claim = (all: Point[]) => {
     const n = normalizeLabel(all[0].model_display.replace(/\s*\(v\d+\)$/, ""));
-    if (!n.ok || squash(n.modelId) !== squash(all[0].model) || taken.has(n.modelId)) return false;
+    if (!n.ok || squash(n.modelId) !== squash(PRIORS_IDS[all[0].model] ?? all[0].model) || taken.has(n.modelId)) return false;
     taken.add(n.modelId);
     return true;
   };

@@ -23,10 +23,6 @@ export interface SubsidyOverride {
 
 export const SUBSIDY_OVERRIDES: SubsidyOverride[] = [
   {
-    modelId: "gemini-4", label: "Gemini 4 Argon", plan: "OpenCode Go (2× launch promo)", feeUsd: 10, ratio: 10 / 60, confidence: "medium", source: "https://opencode.ai/go", checked: "2026-10-14",
-    note: "Go lists $30 of monthly usage for Argon, doubled to $60 for a limited time: 6× the fee. Back to 3× when the promo ends.",
-  },
-  {
     modelId: "aa-muse-wonder", label: "Muse Wonder (Max)", plan: "Command Code Max 10×", feeUsd: 100, ratio: 100 / 150, confidence: "medium", source: "https://commandcode.ai/pricing", checked: "2026-10-14",
     note: "Max includes $150 of credits, charged at the model's API rate with no markup: 1.5× the fee. Meta's own Muse Code plans publish prompts per 5 hours, not tokens or dollars, so they cannot be priced.",
     identity: { modelId: "aa-muse-wonder", modelName: "Muse Wonder (Max)", labId: "meta", effort: "max", variantId: "aa-muse-wonder@max", sourceModelId: "aa-muse-wonder", sourceSlug: "muse-wonder" },
