@@ -8,7 +8,9 @@ import { EFFORTS } from "./resolve";
 import type { RankedVariant } from "../engine";
 
 type Efforts = "best" | "all" | string[];
-export type DataArgs = { labs?: string[]; metrics?: string[]; metric?: string; x_metric?: string; models?: string[]; variants?: string[]; weights?: string; top?: number; efforts?: Efforts; from_effort?: string; to_effort?: string; delta?: "absolute" | "percent"; type?: string; title?: string };
+export type DataArgs = { labs?: string[]; metrics?: string[]; metric?: string; x_metric?: string; models?: string[]; variants?: string[]; weights?: string; top?: number; efforts?: Efforts; from_effort?: string; to_effort?: string; delta?: "absolute" | "percent"; type?: string; title?: string;
+  /** "page": rank as the site's list does (older versions of a newer model left out). Set by the MCP server, carried in chart links. */
+  view?: "page" };
 
 const EFFORT_ALIAS: Record<string, string> = { "extra high": "xhigh", "x-high": "xhigh", maximum: "max", med: "medium" };
 const effortList = (e: unknown): Efforts | undefined => {
@@ -29,7 +31,7 @@ export function clean(args: DataArgs): DataArgs {
   }
   return out as DataArgs;
 }
-const SPEC_KEYS: (keyof DataArgs)[] = ["weights", "labs", "metrics", "metric", "x_metric", "models", "variants", "top", "efforts", "from_effort", "to_effort", "delta", "type", "title"];
+const SPEC_KEYS: (keyof DataArgs)[] = ["weights", "labs", "metrics", "metric", "x_metric", "models", "variants", "top", "efforts", "from_effort", "to_effort", "delta", "type", "title", "view"];
 /** The recipe that redraws a chart from the data (a deep link carries it): only the known fields, nothing else the model sent. */
 export function specOf(args: DataArgs): DataArgs {
   const c = clean(args) as Record<string, unknown>;
@@ -53,16 +55,21 @@ export function queryData(view: DataView, raw: DataArgs) {
   const { metrics, unknown: unknownMetrics } = metricsOf(view, args.metrics?.length ? args.metrics : ["index"]);
   if (!metrics.length) return { error: `Unknown metric: ${unknownMetrics.join(", ")}. Use index, cost, time, speed, latency, tokens or a benchmark name (search_benchmarks finds them).` };
   const efforts = effortList(args.efforts) ?? "best";
-  const { rows, unknown, unranked } = view.pick(args.models, args.top, efforts, args.labs, weightsOf(args));
+  const { rows, unknown, unranked, older, available } = view.pick(args.models, args.top, efforts, args.labs, weightsOf(args));
   const labs = new Map(view.snapshot.labs.map((l) => [l.id, l.name]));
-  const table = rows.slice(0, 60).map((r) => { const row = view.row(r, metrics); return { model: row.model, lab: labs.get(row.labId) ?? row.labId, weights: r.model.openWeights === undefined ? "unknown" : r.model.openWeights ? "open" : "closed", effort: row.effort, rank: row.rank, ...Object.fromEntries(metrics.map((m) => [m.name, row.values[m.key] == null ? null : round(row.values[m.key]!)])) }; });
+  const limit = Math.max(60, view.maxRows), withIndex = metrics.some((m) => m.key === "index");
+  const models = new Set(rows.map((r) => r.model.id)).size;
+  // How much of an index score is measured rather than estimated from peers: a low share is a weaker score.
+  const table = rows.slice(0, limit).map((r) => { const row = view.row(r, metrics); return { model: row.model, lab: labs.get(row.labId) ?? row.labId, weights: r.model.openWeights === undefined ? "unknown" : r.model.openWeights ? "open" : "closed", effort: row.effort, rank: row.rank, ...(withIndex ? { measuredPct: Number.isFinite(r.score) ? Math.round(r.measuredShare * 100) : null } : {}), ...Object.fromEntries(metrics.map((m) => [m.name, row.values[m.key] == null ? null : round(row.values[m.key]!)])) }; });
   return {
     metrics: metrics.map((m) => ({ name: m.name, unit: m.unit, better: m.better })), rows: table,
     note: [
       unknownMetrics.length ? `Unknown metrics: ${unknownMetrics.join(", ")}.` : "",
       unknown.length ? `Not in the data: ${unknown.join(", ")}.` : "",
       unranked.length ? `Not ranked under this index (filtered out or too little measured data), so no index score or rank: ${unranked.join(", ")}. Their published benchmark values are still shown.` : "",
-      rows.length > 60 ? `Showing 60 of ${rows.length} rows.` : "",
+      older.length ? `Left out of the ranking as older versions of a newer model (scored, but no rank): ${older.join(", ")}.` : "",
+      !args.models?.length && available > models ? `These are the top ${models} of ${available} ranked models${models >= view.maxRows ? ` (at most ${view.maxRows} per call)` : "; ask for more with top"}.` : "",
+      rows.length > limit ? `Showing ${limit} of ${rows.length} rows.` : "",
       "rank is the model's position in the user's ranking; null values are not measured.",
     ].filter(Boolean).join(" "),
   };

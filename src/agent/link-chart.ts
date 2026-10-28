@@ -11,7 +11,7 @@ const spec = z.object({
   metric: z.string().max(80).optional(), x_metric: z.string().max(80).optional(), metrics: list.optional(),
   models: list.optional(), variants: list.optional(), labs: list.optional(), weights: z.enum(["open", "closed", ""]).optional(), top: z.number().int().min(1).max(40).optional(),
   efforts: z.union([z.enum(["best", "all"]), list]).optional(), from_effort: z.string().max(20).optional(), to_effort: z.string().max(20).optional(),
-  delta: z.enum(["absolute", "percent"]).optional(), title: z.string().max(120).optional(),
+  delta: z.enum(["absolute", "percent"]).optional(), title: z.string().max(120).optional(), view: z.literal("page").optional(),
 }).strict();
 
 export type LinkedChart = { chart: AnswerChart; missing?: string[] } | { error: string; status: number };
@@ -24,7 +24,7 @@ export async function chartFromLink(i: string, c: string, date?: string): Promis
   if (!parsed.success || !config || !Object.keys(config.weights).length) return { error: "Invalid link.", status: 400 };
   const snapshot = await loadSnapshot(date);
   if (!snapshot) return { error: "Benchmark data unavailable.", status: 404 };
-  const r = makeChart(new DataView(snapshot, config), parsed.data);
+  const r = makeChart(new DataView(snapshot, config, { pageView: parsed.data.view === "page" }), parsed.data);
   if (!r.chart) return { error: r.error ?? "That chart can't be drawn.", status: 422 };
   r.chart.title = r.chart.title.replace(/\s*[—–]\s*/g, ": ");
   return { chart: { ...r.chart, spec: parsed.data, index: i }, missing: r.missing?.length ? r.missing : undefined };

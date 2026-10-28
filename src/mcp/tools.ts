@@ -1,7 +1,12 @@
 import { api } from "../../convex/_generated/api";
 import { TOOL_SPECS, runTool, type ToolContext } from "@/agent/tools";
 import { resolveBenchmark, resolveModel, resolveLab, norm } from "@/agent/resolve";
-import { computeIndex, defaultConfig, rankingRows, type IndexConfig, type RankedVariant } from "@/engine";
+import { computeIndex, defaultConfig, defaultReleasedAfter, PAGE_VIEW, rankingRows, strictnessOf, chartVariantMode, type IndexConfig, type IndexResult, type RankedVariant } from "@/engine";
+import { DataView } from "@/agent/data";
+import { chartLink } from "@/lib/answer-chart";
+import { effectiveBasis } from "@/data/subscription";
+import { scatterSpec } from "@/lib/og-chart";
+import { frontierOf } from "@/components/chart/scatter-option";
 import { computeHistory } from "@/lib/history";
 import { importSchema } from "@/lib/import";
 import { chartTitle } from "@/lib/metrics";
@@ -39,6 +44,31 @@ function rowOut(r: RankedVariant, s: Snapshot) {
   return { rank: r.rank, model: r.model.name, modelId: r.model.id, variantId: r.variant.id, effort: r.variant.effort, lab: labName(s, r.model.labId), score: round(r.score), measuredShare: round(r.measuredShare * 100, 0), costUsd: round(r.costUsd, 3), speedTps: round(r.speed, 1), onFrontier: r.onFrontier, openWeights: r.model.openWeights ?? null, released: r.model.releaseDate ?? null };
 }
 
+/** What decides who is ranked: the settings a reader needs to state alongside any result. */
+function settingsOut(s: Snapshot, config: IndexConfig, res?: IndexResult) {
+  const strictness = Math.round(strictnessOf(config));
+  return {
+    strictness, rule: `A model (at an effort) is ranked only when it has measured results covering at least ${strictness}% of the index's weight; the rest of its score is estimated from similar models${config.estimateMissing ? "" : " (off here: missing benchmarks are dropped and the rest reweighted)"}. Lower strictness (0 to 100) to rank models with less measured data.`,
+    releasedAfter: config.releasedAfter === undefined ? defaultReleasedAfter(s.date) : config.releasedAfter || null,
+    releasedAfterNote: config.releasedAfter === undefined ? "Default: models released in the last six months. Pass releasedAfter: \"\" for every model, or a date." : undefined,
+    required: config.required.length ? config.required : undefined,
+    labs: config.labs?.length ? config.labs : undefined,
+    excludeModels: config.excludeModels,
+    olderVersionsHidden: res?.autoHidden.length ? res.autoHidden.map((id) => s.models.find((m) => m.id === id)?.name ?? id) : undefined,
+    olderVersionsNote: res?.autoHidden.length ? "Older versions of a newer model are left out of an index nobody has curated, as the site does. Pass excludeModels: [] to show them." : undefined,
+    costBasis: effectiveBasis(config.costBasis),
+  };
+}
+
+/** Models the index scored no effort of, with why: too little measured data, or a required benchmark missing. Best-covered first. */
+function excludedOut(s: Snapshot, res: IndexResult, limit = 25) {
+  const ranked = new Set(res.ranked.map((r) => r.model.id)), names = new Map(s.benchmarks.map((b) => [b.id, b.shortName ?? b.name]));
+  const best = new Map<string, IndexResult["excluded"][number]>();
+  for (const e of res.excluded) if (!ranked.has(e.model.id) && !(res.autoHidden ?? []).includes(e.model.id) && (!best.has(e.model.id) || e.measuredShare > best.get(e.model.id)!.measuredShare)) best.set(e.model.id, e);
+  const list = [...best.values()].sort((a, b) => b.measuredShare - a.measuredShare || (b.model.releaseDate ?? "").localeCompare(a.model.releaseDate ?? ""));
+  return { count: list.length, models: list.slice(0, limit).map((e) => ({ model: e.model.name, modelId: e.model.id, effort: e.variant.effort, reason: e.reason === "required" ? "missing a required benchmark" : "too little measured data", measuredPct: Math.round(e.measuredShare * 100), missing: e.missing.map((id) => names.get(id) ?? id) })) };
+}
+
 /** The assistant's read tools, run over any index: the same code the in-app assistant uses, so answers match the site. */
 const reused = ["get_mix", "explain_model", "compare_models", "find_benchmarks", "search_benchmarks", "try_mix", "solve_edit", "fit_ranking", "query_data", "make_chart"] as const;
 const REUSED_NOTES: Record<string, string> = {
@@ -46,17 +76,26 @@ const REUSED_NOTES: Record<string, string> = {
   try_mix: "Evaluate a hand-written mix (benchmark → percent share) against the index: metrics, churn and the ranking with each model's previous rank. Nothing is saved.",
   solve_edit: "Optimizer: the smallest change to the index's mix that satisfies ranking moves and benchmark constraints. Returns candidates; nothing is saved. Apply one with upsert_index.",
   fit_ranking: "Build a fresh mix that reproduces a model order (the onboarding algorithm). Returns weights; nothing is saved. Apply with upsert_index.",
+  query_data: "A table of values per model under the index. Metrics: index (index score), cost (cost per task, USD), time (time per task, s), speed (output tok/s), latency (time to first token, s), tokens (output tokens per task), or any benchmark by name or id (its published value). Pick models by name, a lab, or the top N of the ranking (default 10, at most 200). efforts: best (one row per model, the default), all, or a list like [\"xhigh\",\"max\"]. Rows carry rank, effort and measuredPct (how much of the index score is measured, not estimated). Read `note`: it says which named models are unranked and why, and when the rows are only the top of a longer ranking. For a cost or time frontier use pareto_frontier instead.",
+  make_chart: "Draw a chart from the data and get it back as a PNG URL (`image`) to show the user and a link to the interactive chart on mypriors.com (`link`). Every value comes from the data. Types: bar (one value per model), effort_lines (a metric across reasoning efforts), effort_compare (grouped bars for listed efforts), effort_delta (to_effort minus from_effort), scatter (metric on y against x_metric). Metrics as in query_data. Default models: the top of the ranking (at most 40). `variants` draws exact model + effort configurations (\"GPT-6 Sol max\").",
 };
 const reusedTools: Tool[] = reused.map((name) => {
   const spec = TOOL_SPECS.find((t) => t.name === name)!, p = spec.parameters as { properties?: Record<string, unknown>; required?: string[] };
   return {
     name, description: `${REUSED_NOTES[name] ?? spec.description} Takes an optional \`index\`.`,
     inputSchema: { type: "object", properties: { ...(p.properties ?? {}), index: INDEX_PARAM }, required: p.required ?? [], additionalProperties: false },
-    async run(args) {
+    async run(args, env) {
       const { index, ...rest } = args, { snapshot, config } = await resolveIndex(index);
-      const ctx: ToolContext = { snapshot, original: config, charts: [] };
+      // A table may run past the in-app assistant's 40 rows; chart links cap at 40, so charts keep the default.
+      // Tables and charts rank as rank_models and the site do (pageView), so every tool agrees on who is ranked.
+      const ctx: ToolContext = { snapshot, original: config, charts: [], data: new DataView(snapshot, config, { pageView: true, maxRows: name === "query_data" ? 200 : 40 }) };
       const out = await runTool(ctx, name, rest);
-      return name === "make_chart" && ctx.charts[0] ? { ...(out as object), chartData: ctx.charts[0] } : out;
+      if (name !== "make_chart" || !ctx.charts[0]?.spec) return out;
+      // An MCP client cannot place [[chart:N]]: hand back the image and the live chart instead. The link redraws in the same view.
+      const c = ctx.charts[0], { chart: _n, use: _u, ...o } = out as Record<string, unknown>; void _n; void _u;
+      c.spec = { ...c.spec, view: "page" };
+      const link = chartLink(env.origin, { spec: c.spec, index: encodeIndex(config) })!;
+      return { ...o, image: link.replace(`${env.origin}/?`, `${env.origin}/og?`), link, chartData: c };
     },
   };
 });
@@ -116,24 +155,69 @@ const readTools: Tool[] = [
     inputSchema: withIndex({ model: str("Model id or name.") }, ["model"]),
     async run(a) {
       const { snapshot: s, config } = await resolveIndex(a.index), m = modelOf(s, a.model);
-      const ranked = computeIndex(s, { ...config, variants: "all" }).ranked.filter((r) => r.model.id === m.id), bench = new Map(s.benchmarks.map((b) => [b.id, b]));
+      const res = computeIndex(s, { ...config, variants: "all" }, PAGE_VIEW), bench = new Map(s.benchmarks.map((b) => [b.id, b]));
+      // Ranks as the site's ranking list shows them: best effort per model.
+      const rank = new Map(rankingRows(res.ranked, { ...config, rankingVariants: "best" }).map((r) => [r.model.id, r.rank]));
+      const ranked = res.ranked.filter((r) => r.model.id === m.id);
       const vs = s.variants.filter((v) => v.modelId === m.id);
+      const settings = settingsOut(s, config, res), mine = excludedOut(s, res, 1e9).models.find((e) => e.modelId === m.id);
+      const status = ranked.length ? `Ranked #${rank.get(m.id)} under ${config.name} (best effort).`
+        : res.autoHidden.includes(m.id) ? "Not ranked: an older version of a newer model, which an uncurated index leaves out. Pass excludeModels: [] in the index to rank it."
+        : mine ? `Not ranked: ${mine.reason} (${mine.measuredPct}% of the index's weight measured at its best effort, ${settings.strictness}% needed). Missing: ${mine.missing.join(", ")}. Lower strictness in the index to rank it with estimates.`
+        : settings.releasedAfter && m.releaseDate && m.releaseDate < settings.releasedAfter ? `Not ranked: released ${m.releaseDate}, before this index's cutoff ${settings.releasedAfter}. Pass releasedAfter: "" to include older models.`
+        : config.labs?.length && !config.labs.includes(m.labId) ? "Not ranked: this index only ranks some labs."
+        : config.excludeModels?.includes(m.id) || (config.onlyModels && !config.onlyModels.includes(m.id)) ? "Not ranked: hidden by this index's model selection."
+        : "Not ranked: no results on any benchmark in this index.";
       return { model: { id: m.id, name: m.name, lab: labName(s, m.labId), released: m.releaseDate ?? null, openWeights: m.openWeights ?? null, paramsB: m.paramsB ?? null, activeParamsB: m.activeParamsB ?? null, aliases: m.aliases.slice(0, 12) },
-        ranking: ranked.map((r) => rowOut(r, s)),
+        status, index: { id: config.id, name: config.name, strictness: settings.strictness },
+        ranking: ranked.map((r) => ({ ...rowOut(r, s), rank: rank.get(m.id) ?? null })),
         efforts: vs.map((v) => ({ variantId: v.id, effort: v.effort, measurements: s.observations.filter((o) => o.variantId === v.id && !o.details?.priorsEstimate).map((o) => ({ benchmarkId: o.benchmarkId, benchmark: bench.get(o.benchmarkId)?.name, value: o.value, unit: bench.get(o.benchmarkId)?.unit, costUsd: o.costUsd ?? null, durationSec: o.durationSec ?? null, sourceUrl: o.sourceUrl })) })) };
     },
   },
   {
-    name: "rank_models", description: "The leaderboard under an index: rank, score, how much of the score is measured (not estimated), cost per task, speed, Pareto frontier flag. This is the table the site shows.",
+    name: "rank_models", description: "The leaderboard under an index, as the site shows it: rank, score, measuredPct (how much of the score is measured, not estimated), cost per task, speed. Also `settings` (what decides who is ranked) and `excluded`: models left out for too little measured data or a missing required benchmark, best covered first, with what they lack.",
     inputSchema: withIndex({ top: num("Rows (default 25, max 200)."), efforts: { type: "string", enum: ["best", "all"], description: "One row per model (best effort, default) or every effort." }, lab: str("Only this lab."), models: { type: "array", items: { type: "string" }, description: "Only these models (names or ids)." } }),
     async run(a) {
       const { snapshot: s, config, page, unknownImports } = await resolveIndex(a.index);
       const cfg = { ...config, rankingVariants: (a.efforts === "all" ? "all" : "best") as "all" | "best" };
-      const res = computeIndex(s, cfg, { defaultView: true });
+      // As the Builder computes it: every effort ranked, then the list's own best-or-all choice.
+      const res = computeIndex(s, { ...cfg, variants: "all" }, PAGE_VIEW);
       let rows = rankingRows(res.ranked, cfg);
       if (a.lab) { const l = resolveLab(s, String(a.lab)); if (!l) throw new ToolError(`Unknown lab "${a.lab}".`, 404); rows = rows.filter((r) => r.model.labId === l); }
       if (Array.isArray(a.models) && a.models.length) { const ids = new Set(a.models.map((m) => resolveModel(s, String(m))).filter(Boolean)); rows = rows.filter((r) => ids.has(r.model.id)); }
-      return { index: { id: cfg.id, name: cfg.name, page: page ?? null, snapshot: s.date }, benchmarks: res.benchmarks.map((b) => ({ id: b.benchmark.id, name: b.benchmark.name, sharePct: round(b.share, 1) })), total: rows.length, rows: rows.slice(0, cap(a.top, 25, 200)).map((r) => rowOut(r, s)), excluded: res.excluded.length, unknownImports };
+      const top = cap(a.top, 25, 200);
+      return { index: { id: cfg.id, name: cfg.name, page: page ?? null, snapshot: s.date }, settings: settingsOut(s, cfg, res), benchmarks: res.benchmarks.map((b) => ({ id: b.benchmark.id, name: b.benchmark.name, sharePct: round(b.share, 1) })),
+        total: rows.length, returned: Math.min(top, rows.length), rows: rows.slice(0, top).map((r) => rowOut(r, s)),
+        excluded: excludedOut(s, res), unknownImports };
+    },
+  },
+  {
+    name: "pareto_frontier", description: "Index score against cost, time, speed, latency or output tokens, exactly as the chart on mypriors.com computes it: every point, which ones are on the Pareto frontier (nothing else is both better on x and higher in score), and a PNG of the site's chart (`image`) to show the user plus the interactive chart (`link`). Use it for any 'best value', 'fastest for its score' or tradeoff question.",
+    inputSchema: withIndex({ x: { type: "string", enum: ["cost", "time", "speed", "latency", "tokens"], description: "What score is plotted against (default cost: cost per task under the index's cost basis)." }, efforts: { type: "string", enum: ["all", "best"], description: "all: every measured reasoning effort is its own point (the site's default); best: each model's best-scoring effort that has the measure." } }),
+    async run(a, env) {
+      const { snapshot: s, config, page } = await resolveIndex(a.index);
+      const c = ({ cost: "cost", time: "time-per-task", speed: "output-speed", latency: "latency", tokens: "output-tokens" } as Record<string, string>)[String(a.x ?? "cost")];
+      if (!c) throw new ToolError(`Unknown x "${a.x}". Use cost, time, speed, latency or tokens.`);
+      const mode = a.efforts === "best" || a.efforts === "all" ? a.efforts : chartVariantMode(config, "pareto");
+      const res = computeIndex(s, { ...config, variants: "all" }, PAGE_VIEW);
+      const spec = scatterSpec(s, res.ranked, config, c, mode, undefined, undefined, undefined, true);
+      if (!spec) throw new ToolError(`No ${a.x} data for the models under this index.`, 404);
+      const better = spec.chart.better, front = new Set(frontierOf(spec.pts, better).map((p) => p.r.variant.id));
+      const xv = (p: (typeof spec.pts)[number]) => round(p.raw ?? p.x, 4);
+      const point = (p: (typeof spec.pts)[number]) => ({ model: p.r.model.name, effort: p.r.variant.effort, lab: labName(s, p.r.model.labId), score: round(p.r.score), x: xv(p), measuredPct: round(p.r.measuredShare * 100, 0), onFrontier: front.has(p.r.variant.id) });
+      const pts = [...spec.pts].sort((p, q) => better === "lower" ? p.x - q.x : q.x - p.x);
+      const scored = new Set(res.ranked.map((r) => r.model.id)), withX = new Set(spec.pts.map((p) => p.r.model.id));
+      const q = prettyQuery(encodeIndices([{ ...config, ...(mode !== chartVariantMode(config, "pareto") ? { paretoVariants: mode } : {}) }]));
+      return {
+        index: { id: config.id, name: config.name, page: page ?? null, snapshot: s.date }, settings: settingsOut(s, config, res),
+        x: { name: spec.chart.xName, better, scale: spec.chart.scale }, efforts: mode,
+        frontier: pts.filter((p) => front.has(p.r.variant.id)).map(point),
+        points: pts.map(point),
+        missingX: [...scored].filter((id) => !withX.has(id)).map((id) => s.models.find((m) => m.id === id)?.name ?? id),
+        excluded: excludedOut(s, res, 15),
+        image: `${env.origin}/og?${q}&c=${c}${mode !== "all" ? `&cm=${mode}` : ""}`, link: `${env.origin}/builder?${q}&c=${c}`,
+        note: `${front.size} of ${pts.length} points are on the frontier. missingX are ranked models with no ${spec.chart.xName.replace(/ \(.*\)$/, "").toLowerCase()} measured, so they cannot be placed. The image shows the frontier and current flagships; points lists every one.`,
+      };
     },
   },
   {
@@ -147,9 +231,12 @@ const readTools: Tool[] = [
     },
   },
   {
-    name: "default_index", description: "The default General frontier index: benchmark weights and every setting. A good starting object to edit and pass as `index`.",
+    name: "default_index", description: "The default General frontier index (used whenever `index` is omitted): `index` is the object to edit and pass back as `index`; `settings` explains who it ranks and leaves out, and `benchmarks` names what each weight is.",
     inputSchema: obj({}),
-    async run() { const { snapshot, config } = await resolveIndex(null); void snapshot; return config; },
+    async run() {
+      const { snapshot: s, config } = await resolveIndex(null), res = computeIndex(s, { ...config, variants: "all" }, PAGE_VIEW);
+      return { index: config, settings: settingsOut(s, config, res), benchmarks: res.benchmarks.map((b) => ({ id: b.benchmark.id, name: b.benchmark.name, sharePct: round(b.share, 1), what: b.benchmark.description })) };
+    },
   },
   {
     name: "index_link", description: "Shareable mypriors.com links for an index: the builder, the share-card image, and chart cards for cost, time and speed. Also the encoded `i=` string.",

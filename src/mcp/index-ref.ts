@@ -33,7 +33,9 @@ export async function resolveIndex(ref: unknown, date?: string): Promise<{ snaps
   const fallback = defaultConfig(base);
   if (ref == null || ref === "") return { snapshot: base, config: fallback, unknownImports: [] };
   if (typeof ref === "object") {
-    const o = ref as Partial<IndexConfig>;
+    // default_index returns { index, settings, benchmarks }: accept that whole result back.
+    const wrapped = ref as { index?: unknown; weights?: unknown };
+    const o = (!wrapped.weights && wrapped.index && typeof wrapped.index === "object" ? wrapped.index : ref) as Partial<IndexConfig>;
     if (o.weights && typeof o.weights !== "object") throw new ToolError("index.weights must be an object of benchmarkId to weight.");
     const config = { ...fallback, ...o, weights: o.weights ?? fallback.weights, required: o.required ?? [], id: o.id ?? "mcp", name: o.name ?? "Custom" } as IndexConfig;
     if (!Object.values(config.weights).some((w) => Number(w) > 0)) throw new ToolError("index.weights needs at least one benchmark with a positive weight.");

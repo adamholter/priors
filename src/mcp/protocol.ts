@@ -3,7 +3,27 @@ import { TOOLS, callTool, type ToolEnv } from "./tools";
 export const PROTOCOL_VERSION = "2025-03-26";
 const SUPPORTED = ["2025-06-18", "2025-03-26", "2024-11-05"];
 export const SERVER_INFO = { name: "priors", title: "Priors", version: "1.0.0" };
-const INSTRUCTIONS = "Priors (mypriors.com) ranks AI models with a weighted index of benchmarks. Read tools are public. Pass `index` (a @handle, a link, or { weights }) to rank under a custom mix; omit it for the default General frontier index. Tools that change a page need the owner's agent token. Scores are as published: never estimate or invent a benchmark value.";
+const INSTRUCTIONS = `Priors (mypriors.com) ranks AI models by an index: a weighted mix of public benchmarks. The ranked unit is a model at one reasoning effort ("GPT-6 Sol max"). Benchmark values are scraped from their publishers about every 15 minutes and used as published: never estimate or invent a value.
+
+How a ranking is made (state these when you report one):
+- Omit \`index\` for the default General frontier index. Or pass "@handle", "@handle/tab", a mypriors.com link, or { weights: { benchmarkId: weight }, ...settings }; an object is merged onto the default.
+- Index score: the weighted mean of each benchmark's score (percent benchmarks as published, others scaled 0 to 100 across models).
+- strictness (default 50): a model is ranked only when measured results cover at least that % of the index's weight; the rest of its score is estimated from similar models. measuredPct on each row says how much is measured.
+- releasedAfter: by default only models released in the last six months are ranked ("" for all).
+- In an index nobody curated, older versions of a newer model are left out (excludeModels: [] shows them).
+- Cost per task defaults to the subscription basis: measured API cost scaled by what the lab's plan works out to, where it has one. costBasis: "api" uses API prices.
+So a model missing from a ranking is not missing from the data. rank_models lists the near misses in \`excluded\`; get_model's \`status\` says why one model is not ranked. Check before saying a model is absent.
+
+Which tool:
+- Leaderboard, best model: rank_models.
+- Best value, cost / time / speed vs score, Pareto: pareto_frontier. Show its \`image\` and list \`frontier\`.
+- Why a model ranks where it does: get_model, explain_model, compare_models.
+- One benchmark's own results (no index): get_benchmark.
+- Any other chart: make_chart, then show its \`image\` URL (a PNG) and \`link\`.
+- Numbers for a table: query_data.
+- Building or tuning a mix: search_benchmarks, try_mix, solve_edit, fit_ranking; share it with index_link.
+
+When answering, name the index and the snapshot date, say which settings shaped the result (strictness, the release cutoff, models left out and why), and give the user the mypriors.com link or image. Tools that change a page need the owner's agent token (priors login <token>; mint it on the page under Edit page, Agent access).`;
 
 type Req = { jsonrpc?: string; id?: string | number | null; method?: string; params?: Record<string, unknown> };
 export type Reply = { jsonrpc: "2.0"; id: string | number | null; result?: unknown; error?: { code: number; message: string; data?: unknown } };
