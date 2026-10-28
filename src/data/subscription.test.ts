@@ -4,7 +4,7 @@ import { LABS } from "./normalize";
 import { computeIndex, type IndexConfig } from "../engine";
 import { decodeIndex, encodeIndex } from "../lib/url";
 import { clientSnapshot } from "./client-snapshot";
-import { countedResets, planResetBoosts, planResetNote } from "./plan-resets";
+import { countedResets, extraWeeks, planResetBoosts, planResetNote } from "./plan-resets";
 import { blendedApiPrice, CODEX_LIMITS_BENCHMARK, subscriptionPrices, SUBSCRIPTION_BENCHMARK, type SubscriptionDetails } from "./subscription";
 
 const standard = { cache: 0.97, input: 0.025, output: 0.005 };
@@ -124,18 +124,36 @@ describe("plan limit resets", () => {
     ...snap(), generatedAt: "2026-09-05T12:00:00Z",
     planResets: [
       { labId: "openai", plan: "Codex", source: "t", url: "", events: [ev("2026-07-01T00:00:00Z"), ev("2026-08-07T00:00:00Z"), ev("2026-08-10T00:00:00Z"), ev("2026-08-20T00:00:00Z", "both"), ev("2026-08-25T00:00:00Z", "banked"), ev("2026-08-28T00:00:00Z", "reset", "affected users"), ev("2026-09-06T00:00:00Z")] },
-      { labId: "anthropic", plan: "Claude", source: "t", url: "", events: [ev("2026-06-01T00:00:00Z")] },
+      { labId: "anthropic", plan: "Claude", source: "t", url: "", events: [ev("2026-06-01T00:00:00Z"), ev("2026-08-30T00:00:00Z")] },
     ],
   });
   const cost = (sn: Snapshot, config: IndexConfig, id: string) => computeIndex(sn, config).ranked.find((r) => r.variant.id === id)!;
 
   it("counts regular resets in the last 30 days: not banked ones, partial ones, older ones or future ones", () => {
     const boosts = planResetBoosts(withResets());
-    expect(boosts.get("openai")).toMatchObject({ resets: 3 });
-    // Three resets at half a week each, against the 4.29 weeks of a 30-day window.
-    expect(boosts.get("openai")!.boost).toBeCloseTo(1 + 1.5 / (30 / 7), 6);
-    expect(boosts.get("anthropic")).toMatchObject({ resets: 0, boost: 1 });
+    expect(boosts.get("openai")).toMatchObject({ resets: 3, clock: "restart" });
+    expect(boosts.get("anthropic")).toMatchObject({ resets: 1, clock: "fixed" });
     expect(countedResets([ev("2026-09-04T00:00:00Z", "banked")], Date.parse("2026-09-05T00:00:00Z"))).toEqual([]);
+  });
+
+  it("a Claude reset is a whole extra allowance, because its weekly clock does not move", () => {
+    const b = planResetBoosts(withResets()).get("anthropic")!;
+    expect(b.weeks).toBe(1);
+    expect(b.boost).toBeCloseTo(1 + 1 / (30 / 7), 9);
+  });
+
+  it("an OpenAI reset restarts the week, so it adds only the part of the week it skips", () => {
+    // Aug 7 lands 37 days after the Jul 1 reset (2 days into a 7-day clock), Aug 10 lands 3 days after it, Aug 20 lands 10 days after it (3 days into the next week).
+    const b = planResetBoosts(withResets()).get("openai")!;
+    expect(b.weeks).toBeCloseTo((1 - 2 / 7) + (1 - 3 / 7) + (1 - 3 / 7), 9);
+    expect(b.boost).toBeCloseTo(1 + 13 / 30, 9);
+    // Resets that come every day or two replace the whole weekly schedule: the extra weeks approach resets minus the weeks they replace.
+    const daily = Array.from({ length: 12 }, (_, i) => ev(new Date(Date.parse("2026-08-10T00:00:00Z") + i * 2 * 86_400_000).toISOString()));
+    // The first has no earlier reset on record (counted as landing mid-week); each later one lands 2 days into the week it restarted.
+    expect(extraWeeks(daily, Date.parse("2026-09-05T00:00:00Z"), "restart")).toBeCloseTo(0.5 + 11 * (1 - 2 / 7), 9);
+    expect(extraWeeks(daily, Date.parse("2026-09-05T00:00:00Z"), "fixed")).toBe(12);
+    // A reset a whole number of weeks after the last lands as a week begins anyway: it replaces nothing, so it adds a whole allowance.
+    expect(extraWeeks([ev("2026-07-20T00:00:00Z"), ev("2026-08-10T00:00:00Z")], Date.parse("2026-09-05T00:00:00Z"), "restart")).toBeCloseTo(1, 9);
   });
 
   it("makes the lab's plan cheaper by that factor, and leaves other labs, API pricing and the off switch alone", () => {
@@ -146,14 +164,14 @@ describe("plan limit resets", () => {
     expect(counted.costSource).toContain("with 3 limit resets in 30 days");
     expect(cost(sn, { ...on, planResets: false }, "b@xhigh").costUsd).toBeCloseTo(plain.costUsd!, 9);
     expect(cost(sn, { ...base, costBasis: "api" }, "b@xhigh").costUsd).toBe(7);
-    // Anthropic had no resets in the window, so its plan price is untouched.
-    expect(cost(sn, on, "a@max").costUsd).toBeCloseTo(cost(snap(), on, "a@max").costUsd!, 9);
+    // Anthropic's one reset is worth a whole week against the 4.29 in the window.
+    expect(cost(sn, on, "a@max").costUsd).toBeCloseTo(cost(snap(), on, "a@max").costUsd! / (1 + 7 / 30), 9);
   });
 
   it("does nothing for snapshots without reset data, and the off switch survives a link", () => {
     expect(planResetBoosts(snap()).size).toBe(0);
     expect(planResetNote(snap())).toBeUndefined();
-    expect(planResetNote(withResets())).toMatch(/OpenAI: 3 resets in 30 days.*Banked resets are not counted/);
+    expect(planResetNote(withResets())).toMatch(/OpenAI: 3 resets in 30 days.*Banked resets are not counted.*restarts the week/);
     const encoded = encodeIndex({ ...base, planResets: false });
     expect(encoded).toContain("resets=off");
     expect(decodeIndex(encoded, "t")!.planResets).toBe(false);
