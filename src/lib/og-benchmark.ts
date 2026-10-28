@@ -1,6 +1,6 @@
 import type { Benchmark, Lab, Snapshot } from "@/data/types";
 import { computeIndex, rankingRows, selectVariants, type IndexConfig, type RankedVariant } from "@/engine";
-import { markColor, LIGHT_PALETTE, type ChartPalette } from "@/components/chart/theme";
+import { markColor, markFillSvg, LIGHT_PALETTE, type ChartPalette } from "@/components/chart/theme";
 import { escapeSvg, frameSvg } from "@/components/chart/export-frame";
 import { RADAR_PALETTES } from "@/components/chart/radar-view";
 import { INDEX_SCORE_AXIS, type ScoreAxis } from "@/components/chart/score-scale";
@@ -173,10 +173,13 @@ function leaderboardPng(b: Benchmark, rows: RankedVariant[], labs: Lab[], pal: C
   const out = [`<svg xmlns="http://www.w3.org/2000/svg" width="${CHART_W}" height="${CHART_H}">`];
   list.forEach((r, i) => {
     const y = 18 + i * pitch, value = r.values[0]?.raw;
-    const w = Math.max(0.03, max > min ? (r.score - min) / (max - min) : 1) * barW;
+    // Bars start at zero, like the page's leaderboard (a min-based scale shrank the last rows to stubs).
+    const w = Math.max(0.03, min >= 0 && max > 0 ? r.score / max : max > min ? (r.score - min) / (max - min) : 1) * barW;
+    const grad = markFillSvg(`bar${i}`, color(r), pal);
+    if (grad) out.push(`<defs>${grad}</defs>`);
     out.push(`<text x="0" y="${y + 6}" font-family="JetBrains Mono" font-size="15" fill="${pal.grey}">${i + 1}</text>`);
     out.push(`<text x="34" y="${y + 6}" font-family="Inter" font-size="19" fill="${pal.ink}">${e(fit(label(r), 26))}</text>`);
-    out.push(`<rect x="${nameW}" y="${y - 8}" width="${barW}" height="16" rx="2" fill="${pal.hair}"/><rect x="${nameW}" y="${y - 8}" width="${w.toFixed(1)}" height="16" rx="2" fill="${color(r)}"/>`);
+    out.push(`<rect x="${nameW}" y="${y - 8}" width="${barW}" height="16" rx="2" fill="${pal.hair}"/><rect x="${nameW}" y="${y - 8}" width="${w.toFixed(1)}" height="16" rx="2" fill="${grad ? `url(#bar${i})` : color(r)}"/>`);
     out.push(`<text x="${CHART_W}" y="${y + 6}" text-anchor="end" font-family="JetBrains Mono" font-weight="500" font-size="18" fill="${pal.ink}">${e(value != null ? formatBenchValue(b, value) : r.score.toFixed(1))}</text>`);
   });
   if (rows.length > list.length) out.push(`<text x="34" y="${18 + list.length * pitch + 4}" font-family="Inter" font-size="15" fill="${pal.grey}">and ${rows.length - list.length} more</text>`);
