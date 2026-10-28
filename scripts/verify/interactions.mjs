@@ -116,7 +116,7 @@ try {
     } finally { await c.context().close(); }
   });
 
-  await check("Advanced > Count limit resets switches resets off in the link", async () => {
+  await check("Advanced > Count limit resets switches resets off in the link and remembers it", async () => {
     const c = await (await browser.newContext({ viewport: { width: 1440, height: 1000 } })).newPage();
     try {
       await c.goto(`${BASE}/builder`, { waitUntil: "domcontentloaded" });
@@ -133,6 +133,18 @@ try {
       await c.waitForFunction(() => decodeURIComponent(location.href).includes("resets=off"));
       await box.check();
       await c.waitForFunction(() => !decodeURIComponent(location.href).includes("resets=off"));
+      // Off is remembered: a later visit to another page starts with resets off, until they're turned back on.
+      await box.uncheck();
+      const resetsBox = async () => {
+        await c.goto(`${BASE}/benchmarks/frontiercode-2.0-main`, { waitUntil: "networkidle" });
+        await c.getByLabel("Pareto settings", { exact: true }).click();
+        await c.getByRole("tab", { name: "Settings" }).last().click();
+        await c.locator(".chart-settings-menu summary", { hasText: "Advanced" }).last().click();
+        return c.getByLabel("Count limit resets");
+      };
+      assert.equal(await (await resetsBox()).isChecked(), false, "resets stay off on the next page");
+      await (await resetsBox()).check();
+      assert.equal(await (await resetsBox()).isChecked(), true, "turning them back on is remembered too");
     } finally { await c.context().close(); }
   });
 
