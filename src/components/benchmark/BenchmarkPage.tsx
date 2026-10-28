@@ -1,4 +1,5 @@
 "use client";
+import { planResetNote } from "@/data/plan-resets";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Benchmark, Observation, Snapshot } from "@/data/types";
@@ -112,7 +113,7 @@ export function BenchmarkPage({ snapshot, benchmarkId, models, relatives, initia
             <ParetoChart formulaInputs={formulaInputs(snapshot, result.ranked, config.timeSource)} anchor="cost" basis={basis} description={`${b.name} · measured cost per task${basis === "subscription" ? " · subscription-priced where plan data exists (Real API Pricing, full allowance used)" : ""}`} ranked={plotted} mode={paretoMode} labs={snapshot.labs} height={440} view={paretoView} onView={setParetoView}
               title={title(basis === "subscription" ? "Score vs subscription cost per task" : "Score vs cost per task")}
               actions={(barModels) => <ChartSettings anchor="cost" defaultScale="log" label="Pareto" mode={paretoMode} onChange={(paretoVariants) => patch({ paretoVariants })} view={paretoView} onView={setParetoView} {...releaseProps} {...effortProps} {...modelPicker} {...(barModels ?? {})}
-                costBasis={plans ? { value: effectiveBasis(config.costBasis), onChange: (next: CostBasis) => patch({ costBasis: next === "subscription" ? undefined : next }) } : undefined} />} />
+                costBasis={plans ? { value: effectiveBasis(config.costBasis), onChange: (next: CostBasis) => patch({ costBasis: next === "subscription" ? undefined : next }) } : undefined} planResets={{ value: config.planResets !== false, onChange: (on: boolean) => patch({ planResets: on ? undefined : false }), note: planResetNote(snapshot) }} />} />
           </section>}
 
           {series.map((sr) => <section key={sr.id} className="chart-panel grid gap-2">

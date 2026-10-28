@@ -14,11 +14,13 @@ import styles from "./ChartSettings.module.css";
 
 const EFFORT_LABELS: Record<string, string> = { none: "none", low: "low", medium: "medium", high: "high", xhigh: "xhigh", max: "max" };
 
-export function ChartSettings({ label, mode, onChange, efforts, releasedAfter, onChangeReleased, models = [], excluded, onToggleModel, onShowAllModels, onHideAllModels, onShowOnly, view, onView, dataSource, costBasis, defaultScale, anchor, formula }: {
+export function ChartSettings({ label, mode, onChange, efforts, releasedAfter, onChangeReleased, models = [], excluded, onToggleModel, onShowAllModels, onHideAllModels, onShowOnly, view, onView, dataSource, costBasis, planResets, defaultScale, anchor, formula }: {
   /** Advanced: a custom formula for this chart's metric. Omitted where a chart has no formula support. */
   formula?: FormulaSettings;
   /** Cost charts: price tasks at API list prices or at each lab's subscription plan. */
   costBasis?: { value: CostBasis; onChange: (basis: CostBasis) => void };
+  /** Subscription pricing: count limit resets (what each lab gave its subscribers in the last 30 days). Shown under Advanced. */
+  planResets?: { value: boolean; onChange: (on: boolean) => void; note?: string };
   anchor?: string;
   /** Default metric scale, when the chart supports switching to linear. */
   defaultScale?: "log" | "linear";
@@ -85,6 +87,7 @@ export function ChartSettings({ label, mode, onChange, efforts, releasedAfter, o
       return <div key={m.id} className={styles.model}><label><input type="checkbox" checked={!excluded?.has(m.id)} onChange={() => onToggleModel?.(m.id)} />{m.color && <i aria-hidden="true" style={{ background: m.color }} />}<span>{m.name}</span></label>{hl && <button type="button" className={star ? styles.starred : undefined} aria-label={`${star ? "Unstar" : "Star"} ${m.name}`} aria-pressed={star} onClick={() => { if (!hl) return; if (!star && excluded?.has(m.id)) onToggleModel?.(m.id); hl.set(toggleModel(hl.items, m.id)); }}>{star ? <IconStarFilled size={15} aria-hidden="true" /> : <IconStar size={15} stroke={1.5} aria-hidden="true" />}</button>}</div>;
     })}{!filtered.length && <p>No matching models.</p>}</div>
   </>;
+  const resets = costBasis?.value === "subscription" ? planResets : undefined;
   const settingsPanel = <>
     {(dataSource || onChangeReleased) && <div className={styles.dataControls}>
       {dataSource && <div className={styles.dataField}><label htmlFor={`${id}-source`}>Data source</label><select aria-label={`${label} data source`} id={`${id}-source`} value={dataSource.value} onChange={e => dataSource.onChange(e.target.value as TaskMetricSource)}>{dataSource.options.map(s => <option key={s.id} value={s.id}>{s.name} ({s.modelCount} models)</option>)}</select></div>}
@@ -113,9 +116,13 @@ export function ChartSettings({ label, mode, onChange, efforts, releasedAfter, o
         {!!hl?.items.length && <label><span>Highlight guides</span><input type="checkbox" checked={view.guides !== false} onChange={e => onView({ ...view, guides: e.target.checked })} /></label>}
       </div>
     </>}
-    {formula && view && onView && <details className={styles.advanced} open={advanced} onToggle={e => setAdvanced(e.currentTarget.open)}>
-      <summary>Advanced{view.formula?.trim() && <em>formula on</em>}</summary>
-      {advanced && <FormulaEditor id={id} label={label} formula={formula} view={view} onView={onView} />}
+    {((formula && view && onView) || resets) && <details className={styles.advanced} open={advanced} onToggle={e => setAdvanced(e.currentTarget.open)}>
+      <summary>Advanced{view?.formula?.trim() ? <em>formula on</em> : resets && !resets.value ? <em>resets off</em> : null}</summary>
+      {resets && <div className={styles.toggles}>
+        <label title={resets.note}><span>Count limit resets</span><input type="checkbox" checked={resets.value} onChange={e => resets.onChange(e.target.checked)} /></label>
+        {resets.note && <p className={styles.resetNote}>{resets.note}</p>}
+      </div>}
+      {advanced && formula && view && onView && <FormulaEditor id={id} label={label} formula={formula} view={view} onView={onView} />}
     </details>}
   </>;
   return <details ref={root} open={open} className={styles.picker} name="chart-settings">

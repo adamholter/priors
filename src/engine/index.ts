@@ -1,3 +1,4 @@
+import { planResetBoosts } from "../data/plan-resets";
 import { effectiveBasis, subscriptionPrices, type CostBasis, type SubscriptionPrice } from "../data/subscription";
 import { supersededModelIds } from "./superseded";
 import { taskMetricData, taskMetricDescription, type TaskMetricSource } from "../data/task-metrics";
@@ -33,6 +34,8 @@ export interface IndexConfig {
   costSource?: TaskMetricSource;
   /** Price cost per task at API list prices (default) or at the lab's subscription plan. */
   costBasis?: CostBasis;
+  /** Plans are cheaper by what limit resets gave their subscribers in the last 30 days (default). `false` prices the plan as measured, without resets. Only matters on the subscription basis. */
+  planResets?: false;
   timeSource?: TaskMetricSource;
   /** Optional filters */
   labs?: string[]; // include only these labIds
@@ -338,6 +341,7 @@ export function computeIndex(snapshot: Snapshot, config: IndexConfig, view: View
   const idx = indexObservations(snapshot);
   const costData = taskMetricData(snapshot, view.costBenchmark ?? config.costSource ?? "aa", "cost");
   const plans = effectiveBasis(config.costBasis) === "subscription" ? subscriptionPrices(snapshot) : undefined;
+  const resetBoosts = plans && config.planResets !== false ? planResetBoosts(snapshot) : undefined;
 
   const used = Object.entries(config.weights).filter(([id, w]) => w > 0 && benches.has(id));
   const total = used.reduce((a, [, w]) => a + w, 0);
@@ -435,8 +439,10 @@ export function computeIndex(snapshot: Snapshot, config: IndexConfig, view: View
     const cost = weightedAaCost != null ? { usd: weightedAaCost, source: "AA measured task costs, weighted by this mix" } : measuredCost ? { usd: measuredCost.value, source: (view.costBenchmark ? `${benches.get(view.costBenchmark)?.name ?? view.costBenchmark} · measured cost per task` : taskMetricDescription(config.costSource ?? "aa", "cost")) + (measuredCost.observation.harness ? ` · ${measuredCost.observation.harness}` : "") } : undefined;
     // Subscription basis: the measured API cost scaled by the share of API price the plan works out to.
     // Models without a first-party plan keep their API cost — that is what they cost to use.
-    const plan = cost && plans?.get(model.id);
-    if (cost && plan) { cost.usd *= plan.ratio; cost.source += plan.ratio === 0 ? ` · free on ${plan.plan}` : ` · ${plan.plan}, ${subscriptionShare(plan.ratio)} of API price at full use`; }
+    // Limit resets (src/data/plan-resets.ts) give the plan's subscribers extra usage, so its share of API price falls by that factor.
+    const listed = cost && plans?.get(model.id), reset = listed && listed.ratio > 0 ? resetBoosts?.get(model.labId) : undefined;
+    const plan = listed && reset && reset.boost > 1 ? { ...listed, ratio: listed.ratio / reset.boost } : listed;
+    if (cost && plan) { cost.usd *= plan.ratio; cost.source += plan.ratio === 0 ? ` · free on ${plan.plan}` : ` · ${plan.plan}, ${subscriptionShare(plan.ratio)} of API price at full use${reset && reset.boost > 1 ? `, with ${reset.resets} limit resets in 30 days` : ""}`; }
     const speedObs = idx.get(SPEED_BENCHMARK)?.get(v.id);
     ranked.push({ variant: v, model, score: num / den, coverage: Math.min(1, Math.round(covered * 1e4) / 1e6), measuredShare, values, mixedEfforts: values.some((value) => value.estimateKind === "effort"), costUsd: cost?.usd, costSource: cost?.source, costPlan: plan || undefined, speed: speedObs && speedObs.value > 0 ? speedObs.value : undefined, onFrontier: false, rank: 0 });
   }

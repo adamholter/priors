@@ -1,0 +1,174 @@
+{
+ "providers": {
+  "claude": {
+   "name": "Claude",
+   "product": "Claude Code",
+   "account": "ClaudeDevs",
+   "accountUrl": "https://x.com/ClaudeDevs",
+   "events": [
+    {
+     "id": "2044868953206612154",
+     "date": "2026-04-16T20:02:04Z",
+     "kind": "reset",
+     "scope": "all",
+     "note": "Fixed a bug where subscription rate limits weren't adjusted for long-context requests on Opus 4.7, then reset 5-hour and weekly limits.",
+     "url": "https://x.com/ClaudeDevs/status/2044868953206612154"
+    },
+    {
+     "id": "2047371123185287223",
+     "date": "2026-04-23T17:44:48Z",
+     "kind": "reset",
+     "scope": "all",
+     "note": "Published a post-mortem on three Claude Code quality regressions, fixed in v2.1.116+, and reset usage limits for all subscribers.",
+     "url": "https://x.com/ClaudeDevs/status/2047371123185287223"
+    },
+    {
+     "id": "2052064938840228237",
+     "date": "2026-05-06T16:36:21Z",
+     "kind": "policy",
+     "scope": "paid plans",
+     "note": "Doubled Claude Code's 5-hour limits on Pro, Max, Team and seat-based Enterprise, removed the peak-hours reduction, and raised Opus API limits.",
+     "url": "https://x.com/ClaudeDevs/status/2052064938840228237"
+    },
+    {
+     "id": "2054639777685934564",
+     "date": "2026-05-13T19:07:51Z",
+     "kind": "policy",
+     "scope": "paid plans",
+     "note": "Raised Claude Code weekly limits 50% through July 13 for Pro, Max, Team and seat-based Enterprise users, on top of the doubled 5-hour limits.",
+     "url": "https://x.com/ClaudeDevs/status/2054639777685934564"
+    },
+    {
+     "id": "2055347539923308703",
+     "date": "2026-05-15T18:00:14Z",
+     "kind": "reset",
+     "scope": "all",
+     "note": "A Friday reset of everyone's 5-hour and weekly rate limits, with no incident attached.",
+     "url": "https://x.com/ClaudeDevs/status/2055347539923308703"
+    },
+    {
+     "id": "2060043211129909732",
+     "date": "2026-05-28T16:59:09Z",
+     "kind": "policy",
+     "note": "Made high effort the default for Opus 4.8 in Claude Code and raised Claude Code rate limits to absorb the extra token usage.",
+     "url": "https://x.com/ClaudeDevs/status/2060043211129909732"
+    },
+    {
+     "id": "2061501787769893055",
+     "date": "2026-06-01T17:35:01Z",
+     "kind": "reset",
+     "scope": "Pro + Max",
+     "note": "Fixed an issue where some Claude Code sessions spawned excessive parallel subagents and burned usage faster than expected, then reset limits.",
+     "url": "https://x.com/ClaudeDevs/status/2061501787769893055"
+    },
+    {
+     "id": "2064464557951852643",
+     "date": "2026-06-09T21:48:01Z",
+     "kind": "reset",
+     "scope": "all",
+     "note": "Reset 5-hour and weekly rate limits for all users.",
+     "url": "https://x.com/ClaudeDevs/status/2064464557951852643"
+    },
+    {
+     "id": "2065621176735646006",
+     "date": "2026-06-13T02:24:00Z",
+     "kind": "reset",
+     "scope": "all",
+     "note": "Reset 5-hour and weekly rate limits for all users.",
+     "url": "https://x.com/ClaudeDevs/status/2065621176735646006"
+    },
+    {
+     "id": "2067802163498352929",
+     "date": "2026-06-19T02:50:28Z",
+     "kind": "reset",
+     "scope": "affected users",
+     "note": "About 3% of Max and Pro users hit a bug showing an incorrect weekly limit, in some cases blocking messages; limits reset for everyone affected.",
+     "url": "https://x.com/ClaudeDevs/status/2067802163498352929"
+    },
+    {
+     "id": "2068122937308426676",
+     "date": "2026-06-20T00:05:06Z",
+     "kind": "reset",
+     "scope": "all",
+     "note": "Followed up the incorrect-weekly-limit bug by resetting 5-hour and weekly usage limits for everyone, across all plans.",
+     "url": "https://x.com/ClaudeDevs/status/2068122937308426676"
+    },
+    {
+     "id": "2072429181565288665",
+     "date": "2026-07-01T21:16:35Z",
+     "kind": "reset",
+     "scope": "all",
+     "note": "Reset everyone's 5-hour and weekly rate limits once Fable 5 was ready to build with again.",
+     "url": "https://x.com/ClaudeDevs/status/2072429181565288665"
+    },
+    {
+     "id": "2075279141352706215",
+     "date": "2026-07-09T18:01:18Z",
+     "kind": "reset",
+     "scope": "all",
+     "note": "Reset 5-hour and weekly rate limits for all users.",
+     "url": "https://x.com/ClaudeDevs/status/2075279141352706215"
+    },
+    {
+     "id": "2077603834453770467",
+     "date": "2026-07-16T03:58:48Z",
+     "kind": "reset",
+     "scope": "all",
+     "note": "Reset 5-hour and weekly rate limits for all users.",
+     "url": "https://x.com/ClaudeDevs/status/2077603834453770467"
+    },
+    {
+     "id": "2078511173759324328",
+     "date": "2026-07-18T16:04:15Z",
+     "kind": "policy",
+     "scope": "paid plans",
+     "note": "Kept Claude Code weekly limits 50% higher through August 19 for Pro, Max, Team and seat-based Enterprise users.",
+     "url": "https://x.com/ClaudeDevs/status/2078511173759324328"
+    },
+    {
+     "id": "2089798442306711646",
+     "date": "2026-08-18T19:35:49Z",
+     "kind": "policy",
+     "scope": "paid plans",
+     "note": "Extended the 50% higher Claude Code weekly limits through August 31, and said Anthropic hopes to make the increase permanent though capacity may stay tight.",
+     "url": "https://x.com/ClaudeDevs/status/2089798442306711646"
+    },
+    {
+     "id": "2093742321473065266",
+     "date": "2026-08-29T16:47:23Z",
+     "kind": "policy",
+     "scope": "paid plans",
+     "note": "Said standard weekly Claude Code limits rise a permanent 25% from Sept 14 for Pro, Max, Team and seat-based Enterprise, with the temporary 50% increase holding until then.",
+     "url": "https://x.com/ClaudeDevs/status/2093742321473065266"
+    },
+    {
+     "id": "2094856679250919746",
+     "date": "2026-09-01T18:35:27Z",
+     "kind": "reset",
+     "scope": "all",
+     "note": "Shipped Fable 5.1 and reset 5-hour and weekly limits for all users.",
+     "url": "https://x.com/ClaudeDevs/status/2094856679250919746"
+    },
+    {
+     "id": "2095967323412930677",
+     "date": "2026-09-04T20:08:45Z",
+     "kind": "reset",
+     "account": "lydiahallie",
+     "scope": "Max",
+     "note": "Reset weekly limits for everyone on a Claude Max plan after Fable 5.1 launched, so people could keep building over the long weekend.",
+     "url": "https://x.com/lydiahallie/status/2095967323412930677"
+    },
+    {
+     "id": "2102438800836489554",
+     "date": "2026-09-22T16:44:06Z",
+     "kind": "reset",
+     "resetType": "banked",
+     "usableUntil": "2026-10-22T23:59:59Z",
+     "scope": "Pro, Max + Team",
+     "note": "Launched Opus 5.5 with 20% higher 5-hour session limits, and gave Pro, Max and Team users a banked reset to apply any time until October 22.",
+     "url": "https://x.com/ClaudeDevs/status/2102438800836489554"
+    }
+   ]
+  }
+ }
+}

@@ -1,4 +1,5 @@
 "use client";
+import { planResetNote } from "@/data/plan-resets";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MixAssistant } from "./MixAssistant";
 import { SharedChart } from "./SharedChart";
@@ -188,7 +189,7 @@ export function Builder({ snapshot: base, initialIndices, labPlacement }: { snap
           {labPlacement === "inline" && <IndexLabActions active={active} date={snapshot.date} top={topNames} placement="inline" />}
           <div className="builder-cost">
             <ParetoChart formulaInputs={formulaInputs(snapshot, result.ranked, active.timeSource)} basis={effectiveBasis(active.costBasis, hasSubscriptionPrices(snapshot))} description={costDescription(active.costSource ?? "aa", effectiveBasis(active.costBasis, hasSubscriptionPrices(snapshot)))} anchor="cost" ranked={metricRanked} mode={paretoMode} labs={snapshot.labs} view={paretoView} onView={setParetoView} title={<h2 className="text-[22px]">{effectiveBasis(active.costBasis, hasSubscriptionPrices(snapshot)) === "subscription" ? "Score vs subscription cost per task" : "Score vs cost per task"}</h2>}
-              actions={(barModels) => <ChartSettings anchor="cost" defaultScale="log" dataSource={{ value: active.costSource ?? "aa", options: taskMetricOptions(snapshot, "cost"), onChange: (costSource) => update({ ...active, costSource }) }} costBasis={hasSubscriptionPrices(snapshot) ? { value: effectiveBasis(active.costBasis), onChange: (basis) => update({ ...active, costBasis: basis === "subscription" ? undefined : basis }) } : undefined} label="Pareto" mode={paretoMode} onChange={(paretoVariants) => update({ ...active, paretoVariants })} view={paretoView} onView={setParetoView} {...releaseProps} {...effortProps} {...modelPicker} {...(barModels ?? {})} />} />
+              actions={(barModels) => <ChartSettings anchor="cost" defaultScale="log" dataSource={{ value: active.costSource ?? "aa", options: taskMetricOptions(snapshot, "cost"), onChange: (costSource) => update({ ...active, costSource }) }} costBasis={hasSubscriptionPrices(snapshot) ? { value: effectiveBasis(active.costBasis), onChange: (basis) => update({ ...active, costBasis: basis === "subscription" ? undefined : basis }) } : undefined} planResets={{ value: active.planResets !== false, onChange: (on) => update({ ...active, planResets: on ? undefined : false }), note: planResetNote(snapshot) }} label="Pareto" mode={paretoMode} onChange={(paretoVariants) => update({ ...active, paretoVariants })} view={paretoView} onView={setParetoView} {...releaseProps} {...effortProps} {...modelPicker} {...(barModels ?? {})} />} />
           </div>
           <div className="builder-more">
             <h2 className="text-[22px] mb-1">More metrics</h2>

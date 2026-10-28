@@ -87,6 +87,55 @@ try {
     } finally { await c.context().close(); }
   });
 
+  await check("a custom theme uploads, applies, and the mode control works inside Explore themes", async () => {
+    const c = await (await browser.newContext({ viewport: { width: 1440, height: 1000 } })).newPage();
+    try {
+      await c.goto(`${BASE}/builder`, { waitUntil: "domcontentloaded" });
+      await c.locator(".ranking-list [data-k]").first().waitFor({ timeout: 30000 });
+      await c.getByRole("button", { name: "Settings", exact: true }).click();
+      await c.getByRole("dialog", { name: "Settings" }).getByRole("button", { name: "Explore themes" }).click();
+      const library = c.getByRole("dialog", { name: "Explore themes" });
+      await library.waitFor();
+      await library.locator("[data-theme-library-mode]").getByRole("button", { name: "Dark", exact: true }).click();
+      await c.waitForFunction(() => document.documentElement.dataset.theme === "dark");
+      const mode = (hex) => ({ bg: hex, ink: "#EEEEEE", ink2: "#BBBBBB", grey: "#999999", hair: "#333333", hair2: "#222222", accent: "#66CCFF" });
+      const theme = { priorsTheme: 1, name: "E2E Harbor", light: { ...mode("#FAFAFA"), ink: "#111111", ink2: "#444444", grey: "#666666", hair: "#DDDDDD", hair2: "#EEEEEE", accent: "#0B5FA5" }, dark: mode("#0B1620"), fonts: { sans: "Geist" } };
+      await library.getByRole("button", { name: "Paste theme" }).click();
+      await library.getByLabel("Theme JSON").fill(JSON.stringify({ ...theme, light: { ...theme.light, bg: "red" } }));
+      await library.getByRole("button", { name: "Add theme" }).click();
+      assert.ok((await library.locator(".theme-byo-notice.is-error").innerText()).includes('"light.bg"'), "a bad color is reported by field");
+      await library.getByLabel("Theme JSON").fill(JSON.stringify(theme));
+      await library.getByRole("button", { name: "Add theme" }).click();
+      await c.waitForFunction(() => document.documentElement.dataset.siteTheme?.startsWith("u."));
+      assert.equal(await library.locator("[data-my-themes] .theme-swatch").count(), 1, "the theme is listed under Your themes");
+      assert.equal(await c.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--bone").trim().toUpperCase()), "#0B1620", "the dark version is on, as the mode says");
+      await library.locator("[data-theme-library-mode]").getByRole("button", { name: "Light", exact: true }).click();
+      await c.waitForFunction(() => getComputedStyle(document.documentElement).getPropertyValue("--bone").trim().toUpperCase() === "#FAFAFA");
+      await c.reload({ waitUntil: "domcontentloaded" });
+      await c.waitForFunction(() => document.documentElement.dataset.siteTheme?.startsWith("u."));
+    } finally { await c.context().close(); }
+  });
+
+  await check("Advanced > Count limit resets switches resets off in the link", async () => {
+    const c = await (await browser.newContext({ viewport: { width: 1440, height: 1000 } })).newPage();
+    try {
+      await c.goto(`${BASE}/builder`, { waitUntil: "domcontentloaded" });
+      await c.locator(".ranking-list [data-k]").first().waitFor({ timeout: 30000 });
+      const picker = c.locator("details", { has: c.locator("summary[aria-label='Pareto settings']") }).first();
+      await picker.scrollIntoViewIfNeeded();
+      await picker.locator("summary[aria-label='Pareto settings']").click();
+      const menu = picker.locator(".chart-settings-menu");
+      await menu.getByRole("tab", { name: "Settings" }).click();
+      await menu.locator("summary", { hasText: "Advanced" }).click();
+      const box = menu.getByLabel("Count limit resets");
+      assert.equal(await box.isChecked(), true, "resets count by default");
+      await box.uncheck();
+      await c.waitForFunction(() => decodeURIComponent(location.href).includes("resets=off"));
+      await box.check();
+      await c.waitForFunction(() => !decodeURIComponent(location.href).includes("resets=off"));
+    } finally { await c.context().close(); }
+  });
+
   await check("default cost chart labels do not overlap", async () => {
     const chart = page.locator('[role="img"][aria-label*="cost per task"]').first();
     await chart.scrollIntoViewIfNeeded();

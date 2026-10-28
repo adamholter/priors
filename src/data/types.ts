@@ -114,6 +114,11 @@ export interface Observation {
   note?: string;
 }
 
+/** One limit reset a lab gave its subscribers: everyone's weekly allowance refilled early. `banked` is a reset saved to use later, `both` a reset that also banked one. */
+export interface PlanResetEvent { at: string; kind: "reset" | "banked" | "both"; /** Who got it, when the source says ("all", "Max"). */ scope?: string; url?: string }
+/** A lab's reset history (`src/data/plan-resets.ts` turns it into a plan-price adjustment). Not a benchmark: it prices plans, it never ranks. */
+export interface PlanResets { labId: string; plan: string; source: string; url: string; events: PlanResetEvent[] }
+
 /** Time-series for benchmarks like VendingBench 2 (balance over time). */
 export interface Series {
   benchmarkId: string;
@@ -156,6 +161,8 @@ export interface Snapshot {
     evidence: string[];
   }[];
   series: Series[];
+  /** Limit resets per lab, from the scrape job. Absent in snapshots from before it existed. */
+  planResets?: PlanResets[];
   sources: SourceRun[];
 }
 

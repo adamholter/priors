@@ -7,12 +7,13 @@ import { mkdir, readdir, writeFile, readFile, rename } from "node:fs/promises";
 import path from "node:path";
 import { createHash } from "node:crypto";
 import { gzipSync, gunzipSync } from "node:zlib";
-import type { Benchmark, Effort, Model, Observation, RawRow, RawSeries, Series, Snapshot, Source, SourceRun, ScrapeResult, Variant } from "../../src/data/types";
+import type { Benchmark, Effort, Model, Observation, PlanResets, RawRow, RawSeries, Series, Snapshot, Source, SourceRun, ScrapeResult, Variant } from "../../src/data/types";
 import { EFFORT_WORDS, LABS, normalizeLabel, variantId } from "../../src/data/normalize";
 import { makeContext, saveRaw } from "./harness";
 import { buildLibrary } from "./library";
 import { canonicalizeSnapshot } from "../../src/data/canonical-snapshot";
 import { retainCatalog } from "./retain-catalog";
+import { fetchPlanResets } from "./plan-resets";
 import { fetchFreeTiers } from "./free-tiers";
 import { applyFreeTiers, carriedFreeTiers } from "../../src/data/free-tier";
 import { SUBSCRIPTION_BENCHMARK } from "../../src/data/subscription";
@@ -256,6 +257,23 @@ async function main() {
         snap.observations = [...snap.observations.filter((o) => o.benchmarkId !== SUBSCRIPTION_BENCHMARK || !freeModels.has(variantModel.get(o.variantId))), ...carried];
         freeCtx.log(`carried ${freeIds.size} free models from ${prev.date}`);
       } catch { /* first run */ }
+    }
+  }
+
+  // Limit resets (OpenAI's Codex, Anthropic's Claude): not a benchmark but a rate the plan prices read (src/data/plan-resets.ts).
+  // Always carried from the last snapshot, replaced by whatever lab's history was read fresh.
+  {
+    let prevResets: PlanResets[] = [];
+    try { prevResets = (JSON.parse(gunzipSync(await readFile(path.join(SNAP_DIR, "latest.json.gz"))).toString("utf8")) as Snapshot).planResets ?? []; } catch { /* first run */ }
+    snap.planResets = prevResets;
+    if (!only || only.includes("plan-resets")) {
+      const resetCtx = makeContext("plan-resets");
+      try {
+        const { resets, failed, raw } = await fetchPlanResets(resetCtx);
+        await saveRaw("plan-resets", date, raw);
+        snap.planResets = [...resets, ...prevResets.filter((p) => failed.includes(p.labId) || !resets.some((r) => r.labId === p.labId))];
+        if (failed.length) resetCtx.log(`carried ${failed.join(", ")} from the last snapshot`);
+      } catch (e) { resetCtx.log(`FAILED: ${e instanceof Error ? e.message : String(e)}; carried the last reset history`); }
     }
   }
 

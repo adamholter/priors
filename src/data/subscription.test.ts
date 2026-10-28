@@ -4,6 +4,7 @@ import { LABS } from "./normalize";
 import { computeIndex, type IndexConfig } from "../engine";
 import { decodeIndex, encodeIndex } from "../lib/url";
 import { clientSnapshot } from "./client-snapshot";
+import { countedResets, planResetBoosts, planResetNote } from "./plan-resets";
 import { blendedApiPrice, CODEX_LIMITS_BENCHMARK, subscriptionPrices, SUBSCRIPTION_BENCHMARK, type SubscriptionDetails } from "./subscription";
 
 const standard = { cache: 0.97, input: 0.025, output: 0.005 };
@@ -113,5 +114,49 @@ describe("subscription cost basis", () => {
     expect(encoded).toContain("costbasis=api");
     expect(decodeIndex(encoded, "t")!.costBasis).toBe("api");
     expect(decodeIndex(encoded.replace("api", "nope"), "t")!.costBasis).toBeUndefined();
+  });
+});
+
+describe("plan limit resets", () => {
+  const ev = (at: string, kind: "reset" | "banked" | "both" = "reset", scope = "all") => ({ at, kind, scope });
+  /** The snapshot as of 2026-09-05T12:00Z with OpenAI having reset three times in the last 30 days (plus a banked one, an older one and a partial one). */
+  const withResets = (): Snapshot => ({
+    ...snap(), generatedAt: "2026-09-05T12:00:00Z",
+    planResets: [
+      { labId: "openai", plan: "Codex", source: "t", url: "", events: [ev("2026-07-01T00:00:00Z"), ev("2026-08-07T00:00:00Z"), ev("2026-08-10T00:00:00Z"), ev("2026-08-20T00:00:00Z", "both"), ev("2026-08-25T00:00:00Z", "banked"), ev("2026-08-28T00:00:00Z", "reset", "affected users"), ev("2026-09-06T00:00:00Z")] },
+      { labId: "anthropic", plan: "Claude", source: "t", url: "", events: [ev("2026-06-01T00:00:00Z")] },
+    ],
+  });
+  const cost = (sn: Snapshot, config: IndexConfig, id: string) => computeIndex(sn, config).ranked.find((r) => r.variant.id === id)!;
+
+  it("counts regular resets in the last 30 days: not banked ones, partial ones, older ones or future ones", () => {
+    const boosts = planResetBoosts(withResets());
+    expect(boosts.get("openai")).toMatchObject({ resets: 3 });
+    // Three resets at half a week each, against the 4.29 weeks of a 30-day window.
+    expect(boosts.get("openai")!.boost).toBeCloseTo(1 + 1.5 / (30 / 7), 6);
+    expect(boosts.get("anthropic")).toMatchObject({ resets: 0, boost: 1 });
+    expect(countedResets([ev("2026-09-04T00:00:00Z", "banked")], Date.parse("2026-09-05T00:00:00Z"))).toEqual([]);
+  });
+
+  it("makes the lab's plan cheaper by that factor, and leaves other labs, API pricing and the off switch alone", () => {
+    const sn = withResets(), on = { ...base, costBasis: "subscription" as const }, boost = planResetBoosts(sn).get("openai")!.boost;
+    const plain = cost(snap(), on, "b@xhigh"), counted = cost(sn, on, "b@xhigh");
+    expect(counted.costUsd).toBeCloseTo(plain.costUsd! / boost, 9);
+    expect(counted.costPlan!.ratio).toBeCloseTo(0.1 / boost, 9);
+    expect(counted.costSource).toContain("with 3 limit resets in 30 days");
+    expect(cost(sn, { ...on, planResets: false }, "b@xhigh").costUsd).toBeCloseTo(plain.costUsd!, 9);
+    expect(cost(sn, { ...base, costBasis: "api" }, "b@xhigh").costUsd).toBe(7);
+    // Anthropic had no resets in the window, so its plan price is untouched.
+    expect(cost(sn, on, "a@max").costUsd).toBeCloseTo(cost(snap(), on, "a@max").costUsd!, 9);
+  });
+
+  it("does nothing for snapshots without reset data, and the off switch survives a link", () => {
+    expect(planResetBoosts(snap()).size).toBe(0);
+    expect(planResetNote(snap())).toBeUndefined();
+    expect(planResetNote(withResets())).toMatch(/OpenAI: 3 resets in 30 days.*Banked resets are not counted/);
+    const encoded = encodeIndex({ ...base, planResets: false });
+    expect(encoded).toContain("resets=off");
+    expect(decodeIndex(encoded, "t")!.planResets).toBe(false);
+    expect(decodeIndex(encodeIndex(base), "t")!.planResets).toBeUndefined();
   });
 });
