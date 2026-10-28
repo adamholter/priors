@@ -12,11 +12,22 @@ export function slimObservation(o: Observation): Observation {
   return { ...rest, observedAt: "", ...(note && /estimated/i.test(note) ? { note } : {}), ...(sourceModelId && o.costUsd != null ? { sourceModelId } : {}) };
 }
 
+/** Source-model metadata the browser reads (release date, reasoning, API prices) or shows in the builder's
+ * per-model detail. AA's creator and release records, links and modality flags stay on the server. */
+const CLIENT_METADATA = ["releaseDate", "knowledgeCutoffDate", "isReasoning", "reasoningTokens", "effort", "isOpenWeights", "parameters", "activeParams", "inferenceParametersActiveBillions", "contextWindowTokens", "licenseName", "sizeClass", "deprecated", "price1mInputTokens", "price1mOutputTokens", "cacheHitPrice", "cacheWritePrice"];
+function slimSource<T extends { metadata?: Record<string, unknown> }>(s: T): T {
+  if (!s.metadata) return s;
+  const metadata: Record<string, unknown> = {};
+  for (const k of CLIENT_METADATA) if (s.metadata[k] !== undefined) metadata[k] = s.metadata[k];
+  return { ...s, metadata };
+}
+
 /** Keep every field used by charting, calculation, imports, and source inspection.
  * Scraper-specific raw detail objects stay on the server. */
 export function clientSnapshot(snapshot: Snapshot): Snapshot {
   return {
     ...snapshot,
+    variants: snapshot.variants.map((v) => v.sourceModel || v.sourceModels ? { ...v, ...(v.sourceModel ? { sourceModel: slimSource(v.sourceModel) } : {}), ...(v.sourceModels ? { sourceModels: v.sourceModels.map(slimSource) } : {}) } : v),
     // Long per-model time series (Vending-Bench balances) are only drawn on the benchmark's own page.
     series: [],
     observations: snapshot.observations.map((full): Observation => {

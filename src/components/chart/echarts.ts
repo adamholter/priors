@@ -1,12 +1,12 @@
 "use client";
-import { createContext, useCallback, useContext, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import type { EChartsOption } from "echarts";
-import { echarts, themeFor, markColor, LIGHT_PALETTE, type ChartPalette } from "./theme";
+import { echarts, themeFor, markColor } from "./theme";
+import { useChartPalette } from "./palette-context";
 
 export * from "./theme";
 
-export const ChartPaletteContext = createContext<ChartPalette>(LIGHT_PALETTE);
-export const useChartPalette = () => useContext(ChartPaletteContext);
+export { ChartPaletteContext, useChartPalette } from "./palette-context";
 /** Lab color for DOM marks (bars, dots, swatches) under the current palette. */
 export function useLabColor() {
   const pal = useChartPalette();

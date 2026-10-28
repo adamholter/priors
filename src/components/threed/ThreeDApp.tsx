@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
+import { useCoreSnapshot } from "../use-core-snapshot";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { Snapshot } from "@/data/types";
 import { effectiveBasis } from "@/data/subscription";
 import { hasSubscriptionPrices } from "@/data/task-metrics";
 import { mergeImports } from "@/lib/import";
@@ -37,17 +37,9 @@ const short = (label = "") => label.replace(/\s*\(.*\)\s*$/, "");
 
 /** `/3d`: one ranking as a 3D chart (score, time per task and cost per task by default) with the best corner marked. */
 export function ThreeDApp({ initial, wantMine, axes: axesParam, published }: { initial?: Choice; wantMine: boolean; axes?: string; published: Published[] }) {
-  const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
-  const [error, setError] = useState("");
-  const [retry, setRetry] = useState(0);
+  const { snapshot, error, retry } = useCoreSnapshot();
   const { probe, handle, page, builder, builderReady } = useMyRankings();
   const [picked, setPicked] = useState(initial);
-  useEffect(() => {
-    const c = new AbortController();
-    fetch("/api/snapshot?view=core", { signal: c.signal }).then(async (r) => { if (!r.ok) throw new Error("Could not load benchmark data."); return (await r.json()).snapshot as Snapshot; })
-      .then((s) => { if (!c.signal.aborted) setSnapshot(s); }).catch((e) => { if (!c.signal.aborted) setError(e instanceof Error ? e.message : "Could not load benchmark data."); });
-    return () => c.abort();
-  }, [retry]);
   const mineReady = wantMine && handle !== undefined && builderReady && (!handle || page !== undefined);
   const mine = useMemo(() => (page ? choiceFromPage(page, undefined, true) : builder[0] ? choiceFromIndex(builder[0], { title: "You", short: "you", mine: true }) : undefined), [page, builder]);
   const choice = picked ?? (mineReady ? mine ?? (snapshot ? choiceFromPreset(snapshot, "aa") : undefined) : undefined);
@@ -116,7 +108,7 @@ export function ThreeDApp({ initial, wantMine, axes: axesParam, published }: { i
         <div className="w-full sm:w-[360px]"><SidePicker tone="a" label="Ranking" value={choice} sources={sources} onPick={(c) => { setPicked(c); setSelected(null); }} /></div>
       </div>
       {loading ? <div role="status" aria-busy={!error} className="grid gap-4"><div className="load-bar h-[480px] w-full" />
-        <p className="text-[12px] text-grey">{error ? <>{error} <button type="button" className="underline" onClick={() => { setError(""); setRetry((n) => n + 1); }}>Retry</button></> : "Loading benchmark data…"}</p></div>
+        <p className="text-[12px] text-grey">{error ? <>{error} <button type="button" className="underline" onClick={retry}>Retry</button></> : "Loading benchmark data…"}</p></div>
         : !placed ? <p className="text-[14px] text-ink-2">This ranking does not have three measures with enough models to chart. Choose another ranking above.</p>
         : <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_300px]">
           <div className="t3d-stage">

@@ -1,7 +1,7 @@
 "use client";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
-import { ChartPaletteContext, DARK_PALETTE, LIGHT_PALETTE } from "./chart/echarts";
-import { paletteFor } from "./chart/theme";
+import { ChartPaletteContext } from "./chart/palette-context";
+import { DARK_PALETTE, LIGHT_PALETTE, paletteFor } from "./chart/palette";
 import { DEFAULT_SITE_THEME, resolveSiteTheme, savedSiteTheme, SITE_THEME_KEY, siteThemeVars, type SavedSiteTheme } from "@/lib/site-theme";
 
 export type ThemeMode = "system" | "light" | "dark";

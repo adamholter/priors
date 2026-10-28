@@ -11,7 +11,7 @@ How a ranking is made (state these when you report one):
 - strictness (default 50): a model is ranked only when measured results cover at least that % of the index's weight; the rest of its score is estimated from similar models. measuredPct on each row says how much is measured.
 - releasedAfter: by default only models released in the last six months are ranked ("" for all).
 - In an index nobody curated, older versions of a newer model are left out (excludeModels: [] shows them).
-- Cost per task defaults to the subscription basis: measured API cost scaled by what the lab's plan works out to, where it has one. costBasis: "api" uses API prices. Subscription prices also fall by what OpenAI and Anthropic limit resets gave subscribers in the last 30 days (banked resets not counted, each reset worth half a week of allowance); planResets: false turns that off.
+- Cost per task defaults to the subscription basis: measured API cost scaled by what the lab's plan works out to, where it has one. costBasis: "api" uses API prices. planResets: true also lowers subscription prices by what OpenAI and Anthropic limit resets gave subscribers in the last 30 days (banked resets not counted); off by default.
 - Reasoning effort: one model at low and at max are different configurations with different score, cost and time. Leaderboards default to each model's best effort; tradeoff charts and tables (pareto_frontier, scatter, cost or time columns) show every effort. Name the effort whenever you name a configuration ("GPT-6.1 Terra high", not "GPT-6.1 Terra").
 So a model missing from a ranking is not missing from the data. rank_models lists the near misses in \`excluded\`; get_model's \`status\` says why one model is not ranked. Check before saying a model is absent.
 

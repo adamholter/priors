@@ -4,6 +4,7 @@ import { promisify } from "node:util";
 import { NextResponse } from "next/server";
 import { loadSnapshot } from "@/data/load";
 import { clientSnapshot } from "@/data/client-snapshot";
+import { packSnapshot } from "@/data/packed-snapshot";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,7 +22,8 @@ export async function GET(req: Request) {
   const requestedVersion = url.searchParams.get("version");
   if (requestedVersion && requestedVersion !== snapshot.generatedAt) return NextResponse.json({ error: "Snapshot changed. Reload to see the latest data." }, { status: 409 });
   if (view === "meta") return NextResponse.json({ date: snapshot.date, generatedAt: snapshot.generatedAt, refreshing: !!state.priorsRefresh, canRefresh: localRefresh }, { headers: { "Cache-Control": "no-store" } });
-  if (view === "core") return NextResponse.json({ snapshot: clientSnapshot(snapshot) }, { headers: { "Cache-Control": "public, max-age=0, s-maxage=60, stale-while-revalidate=300" } });
+  // `packed=1`: the current pages read the packed form (`src/data/packed-snapshot.ts`); a tab still running an older bundle asks without it.
+  if (view === "core") return NextResponse.json({ snapshot: url.searchParams.get("packed") === "1" ? packSnapshot(clientSnapshot(snapshot)) : clientSnapshot(snapshot) }, { headers: { "Cache-Control": "public, max-age=0, s-maxage=60, stale-while-revalidate=300" } });
   return NextResponse.json({ snapshot, refreshing: !!state.priorsRefresh, canRefresh: localRefresh }, { headers: { "Cache-Control": "no-store" } });
 }
 

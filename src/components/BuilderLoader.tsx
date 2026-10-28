@@ -1,29 +1,13 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
-import type { Snapshot } from "@/data/types";
 import type { IndexConfig } from "@/engine";
 import { Wordmark } from "./Wordmark";
 import { Builder } from "./Builder";
+import { useCoreSnapshot } from "./use-core-snapshot";
 import "./builder.css";
 
 /** Keep the large calculation dataset out of the HTML response. */
 export function BuilderLoader({ initialIndices }: { initialIndices: IndexConfig[] }) {
-  const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
-  const [error, setError] = useState("");
-  const [retry, setRetry] = useState(0);
-  const load = useCallback(() => { setError(""); setRetry((n) => n + 1); }, []);
-  useEffect(() => {
-    const controller = new AbortController();
-    fetch("/api/snapshot?view=core", { signal: controller.signal })
-      .then(async (response) => {
-        if (!response.ok) throw new Error("Could not load benchmark data.");
-        const payload = await response.json();
-        return payload.snapshot as Snapshot;
-      })
-      .then((data) => { if (!controller.signal.aborted) setSnapshot(data); })
-      .catch((cause) => { if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : "Could not load benchmark data."); });
-    return () => controller.abort();
-  }, [retry]);
+  const { snapshot, error, retry: load } = useCoreSnapshot();
   if (snapshot) return <Builder snapshot={snapshot} initialIndices={initialIndices} />;
   return <div className="builder min-h-screen">
     <header className="builder-header flex items-center px-4 sm:px-8 h-14 border-b hairline"><Wordmark /></header>

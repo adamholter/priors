@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { readCoreSnapshot } from "@/data/packed-snapshot";
 import type { Snapshot } from "@/data/types";
 
 export function SourceStatus({ snapshot, onSnapshot }: { snapshot: Snapshot; onSnapshot: (s: Snapshot) => void }) {
@@ -19,10 +20,10 @@ export function SourceStatus({ snapshot, onSnapshot }: { snapshot: Snapshot; onS
         setCanRefresh(data.canRefresh);
         setBusy(data.refreshing);
         if (data.generatedAt !== snapshot.generatedAt) {
-          const updated = await fetch(`/api/snapshot?view=core&version=${encodeURIComponent(data.generatedAt)}`, { cache: "no-store" });
+          const updated = await fetch(`/api/snapshot?view=core&packed=1&version=${encodeURIComponent(data.generatedAt)}`, { cache: "no-store" });
           if (!updated.ok) throw new Error("Could not load updated data.");
-          const payload = await updated.json();
-          if (active && payload.snapshot) onSnapshot(payload.snapshot);
+          const fresh = await readCoreSnapshot(updated);
+          if (active) onSnapshot(fresh);
         }
         setChecked(new Date(snapshot.generatedAt).toLocaleString());
       } catch { if (active) setError("Could not check for updated data."); }

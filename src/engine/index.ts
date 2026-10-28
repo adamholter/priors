@@ -34,8 +34,8 @@ export interface IndexConfig {
   costSource?: TaskMetricSource;
   /** Price cost per task at API list prices (default) or at the lab's subscription plan. */
   costBasis?: CostBasis;
-  /** Plans are cheaper by what limit resets gave their subscribers in the last 30 days (default). `false` prices the plan as measured, without resets. Only matters on the subscription basis. */
-  planResets?: false;
+  /** `true`: plans are cheaper by what limit resets gave their subscribers in the last 30 days. Off by default: the plan is priced as measured. Only matters on the subscription basis. (`false` is what older saved configs carry: the same as unset.) */
+  planResets?: boolean;
   timeSource?: TaskMetricSource;
   /** Optional filters */
   labs?: string[]; // include only these labIds
@@ -341,7 +341,7 @@ export function computeIndex(snapshot: Snapshot, config: IndexConfig, view: View
   const idx = indexObservations(snapshot);
   const costData = taskMetricData(snapshot, view.costBenchmark ?? config.costSource ?? "aa", "cost");
   const plans = effectiveBasis(config.costBasis) === "subscription" ? subscriptionPrices(snapshot) : undefined;
-  const resetBoosts = plans && config.planResets !== false ? planResetBoosts(snapshot) : undefined;
+  const resetBoosts = plans && config.planResets === true ? planResetBoosts(snapshot) : undefined;
 
   const used = Object.entries(config.weights).filter(([id, w]) => w > 0 && benches.has(id));
   const total = used.reduce((a, [, w]) => a + w, 0);

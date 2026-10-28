@@ -60,7 +60,13 @@ describe("canonical snapshot identities", () => {
     const after = canonicalizeSnapshot(original);
     expect(canonicalizeSnapshot(after)).toEqual(after);
     expect(canonicalizeSnapshot({ ...original, variants: [...original.variants].reverse() }).variants).toEqual(after.variants);
-    expect(clientSnapshot(after).variants).toEqual(after.variants);
+    // The browser keeps every identity; source metadata is trimmed to what it reads (prices, release, reasoning).
+    const identities = (vs: typeof after.variants) => vs.map((v) => ({ ...v, sourceModel: v.sourceModel && { ...v.sourceModel, metadata: undefined }, sourceModels: v.sourceModels?.map((x) => ({ ...x, metadata: undefined })) }));
+    const client = clientSnapshot(after).variants;
+    expect(identities(client)).toEqual(identities(after.variants));
+    const withPrice = after.variants.findIndex((v) => v.sourceModel?.metadata?.price1mInputTokens != null);
+    expect(client[withPrice].sourceModel!.metadata).toMatchObject({ price1mInputTokens: after.variants[withPrice].sourceModel!.metadata!.price1mInputTokens });
+    expect(client[withPrice].sourceModel!.metadata).not.toHaveProperty("creator");
   });
 
   it("keeps saved source-qualified highlights attached to the corrected effort", () => {

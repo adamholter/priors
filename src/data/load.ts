@@ -4,6 +4,7 @@ import { gunzipSync } from "node:zlib";
 import type { Snapshot } from "./types";
 import type { MixLibrary } from "../onboarding/library";
 import { canonicalizeSnapshot } from "./canonical-snapshot";
+import { shareStrings } from "./share-strings";
 
 const SNAP_DIR = path.resolve(process.cwd(), "data/snapshots");
 
@@ -32,7 +33,8 @@ function withinLiveWindow(file: string, liveDate: string): boolean {
   const day = Date.parse(`${file.slice(0, 10)}T00:00:00Z`), live = Date.parse(`${liveDate}T00:00:00Z`);
   return Number.isFinite(day) && Number.isFinite(live) && day <= live && live - day <= WINDOW_DAYS * 86_400_000;
 }
-const MAX_REMOTE_ENTRIES = 40;
+/** Parsed snapshots are about 15 MB each, so only the few most recently used stay in memory: the live one and whichever dated links are being opened. */
+const MAX_SNAPSHOTS = 6;
 
 /** One remote file, kept for the TTL; when a refresh fails the last good copy keeps serving. */
 function remoteCache<T>(parse: (raw: Buffer) => T) {
@@ -44,15 +46,17 @@ function remoteCache<T>(parse: (raw: Buffer) => T) {
     const pending = fetchRemote(file).then((raw) => {
       let value: T | null = hit?.value ?? null;
       if (raw) try { value = parse(raw); } catch { /* keep the last good copy */ }
+      entries.delete(file); // re-inserted below as the most recently used
       entries.set(file, { at: Date.now(), value });
-      while (entries.size > MAX_REMOTE_ENTRIES) entries.delete(entries.keys().next().value!);
+      while (entries.size > MAX_SNAPSHOTS) entries.delete(entries.keys().next().value!);
       return value;
     });
     entries.set(file, { at: hit?.at ?? 0, value: hit?.value ?? null, pending });
     return pending;
   };
 }
-const parseSnapshot = (raw: Buffer) => canonicalizeSnapshot(JSON.parse(gunzipSync(raw).toString("utf8")) as Snapshot);
+/** A snapshot file, parsed, with its identities repaired and its repeated strings shared (40% less memory). */
+const parseSnapshot = (raw: Buffer) => shareStrings(canonicalizeSnapshot(JSON.parse(gunzipSync(raw).toString("utf8")) as Snapshot));
 const remoteSnapshot = remoteCache(parseSnapshot);
 const remoteLibrary = remoteCache((raw) => JSON.parse(gunzipSync(raw).toString("utf8")) as MixLibrary);
 
@@ -76,19 +80,21 @@ export function loadSnapshot(date?: string): Promise<Snapshot | null> {
 
 function bundledSnapshot(file: string): Promise<Snapshot | null> {
   let p = snapshots.get(file);
-  if (!p) {
+  if (p) { snapshots.delete(file); snapshots.set(file, p); } // most recently used last
+  else {
     p = (async () => {
-      try { return canonicalizeSnapshot(JSON.parse(gunzipSync(await readFile(path.join(SNAP_DIR, file))).toString("utf8")) as Snapshot); }
+      try { return parseSnapshot(await readFile(path.join(SNAP_DIR, file))); }
       catch { return null; }
     })();
     snapshots.set(file, p);
+    while (snapshots.size > MAX_SNAPSHOTS) snapshots.delete(snapshots.keys().next().value!);
   }
   return p;
 }
 
 /** One snapshot by date, uncached: for walking every date without keeping them all in memory. */
 export async function readSnapshot(date: string): Promise<Snapshot | null> {
-  try { return canonicalizeSnapshot(JSON.parse(gunzipSync(await readFile(path.join(SNAP_DIR, `${date}.json.gz`))).toString("utf8")) as Snapshot); }
+  try { return parseSnapshot(await readFile(path.join(SNAP_DIR, `${date}.json.gz`))); }
   catch { return null; }
 }
 

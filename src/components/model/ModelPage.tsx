@@ -1,10 +1,10 @@
 "use client";
 import { SiteFooter } from "@/components/SiteFooter";
-import { usePlanResetsOff, withResetsPref } from "@/lib/plan-resets-pref";
+import { usePlanResetsOn, withResetsPref } from "@/lib/plan-resets-pref";
 import Link from "next/link";
 import { HeaderAccount } from "@/components/AccountMenu";
 import { SettingsButton } from "../SiteSettings";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { EChartsOption } from "echarts";
 import type { Benchmark, Snapshot } from "@/data/types";
 import { findRanking, rankParam } from "@/lib/model-ranking-param";
@@ -23,6 +23,7 @@ import { ModelStrengths } from "./ModelStrengths";
 import { FieldStrip, type StripPoint } from "./FieldStrip";
 import { ModelCostSpeed } from "./ModelCostSpeed";
 import { escapeSvg as esc } from "../chart/export-frame";
+import { useNearView } from "../use-near-view";
 
 type Row = { variantId: string; modelId: string; effort: string; value: number; cost?: number; rank: number };
 
@@ -72,11 +73,11 @@ export function ModelPage({ snapshot: base, modelId, rank }: { snapshot: Snapsho
   const pal = useChartPalette();
   const labC = markColor(lab?.color ?? "#2F4FB0", pal, lab?.id);
   const color = useMemo(() => ({ lab: labC, name: (id: string) => names.get(id) ?? id }), [labC, names]);
-  const resetsOff = usePlanResetsOff();
-  const mix = useMemo(() => withResetsPref(current.config, resetsOff), [current.config, resetsOff]);
+  const resetsOn = usePlanResetsOn();
+  const mix = useMemo(() => withResetsPref(current.config, resetsOn), [current.config, resetsOn]);
   const result = useMemo(() => computeIndex(snapshot, { ...mix, variants: "all" }), [snapshot, mix]);
   // Cost per task is measured per variant; the full-pool "all time" index supplies it for every variant.
-  const costs = useMemo(() => { const r = computeIndex(snapshot, { ...withResetsPref(defaultConfig(snapshot), resetsOff), variants: "all", releasedAfter: "", strictness: 0 }); const m = new Map<string, number>(); for (const x of r.ranked) if (x.costUsd) { m.set(x.variant.id, x.costUsd); const base = x.variant.id.split("~")[0]; if (!m.has(base)) m.set(base, x.costUsd); } return m; }, [snapshot, resetsOff]);
+  const costs = useMemo(() => { const r = computeIndex(snapshot, { ...withResetsPref(defaultConfig(snapshot), resetsOn), variants: "all", releasedAfter: "", strictness: 0 }); const m = new Map<string, number>(); for (const x of r.ranked) if (x.costUsd) { m.set(x.variant.id, x.costUsd); const base = x.variant.id.split("~")[0]; if (!m.has(base)) m.set(base, x.costUsd); } return m; }, [snapshot, resetsOn]);
   // Not enough measured data at the mix's strictness: fall back to estimates rather than showing nothing.
   const strictMine = result.ranked.filter((r) => r.model.id === modelId);
   const loose = useMemo(() => strictMine.length ? null : computeIndex(snapshot, { ...mix, variants: "all", strictness: 0 }), [snapshot, mix, strictMine.length]);
@@ -104,6 +105,7 @@ export function ModelPage({ snapshot: base, modelId, rank }: { snapshot: Snapsho
   const inMix = measured.filter((b) => (mix.weights[b.id] ?? 0) > 0);
   const others = measured.filter((b) => !((mix.weights[b.id] ?? 0) > 0)).sort((a, b) => a.category.localeCompare(b.category) || a.name.localeCompare(b.name));
   const [info, setInfo] = useState<string | null>(null);
+  const [showAll, setShowAll] = useState(false);
   const top = mine[0];
 
   return (
@@ -143,9 +145,9 @@ export function ModelPage({ snapshot: base, modelId, rank }: { snapshot: Snapsho
             : <p className="cap">This model has no results on this ranking&rsquo;s benchmarks.</p>}
         </section>
 
-        {others.length > 0 && <details className="group border-t hairline pt-4">
+        {others.length > 0 && <details className="group border-t hairline pt-4" onToggle={(e) => setShowAll(e.currentTarget.open)}>
           <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden flex items-baseline justify-between"><h2 className="text-[22px]">All {measured.length} benchmarks</h2><span className="cap group-open:hidden">show {others.length} more</span><span className="cap hidden group-open:inline">hide</span></summary>
-          <LazyCards list={others} perBench={perBench} modelId={modelId} color={color} onInfo={setInfo} />
+          {showAll && <LazyCards list={others} perBench={perBench} modelId={modelId} color={color} onInfo={setInfo} />}
         </details>}
       </div>
       <BenchmarkInfo snapshot={snapshot} benchmarkId={info} onClose={() => setInfo(null)} />
@@ -163,6 +165,13 @@ function EffortRow({ r, rank, total, max, color }: { r: RankedVariant; rank: num
   </div>;
 }
 
+/** A chart that only exists while it is near the screen; the same height either way, so nothing jumps. */
+function NearView({ height, children }: { height: number; children: ReactNode }) {
+  const [ref, near] = useNearView<HTMLDivElement>();
+  return <div ref={ref} style={{ minHeight: height }}>{near && children}</div>;
+}
+
+/** The rest of the model's benchmarks, rendered only once the section is opened. */
 function LazyCards({ list, perBench, modelId, color, onInfo }: { list: Benchmark[]; perBench: Map<string, Row[]>; modelId: string; color: { lab: string; name: (id: string) => string }; onInfo: (id: string) => void }) {
   return <div className="grid gap-8 lg:grid-cols-2 mt-5">{list.map((b) => <BenchCard key={b.id} b={b} rows={perBench.get(b.id)!} modelId={modelId} color={color} onInfo={() => onInfo(b.id)} />)}</div>;
 }
@@ -174,8 +183,8 @@ function BenchCard({ b, rows, modelId, color, onInfo }: { b: Benchmark; rows: Ro
   return (
     <article className="grid gap-3 content-start">
       <div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="cap">{b.category}</p><h3 className="text-[19px] leading-tight flex items-center gap-1.5">{b.name}<InfoIcon name={b.name} onClick={onInfo} /></h3></div><span className="cap shrink-0 pt-4">{rows.length} results</span></div>
-      {withCost.length >= 3 && mine.some((r) => r.cost) ? <BenchScatter b={b} rows={withCost} modelId={modelId} color={color} />
-        : rows.length >= 3 && <BenchStrip b={b} rows={rows} modelId={modelId} color={color} />}
+      {withCost.length >= 3 && mine.some((r) => r.cost) ? <NearView height={230}><BenchScatter b={b} rows={withCost} modelId={modelId} color={color} /></NearView>
+        : rows.length >= 3 && <NearView height={150}><BenchStrip b={b} rows={rows} modelId={modelId} color={color} /></NearView>}
       <ol className="grid gap-[4px]">
         {mine.map((r) => <li key={r.variantId} className="grid grid-cols-[52px_minmax(0,1fr)_70px] items-center gap-3 text-[12.5px] h-[24px]">
           <span className="num text-[15px]" style={{ color: "var(--indigo)" }}>#{r.rank}</span>

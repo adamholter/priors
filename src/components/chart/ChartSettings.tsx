@@ -117,7 +117,7 @@ export function ChartSettings({ label, mode, onChange, efforts, releasedAfter, o
       </div>
     </>}
     {((formula && view && onView) || resets) && <details className={styles.advanced} open={advanced} onToggle={e => setAdvanced(e.currentTarget.open)}>
-      <summary>Advanced{view?.formula?.trim() ? <em>formula on</em> : resets && !resets.value ? <em>resets off</em> : null}</summary>
+      <summary>Advanced{view?.formula?.trim() ? <em>formula on</em> : resets?.value ? <em>resets on</em> : null}</summary>
       {resets && <div className={styles.toggles}>
         <label title={resets.note}><span>Count limit resets</span><input type="checkbox" checked={resets.value} onChange={e => resets.onChange(e.target.checked)} /></label>
         {resets.note && <p className={styles.resetNote}>{resets.note}</p>}

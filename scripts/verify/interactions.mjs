@@ -116,7 +116,7 @@ try {
     } finally { await c.context().close(); }
   });
 
-  await check("Advanced > Count limit resets switches resets off in the link and remembers it", async () => {
+  await check("Advanced > Count limit resets is off by default, switches on in the link and remembers it", async () => {
     const c = await (await browser.newContext({ viewport: { width: 1440, height: 1000 } })).newPage();
     try {
       await c.goto(`${BASE}/builder`, { waitUntil: "domcontentloaded" });
@@ -128,13 +128,13 @@ try {
       await menu.getByRole("tab", { name: "Settings" }).click();
       await menu.locator("summary", { hasText: "Advanced" }).click();
       const box = menu.getByLabel("Count limit resets");
-      assert.equal(await box.isChecked(), true, "resets count by default");
-      await box.uncheck();
-      await c.waitForFunction(() => decodeURIComponent(location.href).includes("resets=off"));
+      assert.equal(await box.isChecked(), false, "resets are off by default");
       await box.check();
-      await c.waitForFunction(() => !decodeURIComponent(location.href).includes("resets=off"));
-      // Off is remembered: a later visit to another page starts with resets off, until they're turned back on.
+      await c.waitForFunction(() => decodeURIComponent(location.href).includes("resets=on"));
       await box.uncheck();
+      await c.waitForFunction(() => !decodeURIComponent(location.href).includes("resets=on"));
+      // On is remembered: a later visit to another page starts with resets on, until they're turned back off.
+      await box.check();
       const resetsBox = async () => {
         await c.goto(`${BASE}/benchmarks/frontiercode-2.0-main`, { waitUntil: "networkidle" });
         await c.getByLabel("Pareto settings", { exact: true }).click();
@@ -142,9 +142,9 @@ try {
         await c.locator(".chart-settings-menu summary", { hasText: "Advanced" }).last().click();
         return c.getByLabel("Count limit resets");
       };
-      assert.equal(await (await resetsBox()).isChecked(), false, "resets stay off on the next page");
-      await (await resetsBox()).check();
-      assert.equal(await (await resetsBox()).isChecked(), true, "turning them back on is remembered too");
+      assert.equal(await (await resetsBox()).isChecked(), true, "resets stay on on the next page");
+      await (await resetsBox()).uncheck();
+      assert.equal(await (await resetsBox()).isChecked(), false, "turning them back off is remembered too");
     } finally { await c.context().close(); }
   });
 
@@ -547,6 +547,25 @@ try {
       await pick.waitFor({ timeout: 30000 });
       await pick.selectOption({ label: "Artificial Analysis" });
       await c.getByText(/#\d+ of \d+ models/).waitFor({ timeout: 30000 });
+    } finally { await c.context().close(); }
+  });
+
+  await check("model page: the HTML carries no dataset, and the closed benchmark list and off-screen charts are not drawn", async () => {
+    const c = await (await browser.newContext({ viewport: { width: 1280, height: 900 } })).newPage();
+    c.on("pageerror", (e) => errors.push(`${c.url()}: ${e.message}`));
+    try {
+      // The whole snapshot used to be serialized into every model page: 21 MB of HTML, 30k DOM nodes, 100 MB of heap.
+      const res = await c.goto(`${BASE}/models/claude-opus-5.5`, { waitUntil: "domcontentloaded" });
+      const html = await res.text();
+      assert.ok(html.length < 300_000, `model page HTML is ${Math.round(html.length / 1024)} KB`);
+      assert.match(html, /Claude Opus 5\.5/, "the HTML still names the model");
+      await c.getByText(/#\d+ of \d+ models/).waitFor({ timeout: 30000 });
+      const nodes = await c.evaluate(() => document.getElementsByTagName("*").length);
+      assert.ok(nodes < 8000, `model page has ${nodes} DOM nodes`);
+      const all = c.locator("details", { has: c.locator("summary", { hasText: /^All \d+ benchmarks/ }) });
+      await all.locator("summary").click();
+      await all.locator("article").first().waitFor({ timeout: 10000 });
+      assert.ok(await all.locator("article").count() > 10, "opening the list draws its cards");
     } finally { await c.context().close(); }
   });
 

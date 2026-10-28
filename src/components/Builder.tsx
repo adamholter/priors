@@ -1,6 +1,6 @@
 "use client";
 import { planResetNote } from "@/data/plan-resets";
-import { setPlanResetsPref, usePlanResetsOff, withResetsPref } from "@/lib/plan-resets-pref";
+import { setPlanResetsPref, usePlanResetsOn, withResetsPref } from "@/lib/plan-resets-pref";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MixAssistant } from "./MixAssistant";
 import { SharedChart } from "./SharedChart";
@@ -62,8 +62,8 @@ export function Builder({ snapshot: base, initialIndices, labPlacement }: { snap
   const [activeId, setActiveId] = useState(indices[0].id);
   const active = indices.find((i) => i.id === activeId) ?? indices[0];
   useTripleD(active ? threeDUrl({ kind: "index", config: active }) : null);
-  const resetsOff = usePlanResetsOff();
-  const result = useMemo(() => computeIndex(snapshot, { ...withResetsPref(active, resetsOff), variants: "all" }, PAGE_VIEW), [snapshot, active, resetsOff]);
+  const resetsOn = usePlanResetsOn();
+  const result = useMemo(() => computeIndex(snapshot, { ...withResetsPref(active, resetsOn), variants: "all" }, PAGE_VIEW), [snapshot, active, resetsOn]);
   const rankingMode = chartVariantMode(active, "ranking"), paretoMode = chartVariantMode(active, "pareto");
   const rankingRows = useMemo(() => rankingRowsOf(result.ranked, active), [result, active]);
   // Settings-gear model picker: ranked models first (rank order), then the rest
@@ -191,7 +191,7 @@ export function Builder({ snapshot: base, initialIndices, labPlacement }: { snap
           {labPlacement === "inline" && <IndexLabActions active={active} date={snapshot.date} top={topNames} placement="inline" />}
           <div className="builder-cost">
             <ParetoChart formulaInputs={formulaInputs(snapshot, result.ranked, active.timeSource)} basis={effectiveBasis(active.costBasis, hasSubscriptionPrices(snapshot))} description={costDescription(active.costSource ?? "aa", effectiveBasis(active.costBasis, hasSubscriptionPrices(snapshot)))} anchor="cost" ranked={metricRanked} mode={paretoMode} labs={snapshot.labs} view={paretoView} onView={setParetoView} title={<h2 className="text-[22px]">{effectiveBasis(active.costBasis, hasSubscriptionPrices(snapshot)) === "subscription" ? "Score vs subscription cost per task" : "Score vs cost per task"}</h2>}
-              actions={(barModels) => <ChartSettings anchor="cost" defaultScale="log" dataSource={{ value: active.costSource ?? "aa", options: taskMetricOptions(snapshot, "cost"), onChange: (costSource) => update({ ...active, costSource }) }} costBasis={hasSubscriptionPrices(snapshot) ? { value: effectiveBasis(active.costBasis), onChange: (basis) => update({ ...active, costBasis: basis === "subscription" ? undefined : basis }) } : undefined} planResets={{ value: withResetsPref(active, resetsOff).planResets !== false, onChange: (on) => { setPlanResetsPref(on); update({ ...active, planResets: on ? undefined : false }); }, note: planResetNote(snapshot) }} label="Pareto" mode={paretoMode} onChange={(paretoVariants) => update({ ...active, paretoVariants })} view={paretoView} onView={setParetoView} {...releaseProps} {...effortProps} {...modelPicker} {...(barModels ?? {})} />} />
+              actions={(barModels) => <ChartSettings anchor="cost" defaultScale="log" dataSource={{ value: active.costSource ?? "aa", options: taskMetricOptions(snapshot, "cost"), onChange: (costSource) => update({ ...active, costSource }) }} costBasis={hasSubscriptionPrices(snapshot) ? { value: effectiveBasis(active.costBasis), onChange: (basis) => update({ ...active, costBasis: basis === "subscription" ? undefined : basis }) } : undefined} planResets={{ value: withResetsPref(active, resetsOn).planResets === true, onChange: (on) => { setPlanResetsPref(on); update({ ...active, planResets: on ? true : undefined }); }, note: planResetNote(snapshot) }} label="Pareto" mode={paretoMode} onChange={(paretoVariants) => update({ ...active, paretoVariants })} view={paretoView} onView={setParetoView} {...releaseProps} {...effortProps} {...modelPicker} {...(barModels ?? {})} />} />
           </div>
           <div className="builder-more">
             <h2 className="text-[22px] mb-1">More metrics</h2>

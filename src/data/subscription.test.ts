@@ -156,25 +156,29 @@ describe("plan limit resets", () => {
     expect(extraWeeks([ev("2026-07-20T00:00:00Z"), ev("2026-08-10T00:00:00Z")], Date.parse("2026-09-05T00:00:00Z"), "restart")).toBeCloseTo(1, 9);
   });
 
-  it("makes the lab's plan cheaper by that factor, and leaves other labs, API pricing and the off switch alone", () => {
-    const sn = withResets(), on = { ...base, costBasis: "subscription" as const }, boost = planResetBoosts(sn).get("openai")!.boost;
+  it("when turned on, makes the lab's plan cheaper by that factor, and leaves other labs, API pricing and the default alone", () => {
+    const sn = withResets(), on = { ...base, costBasis: "subscription" as const, planResets: true }, boost = planResetBoosts(sn).get("openai")!.boost;
     const plain = cost(snap(), on, "b@xhigh"), counted = cost(sn, on, "b@xhigh");
     expect(counted.costUsd).toBeCloseTo(plain.costUsd! / boost, 9);
     expect(counted.costPlan!.ratio).toBeCloseTo(0.1 / boost, 9);
     expect(counted.costSource).toContain("with 3 limit resets in 30 days");
+    // Off by default, and older saved configs' `false` means off too.
+    expect(cost(sn, { ...on, planResets: undefined }, "b@xhigh").costUsd).toBeCloseTo(plain.costUsd!, 9);
     expect(cost(sn, { ...on, planResets: false }, "b@xhigh").costUsd).toBeCloseTo(plain.costUsd!, 9);
     expect(cost(sn, { ...base, costBasis: "api" }, "b@xhigh").costUsd).toBe(7);
     // Anthropic's one reset is worth a whole week against the 4.29 in the window.
     expect(cost(sn, on, "a@max").costUsd).toBeCloseTo(cost(snap(), on, "a@max").costUsd! / (1 + 7 / 30), 9);
   });
 
-  it("does nothing for snapshots without reset data, and the off switch survives a link", () => {
+  it("does nothing for snapshots without reset data, and turning it on survives a link", () => {
     expect(planResetBoosts(snap()).size).toBe(0);
     expect(planResetNote(snap())).toBeUndefined();
     expect(planResetNote(withResets())).toMatch(/OpenAI: 3 resets in 30 days.*Banked resets are not counted.*restarts the week/);
-    const encoded = encodeIndex({ ...base, planResets: false });
-    expect(encoded).toContain("resets=off");
-    expect(decodeIndex(encoded, "t")!.planResets).toBe(false);
+    const encoded = encodeIndex({ ...base, planResets: true });
+    expect(encoded).toContain("resets=on");
+    expect(decodeIndex(encoded, "t")!.planResets).toBe(true);
     expect(decodeIndex(encodeIndex(base), "t")!.planResets).toBeUndefined();
+    // Links from when resets counted by default said resets=off: that is now the default.
+    expect(decodeIndex(`${encodeIndex(base)}|resets=off`, "t")!.planResets).toBeUndefined();
   });
 });

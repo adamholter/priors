@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { readCoreSnapshot } from "@/data/packed-snapshot";
 import { useEffect, useRef, useState } from "react";
 import type { Snapshot } from "@/data/types";
 import { mergeImports } from "@/lib/import";
@@ -22,14 +23,13 @@ export function ProfileLoader({ profile, version, edit, tab, linkedHighlight, li
   const currentVersion = useRef(version);
   useEffect(() => {
     const controller = new AbortController();
-    fetch(`/api/snapshot?view=core&version=${encodeURIComponent(version)}`, { signal: controller.signal })
+    fetch(`/api/snapshot?view=core&packed=1&version=${encodeURIComponent(version)}`, { signal: controller.signal })
       .then(async (response) => {
         // New data was published after this page rendered: the page's own numbers are from the old
         // snapshot, so reload it (once) instead of showing an error.
         if (response.status === 409 && reloadForNewData()) return null;
         if (!response.ok) throw new Error(response.status === 409 ? "Benchmark data changed. Please reload the page." : "Could not load benchmark data.");
-        const payload = await response.json();
-        return payload.snapshot as Snapshot;
+        return readCoreSnapshot(response);
       })
       .then((data) => {
         if (!data) return;
@@ -49,12 +49,12 @@ export function ProfileLoader({ profile, version, edit, tab, linkedHighlight, li
       loading = true;
       controller = new AbortController();
       try {
-        const response = await fetch("/api/snapshot?view=core", { signal: controller.signal, cache: "no-store" });
+        const response = await fetch("/api/snapshot?view=core&packed=1", { signal: controller.signal, cache: "no-store" });
         if (!response.ok) return;
-        const payload = await response.json();
-        if (!controller.signal.aborted && snapshotVersionChanged(currentVersion.current, payload.snapshot?.generatedAt)) {
-          currentVersion.current = payload.snapshot.generatedAt;
-          setSnapshot(mergeImports(payload.snapshot as Snapshot, profile.imports ?? []).snapshot);
+        const latest = await readCoreSnapshot(response);
+        if (!controller.signal.aborted && snapshotVersionChanged(currentVersion.current, latest.generatedAt)) {
+          currentVersion.current = latest.generatedAt;
+          setSnapshot(mergeImports(latest, profile.imports ?? []).snapshot);
         }
       } catch { /* Keep the current page if a background refresh fails. */ }
       finally { loading = false; }

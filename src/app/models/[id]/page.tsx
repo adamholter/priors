@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { loadSnapshot } from "@/data/load";
-import { ModelPage } from "@/components/model/ModelPage";
+import { ModelLoader } from "@/components/model/ModelLoader";
 import { isPreviewBot, PreviewPage } from "@/lib/link-preview";
 import { pageMeta } from "@/lib/site-meta";
 import { modelDescription, modelStanding } from "@/lib/og-model";
@@ -31,5 +31,7 @@ export default async function Page({ params, searchParams }: { params: Promise<{
     const s = modelStanding(snapshot, id);
     return <PreviewPage title={`${m.name} · benchmarks`} description={s ? modelDescription(s) : `How ${m.name} scores on every benchmark Priors tracks, by reasoning effort.`} href={`/models/${id}`} />;
   }
-  return <ModelPage snapshot={snapshot} modelId={id} rank={typeof r === "string" ? r : undefined} />;
+  const s = modelStanding(snapshot, id);
+  // The dataset loads in the browser (shared with the builder and compare pages); the HTML carries the summary.
+  return <ModelLoader modelId={id} rank={typeof r === "string" ? r : undefined} name={m.name} lab={snapshot.labs.find((l) => l.id === m.labId)?.name} summary={s ? modelDescription(s) : undefined} />;
 }

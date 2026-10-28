@@ -57,7 +57,7 @@ function settingsOut(s: Snapshot, config: IndexConfig, res?: IndexResult) {
     olderVersionsHidden: res?.autoHidden.length ? res.autoHidden.map((id) => s.models.find((m) => m.id === id)?.name ?? id) : undefined,
     olderVersionsNote: res?.autoHidden.length ? "Older versions of a newer model are left out of an index nobody has curated, as the site does. Pass excludeModels: [] to show them." : undefined,
     costBasis: effectiveBasis(config.costBasis),
-    planResets: config.planResets === false ? "not counted" : "counted",
+    planResets: config.planResets === true ? "counted" : "not counted",
   };
 }
 

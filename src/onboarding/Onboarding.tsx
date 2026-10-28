@@ -1,5 +1,6 @@
 "use client";
 import { track } from "@/lib/analytics";
+import { readCoreSnapshot } from "@/data/packed-snapshot";
 import Link from "next/link";
 import { useLabColor } from "@/components/chart/echarts";
 import { useTheme } from "@/components/Theme";
@@ -241,11 +242,10 @@ export function Onboarding({ snapshot, lineup, seeds, quality, observedModelIds,
     if (!fullSnapshot || fullSnapshot.date !== snapshot.date) {
       try {
         // A refresh published mid-ranking (same date) is fine to fit against; reloading would lose the calls made so far.
-        let response = await fetch(`/api/snapshot?view=core&date=${encodeURIComponent(snapshot.date)}&version=${encodeURIComponent(snapshot.generatedAt)}`);
-        if (response.status === 409) response = await fetch(`/api/snapshot?view=core&date=${encodeURIComponent(snapshot.date)}`);
+        let response = await fetch(`/api/snapshot?view=core&packed=1&date=${encodeURIComponent(snapshot.date)}&version=${encodeURIComponent(snapshot.generatedAt)}`);
+        if (response.status === 409) response = await fetch(`/api/snapshot?view=core&packed=1&date=${encodeURIComponent(snapshot.date)}`);
         if (!response.ok) throw new Error("Could not load benchmark data.");
-        const payload = await response.json();
-        fullSnapshot = payload.snapshot as Snapshot;
+        fullSnapshot = await readCoreSnapshot(response);
         if (fullSnapshot.date !== snapshot.date) throw new Error("Benchmark data changed. Please reload the page.");
         calculationSnapshot.current = fullSnapshot;
       } catch (e) {
