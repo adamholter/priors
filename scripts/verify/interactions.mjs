@@ -558,7 +558,7 @@ try {
       const res = await c.goto(`${BASE}/models/claude-opus-5.5`, { waitUntil: "domcontentloaded" });
       const html = await res.text();
       assert.ok(html.length < 300_000, `model page HTML is ${Math.round(html.length / 1024)} KB`);
-      assert.match(html, /Claude Opus 5\.5/, "the HTML still names the model");
+      assert.match(html, /<h1[^>]*>Opus 5\.5<\/h1>/, "the HTML still names the model");
       await c.getByText(/#\d+ of \d+ models/).waitFor({ timeout: 30000 });
       const nodes = await c.evaluate(() => document.getElementsByTagName("*").length);
       assert.ok(nodes < 8000, `model page has ${nodes} DOM nodes`);
