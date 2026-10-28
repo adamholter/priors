@@ -1,7 +1,7 @@
 import { INDEX_SCORE_AXIS, type ScoreAxis } from "./score-scale";
 import type { EChartsOption } from "echarts";
 import type { Lab } from "../../data/types";
-import { CONTAIN_AXIS_LABELS, dimColor, markColor, markSize, textSize, type ChartPalette } from "./theme";
+import { CONTAIN_AXIS_LABELS, dimColor, markColor, markFill, markSize, textSize, type ChartPalette } from "./theme";
 import { chartLabel } from "../../lib/metrics";
 import { featuredPoints, highlightedModels, type ScatterPoint } from "./scatter-option";
 
@@ -134,7 +134,7 @@ export function barsOption({ bars, labs, xName, formatValue, pal, narrow, highli
     tooltip: { trigger: "item", confine: true, formatter: (p: unknown) => { const d = (p as { data?: { point?: ScatterPoint } }).data?.point; return d ? `<div style="font-weight:600">${chartLabel(d.r)}</div><div style="font-family:var(--font-jetbrains);margin-top:4px">${d.free ? "free" : formatValue(value(d))} · ${axis.fit ? "" : "index "}${axis.format(d.r.score)}</div>` : ""; } },
     series: [{
       type: "bar", id: "bars", barMaxWidth: maxBar, barCategoryGap: "28%",
-      data: layout.entries.map((entry) => { if (!entry) return { value: null, itemStyle: { color: "transparent" } }; const p = entry.point, c = markColor(color.get(p.r.model.labId), pal, p.r.model.labId), dim = on && !hl.has(p.r.model.id); return { value: value(p), point: p, extra: p, itemStyle: { color: dim ? dimColor(c, pal) : c, opacity: dim ? 0.6 : 1, borderRadius: [pal.style?.barRadius ?? 2, pal.style?.barRadius ?? 2, 0, 0] }, label: dim ? { ...above, color: pal.grey } : inside && short(p) ? above : on && featured.has(p.r.variant.id) ? { fontWeight: 700 } : undefined }; }),
+      data: layout.entries.map((entry) => { if (!entry) return { value: null, itemStyle: { color: "transparent" } }; const p = entry.point, c = markColor(color.get(p.r.model.labId), pal, p.r.model.labId), dim = on && !hl.has(p.r.model.id); return { value: value(p), point: p, extra: p, itemStyle: { color: dim ? dimColor(c, pal) : markFill(c, pal), opacity: dim ? 0.6 : 1, borderRadius: [pal.style?.barRadius ?? 2, pal.style?.barRadius ?? 2, 0, 0] }, label: dim ? { ...above, color: pal.grey } : inside && short(p) ? above : on && featured.has(p.r.variant.id) ? { fontWeight: 700 } : undefined }; }),
       label: { show: true, ...(inside ? { position: "insideTop" as const, distance: 6, color: "#FFFFFF", textBorderColor: "rgba(0,0,0,.18)", textBorderWidth: 1.5 } : above), fontSize, fontFamily: pal.fonts?.mono ?? "var(--font-jetbrains), monospace", formatter: (p: { value?: unknown; data?: unknown }) => ((p.data as { point?: ScatterPoint } | null)?.point?.free ? "free" : fmt(Number(p.value))) }, labelLayout: { hideOverlap: true },
       animationDurationUpdate: 350,
     }],

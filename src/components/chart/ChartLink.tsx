@@ -5,6 +5,7 @@ import { chartLinkUrl } from "@/lib/highlight-link";
 import { useHighlight } from "./highlight";
 import { ChartLinkIcon } from "./ChartIcons";
 import type { ChartHidden } from "./chart-visibility";
+import { copyLink } from "@/lib/short-link";
 
 export { anchorOf };
 
@@ -52,7 +53,7 @@ export function ChartLink({ id, name, params }: { id: string; name: string; para
   const copy = async () => {
     const url = chartLinkUrl(window.location.href, id, params, highlight ?? undefined);
     window.history.replaceState(null, "", url.toString());
-    try { await navigator.clipboard.writeText(url.toString()); setCopied(true); setTimeout(() => setCopied(false), 1600); } catch { /* the address bar still has the link */ }
+    try { await copyLink(url.toString()); setCopied(true); setTimeout(() => setCopied(false), 1600); } catch { /* the address bar still has the link */ }
   };
   return <button type="button" onClick={copy} className="relative grid place-items-center w-7 h-7 rounded-sm text-grey hover:text-ink focus-visible:outline-indigo" aria-label={`Copy link to ${name}`} title={copied ? "Link copied" : `Copy link to ${name}`}>
     {copied ? <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5" /></svg>

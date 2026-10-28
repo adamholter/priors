@@ -11,6 +11,7 @@ import { SidePicker, type Sources } from "./SidePicker";
 import { SlopeView, TableView, type ViewProps } from "./views";
 import { MixView } from "./mix-views";
 import "./compare.css";
+import { copyLink } from "@/lib/short-link";
 
 export const TOPS = [5, 10, 20] as const;
 
@@ -69,7 +70,7 @@ function Summary({ a, b, pairs, n }: { a: ViewProps["a"]; b: ViewProps["b"]; pai
 function Actions({ a, b }: { a: Choice; b: Choice }) {
   const [copied, setCopied] = useState(false);
   const remix = (c: Choice) => `/builder?${prettyQuery(new URLSearchParams([["i", encodeIndex({ ...c.config, name: c.handle && !c.mine ? `From @${c.handle}` : c.config.name })]]))}`;
-  const copy = async () => { try { await navigator.clipboard.writeText(location.href); setCopied(true); setTimeout(() => setCopied(false), 1600); track("compare_link_copied", {}); } catch { /* clipboard blocked */ } };
+  const copy = async () => { try { await copyLink(location.href); setCopied(true); setTimeout(() => setCopied(false), 1600); track("compare_link_copied", {}); } catch { /* clipboard blocked */ } };
   return <div className="cmp-actions">
     <button type="button" className="btn" onClick={copy}>{copied ? "Link copied" : "Copy link"}</button>
     {[a, b].filter((c) => !c.mine).map((c) => <Link key={c.title + c.sub} href={remix(c) as "/builder"} className="btn-quiet" onClick={() => track("remix_clicked", { from: "compare", handle: c.handle ?? "" })}>Remix {c.title}</Link>)}

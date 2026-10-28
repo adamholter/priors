@@ -11,6 +11,7 @@ import { useTheme } from "./Theme";
 import { THEME_CHOICES, pickerThemeOf, presetOf } from "@/lib/page-presets";
 import Link from "next/link";
 import { shareCardToX, shareText, stashForPublish } from "@/lib/share";
+import { copyLink } from "@/lib/short-link";
 
 const iconClass = "h-3.5 w-3.5 shrink-0";
 
@@ -105,7 +106,7 @@ function ShareCardsContent({ indices, active, profile, pageUrl, defaultDesign, c
   };
   const copy = async () => {
     track("share_card_shared", { design, scheme, target: "link" });
-    try { await navigator.clipboard.writeText(pageUrl ?? `${window.location.origin}/builder?${prettyQuery(params)}`); setMessage("Link copied"); }
+    try { await copyLink(pageUrl ?? `${window.location.origin}/builder?${prettyQuery(params)}`); setMessage("Link copied"); }
     catch { setMessage("Copy failed. Select the link below to copy it manually."); }
   };
   const outside = (x: number, y: number) => {

@@ -8,6 +8,7 @@ import { labelScale } from "./label-size";
 import { ChartPaletteContext, paletteFor, useChartPalette } from "./echarts";
 import { ChartExport } from "./ChartExport";
 import type { ScatterView } from "./scatter-option";
+import { copyLink } from "@/lib/short-link";
 
 const THEMES = [{ id: "site", name: "Current page" }, ...[...THEME_CHOICES, PAGE_PRESETS.find((p) => p.id === "night")!].map((p) => ({ id: p.id, name: p.name }))];
 
@@ -65,7 +66,7 @@ export default function ExportEditor({ name, initial, base, showScale, onClose, 
   };
   const copy = async () => {
     const url = link(state());
-    try { await navigator.clipboard.writeText(url); setCopied(true); setTimeout(() => setCopied(false), 1600); } catch { window.history.replaceState(null, "", url); }
+    try { await copyLink(url); setCopied(true); setTimeout(() => setCopied(false), 1600); } catch { window.history.replaceState(null, "", url); }
   };
 
   const heading = title.trim() || name;

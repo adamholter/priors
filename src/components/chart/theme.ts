@@ -105,6 +105,45 @@ export function insideLabels(width: () => number | undefined, opts: { moveOverla
   };
 }
 
+/** HearingBench's magma ends: the cool purple a spectrogram starts from and the warm peach it peaks at. */
+const SPECTRO_COOL = "#8F2A81", SPECTRO_HOT = "#FDB07B";
+const mixHex = (a: string, b: string, t: number) => { const p = (h: string) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16)), x = p(a), y = p(b); return "#" + x.map((v, i) => Math.round(v + (y[i] - v) * t).toString(16).padStart(2, "0")).join(""); };
+export type MarkFill = string | { type: "linear"; x: number; y: number; x2: number; y2: number; colorStops: { offset: number; color: string }[] } | { type: "radial"; x: number; y: number; r: number; colorStops: { offset: number; color: string }[] };
+/**
+ * A mark's fill. Flat lab color by default; under `fill: "spectrogram"` (HearingBench) the lab color
+ * becomes a heat ramp like a spectrogram band: it starts deep (pulled toward magma purple) at the
+ * bar's base, holds the lab's own color through the middle, and burns toward peach at the tip, with
+ * faint harmonic bands along the way. Scatter dots glow hot at the center. Labs stay recognizable.
+ */
+export function markFill(c: string, pal: ChartPalette, dir: "up" | "right" | "dot" = "up"): MarkFill {
+  const stops = spectrogramStops(c, pal);
+  if (!stops) return c;
+  if (dir === "dot") return { type: "radial", x: 0.38, y: 0.36, r: 0.7, colorStops: [{ offset: 0, color: stops.at(-1)!.color }, { offset: 0.45, color: c }, { offset: 1, color: stops[0].color }] };
+  return dir === "up" ? { type: "linear", x: 0, y: 1, x2: 0, y2: 0, colorStops: stops } : { type: "linear", x: 0, y: 0, x2: 1, y2: 0, colorStops: stops };
+}
+/** The same fill as a CSS background (HTML ranking bars), left to right. */
+export function markFillCss(c: string, pal: ChartPalette): string {
+  const stops = spectrogramStops(c, pal);
+  return stops ? `linear-gradient(90deg, ${stops.map((s) => `${s.color} ${(s.offset * 100).toFixed(1)}%`).join(", ")})` : c;
+}
+/** The same fill as an SVG <linearGradient> (left to right) for hand-built export SVGs; undefined when flat. */
+export function markFillSvg(id: string, c: string, pal: ChartPalette): string | undefined {
+  const stops = spectrogramStops(c, pal);
+  return stops && `<linearGradient id="${id}" x1="0" y1="0" x2="1" y2="0">${stops.map((s) => `<stop offset="${s.offset.toFixed(3)}" stop-color="${s.color}"/>`).join("")}</linearGradient>`;
+}
+function spectrogramStops(c: string, pal: ChartPalette): { offset: number; color: string }[] | undefined {
+  if (pal.style?.fill !== "spectrogram" || !/^#[0-9a-f]{6}$/i.test(c)) return undefined;
+  const deep = mixHex(mixHex(c, SPECTRO_COOL, 0.45), pal.dark ? "#000000" : "#1D1730", 0.25), hot = mixHex(mixHex(c, "#FFFFFF", 0.42), SPECTRO_HOT, 0.18);
+  const at = (t: number) => t < 0.5 ? mixHex(deep, c, t / 0.5) : mixHex(c, hot, (t - 0.5) / 0.5);
+  // Harmonic banding: alternate brighter and dimmer stripes, tighter toward the hot end, as overtones crowd together.
+  const stops: { offset: number; color: string }[] = [], N = 9, pos = (i: number) => 1 - (1 - i / N) ** 1.35;
+  for (let i = 0; i <= N; i++) {
+    stops.push({ offset: pos(i), color: at(pos(i)) });
+    if (i < N) stops.push({ offset: pos(i + 0.5), color: mixHex(at(pos(i + 0.5)), pal.dark ? "#000000" : "#FFFFFF", pal.dark ? 0.16 : 0.12) });
+  }
+  return stops;
+}
+
 /** A lab color pushed toward the palette's neutral: how non-highlighted marks recede. */
 export function dimColor(color: string | undefined, pal: ChartPalette, amount = 0.72) {
   const neutral = pal.dark ? "#55554F" : "#C4C3BB", c = color && /^#[0-9a-f]{6}$/i.test(color) ? color : neutral;

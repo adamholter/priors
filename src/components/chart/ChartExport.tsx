@@ -3,6 +3,7 @@ import { track } from "@/lib/analytics";
 import { useImperativeHandle, useState, type Ref } from "react";
 import { useChartPalette } from "./echarts";
 import { escapeSvg, frameSvg, trimRight } from "./export-frame";
+import { embedFonts } from "./embed-fonts";
 import { ChartDownloadIcon } from "./ChartIcons";
 import { IconBrush } from "@tabler/icons-react";
 
@@ -50,12 +51,14 @@ export function ChartExport({ name, title, trim = true, onEdit, getSvg, getRows,
       // Exports cannot inherit the page's CSS variables.
       const clean0 = raw.replace(/var\(--font-[a-z0-9-]+\),?\s*/g, "");
       const clean = trim ? trimRight(clean0) : clean0;
-      const svg = frame ? frameSvg(clean, title || name, undefined, pal) : clean;
+      const svg = await embedFonts(frame ? frameSvg(clean, title || name, undefined, pal) : clean);
       let blob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
       if (format === "png") {
         const source = URL.createObjectURL(blob);
         try {
           const img = new Image(); img.src = source; await img.decode();
+          // Fonts inlined in the SVG can land a frame after decode (Safari): give them one before drawing.
+          await new Promise((r) => setTimeout(r, 60));
           const canvas = document.createElement("canvas");
           // Keep long expanded rankings within browser canvas limits.
           const scale = Math.min(3, 16000 / Math.max(img.width, img.height));

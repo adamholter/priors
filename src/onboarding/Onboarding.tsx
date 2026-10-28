@@ -25,6 +25,7 @@ import { readVia, stashForPublish, type Via } from "@/lib/share";
 import type { RankingEvidence } from "./adaptive";
 import { Finish } from "./Finish";
 import "./onboarding.css";
+import { copyLink } from "@/lib/short-link";
 const ROW = 46;
 const phaseNames = { preparing: "Reading the evidence", searching: "Searching the combinations", simplifying: "Keeping what matters", complete: "Your index, found" };
 function Arrow({ direction = "right" }: { direction?: "right" | "up" | "down" }) { return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true" style={{ transform: direction === "up" ? "rotate(-90deg)" : direction === "down" ? "rotate(90deg)" : undefined }}><path d="M4 12h15m-6-6 6 6-6 6" /></svg>; }
@@ -296,7 +297,7 @@ export function Onboarding({ snapshot, lineup, seeds, quality, observedModelIds,
   useEffect(() => { if (complete && stage === "fit" && !done.current?.open) { const t = setTimeout(() => { done.current?.showModal(); track("share_card_opened", { from: "onboarding" }); }, 450); return () => clearTimeout(t); } }, [complete, stage]);
   const resultQuery = update ? encodeIndices([{ ...update.config, name: "My priors", focus }]) : new URLSearchParams();
   const resultUrl = update ? `/builder?${prettyQuery(resultQuery)}` : "";
-  async function copy() { try { await navigator.clipboard.writeText(`${location.origin}${resultUrl}`); setCopied(true); } catch { setError("Couldn't copy. Use Explore this index, then copy its address."); } }
+  async function copy() { try { await copyLink(`${location.origin}${resultUrl}`); setCopied(true); } catch { setError("Couldn't copy. Use Explore this index, then copy its address."); } }
   const modelOptions = snapshot.models.filter(m => m.kind === "llm" && m.name.toLowerCase().includes(query.toLowerCase()) && observedModels.has(m.id)).sort((a, b) => Number(order.includes(b.id)) - Number(order.includes(a.id)) || a.name.localeCompare(b.name));
   const fittedIndex = update ? { ...update.config, name: "My priors", focus } : null;
   const cardUrl = fittedIndex ? `/og?${(() => { const q = encodeIndices([fittedIndex]); q.set("date", snapshot.date); if (dark) q.set("scheme", "dark"); return q; })()}` : "";

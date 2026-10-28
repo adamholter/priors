@@ -4,7 +4,7 @@ import { useRef, useState, type ReactNode } from "react";
 import type { Lab } from "@/data/types";
 import type { RankedVariant } from "@/engine";
 import { variantLabel } from "./chart/ParetoChart";
-import { markColor, useChartPalette } from "./chart/echarts";
+import { markColor, markFillCss, markFillSvg, useChartPalette } from "./chart/echarts";
 import { ChartLink } from "./chart/ChartLink";
 import { RankingColumns } from "./chart/RankingColumns";
 
@@ -42,10 +42,10 @@ function RankingsRows({ ranked, labs, limit = 30, onSelect, selected, showEffort
     <>
     {head(<ChartExport name="Rankings" getRows={() => ranked.map((r) => ({ rank: r.rank, model: r.model.name, effort: showEffort ? r.variant.effort : "best", score: +r.score.toFixed(2), lab: r.model.labId, cost_per_task_usd: r.costUsd ?? null, speed_toks: r.speed ?? null, coverage: r.coverage }))} getSvg={() => {
       const h = 88 + rows.length * 38;
-      return `<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="${h}" viewBox="0 0 1600 ${h}"><rect width="1600" height="${h}" fill="${pal.bg}"/><g font-family="Inter,Arial,sans-serif" fill="${pal.ink}"><text x="30" y="36" font-size="24">Rankings</text>${rows.map((r, i) => {
+      return `<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="${h}" viewBox="0 0 1600 ${h}">${[...color].map(([lab, c]) => markFillSvg(`fill-${lab}`, c, pal) ?? "").join("").replace(/^(.+)$/, "<defs>$1</defs>")}<rect width="1600" height="${h}" fill="${pal.bg}"/><g font-family="Inter,Arial,sans-serif" fill="${pal.ink}"><text x="30" y="36" font-size="24">Rankings</text>${rows.map((r, i) => {
         const y = 76 + i * 38;
         const label = showEffort ? variantLabel(r) : r.model.name;
-        return `<text x="30" y="${y}" font-size="14" fill="${pal.grey}">${i + 1}</text><text x="70" y="${y}" font-size="15">${escapeSvg(label)}</text><rect x="330" y="${y - 13}" width="1120" height="14" fill="${pal.dark ? "#262624" : "#ECEAE3"}"/><rect x="330" y="${y - 13}" width="${r.score / max * 1120}" height="14" fill="${escapeSvg(color.get(r.model.labId) ?? '#A3A39B')}"/><text x="1550" y="${y}" text-anchor="end" font-size="16">${r.score.toFixed(1)}</text>`;
+        return `<text x="30" y="${y}" font-size="14" fill="${pal.grey}">${i + 1}</text><text x="70" y="${y}" font-size="15">${escapeSvg(label)}</text><rect x="330" y="${y - 13}" width="1120" height="14" fill="${pal.dark ? "#262624" : "#ECEAE3"}"/><rect x="330" y="${y - 13}" width="${r.score / max * 1120}" height="14" fill="${color.has(r.model.labId) && markFillSvg("x", color.get(r.model.labId)!, pal) ? `url(#fill-${escapeSvg(r.model.labId)})` : escapeSvg(color.get(r.model.labId) ?? '#A3A39B')}"/><text x="1550" y="${y}" text-anchor="end" font-size="16">${r.score.toFixed(1)}</text>`;
       }).join('')}</g></svg>`;
     }} />)}
     <div className="ranking-list relative overflow-hidden isolate" style={{ height: Math.max(0, rows.length * pitch - 4), contain: "layout paint" }}>
@@ -55,7 +55,7 @@ function RankingsRows({ ranked, labs, limit = 30, onSelect, selected, showEffort
           className={`row-move absolute top-0 left-0 w-full grid ${format ? "grid-cols-[28px_minmax(0,140px)_minmax(0,1fr)_72px] sm:grid-cols-[28px_minmax(120px,210px)_minmax(0,1fr)_72px]" : "grid-cols-[28px_minmax(0,140px)_minmax(0,1fr)_48px] sm:grid-cols-[28px_minmax(120px,210px)_minmax(0,1fr)_48px]"} items-center gap-2.5 h-[26px] text-left text-[12.5px] rounded-sm px-1 focus-visible:outline-offset-[-2px] ${selected === r.variant.id ? "bg-white" : "hover:bg-white/60"}`}>
           <span className="cap text-right">{r.rank}</span>
           <span className="truncate">{r.model.name}{showEffort && r.variant.effort !== "default" && <em className="not-italic cap ml-1.5">{r.variant.effort}</em>}</span>
-          <span className="h-[12px] rounded-[2px] bg-hair-2 overflow-hidden"><i className="bar-fill block h-full rounded-[2px]" style={{ width: `${((r.score / max) * 100).toFixed(2)}%`, background: color.get(r.model.labId) ?? "#A3A39B" }} /></span>
+          <span className="h-[12px] rounded-[2px] bg-hair-2 overflow-hidden"><i className="bar-fill block h-full rounded-[2px]" style={{ width: `${((r.score / max) * 100).toFixed(2)}%`, background: markFillCss(color.get(r.model.labId) ?? "#A3A39B", pal) }} /></span>
           <span className="num text-right whitespace-nowrap">{format ? format(r) : r.score.toFixed(1)}</span>
         </button>
       ))}

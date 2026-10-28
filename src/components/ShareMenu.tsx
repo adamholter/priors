@@ -4,6 +4,7 @@ import { IconBrandX, IconCopy, IconDownload, IconLink, IconShare } from "@tabler
 import { copyCardImage, shareCardToX, shareText } from "@/lib/share";
 import { track } from "@/lib/analytics";
 import "@/components/share-menu.css";
+import { copyLink } from "@/lib/short-link";
 
 export function ShareMenu({ imageUrl, link, top, label, note, from, onMessage }: { imageUrl: string; link: string; top: string[]; label?: string; /** A line about the ranking for the post text. */ note?: string; /** Where the menu sits, for analytics. */ from?: string; onMessage: (text: string) => void }) {
  const shared = (target: string) => track("share_card_shared", { target, from });
@@ -31,7 +32,7 @@ export function ShareMenu({ imageUrl, link, top, label, note, from, onMessage }:
    <button role="menuitem" type="button" onClick={async () => { close(); shared("x"); onMessage(await shareCardToX({ imageUrl, text: shareText(top, undefined, note), url: link, fileName: "my-priors.png" })); }}><IconBrandX size={16} />Share on X</button>
    <button role="menuitem" type="button" onClick={async () => { close(); shared("copy-image"); onMessage(await copyCardImage(imageUrl)); }}><IconCopy size={16} />Copy the image</button>
    <a role="menuitem" href={imageUrl} download="my-priors.png" onClick={() => { shared("download"); close(); }}><IconDownload size={16} />Download the image</a>
-   <button role="menuitem" type="button" onClick={async () => { close(); shared("link"); try { await navigator.clipboard.writeText(link); onMessage("Link copied."); } catch { onMessage("Could not copy the link. Try again."); } }}><IconLink size={16} />Share a link</button>
+   <button role="menuitem" type="button" onClick={async () => { close(); shared("link"); try { await copyLink(link); onMessage("Link copied."); } catch { onMessage("Could not copy the link. Try again."); } }}><IconLink size={16} />Share a link</button>
   </div>}
  </div>;
 }

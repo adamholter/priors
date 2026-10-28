@@ -11,6 +11,7 @@ import { SITE_THEME_KEY } from "@/lib/site-theme";
 import { ChartExpandIcon } from "./chart/ChartIcons";
 import { ChartExport } from "./chart/ChartExport";
 import { HighlightContext, HighlightMenu, toggleModel, type HighlightState } from "./chart/highlight";
+import { copyLink } from "@/lib/short-link";
 
 /** The active index's highlights, which answer charts show and their expanded view edits. */
 export type AnswerHighlight = { items: string[]; set: (items: string[]) => void };
@@ -51,7 +52,7 @@ function ChartLinkButton({ chart, className = "assistant-icon" }: { chart: Answe
   const { dark } = useTheme();
   const url = typeof window === "undefined" ? undefined : chartLink(window.location.origin, chart, linkLook(dark));
   if (!url) return null;
-  const copy = () => { void navigator.clipboard?.writeText(url).then(() => { setCopied(true); window.setTimeout(() => setCopied(false), 1600); }).catch(() => window.prompt("Copy this link", url)); };
+  const copy = () => { void copyLink(url).then(() => { setCopied(true); window.setTimeout(() => setCopied(false), 1600); }).catch(() => window.prompt("Copy this link", url)); };
   return <button type="button" className={className} onClick={copy} aria-label={`Copy a link to ${chart.title}`} title={copied ? "Link copied" : "Copy link to this chart"}>
     {copied
       ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5" /></svg>

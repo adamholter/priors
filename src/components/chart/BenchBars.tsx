@@ -2,7 +2,7 @@
 import type { EChartsOption } from "echarts";
 import { useEffect, useMemo } from "react";
 import { useChartPalette, useEChart } from "./echarts";
-import { CONTAIN_AXIS_LABELS, markSize, textSize, type ChartPalette } from "./theme";
+import { CONTAIN_AXIS_LABELS, markFill, markSize, textSize, type ChartPalette } from "./theme";
 import { formatValue, type RadarAxis } from "./radar-data";
 import type { RadarSeries } from "./radar-view";
 
@@ -22,7 +22,7 @@ function barOption(axis: RadarAxis, index: number, series: RadarSeries[], pal: C
     tooltip: { trigger: "item", confine: true, formatter: (p: unknown) => { const b = bars[(p as { dataIndex: number }).dataIndex]; return b ? `<div style="font-weight:600">${b.s.name}</div><div style="font-family:var(--font-jetbrains);margin-top:4px">${formatValue(b.p, axis)}${b.p.estimated ? (b.p.estimateRange ? ` (estimated, ${b.p.estimateRange[0].toFixed(0)} to ${b.p.estimateRange[1].toFixed(0)})` : " (estimated)") : ""} · ${axis.name}</div>` : ""; } },
     series: [{
       type: "bar", id: "bench", barMaxWidth: 34 * markSize(pal), barCategoryGap: "22%",
-      data: bars.map((b) => ({ value: b.height, itemStyle: { color: b.s.color, opacity: focus && focus !== b.s.id ? 0.3 : b.p.estimated ? 0.6 : 1, borderRadius: [pal.style?.barRadius ?? 2, pal.style?.barRadius ?? 2, 0, 0] } })),
+      data: bars.map((b) => ({ value: b.height, itemStyle: { color: markFill(b.s.color, pal), opacity: focus && focus !== b.s.id ? 0.3 : b.p.estimated ? 0.6 : 1, borderRadius: [pal.style?.barRadius ?? 2, pal.style?.barRadius ?? 2, 0, 0] } })),
       label: { show: true, position: "top", distance: 3, color: pal.ink, fontSize: 10 * t, fontFamily: pal.fonts?.mono ?? "var(--font-jetbrains), monospace", formatter: (p: { dataIndex: number }) => formatValue(bars[p.dataIndex].p, axis).replace(/\.0%$/, "%") },
     }],
   };

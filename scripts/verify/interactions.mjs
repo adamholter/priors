@@ -255,8 +255,11 @@ try {
     await page.locator("dialog.xe input[type=text]").fill("Link test");
     await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
     await page.locator(".xe-copy").click();
-    const link = await page.evaluate(() => navigator.clipboard.readText());
-    assert.ok(link.includes("xe=") && link.includes("c=time-per-task"), "the link carries the editor state");
+    let link = "";
+    for (let i = 0; i < 40 && !link; i++) { link = await page.evaluate(() => navigator.clipboard.readText()); if (!link) await page.waitForTimeout(150); }
+    // Long links are copied as /s/<slug> short links; the redirect must land on the full editor state.
+    const full = /\/s\/[A-Za-z0-9]+$/.test(link) ? (await fetch(link, { redirect: "manual" })).headers.get("location") ?? "" : link;
+    assert.ok(full.includes("xe=") && full.includes("c=time-per-task"), `the link carries the editor state (${link} -> ${full.slice(0, 80)})`);
     const other = await page.context().newPage();
     await other.goto(link, { waitUntil: "domcontentloaded" });
     // A shared editor link shows the image full screen as made, not the editor; Edit opens the editor with its settings.

@@ -54,4 +54,12 @@ export default defineSchema({
     snapshotDate: v.string(),
     createdAt: v.number(),
   }).index("by_key", ["key"]),
+
+  /** Short links (`/s/<slug>` redirects to `path`): same-origin path with query and hash; `hash` is its SHA-256 so one path keeps one slug (shortLinks.ts). */
+  shortLinks: defineTable({
+    slug: v.string(), // 7 random base62 characters
+    path: v.string(),
+    hash: v.string(),
+    createdAt: v.number(),
+  }).index("by_slug", ["slug"]).index("by_hash", ["hash"]).index("by_created", ["createdAt"]),
 });

@@ -18,6 +18,8 @@ export interface ChartStyle {
   /** Bar value labels above the bar, or inside its top in white (AA). */
   barLabels?: "top" | "inside";
   barRadius?: number;
+  /** Marks filled as a heat ramp of the lab's color (HearingBench's spectrogram look) instead of flat. */
+  fill?: "spectrogram";
 }
 export interface PagePreset {
   id: string; name: string; dark: boolean; bg: string; ink: string; ink2: string; grey: string; hair: string; hair2: string; accent: string; panelAccent?: string;

@@ -13,6 +13,8 @@ import type * as dev from "../dev.js";
 import type * as http from "../http.js";
 import type * as lineups from "../lineups.js";
 import type * as profiles from "../profiles.js";
+import type * as shortLinkPath from "../shortLinkPath.js";
+import type * as shortLinks from "../shortLinks.js";
 import type * as validators from "../validators.js";
 
 import type {
@@ -27,6 +29,8 @@ declare const fullApi: ApiFromModules<{
   http: typeof http;
   lineups: typeof lineups;
   profiles: typeof profiles;
+  shortLinkPath: typeof shortLinkPath;
+  shortLinks: typeof shortLinks;
   validators: typeof validators;
 }>;
 

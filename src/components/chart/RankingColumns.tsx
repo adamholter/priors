@@ -5,7 +5,7 @@ import type { Lab } from "@/data/types";
 import type { RankedVariant } from "@/engine";
 import { variantLabel } from "./ParetoChart";
 import { markColor, useChartPalette, useEChart } from "./echarts";
-import { CONTAIN_AXIS_LABELS, dimColor, markSize, textSize } from "./theme";
+import { CONTAIN_AXIS_LABELS, dimColor, markFill, markSize, textSize } from "./theme";
 
 let ctx: CanvasRenderingContext2D | null = null;
 /** Cut a label with an ellipsis so it is at most `max` px wide in `font`. */
@@ -47,7 +47,7 @@ export function RankingColumns({ rows, labs, showEffort, selected, onSelect, get
       tooltip: { trigger: "item", confine: true, formatter: (p: unknown) => { const r = rows[(p as { dataIndex: number }).dataIndex]; return r ? `<div style="font-weight:600">${r.variant.sourceModel?.name ?? variantLabel(r)}</div><div style="font-family:var(--font-jetbrains);margin-top:4px">#${r.rank} · index ${r.score.toFixed(1)}</div>` : ""; } },
       series: [{
         type: "bar", id: "rank", barMaxWidth: 36 * markSize(pal), barCategoryGap: "28%",
-        data: rows.map((r) => { const c = color.get(r.model.labId) ?? "#A3A39B", dim = on && r.variant.id !== selected; return { value: r.score, itemStyle: { color: dim ? dimColor(c, pal) : c, opacity: dim ? 0.6 : 1, borderRadius: [pal.style?.barRadius ?? 2, pal.style?.barRadius ?? 2, 0, 0] }, label: dim ? { color: pal.ink, opacity: 0.75, textBorderWidth: 0 } : undefined }; }),
+        data: rows.map((r) => { const c = color.get(r.model.labId) ?? "#A3A39B", dim = on && r.variant.id !== selected; return { value: r.score, itemStyle: { color: dim ? dimColor(c, pal) : markFill(c, pal), opacity: dim ? 0.6 : 1, borderRadius: [pal.style?.barRadius ?? 2, pal.style?.barRadius ?? 2, 0, 0] }, label: dim ? { color: pal.ink, opacity: 0.75, textBorderWidth: 0 } : undefined }; }),
         label: { show: true, position: "insideTop", distance: 6, ...(thin ? { rotate: 90, align: "right" as const, verticalAlign: "middle" as const } : {}), color: "#FFFFFF", textBorderColor: "rgba(0,0,0,.18)", textBorderWidth: 1.5, fontSize: 10 * t, fontFamily: pal.fonts?.mono ?? "var(--font-jetbrains), monospace", formatter: (p: { value?: unknown }) => Number(p.value).toFixed(1) }, labelLayout: { hideOverlap: true },
         animationDurationUpdate: 350,
       }],
