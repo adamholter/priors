@@ -399,3 +399,23 @@ p.share-change { display: grid; grid-template-columns: minmax(0, 1fr) 40% 38px; 
 .xe-viewer-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 16px; border-bottom: 1px solid var(--hair); background: var(--white); }
 .xe-viewer-stage { flex: 1; min-height: 0; overflow: hidden; display: flex; justify-content: center; align-items: flex-start; padding: 20px 24px; }
 @media (max-width: 760px) { .xe[open] { grid-template-columns: 1fr; grid-template-rows: minmax(0, 1fr) auto; } .xe-side { border-left: 0; border-top: 1px solid var(--hair); max-height: 45dvh; } }
+
+/* Explore themes: the dialog's own mode control, "Your themes", and Bring your own theme. */
+.theme-library { max-height: min(88vh, 900px); overflow-y: auto; }
+.theme-library-mode { margin: 2px 0 14px; }
+.theme-mode-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.theme-mode-label { font-size: 12.5px; color: var(--grey); }
+.theme-library-title { font-size: 13px; font-weight: 600; letter-spacing: .02em; margin: 16px 0 8px; }
+.theme-mine { position: relative; }
+.theme-mine-remove { position: absolute; top: 4px; right: 4px; width: 20px; height: 20px; display: grid; place-items: center; border-radius: 999px; border: 1px solid var(--hair); background: var(--bone); color: var(--grey); cursor: pointer; opacity: 0; transition: opacity .12s; }
+.theme-mine:hover .theme-mine-remove, .theme-mine-remove:focus-visible { opacity: 1; }
+.theme-mine-remove:hover { color: var(--ink); }
+@media (hover: none) { .theme-mine-remove { opacity: 1; } }
+.theme-byo { margin-top: 8px; border-top: 1px solid var(--hair); padding-top: 4px; }
+.theme-byo-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
+.theme-byo-paste { display: grid; gap: 8px; margin: 10px 0; }
+.theme-byo-paste textarea { width: 100%; font: 12px/1.45 var(--font-mono); padding: 10px; border: 1px solid var(--hair); border-radius: 4px; background: var(--white); color: var(--ink); resize: vertical; }
+.theme-byo-notice { margin: 10px 0; padding: 10px 12px; border: 1px solid var(--hair); border-radius: 4px; background: var(--white); font-size: 12.5px; line-height: 1.5; display: grid; gap: 6px; }
+.theme-byo-notice.is-error { border-color: #C2410C; }
+.theme-byo-notice ul { margin: 0; padding-left: 18px; }
+.theme-byo-notice .btn-quiet { width: fit-content; }

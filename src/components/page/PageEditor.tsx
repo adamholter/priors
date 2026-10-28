@@ -30,6 +30,11 @@ export function PageSettings({ profile, set, open, onClose, lab }: { profile: Pr
   const chosen = presetOf(profile.theme);
   const family = pickerThemeOf(chosen.id) ?? chosen;
   const setTheme = (t: PagePreset) => set({ theme: { ...profile.theme, preset: t.id, surface: undefined, accent: undefined, ...(!t.pair ? { mode: undefined } : t.dark ? { mode: "fixed" } : {}) } });
+  const lightDark = chosen.pair ? <div className="seg w-fit" role="group" aria-label="Light and dark">
+            <button type="button" aria-pressed={profile.theme?.mode !== "fixed"} onClick={() => set({ theme: { ...profile.theme, preset: family.id, mode: undefined } })}>Follow visitor</button>
+            <button type="button" aria-pressed={profile.theme?.mode === "fixed" && !chosen.dark} onClick={() => set({ theme: { ...profile.theme, preset: chosen.dark ? chosen.pair : chosen.id, mode: "fixed" } })}>Always light</button>
+            <button type="button" aria-pressed={profile.theme?.mode === "fixed" && chosen.dark} onClick={() => set({ theme: { ...profile.theme, preset: chosen.dark ? chosen.id : chosen.pair, mode: "fixed" } })}>Always dark</button>
+          </div> : null;
   const cardQuery = lab ? encodeIndices(profile.indices.slice(0, 1)).toString() : profile.indices[0] ? `${encodeIndices([profile.indices[0]]).toString()}&handle=${profile.handle}` : `handle=${profile.handle}`;
   return createPortal(
     <aside className="page-editor fixed top-0 right-0 bottom-0 w-[400px] max-w-full bg-white border-l hairline overflow-auto p-5 grid gap-7 content-start text-[13px] z-50 shadow-[-24px_0_60px_-30px_var(--shadow)]" aria-label="Page settings">
@@ -37,14 +42,8 @@ export function PageSettings({ profile, set, open, onClose, lab }: { profile: Pr
 
       <Group title="Theme">
         <div className="grid grid-cols-2 gap-2">{THEME_CHOICES.map((t) => <ThemeSwatch key={t.id} theme={t} selected={family.id === t.id} onClick={() => setTheme(t)} />)}</div>
-        <ExploreThemes selectedId={family.library ? family.id : undefined} onPick={setTheme} />
-        {chosen.pair && <Field label="Light and dark">
-          <div className="seg w-fit" role="group" aria-label="Light and dark">
-            <button type="button" aria-pressed={profile.theme?.mode !== "fixed"} onClick={() => set({ theme: { ...profile.theme, preset: family.id, mode: undefined } })}>Follow visitor</button>
-            <button type="button" aria-pressed={profile.theme?.mode === "fixed" && !chosen.dark} onClick={() => set({ theme: { ...profile.theme, preset: chosen.dark ? chosen.pair : chosen.id, mode: "fixed" } })}>Always light</button>
-            <button type="button" aria-pressed={profile.theme?.mode === "fixed" && chosen.dark} onClick={() => set({ theme: { ...profile.theme, preset: chosen.dark ? chosen.id : chosen.pair, mode: "fixed" } })}>Always dark</button>
-          </div>
-        </Field>}
+        <ExploreThemes selectedId={family.library ? family.id : undefined} onPick={setTheme} modeControl={lightDark && <div className="theme-mode-row"><span className="theme-mode-label">Light and dark</span>{lightDark}</div>} />
+        {lightDark && <Field label="Light and dark">{lightDark}</Field>}
         <Field label="Accent"><div className="flex flex-wrap items-center gap-1.5">{[chosen.accent, ...ACCENTS.filter((a) => a !== chosen.accent)].slice(0, 9).map((a) => <button key={a} type="button" aria-label={`Accent ${a}`} aria-pressed={(profile.theme?.accent ?? chosen.accent) === a} onClick={() => set({ theme: { ...profile.theme, accent: a === chosen.accent ? undefined : a } })} className={`w-6 h-6 rounded-full ${(profile.theme?.accent ?? chosen.accent) === a ? "ring-2 ring-offset-2 ring-ink" : ""}`} style={{ background: a }} />)}</div></Field>
       </Group>
 

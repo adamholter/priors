@@ -79,7 +79,8 @@ try {
       assert.notEqual(await bg(), before, "the page background changed");
       assert.equal(await c.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--font-sans").toLowerCase().includes("plex")), true, "the theme's font reached the page");
       await library.locator(".theme-swatch", { hasText: "Geist" }).first().click();
-      await c.waitForFunction(() => localStorage.getItem("priors:site-theme")?.includes('"geist"'));
+      // The cards follow the scheme (Terminal made the site dark), so this picks Geist's dark version.
+      await c.waitForFunction(() => localStorage.getItem("priors:site-theme")?.includes('"geist'));
       assert.equal(await library.locator(".theme-swatch.is-on").count(), 1, "one library theme shows as selected");
       await c.keyboard.press("Escape");
       assert.equal(await settings.isVisible(), true, "Escape closes only the library");

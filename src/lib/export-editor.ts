@@ -45,6 +45,6 @@ export function decodeEditor(raw: string | null | undefined): EditorState | null
     const de = num(o.de, 0, 1), ls = num(o.ls, 0.75, 1.75);
     if (de != null) view.density = de;
     if (ls != null) view.labelScale = ls;
-    return { w, h, ratio: typeof o.r === "string" && ratioOf(o.r) ? o.r : undefined, theme: typeof o.t === "string" ? o.t.slice(0, 24) : undefined, title: typeof o.ti === "string" ? o.ti.slice(0, 120) : undefined, heading: typeof o.hd === "string" ? o.hd.slice(0, 120) : typeof o.ti === "string" ? o.ti.slice(0, 120) : undefined, view };
+    return { w, h, ratio: typeof o.r === "string" && ratioOf(o.r) ? o.r : undefined, theme: typeof o.t === "string" ? o.t.slice(0, o.t.startsWith("u.") ? 8000 : 24) : undefined, title: typeof o.ti === "string" ? o.ti.slice(0, 120) : undefined, heading: typeof o.hd === "string" ? o.hd.slice(0, 120) : typeof o.ti === "string" ? o.ti.slice(0, 120) : undefined, view };
   } catch { return null; }
 }

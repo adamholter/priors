@@ -16,9 +16,12 @@ export function SettingsButton({ className = "icon-btn", support = true }: { cla
   const path = usePathname();
   const dialog = useRef<HTMLDialogElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
-  const { mode, setMode, siteTheme, setSiteTheme } = useTheme();
+  const { mode, dark, setMode, siteTheme, setSiteTheme } = useTheme();
   const chosen = pickerThemeOf(siteTheme) ?? THEME_CHOICES[0], pickTheme = (t: { id: string; dark: boolean }) => { setSiteTheme(t.id); if (t.dark) setMode("dark"); };
   const modes = siteThemeModes(chosen.id), single = !modes.light || !modes.dark;
+  const modeControl = <div className="theme-mode-row"><span id="settings-mode-label" className="theme-mode-label">Mode</span>
+    <div className="seg" role="group" aria-labelledby="settings-mode-label">{MODES.map((m) => <button key={m.id} type="button" className="!px-3 !py-1.5 text-[12.5px]" aria-pressed={!single && mode === m.id} disabled={single} onClick={() => setMode(m.id)}>{m.label}</button>)}</div>
+    {single && <span className="settings-note">{chosen.name} only comes in {modes.dark ? "dark" : "light"}.</span>}</div>;
   return <span className="inline-flex items-center gap-1">
     {support && path !== "/support" && <SupportLink from="header" />}
     <button ref={trigger} type="button" className={className} aria-label="Settings" title="Settings" aria-haspopup="dialog" onClick={() => { dialog.current?.showModal(); requestAnimationFrame(() => dialog.current?.querySelector<HTMLButtonElement>("[data-settings-close]")?.focus()); }}><IconSettings size={18} stroke={1.5} aria-hidden="true" /></button>
@@ -27,7 +30,7 @@ export function SettingsButton({ className = "icon-btn", support = true }: { cla
       <section className="settings-section" aria-labelledby="settings-theme">
         <h3 id="settings-theme">Theme</h3>
         <div className="settings-themes">{THEME_CHOICES.map((t) => <ThemeSwatch key={t.id} theme={t} selected={chosen.id === t.id} onClick={() => pickTheme(t)} />)}</div>
-        <div className="mt-3"><ExploreThemes selectedId={chosen.library ? chosen.id : undefined} onPick={pickTheme} /></div>
+        <div className="mt-3"><ExploreThemes selectedId={chosen.library ? chosen.id : undefined} onPick={pickTheme} dark={dark} modeControl={modeControl} /></div>
         <p className="settings-note">For the builder, Explore and model pages on this device. Published pages keep the theme their owner picked.</p>
       </section>
       <section className="settings-section" aria-labelledby="settings-mode">

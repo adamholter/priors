@@ -1,4 +1,5 @@
 import { LIBRARY_CHOICE_IDS, LIBRARY_PRESETS } from "./theme-library";
+import { inlinePreset, isInlineThemeId } from "./custom-theme";
 
 /**
  * Personal-page themes. A theme is a whole look: page colors, fonts, lab colors, card treatment and
@@ -85,7 +86,11 @@ export const THEME_CHOICES = ["bone", "aa", "slop", "paper", "sand", "graphite",
 /** The Explore themes library: one card per theme, in its signature mode. Not in the default pickers. */
 export const LIBRARY_CHOICES = LIBRARY_CHOICE_IDS.map((id) => byId.get(id)!);
 /** The picker card (default or library) a preset belongs to, if any. */
-export const pickerThemeOf = (id: string | undefined) => [...THEME_CHOICES, ...LIBRARY_CHOICES].find((t) => t.id === id || t.pair === id);
+export const pickerThemeOf = (id: string | undefined): PagePreset | undefined => {
+  // A custom theme (see custom-theme.ts) is its own picker card, shown in its light version when it has one.
+  if (isInlineThemeId(id)) { const p = inlinePreset(id); return p?.dark && p.pair ? inlinePreset(p.pair) ?? p : p; }
+  return [...THEME_CHOICES, ...LIBRARY_CHOICES].find((t) => t.id === id || t.pair === id);
+};
 
 type ThemeRef = { preset?: string; surface?: "bone" | "white"; mode?: "auto" | "fixed" } | undefined;
 
@@ -96,7 +101,7 @@ type ThemeRef = { preset?: string; surface?: "bone" | "white"; mode?: "auto" | "
 export function resolvePreset(theme: ThemeRef, siteDark: boolean): PagePreset {
   const p = presetOf(theme);
   if (theme?.mode === "fixed" || !p.pair || p.dark === siteDark) return p;
-  return byId.get(p.pair) ?? p;
+  return themeById(p.pair) ?? p;
 }
 /** Accent for a resolved theme. A custom accent picked on one mode is lifted or deepened for the other. */
 export function resolveAccent(theme: { accent?: string; preset?: string } | undefined, preset: PagePreset): string {
@@ -110,9 +115,10 @@ export function resolveAccent(theme: { accent?: string; preset?: string } | unde
 export const ACCENTS = ["#2F4FB0", "#1F6F5C", "#B4532A", "#8A3FA0", "#C2410C", "#0F766E", "#1A1A1A", "#7F4BF3", "#806047"];
 
 export function presetOf(theme?: ThemeRef): PagePreset {
-  return byId.get(theme?.preset ?? "") ?? (theme?.surface === "white" ? byId.get("paper")! : byId.get("bone")!);
+  return themeById(theme?.preset) ?? (theme?.surface === "white" ? byId.get("paper")! : byId.get("bone")!);
 }
-export const themeById = (id: string | undefined) => (id ? byId.get(id) : undefined);
+/** A built-in or library theme by id, or a custom theme carried in its own id (`u.…`). */
+export const themeById = (id: string | undefined) => (id ? byId.get(id) ?? inlinePreset(id) : undefined);
 
 export function presetStyle(p: PagePreset, accent?: string): Record<string, string> {
   const a = accent ?? p.accent, fonts = p.fonts ?? PRIORS_FONTS;

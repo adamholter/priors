@@ -1,6 +1,6 @@
 ---
 name: priors
-description: Work on a person's Priors page (mypriors.com) — add a benchmark to their index data, retune their index weights and ranking rules, or restyle their public page's text, sections, theme, and CSS. Use when the user mentions Priors, their index page, or asks to add a benchmark to their model ranking.
+description: Work on a person's Priors page (mypriors.com) — add a benchmark to their index data, retune their index weights and ranking rules, or restyle their public page's text, sections, theme, and CSS, or design a custom Priors theme file (colors, fonts, chart style) for them to upload. Use when the user mentions Priors, their index page, asks to add a benchmark to their model ranking, or asks for a Priors theme.
 ---
 
 # Priors
@@ -166,6 +166,28 @@ Everything in `css` is scoped by convention to `.page-root` — prefix every sel
 - Test what you write: after `page`, fetch `https://mypriors.com/<handle>` and confirm the stylesheet took effect. Broken CSS is visible to everyone immediately.
 
 Done when: `whoami.theme` shows your fields and the live page reflects them.
+
+## Task E — make a custom theme
+
+Goal: write one **Priors theme** file the user uploads in Priors → Settings → Theme → Explore themes → *Bring your own theme* (no token needed), or applies to their page.
+
+1. **Ask what look they want** if they haven't said: a mood, a brand, or a website to match. If given a site, read its real colors and fonts instead of guessing.
+2. **Write one JSON object** in this format (format version 1):
+   - `priorsTheme`: `1`. `name`: at most 40 characters.
+   - `light` and/or `dark`: give both when you can, so the theme follows each visitor's light/dark setting. Each is an object of `#hex` colors:
+     - `bg` page background (a light color in `light`, a dark one in `dark`). `surface` (optional) cards, panels and chart backgrounds; defaults to `bg`.
+     - `ink` main text, at least 4.5:1 against `bg` and `surface`. `ink2` secondary text and `grey` captions and axis labels, at least 3.5:1 against `bg`.
+     - `hair` borders and gridlines. `hair2` subtle fills (bar tracks, hovers).
+     - `accent` links, selected states, buttons, at least 3:1 against `bg`; white text sits on it in light mode. `panelAccent` (dark mode, optional) is a deeper shade of the accent that holds white button text.
+     - `labs` (optional): chart color per AI lab, lab id → hex. Ids: anthropic, openai, google, meta, xai, deepseek, alibaba, moonshot, mistral, zhipu, minimax, xiaomi, thinking-machines, nvidia, cursor, cognition, tencent, other (`other` colors every lab you don't name). Omit `labs` to keep Priors' own lab colors. Keep the colors distinct from each other and from `bg`; lift them lighter for dark backgrounds.
+   - `fonts` (optional): `{ "sans", "serif", "mono" }`, each one of: Inter, DM Sans, Geist, Outfit, Poppins, Switzer, Newsreader, Source Serif 4, Lora, JetBrains Mono, Geist Mono, IBM Plex Mono, Excalifont, Comic Shanns. Only these exist; never name another font. `sans` is body text, `serif` headings, `mono` numbers and labels.
+   - `radius` (optional): corner roundness in px, 0–24.
+   - `chart` (optional): `{ "grid": "solid"|"dotted", "frontier": "solid"|"dotted", "barLabels": "top"|"inside", "barRadius": 0–12, "fill": "flat"|"spectrogram" }`. `spectrogram` fills bars and dots with a gradient of each lab's color.
+   - Colors are `#RGB` or `#RRGGBB` only (no names, `rgb()`, `var()`, urls). No comments, no trailing commas, no other keys.
+3. **Validate it:** `curl -s https://mypriors.com/api/theme -H 'Content-Type: application/json' --data @my-theme.json`. The reply is `{"ok":true,"warnings":[...]}` or `{"ok":false,"errors":[...]}`. Fix every error, and every warning that is a readability problem, then validate again. `curl -s https://mypriors.com/api/theme` returns this format as plain text, with a full example.
+4. **Hand it over:** save as `my-theme.json` and tell the user to upload it (Settings → Theme → Explore themes → Upload theme file, or Paste theme). To put it on their page instead, set `theme.preset` on action `page` to `u.` + the base64url (no padding) of the minified JSON, which is the `id` the validate reply returns; add `".d"` to that id for the dark version.
+
+Done when: the validate reply is `ok` with no readability warnings, and the user has the file (or `whoami.theme.preset` shows the `u.` id).
 
 ## Reporting
 
