@@ -15,6 +15,7 @@
 - Regex families plus exact `ALIASES`. Unknown labels are excluded, never guessed.
 - A variant (model + reasoning effort) is the ranked unit. When a source gives no effort, the row goes to the model's highest known effort.
 - `none`, `minimal` and `low` are distinct efforts. Explicit model sizes (Qwen 27B versus 35B-A3B), Instant variants and dated DeepSeek revisions stay distinct too.
+- Codenamed tiers are distinct models: GPT's Sol, Luna, Terra and Astra, and Gemini 4's Carbon (`gemini-4-carbon`). Gemini 4 Argon came first, so it keeps the bare `gemini-4` id.
 - Lab colors live in `LABS` in `normalize.ts`: same lab, same color everywhere.
 - Regression corpus: `scripts/benchmarks/` (`npm run benchmark:identity`, also run by Vitest). For a new parsing defect, add the source label and the independently reviewed identity to `fixtures/identity-cases.json`. Never edit expected groups to match the parser.
 
@@ -71,6 +72,10 @@ Notes on sources whose behavior is not obvious from the file:
 | `ramp-accounting-bench` | Ramp Labs' accounting agent bench (137 long-horizon tasks, three attempts, one shared harness, LLM judge). The SPA has no data endpoint: results are an object literal in the benchmark page's JS chunk, found through `main-*.js`, so both hashed names are discovered live and the literal is parsed, never evaluated. Value is mean criteria score @3; cost is mean measured cost per attempt; pass@1, pass@3 and pass^3 are in `details`. Ramp states no reasoning effort, so rows take each model's highest known one. Agentic, `defaultWeight: 0`. |
 | `realapipricing` | Feeds the subscription cost view, see below. |
 | `vals*` | Vals benchmarks. Shared parsing in `_vals.ts` and `vals.ts`. |
+
+### Launch figures for new models
+
+`scripts/scrape/launch-claims.ts` holds the scores a lab publishes in its launch table, for boards that have not run the new model yet. Each entry maps the table's rows to benchmark ids Priors already tracks (same version and harness as the board; rows that differ or that nothing tracks are left out). `build.ts` adds a score only while the board's own data has no result for that model at any effort, so the board's number replaces it the day it appears, whatever it says. These rows carry `details.launchClaim` and a note, and the benchmark page tags them "launch". The build log lists claims the boards have superseded (`LAUNCH_CLAIMS superseded`); delete an entry once all its boards have the model. AA's own announced results stay in `aa-preview.ts`.
 
 ### Subscription cost
 

@@ -14,6 +14,7 @@ import { buildLibrary } from "./library";
 import { canonicalizeSnapshot } from "../../src/data/canonical-snapshot";
 import { retainCatalog } from "./retain-catalog";
 import { fetchPlanResets } from "./plan-resets";
+import { applyLaunchClaims } from "./launch-claims";
 import { fetchFreeTiers } from "./free-tiers";
 import { applyFreeTiers, carriedFreeTiers } from "../../src/data/free-tier";
 import { SUBSCRIPTION_BENCHMARK } from "../../src/data/subscription";
@@ -236,6 +237,14 @@ async function main() {
     }
     if (retained.length || dropped) Object.assign(snap, retainCatalog(prev, snap));
   } catch { /* first run */ }
+
+  // Launch-day scores a lab published, for boards that have not listed its new model yet (launch-claims.ts).
+  {
+    const claims = applyLaunchClaims(snap, date);
+    if (claims.added.length) console.log(`LAUNCH_CLAIMS filled ${claims.added.length}: ${claims.added.join(", ")}`);
+    if (claims.replaced.length) console.log(`LAUNCH_CLAIMS superseded by the boards (delete them): ${claims.replaced.join(", ")}`);
+    if (claims.untracked.length) console.log(`LAUNCH_CLAIMS skipped, benchmark not in this snapshot: ${claims.untracked.join(", ")}`);
+  }
 
   // Models free today on OpenCode Zen or OpenRouter are priced at 0 in the subscription view.
   if (!only || only.includes("realapipricing") || only.includes("free-tiers")) {

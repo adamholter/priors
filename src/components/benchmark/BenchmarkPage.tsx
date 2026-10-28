@@ -160,7 +160,7 @@ function Row({ r, i, b, hasCost, basis, obs, ci, standard, harness }: { r: Ranke
     <td className="py-1.5 pr-3 num text-grey">{i + 1}</td>
     <td className="py-1.5 pr-3"><Link href={`/models/${r.model.id}` as "/"} className="hover:text-ink">{r.model.name}</Link></td>
     <td className="py-1.5 pr-3 mono text-ink-2">{r.variant.effort === "default" ? "" : r.variant.effort}</td>
-    <td className="py-1.5 pr-3 num text-right" title={obs?.ci ? `interval ${fmt(b, obs.ci[0])} to ${fmt(b, obs.ci[1])}` : obs?.note}>{raw != null ? fmt(b, raw) : r.score.toFixed(1)}{half != null && <span className="text-grey"> ±{fmt(b, half).replace("%", "")}</span>}</td>
+    <td className="py-1.5 pr-3 num text-right" title={obs?.ci ? `interval ${fmt(b, obs.ci[0])} to ${fmt(b, obs.ci[1])}` : obs?.note}>{raw != null ? fmt(b, raw) : r.score.toFixed(1)}{half != null && <span className="text-grey"> ±{fmt(b, half).replace("%", "")}</span>}{obs?.details?.launchClaim != null && <span className="text-grey text-[11px] ml-1" data-launch-claim>launch</span>}</td>
     {hasCost && <td className="py-1.5 pr-3 num text-right" title={r.costPlan ? `${r.costPlan.plan}: ${subscriptionShare(r.costPlan.ratio)} of API price` : undefined}>{r.costUsd != null ? usd(r.costUsd) : ""}</td>}
     {hasCost && basis === "subscription" && <td className="py-1.5 pr-3 num text-right text-grey">{api != null ? usd(api) : ""}</td>}
     {standard.map((m) => { const v = m.values.get(r.variant.id); return <td key={m.id} className="py-1.5 pr-3 num text-right text-ink-2">{v != null ? formatMetric(m.kind, v) : ""}</td>; })}
