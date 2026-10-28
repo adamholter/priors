@@ -391,4 +391,9 @@ p.share-change { display: grid; grid-template-columns: minmax(0, 1fr) 40% 38px; 
 .xe-side footer { margin-top: auto; padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; gap: 8px; border-top: 1px solid var(--hair-2); }
 .xe-copy { display: inline-flex; align-items: center; gap: 5px; border: 1px solid var(--hair); border-radius: 4px; padding: 4px 9px; font-size: 12px; color: var(--ink-2); }
 .xe-copy:hover { border-color: var(--ink); color: var(--ink); }
+/* A shared screenshot link opens its image full screen, as made; Edit switches to the editor. */
+.xe.xe-viewer { width: calc(100vw - 24px); height: calc(100dvh - 24px); background: var(--hair-2); }
+.xe.xe-viewer[open] { display: flex; flex-direction: column; }
+.xe-viewer-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 16px; border-bottom: 1px solid var(--hair); background: var(--white); }
+.xe-viewer-stage { flex: 1; min-height: 0; overflow: hidden; display: flex; justify-content: center; align-items: flex-start; padding: 20px 24px; }
 @media (max-width: 760px) { .xe[open] { grid-template-columns: 1fr; grid-template-rows: minmax(0, 1fr) auto; } .xe-side { border-left: 0; border-top: 1px solid var(--hair); max-height: 45dvh; } }

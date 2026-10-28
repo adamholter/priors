@@ -5,7 +5,8 @@ import type { Lab, Snapshot } from "../data/types";
 import type { RankedVariant, IndexConfig } from "../engine";
 import { chartVariantMode, filterEfforts } from "../engine";
 import { echarts, themeFor, paletteFor, markColor, DARK_PALETTE, SANS_STATIC, MONO_STATIC, type ChartPalette } from "../components/chart/theme";
-import { scatterOption, DEFAULT_VIEW, guidePoints, type Highlight, type ScatterPoint } from "../components/chart/scatter-option";
+import { scatterOption, DEFAULT_VIEW, guidePoints, type Highlight, type ScatterPoint, type ScatterView } from "../components/chart/scatter-option";
+import { clampSize, decodeEditor, type EditorView } from "./export-editor";
 import { barsOption, defaultBarModels, filterBarModels, selectBars } from "../components/chart/bars-option";
 import { frameSvg } from "../components/chart/export-frame";
 import { answerHeight, answerOption } from "../components/chart/answer-option";
@@ -93,7 +94,7 @@ export function cardPalette(theme?: { preset?: string; surface?: "bone" | "white
   return scheme === "dark" && preset.id === "bone" ? DARK_PALETTE : paletteFor(preset);
 }
 
-const FONT_FILES = ["Newsreader-400.ttf", "Inter-400.ttf", "Inter-500.ttf", "Inter-600.ttf", "JetBrainsMono-400.ttf", "JetBrainsMono-500.ttf"].map((f) => path.join(process.cwd(), "src/lib/og-fonts", f));
+const FONT_FILES = ["Newsreader-400.ttf", "Inter-400.ttf", "Inter-500.ttf", "Inter-600.ttf", "JetBrainsMono-400.ttf", "JetBrainsMono-500.ttf", "DMSans-400.ttf", "DMSans-500.ttf", "Switzer-400.ttf", "Switzer-500.ttf", "SourceSerif4-400.ttf"].map((f) => path.join(process.cwd(), "src/lib/og-fonts", f));
 
 // 1200×630 card: frameSvg wraps the chart with pad 32, a 22px title band, and a 34px footer.
 const CHART_W = 1200 - 64, CHART_H = 630 - 88;
@@ -194,6 +195,52 @@ export async function renderChartPng(spec: ChartSpec, labs: Lab[], pal: ChartPal
   }
   chart.dispose();
   return rasterize(frameSvg(svg, spec.title, undefined, { bg: pal.bg, ink: pal.ink, grey: pal.grey }, { footer: "right" }), pal.bg);
+}
+
+/** The size and look a chart link was copied with: the screenshot editor's (`xe`), else the plain link's plot size (`xs`). */
+export interface LinkFrame { w: number; h: number; view?: EditorView; heading?: string; theme?: string }
+/** A theme's chart fonts as the server can draw them: the bundled file for a font it has (DM Sans, Switzer), else Inter and JetBrains Mono. */
+const BUNDLED = ["DM Sans", "Switzer", "Source Serif 4", "JetBrains Mono", "Inter"];
+function staticFonts(pal: ChartPalette) {
+  const pick = (stack: string | undefined, fallback: string) => { const hit = BUNDLED.find((f) => stack?.includes(f)); return hit ? `'${hit}', ${fallback}` : fallback; };
+  return { sans: pick(pal.fonts?.sans, SANS_STATIC), mono: pick(pal.fonts?.mono, MONO_STATIC) };
+}
+
+/** The preview image's size for a link: the export frame around its plot (see frameSvg), else the 1200×630 card. */
+export const framedSize = (f?: LinkFrame) => f ? { width: f.w + 64, height: f.h + 88 } : { width: 1200, height: 630 };
+export function linkFrame(q: URLSearchParams): LinkFrame | undefined {
+  if (!q.get("c")) return undefined;
+  const xe = decodeEditor(q.get("xe"));
+  if (xe) return { w: xe.w, h: xe.h, view: xe.view, heading: xe.heading ?? xe.title, theme: xe.theme };
+  const m = q.get("xs")?.match(/^(\d{2,4})x(\d{2,4})$/);
+  if (!m) return undefined;
+  const { w, h } = clampSize(Number(m[1]), Number(m[2]));
+  return { w, h };
+}
+
+/**
+ * A chart exactly as its PNG export draws it: the page's option at the plot's own size and view, in the export frame
+ * (title, plot, mypriors.com footer). Link previews use it so the embed is the image that was copied.
+ */
+export async function renderFramedPng(spec: ChartSpec, labs: Lab[], pal: ChartPalette, frame: LinkFrame): Promise<Buffer | null> {
+  if (!spec.pts.length) return renderChartPng(spec, labs, pal);
+  const { w, h } = frame, over = frame.view ?? {};
+  const view: ScatterView = { ...DEFAULT_VIEW, labelScale: spec.labelScale, frontier: spec.chart.defaultFrontier ?? DEFAULT_VIEW.frontier };
+  for (const [k, v] of Object.entries(over)) if (v !== undefined) (view as unknown as Record<string, unknown>)[k] = v;
+  const chartSpec = spec.chart.scale !== "time" && over.scale ? { ...spec.chart, scale: over.scale, xName: over.scale === "linear" ? spec.chart.xName.replace(/, log| \(log\)/g, "") : spec.chart.xName } : spec.chart;
+  const theme = themeFor(pal, staticFonts(pal));
+  const chart = echarts.init(null, theme, { renderer: "svg", ssr: true, width: w, height: h });
+  const highlight: Highlight | undefined = spec.highlight?.length ? { items: spec.highlight, guides: view.guides !== false } : undefined;
+  const opt = scatterOption({ ...chartSpec, axis: spec.axis, xUnit: chartSpec.xLabel, pts: spec.pts, hasTitle: spec.hasTitle, labs, view, pal, narrow: w < 560, width: () => w, height: () => h, dots: () => { try { return spec.pts.map((p) => { const [x, y] = chart.convertToPixel({ xAxisIndex: 0, yAxisIndex: 0 }, [p.x, p.r.score]) as number[]; return { x, y }; }); } catch { return undefined; } }, highlight });
+  chart.setOption({ ...opt, animation: false });
+  if (highlight?.guides) addHighlightGuides(chart, spec.pts, highlight, labs, pal, chartSpec.formatX, spec.axis?.format);
+  for (const root of chart.getZr().storage.getRoots()) root.traverse(el => {
+    const label = el.getTextContent();
+    if (label && (label.x < -w || label.y < -h)) label.ignore = true;
+  });
+  const svg = chart.renderToSVGString();
+  chart.dispose();
+  return rasterize(frameSvg(svg, frame.heading ?? spec.title, undefined, { bg: pal.bg, ink: pal.ink, grey: pal.grey }), pal.bg);
 }
 
 /** A static radar (radar-view radarSvg) centered in the 1200×630 card frame, rasterized like chart cards. */

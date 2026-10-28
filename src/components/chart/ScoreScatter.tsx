@@ -107,19 +107,19 @@ export function ScoreScatter(props: ScatterProps) {
   const xName = scale === "linear" ? baseXName.replace(/, log| \(log\)/g, "") : baseXName;
   const xShort = scale === "linear" ? baseXShort?.replace(/, log| \(log\)/g, "") : baseXShort;
   const wrapRef = useRef<HTMLDivElement>(null);
+  const [plotW, setPlotW] = useState(0), [plotH, setPlotH] = useState(height);
   // Before anyone picks models, a Pareto chart shows its frontier and the current flagships only (src/lib/chart-focus.ts); "All models" in its settings shows the rest.
   const hl = useHighlight();
   const trimmed = defaultScale !== "time" && !view.allModels && !hl?.curated;
   const keepKey = (hl?.items ?? []).join(",");
   const allPoints = useMemo(() => trimmed ? focusPoints(chartPoints, better, keepKey ? keepKey.split(",") : []) : chartPoints, [trimmed, chartPoints, better, keepKey]);
   const trimmedModels = trimmed ? new Set(chartPoints.map((p) => p.r.model.id)).size - new Set(allPoints.map((p) => p.r.model.id)).size : 0;
-  const effectiveLinkParams = { ...linkParams, ls: Math.round(labelScale(view.labelScale) * 100), extra: { ...linkParams?.extra, cf: view.allModels ? "all" : undefined } };
+  const effectiveLinkParams = { ...linkParams, ls: Math.round(labelScale(view.labelScale) * 100), extra: { ...linkParams?.extra, cf: view.allModels ? "all" : undefined, xs: plotW > 0 ? `${plotW}x${Math.round(plotH)}` : undefined } };
   const visibility = useChartVisibility(allPoints, anchor ?? exportName, effectiveLinkParams), pts = visibility.points;
   const context = useChartContextMenu();
   const exportControl = useRef<ChartExportHandle>(null);
   const contextPick = useRef(context.pointMenu);
   useEffect(() => { contextPick.current = context.pointMenu; });
-  const [plotW, setPlotW] = useState(0), [plotH, setPlotH] = useState(height);
   const narrow = plotW > 0 && plotW < 560;
   useEffect(() => {
     const el = wrapRef.current; if (!el) return;
@@ -174,13 +174,13 @@ export function ScoreScatter(props: ScatterProps) {
 
   useEffect(() => { if (chartRef) chartRef.current = chart.current; });
   // The screenshot editor opens from the toolbar, or from a link (`xe` on this chart's own `c=`), and closing it leaves the page as it was.
-  const [editor, setEditor] = useState<EditorState | null>(null);
+  const [editor, setEditor] = useState<(EditorState & { viewOnly?: boolean }) | null>(null);
   useEffect(() => {
     if (bare || !anchor) return;
     const raf = requestAnimationFrame(() => {
       const url = new URL(window.location.href);
       const state = url.searchParams.get("c") === anchor ? decodeEditor(url.searchParams.get("xe")) : null;
-      if (state) setEditor(state);
+      if (state) setEditor({ ...state, viewOnly: true });
     });
     return () => cancelAnimationFrame(raf);
   }, [bare, anchor]);
@@ -339,7 +339,7 @@ export function ScoreScatter(props: ScatterProps) {
         {focus && <PointCard point={focus} labs={labs} pal={pal} onFrontier={view.frontier && onFrontierIds.has(focus.r.variant.id)} format={formatValue ?? formatX} unit={xUnit} extra={tooltipExtra?.(focus)} onClose={pinned && !hover ? () => setPinned(null) : undefined} />}
       </div>
       {!bare && <ChartContextMenu exportControl={exportControl} state={context.menu} close={context.close} name={exportName} points={pts} visibility={visibility} chart={chart} wrap={wrapRef} expanded={expand.expanded} anchor={anchor} />}
-      {editor && <ExportEditor name={exportName} initial={editor} base={view} showScale={defaultScale !== "time"} onClose={closeEditor}
+      {editor && <ExportEditor name={exportName} initial={editor} viewOnly={editor.viewOnly} defaultScale={defaultScale === "log" ? "log" : "linear"} base={view} showScale={defaultScale !== "time"} onClose={closeEditor}
         link={(xe) => chartLinkUrl(window.location.href, anchor ?? exportName, { ...effectiveLinkParams, hidden: visibility.hidden, extra: { ...effectiveLinkParams.extra, xe: encodeEditor(xe) } }, hl ?? undefined).toString()}
         plot={(v, h, ref) => <ScoreScatter {...props} bare view={v} height={h} chartRef={ref} />} />}
     </div></>

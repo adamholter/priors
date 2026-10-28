@@ -9,6 +9,7 @@ import { isPreviewBot, PreviewPage } from "@/lib/link-preview";
 import { pageMeta } from "@/lib/site-meta";
 import { computeIndex } from "@/engine";
 import { decodeIndices } from "@/lib/url";
+import { framedSize, linkFrame } from "@/lib/og-chart";
 import type { Benchmark, Snapshot } from "@/data/types";
 import { benchmarkDescription, benchmarkStanding } from "@/lib/og-benchmark";
 
@@ -28,7 +29,7 @@ function describe(snapshot: Snapshot, b: Benchmark) {
 
 type Search = Promise<Record<string, string | string[] | undefined>>;
 /** A chart link's settings, as the card route reads them: which chart, the page's index, view and hidden models, and the look it was copied in. */
-const CHART_KEYS = ["c", "i", "cv", "cm", "cs", "ls", "ch", "cf", "bm", "scheme", "theme"];
+const CHART_KEYS = ["c", "i", "cv", "cm", "cs", "ls", "ch", "cf", "xe", "xs", "bm", "scheme", "theme"];
 function chartQuery(sp: Record<string, string | string[] | undefined>): URLSearchParams {
   const q = new URLSearchParams();
   for (const key of CHART_KEYS) for (const v of [sp[key]].flat()) if (typeof v === "string" && v) q.append(key, v);
@@ -48,7 +49,7 @@ export async function generateMetadata({ params, searchParams }: { params: Promi
     title: `${b.name} · ${chart ?? "leaderboard"}`, description: describe(found.snapshot, b), path: benchmarkPath(b.id),
     ...(c ? { share: `${benchmarkPath(b.id)}?${q.toString()}` } : {}),
     // `d` gives each day's data its own image address, so a cached preview never outlives the numbers.
-    image: { url: `${benchmarkPath(b.id)}/opengraph-image?${c ? q.toString() : `d=${found.snapshot.date}`}`, width: 1200, height: 630, alt: c ? `${b.name} ${chart} on Priors` : `${b.name} on Priors: the top models and what they cost per task on a subscription` },
+    image: { url: `${benchmarkPath(b.id)}/opengraph-image?${c ? q.toString() : `d=${found.snapshot.date}`}`, ...(c && c !== "rankings" ? framedSize(linkFrame(q)) : framedSize()), alt: c ? `${b.name} ${chart} on Priors` : `${b.name} on Priors: the top models and what they cost per task on a subscription` },
   });
 }
 

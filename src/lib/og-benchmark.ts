@@ -13,7 +13,7 @@ import { costChartFor } from "./metrics";
 import { benchmarkMetrics } from "./benchmark-metrics";
 import { metricChartOf } from "./benchmark-chart";
 import { benchmarkIndex, benchmarkSnapshot, benchmarkView, hasOwnCost } from "./benchmark-page";
-import { cardPalette, metricSpec, rasterize, renderChartPng } from "./og-chart";
+import { cardPalette, linkFrame, metricSpec, rasterize, renderChartPng, renderFramedPng } from "./og-chart";
 import { formatBenchValue } from "./benchmark-format";
 
 const ACCENT = "#2F4FB0";
@@ -138,7 +138,10 @@ export async function renderBenchmarkChart(full: Snapshot, benchmarkId: string, 
   if (!b) return null;
   const c = q.get("c") ?? "rankings", config = linkedConfig(snapshot, benchmarkId, q);
   const scheme = q.get("scheme"), theme = q.get("theme");
-  const pal = cardPalette(theme ? { preset: theme } : undefined, scheme === "dark" || scheme === "light" ? scheme : undefined);
+  const frame = linkFrame(q);
+  // The screenshot editor's theme wins over the page's look it was copied from.
+  const pal = cardPalette(frame?.theme ? { preset: frame.theme } : theme ? { preset: theme } : undefined, frame?.theme ? undefined : scheme === "dark" || scheme === "light" ? scheme : undefined);
+  const draw = (spec: ReturnType<typeof metricSpec>) => frame && q.get("cv") !== "bars" ? renderFramedPng(spec, snapshot.labs, pal, frame) : renderChartPng(spec, snapshot.labs, pal, q.get("cv") ?? undefined);
   const ranked = computeIndex(snapshot, { ...config, variants: "all" }, benchmarkView(snapshot, benchmarkId)).ranked;
   if (!ranked.length) return null;
   const raw = (r: RankedVariant) => r.values[0]?.raw;
@@ -150,15 +153,13 @@ export async function renderBenchmarkChart(full: Snapshot, benchmarkId: string, 
   const named = (title: string) => `${b.name} · ${title}`;
   if (c === "cost") {
     const basis = effectiveBasis(config.costBasis, hasSubscriptionPrices(snapshot));
-    const spec = metricSpec(costChartFor(basis), plotted, config, named(basis === "subscription" ? "Score vs subscription cost per task" : "Score vs cost per task"), true, opts);
-    return renderChartPng(spec, snapshot.labs, pal, q.get("cv") ?? undefined);
+    return draw(metricSpec(costChartFor(basis), plotted, config, frame ? basis === "subscription" ? "Score vs subscription cost per task" : "Score vs cost per task" : named(basis === "subscription" ? "Score vs subscription cost per task" : "Score vs cost per task"), true, opts));
   }
   if (c.startsWith("metric-")) {
     const metrics = benchmarkMetrics(snapshot, b), all = [...metrics.standard, ...metrics.details];
     const m = c === "metric-explore" ? all.find((x) => x.id === q.get("bm")) ?? metrics.details[0] : metrics.standard.find((x) => `metric-${x.id}` === c);
     if (!m) return null;
-    const spec = metricSpec(metricChartOf(m, b.name), plotted, config, named(m.label), true, opts);
-    return renderChartPng(spec, snapshot.labs, pal, q.get("cv") ?? undefined);
+    return draw(metricSpec(metricChartOf(m, b.name), plotted, config, frame ? m.label : named(m.label), false, opts));
   }
   return leaderboardPng(b, rankingRows(ranked, config), snapshot.labs, pal, named("Leaderboard"));
 }

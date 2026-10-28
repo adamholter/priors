@@ -1,4 +1,5 @@
 import { ConvexHttpClient } from "convex/browser";
+import { framedSize, linkFrame } from "@/lib/og-chart";
 import { RADAR_PARAM_KEYS } from "@/components/chart/radar-view";
 import { cache } from "react";
 import { notFound } from "next/navigation";
@@ -50,7 +51,7 @@ function profileCard(p: Profile, sp: Record<string, string | string[] | undefine
 /** The link as shared, with only the params a preview or the page reads. */
 function shareHref(handle: string, sp: Record<string, string | string[] | undefined>) {
   const query = new URLSearchParams();
-  for (const key of ["c", "cv", "cm", "cs", "ls", "ch", "hl", "hi", "hv", ...RADAR_PARAM_KEYS]) {
+  for (const key of ["c", "cv", "cm", "cs", "ls", "ch", "cf", "xe", "xs", "scheme", "hl", "hi", "hv", ...RADAR_PARAM_KEYS]) {
     const value = sp[key];
     for (const item of Array.isArray(value) ? value : typeof value === "string" ? [value] : []) query.append(key, item);
   }
@@ -64,7 +65,9 @@ export async function generateMetadata({ params, searchParams }: PageProps<"/[ha
   if (!saved) return { title: "Page not found" };
   const p = profileWithLink(saved, sp);
   const { chart, index, title, description } = profileCard(p, sp, await loadSnapshot());
-  const viewParams = `${typeof sp.cv === "string" ? `&cv=${sp.cv}` : ""}${typeof sp.cm === "string" ? `&cm=${sp.cm}` : ""}${typeof sp.cs === "string" ? `&cs=${sp.cs}` : ""}${typeof sp.ls === "string" ? `&ls=${encodeURIComponent(sp.ls)}` : ""}`;
+  // The view and look the chart was copied with (`xe` screenshot editor, `xs` plot size, `cf` all models, `scheme`), so the preview is that image.
+  const viewParams = ["cv", "cm", "cs", "ls", "cf", "xe", "xs", "scheme"].map((key) => typeof sp[key] === "string" ? `&${key}=${encodeURIComponent(sp[key] as string)}` : "").join("");
+  const size = framedSize(chart ? linkFrame(new URLSearchParams(Object.entries({ c: chart, xe: sp.xe, xs: sp.xs }).filter((e): e is [string, string] => typeof e[1] === "string"))) : undefined);
   const radarQuery = RADAR_PARAM_KEYS.map((key) => typeof sp[key] === "string" ? `&${key}=${encodeURIComponent(sp[key] as string)}` : "").join("");
   const viewIndexParam = typeof sp.hv === "string" ? `&hv=${encodeURIComponent(sp.hv)}` : "";
   const hiddenParams = (Array.isArray(sp.ch) ? sp.ch : typeof sp.ch === "string" ? [sp.ch] : []).map(value => `&ch=${encodeURIComponent(value)}`).join("");
@@ -73,7 +76,7 @@ export async function generateMetadata({ params, searchParams }: PageProps<"/[ha
   // A link to a chart, a selection or another tab unfurls as that index; the plain page link as the first.
   // The image names the page and the index instead of spelling the index out, which keeps its address short.
   const image = (chart || typeof sp.hl === "string" || typeof sp.hv === "string" || index !== p.indices[0]) && index
-    ? { url: `/og?handle=${handle}&hi=${encodeURIComponent(index.id)}${typeof sp.hl === "string" ? `&hl=${encodeURIComponent(sp.hl)}` : ""}${chart ? `&c=${encodeURIComponent(typeof sp.c === "string" ? sp.c : chart)}` : ""}${viewParams}${viewIndexParam}${radarQuery}${hiddenParams}&v=${v}`, width: 1200, height: 630, alt: title }
+    ? { url: `/og?handle=${handle}&hi=${encodeURIComponent(index.id)}${typeof sp.hl === "string" ? `&hl=${encodeURIComponent(sp.hl)}` : ""}${chart ? `&c=${encodeURIComponent(typeof sp.c === "string" ? sp.c : chart)}` : ""}${viewParams}${viewIndexParam}${radarQuery}${hiddenParams}&v=${v}`, ...size, alt: title }
     : { url: `/${handle}/opengraph-image?v=${v}`, width: 1200, height: 630, alt: title };
   return pageMeta({ title, description, path: `/${handle}`, share: shareHref(handle, sp), image, type: "profile" });
 }

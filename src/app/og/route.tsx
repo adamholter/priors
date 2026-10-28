@@ -13,7 +13,7 @@ import { resolveProfileChart } from "@/lib/profile-chart";
 import type { Profile } from "@/components/page/IndexPage";
 import { readChartHidden } from "@/components/chart/chart-visibility";
 import { chartFromLink } from "@/agent/link-chart";
-import { cardPalette, renderAnswerChartPng } from "@/lib/og-chart";
+import { cardPalette, linkFrame, renderAnswerChartPng } from "@/lib/og-chart";
 import { readRadarParams } from "@/components/chart/radar-view";
 
 export const dynamic = "force-dynamic";
@@ -43,6 +43,6 @@ export async function GET(req: Request) {
   // `theme` picks a page theme for this card (the share dialog lets people try others); `scheme` its light or dark version.
   // With neither, a profile's card takes its page theme in the mode the owner chose.
   const themeParam = u.searchParams.get("theme") ?? undefined, scheme = u.searchParams.get("scheme");
-  const res = await renderShareCard(snapshot, index, profile ? { name: profile.displayName, handle: profile.handle, avatarUrl: profile.avatarUrl } : { name: u.searchParams.get("name") ?? "" }, { allModels: u.searchParams.get("cf") === "all", labelScale: linkedLabelScale(u.searchParams), hidden: readChartHidden(u.searchParams, u.searchParams.get("c") ?? undefined), design: u.searchParams.get("design") ?? undefined, chart, cv: u.searchParams.get("cv") ?? undefined, cm: u.searchParams.get("cm") ?? undefined, cs: u.searchParams.get("cs") ?? undefined, scheme: scheme === "dark" || scheme === "light" ? scheme : undefined, ...(themeParam ? { theme: { preset: themeParam } } : profileCardLook(profile?.theme)), radar: readRadarParams(u.searchParams), points: u.searchParams.get("debug") === "points" });
+  const res = await renderShareCard(snapshot, index, profile ? { name: profile.displayName, handle: profile.handle, avatarUrl: profile.avatarUrl } : { name: u.searchParams.get("name") ?? "" }, { allModels: u.searchParams.get("cf") === "all", frame: linkFrame(u.searchParams), labelScale: linkedLabelScale(u.searchParams), hidden: readChartHidden(u.searchParams, u.searchParams.get("c") ?? undefined), design: u.searchParams.get("design") ?? undefined, chart, cv: u.searchParams.get("cv") ?? undefined, cm: u.searchParams.get("cm") ?? undefined, cs: u.searchParams.get("cs") ?? undefined, scheme: scheme === "dark" || scheme === "light" ? scheme : undefined, ...(themeParam ? { theme: { preset: themeParam } } : profileCardLook(profile?.theme)), radar: readRadarParams(u.searchParams), points: u.searchParams.get("debug") === "points" });
   return new Response(res.body, { status: res.status, headers: { "content-type": res.headers.get("content-type") ?? "image/png", "cache-control": "public, max-age=600, s-maxage=86400, stale-while-revalidate=86400" } });
 }

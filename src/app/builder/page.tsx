@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { framedSize, linkFrame } from "@/lib/og-chart";
 import { BuilderLoader } from "@/components/BuilderLoader";
 import { Builder } from "@/components/Builder";
 import { clientSnapshot } from "@/data/client-snapshot";
@@ -23,7 +24,7 @@ function chartGist(c: AnswerChart): string | undefined {
 
 async function cardFor(sp: SP) {
   const query = new URLSearchParams();
-  for (const key of ["i", "design", "handle", "chart", "date", "c", "cv", "cm", "cs", "ls", "ch", "cf", "scheme", "theme", ...RADAR_PARAM_KEYS]) {
+  for (const key of ["i", "design", "handle", "chart", "date", "c", "cv", "cm", "cs", "ls", "ch", "cf", "xe", "xs", "scheme", "theme", ...RADAR_PARAM_KEYS]) {
     const value = sp[key];
     for (const item of Array.isArray(value) ? value : value ? [value] : []) query.append(key, item);
   }
@@ -45,7 +46,7 @@ async function cardFor(sp: SP) {
 
 export async function generateMetadata({ searchParams }: PageProps<"/builder">): Promise<Metadata> {
   const { query, title, desc } = await cardFor(await searchParams);
-  const image = { url: query.size ? `/og?${query}` : "/og", width: 1200, height: 630, alt: `${title} model rankings` };
+  const image = { url: query.size ? `/og?${query}` : "/og", ...framedSize(linkFrame(query)), alt: `${title} model rankings` };
   return pageMeta({ title, description: desc, path: "/builder", share: query.size ? `/builder?${prettyQuery(query)}` : "/builder", image });
 }
 

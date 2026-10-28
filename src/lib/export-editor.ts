@@ -1,6 +1,7 @@
 /** What a screenshot link remembers: crop size, theme, title and the chart settings it overrides. Carried in `xe`. */
-export interface EditorView { scale?: "log" | "linear"; frontier?: boolean; links?: boolean; guides?: boolean; density?: number; labelScale?: number }
-export interface EditorState { w: number; h: number; ratio?: string; theme?: string; title?: string; view?: EditorView }
+export interface EditorView { scale?: "log" | "linear"; frontier?: boolean; links?: boolean; guides?: boolean; density?: number; labelScale?: number; allModels?: boolean }
+/** `heading` is the title as drawn (custom title, else the chart name), so a link preview prints exactly what the image did. */
+export interface EditorState { w: number; h: number; ratio?: string; theme?: string; title?: string; heading?: string; view?: EditorView }
 
 export const EDITOR_RATIOS: { id: string; label: string; r?: number }[] = [
   { id: "free", label: "Free" }, { id: "16:9", label: "16:9", r: 16 / 9 }, { id: "3:2", label: "3:2", r: 3 / 2 }, { id: "4:3", label: "4:3", r: 4 / 3 },
@@ -15,7 +16,7 @@ export function clampSize(w: number, h: number) { return { w: clamp(w, EDITOR_MI
 
 export function encodeEditor(s: EditorState): string {
   const v = s.view ?? {};
-  const out: Record<string, unknown> = { w: s.w, h: s.h, r: s.ratio && s.ratio !== "free" ? s.ratio : undefined, t: s.theme, ti: s.title || undefined,
+  const out: Record<string, unknown> = { w: s.w, h: s.h, r: s.ratio && s.ratio !== "free" ? s.ratio : undefined, t: s.theme, ti: s.title || undefined, hd: s.heading && s.heading !== s.title ? s.heading : undefined, am: v.allModels ? 1 : undefined,
     sc: v.scale, fr: v.frontier == null ? undefined : +v.frontier, ln: v.links == null ? undefined : +v.links, gd: v.guides == null ? undefined : +v.guides, de: v.density, ls: v.labelScale };
   for (const k of Object.keys(out)) if (out[k] === undefined) delete out[k];
   return btoa(unescape(encodeURIComponent(JSON.stringify(out)))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
@@ -33,9 +34,10 @@ export function decodeEditor(raw: string | null | undefined): EditorState | null
     if (o.fr != null) view.frontier = !!o.fr;
     if (o.ln != null) view.links = !!o.ln;
     if (o.gd != null) view.guides = !!o.gd;
+    if (o.am) view.allModels = true;
     const de = num(o.de, 0, 1), ls = num(o.ls, 0.75, 1.75);
     if (de != null) view.density = de;
     if (ls != null) view.labelScale = ls;
-    return { w, h, ratio: typeof o.r === "string" && ratioOf(o.r) ? o.r : undefined, theme: typeof o.t === "string" ? o.t.slice(0, 24) : undefined, title: typeof o.ti === "string" ? o.ti.slice(0, 120) : undefined, view };
+    return { w, h, ratio: typeof o.r === "string" && ratioOf(o.r) ? o.r : undefined, theme: typeof o.t === "string" ? o.t.slice(0, 24) : undefined, title: typeof o.ti === "string" ? o.ti.slice(0, 120) : undefined, heading: typeof o.hd === "string" ? o.hd.slice(0, 120) : typeof o.ti === "string" ? o.ti.slice(0, 120) : undefined, view };
   } catch { return null; }
 }

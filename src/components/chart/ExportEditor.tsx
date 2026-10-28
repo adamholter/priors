@@ -15,8 +15,11 @@ const THEMES = [{ id: "site", name: "Current page" }, ...[...THEME_CHOICES, PAGE
  * The screenshot editor: the chart at the size of the image, resizable by dragging its corner or by ratio, with its own
  * theme, title and chart settings. Everything it holds goes into the link (`xe`), so the link opens this modal over the same page.
  */
-export default function ExportEditor({ name, initial, base, showScale, onClose, link, plot }: {
+export default function ExportEditor({ name, initial, base, showScale, onClose, link, plot, viewOnly = false, defaultScale = "linear" }: {
   name: string; initial: EditorState; base: ScatterView; showScale: boolean; onClose: () => void;
+  /** The chart's own scale when the view sets none. */ defaultScale?: "log" | "linear";
+  /** Opened from a shared link: show the image as it was made, full screen, with Edit to change it. */
+  viewOnly?: boolean;
   link: (state: EditorState) => string;
   plot: (view: ScatterView, height: number, chartRef: { current: ECharts | null }) => ReactNode;
 }) {
@@ -27,13 +30,26 @@ export default function ExportEditor({ name, initial, base, showScale, onClose, 
   const [title, setTitle] = useState(initial.title ?? "");
   const [over, setOver] = useState<EditorView>(initial.view ?? {});
   const [copied, setCopied] = useState(false);
+  const [viewing, setViewing] = useState(viewOnly);
+  // The viewer scales the card to fit the window; the image itself keeps its exact size.
+  const card = useRef<HTMLDivElement>(null);
+  const [fit, setFit] = useState(1), [cardH, setCardH] = useState<number>();
+  useEffect(() => {
+    if (!viewing) return;
+    const measure = () => { const el = card.current; if (el) { setFit(Math.min(1, (window.innerWidth - 48) / el.offsetWidth, (window.innerHeight - 96) / el.offsetHeight)); setCardH(el.offsetHeight); } };
+    const raf = requestAnimationFrame(measure);
+    addEventListener("resize", measure);
+    return () => { cancelAnimationFrame(raf); removeEventListener("resize", measure); };
+  }, [viewing, size]);
   const site = useChartPalette();
   const preset = theme === "site" ? undefined : themeById(theme);
   const pal = preset ? paletteFor(preset) : site;
   const view: ScatterView = { ...base };
   for (const [k, v] of Object.entries(over)) if (v !== undefined) (view as unknown as Record<string, unknown>)[k] = v;
   const set = (patch: EditorView) => setOver((o) => ({ ...o, ...patch }));
-  const state = (): EditorState => ({ ...size, ratio, theme: theme === "site" ? undefined : theme, title: title.trim() || undefined, view: over });
+  // The link records the whole view as drawn (not only what was changed here) and the heading, so its preview can redraw this exact image.
+  const state = (): EditorState => ({ ...size, ratio, theme: theme === "site" ? undefined : theme, title: title.trim() || undefined, heading: title.trim() || name,
+    view: { scale: showScale ? view.scale : undefined, frontier: !!view.frontier, links: !!view.links, guides: view.guides !== false, density: view.density, labelScale: view.labelScale, allModels: view.allModels || undefined } });
 
   useEffect(() => { const d = dialog.current; if (d && !d.open) d.showModal(); }, []);
 
@@ -53,18 +69,30 @@ export default function ExportEditor({ name, initial, base, showScale, onClose, 
   };
 
   const heading = title.trim() || name;
+  const cardEl = (
+    <div ref={card} className="xe-card" style={{ background: pal.bg, color: pal.ink, ...(viewing ? { transform: `scale(${fit})`, transformOrigin: "top center" } : {}) }}>
+      <div className="xe-title" style={{ fontFamily: "Newsreader, Georgia, serif", color: pal.ink }}>{heading}</div>
+      <div className="xe-box" style={{ width: size.w, height: size.h }} data-testid="xe-box">
+        {plot(view, size.h, chartRef)}
+        {!viewing && <button type="button" className="xe-grip" aria-label="Drag to resize" title="Drag to resize" onPointerDown={drag} style={{ color: pal.grey }} />}
+      </div>
+      <div className="xe-foot" style={{ color: pal.grey }}>mypriors.com</div>
+    </div>
+  );
+  if (viewing) return <dialog ref={dialog} className="xe xe-viewer" aria-label={heading} onClose={onClose} onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+    <div className="xe-viewer-bar">
+      <span className="cap">{heading}</span>
+      <span className="flex items-center gap-2">
+        <ChartPaletteContext.Provider value={pal}><ChartExport name={name} title={heading} frame trim={false} getSvg={() => chartRef.current?.renderToSVGString()} /></ChartPaletteContext.Provider>
+        <button type="button" className="xe-copy" onClick={() => setViewing(false)}>Edit</button>
+        <button type="button" className="xe-copy" onClick={onClose} aria-label="Close">Close</button>
+      </span>
+    </div>
+    <ChartPaletteContext.Provider value={pal}><div className="xe-viewer-stage" style={{ height: cardH ? cardH * fit : undefined }}>{cardEl}</div></ChartPaletteContext.Provider>
+  </dialog>;
   return <dialog ref={dialog} className="xe" aria-label={`Edit ${name} screenshot`} onClose={onClose} onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
     <ChartPaletteContext.Provider value={pal}>
-      <div className="xe-stage">
-        <div className="xe-card" style={{ background: pal.bg, color: pal.ink }}>
-          <div className="xe-title" style={{ fontFamily: "Newsreader, Georgia, serif", color: pal.ink }}>{heading}</div>
-          <div className="xe-box" style={{ width: size.w, height: size.h }} data-testid="xe-box">
-            {plot(view, size.h, chartRef)}
-            <button type="button" className="xe-grip" aria-label="Drag to resize" title="Drag to resize" onPointerDown={drag} style={{ color: pal.grey }} />
-          </div>
-          <div className="xe-foot" style={{ color: pal.grey }}>mypriors.com</div>
-        </div>
-      </div>
+      <div className="xe-stage">{cardEl}</div>
     </ChartPaletteContext.Provider>
     <aside className="xe-side">
       <header><h2>Edit screenshot</h2><button type="button" onClick={onClose} aria-label="Close editor"><IconX size={16} aria-hidden="true" /></button></header>
@@ -83,7 +111,7 @@ export default function ExportEditor({ name, initial, base, showScale, onClose, 
       </section>
       <section>
         <h3>Chart</h3>
-        {showScale && <label className="xe-field">Scale<select value={view.scale ?? "log"} onChange={(e) => set({ scale: e.target.value as "log" | "linear" })}><option value="log">Log</option><option value="linear">Linear</option></select></label>}
+        {showScale && <label className="xe-field">Scale<select value={view.scale ?? defaultScale} onChange={(e) => set({ scale: e.target.value as "log" | "linear" })}><option value="log">Log</option><option value="linear">Linear</option></select></label>}
         <label className="xe-check"><input type="checkbox" checked={!!view.frontier} onChange={(e) => set({ frontier: e.target.checked })} />Pareto frontier</label>
         <label className="xe-check"><input type="checkbox" checked={!!view.links} onChange={(e) => set({ links: e.target.checked })} />Effort lines</label>
         <label className="xe-check"><input type="checkbox" checked={view.guides !== false} onChange={(e) => set({ guides: e.target.checked })} />Guide lines</label>

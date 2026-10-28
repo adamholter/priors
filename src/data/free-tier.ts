@@ -83,7 +83,13 @@ const isLlm = (m: Model) => !m.kind || m.kind === "llm";
 export function modelsForFree(entry: FreeTierEntry, models: Model[]): Model[] {
   const key = freeKey(entry.name);
   if (!key) return [];
-  return models.filter((m) => isLlm(m) && (freeKey(m.name) === key || freeKey(m.id.replace(/^aa-/, "")) === key));
+  const exact = models.filter((m) => isLlm(m) && (freeKey(m.name) === key || freeKey(m.id.replace(/^aa-/, "")) === key));
+  // A provider id without a date serves the lab's latest revision: "deepseek-v4.1-flash-free" is DeepSeek V4.1 Flash 1017
+  // once that update ships. Revisions are the same name plus a month-day stamp; the newest one takes the listing.
+  const revisions = exact.length ? models.filter((m) => isLlm(m) && exact.some((e) => new RegExp(`^${e.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")} (\\d{4})$`).test(m.name))) : [];
+  if (!revisions.length) return exact;
+  const stamp = (m: Model) => Number(m.name.match(/(\d{4})$/)![1]);
+  return [revisions.sort((a, b) => (b.releaseDate ?? "").localeCompare(a.releaseDate ?? "") || stamp(b) - stamp(a))[0]];
 }
 
 /** Adds a ratio 0 subscription row for every ranked model that is free, replacing any computed one. Returns the model ids made free. */

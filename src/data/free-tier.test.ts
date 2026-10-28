@@ -45,6 +45,10 @@ describe("applyFreeTiers", () => {
     expect(modelsForFree(entries[1], models).map((m) => m.id)).toEqual(["aa-north-mini-code"]);
     expect(modelsForFree(entries[2], models)).toEqual([]);
   });
+  it("gives an undated provider id to the newest dated revision (deepseek-v4.1-flash-free serves V4.1 Flash 1017)", () => {
+    const ms = [model("deepseek-v4.1-flash", "DeepSeek V4.1 Flash"), model("deepseek-v4.1-flash-1017", "DeepSeek V4.1 Flash 1017"), model("deepseek-v4.1-flash-0920", "DeepSeek V4.1 Flash 0920")];
+    expect(modelsForFree(parseZenFree(["deepseek-v4.1-flash-free"])[0], ms).map((m) => m.id)).toEqual(["deepseek-v4.1-flash-1017"]);
+  });
   it("prices a free model at ratio 0, replacing a computed row", () => {
     const s = snap(models, { observations: [{ benchmarkId: SUBSCRIPTION_BENCHMARK, variantId: "gemma-4-31b-it@high", value: 0.2, observedAt: "", sourceUrl: "" }] });
     expect(applyFreeTiers(s, entries, "2026-10-16").sort()).toEqual(["aa-north-mini-code", "gemma-4-31b-it"]);

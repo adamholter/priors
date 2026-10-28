@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { loadSnapshot } from "@/data/load";
 import { benchmarkDescription, benchmarkStanding, renderBenchmarkCard, renderBenchmarkChart } from "./og-benchmark";
 import { encodeIndex } from "./url";
+import { encodeEditor } from "./export-editor";
 import { benchmarkIndex, benchmarkSnapshot } from "./benchmark-page";
 
 describe("benchmark share card", async () => {
@@ -41,5 +42,15 @@ describe("benchmark share card", async () => {
     const dark = await renderBenchmarkChart(snap, id, new URLSearchParams({ c: "cost", i, scheme: "dark" }));
     expect(light!.equals(dark!)).toBe(false);
     expect(await renderBenchmarkChart(snap, "nope", new URLSearchParams({ c: "cost" }))).toBeNull();
+  });
+
+  it("draws a screenshot-editor link at the editor's size, title and theme, like its PNG export", async () => {
+    const id = "frontiercode-1.1-main", i = encodeIndex(benchmarkIndex(benchmarkSnapshot(snap, id), id));
+    const xe = encodeEditor({ w: 1036, h: 583, ratio: "16:9", theme: "slop", title: "Custom", heading: "Custom", view: { scale: "linear", frontier: false } });
+    const png = (await renderBenchmarkChart(snap, id, new URLSearchParams({ c: "cost", i, xe })))!;
+    const w = png.readUInt32BE(16), h = png.readUInt32BE(20);
+    expect(w / h).toBeCloseTo((1036 + 64) / (583 + 88), 2);
+    const plain = (await renderBenchmarkChart(snap, id, new URLSearchParams({ c: "cost", i })))!;
+    expect(plain.readUInt32BE(16) / plain.readUInt32BE(20)).toBeCloseTo(1200 / 630, 1);
   });
 });
