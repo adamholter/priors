@@ -1719,6 +1719,34 @@
       "legacyVariantId": "qwen-3.8-max@max"
     },
     {
+      "id": "label/qwen-q3-max",
+      "kind": "label",
+      "record": {
+        "modelLabel": "qwen-q3-max",
+        "effort": "high"
+      },
+      "expected": {
+        "modelId": "qwen-3-max",
+        "effort": "high",
+        "canonical": true
+      },
+      "legacyVariantId": "qwen-3-max@high"
+    },
+    {
+      "id": "label/Qwen3 Max",
+      "kind": "label",
+      "record": {
+        "modelLabel": "Qwen3 Max",
+        "effort": "high"
+      },
+      "expected": {
+        "modelId": "qwen-3-max",
+        "effort": "high",
+        "canonical": true
+      },
+      "legacyVariantId": "qwen-3-max@high"
+    },
+    {
       "id": "label/Qwen 3.8 Flash",
       "kind": "label",
       "record": {
@@ -1801,6 +1829,34 @@
         "canonical": true
       },
       "legacyVariantId": "muse-spark-1.3@high"
+    },
+    {
+      "id": "label/meta-muse-spark",
+      "kind": "label",
+      "record": {
+        "modelLabel": "meta-muse-spark",
+        "effort": "high"
+      },
+      "expected": {
+        "modelId": "aa-muse-spark",
+        "effort": "high",
+        "canonical": true
+      },
+      "legacyVariantId": "aa-muse-spark@high"
+    },
+    {
+      "id": "label/Muse Spark",
+      "kind": "label",
+      "record": {
+        "modelLabel": "Muse Spark",
+        "effort": "high"
+      },
+      "expected": {
+        "modelId": "aa-muse-spark",
+        "effort": "high",
+        "canonical": true
+      },
+      "legacyVariantId": "aa-muse-spark@high"
     },
     {
       "id": "label/MiMo V2.5 Pro",

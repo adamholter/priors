@@ -6,4 +6,4 @@ For a new parsing defect, add the source label/key and independently reviewed ex
 
 `src/data/canonical-snapshot.test.ts` also checks measured-score arithmetic, preservation of every observation field, source lineage, conflicting measurements, legacy highlights and repeat normalization.
 
-The October 7 Qwen regression adds derived-release labels, plain Nex-N2-Pro aliases and unknown derivatives. `qwen-derived-2026-10-07.json.gz` freezes the mislabeled AA records; CI verifies separate Nex and Qwen rankings, unchanged measurements and old highlight IDs. The identity corpus now has 117 cases.
+The October 7 Qwen regression adds derived-release labels, plain Nex-N2-Pro aliases and unknown derivatives. `qwen-derived-2026-10-07.json.gz` freezes the mislabeled AA records; CI verifies separate Nex and Qwen rankings, unchanged measurements and old highlight IDs. The identity corpus now has 121 cases (prinzbench's `meta-muse-spark` and `qwen-q3-max` added October 28).

@@ -174,6 +174,8 @@ export const ALIASES: Record<string, string> = {
   "claude-sonnet-4-5-search": "claude sonnet 4.5",
   "claude-sonnet-4-6": "claude sonnet 4.6",
   "claude-sonnet-4-6-search": "claude sonnet 4.6",
+  // prinzbench's table writes Qwen3-Max as "qwen-q3-max"; its notes call the same run qwen3-max.
+  "qwen-q3-max": "qwen3 max",
 };
 
 /** Exact public catalog and benchmark labels with known model identities. */
@@ -186,6 +188,7 @@ const VALS_PUBLISHED_MODELS: Record<string, { id: string; name: string; lab: str
   "laguna m.1": { id: "laguna-m-1", name: "Laguna M.1", lab: "poolside", reasoning: true },
   "laguna xs.2": { id: "laguna-xs-2", name: "Laguna XS.2", lab: "poolside", reasoning: true },
   "muse spark": { id: "aa-muse-spark", name: "Muse Spark", lab: "meta", reasoning: true },
+  "meta-muse-spark": { id: "aa-muse-spark", name: "Muse Spark", lab: "meta", reasoning: true }, // prinzbench
   "muse wonder": { id: "aa-muse-wonder", name: "Muse Wonder", lab: "meta", reasoning: true },
   "muse wonder 1.0": { id: "aa-muse-wonder", name: "Muse Wonder", lab: "meta", reasoning: true },
   "muse wonder full": { id: "aa-muse-wonder-full", name: "Muse Wonder Full", lab: "meta", reasoning: true },
