@@ -23,6 +23,7 @@ export const indexConfig = v.object({
   costSource: v.optional(taskMetricSource),
   costBasis: v.optional(v.union(v.literal("api"), v.literal("subscription"))),
   planResets: v.optional(v.boolean()),
+  subscriptionPlans: v.optional(v.record(v.string(), v.string())),
   timeSource: v.optional(taskMetricSource),
   paretoVariants: v.optional(v.union(v.literal("all"), v.literal("best"))),
   efforts: v.optional(v.array(v.string())),

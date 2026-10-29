@@ -1,6 +1,7 @@
 "use client";
 import { planResetNote } from "@/data/plan-resets";
 import { setPlanResetsPref, usePlanResetsOn, withResetsPref } from "@/lib/plan-resets-pref";
+import { planPicker, useSubscriptionPlansPref, withPlansPref } from "@/lib/subscription-plans-pref";
 import Link from "next/link";
 import { HeaderAccount } from "@/components/AccountMenu";
 import type { ProfileTheme, Section } from "../../../convex/validators";
@@ -57,8 +58,8 @@ export function IndexPage({ profile, snapshot, edit, tab: linkedTab, linkedHighl
   const [prevProfile, setPrevProfile] = useState(profile);
   if (profile !== prevProfile) { setPrevProfile(profile); setPState(tidyProfile(profile)); }
   const setP = setPState;
-  const resetsOn = usePlanResetsOn();
-  const results = useMemo(() => new Map(p.indices.map((i) => [i.id, computeIndex(snapshot, { ...withResetsPref(i, resetsOn), variants: "all" }, PAGE_VIEW)])), [snapshot, p.indices, resetsOn]);
+  const resetsOn = usePlanResetsOn(), plansPref = useSubscriptionPlansPref();
+  const results = useMemo(() => new Map(p.indices.map((i) => [i.id, computeIndex(snapshot, { ...withPlansPref(withResetsPref(i, resetsOn), plansPref), variants: "all" }, PAGE_VIEW)])), [snapshot, p.indices, resetsOn, plansPref]);
   const { dark: siteDark } = useTheme();
   const preset = resolvePreset(p.theme, siteDark);
   // The visitor's light/dark toggle matters only when the theme has both versions and the owner didn't lock one.
@@ -221,7 +222,7 @@ export function IndexPage({ profile, snapshot, edit, tab: linkedTab, linkedHighl
             const onToggleModel = barModels?.onToggleModel ?? toggleModel;
             const onShowAllModels = barModels?.onShowAllModels ?? (() => updateIndex(SHOW_ALL));
             const onHideAllModels = barModels?.onHideAllModels ?? (() => updateIndex({ excludeModels: pickerIds, onlyModels: undefined }));
-            return <ChartSettings anchor={anchorOf(title)} defaultScale={barModels ? barModels.defaultScale : "log"} formula={barModels?.formula} dataSource={{ value: idx.costSource ?? "aa", options: taskMetricOptions(snapshot, "cost"), onChange: (costSource) => updateIndex({ costSource }) }} costBasis={hasSubscriptionPrices(snapshot) ? { value: effectiveBasis(idx.costBasis), onChange: (basis) => updateIndex({ costBasis: basis === "subscription" ? undefined : basis }) } : undefined} planResets={{ value: withResetsPref(idx, resetsOn).planResets === true, onChange: (on) => { setPlanResetsPref(on); updateIndex({ planResets: on ? true : undefined }); }, note: planResetNote(snapshot) }} label="Pareto" mode={paretoMode} onChange={(v) => updateIndex({ paretoVariants: v })} {...effortProps} view={paretoView} onView={setParetoView} releasedAfter={idx.releasedAfter} onChangeReleased={(v) => updateIndex({ releasedAfter: v })} models={models} excluded={excluded} onToggleModel={onToggleModel} onShowAllModels={onShowAllModels} onHideAllModels={onHideAllModels} />;
+            return <ChartSettings anchor={anchorOf(title)} defaultScale={barModels ? barModels.defaultScale : "log"} formula={barModels?.formula} dataSource={{ value: idx.costSource ?? "aa", options: taskMetricOptions(snapshot, "cost"), onChange: (costSource) => updateIndex({ costSource }) }} costBasis={hasSubscriptionPrices(snapshot) ? { value: effectiveBasis(idx.costBasis), onChange: (basis) => updateIndex({ costBasis: basis === "subscription" ? undefined : basis }) } : undefined} subscriptionPlans={planPicker(snapshot, idx, plansPref, (subscriptionPlans) => updateIndex({ subscriptionPlans }))} planResets={{ value: withResetsPref(idx, resetsOn).planResets === true, onChange: (on) => { setPlanResetsPref(on); updateIndex({ planResets: on ? true : undefined }); }, note: planResetNote(snapshot) }} label="Pareto" mode={paretoMode} onChange={(v) => updateIndex({ paretoVariants: v })} {...effortProps} view={paretoView} onView={setParetoView} releasedAfter={idx.releasedAfter} onChangeReleased={(v) => updateIndex({ releasedAfter: v })} models={models} excluded={excluded} onToggleModel={onToggleModel} onShowAllModels={onShowAllModels} onHideAllModels={onHideAllModels} />;
           }} />}</WithView></section>);
           if (s.kind === "speed") return wrap(<section key={s.id} className="chart-panel"><WithView id={`speed-${s.id}`} owner={s.view} onOwner={editing ? (view) => patchSection(s.id, { view }) : undefined}>{(speedView, setSpeedView) => <SpeedChart onView={setSpeedView} anchor={anchorOf(title)} pts={pickPoints(speedChart, metricRanked, paretoMode)} labs={snapshot.labs} view={speedView} title={heading(s, title, "text-[21px] sm:text-[24px]")} actions={<ChartSettings anchor={anchorOf(title)} label="Speed" {...effortProps} mode={paretoMode} onChange={(v) => updateIndex({ paretoVariants: v })} view={speedView} onView={setSpeedView} releasedAfter={idx.releasedAfter} onChangeReleased={(v) => updateIndex({ releasedAfter: v })} {...modelPicker} />} />}</WithView></section>);
           return null;

@@ -27,6 +27,12 @@
 .labels span { color: var(--grey); font: 11px var(--font-mono); }
 .labels input { width: 100%; height: 3px; accent-color: var(--indigo-fill); }
 .toggles { border-top: 1px solid var(--hair); padding-top: 8px; }
+.plans { border-top: 1px solid var(--hair); padding: 8px 0 6px; }
+.plans > p { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; margin-bottom: 4px; }
+.plans > p span { color: var(--grey); font-size: 11px; }
+.planRow { display: flex; justify-content: space-between; align-items: center; gap: 12px; min-height: 34px; }
+.planRow label { color: var(--ink-2); font-size: 12px; white-space: nowrap; }
+.planRow select { min-width: 0; max-width: 178px; border: 1px solid var(--hair); border-radius: 3px; padding: 5px 6px; background: var(--bone); font-size: 11px; }
 .toggles label { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 38px; cursor: pointer; }
 .toggles input, .model input { width: 14px; height: 14px; accent-color: var(--indigo-fill); }
 .modelCount { display: flex; gap: 12px; align-items: center; font-size: 11px; padding: 4px 0 12px; color: var(--grey); }

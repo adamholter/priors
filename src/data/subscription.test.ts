@@ -5,7 +5,7 @@ import { computeIndex, type IndexConfig } from "../engine";
 import { decodeIndex, encodeIndex } from "../lib/url";
 import { clientSnapshot } from "./client-snapshot";
 import { countedResets, extraWeeks, planResetBoosts, planResetNote } from "./plan-resets";
-import { blendedApiPrice, CODEX_LIMITS_BENCHMARK, subscriptionPrices, SUBSCRIPTION_BENCHMARK, type SubscriptionDetails } from "./subscription";
+import { blendedApiPrice, CODEX_LIMITS_BENCHMARK, subscriptionPlanOptions, subscriptionPrices, SUBSCRIPTION_BENCHMARK, type SubscriptionDetails } from "./subscription";
 
 const standard = { cache: 0.97, input: 0.025, output: 0.005 };
 const plan = (name: string, extra: Partial<SubscriptionDetails> = {}): Record<string, unknown> => ({ plan: name, feeUsd: 20, confidence: "high", mix: standard, plans: [], ...extra });
@@ -118,6 +118,33 @@ describe("subscription cost basis", () => {
   });
   it("survives the client snapshot, which drops other scraper details", () => {
     expect(subscriptionPrices(clientSnapshot(snap())).get("a")!.ratio).toBeCloseTo(0.01, 6);
+  });
+  it("prices a lab at the plan the viewer picked, where the model was measured on it, and lists each lab's plans by fee", () => {
+    const snapshot = snap();
+    const b = snapshot.observations.find((o) => o.benchmarkId === SUBSCRIPTION_BENCHMARK && o.variantId === "b@xhigh")!;
+    b.details = plan("ChatGPT Pro 10x", { feeUsd: 100, confidence: "medium", plans: [{ plan: "ChatGPT Pro 20x", feeUsd: 200, usdPerMtok: 0.0147, confidence: "medium" }, { plan: "ChatGPT Pro 10x", feeUsd: 100, usdPerMtok: 0.0147, confidence: "medium" }, { plan: "ChatGPT Plus", feeUsd: 20, usdPerMtok: 0.0294, confidence: "high" }] });
+    b.value = 0.0147;
+    const median = subscriptionPrices(snapshot), plus = subscriptionPrices(snapshot, { openai: "ChatGPT Plus" });
+    expect(plus.get("b")).toMatchObject({ plan: "ChatGPT Plus", feeUsd: 20, confidence: "high" });
+    expect(plus.get("b")!.ratio).toBeCloseTo(median.get("b")!.ratio * 2, 9);
+    // Another lab's pick, or a plan the model has no measurement on, leaves it at its median plan.
+    expect(subscriptionPrices(snapshot, { anthropic: "ChatGPT Plus" }).get("b")).toEqual(median.get("b"));
+    expect(subscriptionPrices(snapshot, { openai: "ChatGPT Business" }).get("b")).toEqual(median.get("b"));
+    const cost = (plans?: Record<string, string>) => computeIndex(snapshot, { ...base, variants: "all", subscriptionPlans: plans }).ranked.find((r) => r.variant.id === "b@xhigh")!;
+    expect(cost({ openai: "ChatGPT Plus" }).costUsd).toBeCloseTo(cost().costUsd! * 2, 9);
+    expect(cost({ openai: "ChatGPT Plus" }).costSource).toContain("ChatGPT Plus");
+    expect(subscriptionPlanOptions(snapshot)).toEqual([{ labId: "openai", plans: [{ plan: "ChatGPT Plus", feeUsd: 20, models: 1 }, { plan: "ChatGPT Pro 10x", feeUsd: 100, models: 1 }, { plan: "ChatGPT Pro 20x", feeUsd: 200, models: 1 }] }]);
+    const link = encodeIndex({ ...base, subscriptionPlans: { openai: "ChatGPT Plus", zhipu: "GLM Coding Lite (老客 ¥49), 闲时|x:y" } });
+    expect(decodeIndex(link, "t")!.subscriptionPlans).toEqual({ openai: "ChatGPT Plus", zhipu: "GLM Coding Lite (老客 ¥49), 闲时|x:y" });
+    expect(encodeIndex(base)).not.toContain("plans=");
+  });
+  it("labels an assumed model with the plan the model it copies is priced at", () => {
+    const snapshot = snap();
+    const b = snapshot.observations.find((o) => o.benchmarkId === SUBSCRIPTION_BENCHMARK && o.variantId === "b@xhigh")!;
+    b.details = plan("ChatGPT Pro 10x", { feeUsd: 100, plans: [{ plan: "ChatGPT Pro 10x", feeUsd: 100, usdPerMtok: 0.0147, confidence: "medium" }, { plan: "ChatGPT Plus", feeUsd: 20, usdPerMtok: 0.0294, confidence: "high" }] });
+    snapshot.observations.push({ ...b, variantId: "c@default", details: { ...(b.details as Record<string, unknown>), plan: "ChatGPT Pro 10x (assumed same as B)", sameAs: "b", confidence: "assumed", plans: [] } });
+    expect(subscriptionPrices(snapshot).get("c")!.plan).toBe("ChatGPT Pro 10x (assumed same as B)");
+    expect(subscriptionPrices(snapshot, { openai: "ChatGPT Plus" }).get("c")).toMatchObject({ plan: "ChatGPT Plus (assumed same as B)", feeUsd: 20 });
   });
   it("round-trips through share links, omitting the default", () => {
     expect(encodeIndex(base)).not.toContain("costbasis");

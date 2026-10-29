@@ -37,6 +37,8 @@ export interface IndexConfig {
   costBasis?: CostBasis;
   /** `true`: plans are cheaper by what limit resets gave their subscribers in the last 30 days. Off by default: the plan is priced as measured. Only matters on the subscription basis. (`false` is what older saved configs carry: the same as unset.) */
   planResets?: boolean;
+  /** Subscription basis: the plan to price each lab's models at (lab id → plan name, from the source's plan list). A lab not named, or a model without that plan, uses its median plan. */
+  subscriptionPlans?: Record<string, string>;
   timeSource?: TaskMetricSource;
   /** Optional filters */
   labs?: string[]; // include only these labIds
@@ -345,7 +347,7 @@ export function computeIndex(snapshot: Snapshot, config: IndexConfig, view: View
   const models = new Map(snapshot.models.map((m) => [m.id, m]));
   const idx = indexObservations(snapshot);
   const costData = taskMetricData(snapshot, view.costBenchmark ?? config.costSource ?? "aa", "cost");
-  const plans = effectiveBasis(config.costBasis) === "subscription" ? subscriptionPrices(snapshot) : undefined;
+  const plans = effectiveBasis(config.costBasis) === "subscription" ? subscriptionPrices(snapshot, config.subscriptionPlans) : undefined;
   const resetBoosts = plans && config.planResets === true ? planResetBoosts(snapshot) : undefined;
 
   const used = Object.entries(config.weights).filter(([id, w]) => w > 0 && benches.has(id));

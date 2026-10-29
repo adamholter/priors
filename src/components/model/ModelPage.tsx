@@ -1,6 +1,7 @@
 "use client";
 import { SiteFooter } from "@/components/SiteFooter";
 import { usePlanResetsOn, withResetsPref } from "@/lib/plan-resets-pref";
+import { useSubscriptionPlansPref, withPlansPref } from "@/lib/subscription-plans-pref";
 import Link from "next/link";
 import { HeaderAccount } from "@/components/AccountMenu";
 import { SettingsButton } from "../SiteSettings";
@@ -73,11 +74,11 @@ export function ModelPage({ snapshot: base, modelId, rank }: { snapshot: Snapsho
   const pal = useChartPalette();
   const labC = markColor(lab?.color ?? "#2F4FB0", pal, lab?.id);
   const color = useMemo(() => ({ lab: labC, name: (id: string) => names.get(id) ?? id }), [labC, names]);
-  const resetsOn = usePlanResetsOn();
-  const mix = useMemo(() => withResetsPref(current.config, resetsOn), [current.config, resetsOn]);
+  const resetsOn = usePlanResetsOn(), plansPref = useSubscriptionPlansPref();
+  const mix = useMemo(() => withPlansPref(withResetsPref(current.config, resetsOn), plansPref), [current.config, resetsOn, plansPref]);
   const result = useMemo(() => computeIndex(snapshot, { ...mix, variants: "all" }), [snapshot, mix]);
   // Cost per task is measured per variant; the full-pool "all time" index supplies it for every variant.
-  const costs = useMemo(() => { const r = computeIndex(snapshot, { ...withResetsPref(defaultConfig(snapshot), resetsOn), variants: "all", releasedAfter: "", strictness: 0 }); const m = new Map<string, number>(); for (const x of r.ranked) if (x.costUsd) { m.set(x.variant.id, x.costUsd); const base = x.variant.id.split("~")[0]; if (!m.has(base)) m.set(base, x.costUsd); } return m; }, [snapshot, resetsOn]);
+  const costs = useMemo(() => { const r = computeIndex(snapshot, { ...withPlansPref(withResetsPref(defaultConfig(snapshot), resetsOn), plansPref), variants: "all", releasedAfter: "", strictness: 0 }); const m = new Map<string, number>(); for (const x of r.ranked) if (x.costUsd) { m.set(x.variant.id, x.costUsd); const base = x.variant.id.split("~")[0]; if (!m.has(base)) m.set(base, x.costUsd); } return m; }, [snapshot, resetsOn, plansPref]);
   // Not enough measured data at the mix's strictness: fall back to estimates rather than showing nothing.
   const strictMine = result.ranked.filter((r) => r.model.id === modelId);
   const loose = useMemo(() => strictMine.length ? null : computeIndex(snapshot, { ...mix, variants: "all", strictness: 0 }), [snapshot, mix, strictMine.length]);

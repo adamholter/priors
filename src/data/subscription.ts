@@ -52,13 +52,32 @@ export const CODEX_LIMITS_BENCHMARK = "codex-plus-messages";
 const STANDARD_MIX: TokenMix = { cache: 0.97, input: 0.025, output: 0.005 };
 const median = (xs: number[]) => { const s = [...xs].sort((a, b) => a - b); return s.length % 2 ? s[(s.length - 1) / 2] : (s[s.length / 2 - 1] + s[s.length / 2]) / 2; };
 
+/** The plans a viewer can price each lab at (Advanced → Plan): every plan a model of that lab was measured on, by monthly fee. Labs with one plan are left out. */
+export function subscriptionPlanOptions(snapshot: Snapshot): { labId: string; plans: { plan: string; feeUsd?: number; models: number }[] }[] {
+  const lab = new Map(snapshot.models.map((m) => [m.id, m.labId])), variants = new Map(snapshot.variants.map((v) => [v.id, v.modelId]));
+  const byLab = new Map<string, Map<string, { plan: string; feeUsd?: number; models: Set<string> }>>();
+  for (const o of snapshot.observations) {
+    if (o.benchmarkId !== SUBSCRIPTION_BENCHMARK) continue;
+    const d = o.details as unknown as SubscriptionDetails | undefined, modelId = variants.get(o.variantId) ?? o.variantId.split("@")[0], labId = lab.get(modelId);
+    if (!labId || !d?.plans?.length || d.ratio != null || d.sameAs) continue;
+    const plans = byLab.get(labId) ?? byLab.set(labId, new Map()).get(labId)!;
+    for (const p of d.plans) (plans.get(p.plan) ?? plans.set(p.plan, { plan: p.plan, feeUsd: p.feeUsd, models: new Set() }).get(p.plan)!).models.add(modelId);
+  }
+  return [...byLab].map(([labId, plans]) => ({ labId, plans: [...plans.values()].map((p) => ({ plan: p.plan, feeUsd: p.feeUsd, models: p.models.size })).sort((a, b) => (a.feeUsd ?? 0) - (b.feeUsd ?? 0) || a.plan.localeCompare(b.plan)) }))
+    .filter((l) => l.plans.length > 1)
+    .sort((a, b) => Math.max(...b.plans.map((p) => p.models)) - Math.max(...a.plans.map((p) => p.models)) || a.labId.localeCompare(b.labId));
+}
+
 /**
  * Share of API cost a subscriber pays, per model. A plan debits its allowance in proportion to API
  * list prices, so the same share applies to a measured cost per task at any reasoning effort.
  * List prices are the ones the source converted the plan with, falling back to Artificial Analysis
  * for models it has not priced yet. Models without a first-party plan are absent.
+ * Each model is priced at its median plan unless `chosen` names a plan for its lab (lab id → plan name)
+ * that the model was measured on; a model without that plan keeps its median one.
  */
-export function subscriptionPrices(snapshot: Snapshot): Map<string, SubscriptionPrice> {
+export function subscriptionPrices(snapshot: Snapshot, chosen: Record<string, string> = {}): Map<string, SubscriptionPrice> {
+  const labOf = new Map(snapshot.models.map((m) => [m.id, m.labId]));
   const out = new Map<string, SubscriptionPrice>();
   const mixes = new Map<string, TokenMix>();
   const variants = new Map(snapshot.variants.map((v) => [v.id, v]));
@@ -76,14 +95,17 @@ export function subscriptionPrices(snapshot: Snapshot): Map<string, Subscription
     if (d?.sameAs) assumed.push([modelId, d]);
     // A curated ratio is taken as is; 0 is a free tier.
     if (typeof d?.ratio === "number" && Number.isFinite(d.ratio) && d.ratio >= 0) { out.set(modelId, { ratio: d.ratio, plan: d.plan, feeUsd: d.feeUsd, confidence: d.confidence }); continue; }
-    if (!positive(o.value)) continue;
+    const want = chosen[labOf.get(modelId) ?? ""], pick = want !== undefined ? d?.plans?.find((p) => p.plan === want && positive(p.usdPerMtok)) : undefined;
+    const value = pick?.usdPerMtok ?? o.value;
+    if (!positive(value)) continue;
     const prices = d?.listPrice ?? aaPrices.get(modelId);
     if (!d?.mix || !prices) continue;
     const api = blendedApiPrice(prices, d.mix);
-    if (positive(api)) { out.set(modelId, { ratio: o.value / api, plan: d.plan, feeUsd: d.feeUsd, confidence: d.confidence }); mixes.set(modelId, d.mix); }
+    if (positive(api)) { out.set(modelId, pick ? { ratio: value / api, plan: pick.plan, feeUsd: pick.feeUsd, confidence: pick.confidence } : { ratio: value / api, plan: d.plan, feeUsd: d.feeUsd, confidence: d.confidence }); mixes.set(modelId, d.mix); }
   }
   // A model assumed to match another's subsidy pays that model's share, whatever its own list price (a free tier is not a plan's subsidy).
-  for (const [modelId, d] of assumed) { const from = out.get(d.sameAs!); if (positive(from?.ratio)) out.set(modelId, { ratio: from.ratio, plan: d.plan, feeUsd: d.feeUsd, confidence: d.confidence }); }
+  // Its label follows the plan the other model is priced at ("Google AI Pro (assumed same as Argon)").
+  for (const [modelId, d] of assumed) { const from = out.get(d.sameAs!); if (positive(from?.ratio)) out.set(modelId, { ratio: from.ratio, plan: d.plan.replace(/^.*?(?= \(assumed same as )/, from.plan), feeUsd: from.feeUsd, confidence: d.confidence }); }
   // An OpenAI model with no plan data yet, priced from Codex's published limits: a plan's five-hour allowance is the
   // same budget whichever model spends it, so a model allowed k times the messages of a measured one at p times its
   // API price per token pays 1/(k·p) of that model's share (same tokens per message assumed). The median over every

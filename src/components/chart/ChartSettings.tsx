@@ -14,13 +14,15 @@ import styles from "./ChartSettings.module.css";
 
 const EFFORT_LABELS: Record<string, string> = { none: "none", low: "low", medium: "medium", high: "high", xhigh: "xhigh", max: "max" };
 
-export function ChartSettings({ label, mode, onChange, efforts, releasedAfter, onChangeReleased, models = [], excluded, onToggleModel, onShowAllModels, onHideAllModels, onShowOnly, view, onView, dataSource, costBasis, planResets, defaultScale, anchor, formula }: {
+export function ChartSettings({ label, mode, onChange, efforts, releasedAfter, onChangeReleased, models = [], excluded, onToggleModel, onShowAllModels, onHideAllModels, onShowOnly, view, onView, dataSource, costBasis, planResets, subscriptionPlans, defaultScale, anchor, formula }: {
   /** Advanced: a custom formula for this chart's metric. Omitted where a chart has no formula support. */
   formula?: FormulaSettings;
   /** Cost charts: price tasks at API list prices or at each lab's subscription plan. */
   costBasis?: { value: CostBasis; onChange: (basis: CostBasis) => void };
   /** Subscription pricing: count limit resets (what each lab gave its subscribers in the last 30 days). Shown under Advanced. */
   planResets?: { value: boolean; onChange: (on: boolean) => void; note?: string };
+  /** Subscription pricing: the plan each lab's models are priced at (`planPicker`). Unpicked labs use each model's median plan. Shown under Advanced. */
+  subscriptionPlans?: { labs: { labId: string; name: string; plans: { plan: string; feeUsd?: number; models: number }[] }[]; value: Record<string, string>; onChange: (labId: string, plan?: string) => void };
   anchor?: string;
   /** Default metric scale, when the chart supports switching to linear. */
   defaultScale?: "log" | "linear";
@@ -88,6 +90,9 @@ export function ChartSettings({ label, mode, onChange, efforts, releasedAfter, o
     })}{!filtered.length && <p>No matching models.</p>}</div>
   </>;
   const resets = costBasis?.value === "subscription" ? planResets : undefined;
+  const plans = costBasis?.value === "subscription" && subscriptionPlans?.labs.length ? subscriptionPlans : undefined;
+  const plansSet = plans ? plans.labs.filter((l) => plans.value[l.labId]).length : 0;
+  const fee = (usd?: number) => usd ? ` · $${usd % 1 ? usd.toFixed(2) : usd}/mo` : "";
   const settingsPanel = <>
     {(dataSource || onChangeReleased) && <div className={styles.dataControls}>
       {dataSource && <div className={styles.dataField}><label htmlFor={`${id}-source`}>Data source</label><select aria-label={`${label} data source`} id={`${id}-source`} value={dataSource.value} onChange={e => dataSource.onChange(e.target.value as TaskMetricSource)}>{dataSource.options.map(s => <option key={s.id} value={s.id}>{s.name} ({s.modelCount} models)</option>)}</select></div>}
@@ -116,8 +121,19 @@ export function ChartSettings({ label, mode, onChange, efforts, releasedAfter, o
         {!!hl?.items.length && <label><span>Highlight guides</span><input type="checkbox" checked={view.guides !== false} onChange={e => onView({ ...view, guides: e.target.checked })} /></label>}
       </div>
     </>}
-    {((formula && view && onView) || resets) && <details className={styles.advanced} open={advanced} onToggle={e => setAdvanced(e.currentTarget.open)}>
-      <summary>Advanced{view?.formula?.trim() ? <em>formula on</em> : resets?.value ? <em>resets on</em> : null}</summary>
+    {((formula && view && onView) || resets || plans) && <details className={styles.advanced} open={advanced} onToggle={e => setAdvanced(e.currentTarget.open)}>
+      <summary>Advanced{view?.formula?.trim() ? <em>formula on</em> : plansSet ? <em>{plansSet === 1 ? "1 plan" : `${plansSet} plans`} picked</em> : resets?.value ? <em>resets on</em> : null}</summary>
+      {plans && <div className={styles.plans} role="group" aria-labelledby={`${id}-plans-label`}>
+        <p id={`${id}-plans-label`}>Plan<span>each model&apos;s median plan unless picked</span></p>
+        {plans.labs.map((l) => { const v = plans.value[l.labId] ?? ""; return <div key={l.labId} className={styles.planRow}>
+          <label htmlFor={`${id}-plan-${l.labId}`}>{l.name}</label>
+          <select id={`${id}-plan-${l.labId}`} aria-label={`${l.name} plan`} value={v} onChange={e => plans.onChange(l.labId, e.target.value || undefined)}>
+            <option value="">Median plan</option>
+            {l.plans.map((p) => <option key={p.plan} value={p.plan}>{p.plan}{fee(p.feeUsd)}</option>)}
+            {v && !l.plans.some((p) => p.plan === v) && <option value={v}>{v} (no data)</option>}
+          </select>
+        </div>; })}
+      </div>}
       {resets && <div className={styles.toggles}>
         <label title={resets.note}><span>Count limit resets</span><input type="checkbox" checked={resets.value} onChange={e => resets.onChange(e.target.checked)} /></label>
         {resets.note && <p className={styles.resetNote}>{resets.note}</p>}
