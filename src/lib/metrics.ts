@@ -52,11 +52,13 @@ export function chartLabel(r: RankedVariant) {
   const named = new RegExp(`\\b${r.variant.effort}\\b`, "i").test(r.model.name);
   const name = r.variant.effort === "default" || named ? r.model.name : `${r.model.name} ${r.variant.effort}`;
   const source = r.variant.sourceModel?.name ?? "";
-  return /no fallback|without fallback/i.test(source) ? `${name}, no fallback` : /fallback/i.test(source) ? `${name}, fallback` : name;
+  const label = /no fallback|without fallback/i.test(source) ? `${name}, no fallback` : /fallback/i.test(source) ? `${name}, fallback` : name;
+  return r.scoreEstimate ? `${label}, est.` : label;
 }
 
-/** Gallery panel definitions — shared between the client gallery and share cards. */
-export function metricPanels(snapshot: Snapshot, ranked: RankedVariant[], timeSource: TaskMetricSource = "aa"): MetricPanel[] {
+/** Gallery panel definitions — shared between the client gallery and share cards.
+ *  `estimated` (IndexResult.estimated, effort-filtered like `ranked`) joins the release-date chart only: models the index cannot score, placed in time on an estimated score. */
+export function metricPanels(snapshot: Snapshot, ranked: RankedVariant[], timeSource: TaskMetricSource = "aa", estimated: RankedVariant[] = []): MetricPanel[] {
   const obs = new Map<string, Map<string, Observation>>();
   for (const o of snapshot.observations) {
     const b = obs.get(o.benchmarkId) ?? obs.set(o.benchmarkId, new Map()).get(o.benchmarkId)!;
@@ -73,7 +75,7 @@ export function metricPanels(snapshot: Snapshot, ranked: RankedVariant[], timeSo
   const decode = (rows: RankedVariant[]): MetricPoint[] => rows.flatMap((r) => { const x = timeData.get(r.variant.id)?.value; return x == null ? [] : [{ x, r }]; });
   const tokens = iiId ? at(iiId, (o) => outputTokensPerTask(o.details?.outputTokensPerTask) ?? o.outputTokens ?? undefined) : () => [];
   const uptime = at("openrouter-uptime");
-  const dates = (rows: RankedVariant[]) => rows.flatMap((r) => r.model.releaseDate ? [{ x: Date.parse(r.model.releaseDate), r }] : []);
+  const dates = (rows: RankedVariant[]) => [...rows, ...estimated.filter((e) => !rows.some((r) => r.model.id === e.model.id))].flatMap((r) => r.model.releaseDate ? [{ x: Date.parse(r.model.releaseDate), r }] : []);
   const has = (f: (rows: RankedVariant[]) => MetricPoint[]) => f(ranked).length >= MIN_PTS;
 
   const fmt = (u: string) => (x: number) => `${x.toLocaleString(undefined, { maximumFractionDigits: 2 })}${u}`;
@@ -181,11 +183,11 @@ export function chartTitle(c: string | undefined): string | undefined {
 }
 
 /** Resolve a chart param to its card kind: "rankings" | "cost" | a metric chart. */
-export function chartKind(snapshot: Snapshot, ranked: RankedVariant[], c: string | undefined, timeSource: TaskMetricSource = "aa"): { kind: "rankings" | "cost" } | { kind: "metric"; chart: MetricChart } | null {
+export function chartKind(snapshot: Snapshot, ranked: RankedVariant[], c: string | undefined, timeSource: TaskMetricSource = "aa", estimated: RankedVariant[] = []): { kind: "rankings" | "cost" } | { kind: "metric"; chart: MetricChart } | null {
   if (!c || c === "rankings") return { kind: "rankings" };
   if (c === "cost") return { kind: "cost" };
   if (c === "output-speed") return ranked.some((r) => r.speed) ? { kind: "metric", chart: speedChart } : null;
-  const panel = metricPanels(snapshot, ranked, timeSource).find((p) => anchorOf(p.title) === c && p.chart);
+  const panel = metricPanels(snapshot, ranked, timeSource, estimated).find((p) => anchorOf(p.title) === c && p.chart);
   return panel?.chart ? { kind: "metric", chart: panel.chart } : null;
 }
 

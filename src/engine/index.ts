@@ -1,6 +1,7 @@
 import { planResetBoosts } from "../data/plan-resets";
 import { effectiveBasis, subscriptionPrices, type CostBasis, type SubscriptionPrice } from "../data/subscription";
 import { supersededModelIds } from "./superseded";
+import { progressEstimates, type ScoreEstimate } from "./progress-estimate";
 import { taskMetricData, taskMetricDescription, type TaskMetricSource } from "../data/task-metrics";
 import type { Benchmark, FocusId, Model, Observation, Snapshot, Variant } from "../data/types";
 import { AA_V5_WEIGHTS, aaComponentWeights } from "../data/aa-index";
@@ -163,6 +164,8 @@ export interface RankedVariant {
   speed?: number;
   onFrontier: boolean;
   rank: number;
+  /** Not ranked: the index could not score this model, so its score is estimated (see `progressEstimates`). */
+  scoreEstimate?: ScoreEstimate;
 }
 
 export interface IndexResult {
@@ -176,6 +179,8 @@ export interface IndexResult {
   candidateModelIds: string[];
   /** Older versions of a model line that a default view leaves out (see `supersededModelIds`); empty when it was applied. */
   autoHidden: string[];
+  /** Models left out for coverage, with a score estimated from AA's Progress Index: the release-date chart draws them, nothing ranks them. A default view drops superseded ones as it does for `ranked`. */
+  estimated: RankedVariant[];
 }
 
 /* ------------------------------------------------------------------ */
@@ -345,7 +350,7 @@ export function computeIndex(snapshot: Snapshot, config: IndexConfig, view: View
 
   const used = Object.entries(config.weights).filter(([id, w]) => w > 0 && benches.has(id));
   const total = used.reduce((a, [, w]) => a + w, 0);
-  if (!used.length || total <= 0) return { config, benchmarks: [], ranked: [], excluded: [], candidateModelIds: [], autoHidden: [] };
+  if (!used.length || total <= 0) return { config, benchmarks: [], ranked: [], excluded: [], candidateModelIds: [], autoHidden: [], estimated: [] };
   const strictness = strictnessOf(config);
   const shares = used.map(([id, w]) => ({ benchmark: benches.get(id)!, share: (w / total) * 100, required: isBenchmarkRequired(config, id) }));
   const normalizeMeasured = new Map(snapshot.benchmarks.map((b) => [b.id, makeNormalizer(b, [...(idx.get(b.id)?.values() ?? [])].map((o) => o.value))]));
@@ -457,10 +462,14 @@ export function computeIndex(snapshot: Snapshot, config: IndexConfig, view: View
   out.forEach((r, i) => (r.rank = i + 1));
   markFrontier(out);
   // A view nobody has curated leaves out superseded, off-frontier versions. Scores are unchanged: the models still shaped the normalization.
-  const superseded = view.defaultView ? supersededModelIds(out, (config.highlight ?? []).map((h) => h.split("@")[0])) : new Set<string>();
+  const keep = (config.highlight ?? []).map((h) => h.split("@")[0]);
+  const superseded = view.defaultView ? supersededModelIds(out, keep) : new Set<string>();
   const curated = !view.defaultView || config.excludeModels !== undefined || config.onlyModels !== undefined;
+  let estimated = progressEstimates(snapshot, ranked, excluded, config.variants === "best");
+  // Estimates never change which ranked models a view drops; they only go when a newer version replaces them.
+  if (!curated && estimated.length) { const gone = supersededModelIds([...out, ...estimated], keep); estimated = estimated.filter((r) => !gone.has(r.model.id)); }
   if (!curated && superseded.size) { out = out.filter((r) => !superseded.has(r.model.id)); out.forEach((r, i) => (r.rank = i + 1)); }
-  return { config, benchmarks: shares, ranked: out, excluded, candidateModelIds, autoHidden: curated ? [] : [...superseded] };
+  return { config, benchmarks: shares, ranked: out, excluded, candidateModelIds, autoHidden: curated ? [] : [...superseded], estimated };
 }
 
 const eligibility = new WeakMap<Map<string, Model>, Map<string, boolean>>();

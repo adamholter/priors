@@ -62,6 +62,16 @@ describe("release chronology", () => {
     expect(series(true).find(s => s.id === "frontier")?.data.map(p => p.value[1])).toEqual([50, 60, 70]);
   });
 
+  it("draws an estimated score as a ring, highlighted or not, and says so in its label", () => {
+    const est = { ...point("old", 2, 40), r: { ...point("old", 2, 40).r, scoreEstimate: { benchmarkId: "aa-progress-index-v1", progress: 300, pairs: 90, r2: 0.98 } } } as ScatterPoint;
+    for (const highlight of [undefined, { items: ["old"], guides: false }, { items: ["best"], guides: false }]) {
+      const marks = (scatterOption({ pts: [...points, est], labs: [], better: "lower", xName: "Release date", scale: "time", formatX: String, view: DEFAULT_VIEW, pal: LIGHT_PALETTE, narrow: false, highlight }).series as { id: string; data: { id: string; name: string; itemStyle: { color: string } }[] }[]).find(s => s.id === "marks")!.data;
+      expect(marks.find(m => m.id === "old@high")!.itemStyle.color).toBe(LIGHT_PALETTE.bg);
+      expect(marks.find(m => m.id === "old@high")!.name).toBe("old high, est.");
+      expect(marks.find(m => m.id === "best@high")!.itemStyle.color).not.toBe(LIGHT_PALETTE.bg);
+    }
+  });
+
   it("migrates the old date default without discarding density or effort links", () => {
     const saved = { ...DEFAULT_VIEW, density: 0.8, links: false };
     expect(restoreScatterView("scatter", false, saved)).toMatchObject({ frontier: false, density: 0.8, links: false });

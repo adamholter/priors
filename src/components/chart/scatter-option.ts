@@ -140,13 +140,15 @@ export function scatterOption({ pts, labs, better, xName, xShort, xUnit = "", sc
   const markOf = (p: ScatterPoint) => {
     const id = p.r.variant.id, c = color.get(p.r.model.labId), front = view.frontier && onFrontier.has(id);
     if (fallen?.has(id)) return { itemStyle: { opacity: 0 }, symbolSize: 0, label: { show: false }, silent: true };
-    if (!on) { const show = labeled.has(id); return { itemStyle: { color: c && markFill(c, pal, "dot"), borderColor: front ? pal.ink : pal.bg, borderWidth: 1.5, opacity: show || front ? 1 : 0.8 }, symbolSize: (front ? 11 : 9) * m, label: { show } }; }
-    if (!hl.has(p.r.model.id)) return { itemStyle: { color: dimColor(c, pal), borderColor: pal.bg, borderWidth: 1, opacity: pal.dark ? 0.55 : 0.6 }, symbolSize: 7 * m, label: { show: false }, emphasis: { label: { show: true } } };
+    // An estimated score (RankedVariant.scoreEstimate) draws as a ring: placed, not measured.
+    const est = !!p.r.scoreEstimate;
+    if (!on) { const show = labeled.has(id); return { itemStyle: { color: est ? pal.bg : c && markFill(c, pal, "dot"), borderColor: est ? c : front ? pal.ink : pal.bg, borderWidth: est ? 1.6 : 1.5, opacity: show || front ? 1 : 0.8 }, symbolSize: (front ? 11 : 9) * m, label: { show } }; }
+    if (!hl.has(p.r.model.id)) return { itemStyle: { color: est ? pal.bg : dimColor(c, pal), borderColor: est ? dimColor(c, pal) : pal.bg, borderWidth: est ? 1.2 : 1, opacity: pal.dark ? 0.55 : 0.6 }, symbolSize: 7 * m, label: { show: false }, emphasis: { label: { show: true } } };
     const isBest = featured.has(p.r.variant.id);
     const label = isBest
       ? { show: true, fontWeight: 600, color: pal.ink }
       : { show: p.r.variant.effort !== "default", formatter: p.r.variant.effort.toUpperCase(), fontSize: 9 * fontScale, color: pal.grey, backgroundColor: "transparent", textBorderColor: pal.bg, textBorderWidth: 3, distance: 5 };
-    return { itemStyle: { color: c && markFill(c, pal, "dot"), borderColor: pal.ink, borderWidth: isBest ? 1.8 : 1.2, opacity: 1 }, symbolSize: (isBest ? 12 : 9) * m, label, z: 10 };
+    return { itemStyle: { color: est ? pal.bg : c && markFill(c, pal, "dot"), borderColor: est ? c : pal.ink, borderWidth: est ? 2.2 : isBest ? 1.8 : 1.2, opacity: 1 }, symbolSize: (isBest ? 12 : 9) * m, label, z: 10 };
   };
   // Chosen marks draw last so they sit on top and win label overlap.
   const drawOrder = on ? [...ordered].sort((a, b) => Number(hl.has(a.r.model.id)) - Number(hl.has(b.r.model.id))) : ordered;

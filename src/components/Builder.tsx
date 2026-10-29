@@ -113,6 +113,7 @@ export function Builder({ snapshot: base, initialIndices, labPlacement }: { snap
   }, [active, labPlacement]);
   const effortProps = { efforts: { value: active.efforts ?? DEFAULT_EFFORTS, onChange: (efforts: string[]) => update({ ...active, efforts }) } };
   const metricRanked = useMemo(() => filterEfforts(result.ranked, active.efforts), [result.ranked, active.efforts]);
+  const metricEstimated = useMemo(() => filterEfforts(result.estimated, active.efforts), [result.estimated, active.efforts]);
   const releaseProps = { releasedAfter: active.releasedAfter, onChangeReleased: (v: string) => update({ ...active, releasedAfter: v }) };
 
   // write URL (debounced) when indices change
@@ -195,7 +196,7 @@ export function Builder({ snapshot: base, initialIndices, labPlacement }: { snap
           </div>
           <div className="builder-more">
             <h2 className="text-[22px] mb-1">More metrics</h2>
-            <MetricGallery timeSource={active.timeSource} onTimeSourceChange={(timeSource) => update({ ...active, timeSource })} ranked={metricRanked} mode={paretoMode} snapshot={snapshot} labs={snapshot.labs} benchmarks={result.benchmarks} config={active} settings={{ ...releaseProps, ...effortProps, ...modelPicker }} />
+            <MetricGallery timeSource={active.timeSource} onTimeSourceChange={(timeSource) => update({ ...active, timeSource })} ranked={metricRanked} estimated={metricEstimated} mode={paretoMode} snapshot={snapshot} labs={snapshot.labs} benchmarks={result.benchmarks} config={active} settings={{ ...releaseProps, ...effortProps, ...modelPicker }} />
           </div>
         </section>
       </main>

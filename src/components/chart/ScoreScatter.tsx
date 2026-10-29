@@ -90,6 +90,7 @@ function PointCard({ point, labs, pal, onFrontier, format, unit, extra, onClose 
     <div className="flex items-start justify-between gap-2"><div className="font-semibold">{point.r.variant.sourceModel?.name ?? chartLabel(point.r)}</div>{onClose && <button type="button" aria-label="Close selection" className="pointer-events-auto -mr-1 -mt-0.5 p-0.5" style={{ color: pal.grey }} onClick={onClose}><IconX size={13} aria-hidden="true" /></button>}</div>
     <div style={{ color: pal.grey, fontSize: 11 }}>{lab}{onFrontier ? " · on the frontier" : ""}</div>
     <div className="mt-1.5 font-mono">{axis.format(point.r.score)} · {format(point.raw ?? point.x)}{unit ? ` ${unit}` : ""}{extra}</div>
+    {point.r.scoreEstimate && <div className="mt-1" style={{ color: pal.grey, fontSize: 11 }}>Estimated: the index lacks its evaluations. From AA Progress Index {Math.round(point.r.scoreEstimate.progress)}, fit on {point.r.scoreEstimate.pairs} scored efforts (R² {point.r.scoreEstimate.r2.toFixed(2)}).</div>}
   </div>;
 }
 

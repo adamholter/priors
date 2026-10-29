@@ -39,11 +39,11 @@ export interface ChartSpec {
  * from the full ranked set via pickPoints: `cm` overrides the index's pareto effort mode, and
  * best mode keeps each model's best *measured* effort rather than dropping the model.
  */
-export function scatterSpec(snapshot: Snapshot, ranked: RankedVariant[], index: IndexConfig, c: string | undefined, cm?: string, cs?: string, hidden: ChartHidden = EMPTY_HIDDEN, labelScale?: number, allModels = false): ChartSpec | null {
+export function scatterSpec(snapshot: Snapshot, ranked: RankedVariant[], index: IndexConfig, c: string | undefined, cm?: string, cs?: string, hidden: ChartHidden = EMPTY_HIDDEN, labelScale?: number, allModels = false, estimated: RankedVariant[] = []): ChartSpec | null {
   // The page draws its cost, time and speed charts from the efforts the index shows; the card must start from the same set.
   const from = (chart: MetricChart, title: string, hasTitle: boolean) => metricSpec(chart, ranked, index, title, hasTitle, { cm, cs, hidden, labelScale, allModels });
   if (c === "cost") return from(costChartFor(effectiveBasis(index.costBasis)), effectiveBasis(index.costBasis) === "subscription" ? "Score vs subscription cost per task" : "Score vs cost per task", true);
-  const ck = chartKind(snapshot, ranked, c, index.timeSource);
+  const ck = chartKind(snapshot, ranked, c, index.timeSource, filterEfforts(estimated, index.efforts));
   if (ck?.kind !== "metric") return null;
   return from(ck.chart, chartTitle(c) ?? ck.chart.xName, false);
 }
