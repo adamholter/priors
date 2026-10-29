@@ -19,6 +19,7 @@ import { fetchFreeTiers } from "./free-tiers";
 import { applyFreeTiers, carriedFreeTiers } from "../../src/data/free-tier";
 import { SUBSCRIPTION_BENCHMARK } from "../../src/data/subscription";
 import { applyOpenWeights } from "../../src/data/open-weights";
+import { fillReleaseDates, openRouterDates, type OpenRouterCreated } from "../../src/data/release-dates";
 
 const args = process.argv.slice(2);
 const opt = (k: string) => { const i = args.indexOf(`--${k}`); return i >= 0 ? args[i + 1] : undefined; };
@@ -244,6 +245,20 @@ async function main() {
     if (claims.added.length) console.log(`LAUNCH_CLAIMS filled ${claims.added.length}: ${claims.added.join(", ")}`);
     if (claims.replaced.length) console.log(`LAUNCH_CLAIMS superseded by the boards (delete them): ${claims.replaced.join(", ")}`);
     if (claims.untracked.length) console.log(`LAUNCH_CLAIMS skipped, benchmark not in this snapshot: ${claims.untracked.join(", ")}`);
+  }
+
+  // Models no source dates: lab overrides, then the OpenRouter listing date, then Mistral's YYMM id suffix.
+  {
+    const dateCtx = makeContext("release-dates");
+    let orDates = new Map<string, string>();
+    try {
+      const listing = await dateCtx.fetchJson<{ data?: OpenRouterCreated[] }>("https://openrouter.ai/api/v1/models");
+      orDates = openRouterDates(listing.data ?? []);
+    } catch (e) {
+      dateCtx.log(`OpenRouter listing failed, skipping that fallback: ${e instanceof Error ? e.message : String(e)}`);
+    }
+    const { filled, stillMissing } = fillReleaseDates(snap.models, orDates);
+    dateCtx.log(`release dates filled: ${filled.override.length} override, ${filled.openrouter.length} OpenRouter, ${filled.suffix.length} id suffix; ${stillMissing.length} still undated`);
   }
 
   // Models free today on OpenCode Zen or OpenRouter are priced at 0 in the subscription view.
