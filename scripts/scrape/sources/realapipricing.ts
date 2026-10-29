@@ -14,7 +14,7 @@
 import type { Source, ScrapeResult, RawRow } from "../../../src/data/types";
 import { normalizeLabel } from "../../../src/data/normalize";
 import { SUBSCRIPTION_BENCHMARK, type SubscriptionDetails, type TokenMix } from "../../../src/data/subscription";
-import { PLAN_CUTS, SUBSIDY_ASSUMPTIONS, SUBSIDY_OVERRIDES } from "./subscription-overrides";
+import { PLAN_CHANGES, PLAN_MULTIPLES, SUBSIDY_ASSUMPTIONS, SUBSIDY_OVERRIDES } from "./subscription-overrides";
 
 const SITE = "https://realapipricing.com";
 const REPO = "https://github.com/FeiZhuLulu/real-api-pricing";
@@ -33,6 +33,9 @@ const squash = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
 /** Real API Pricing model slugs whose Priors id differs. Gemini 4 Argon was Gemini 4's first tier, so it keeps the bare id. */
 const PRIORS_IDS: Record<string, string> = { "gemini-4-argon": "gemini-4" };
 
+/** Cheapest tokens first; at the same token price the bigger plan first, so a median among equals lands on the middle plan. */
+const cheaper = (a: Point, b: Point) => a.real_usd_per_mtok - b.real_usd_per_mtok || (b.price_usd ?? 0) - (a.price_usd ?? 0);
+
 /** One row per model: the median first-party subscription, with every first-party plan in details. */
 export function parseSubscriptions(json: Points, conventions: Conventions, channels: Channels): RawRow[] {
   const channelOf = (id: string) => channels.channels.find(([prefix]) => id.startsWith(prefix))?.[1];
@@ -40,8 +43,7 @@ export function parseSubscriptions(json: Points, conventions: Conventions, chann
     ? { cache: conventions.anthropicTokenMix.cache, input: 0, cacheWrite: conventions.anthropicTokenMix.cacheWrite, output: conventions.anthropicTokenMix.output }
     : workload === "lowCache" ? pickMix(conventions.lowCacheTokenMix) : pickMix(conventions.standardTokenMix);
   const byModel = new Map<string, Point[]>(), resold = new Map<string, Point[]>();
-  for (const raw of json.points) {
-    const p = cut(raw);
+  for (const p of withMultiples(json.points.map(changed))) {
     if (p.billing !== "subscription" || p.unmetered || !(p.real_usd_per_mtok > 0)) continue;
     const group = channelOf(p.id) === p.vendor ? byModel : resold;
     (group.get(p.model) ?? group.set(p.model, []).get(p.model)!).push(p);
@@ -52,12 +54,12 @@ export function parseSubscriptions(json: Points, conventions: Conventions, chann
   const name = (p: Point) => (p.plan_en || p.plan).replace(/\s*\(\d+\/\d+\+\)$/, "");
   const add = (all: Point[], pick: Point, note: string) => {
     const label = all[0].model_display.replace(/\s*\(v\d+\)$/, "");
-    const list = pick.list_price;
+    const list = pick.list_price ?? all.find((p) => p.list_price)?.list_price;
     const rate = list?.currency === "CNY" ? conventions.usdPerCny : 1;
     const details: SubscriptionDetails = {
       plan: name(pick), feeUsd: pick.price_usd ?? undefined, confidence: pick.confidence, mix: mixOf(pick.workload), dataDate: pick.data_date ?? undefined,
       ...(list ? { listPrice: { cached: list.cached / rate, input: list.input / rate, output: list.output / rate } } : {}),
-      plans: [...all].sort((a, b) => a.real_usd_per_mtok - b.real_usd_per_mtok).map((p) => ({ plan: name(p), feeUsd: p.price_usd ?? undefined, usdPerMtok: p.real_usd_per_mtok, confidence: p.confidence })),
+      plans: [...all].sort(cheaper).map((p) => ({ plan: name(p), feeUsd: p.price_usd ?? undefined, usdPerMtok: p.real_usd_per_mtok, confidence: p.confidence })),
     };
     rows.push({ benchmarkId: SUBSCRIPTION_BENCHMARK, modelLabel: label, value: pick.real_usd_per_mtok, sourceUrl: SITE, note: `${name(pick)}${pick.price_usd ? `, $${pick.price_usd}/month` : ""}; ${pick.confidence} confidence; ${note}`, details: details as unknown as Record<string, unknown> });
   };
@@ -72,13 +74,13 @@ export function parseSubscriptions(json: Points, conventions: Conventions, chann
   for (const all of byModel.values()) {
     if (!claim(all)) continue;
     const graded = all.filter((p) => p.confidence !== "low");
-    const pool = (graded.length ? graded : all).sort((a, b) => a.real_usd_per_mtok - b.real_usd_per_mtok);
+    const pool = (graded.length ? graded : all).sort(cheaper);
     add(all, pool[Math.floor(pool.length / 2)], `median of ${pool.length} first-party plan${pool.length === 1 ? "" : "s"}`);
   }
   // Models with no first-party plan: the best subsidy a reseller or harness offers (lowest token price,
   // medium confidence or better). Same list price at every plan, so the cheapest tokens are the biggest subsidy.
   for (const all of resold.values()) {
-    const graded = all.filter((p) => p.confidence !== "low").sort((a, b) => a.real_usd_per_mtok - b.real_usd_per_mtok);
+    const graded = all.filter((p) => p.confidence !== "low").sort(cheaper);
     if (!graded.length || !claim(all)) continue;
     add(all, graded[0], `best of ${graded.length} reseller plan${graded.length === 1 ? "" : "s"} (no first-party plan)`);
   }
@@ -108,12 +110,27 @@ export function parseSubscriptions(json: Points, conventions: Conventions, chann
   return rows;
 }
 
-/** A point measured before a plan's allowance was cut, priced at the allowance it sells with now. */
-export function cut(p: Point): Point {
-  const c = PLAN_CUTS.find((c) => p.id.startsWith(`${c.planId}::`));
+/** A point measured before a plan's allowance changed, priced at the allowance it sells with now. */
+export function changed(p: Point): Point {
+  const c = PLAN_CHANGES.find((c) => p.id.startsWith(`${c.planId}::`));
   const measured = p.data_date?.split("~").pop();
   if (!c || (measured && measured >= c.until)) return p;
   return { ...p, plan: c.plan, plan_en: c.plan, real_usd_per_mtok: p.real_usd_per_mtok * c.factor };
+}
+
+const LESS_SURE: Record<string, string> = { high: "medium", medium: "low", low: "low" };
+/** Adds the PLAN_MULTIPLES rows a model measured on the base plan lacks (or has only at low confidence). Runs after `changed`: these are priced at the allowance sold now. */
+export function withMultiples(points: Point[]): Point[] {
+  const out = [...points];
+  for (const m of PLAN_MULTIPLES) for (const base of points) {
+    if (!base.id.startsWith(`${m.base}::`) || base.billing !== "subscription" || base.unmetered || !(base.real_usd_per_mtok > 0) || !base.price_usd) continue;
+    const id = `${m.planId}::${base.id.slice(m.base.length + 2)}`, confidence = LESS_SURE[base.confidence] ?? "low";
+    const at = out.findIndex((p) => p.id === id);
+    if (at >= 0 && !(out[at].confidence === "low" && confidence !== "low")) continue;
+    const derived: Point = { ...base, id, plan: m.plan, plan_en: m.plan, price_usd: m.feeUsd, confidence, real_usd_per_mtok: base.real_usd_per_mtok * (m.feeUsd / base.price_usd) / m.multiple };
+    if (at >= 0) out[at] = derived; else out.push(derived);
+  }
+  return out;
 }
 
 const pickMix = (m: TokenMix): TokenMix => ({ cache: m.cache, input: m.input, output: m.output });

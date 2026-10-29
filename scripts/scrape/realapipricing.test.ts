@@ -36,12 +36,28 @@ describe("Real API Pricing subscriptions", () => {
   const computed = rows.filter((r) => !(r.details as { source?: string; sameAs?: string }).source && !(r.details as { sameAs?: string }).sameAs);
   it("keeps one row per model on its lab's own plans: no resellers, metered APIs or unmetered promos", () => {
     expect(computed.map((r) => r.modelLabel)).toEqual(["GPT 5.6 Sol", "Claude Opus 5.5", "Claude Fable 5", "GLM 5.3", "Gemini 4 Argon", "Qwen3.8 Max"]);
-    expect(row("GPT 5.6 Sol").details).toMatchObject({ plans: [{ plan: "ChatGPT Pro 10x" }, { plan: "ChatGPT Plus" }, { plan: "ChatGPT Pro 5x" }] });
+    expect(row("GPT 5.6 Sol").details).toMatchObject({ plans: [{ plan: "ChatGPT Pro 20x" }, { plan: "ChatGPT Pro 10x" }, { plan: "ChatGPT Plus" }] });
   });
-  it("prices plans measured before an allowance cut at the allowance they sell with now", () => {
-    const sol = (row("GPT 5.6 Sol").details as { plans: { plan: string; usdPerMtok: number }[] }).plans;
-    expect(sol.find((p) => p.plan === "ChatGPT Pro 10x")!.usdPerMtok).toBeCloseTo(0.031);
-    expect(sol.some((p) => p.plan === "ChatGPT Pro 20x")).toBe(false);
+  it("prices plans measured before an allowance change at the allowance they sell with now: Pro 100 doubled to 10× Plus, Pro 200 keeps 20×", () => {
+    const sol = (row("GPT 5.6 Sol").details as { plans: { plan: string; feeUsd: number; usdPerMtok: number }[] }).plans;
+    expect(sol.find((p) => p.plan === "ChatGPT Pro 10x")).toMatchObject({ feeUsd: 100, usdPerMtok: 0.0163 });
+    expect(sol.find((p) => p.plan === "ChatGPT Pro 20x")).toMatchObject({ feeUsd: 200, usdPerMtok: 0.0155 });
+    expect(row("GPT 5.6 Sol")).toMatchObject({ value: 0.0163, details: { plan: "ChatGPT Pro 10x" } });
+    // Measured on or after the change: already the new allowance.
+    const fresh = parseSubscriptions({ ...payload, points: payload.points.map((p) => p.id === "chatgpt_pro_5x::gpt-5.6-sol" ? { ...p, data_date: "2026-10-30" } : p) }, conventions, channels);
+    expect((fresh.find((r) => r.modelLabel === "GPT 5.6 Sol")!.details as { plans: { plan: string; usdPerMtok: number }[] }).plans.find((p) => p.plan === "ChatGPT Pro 5x")!.usdPerMtok).toBe(0.0326);
+  });
+  it("derives the Pro tiers for an OpenAI model measured only on Plus, one grade less sure, so it lands on the same plan as the others", () => {
+    const only = parseSubscriptions({ ...payload, points: [point("chatgpt_plus::gpt-6.1-sol", "ChatGPT Plus", "OpenAI", 0.023, { model_display: "GPT 6.1 Sol", confidence: "high", data_date: "2026-09-30" }), point("chatgpt_pro_5x::gpt-6-astra", "ChatGPT Pro 5x", "OpenAI", 0.11, { model_display: "GPT 6 Astra", price_usd: 100, confidence: "low" }), point("chatgpt_plus::gpt-6-astra", "ChatGPT Plus", "OpenAI", 0.126, { model_display: "GPT 6 Astra", confidence: "high" })] }, conventions, channels);
+    const plans = (label: string) => (only.find((r) => r.modelLabel === label)!.details as { plans: { plan: string; feeUsd: number; usdPerMtok: number; confidence: string }[] }).plans;
+    expect(plans("GPT 6.1 Sol")).toEqual([
+      { plan: "ChatGPT Pro 20x", feeUsd: 200, usdPerMtok: 0.0115, confidence: "medium" },
+      { plan: "ChatGPT Pro 10x", feeUsd: 100, usdPerMtok: 0.0115, confidence: "medium" },
+      { plan: "ChatGPT Plus", feeUsd: 20, usdPerMtok: 0.023, confidence: "high" },
+    ]);
+    expect(only.find((r) => r.modelLabel === "GPT 6.1 Sol")).toMatchObject({ value: 0.0115, details: { plan: "ChatGPT Pro 10x", dataDate: "2026-09-30" } });
+    // A low-confidence Pro row gives way to the one derived from a high-confidence Plus measurement.
+    expect(plans("GPT 6 Astra").find((p) => p.plan === "ChatGPT Pro 10x")).toMatchObject({ usdPerMtok: 0.063, confidence: "medium" });
   });
   it("falls back to the best medium-confidence reseller plan when a model has no first-party plan", () => {
     expect(row("Qwen3.8 Max")).toMatchObject({ value: 0.04, details: { plan: "Droid Max", confidence: "medium" } });
@@ -65,7 +81,7 @@ describe("Real API Pricing subscriptions", () => {
     expect(row("Muse Wonder (Max)")).toMatchObject({ identity: { modelId: "aa-muse-wonder" }, details: { ratio: 100 / 150 } });
   });
   it("takes the median plan rather than the cheapest, and low-confidence rows only as a last resort", () => {
-    expect(row("GPT 5.6 Sol")).toMatchObject({ value: 0.0325, details: { plan: "ChatGPT Plus", feeUsd: 20, confidence: "medium" } });
+    expect(row("GPT 5.6 Sol")).toMatchObject({ value: 0.0163, details: { plan: "ChatGPT Pro 10x", feeUsd: 100, confidence: "medium" } });
     expect(row("Claude Opus 5.5")).toMatchObject({ value: 0.0055, details: { plan: "Claude Max 5x", confidence: "high" } });
     expect(row("Claude Fable 5")).toMatchObject({ value: 0.16, details: { confidence: "low" } });
   });

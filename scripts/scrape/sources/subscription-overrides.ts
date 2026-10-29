@@ -54,11 +54,11 @@ export const SUBSIDY_ASSUMPTIONS: SubsidyAssumption[] = [
 ];
 
 /**
- * Plan allowances cut after Real API Pricing measured them. A measurement taken before `until` saw the
- * old allowance, so its token price is multiplied by `factor` (same fee, fewer tokens) and the plan is
- * renamed to what it sells as now.
+ * Plan allowances changed after Real API Pricing measured them. A measurement taken before `until` saw the
+ * old allowance, so its token price is multiplied by `factor` (old allowance ÷ new: 2 when halved, 0.5 when
+ * doubled; same fee) and the plan is renamed to what it sells as now.
  */
-export interface PlanCut {
+export interface PlanChange {
   /** Real API Pricing point id prefix (`<plan>::<model>`). */
   planId: string;
   plan: string;
@@ -68,9 +68,31 @@ export interface PlanCut {
   note: string;
 }
 
-export const PLAN_CUTS: PlanCut[] = [
+export const PLAN_CHANGES: PlanChange[] = [
   {
-    planId: "chatgpt_pro_20x", plan: "ChatGPT Pro 10x", factor: 2, until: "2026-10-30", source: "https://chatgpt.com/pricing",
-    note: "OpenAI cut Pro $200 from 20× to 10× Plus usage: new sign-ups from 29 September 2026, grandfathered subscribers from 30 October. Plus, Pro $100 and Pro $200 are now linear per dollar.",
+    planId: "chatgpt_pro_5x", plan: "ChatGPT Pro 10x", factor: 0.5, until: "2026-10-29", source: "https://help.openai.com/en/articles/9793128-what-is-chatgpt-pro",
+    note: "OpenAI doubled Pro 100's Work and Codex allowance on 29 October 2026: 5× to 10× Plus. The Pro 200 cut announced on 29 September was canceled the same day, so Pro 200 keeps the 20× allowance Real API Pricing measured.",
   },
+];
+
+/**
+ * Plans a lab sells as a multiple of a base plan's allowance. A model measured on `base` but not on this plan
+ * (or only at low confidence) gets it derived: base token price × (fee ÷ base fee) ÷ `multiple`, one grade less
+ * confident. Real API Pricing derives its own Pro rows the same way ("Plus × 官方 5x").
+ */
+export interface PlanMultiple {
+  /** Point id prefix of the measured plan. */
+  base: string;
+  planId: string;
+  plan: string;
+  feeUsd: number;
+  /** Allowance as a multiple of `base`'s. */
+  multiple: number;
+  source: string;
+  checked: string;
+}
+
+export const PLAN_MULTIPLES: PlanMultiple[] = [
+  { base: "chatgpt_plus", planId: "chatgpt_pro_5x", plan: "ChatGPT Pro 10x", feeUsd: 100, multiple: 10, source: "https://help.openai.com/en/articles/9793128-what-is-chatgpt-pro", checked: "2026-10-29" },
+  { base: "chatgpt_plus", planId: "chatgpt_pro_20x", plan: "ChatGPT Pro 20x", feeUsd: 200, multiple: 20, source: "https://help.openai.com/en/articles/9793128-what-is-chatgpt-pro", checked: "2026-10-29" },
 ];
