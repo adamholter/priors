@@ -130,10 +130,13 @@ export function makeChart(view: DataView, raw: DataArgs): { chart?: AnswerChart;
     const x = resolveMetric(view.snapshot, args.x_metric ?? "cost");
     if (!x) return { error: `Unknown x metric: ${args.x_metric}.` };
     const p = choose(args.top ?? (args.labs || args.models?.length ? undefined : 20), "best"), withEffort = exact || (efforts !== undefined && efforts !== "best");
-    const points = p.rows.map((r) => ({ ...mark(r, withEffort), x: view.value(x, r), y: view.value(metric, r) })).filter((q): q is AnswerMark & { x: number; y: number } => q.x != null && q.y != null);
-    if (points.length < 2) return { error: `Too few models have both ${x.name} and ${metric.name}.` };
+    const all = p.rows.map((r) => ({ ...mark(r, withEffort), x: view.value(x, r), y: view.value(metric, r) }));
+    const points = all.filter((q): q is AnswerMark & { x: number; y: number } => q.x != null && q.y != null);
+    // A model without both values is named, never dropped silently (Artificial Analysis prices only models on its current index).
+    const missing = [...notFound(p), ...all.filter((q) => q.x == null || q.y == null).map((q) => `${q.label} (no ${[q.x == null && x.name, q.y == null && metric.name].filter(Boolean).join(" or ")})`)];
+    if (points.length < 2) return { error: `Too few models have both ${x.name} and ${metric.name}.`, missing };
     const chart: AnswerChart = { kind: "scatter", title: args.title ?? `${metric.name} vs ${x.name}`, x: am(x), y: am(metric), points: points.slice(0, 40) };
-    return { chart, shown: chart.points.map((q) => ({ model: q.label, [x.name]: round(q.x), [metric.name]: round(q.y) })), missing: notFound(p) };
+    return { chart, shown: chart.points.map((q) => ({ model: q.label, [x.name]: round(q.x), [metric.name]: round(q.y) })), missing };
   }
   return { error: `Unknown chart type ${type}.` };
 }

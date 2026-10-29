@@ -66,8 +66,12 @@ describe("assistant data tools on the real snapshot", async () => {
     expect(r.chart?.kind === "bar" && r.chart.items.map((i) => i.label).sort()).toEqual(["GPT-5.6 Sol max", "Opus 5.5 low"]);
     const missing = makeChart(view, { type: "bar", metric: "index", variants: ["Opus 5.5 low", "Nonexistent Model 9 max"] });
     expect(missing.chart?.kind === "bar" && missing.chart.items.length).toBe(1);
-    const sc = makeChart(view, { type: "scatter", metric: "index", x_metric: "cost", variants: ["Opus 5.5 max", "Opus 5.5 low", "GPT-5.6 Sol max"] });
-    expect(sc.chart?.kind === "scatter" && sc.chart.points.length).toBe(3);
+    // Each pair asked for is drawn, or named as missing when it lacks a value (GPT-5.6 Sol has no cost under AA's v5 index); never dropped silently.
+    const asked = ["Opus 5.5 max", "Opus 5.5 low", "GPT-5.6 Sol max"];
+    const sc = makeChart(view, { type: "scatter", metric: "index", x_metric: "cost", variants: asked });
+    const drawn = sc.chart?.kind === "scatter" ? sc.chart.points.map((q) => q.label) : [];
+    expect(drawn.length).toBeGreaterThanOrEqual(2);
+    expect([...drawn, ...(sc.missing ?? []).map((m) => m.replace(/ \(no .*\)$/, ""))].sort()).toEqual([...asked].sort());
   });
 
   it("carries a chart's recipe in a link that redraws the same chart", async () => {

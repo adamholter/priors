@@ -13,12 +13,16 @@ export function modelLine(labId: string, name: string): { key: string; version: 
  * Models a default view leaves out: an older version of a line that a newer version has replaced and that
  * sits off the cost-vs-score frontier (none of its efforts is on it), so showing it only adds clutter.
  * Same lab, same name apart from the version number, and the newer one is no older by release date.
- * A model with no measured cost is never judged, and `keep` (highlighted models) is never dropped.
+ * A model with no measured cost cannot be placed on that frontier, so it is judged by score alone: it goes when a newer
+ * version scores at least as well (Artificial Analysis prices only the models it has run its current index on).
+ * `keep` (highlighted models) is never dropped.
  */
 export function supersededModelIds(ranked: RankedVariant[], keep: Iterable<string> = []): Set<string> {
   const kept = new Set(keep);
   const onFrontier = new Set(ranked.filter((r) => r.onFrontier).map((r) => r.model.id));
   const hasCost = new Set(ranked.filter((r) => r.costUsd != null).map((r) => r.model.id));
+  const best = new Map<string, number>();
+  for (const r of ranked) best.set(r.model.id, Math.max(best.get(r.model.id) ?? -Infinity, r.score));
   const lines = new Map<string, Map<string, { version: number; releaseDate?: string }>>();
   for (const r of ranked) {
     const line = modelLine(r.model.labId, r.model.name);
@@ -28,8 +32,9 @@ export function supersededModelIds(ranked: RankedVariant[], keep: Iterable<strin
   const out = new Set<string>();
   for (const members of lines.values()) {
     for (const [id, me] of members) {
-      if (kept.has(id) || onFrontier.has(id) || !hasCost.has(id)) continue;
-      const replaced = [...members.values()].some((o) => o.version > me.version && (!o.releaseDate || !me.releaseDate || o.releaseDate >= me.releaseDate));
+      if (kept.has(id) || onFrontier.has(id)) continue;
+      const replaced = [...members].some(([other, o]) => o.version > me.version && (!o.releaseDate || !me.releaseDate || o.releaseDate >= me.releaseDate)
+        && (hasCost.has(id) || best.get(other)! >= best.get(id)!));
       if (replaced) out.add(id);
     }
   }

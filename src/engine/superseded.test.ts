@@ -34,8 +34,10 @@ describe("supersededModelIds", () => {
     const ranked = [row("GPT-6.1 Sol", 60, 2, true), row("GPT-6 Sol", 40, 3, false, "lab", undefined, "low"), row("GPT-6 Sol", 52, 0.5, true, "lab", undefined, "max")];
     expect(supersededModelIds(ranked).size).toBe(0);
   });
-  it("never judges a model with no measured cost", () => {
-    expect(supersededModelIds([row("GPT-6.1 Sol", 60, 1, true), row("GPT-6 Sol", 55, undefined)]).size).toBe(0);
+  it("judges a model with no measured cost by score alone: it goes only when a newer version scores at least as well", () => {
+    expect([...supersededModelIds([row("GPT-6.1 Sol", 60, 1, true), row("GPT-6 Sol", 55, undefined)])]).toEqual([id("GPT-6 Sol")]);
+    expect([...supersededModelIds([row("GPT-6.1 Sol", 60, undefined), row("GPT-6 Sol", 55, undefined)])]).toEqual([id("GPT-6 Sol")]);
+    expect(supersededModelIds([row("GPT-6.1 Sol", 50, 1, true), row("GPT-6 Sol", 55, undefined)]).size).toBe(0);
   });
   it("leaves different lines and labs alone", () => {
     const ranked = [row("GPT-6.1 Sol", 60, 1, true), row("GPT-6 Luna", 30, 2), row("GPT-6 Sol", 30, 2, false, "other")];
@@ -79,7 +81,7 @@ describe("the default view on the real snapshot", () => {
     const score = new Map(everything.ranked.map((r) => [r.variant.id, r.score]));
     for (const r of page.ranked) expect(r.score).toBe(score.get(r.variant.id));
     expect(page.ranked.map((r) => r.rank)).toEqual(page.ranked.map((_, i) => i + 1));
-    // Every older version that stays is on the frontier, has no newer sibling, or has no measured cost.
+    // Every older version that stays is on the frontier, has no newer sibling, or (with no measured cost) outscores every newer one.
     const curated = computeIndex(snapshot, { ...config, excludeModels: [] }, PAGE_VIEW);
     expect(curated.ranked.length).toBe(everything.ranked.length);
     expect(curated.autoHidden).toEqual([]);
