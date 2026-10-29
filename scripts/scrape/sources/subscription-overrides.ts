@@ -30,6 +30,30 @@ export const SUBSIDY_OVERRIDES: SubsidyOverride[] = [
 ];
 
 /**
+ * Models no plan sells yet, assumed to get another model's subsidy: the same share of API price, on the same
+ * plan. Each row copies the other model's measured row and names the assumption in its plan. A measured row
+ * for the model replaces it.
+ */
+export interface SubsidyAssumption {
+  /** Canonical model id the assumption is for. */
+  modelId: string;
+  label: string;
+  /** Canonical model id whose subsidy it borrows. */
+  sameAs: string;
+  /** Short name of that model, for the plan label. */
+  sameAsName: string;
+  checked: string;
+  note: string;
+}
+
+export const SUBSIDY_ASSUMPTIONS: SubsidyAssumption[] = [
+  {
+    modelId: "gemini-4-carbon", label: "Gemini 4 Carbon (max)", sameAs: "gemini-4", sameAsName: "Argon", checked: "2026-10-29",
+    note: "No plan sells Carbon yet: Google opened it to cyber defenders first, with subscribers \"coming soon\". Assumed to get Argon's subsidy on the same plan.",
+  },
+];
+
+/**
  * Plan allowances cut after Real API Pricing measured them. A measurement taken before `until` saw the
  * old allowance, so its token price is multiplied by `factor` (same fee, fewer tokens) and the plan is
  * renamed to what it sells as now.

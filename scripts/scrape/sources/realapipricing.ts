@@ -14,7 +14,7 @@
 import type { Source, ScrapeResult, RawRow } from "../../../src/data/types";
 import { normalizeLabel } from "../../../src/data/normalize";
 import { SUBSCRIPTION_BENCHMARK, type SubscriptionDetails, type TokenMix } from "../../../src/data/subscription";
-import { PLAN_CUTS, SUBSIDY_OVERRIDES } from "./subscription-overrides";
+import { PLAN_CUTS, SUBSIDY_ASSUMPTIONS, SUBSIDY_OVERRIDES } from "./subscription-overrides";
 
 const SITE = "https://realapipricing.com";
 const REPO = "https://github.com/FeiZhuLulu/real-api-pricing";
@@ -82,15 +82,27 @@ export function parseSubscriptions(json: Points, conventions: Conventions, chann
     if (!graded.length || !claim(all)) continue;
     add(all, graded[0], `best of ${graded.length} reseller plan${graded.length === 1 ? "" : "s"} (no first-party plan)`);
   }
+  const idOf = (r: RawRow) => { if (r.identity) return r.identity.modelId; const n = normalizeLabel(r.modelLabel); return n.ok ? n.modelId : undefined; };
   // Curated figures from published plan allowances replace anything computed for the same model.
   for (const o of SUBSIDY_OVERRIDES) {
-    const idOf = (r: RawRow) => { if (r.identity) return r.identity.modelId; const n = normalizeLabel(r.modelLabel); return n.ok ? n.modelId : undefined; };
     const at = rows.findIndex((r) => idOf(r) === o.modelId);
     if (at >= 0) rows.splice(at, 1);
     rows.push({
       benchmarkId: SUBSCRIPTION_BENCHMARK, modelLabel: o.label, value: o.ratio, sourceUrl: o.source, note: `${o.plan}, $${o.feeUsd}/month: ${o.note}`,
       ...(o.identity ? { identity: o.identity } : {}),
       details: { plan: o.plan, feeUsd: o.feeUsd, confidence: o.confidence, ratio: o.ratio, source: o.source, dataDate: o.checked, plans: [] } as unknown as Record<string, unknown>,
+    });
+  }
+  // Models no plan sells yet, assumed to match another model's subsidy. `sameAs` makes the engine use that model's share of API
+  // price, so the two stay equal even if their list prices differ; the copied token price and mix give the same share without it.
+  for (const a of SUBSIDY_ASSUMPTIONS) {
+    const from = rows.find((r) => idOf(r) === a.sameAs);
+    if (!from || rows.some((r) => idOf(r) === a.modelId)) continue;
+    const d = from.details as unknown as SubscriptionDetails;
+    const plan = `${d.plan} (assumed same as ${a.sameAsName})`;
+    rows.push({
+      benchmarkId: SUBSCRIPTION_BENCHMARK, modelLabel: a.label, value: from.value, sourceUrl: from.sourceUrl, note: `${plan}${d.feeUsd ? `, $${d.feeUsd}/month` : ""}; assumed; ${a.note}`,
+      details: { ...d, plan, sameAs: a.sameAs, confidence: "assumed", dataDate: a.checked, plans: [] } as unknown as Record<string, unknown>,
     });
   }
   return rows;

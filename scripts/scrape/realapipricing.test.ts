@@ -33,7 +33,7 @@ const payload: Points = { generatedAt: "2026-10-08", points: [
 describe("Real API Pricing subscriptions", () => {
   const rows = parseSubscriptions(payload, conventions, channels);
   const row = (label: string) => rows.find((r) => r.modelLabel === label)!;
-  const computed = rows.filter((r) => !(r.details as { source?: string }).source);
+  const computed = rows.filter((r) => !(r.details as { source?: string; sameAs?: string }).source && !(r.details as { sameAs?: string }).sameAs);
   it("keeps one row per model on its lab's own plans: no resellers, metered APIs or unmetered promos", () => {
     expect(computed.map((r) => r.modelLabel)).toEqual(["GPT 5.6 Sol", "Claude Opus 5.5", "Claude Fable 5", "GLM 5.3", "Gemini 4 Argon", "Qwen3.8 Max"]);
     expect(row("GPT 5.6 Sol").details).toMatchObject({ plans: [{ plan: "ChatGPT Pro 10x" }, { plan: "ChatGPT Plus" }, { plan: "ChatGPT Pro 5x" }] });
@@ -50,6 +50,16 @@ describe("Real API Pricing subscriptions", () => {
   it("finds a model whose Priors id differs from the source's slug: Gemini 4 Argon is gemini-4, priced on Google's own plan", () => {
     expect(rows.filter((r) => r.modelLabel.startsWith("Gemini 4 Argon"))).toHaveLength(1);
     expect(row("Gemini 4 Argon")).toMatchObject({ value: 0.303, details: { plan: "Google AI Pro", confidence: "low", mix: { cache: 0.85, input: 0.145, output: 0.005 } } });
+  });
+  it("gives Gemini 4 Carbon, which no plan sells yet, Argon's Google AI Pro row, labelled as an assumption", () => {
+    expect(row("Gemini 4 Carbon (max)")).toMatchObject({ value: 0.303, details: { plan: "Google AI Pro (assumed same as Argon)", sameAs: "gemini-4", confidence: "assumed", mix: { cache: 0.85, input: 0.145, output: 0.005 } } });
+    expect(row("Gemini 4 Carbon (max)").note).toContain("No plan sells Carbon yet");
+  });
+  it("drops the assumption once a plan's measurement for the model exists", () => {
+    const measured = parseSubscriptions({ ...payload, points: [...payload.points, point("google_ai_pro_us::gemini-4-carbon", "Google AI Pro", "Google", 0.5, { model_display: "Gemini 4 Carbon", price_usd: 19.99 })] }, conventions, channels);
+    const carbon = measured.filter((r) => r.modelLabel.startsWith("Gemini 4 Carbon"));
+    expect(carbon).toHaveLength(1);
+    expect(carbon[0]).toMatchObject({ value: 0.5, details: { plan: "Google AI Pro", confidence: "medium" } });
   });
   it("lets a curated published allowance replace a computed row, as a direct share of API price", () => {
     expect(row("Muse Wonder (Max)")).toMatchObject({ identity: { modelId: "aa-muse-wonder" }, details: { ratio: 100 / 150 } });
@@ -72,7 +82,7 @@ describe("Real API Pricing subscriptions", () => {
     const ctx = { fetchText: async (url: string) => JSON.stringify(files[url.split("/").pop()!]) } as unknown as Parameters<typeof source.scrape>[0];
     const r = await source.scrape(ctx);
     expect(r.benchmarks[0]).toMatchObject({ id: SUBSCRIPTION_BENCHMARK, unit: "usd", proxy: true, defaultWeight: 0, eligibleForDefault: false, lastUpdated: "2026-10-08" });
-    expect(r.rows).toHaveLength(7);
+    expect(r.rows).toHaveLength(8);
     expect(Object.keys(r.raw)).toEqual(["points.json", "conventions.json", "channel-colors.json"]);
   });
 });

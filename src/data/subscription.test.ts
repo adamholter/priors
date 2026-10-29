@@ -96,6 +96,18 @@ describe("subscription cost basis", () => {
     snapshot.observations.push({ ...snapshot.observations.find((o) => o.benchmarkId === SUBSCRIPTION_BENCHMARK)!, variantId: "c@default", value: 0.5, details: { plan: "Curated", ratio: 1 / 6, confidence: "medium", plans: [] } });
     expect(subscriptionPrices(snapshot).get("c")).toMatchObject({ ratio: 1 / 6, plan: "Curated" });
   });
+  it("gives a model assumed to match another's subsidy that model's share of API price, even at a different list price", () => {
+    const snapshot = snap();
+    const a = snapshot.observations.find((o) => o.benchmarkId === SUBSCRIPTION_BENCHMARK && o.variantId === "a@max")!;
+    snapshot.variants.find((v) => v.id === "c@default")!.sourceModel = { id: "c", slug: "c", name: "c", url: "", metadata: { price1mInputTokens: 8, price1mOutputTokens: 40, cacheHitPrice: 0.4 } } as Snapshot["variants"][number]["sourceModel"];
+    snapshot.observations.push({ ...a, variantId: "c@default", details: { ...(a.details as Record<string, unknown>), plan: "Claude Max (assumed same as A)", sameAs: "a", confidence: "assumed" } });
+    const prices = subscriptionPrices(snapshot);
+    expect(prices.get("c")).toMatchObject({ plan: "Claude Max (assumed same as A)", confidence: "assumed" });
+    expect(prices.get("c")!.ratio).toBeCloseTo(prices.get("a")!.ratio, 9);
+    const c = computeIndex(snapshot, { ...base, variants: "all" }).ranked.find((r) => r.variant.id === "c@default")!;
+    expect(c.costUsd).toBeCloseTo(5 * prices.get("a")!.ratio, 9);
+    expect(c.costSource).toContain("assumed same as A");
+  });
   it("prices a free tier (ratio 0) at $0 and says where it is free", () => {
     const snapshot = snap();
     snapshot.observations.push({ ...snapshot.observations.find((o) => o.benchmarkId === SUBSCRIPTION_BENCHMARK)!, variantId: "c@default", value: 0, details: { plan: "OpenCode Zen free tier", ratio: 0, confidence: "high", plans: [] } });

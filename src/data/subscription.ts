@@ -17,6 +17,8 @@ export interface SubscriptionDetails {
   plan: string;
   /** Set when the share of API price is known directly (a published plan allowance), instead of derived from `mix` and a list price. */
   ratio?: number;
+  /** A model no plan sells yet, assumed to get this model's share of API price (`scripts/scrape/sources/subscription-overrides.ts`). */
+  sameAs?: string;
   /** Where a curated figure came from. */
   source?: string;
   feeUsd?: number;
@@ -66,10 +68,12 @@ export function subscriptionPrices(snapshot: Snapshot): Map<string, Subscription
     if (!m || aaPrices.has(v.modelId) || !positive(m.price1mInputTokens) || !positive(m.price1mOutputTokens)) continue;
     aaPrices.set(v.modelId, { input: m.price1mInputTokens, output: m.price1mOutputTokens, cached: positive(m.cacheHitPrice) ? m.cacheHitPrice : undefined, cacheWrite: positive(m.cacheWritePrice) ? m.cacheWritePrice : undefined });
   }
+  const assumed: [string, SubscriptionDetails][] = [];
   for (const o of snapshot.observations) {
     if (o.benchmarkId !== SUBSCRIPTION_BENCHMARK) continue;
     const d = o.details as unknown as SubscriptionDetails | undefined;
     const modelId = variants.get(o.variantId)?.modelId ?? o.variantId.split("@")[0];
+    if (d?.sameAs) assumed.push([modelId, d]);
     // A curated ratio is taken as is; 0 is a free tier.
     if (typeof d?.ratio === "number" && Number.isFinite(d.ratio) && d.ratio >= 0) { out.set(modelId, { ratio: d.ratio, plan: d.plan, feeUsd: d.feeUsd, confidence: d.confidence }); continue; }
     if (!positive(o.value)) continue;
@@ -78,6 +82,8 @@ export function subscriptionPrices(snapshot: Snapshot): Map<string, Subscription
     const api = blendedApiPrice(prices, d.mix);
     if (positive(api)) { out.set(modelId, { ratio: o.value / api, plan: d.plan, feeUsd: d.feeUsd, confidence: d.confidence }); mixes.set(modelId, d.mix); }
   }
+  // A model assumed to match another's subsidy pays that model's share, whatever its own list price (a free tier is not a plan's subsidy).
+  for (const [modelId, d] of assumed) { const from = out.get(d.sameAs!); if (positive(from?.ratio)) out.set(modelId, { ratio: from.ratio, plan: d.plan, feeUsd: d.feeUsd, confidence: d.confidence }); }
   // An OpenAI model with no plan data yet, priced from Codex's published limits: a plan's five-hour allowance is the
   // same budget whichever model spends it, so a model allowed k times the messages of a measured one at p times its
   // API price per token pays 1/(k·p) of that model's share (same tokens per message assumed). The median over every
