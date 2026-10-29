@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import source, { parseSubscriptions, type Channels, type Conventions, type Points } from "./sources/realapipricing";
-import { SUBSCRIPTION_BENCHMARK } from "../../src/data/subscription";
+import { blendedApiPrice, SUBSCRIPTION_BENCHMARK } from "../../src/data/subscription";
+import { BUDGET_PLANS } from "./sources/subscription-overrides";
 
 const conventions: Conventions = {
   usdPerCny: 8, standardTokenMix: { cache: 0.97, input: 0.025, output: 0.005 }, lowCacheTokenMix: { cache: 0.85, input: 0.145, output: 0.005 },
@@ -33,7 +34,8 @@ const payload: Points = { generatedAt: "2026-10-08", points: [
 describe("Real API Pricing subscriptions", () => {
   const rows = parseSubscriptions(payload, conventions, channels);
   const row = (label: string) => rows.find((r) => r.modelLabel === label)!;
-  const computed = rows.filter((r) => !(r.details as { source?: string; sameAs?: string }).source && !(r.details as { sameAs?: string }).sameAs);
+  const VIBE = "https://mistral.ai/pricing";
+  const computed = rows.filter((r) => !(r.details as { source?: string; sameAs?: string }).source && !(r.details as { sameAs?: string }).sameAs && r.sourceUrl !== VIBE);
   it("keeps one row per model on its lab's own plans: no resellers, metered APIs or unmetered promos", () => {
     expect(computed.map((r) => r.modelLabel)).toEqual(["GPT 5.6 Sol", "Claude Opus 5.5", "Claude Fable 5", "GLM 5.3", "Gemini 4 Argon", "Qwen3.8 Max"]);
     expect(row("GPT 5.6 Sol").details).toMatchObject({ plans: [{ plan: "ChatGPT Pro 20x" }, { plan: "ChatGPT Pro 10x" }, { plan: "ChatGPT Plus" }] });
@@ -93,12 +95,28 @@ describe("Real API Pricing subscriptions", () => {
   it("never prices a model from a speed tier that normalizes onto it", () => {
     expect(row("GLM 5.3").value).toBe(0.03);
   });
+  it("prices Mistral Vibe Pro's dollar budget at Mistral's API rates: first-party on Mistral's models, a pickable plan beside Z.ai's own for GLM 5.3", () => {
+    const vibe = BUDGET_PLANS.find((b) => b.planId === "mistral_vibe_pro")!;
+    const at = (model: string) => { const m = vibe.models.find((m) => m.model === model)!; return 14.99 * blendedApiPrice(m, conventions.standardTokenMix) / 325.5; };
+    expect(row("Mistral Medium 3.5")).toMatchObject({ value: at("mistral-medium-3.5"), sourceUrl: VIBE, details: { plan: "Mistral Vibe Pro", feeUsd: 14.99, confidence: "medium", mix: conventions.standardTokenMix } });
+    expect(row("Mistral Medium 3.5").note).toContain("median of 1 first-party plan");
+    // At Mistral's own list price, the share of API price a subscriber pays is fee ÷ budget.
+    expect(row("Mistral Medium 3.5").value / blendedApiPrice({ input: 1.5, output: 7.5 }, conventions.standardTokenMix)).toBeCloseTo(14.99 / 325.5, 10);
+    expect(row("GLM 5.3")).toMatchObject({ value: 0.03, details: { plan: "GLM Coding Pro" } });
+    expect((row("GLM 5.3").details as { plans: { plan: string; usdPerMtok: number }[] }).plans).toContainEqual({ plan: "Mistral Vibe Pro", feeUsd: 14.99, usdPerMtok: at("glm-5.3"), confidence: "medium" });
+  });
+  it("makes Vibe Pro the reseller fallback only when it beats the others, and gives way to a Real API Pricing measurement of it", () => {
+    const glm52 = (extra: Points["points"]) => parseSubscriptions({ ...payload, points: [...payload.points, ...extra] }, conventions, channels).find((r) => r.modelLabel === "GLM 5.2")!;
+    expect(glm52([point("droid_max::glm-5.2", "Droid Max", "Zhipu", 0.0277, { model_display: "GLM 5.2", price_usd: 200 })])).toMatchObject({ details: { plan: "Mistral Vibe Pro", plans: [{ plan: "Mistral Vibe Pro" }, { plan: "Droid Max" }] } });
+    expect(glm52([point("droid_max::glm-5.2", "Droid Max", "Zhipu", 0.001, { model_display: "GLM 5.2", price_usd: 200 })])).toMatchObject({ value: 0.001, details: { plan: "Droid Max" } });
+    expect(glm52([point("mistral_vibe_pro::glm-5.2", "Mistral Vibe Pro", "Zhipu", 0.02, { model_display: "GLM 5.2", price_usd: 14.99 })])).toMatchObject({ value: 0.02, details: { plans: [{ plan: "Mistral Vibe Pro", usdPerMtok: 0.02 }] } });
+  });
   it("scrapes the three published files into one proxy benchmark", async () => {
     const files: Record<string, unknown> = { "points.json": payload, "conventions.json": conventions, "channel-colors.json": channels };
     const ctx = { fetchText: async (url: string) => JSON.stringify(files[url.split("/").pop()!]) } as unknown as Parameters<typeof source.scrape>[0];
     const r = await source.scrape(ctx);
     expect(r.benchmarks[0]).toMatchObject({ id: SUBSCRIPTION_BENCHMARK, unit: "usd", proxy: true, defaultWeight: 0, eligibleForDefault: false, lastUpdated: "2026-10-08" });
-    expect(r.rows).toHaveLength(8);
+    expect(r.rows).toHaveLength(8 + 7); // + Mistral Vibe Pro's rows: four Mistral models, GLM 5.2, GLM 5.3 Flash, DeepSeek V4.1 Flash 1017
     expect(Object.keys(r.raw)).toEqual(["points.json", "conventions.json", "channel-colors.json"]);
   });
 });

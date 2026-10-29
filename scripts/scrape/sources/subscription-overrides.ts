@@ -96,3 +96,44 @@ export const PLAN_MULTIPLES: PlanMultiple[] = [
   { base: "chatgpt_plus", planId: "chatgpt_pro_5x", plan: "ChatGPT Pro 10x", feeUsd: 100, multiple: 10, source: "https://help.openai.com/en/articles/9793128-what-is-chatgpt-pro", checked: "2026-10-29" },
   { base: "chatgpt_plus", planId: "chatgpt_pro_20x", plan: "ChatGPT Pro 20x", feeUsd: 200, multiple: 20, source: "https://help.openai.com/en/articles/9793128-what-is-chatgpt-pro", checked: "2026-10-29" },
 ];
+
+/**
+ * Plans that sell a monthly budget in dollars, spent at the seller's own API rates, which Real API Pricing has not
+ * measured. Each listed model gets a point the way Real API Pricing computes one: fee ÷ the tokens the budget buys at
+ * the seller's rate, on the standard workload. On the seller's own models it is a first-party plan. On another lab's
+ * model it is a reseller plan: the model's price when it has no first-party plan, and listed among its plans either
+ * way, so it can be picked under Advanced → Plan. A Real API Pricing point with the same id replaces it.
+ */
+export interface BudgetPlan {
+  /** Point id prefix (`<planId>::<model>`). */
+  planId: string;
+  plan: string;
+  /** The seller, named as Real API Pricing names vendors: the plan is first-party on models of this vendor. */
+  channel: string;
+  feeUsd: number;
+  /** Dollars of usage a month, at the models' rates. */
+  budgetUsd: number;
+  confidence: "high" | "medium" | "low";
+  source: string;
+  checked: string;
+  note: string;
+  /** Each model's Real API Pricing slug and name, its vendor, and the seller's API price per 1M tokens (cache reads at 10% of input unless published). */
+  models: { model: string; display: string; vendor: string; input: number; cached?: number; output: number }[];
+}
+
+export const BUDGET_PLANS: BudgetPlan[] = [
+  {
+    planId: "mistral_vibe_pro", plan: "Mistral Vibe Pro", channel: "Mistral", feeUsd: 14.99, budgetUsd: 300 + 25.5, confidence: "medium", source: "https://mistral.ai/pricing", checked: "2026-10-29",
+    note: "$300 a month of Vibe usage at Mistral's API rates, the budget a Pro account shows (Mistral does not publish it; reported by SSHCodes on X, 29 October 2026), plus the $25.50 of API credits the pricing page lists, spendable on the same models. Rates from docs.mistral.ai/models.",
+    models: [
+      { model: "mistral-medium-3.5", display: "Mistral Medium 3.5", vendor: "Mistral", input: 1.5, output: 7.5 },
+      { model: "mistral-large-4", display: "Mistral Large 4", vendor: "Mistral", input: 0.7, cached: 0.07, output: 2.1 },
+      { model: "mistral-large-3", display: "Mistral Large 3", vendor: "Mistral", input: 0.5, output: 1.5 },
+      { model: "mistral-small-4", display: "Mistral Small 4", vendor: "Mistral", input: 0.15, output: 0.6 },
+      { model: "glm-5.3", display: "GLM 5.3", vendor: "Zhipu", input: 1.4, cached: 0.14, output: 4.4 },
+      { model: "glm-5.2", display: "GLM 5.2", vendor: "Zhipu", input: 1.4, cached: 0.14, output: 4.4 },
+      { model: "glm-5.3-flash", display: "GLM 5.3 Flash", vendor: "Zhipu", input: 0.15, cached: 0.03, output: 0.5 },
+      { model: "deepseek-v4.1-flash-1017", display: "DeepSeek V4.1 Flash 1017", vendor: "DeepSeek", input: 0.3, cached: 0.007, output: 1.2 },
+    ],
+  },
+];
