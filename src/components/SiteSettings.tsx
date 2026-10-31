@@ -12,7 +12,8 @@ import { useTheme, type ThemeMode } from "./Theme";
 const MODES: { id: ThemeMode; label: string }[] = [{ id: "system", label: "System" }, { id: "light", label: "Light" }, { id: "dark", label: "Dark" }];
 
 /** The gear in each header: the visitor's own theme and light/dark mode for the whole site. */
-export function SettingsButton({ className = "icon-btn", support = true }: { className?: string; support?: boolean }) {
+/** `pageNote`: on a published page with its owner's theme, says what the settings change and what stays the owner's. */
+export function SettingsButton({ className = "icon-btn", support = true, pageNote }: { className?: string; support?: boolean; pageNote?: string }) {
   const path = usePathname();
   const dialog = useRef<HTMLDialogElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
@@ -27,6 +28,7 @@ export function SettingsButton({ className = "icon-btn", support = true }: { cla
     <button ref={trigger} type="button" className={className} aria-label="Settings" title="Settings" aria-haspopup="dialog" onClick={() => { dialog.current?.showModal(); requestAnimationFrame(() => dialog.current?.querySelector<HTMLButtonElement>("[data-settings-close]")?.focus()); }}><IconSettings size={18} stroke={1.5} aria-hidden="true" /></button>
     <dialog ref={dialog} className="settings-dialog" role="dialog" aria-modal="true" aria-labelledby="settings-title" onClose={() => trigger.current?.focus()} onClick={(e) => { if (e.target === e.currentTarget) dialog.current?.close(); }}>
       <div className="settings-head"><h2 id="settings-title">Settings</h2><button data-settings-close type="button" className="icon-btn" aria-label="Close settings" onClick={() => dialog.current?.close()}><IconX size={18} stroke={1.5} aria-hidden="true" /></button></div>
+      {pageNote && <p className="settings-note" data-testid="settings-page-note">{pageNote}</p>}
       <section className="settings-section" aria-labelledby="settings-theme">
         <h3 id="settings-theme">Theme</h3>
         <div className="settings-themes">{THEME_CHOICES.map((t) => <ThemeSwatch key={t.id} theme={t} selected={chosen.id === t.id} onClick={() => pickTheme(t)} />)}</div>

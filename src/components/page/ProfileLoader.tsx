@@ -7,6 +7,7 @@ import { mergeImports } from "@/lib/import";
 import { findTab } from "@/lib/page-layout";
 import { presetStyle, resolveAccent, resolvePreset } from "@/lib/page-presets";
 import { useTheme } from "../Theme";
+import { SettingsButton } from "../SiteSettings";
 import { Wordmark } from "../Wordmark";
 import { IndexPage, type Profile } from "./IndexPage";
 import { snapshotVersionChanged } from "./profile-version";
@@ -78,7 +79,7 @@ export function ProfileLoader({ profile, version, edit, tab, linkedHighlight, li
   const preset = resolvePreset(profile.theme, siteDark);
   const surface = preset.bg;
   return <div className="page-root min-h-screen" data-dark={preset.dark || undefined} style={presetStyle(preset, resolveAccent(profile.theme, preset)) as React.CSSProperties}>
-    <header className="flex items-center px-4 sm:px-8 h-12 sm:min-h-14 border-b hairline" style={{ background: surface }}><Wordmark /><div className="ml-auto load-bar w-24 h-6" /></header>
+    <header className="flex items-center px-4 sm:px-8 h-12 sm:min-h-14 border-b hairline" style={{ background: surface }}><Wordmark /><div className="ml-auto flex items-center gap-2"><div className="load-bar w-24 h-6" /><SettingsButton support={false} /></div></header>
     {profile.bannerUrl && <div className="page-banner-frame"><img src={profile.bannerUrl} alt="" className="page-banner" /></div>}
     <main className={`max-w-[1100px] mx-auto px-5 sm:px-8 grid gap-10 ${profile.bannerUrl ? "pb-12" : "py-8 sm:py-12"}`} aria-busy={!error}>
       <section className={`flex items-start gap-4 sm:gap-5 ${profile.bannerUrl ? "-mt-8 sm:-mt-10" : ""}`}>

@@ -6,7 +6,7 @@ import Link from "next/link";
 import { HeaderAccount } from "@/components/AccountMenu";
 import type { ProfileTheme, Section } from "../../../convex/validators";
 import { MixAssistant } from "../MixAssistant";
-import { ThemeToggle } from "../Theme";
+import { SettingsButton } from "../SiteSettings";
 import { Fragment, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { Snapshot } from "@/data/types";
 import { chartVariantMode, computeIndex, PAGE_VIEW, DEFAULT_EFFORTS, EFFORT_CHOICES, filterEfforts, rankingRows, type IndexConfig } from "@/engine";
@@ -64,6 +64,7 @@ export function IndexPage({ profile, snapshot, edit, tab: linkedTab, linkedHighl
   const preset = resolvePreset(p.theme, siteDark);
   // The visitor's light/dark toggle matters only when the theme has both versions and the owner didn't lock one.
   const followsSite = !!presetOf(p.theme).pair && p.theme?.mode !== "fixed";
+  const settingsNote = followsSite ? `This page keeps @${p.handle}'s theme. Mode applies here too.` : `This page keeps @${p.handle}'s theme and mode. Your choices apply to the builder, Explore and model pages.`;
   const accent = resolveAccent(p.theme, preset);
   const surface = preset.bg;
   // Dark schemes theme every chart: text, grid, marks, tooltips and exports follow the page palette.
@@ -247,13 +248,13 @@ export function IndexPage({ profile, snapshot, edit, tab: linkedTab, linkedHighl
             : <Link href={builderHref as "/"} onClick={() => track("remix_clicked", { from: "profile", handle: p.handle })} className="btn inline-flex items-center gap-2" title={`Open @${p.handle}'s mix in the builder as your own copy`}><RemixIcon />Remix</Link>}
           {isOwner && <button type="button" className="btn" onClick={toggleEditing}>{editing ? "Done editing" : "Edit page"}</button>}
           <HeaderAccount />
-          {followsSite && <ThemeToggle />}
+          <SettingsButton support={false} pageNote={settingsNote} />
         </div>
         <div className="ml-auto flex sm:hidden items-center gap-1">
           {active && <ShareCards compact indices={p.indices} active={active} profile={p} pageUrl={pageUrl.toString()} defaultDesign={p.theme?.cardDesign} top={topNames} pageTheme={p.theme?.preset} />}
           {!lab && <Link href={compareHref as "/compare"} onClick={() => track("compare_opened", { from: "profile", handle: p.handle })} className="icon-btn" aria-label="Compare"><CompareIcon /></Link>}
           {!isOwner && !lab && <Link href={builderHref as "/"} onClick={() => track("remix_clicked", { from: "profile", handle: p.handle })} className="btn !px-3 !py-1.5 inline-flex items-center gap-1.5 text-[12.5px]"><RemixIcon size={13} />Remix</Link>}
-          {followsSite && <ThemeToggle />}
+          <SettingsButton support={false} pageNote={settingsNote} />
           <MobileMenu>
             {(isOwner || lab) && <Link href={builderHref as "/"} onClick={keepPageKey} className="btn-quiet text-center">Open in builder</Link>}
             <Link href="/explore" className="btn-quiet text-center">Explore rankings</Link>
