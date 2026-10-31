@@ -290,8 +290,22 @@ function effortAdjustment(idx: ObsIndex, benches: Map<string, Benchmark>, normal
   if (comparisons.length < minimum) return undefined;
   comparisons.sort((a, b) => a.id.localeCompare(b.id));
   // Ratio of means over paired, directly measured benchmarks. Each benchmark counts once.
-  const factor = comparisons.reduce((sum, c) => sum + c.numerator, 0) / comparisons.reduce((sum, c) => sum + c.denominator, 0);
-  return { effortFactor: factor, evidence: comparisons.map((c) => c.id) };
+  const ratio = comparisons.reduce((sum, c) => sum + c.numerator, 0) / comparisons.reduce((sum, c) => sum + c.denominator, 0);
+  const effortFactor = shrinkEffortFactor(ratio, comparisons.length, to - from);
+  return effortFactor == null ? undefined : { effortFactor, evidence: comparisons.map((c) => c.id) };
+}
+
+/** Paired benchmarks it takes for an effort ratio to count for half its measured size. */
+export const EFFORT_PRIOR_PAIRS = 2;
+/**
+ * A ratio from one or two paired benchmarks is mostly that benchmark's quirk: BullshitBench v2 scores Qwen 3.8 27B at 79
+ * with no reasoning and 29 at max, and that ×2.7 once lifted its no-reasoning Arena WebDev estimate to 100. So the ratio
+ * is capped at 4× either way and pulled toward 1 in log space by n / (n + EFFORT_PRIOR_PAIRS). Evidence that less effort
+ * scores above more (`step` < 0: estimating a lower effort than the source), or more below less, gives no estimate.
+ */
+export function shrinkEffortFactor(ratio: number, pairs: number, step: number): number | undefined {
+  if ((step < 0 && ratio > 1) || (step > 0 && ratio < 1)) return undefined;
+  return Math.exp(Math.log(clamp(ratio, 0.25, 4)) * pairs / (pairs + EFFORT_PRIOR_PAIRS));
 }
 
 /** Published fixed scales for benchmarks whose snapshots predate a `normalization` field. */

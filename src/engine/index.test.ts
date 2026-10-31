@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Snapshot } from "../data/types";
 import { LABS } from "../data/normalize";
-import { computeIndex, isBenchmarkRequired, selectVariants, chartVariantMode, type IndexConfig } from "./index";
+import { computeIndex, isBenchmarkRequired, selectVariants, chartVariantMode, shrinkEffortFactor, type IndexConfig } from "./index";
 
 function snap(): Snapshot {
   const models = [
@@ -43,7 +43,11 @@ describe("computeIndex", () => {
     s.observations = s.observations.filter((o) => !(o.benchmarkId === "term" && o.variantId === "a@high"));
     const r = computeIndex(s, { ...base, weights: { swe: 50, term: 50 }, effortMatching: "calibrated" });
     const a = r.ranked.find((x) => x.variant.id === "a@high")!;
-    expect(a.values.find((v) => v.benchmarkId === "term")).toMatchObject({ value: 63, raw: 72, estimated: true, effortFactor: 0.875, evidence: ["swe"] });
+    // One paired benchmark (swe: 70/80) counts for a third of its log ratio.
+    const term = a.values.find((v) => v.benchmarkId === "term")!;
+    expect(term).toMatchObject({ raw: 72, estimated: true, evidence: ["swe"] });
+    expect(term.effortFactor).toBeCloseTo(0.875 ** (1 / 3));
+    expect(term.value).toBeCloseTo(72 * 0.875 ** (1 / 3));
     expect(a.coverage).toBe(0.5);
     expect(a.costUsd).toBe(4);
   });
@@ -53,8 +57,23 @@ describe("computeIndex", () => {
     s.observations.push({ benchmarkId: "deep1", variantId: "a@high", value: 40, observedAt: "", sourceUrl: "" }, { benchmarkId: "deep1", variantId: "a@max", value: 80, observedAt: "", sourceUrl: "" });
     const r = computeIndex(s, { ...base, weights: { swe: 50, term: 50 }, effortMatching: "calibrated" });
     const v = r.ranked.find((x) => x.variant.id === "a@high")!.values.find((v) => v.benchmarkId === "term")!;
-    expect(v.value).toBeCloseTo(72 * (70 + 40) / (80 + 80));
+    expect(v.value).toBeCloseTo(72 * ((70 + 40) / (80 + 80)) ** (2 / 4));
     expect(v.evidence).toHaveLength(2);
+  });
+  it("gives no effort estimate when the only pair is inverted (Qwen 3.8 27B on BullshitBench)", () => {
+    const s = snap();
+    // a@high beats a@max on swe (79 vs 29), the only pair; term has a@max only. The ratio once gave term ×2.7, clamped to 100.
+    s.observations = s.observations.filter((o) => !(o.variantId === "a@high" && o.benchmarkId === "term") && !(o.variantId.startsWith("a@") && o.benchmarkId === "swe"));
+    s.observations.push({ benchmarkId: "swe", variantId: "a@high", value: 79, observedAt: "", sourceUrl: "" }, { benchmarkId: "swe", variantId: "a@max", value: 29, observedAt: "", sourceUrl: "" });
+    const r = computeIndex(s, { ...base, weights: { swe: 50, term: 50 }, effortMatching: "calibrated" });
+    expect(r.ranked.find((x) => x.variant.id === "a@high")!.values.find((v) => v.benchmarkId === "term")?.estimateKind).not.toBe("effort");
+  });
+  it("caps and shrinks effort ratios by how many benchmarks pair them", () => {
+    expect(shrinkEffortFactor(0.02, 1, -1)).toBeCloseTo(0.25 ** (1 / 3));
+    expect(shrinkEffortFactor(11.5, 1, 1)).toBeCloseTo(4 ** (1 / 3));
+    expect(shrinkEffortFactor(0.6, 40, -3)).toBeCloseTo(0.6 ** (40 / 42));
+    expect(shrinkEffortFactor(0.09, 1, 1)).toBeUndefined();
+    expect(shrinkEffortFactor(2.7, 1, -6)).toBeUndefined();
   });
   it("does not copy a maximum score when no paired effort evidence exists", () => {
     const s = snap();
@@ -92,7 +111,7 @@ describe("computeIndex", () => {
     const r = computeIndex(s, { ...base, weights: { swe: 50, term: 50 }, effortMatching: undefined });
     const a = r.ranked.find((x) => x.variant.id === "a@max")!;
     expect(a).toBeDefined();
-    expect(a.score).toBeCloseTo((80 + 60 * 80 / 70) / 2);
+    expect(a.score).toBeCloseTo((80 + 60 * (80 / 70) ** (1 / 3)) / 2);
     expect(a.values.find((v) => v.benchmarkId === "term")).toMatchObject({ raw: 60, estimated: true, substituted: true, sourceVariantId: "a@high", evidence: ["swe"] });
     expect(a.costUsd).toBe(12);
     expect(a.mixedEfforts).toBe(true);
