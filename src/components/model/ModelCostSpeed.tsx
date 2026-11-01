@@ -29,7 +29,7 @@ export function ModelCostSpeed({ snapshot, ranked, modelId, name, color, timeSou
     const floor = freeFloor(ranked.flatMap((r) => (r.costUsd ? [r.costUsd] : [])));
     return [
       { id: "cost", title: "Cost per task", better: "lower", word: "cheapest", log: true, fmt: (v) => (v === floor ? "free" : money(v)), tick: money, of: (r) => (r.costUsd === 0 ? floor : r.costUsd && r.costUsd > 0 ? r.costUsd : undefined) },
-      { id: "tpt", title: "Time per task", better: "lower", word: "quickest", log: true, fmt: secs, of: from("tpt") },
+      { id: "tpt", title: "Time per task", better: "lower", word: "quickest", log: false, fmt: secs, of: from("tpt") },
       { id: "speed", title: "Output speed", better: "higher", word: "fastest", log: false, fmt: (v) => `${Math.round(v)} tok/s`, tick: (v) => `${Math.round(v)}`, of: (r) => (r.speed && r.speed > 0 ? r.speed : undefined) },
       { id: "latency", title: "Time to first token", better: "lower", word: "quickest", log: true, fmt: secs, of: from("latency") },
       { id: "tokens", title: "Output tokens per task", better: "lower", word: "fewest", log: true, fmt: tokens, of: from("tokens") },

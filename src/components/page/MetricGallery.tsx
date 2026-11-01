@@ -102,7 +102,7 @@ export function GalleryChart({ id, anchor, title, chart, speed, ranked, defaultM
   useEffect(() => {
     if (!linked.linked) return;
     const kind = linked.cv === "bars" || linked.cv === "scatter" ? linked.cv : defaultKind;
-    setView({ ...savedView, ...linked.formula, ...(linked.labelScale != null ? { labelScale: linked.labelScale } : {}), kind: kind === "bars" && (linked.formula || base?.scale !== "time") ? "bars" : "scatter", kindChosen: true, ...((linked.formula || base?.scale === "log") && (linked.cs === "log" || linked.cs === "linear") ? { scale: linked.cs } : {}) }, false);
+    setView({ ...savedView, ...linked.formula, ...(linked.labelScale != null ? { labelScale: linked.labelScale } : {}), kind: kind === "bars" && (linked.formula || base?.scale !== "time") ? "bars" : "scatter", kindChosen: true, ...((linked.formula || base?.scale === "log" || base?.logOk) && (linked.cs === "log" || linked.cs === "linear") ? { scale: linked.cs } : {}) }, false);
     // eslint-disable-next-line react-hooks/set-state-in-effect -- URL deep-link init
     if (linked.cm === "best" || linked.cm === "all") setMode(linked.cm);
     // eslint-disable-next-line react-hooks/exhaustive-deps

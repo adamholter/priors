@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { scatterSpec } from "@/lib/og-chart";
 import type { Observation, Snapshot } from "./types";
 import { taskMetricData, taskMetricOptions } from "./task-metrics";
 import { computeIndex, defaultConfig } from "../engine";
@@ -82,6 +83,13 @@ describe("task metric sources", () => {
     expect(metricPanels(snapshot, ranked, "terminalbench-4")[0].chart?.points(ranked).map((p) => p.x)).toEqual([1200]);
     expect(metricPanels(snapshot, [], "terminalbench-4")[0].id).toBe("tpt");
     expect(metricPanels(snapshot, ranked)[0].chart?.points(ranked).map((p) => p.x)).toEqual([25, 30]);
+  });
+  it("starts time per task on a linear axis with the Log switch available; a linked card can ask for log", () => {
+    const ranked = computeIndex(snapshot, config).ranked, chart = metricPanels(snapshot, ranked)[0].chart!;
+    expect(chart).toMatchObject({ scale: "linear", logOk: true });
+    expect(scatterSpec(snapshot, ranked, config, "time-per-task")?.chart.scale).toBe("linear");
+    expect(scatterSpec(snapshot, ranked, config, "time-per-task", "all", "log")?.chart.scale).toBe("log");
+    expect(scatterSpec(snapshot, ranked, config, "cost")?.chart.scale).toBe("log");
   });
   it("round trips independent choices and ignores unknown source IDs", () => {
     const c = { ...config, costSource: "terminalbench-4" as const, timeSource: "aa" as const };

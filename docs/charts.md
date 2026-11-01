@@ -29,6 +29,8 @@ All charts are ECharts with the `priors` theme, set up in `src/components/chart/
 
 `src/components/page/MetricGallery.tsx`, on both `/builder` and profile pages. Time per task is open by default; Output speed, Latency, Release date, Uptime and Usage start collapsed.
 
+- Cost charts default to a log axis, since costs span orders of magnitude and subsidies shrink those gaps for real users. Time per task and a benchmark's own durations default to linear, because waiting happens in linear time; `logOk` keeps the Log switch on them, and the share card follows it through `cs=log`.
+
 - Usage (T3 Code share) is model-level: one point per model, on its best-scoring ranked variant.
 - Per-variant detail fields are looked up on the index observation. Source-qualified variant ids (`@effort~source-conf`) resolve to their base effort id, the same as engine substitution.
 - Uptime plots `-log10(downtime)` so 90, 99 and 99.9% are evenly spaced. Tooltips and exports show the raw percent.

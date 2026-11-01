@@ -19,7 +19,7 @@ export interface Row { modelId: string; model: string; labId: string; variantId:
 const BUILTIN: Metric[] = [
   { key: "index", name: "Index score", unit: "pts", better: "higher" },
   { key: "cost", name: "Cost per task", unit: "$", better: "lower", log: true },
-  { key: "time", name: "Time per task", unit: "s", better: "lower", log: true },
+  { key: "time", name: "Time per task", unit: "s", better: "lower" },
   { key: "speed", name: "Output speed", unit: "tok/s", better: "higher" },
   { key: "latency", name: "Time to first token", unit: "s", better: "lower", log: true },
   { key: "tokens", name: "Output tokens per task", unit: "tok", better: "lower", log: true },

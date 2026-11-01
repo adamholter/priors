@@ -59,7 +59,7 @@ export function metricSpec(chart: MetricChart, ranked: RankedVariant[], index: I
   const picked = pickPoints(chart, ranked, mode), shown = trimmed ? focusPoints(picked, chart.better, index.highlight ?? []) : picked;
   return {
     title, hasTitle, labelScale: normalizeLabelScale(o.labelScale), axis: o.axis,
-    chart: chart.scale === "log" && o.cs === "linear" ? { ...chart, scale: "linear", xName: chart.xName.replace(/, log| \(log\)/g, "") } : chart,
+    chart: chart.scale === "log" && o.cs === "linear" ? { ...chart, scale: "linear", xName: chart.xName.replace(/, log| \(log\)/g, "") } : chart.logOk && o.cs === "log" ? { ...chart, scale: "log" } : chart,
     pts: visiblePoints(shown, hidden),
     barPts: visiblePoints(filterBarModels(pickPoints(chart, ranked, mode), defaults), hidden),
     highlight: index.highlight?.length ? [...index.highlight] : undefined,

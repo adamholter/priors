@@ -662,6 +662,27 @@ try {
     } finally { await c.context().close(); }
   });
 
+  await check("time per task starts linear and can switch to log; cost stays log", async () => {
+    const c = await browser.newPage({ viewport: { width: 1360, height: 900 } });
+    try {
+      await c.goto(`${BASE}/builder`, { waitUntil: "domcontentloaded" });
+      const open = async (label) => {
+        const summary = c.getByLabel(`${label} settings`, { exact: true }).first();
+        await summary.waitFor({ timeout: 60000 }); await summary.scrollIntoViewIfNeeded(); await summary.click();
+        const tab = c.getByRole("tab", { name: "Settings" }).first();
+        if (await tab.count()) await tab.click();
+        return c.getByRole("group", { name: "Scale" }).first();
+      };
+      const time = await open("Time per task");
+      assert.equal(await time.getByRole("button", { name: "Linear" }).getAttribute("aria-pressed"), "true");
+      await time.getByRole("button", { name: "Log" }).click();
+      assert.equal(await time.getByRole("button", { name: "Log" }).getAttribute("aria-pressed"), "true");
+      await c.keyboard.press("Escape");
+      const cost = await open("Pareto");
+      assert.equal(await cost.getByRole("button", { name: "Log" }).getAttribute("aria-pressed"), "true");
+    } finally { await c.context().close(); }
+  });
+
   await check("pareto charts start on the frontier and each lab's current models; All models shows the rest", async () => {
     const c = await browser.newPage({ viewport: { width: 1300, height: 1000 } });
     try {

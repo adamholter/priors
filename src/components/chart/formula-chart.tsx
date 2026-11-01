@@ -34,7 +34,7 @@ export function useFormulaChart(base: MetricChart | undefined, view: ScatterView
       return built.count ? { count: built.count, total: built.total } : { error: "No model gets a value from this formula" };
     },
   } : undefined, [inputs, base, ranked]);
-  const logScale = custom ? (custom.logOk ? custom.scale as "log" | "linear" : undefined) : base?.scale === "log" ? "log" as const : undefined;
+  const logScale = custom ? (custom.logOk ? custom.scale as "log" | "linear" : undefined) : base?.scale === "log" || base?.logOk ? base.scale as "log" | "linear" : undefined;
   return {
     metric: custom ?? base, custom, settings,
     view: custom && !custom.logOk && view.scale !== "linear" ? { ...view, scale: "linear" as const } : view,
