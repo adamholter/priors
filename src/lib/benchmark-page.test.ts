@@ -1,11 +1,21 @@
 import { describe, expect, it } from "vitest";
 import { computeIndex } from "@/engine";
 import { loadSnapshot } from "@/data/load";
-import { benchmarkIndex, benchmarkSnapshot, benchmarkView, hasOwnCost } from "./benchmark-page";
+import { benchmarkIndex, benchmarkSnapshot, benchmarkView, directoryItems, hasOwnCost } from "./benchmark-page";
 
 describe("benchmark pages", async () => {
   const snap = (await loadSnapshot())!;
   const id = "frontiercode-1.1-main";
+
+  it("names the directory's top model from published scores, lowest first where lower is better, never an estimate", () => {
+    const [a, b] = snap.models, variant = (m: typeof a) => `${m.id}@default`;
+    const benchmark = snap.benchmarks[0], row = { benchmarkId: "t", value: 0 } as (typeof snap.observations)[number];
+    const fake = (higherIsBetter: boolean) => ({ ...snap, benchmarks: [{ ...benchmark, id: "t", proxy: undefined, higherIsBetter }], observations: [
+      { ...row, variantId: variant(a), value: 10 }, { ...row, variantId: variant(b), value: 20 }, { ...row, variantId: variant(a), value: 99, details: { priorsEstimate: true } },
+    ] });
+    expect(directoryItems(fake(true), new Map(), [])[0].leader?.name).toBe(b.name);
+    expect(directoryItems(fake(false), new Map(), [])[0].leader?.name).toBe(a.name);
+  });
 
   it("ranks the same from the trimmed snapshot as from the full one", () => {
     const small = benchmarkSnapshot(snap, id);

@@ -17,6 +17,7 @@
 | `/og`, `/[handle]/opengraph-image`, `/models/[id]/opengraph-image` | Share card and link-preview images. |
 | `/sitemap.xml`, `/robots.txt` | The fixed routes, every model page and every published page, rebuilt hourly. |
 | anything else | `src/app/not-found.tsx`, for a mistyped handle, a model that left the data, or a broken link. |
+| `/benchmarks/methodology` | How the directory's quality and recommended scores are calculated. |
 | `/lab/*` | Design labs, not indexed. See below. |
 | `/api/agent`, `/api/assistant` | See `docs/assistant.md`. |
 | `/api/benchmarks`, `/api/snapshot`, `/api/library`, `/api/lineup` | Data for agents, the onboarding search, and returning visitors. |

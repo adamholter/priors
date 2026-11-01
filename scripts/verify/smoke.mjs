@@ -25,6 +25,7 @@ try {
     ["/skill", () => page.getByRole("heading").first()],
     ["/import", () => page.getByRole("heading").first()],
     ["/benchmarks", () => page.getByRole("heading", { name: "Benchmarks" })],
+    ["/benchmarks/methodology", () => page.getByRole("heading", { name: "How benchmark scores work" })],
     ["/privacy", () => page.getByRole("heading").first()],
     ["/lab/themes", () => page.getByRole("group", { name: "Page theme" })],
     ["/lab/index", () => page.getByRole("group", { name: "Publishing placement" })],

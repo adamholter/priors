@@ -639,6 +639,29 @@ try {
     } finally { await c.context().close(); }
   });
 
+  await check("benchmarks directory: rail filters, a value's tooltip waits for a hover, and the methodology link works", async () => {
+    const c = await browser.newPage({ viewport: { width: 1360, height: 900 } });
+    try {
+      await c.goto(`${BASE}/benchmarks`, { waitUntil: "domcontentloaded" });
+      const rail = c.getByRole("navigation", { name: "Categories" }), rows = c.locator(".bench-row");
+      await rows.first().waitFor({ timeout: 30000 });
+      const before = await c.getByRole("status").innerText();
+      await rail.getByRole("button", { name: /^Math/ }).click();
+      await c.waitForFunction((t) => document.querySelector("[role=status]")?.textContent !== t, before);
+      assert.equal(await rail.getByRole("button", { name: /^Math/ }).getAttribute("aria-pressed"), "true");
+      const tip = rows.first().locator(".bench-q .bench-tip"), shown = () => tip.evaluate((el) => getComputedStyle(el, "::after").visibility);
+      assert.equal(await shown(), "hidden");
+      await tip.hover();
+      await c.waitForTimeout(100);
+      assert.equal(await shown(), "hidden", "tooltip waits before appearing");
+      await c.waitForFunction((el) => getComputedStyle(el, "::after").visibility === "visible", await tip.elementHandle(), { timeout: 2000 });
+      assert.match(await tip.getAttribute("data-bench-tip"), /Quality \d+ of 100/);
+      await c.getByRole("link", { name: "How scores work" }).click();
+      await c.getByRole("heading", { name: "How benchmark scores work" }).waitFor({ timeout: 30000 });
+      assert.ok(await c.getByText(/quality \+ 12 × log2/).isVisible());
+    } finally { await c.context().close(); }
+  });
+
   await check("pareto charts start on the frontier and each lab's current models; All models shows the rest", async () => {
     const c = await browser.newPage({ viewport: { width: 1300, height: 1000 } });
     try {

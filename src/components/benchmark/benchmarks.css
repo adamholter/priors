@@ -1,0 +1,63 @@
+.bench-totals{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:13px;color:var(--ink-2);margin-top:-16px}
+.bench-totals span{display:inline-flex;align-items:center;gap:6px}
+.bench-totals svg{color:var(--indigo)}
+
+.bench-dir ul>li,.bench-dir ul,.bench-layout>*{min-width:0}
+.bench-layout{display:grid;grid-template-columns:200px minmax(0,1fr);gap:36px;align-items:start}
+.bench-rail{position:sticky;top:16px;display:grid;gap:2px}
+.bench-rail button{display:grid;grid-template-columns:20px 1fr auto;align-items:center;gap:8px;padding:7px 10px;border:0;border-radius:6px;background:none;color:var(--ink-2);font-size:13.5px;text-align:left;cursor:pointer}
+.bench-rail button:hover{background:var(--hair-2);color:var(--ink)}
+.bench-rail button[aria-pressed=true]{background:var(--indigo-soft);color:var(--indigo)}
+.bench-rail button[aria-pressed=true] .cap{color:var(--indigo)}
+
+/* One grid for the header and every row, so each value sits under its own label. */
+.bench-head,.bench-row{display:grid;grid-template-columns:minmax(0,1fr) 148px 62px 58px 104px;column-gap:14px}
+.bench-head{align-items:end;padding-bottom:7px;border-bottom:1px solid var(--hair)}
+.bench-head .bench-tip{cursor:help}
+.bench-row{align-items:center;padding:11px 0}
+.bench-main{display:flex;align-items:flex-start;gap:11px;min-width:0}
+.bench-main>span:last-child{flex:1}
+.bench-cat{display:inline-grid;place-items:center;flex-shrink:0;width:28px;height:28px;margin-top:1px;border-radius:6px;background:var(--hair-2);color:var(--ink-2)}
+.bench-host{display:flex;align-items:center;gap:5px;margin-top:3px}
+.bench-fav{width:14px;height:14px;border-radius:3px;flex-shrink:0}
+
+.bench-cell{min-width:0;font-size:13px;color:var(--ink-2)}
+.bench-num,.bench-q,.bench-head>:nth-child(n+3){justify-self:end;text-align:right}
+.bench-num .num{color:var(--ink)}
+.bench-none .num{color:var(--grey)}
+svg.bench-inline,.bench-trophy{display:none}
+.bench-word{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+.bench-leader i{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.bench-leader .bench-tip{min-width:0;gap:6px;max-width:100%}
+.bench-quality{display:inline-flex;align-items:center;gap:2px}
+.bench-bars{display:inline-flex;gap:2px}
+.bench-bars i{width:5px;height:12px;border-radius:1.5px;background:var(--hair)}
+.bench-bars i.on{background:var(--indigo)}
+.bench-quality b{min-width:22px;margin-left:6px;font-weight:400;text-align:right;color:var(--ink)}
+
+/* Tooltip: waits a moment on hover so moving across a row stays quiet. */
+.bench-tip{position:relative;display:inline-flex;align-items:center;gap:4px}
+.bench-tip::after{content:attr(data-bench-tip);position:absolute;bottom:calc(100% + 6px);left:0;width:max-content;max-width:260px;padding:6px 9px;border-radius:5px;background:var(--ink);color:var(--bone);font:500 12px/1.4 var(--font-sans);text-align:left;text-transform:none;letter-spacing:0;white-space:normal;pointer-events:none;opacity:0;visibility:hidden;z-index:40}
+.bench-tip-end::after{left:auto;right:0}
+.bench-tip:hover::after{opacity:1;visibility:visible;transition:opacity .12s .45s,visibility 0s .45s}
+@media (hover:none){.bench-tip::after{display:none}}
+
+/* Narrow: no room for columns, so each value carries its own word. */
+@media (max-width:1040px){
+  .bench-head{display:none}
+  .bench-row{grid-template-columns:none;display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px}
+  .bench-main{flex:0 0 100%;max-width:100%}
+  .bench-num,.bench-q{justify-self:auto}
+  .bench-word{position:static;width:auto;height:auto;overflow:visible;clip-path:none}
+  .bench-leader .bench-word{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+  svg.bench-inline,.bench-trophy{display:block;color:var(--grey)}
+  .bench-quality-word{margin-right:5px}
+  .bench-cell{font-size:12px}
+  .bench-cell:empty,.bench-none{display:none}
+  .bench-leader{max-width:100%}
+}
+@media (max-width:800px){
+  .bench-layout{grid-template-columns:minmax(0,1fr);gap:16px}
+  .bench-rail{position:static;display:flex;overflow-x:auto;gap:4px}
+  .bench-rail button{grid-template-columns:auto auto auto;white-space:nowrap}
+}

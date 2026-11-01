@@ -6,7 +6,11 @@ import { defaultLineup } from "./defaults";
 // HLE-Diamond replaces Humanity's Last Exam, as it did in AA's index v5.
 export const PREFERRED = ["deepswe-1.1", "aa-terminalbench-v4-0", "arc-agi-3", "simplebench", "bsbench-v2", "aa-hle-diamond", "aa-omniscience", "frontiermath-tier-4-v2", "vals-programbench-v1"] as const;
 
-const FRONTIER_RELEASE_DATE = "2026-09-22";
+export const FRONTIER_RELEASE_DATE = "2026-09-22";
+/** The score's recipe: shares of each 0-100 part, then points added or taken away. The methodology page reads these. */
+export const QUALITY_WEIGHTS = { breadth: 0.15, frontier: 0.15, recency: 0.2, saturation: 0.3, objectivity: 0.2 } as const;
+export const QUALITY_ADJUST = { preferred: 15, superseded: -25, staleFrontier: -20 } as const;
+export const BREADTH_FULL_AT = 40;
 
 export const SUPERSEDED = new Set(["aa-terminalbench-v2-1", "arc-agi-1", "arc-agi-2", "deepswe-1", "aa-math-500", "aa-humanitys-last-exam"]);
 
@@ -213,13 +217,13 @@ export function benchmarkQuality(snapshot: Snapshot, cohort: string[] = defaultL
     const saturation = saturationScore(benchmark, rows);
     const objectivity = objectivityScore(benchmark);
     const measured = modelsMeasured(rows, llms);
-    const coverage = rounded(100 * Math.min(1, measured / 40));
+    const coverage = rounded(100 * Math.min(1, measured / BREADTH_FULL_AT));
     const frontier = frontierCoverage(rows, cohort, llms);
     const frontierScore = frontier.total ? frontier.score : coverage;
     const preferred = (PREFERRED as readonly string[]).includes(benchmark.id);
     const superseded = SUPERSEDED.has(benchmark.id);
     const staleFrontier = snapshot.date >= FRONTIER_RELEASE_DATE && !!benchmark.lastUpdated && benchmark.lastUpdated < FRONTIER_RELEASE_DATE;
-    const score = rounded(coverage * 0.15 + frontierScore * 0.15 + recency * 0.2 + saturation * 0.3 + objectivity * 0.2 + (preferred ? 15 : 0) - (superseded ? 25 : 0) - (staleFrontier ? 20 : 0));
+    const score = rounded(coverage * QUALITY_WEIGHTS.breadth + frontierScore * QUALITY_WEIGHTS.frontier + recency * QUALITY_WEIGHTS.recency + saturation * QUALITY_WEIGHTS.saturation + objectivity * QUALITY_WEIGHTS.objectivity + (preferred ? QUALITY_ADJUST.preferred : 0) + (superseded ? QUALITY_ADJUST.superseded : 0) + (staleFrontier ? QUALITY_ADJUST.staleFrontier : 0));
     const dateConfidence = release ? "verified" as const : "unknown" as const;
     const reason = `${dateConfidence === "verified" ? `Released ${release.date}` : "Release date unverified; recency held neutral"}. Headroom and score-spread quality ${saturation}/100 after collapsing effort/config variants by model. Objectivity ${objectivity}/100 is an assigned judgment score based on grading method. Breadth ${coverage}/100 from ${measured} measured models; frontier coverage ${frontierScore}/100 from ${frontier.measured}/${frontier.total} current top-lineup models${frontier.total ? "" : " (no cohort models in this snapshot; breadth used instead)"}. ${benchmark.lastUpdated ? `Publisher results updated ${benchmark.lastUpdated}. ` : "Publisher update date unknown. "}${staleFrontier ? `Results predate the ${FRONTIER_RELEASE_DATE} frontier releases, so quality loses 20 points. ` : ""}Quality combines 15% breadth, 15% frontier coverage, 20% benchmark recency, 30% headroom and spread, and 20% objectivity${preferred ? ", plus a preferred-benchmark bonus" : ""}${superseded ? ", minus a superseded-version penalty" : ""}. It does not prove validity or freedom from training contamination.`;
     return {

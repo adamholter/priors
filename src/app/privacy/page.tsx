@@ -5,7 +5,7 @@ import { pageMeta } from "@/lib/site-meta";
 
 export const metadata = pageMeta({ title: "Privacy", description: "What Priors stores, what it measures and how to have it removed.", path: "/privacy" });
 
-const UPDATED = "October 13, 2026";
+const UPDATED = "November 1, 2026";
 
 export default function PrivacyPage() {
   return (
@@ -28,7 +28,7 @@ export default function PrivacyPage() {
         </section>
         <section className="grid gap-2">
           <h2 className="text-[22px] text-ink">Service providers</h2>
-          <p>We use Vercel (hosting), Clerk (authentication), Convex (database), and PostHog (product analytics). They process data only to run Priors. We do not sell personal data, show ads, or use third-party advertising trackers.</p>
+          <p>We use Vercel (hosting), Clerk (authentication), Convex (database), and PostHog (product analytics). They process data only to run Priors. The benchmarks directory loads publisher site icons from DuckDuckGo, which sees your IP address when it serves them. We do not sell personal data, show ads, or use third-party advertising trackers.</p>
         </section>
         <section className="grid gap-2">
           <h2 className="text-[22px] text-ink">Usage analytics</h2>

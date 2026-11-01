@@ -46,11 +46,18 @@ export const benchmarkView = (snapshot: Snapshot, benchmarkId: string): ViewOpti
 
 /**
  * The /benchmarks directory: every measured benchmark with its model count, quality (the onboarding's score: recency,
- * saturation, objectivity, frontier coverage) and how many published pages weight it. Proxies (token prices) stay out.
+ * saturation, objectivity, frontier coverage), how many published pages weight it and the model on top. Proxies (token prices) stay out.
  */
 export function directoryItems(snapshot: Snapshot, quality: Map<string, number>, pages: { indices: { weights: Record<string, number> }[] }[]): DirectoryItem[] {
-  const models = new Map<string, Set<string>>();
-  for (const o of snapshot.observations) if (!inferredObservation(o)) (models.get(o.benchmarkId) ?? models.set(o.benchmarkId, new Set()).get(o.benchmarkId)!).add(o.variantId.split("@")[0]);
+  const models = new Map<string, Set<string>>(), best = new Map<string, { value: number; modelId: string }>();
+  const higher = new Map(snapshot.benchmarks.map((b) => [b.id, b.higherIsBetter]));
+  for (const o of snapshot.observations) if (!inferredObservation(o)) {
+    const modelId = o.variantId.split("@")[0], top = best.get(o.benchmarkId);
+    (models.get(o.benchmarkId) ?? models.set(o.benchmarkId, new Set()).get(o.benchmarkId)!).add(modelId);
+    if (!top || (higher.get(o.benchmarkId) ? o.value > top.value : o.value < top.value)) best.set(o.benchmarkId, { value: o.value, modelId });
+  }
+  const modelById = new Map(snapshot.models.map((m) => [m.id, m])), labColor = new Map(snapshot.labs.map((l) => [l.id, l.color]));
+  const leaderOf = (id: string) => { const m = modelById.get(best.get(id)?.modelId ?? ""); return m ? { leader: { name: m.name, labId: m.labId, color: labColor.get(m.labId) ?? "" } } : {}; };
   const uses = new Map<string, number>();
   for (const p of pages) for (const id of new Set(p.indices.flatMap((i) => Object.entries(i.weights).filter(([, w]) => w > 0).map(([k]) => k)))) uses.set(id, (uses.get(id) ?? 0) + 1);
   const superseded = new Set(snapshot.benchmarks.map((b) => b.versionPolicy?.kind === "fresh" ? b.versionPolicy.supersedes : b.versionPolicy?.kind === "fallback" ? b.versionPolicy.fallbackTo : undefined));
@@ -60,7 +67,7 @@ export function directoryItems(snapshot: Snapshot, quality: Map<string, number>,
   const host = (u: string) => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch { return ""; } };
   return listed.map((b) => ({
     id: b.id, name: b.name, shortName: b.shortName, sourceId: b.sourceId, category: b.category, description: b.description, host: host(b.url),
-    models: models.get(b.id)!.size, quality: quality.get(b.id) ?? 50, uses: uses.get(b.id) ?? 0, lastUpdated: b.lastUpdated,
+    models: models.get(b.id)!.size, quality: quality.get(b.id) ?? 50, uses: uses.get(b.id) ?? 0, lastUpdated: b.lastUpdated, ...leaderOf(b.id),
     ...(superseded.has(b.id) ? { superseded: true } : {}), ...(b.variantOf ? { variantOf: b.variantOf } : {}), ...(splits.get(b.id) ? { splits: splits.get(b.id) } : {}),
   }));
 }
