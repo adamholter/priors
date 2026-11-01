@@ -656,7 +656,7 @@ try {
       assert.equal(await shown(), "hidden", "tooltip waits before appearing");
       await c.waitForFunction((el) => getComputedStyle(el, "::after").visibility === "visible", await tip.elementHandle(), { timeout: 2000 });
       assert.match(await tip.getAttribute("data-bench-tip"), /Quality \d+ of 100/);
-      await c.getByRole("link", { name: "How scores work" }).click();
+      await c.getByRole("link", { name: "How scores work", exact: true }).click();
       await c.getByRole("heading", { name: "How benchmark scores work" }).waitFor({ timeout: 30000 });
       assert.ok(await c.getByText(/quality \+ 12 × log2/).isVisible());
     } finally { await c.context().close(); }
