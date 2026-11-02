@@ -29,7 +29,6 @@ try {
     ["/privacy", () => page.getByRole("heading").first()],
     ["/lab/themes", () => page.getByRole("group", { name: "Page theme" })],
     ["/lab/index", () => page.getByRole("group", { name: "Publishing placement" })],
-    ["/lab/plans", () => page.getByRole("group", { name: "Plan picker layout" })],
   ];
   for (const [path, landmark] of routes) {
     const res = await page.goto(BASE + path, { waitUntil: "domcontentloaded" });

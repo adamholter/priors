@@ -114,7 +114,6 @@ A lab is a noindex page under `/lab/` that shows three or four switchable varian
 
 - `/lab/themes`: every page theme on a sample page, with edit mode available without signing in. Nothing saves. Kept as a tool.
 - `/lab/index`: where "Publish to Explore" sits on the builder (`labPlacement` in `Builder.tsx`). Open question.
-- `/lab/plans`: where the subscription plan picker sits in chart settings (`PlanLayout` in `PlanPicker.tsx`; `?v=a` to `d`). Open question. Live: `advanced`.
 
 ## History
 `/history` is not linked from anywhere. It shows the top 20 of an index on every snapshot date (`data/snapshots/<date>.json.gz`), played back in time (or forward) with a scrubber. The index comes from `?i=`, else the builder's saved index, else General frontier. `/api/history?i=&mode=` computes it server-side (`src/lib/history.ts`, no sign-in, cached per index), and `src/lib/history-frames.ts` interpolates between dates (ranks slide, scores blend, a model in one frame fades).

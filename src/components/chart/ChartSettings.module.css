@@ -34,21 +34,6 @@
 .planNote { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: -2px 0 8px; font-size: 11.5px; line-height: 1.45; color: var(--grey); }
 .planNote button { flex: none; color: var(--indigo); }
 .planNote button:hover { text-decoration: underline; }
-.sub.subPlain { border-top: 0; }
-.planChoice { border-top: 1px solid var(--hair); }
-.planChoice > summary { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 10px; align-items: center; min-height: 34px; padding: 0; color: var(--ink-2); background: none !important; border-radius: 0; place-items: center start; font-size: 12px; }
-.planChoice > summary b { font-weight: 400; }
-.planChoice > summary span { max-width: 100%; color: var(--grey); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.planChoice[open] > summary span { color: transparent; }
-.planChoice > div { padding: 0 0 8px; }
-.planChoice label { display: flex; align-items: center; gap: 8px; min-height: 30px; cursor: pointer; font-size: 12px; }
-.planChoice input { flex: none; width: 13px; height: 13px; accent-color: var(--indigo-fill); }
-.planChoice label span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.planChoice small { flex: none; margin-left: auto; color: var(--grey); font: 10.5px var(--font-mono); }
-.planPageRow { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 38px; text-align: left; }
-.planPageRow span:nth-child(2) { margin-left: auto; color: var(--grey); font-size: 12px; }
-.planPageRow svg { color: var(--grey); }
-.planBack { display: flex; align-items: center; gap: 4px; min-height: 34px; margin: -4px 0 6px -3px; font-weight: 500; }
 .toggles label { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 38px; cursor: pointer; }
 .toggles input, .model input { width: 14px; height: 14px; accent-color: var(--indigo-fill); }
 .modelCount { display: flex; gap: 12px; align-items: center; font-size: 11px; padding: 4px 0 12px; color: var(--grey); }

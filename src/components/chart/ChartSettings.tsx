@@ -10,7 +10,7 @@ import type { ScatterView } from "./ScoreScatter";
 import { labelScale } from "./label-size";
 import { chartLinkUrl } from "@/lib/highlight-link";
 import { FormulaEditor, type FormulaSettings } from "./formula-chart";
-import { PlanPage, PlanPageRow, PlanSection, picked, usePlanLayout, type PlanOptions } from "./PlanPicker";
+import { PlanSection, picked, type PlanOptions } from "./PlanPicker";
 import { useChartPalette } from "./palette-context";
 import { setChartGridPref, useChartGrid } from "@/lib/chart-grid-pref";
 import styles from "./ChartSettings.module.css";
@@ -49,7 +49,7 @@ export function ChartSettings({ label, mode, onChange, efforts, releasedAfter, o
   onView?: (view: ScatterView, persist?: boolean) => void;
 }) {
   const id = useId(), root = useRef<HTMLDetailsElement>(null), trigger = useRef<HTMLElement>(null);
-  const [open, setOpen] = useState(false), [tab, setTab] = useState<"models" | "settings">(models.length && onToggleModel ? "models" : "settings"), [query, setQuery] = useState(""), [formulaOpen, setFormulaOpen] = useState(false), [plansPage, setPlansPage] = useState(false);
+  const [open, setOpen] = useState(false), [tab, setTab] = useState<"models" | "settings">(models.length && onToggleModel ? "models" : "settings"), [query, setQuery] = useState(""), [formulaOpen, setFormulaOpen] = useState(false);
   const pal = useChartPalette(), gridOn = useChartGrid(pal);
   const [placement, setPlacement] = useState({ height: 620, above: false });
   useEffect(() => {
@@ -96,7 +96,6 @@ export function ChartSettings({ label, mode, onChange, efforts, releasedAfter, o
   const resets = costBasis?.value === "subscription" ? planResets : undefined;
   const plans = costBasis && subscriptionPlans?.labs.length ? subscriptionPlans : undefined;
   const plansSet = plans && costBasis?.value === "subscription" ? picked(plans) : 0;
-  const planLayout = usePlanLayout();
   const active = [view?.formula?.trim() && "formula", plansSet && `${plansSet} ${plansSet === 1 ? "plan" : "plans"}`, resets?.value && "resets"].filter((x): x is string => !!x);
   const settingsPanel = <>
     {(dataSource || onChangeReleased) && <div className={styles.dataControls}>
@@ -104,8 +103,6 @@ export function ChartSettings({ label, mode, onChange, efforts, releasedAfter, o
       {onChangeReleased && <div className={styles.dataField}><label htmlFor={`${id}-release`}>Released</label><select aria-label={`${label} release window`} id={`${id}-release`} value={releaseValue} onChange={e => onChangeReleased?.(e.target.value === "all" ? "" : releaseDate(+e.target.value))}><option value="6">Last 6 months</option><option value="12">Last year</option><option value="24">Last 2 years</option><option value="all">All time</option>{releaseValue === "custom" && <option value="custom" disabled>Custom</option>}</select></div>}
     </div>}
     {costBasis && <div className={styles.row}><span id={`${id}-basis-label`}>Pricing</span><div className={styles.choice} role="group" aria-labelledby={`${id}-basis-label`}>{COST_BASES.map(b => <button key={b.id} type="button" aria-pressed={costBasis.value === b.id} onClick={() => costBasis.onChange(b.id)}>{b.name}</button>)}</div></div>}
-    {plans && costBasis && (planLayout === "pricing" || planLayout === "choices") && <PlanSection id={id} plans={plans} basis={costBasis} layout={planLayout} />}
-    {plans && costBasis && planLayout === "page" && <PlanPageRow plans={plans} basis={costBasis} onOpen={() => setPlansPage(true)} />}
     {defaultScale && view && onView && view.kind !== "bars" && <div className={styles.row}><span id={`${id}-scale-label`}>Scale</span><div className={styles.choice} role="group" aria-labelledby={`${id}-scale-label`}>{(["log", "linear"] as const).map(value => <button key={value} type="button" aria-pressed={(view.scale ?? defaultScale) === value} onClick={() => onView({ ...view, scale: value })}>{value === "log" ? "Log" : "Linear"}</button>)}</div></div>}
     {efforts && <div className={styles.row}><span id={`${id}-efforts-label`}>Reasoning</span><div className={styles.efforts} role="group" aria-labelledby={`${id}-efforts-label`}>{EFFORT_CHOICES.map(e => { const on = efforts.value.includes(e); return <button key={e} type="button" aria-pressed={on} data-effort={e} title={e === "none" ? "Models run with no reasoning" : undefined} onClick={() => efforts.onChange(EFFORT_CHOICES.filter(x => x === e ? !on : efforts.value.includes(x)))}>{EFFORT_LABELS[e]}</button>; })}</div></div>}
     {(!efforts || efforts.withMode) && <div className={styles.row}><label htmlFor={`${id}-effort`}>{efforts ? "Show" : "Reasoning efforts"}</label><select aria-label={`${label} reasoning efforts`} id={`${id}-effort`} value={mode} onChange={e => onChange(e.target.value as "all" | "best")}><option value="all">All efforts</option><option value="best">Best per model</option></select></div>}
@@ -130,7 +127,7 @@ export function ChartSettings({ label, mode, onChange, efforts, releasedAfter, o
     </>}
     {view && onView && <details className={styles.advanced}>
       <summary>Advanced{active.length > 0 && <em>{active.join(", ")}</em>}</summary>
-      {plans && costBasis && planLayout === "advanced" && <PlanSection id={id} plans={plans} basis={costBasis} layout={planLayout} />}
+      {plans && costBasis && <PlanSection id={id} plans={plans} basis={costBasis} />}
       <div className={styles.advancedRows}>
         <label><span>Background grid</span><input type="checkbox" checked={gridOn} onChange={e => setChartGridPref(e.target.checked, pal)} /></label>
         {resets && <div>
@@ -145,13 +142,13 @@ export function ChartSettings({ label, mode, onChange, efforts, releasedAfter, o
     </details>}
   </>;
   return <details ref={root} open={open} className={styles.picker} name="chart-settings">
-    <summary ref={trigger} aria-label={`${label} settings`} title={`${label} settings`} onClick={e => { e.preventDefault(); if (!open) { setPlansPage(false); setTab(hasModels ? "models" : "settings"); setOpenOrder(models.map(m => m.id)); } setOpen(!open); }}><IconAdjustmentsHorizontal size={16} stroke={1.5} aria-hidden="true" /></summary>
+    <summary ref={trigger} aria-label={`${label} settings`} title={`${label} settings`} onClick={e => { e.preventDefault(); if (!open) { setTab(hasModels ? "models" : "settings"); setOpenOrder(models.map(m => m.id)); } setOpen(!open); }}><IconAdjustmentsHorizontal size={16} stroke={1.5} aria-hidden="true" /></summary>
     <div className={`${styles.menu} chart-settings-menu`} data-above={placement.above} style={{ "--picker-space": `${placement.height}px` } as CSSProperties}>
       <div className={styles.heading}><span>Chart settings</span><button type="button" aria-label="Close chart settings" onClick={() => dismiss("escape")}><IconX size={16} stroke={1.5} aria-hidden="true" /></button></div>
       {hasModels && <div className={styles.tabs} role="tablist" aria-label={`${label} settings sections`}>
         {(["models", "settings"] as const).map(value => <button key={value} id={`${id}-${value}-tab`} role="tab" type="button" aria-selected={tab === value} aria-controls={`${id}-${value}-panel`} tabIndex={tab === value ? 0 : -1} onKeyDown={e => tabKey(e, value)} onClick={() => setTab(value)}>{value === "models" ? "Models" : "Settings"}</button>)}
       </div>}
-      <div className={styles.body} role={hasModels ? "tabpanel" : "region"} id={`${id}-${tab}-panel`} aria-labelledby={hasModels ? `${id}-${tab}-tab` : undefined} aria-label={hasModels ? undefined : `${label} settings`}>{hasModels && tab === "models" ? modelPanel : plansPage && plans && costBasis && planLayout === "page" ? <PlanPage id={id} plans={plans} basis={costBasis} onBack={() => setPlansPage(false)} /> : settingsPanel}</div>
+      <div className={styles.body} role={hasModels ? "tabpanel" : "region"} id={`${id}-${tab}-panel`} aria-labelledby={hasModels ? `${id}-${tab}-tab` : undefined} aria-label={hasModels ? undefined : `${label} settings`}>{hasModels && tab === "models" ? modelPanel : settingsPanel}</div>
     </div>
   </details>;
 }
