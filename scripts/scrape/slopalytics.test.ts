@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import source from "./sources/slopalytics";
+import source, { tokenMixes } from "./sources/slopalytics";
 
 const payload = {
   schemaVersion: 2, fetchedAt: "2026-10-01T11:10:15Z", start: "2026-09-01", endExclusive: "2026-10-01", project: "T3 Code PROD",
@@ -36,5 +36,24 @@ describe("Slopalytics T3 Code usage", () => {
   });
   it("rejects an unexpected payload", async () => {
     await expect(source.scrape({ fetchJson: async () => ({ schemaVersion: 9, models: [] }) } as unknown as Parameters<typeof source.scrape>[0])).rejects.toThrow();
+  });
+});
+
+describe("tokenMixes", () => {
+  const days = ["2026-10-25", "2026-10-26", "2026-10-27", "2026-10-28", "2026-10-29", "2026-10-30", "2026-10-31", "2026-11-01"];
+  const row = (day: string, harness: string, model: string, cached: number, fresh: number, written: number, output: number, tokenTurns = 5000) => ({ day, harness, model, cached, fresh, written, output, tokenTurns });
+  it("takes shares of all tokens over the last 7 days, on the busiest harness", () => {
+    const mixes = tokenMixes([
+      row("2026-10-25", "claudeAgent", "Opus 5.5", 1e12, 1e12, 0, 0), // outside the window
+      row("2026-10-26", "claudeAgent", "Opus 5.5", 98e9, 0, 1.5e9, 0.5e9), row("2026-11-01", "claudeAgent", "Opus 5.5", 98e9, 0, 1.5e9, 0.5e9),
+      row("2026-11-01", "codex", "Opus 5.5", 2e9, 0, 0, 0), row("2026-11-01", "opencode", "Opus 5.5", 1e6, 0, 0, 0),
+    ], days);
+    expect(mixes.get("Opus 5.5")).toMatchObject({ cache: 0.98, input: 0, cacheWrite: 0.015, output: 0.005, harness: "claudeAgent", tokens: 200e9, start: "2026-10-26", end: "2026-11-01", confidence: "high" });
+    expect(Object.keys(mixes.get("Opus 5.5")!.byHarness!)).toEqual(["codex"]);
+  });
+  it("leaves out thin models and buckets, and marks small samples medium", () => {
+    const mixes = tokenMixes([row("2026-11-01", "codex", "Tiny", 1e8, 0, 0, 0), row("2026-11-01", "codex", "Few turns", 5e9, 0, 0, 0, 10), row("2026-11-01", "codex", "Other models", 5e11, 0, 0, 0), row("2026-11-01", "codex", "Small", 5e9, 0, 0, 0)], days);
+    expect([...mixes.keys()]).toEqual(["Small"]);
+    expect(mixes.get("Small")?.confidence).toBe("medium");
   });
 });

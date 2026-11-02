@@ -5,7 +5,7 @@ import { computeIndex, type IndexConfig } from "../engine";
 import { decodeIndex, encodeIndex } from "../lib/url";
 import { clientSnapshot } from "./client-snapshot";
 import { countedResets, extraWeeks, planResetBoosts, planResetNote } from "./plan-resets";
-import { blendedApiPrice, CODEX_LIMITS_BENCHMARK, subscriptionPlanOptions, subscriptionPrices, SUBSCRIPTION_BENCHMARK, type SubscriptionDetails } from "./subscription";
+import { blendedApiPrice, CODEX_LIMITS_BENCHMARK, measuredTokenMixes, subscriptionPlanOptions, subscriptionPrices, SUBSCRIPTION_BENCHMARK, tokenPrice, type SubscriptionDetails } from "./subscription";
 
 const standard = { cache: 0.97, input: 0.025, output: 0.005 };
 const plan = (name: string, extra: Partial<SubscriptionDetails> = {}): Record<string, unknown> => ({ plan: name, feeUsd: 20, confidence: "high", mix: standard, plans: [], ...extra });
@@ -40,6 +40,28 @@ function snap(): Snapshot {
 
 const base: IndexConfig = { id: "t", name: "t", weights: { swe: 100 }, required: [], cutoff: 5, estimateMissing: true, variants: "all", effortMatching: "strict", releasedAfter: "" };
 const costs = (config: IndexConfig) => Object.fromEntries(computeIndex(snap(), config).ranked.map((r) => [r.variant.id, r.costUsd]));
+
+describe("measured token mixes", () => {
+  const measured = { cache: 0.98, input: 0.0004, cacheWrite: 0.0166, output: 0.003, harness: "claudeAgent", tokens: 5e10, start: "2026-10-26", end: "2026-11-01", confidence: "medium" as const };
+  const usage = { benchmarkId: "t3-usage-share", variantId: "a@max", value: 1, observedAt: "", sourceUrl: "", details: { tokenMix: measured } };
+  const withUsage = (): Snapshot => { const s = snap(); return { ...s, observations: [...s.observations, usage] }; };
+  it("prices tokens at the measured mix, falling back to the plan's assumed mix", () => {
+    const a = tokenPrice(withUsage(), "a")!;
+    expect(a.mix).toBe(measuredTokenMixes(withUsage()).get("a"));
+    expect(a.apiUsd).toBeCloseTo(0.98 * 0.2 + 0.0004 * 4 + 0.0166 * 5 + 0.003 * 20, 6);
+    expect(a.standardUsd).toBeCloseTo(0.394, 6);
+    expect(a.subscription?.plan).toBe("Claude Max");
+    expect(a.subscription!.usd / a.apiUsd).toBeCloseTo(subscriptionPrices(withUsage()).get("a")!.ratio, 6);
+    expect(tokenPrice(snap(), "a")).toMatchObject({ mix: { cacheWrite: 0.025 } });
+    expect(tokenPrice(snap(), "a")?.measured).toBeUndefined();
+  });
+  it("leaves a plan's share of API price, and so cost per task, unchanged", () => {
+    expect(subscriptionPrices(withUsage()).get("a")?.ratio).toBeCloseTo(subscriptionPrices(snap()).get("a")!.ratio, 10);
+  });
+  it("survives the client snapshot", () => {
+    expect(measuredTokenMixes(clientSnapshot(withUsage())).get("a")).toEqual(measured);
+  });
+});
 
 describe("subscription cost basis", () => {
   it("blends API prices at the plan's workload, with the source's defaults for unpublished cache prices", () => {

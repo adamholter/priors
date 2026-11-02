@@ -13,6 +13,15 @@ export const isCostBasis = (value: string): value is CostBasis => COST_BASES.som
 /** Token shares of the workload a plan's allowance was converted with; they sum to 1. */
 export interface TokenMix { cache: number; input: number; output: number; cacheWrite?: number }
 
+/** A model's token mix measured from T3 Code usage over a rolling 7 days, on its busiest harness. */
+export interface MeasuredTokenMix extends TokenMix {
+  harness: string; tokens: number; start: string; end: string;
+  /** "high" from 100B tokens in the window, "medium" from 1B. Less than that isn't published, and the assumed mix stands. */
+  confidence: "high" | "medium";
+  /** Other harnesses with enough usage to measure. */
+  byHarness?: Record<string, TokenMix & { tokens: number }>;
+}
+
 export interface SubscriptionDetails {
   plan: string;
   /** Set when the share of API price is known directly (a published plan allowance), instead of derived from `mix` and a list price. */
@@ -49,8 +58,44 @@ export function blendedApiPrice(p: Prices, mix: TokenMix): number {
 
 /** OpenAI's estimated Codex messages per five hours on Plus, per model (`scripts/scrape/sources/codex-limits.ts`). */
 export const CODEX_LIMITS_BENCHMARK = "codex-plus-messages";
-const STANDARD_MIX: TokenMix = { cache: 0.97, input: 0.025, output: 0.005 };
+/** The workload assumed when usage can't tell: Real API Pricing's standard convention. */
+export const STANDARD_MIX: TokenMix = { cache: 0.97, input: 0.025, output: 0.005 };
+const T3_USAGE_BENCHMARK = "t3-usage-share";
 const median = (xs: number[]) => { const s = [...xs].sort((a, b) => a - b); return s.length % 2 ? s[(s.length - 1) / 2] : (s[s.length / 2 - 1] + s[s.length / 2]) / 2; };
+
+/** Each model's measured token mix (`scripts/scrape/sources/slopalytics.ts`). Models with too little T3 Code usage are absent. */
+export function measuredTokenMixes(snapshot: Snapshot): Map<string, MeasuredTokenMix> {
+  const variants = new Map(snapshot.variants.map((v) => [v.id, v.modelId])), out = new Map<string, MeasuredTokenMix>();
+  for (const o of snapshot.observations) {
+    const mix = o.benchmarkId === T3_USAGE_BENCHMARK ? o.details?.tokenMix as MeasuredTokenMix | undefined : undefined;
+    if (mix) out.set(variants.get(o.variantId) ?? o.variantId.split("@")[0], mix);
+  }
+  return out;
+}
+
+const listPrices = (m: NonNullable<Snapshot["variants"][number]["sourceModel"]>["metadata"] | undefined): Prices | undefined =>
+  m && positive(m.price1mInputTokens) && positive(m.price1mOutputTokens) ? { input: m.price1mInputTokens, output: m.price1mOutputTokens, cached: positive(m.cacheHitPrice) ? m.cacheHitPrice : undefined, cacheWrite: positive(m.cacheWritePrice) ? m.cacheWritePrice : undefined } : undefined;
+
+/** What one million of a model's tokens cost, at its measured mix when it has one and otherwise its plan's assumed mix. */
+export interface TokenPrice {
+  mix: TokenMix; measured?: MeasuredTokenMix;
+  apiUsd: number;
+  /** The same tokens at the fixed standard mix, to compare against. */
+  standardUsd: number;
+  /** What a subscriber pays for those tokens. Absent without a plan, or on a free tier. */
+  subscription?: { usd: number; plan: string };
+}
+
+/** Undefined when no list price is known. Uses the same list price as the plan's share of API price. */
+export function tokenPrice(snapshot: Snapshot, modelId: string, chosen: Record<string, string> = {}): TokenPrice | undefined {
+  const own = new Set(snapshot.variants.filter((v) => v.modelId === modelId).map((v) => v.id));
+  const details = snapshot.observations.find((o) => o.benchmarkId === SUBSCRIPTION_BENCHMARK && own.has(o.variantId))?.details as unknown as SubscriptionDetails | undefined;
+  const prices = details?.listPrice ?? snapshot.variants.filter((v) => own.has(v.id)).map((v) => listPrices(v.sourceModel?.metadata)).find(Boolean);
+  if (!prices) return undefined;
+  const measured = measuredTokenMixes(snapshot).get(modelId), mix = measured ?? details?.mix ?? STANDARD_MIX, apiUsd = blendedApiPrice(prices, mix);
+  const plan = subscriptionPrices(snapshot, chosen).get(modelId);
+  return { mix, ...(measured ? { measured } : {}), apiUsd, standardUsd: blendedApiPrice(prices, STANDARD_MIX), ...(positive(plan?.ratio) ? { subscription: { usd: plan.ratio * apiUsd, plan: plan.plan } } : {}) };
+}
 
 /** The plans a viewer can price each lab at (Advanced → Plan): every plan a model of that lab was measured on, by monthly fee. Labs with one plan are left out. */
 export function subscriptionPlanOptions(snapshot: Snapshot): { labId: string; plans: { plan: string; feeUsd?: number; models: number }[] }[] {
@@ -75,6 +120,9 @@ export function subscriptionPlanOptions(snapshot: Snapshot): { labId: string; pl
  * for models it has not priced yet. Models without a first-party plan are absent.
  * Each model is priced at its median plan unless `chosen` names a plan for its lab (lab id → plan name)
  * that the model was measured on; a model without that plan keeps its median one.
+ * The share is worked out at the mix the plan's token price was converted with, never a measured one: an allowance
+ * spent at list prices gives the same share at any mix, and mixing the two would change the share for no reason.
+ * Only comparing two different models' prices depends on the mix, so that (below) uses measured mixes.
  */
 export function subscriptionPrices(snapshot: Snapshot, chosen: Record<string, string> = {}): Map<string, SubscriptionPrice> {
   const labOf = new Map(snapshot.models.map((m) => [m.id, m.labId]));
@@ -84,8 +132,8 @@ export function subscriptionPrices(snapshot: Snapshot, chosen: Record<string, st
   const aaPrices = new Map<string, Prices>();
   for (const v of snapshot.variants) {
     const m = v.sourceModel?.metadata;
-    if (!m || aaPrices.has(v.modelId) || !positive(m.price1mInputTokens) || !positive(m.price1mOutputTokens)) continue;
-    aaPrices.set(v.modelId, { input: m.price1mInputTokens, output: m.price1mOutputTokens, cached: positive(m.cacheHitPrice) ? m.cacheHitPrice : undefined, cacheWrite: positive(m.cacheWritePrice) ? m.cacheWritePrice : undefined });
+    const prices = aaPrices.has(v.modelId) ? undefined : listPrices(m);
+    if (prices) aaPrices.set(v.modelId, prices);
   }
   const assumed: [string, SubscriptionDetails][] = [];
   for (const o of snapshot.observations) {
@@ -112,13 +160,13 @@ export function subscriptionPrices(snapshot: Snapshot, chosen: Record<string, st
   // measured model keeps one odd reference from setting the price. Real plan data replaces it once the model has some.
   const messages = new Map<string, number>();
   for (const o of snapshot.observations) if (o.benchmarkId === CODEX_LIMITS_BENCHMARK && positive(o.value)) messages.set(variants.get(o.variantId)?.modelId ?? o.variantId.split("@")[0], o.value);
-  const measured = [...messages.keys()].filter((id) => out.has(id) && aaPrices.has(id));
+  const measured = [...messages.keys()].filter((id) => out.has(id) && aaPrices.has(id)), usage = measuredTokenMixes(snapshot);
   for (const [modelId, n] of messages) {
     const prices = aaPrices.get(modelId);
     if (out.has(modelId) || !prices) continue;
     const refs = measured.map((ref) => {
-      const mix = mixes.get(ref) ?? STANDARD_MIX;
-      return { ref, ratio: out.get(ref)!.ratio * (messages.get(ref)! / n) * (blendedApiPrice(aaPrices.get(ref)!, mix) / blendedApiPrice(prices, mix)) };
+      const assumed = mixes.get(ref) ?? STANDARD_MIX;
+      return { ref, ratio: out.get(ref)!.ratio * (messages.get(ref)! / n) * (blendedApiPrice(aaPrices.get(ref)!, usage.get(ref) ?? assumed) / blendedApiPrice(prices, usage.get(modelId) ?? assumed)) };
     }).filter((r) => positive(r.ratio));
     if (!refs.length) continue;
     const ratio = median(refs.map((r) => r.ratio));

@@ -5,6 +5,7 @@ import type { Snapshot } from "@/data/types";
 import type { TaskMetricSource } from "@/data/task-metrics";
 import type { RankedVariant } from "@/engine";
 import { costChart, freeFloor, metricPanels, money } from "@/lib/metrics";
+import { tokenPrice, type TokenPrice } from "@/data/subscription";
 import { CONTAIN_AXIS_LABELS, insideLabels, useChartPalette, useEChart } from "../chart/echarts";
 import { FieldStrip, type StripPoint } from "./FieldStrip";
 import { escapeSvg as esc } from "../chart/export-frame";
@@ -21,7 +22,7 @@ const effortOf = (r: RankedVariant) => (r.variant.effort === "default" ? "" : r.
  * speed, time to first token, output tokens) with its value and place. Metrics nobody measured
  * for this model are named rather than hidden.
  */
-export function ModelCostSpeed({ snapshot, ranked, modelId, name, color, timeSource }: { snapshot: Snapshot; ranked: RankedVariant[]; modelId: string; name: string; color: string; timeSource?: TaskMetricSource }) {
+export function ModelCostSpeed({ snapshot, ranked, modelId, name, color, timeSource, plans }: { plans?: Record<string, string>; snapshot: Snapshot; ranked: RankedVariant[]; modelId: string; name: string; color: string; timeSource?: TaskMetricSource }) {
   const metrics = useMemo<Metric[]>(() => {
     const panels = new Map(metricPanels(snapshot, ranked, timeSource).map((p) => [p.id, p]));
     const from = (id: string) => { const pts = panels.get(id)?.chart?.points(ranked) ?? []; const m = new Map(pts.map((p) => [p.r.variant.id, p.raw ?? p.x])); return (r: RankedVariant) => m.get(r.variant.id); };
@@ -43,9 +44,28 @@ export function ModelCostSpeed({ snapshot, ranked, modelId, name, color, timeSou
       <div className="flex items-baseline justify-between border-b hairline pb-2"><h2 className="text-[26px]">Cost and speed</h2><span className="cap">{ranked.length ? `against ${new Set(ranked.map((r) => r.model.id)).size} ranked models` : ""}</span></div>
       {withCost && <ScoreCost ranked={ranked} modelId={modelId} color={color} />}
       {has.length > 0 && <div className="grid gap-x-8 gap-y-6 lg:grid-cols-2">{has.map((m) => <MetricCard key={m.id} m={m} ranked={ranked} mine={mineAll} modelId={modelId} color={color} />)}</div>}
+      <TokenPriceCard snapshot={snapshot} modelId={modelId} plans={plans} />
       {missing.length > 0 && <p className="cap">Not measured for {name}: {missing.map((m) => m.title.toLowerCase()).join(", ")}{missing.some((m) => m.id === "cost") ? " (no published API price yet)" : ""}.</p>}
     </section>
   );
+}
+
+const HARNESS: Record<string, string> = { claudeAgent: "Claude Code", codex: "Codex", opencode: "OpenCode", cursor: "Cursor" };
+const perM = (v: number) => `$${v >= 0.01 ? v.toFixed(3) : v.toPrecision(2)}`;
+const pct = (v: number) => `${(v * 100).toFixed(v >= 0.1 ? 1 : 2)}%`;
+const day = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+
+/** What a million of this model's tokens cost, and where the token mix behind that number comes from. */
+function TokenPriceCard({ snapshot, modelId, plans }: { snapshot: Snapshot; modelId: string; plans?: Record<string, string> }) {
+  const price: TokenPrice | undefined = useMemo(() => tokenPrice(snapshot, modelId, plans), [snapshot, modelId, plans]);
+  if (!price) return null;
+  const { mix, measured, apiUsd, standardUsd, subscription } = price;
+  return <div className="grid gap-1" data-token-price>
+    <h3 className="text-[18px]">Token price</h3>
+    <p className="flex flex-wrap items-baseline gap-x-5"><span><span className="num text-[20px] text-indigo">{perM(apiUsd)}</span> <span className="cap">per 1M tokens at API prices</span></span>{subscription && <span><span className="num text-[20px] text-indigo">{perM(subscription.usd)}</span> <span className="cap">on {subscription.plan}</span></span>}</p>
+    <p className="cap">{pct(mix.cache)} cache read · {pct(mix.input)} fresh input · {pct(mix.cacheWrite ?? 0)} cache write · {pct(mix.output)} output</p>
+    <p className="cap">{measured ? <>Measured from T3 Code usage in {HARNESS[measured.harness] ?? measured.harness}, {day(measured.start)} to {day(measured.end)}, {measured.confidence} confidence. One app&rsquo;s users, not everyone&rsquo;s. {perM(standardUsd)} at the standard 97 / 2.5 / 0.5 mix.</> : <>Assumed mix: no measured T3 Code usage for this model.</>}</p>
+  </div>;
 }
 
 function MetricCard({ m, ranked, mine, modelId, color }: { m: Metric; ranked: RankedVariant[]; mine: RankedVariant[]; modelId: string; color: string }) {
