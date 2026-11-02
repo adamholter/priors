@@ -1,5 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { decodeEditor, encodeEditor, clampSize } from "./export-editor";
+import { decodeEditor, encodeEditor, clampSize, readViewParam, viewParam } from "./export-editor";
+
+describe("plain link view", () => {
+  const view = { frontier: true, links: false, density: 0.45 };
+  it("carries the background grid only when told, and still reads older links", () => {
+    expect(viewParam(view)).toBe("101-45");
+    expect(readViewParam("101-45")).toEqual({ ...view, guides: true });
+    expect(readViewParam(viewParam({ ...view, grid: false }))).toEqual({ ...view, guides: true, grid: false });
+    expect(readViewParam(viewParam({ ...view, grid: true }))?.grid).toBe(true);
+  });
+});
 
 describe("screenshot link", () => {
   it("round-trips size, theme, title and chart settings", () => {

@@ -7,6 +7,7 @@ import type { Lab } from "@/data/types";
 import { DARK_PALETTE, LIGHT_PALETTE, markColor, useChartPalette, useEChart } from "./echarts";
 import { HighlightList, HighlightMenu, togglePoint, useHighlight } from "./highlight";
 import { chartLabel, type ScatterPoint } from "./ScoreScatter";
+import { useChartGrid } from "@/lib/chart-grid-pref";
 import { barsOption, compact, selectBars } from "./bars-option";
 import { barsHtml, unitOf } from "./embed";
 import { ChartLink, type ChartLinkParams } from "./ChartLink";
@@ -44,7 +45,7 @@ export function MetricBars({ pts: allPoints, labs, better, xName, formatValue, h
   useEffect(() => { const el = wrap.current; if (!el) return; const ro = new ResizeObserver(([e]) => setWidth(Math.round(e.contentRect.width / 8) * 8)); ro.observe(el); return () => ro.disconnect(); }, []);
   const expand = useChartExpand(exportName);
   const cap = Math.max(new Set(pts.map((p) => p.r.model.id)).size, expand.expanded ? (narrow ? 20 : Math.max(limit, 40)) : narrow ? Math.min(12, limit) : limit);
-  const pal = useChartPalette();
+  const pal = useChartPalette(), grid = useChartGrid(pal);
   const hl = useHighlight();
   const highlight = hl?.items;
   const bars = useMemo(() => { const ordered = selectBars(pts, better, cap, highlight); return bestFirst && better === "higher" ? ordered.reverse() : ordered; }, [pts, better, cap, highlight, bestFirst]);
@@ -63,7 +64,7 @@ export function MetricBars({ pts: allPoints, labs, better, xName, formatValue, h
     const highlightItems = highlight ?? [], focusedModels = highlightedModels(highlightItems);
     const featured = new Set(featuredPoints(bars, highlightItems).map((p) => p.r.variant.id));
     return barsHtml({
-      title: exportName, labelScale: fontScale, yName: xName, unit: unitOf(formatValue), highlight: highlightItems,
+      title: exportName, grid, labelScale: fontScale, yName: xName, unit: unitOf(formatValue), highlight: highlightItems,
       bars: bars.map((p) => {
         const lab = labs.find((l) => l.id === p.r.model.labId), c = markColor(lab?.color, LIGHT_PALETTE, p.r.model.labId), d = markColor(lab?.color, DARK_PALETTE, p.r.model.labId);
         return {

@@ -21,7 +21,7 @@ const SCHEMES = {
   dark: { bg: "#141413", ink: "#EDECE6", ink2: "#C2C1B9", grey: "#8C8B83", hair: "#262624", tipBg: "#1F1F1C", tipBorder: "#3A3A35", link: "#9AABF5" },
 };
 
-function page(title: string, date: string, script: string, height: number) {
+function page(title: string, date: string, script: string, height: number, grid = true) {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark">
 <title>${esc(title)} · Priors</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&family=JetBrains+Mono&family=Newsreader:opsz@6..72&display=swap" rel="stylesheet">
@@ -43,7 +43,7 @@ function render(){
 const D=isDark(),P=SCHEMES[D?"dark":"light"],GREY=P.grey,lab=(o)=>D&&o.d?o.d:o.c;
 for(const k of ["bg","ink","grey","link"])document.documentElement.style.setProperty("--"+k,P[k]);
 document.documentElement.style.colorScheme=D?"dark":"light";
-const axis={axisLine:{show:false},axisTick:{show:false},splitLine:{lineStyle:{color:P.hair}},axisLabel:{color:GREY,fontFamily:MONO,fontSize:11}};
+const axis={axisLine:{show:false},axisTick:{show:false},splitLine:{show:${grid},lineStyle:{color:P.hair}},axisLabel:{color:GREY,fontFamily:MONO,fontSize:11}};
 const tip={confine:true,backgroundColor:P.tipBg,borderColor:P.tipBorder,borderWidth:1,textStyle:{color:P.ink,fontSize:12},extraCssText:"box-shadow:none;border-radius:4px;padding:8px 10px"};
 ${script}
 }
@@ -54,9 +54,9 @@ addEventListener("resize",()=>chart.resize());
 }
 
 export type ScatterSpec = {
-  title: string; date?: string; labelScale?: number; xName: string; scale: "linear" | "log" | "time"; unit: { prefix: string; suffix: string }; yMin: number; yMax: number;
+  title: string; date?: string; labelScale?: number; grid?: boolean; xName: string; scale: "linear" | "log" | "time"; unit: { prefix: string; suffix: string }; yMin: number; yMax: number;
   highlight: string[]; guides: boolean;
-  points: { v: [number, number]; c: string; d: string; dc: string; dd: string; m: string; id: string; e: string; h: boolean; a: boolean; g: boolean; gx?: string; n: string; s: boolean; f: boolean; t: string }[];
+  points: { v: [number, number]; c: string; d: string; dc: string; dd: string; m: string; id: string; e: string; h: boolean; a: boolean; g: boolean; gx?: string; n: string; /** The standing label; `n` shows on hover. */ l?: string; s: boolean; f: boolean; t: string }[];
   frontier: [number, number][]; links: { m: string; h: boolean; c: string; d: string; dc: string; dd: string; p: [number, number][] }[];
 };
 
@@ -89,12 +89,12 @@ xAxis:{...axis,type:S.scale==="linear"?"value":S.scale,scale:S.scale==="linear",
 yAxis:{...axis,type:"value",name:"Index score",min:S.yMin,max:S.yMax,nameTextStyle:{color:GREY,fontSize:11,align:"left",padding:[0,0,0,-30]}},
 series:[...S.links.map((l)=>({type:"line",data:l.p,showSymbol:false,silent:true,lineStyle:{color:active&&!l.h?dim(l):lab(l),width:l.h?2:1,opacity:l.h?1:active ? .25 : D ? .45 : .35},z:l.h?4:1})),
 ...(S.frontier.length>1?[{type:"line",data:S.frontier,showSymbol:false,silent:true,lineStyle:{color:P.ink,width:1.4,opacity:active ? .3 : 1},z:2}]:[]),
-{type:"scatter",id:"marks",z:5,data:order.map((p)=>({value:p.v,name:p.n,id:p.id,t:p.t,symbolSize:active?(p.a?12:9):(p.f?11:9),itemStyle:{color:active&&!p.h?dim(p):lab(p),borderColor:active?(p.h?P.ink:P.bg):(p.f?P.ink:P.bg),borderWidth:active?(p.h?(p.a?1.8:1.2):1):(p.f?1.5:1.5),opacity:active&&!p.h?(D ? .55 : .6):(active||p.s||p.f?1:.8)},label:active?(p.a?{show:true,formatter:p.n,fontWeight:600,color:P.ink}:{show:p.h&&p.e!=="default",formatter:p.e.toUpperCase(),fontSize:9*fontScale,color:P.grey,backgroundColor:"transparent",textBorderColor:P.bg,textBorderWidth:3,distance:5}):{show:p.s}})),
-label:{position:"right",formatter:"{b}",fontSize:11.5*fontScale,color:P.ink,distance:7,textBorderColor:P.bg,textBorderWidth:3},labelLayout:scatterLabels,emphasis:{scale:1.4,label:{show:true,fontWeight:600}}}]},true);
-guides();`, 520);
+{type:"scatter",id:"marks",z:5,data:order.map((p)=>({value:p.v,name:p.n,id:p.id,t:p.t,symbolSize:active?(p.a?12:9):(p.f?11:9),itemStyle:{color:active&&!p.h?dim(p):lab(p),borderColor:active?(p.h?P.ink:P.bg):(p.f?P.ink:P.bg),borderWidth:active?(p.h?(p.a?1.8:1.2):1):(p.f?1.5:1.5),opacity:active&&!p.h?(D ? .55 : .6):(active||p.s||p.f?1:.8)},label:active?(p.a?{show:true,formatter:p.n,fontWeight:600,color:P.ink}:{show:p.h&&p.e!=="default",formatter:p.e.toUpperCase(),fontSize:9*fontScale,color:P.grey,backgroundColor:"transparent",textBorderColor:P.bg,textBorderWidth:3,distance:5}):{show:p.s,formatter:p.l??p.n}})),
+label:{position:"right",formatter:"{b}",fontSize:11.5*fontScale,color:P.ink,distance:7,textBorderColor:P.bg,textBorderWidth:3},labelLayout:scatterLabels,emphasis:{scale:1.4,label:{show:true,fontWeight:600,formatter:"{b}"}}}]},true);
+guides();`, 520, spec.grid !== false);
 }
 
-export type BarSpec = { title: string; date?: string; labelScale?: number; yName: string; unit: { prefix: string; suffix: string }; highlight: string[]; bars: { n: string; v: number; c: string; d: string; dc: string; dd: string; m: string; mn: string; id: string; e: string; h: boolean; a: boolean; t: string }[] };
+export type BarSpec = { title: string; date?: string; labelScale?: number; grid?: boolean; yName: string; unit: { prefix: string; suffix: string }; highlight: string[]; bars: { n: string; v: number; c: string; d: string; dc: string; dd: string; m: string; mn: string; id: string; e: string; h: boolean; a: boolean; t: string }[] };
 
 export function barsHtml(spec: BarSpec) {
   const layout = barLayout(spec.bars.map((bar) => ({ bar, modelId: bar.m, modelName: bar.mn, effort: bar.e, label: bar.n })));
@@ -105,7 +105,7 @@ const active=S.highlight.length>0,dim=(o)=>D?o.dd:o.dc;
 chart.setOption({textStyle:{fontFamily:"Inter,system-ui,sans-serif",color:P.ink},grid:{left:52,right:16,top:34,bottom:100,...CONTAIN},tooltip:{...tip,trigger:"item",formatter:(p)=>p.data&&p.data.t||""},
 xAxis:[{...axis,type:"category",data:S.layout.effortLabels,axisTick:{show:false},axisLine:{show:false},axisLabel:{...axis.axisLabel,fontFamily:"Inter,system-ui,sans-serif",color:P.ink2,rotate:0,interval:0,hideOverlap:true,fontSize:9.5*fontScale,width:84*fontScale,overflow:"truncate"}},{...axis,type:"category",data:S.layout.modelLabels.map((name,i)=>{const b=S.layout.entries[i];return active&&name&&b&&(b.h||S.bars.some(x=>x.m===b.m&&x.a))?{value:name,textStyle:{color:P.ink,fontWeight:600}}:name}),position:"bottom",offset:32,axisTick:{show:false},axisLine:{show:false},axisLabel:{...axis.axisLabel,fontFamily:"Inter,system-ui,sans-serif",color:P.ink,rotate:0,margin:4,interval:0,hideOverlap:true,fontSize:9.5*fontScale,width:100*fontScale,overflow:"truncate"}}],
 yAxis:{...axis,type:"value",name:S.yName,nameTextStyle:{color:GREY,fontSize:11,align:"left",padding:[0,0,0,-30]},axisLabel:{...axis.axisLabel,formatter:fmt}},
-series:[{type:"bar",barMaxWidth:28,data:S.layout.entries.map((b)=>b?{id:b.id,value:b.v,t:b.t,itemStyle:{color:active&&!b.h?dim(b):lab(b),opacity:active&&!b.h ? .6 : 1,borderRadius:[2,2,0,0]},label:active&&!b.h?{color:GREY}:active&&b.a?{fontWeight:700}:undefined}:{value:null,itemStyle:{color:"transparent"}}),label:{show:true,position:"top",fontSize:10*fontScale,fontFamily:MONO,color:P.ink,formatter:(p)=>fmt(p.value)},labelLayout:{hideOverlap:true}}]},true);`, 460);
+series:[{type:"bar",barMaxWidth:28,data:S.layout.entries.map((b)=>b?{id:b.id,value:b.v,t:b.t,itemStyle:{color:active&&!b.h?dim(b):lab(b),opacity:active&&!b.h ? .6 : 1,borderRadius:[2,2,0,0]},label:active&&!b.h?{color:GREY}:active&&b.a?{fontWeight:700}:undefined}:{value:null,itemStyle:{color:"transparent"}}),label:{show:true,position:"top",fontSize:10*fontScale,fontFamily:MONO,color:P.ink,formatter:(p)=>fmt(p.value)},labelLayout:{hideOverlap:true}}]},true);`, 460, spec.grid !== false);
 }
 
 /** Standalone radar embed: the same static SVG in both schemes (native hover titles on every point),

@@ -10,6 +10,8 @@ import type { ScatterView } from "./ScoreScatter";
 import { labelScale } from "./label-size";
 import { chartLinkUrl } from "@/lib/highlight-link";
 import { FormulaEditor, type FormulaSettings } from "./formula-chart";
+import { useChartPalette } from "./palette-context";
+import { setChartGridPref, useChartGrid } from "@/lib/chart-grid-pref";
 import styles from "./ChartSettings.module.css";
 
 const EFFORT_LABELS: Record<string, string> = { none: "none", low: "low", medium: "medium", high: "high", xhigh: "xhigh", max: "max" };
@@ -20,9 +22,9 @@ export function ChartSettings({ label, mode, onChange, efforts, releasedAfter, o
   /** Cost charts: price tasks at API list prices or at each lab's subscription plan. */
   costBasis?: { value: CostBasis; onChange: (basis: CostBasis) => void };
   /** Subscription pricing: count limit resets (what each lab gave its subscribers in the last 30 days). Shown under Advanced. */
-  planResets?: { value: boolean; onChange: (on: boolean) => void; note?: string };
-  /** Subscription pricing: the plan each lab's models are priced at (`planPicker`). Unpicked labs use each model's median plan. Shown under Advanced. */
-  subscriptionPlans?: { labs: { labId: string; name: string; plans: { plan: string; feeUsd?: number; models: number }[] }[]; value: Record<string, string>; onChange: (labId: string, plan?: string) => void };
+  planResets?: { value: boolean; onChange: (on: boolean) => void; note?: string; rows?: { lab: string; text: string }[] };
+  /** Subscription pricing: the plan each lab's models are priced at (`planPicker`). Unpicked labs use each model's median plan, which `median` names. Shown under Advanced. */
+  subscriptionPlans?: { labs: { labId: string; name: string; plans: { plan: string; feeUsd?: number; models: number }[]; median: { plan: string; models: number }[] }[]; value: Record<string, string>; onChange: (labId: string, plan?: string) => void };
   anchor?: string;
   /** Default metric scale, when the chart supports switching to linear. */
   defaultScale?: "log" | "linear";
@@ -46,7 +48,8 @@ export function ChartSettings({ label, mode, onChange, efforts, releasedAfter, o
   onView?: (view: ScatterView, persist?: boolean) => void;
 }) {
   const id = useId(), root = useRef<HTMLDetailsElement>(null), trigger = useRef<HTMLElement>(null);
-  const [open, setOpen] = useState(false), [tab, setTab] = useState<"models" | "settings">(models.length && onToggleModel ? "models" : "settings"), [query, setQuery] = useState(""), [advanced, setAdvanced] = useState(false);
+  const [open, setOpen] = useState(false), [tab, setTab] = useState<"models" | "settings">(models.length && onToggleModel ? "models" : "settings"), [query, setQuery] = useState(""), [formulaOpen, setFormulaOpen] = useState(false);
+  const pal = useChartPalette(), gridOn = useChartGrid(pal);
   const [placement, setPlacement] = useState({ height: 620, above: false });
   useEffect(() => {
     if (!open) return;
@@ -93,6 +96,12 @@ export function ChartSettings({ label, mode, onChange, efforts, releasedAfter, o
   const plans = costBasis?.value === "subscription" && subscriptionPlans?.labs.length ? subscriptionPlans : undefined;
   const plansSet = plans ? plans.labs.filter((l) => plans.value[l.labId]).length : 0;
   const fee = (usd?: number) => usd ? ` · $${usd % 1 ? usd.toFixed(2) : usd}/mo` : "";
+  /** A lab's unpicked option says which plan that is: one plan with its fee, or the most common one and how many more. */
+  const medianLabel = (l: NonNullable<typeof plans>["labs"][number]) => {
+    const [top, ...rest] = l.median;
+    return !top ? "Median plan" : rest.length ? `Median: ${top.plan} +${rest.length} more` : `Median: ${top.plan}${fee(l.plans.find((p) => p.plan === top.plan)?.feeUsd)}`;
+  };
+  const active = [view?.formula?.trim() && "formula", plansSet && `${plansSet} ${plansSet === 1 ? "plan" : "plans"}`, resets?.value && "resets"].filter((x): x is string => !!x);
   const settingsPanel = <>
     {(dataSource || onChangeReleased) && <div className={styles.dataControls}>
       {dataSource && <div className={styles.dataField}><label htmlFor={`${id}-source`}>Data source</label><select aria-label={`${label} data source`} id={`${id}-source`} value={dataSource.value} onChange={e => dataSource.onChange(e.target.value as TaskMetricSource)}>{dataSource.options.map(s => <option key={s.id} value={s.id}>{s.name} ({s.modelCount} models)</option>)}</select></div>}
@@ -121,24 +130,31 @@ export function ChartSettings({ label, mode, onChange, efforts, releasedAfter, o
         {!!hl?.items.length && <label><span>Highlight guides</span><input type="checkbox" checked={view.guides !== false} onChange={e => onView({ ...view, guides: e.target.checked })} /></label>}
       </div>
     </>}
-    {((formula && view && onView) || resets || plans) && <details className={styles.advanced} open={advanced} onToggle={e => setAdvanced(e.currentTarget.open)}>
-      <summary>Advanced{view?.formula?.trim() ? <em>formula on</em> : plansSet ? <em>{plansSet === 1 ? "1 plan" : `${plansSet} plans`} picked</em> : resets?.value ? <em>resets on</em> : null}</summary>
-      {plans && <div className={styles.plans} role="group" aria-labelledby={`${id}-plans-label`}>
-        <p id={`${id}-plans-label`}>Plan<span>each model&apos;s median plan unless picked</span></p>
+    {view && onView && <details className={styles.advanced}>
+      <summary>Advanced{active.length > 0 && <em>{active.join(", ")}</em>}</summary>
+      <div className={styles.advancedRows}>
+        <label><span>Background grid</span><input type="checkbox" checked={gridOn} onChange={e => setChartGridPref(e.target.checked, pal)} /></label>
+        {resets && <div>
+          <label title={resets.note}><span>Count limit resets</span><input type="checkbox" checked={resets.value} onChange={e => resets.onChange(e.target.checked)} /></label>
+          {resets.value && resets.rows?.length ? <dl className={styles.resetRows}>{resets.rows.map((r) => <div key={r.lab}><dt>{r.lab}</dt><dd>{r.text}</dd></div>)}</dl> : <p className={styles.resetNote}>Credits plans for the extra usage labs gave subscribers in the last 30 days.</p>}
+        </div>}
+      </div>
+      {plans && <details className={styles.sub}>
+        <summary>Subscription plans<span>{plansSet ? `${plansSet} picked` : "Median"}</span></summary>
+        <p className={styles.resetNote}>Each model uses its median plan until you pick one.</p>
         {plans.labs.map((l) => { const v = plans.value[l.labId] ?? ""; return <div key={l.labId} className={styles.planRow}>
           <label htmlFor={`${id}-plan-${l.labId}`}>{l.name}</label>
-          <select id={`${id}-plan-${l.labId}`} aria-label={`${l.name} plan`} value={v} onChange={e => plans.onChange(l.labId, e.target.value || undefined)}>
-            <option value="">Median plan</option>
+          <select id={`${id}-plan-${l.labId}`} aria-label={`${l.name} plan`} title={v ? undefined : l.median.map((m) => `${m.plan}: ${m.models === 1 ? "1 model" : `${m.models} models`}`).join(", ")} value={v} onChange={e => plans.onChange(l.labId, e.target.value || undefined)}>
+            <option value="">{medianLabel(l)}</option>
             {l.plans.map((p) => <option key={p.plan} value={p.plan}>{p.plan}{fee(p.feeUsd)}</option>)}
             {v && !l.plans.some((p) => p.plan === v) && <option value={v}>{v} (no data)</option>}
           </select>
         </div>; })}
-      </div>}
-      {resets && <div className={styles.toggles}>
-        <label title={resets.note}><span>Count limit resets</span><input type="checkbox" checked={resets.value} onChange={e => resets.onChange(e.target.checked)} /></label>
-        {resets.note && <p className={styles.resetNote}>{resets.note}</p>}
-      </div>}
-      {advanced && formula && view && onView && <FormulaEditor id={id} label={label} formula={formula} view={view} onView={onView} />}
+      </details>}
+      {formula && <details className={styles.sub} open={formulaOpen} onToggle={e => setFormulaOpen(e.currentTarget.open)}>
+        <summary>Custom formula<span className={view.formula?.trim() ? styles.formulaOn : undefined}>{view.formula?.trim() || "Off"}</span></summary>
+        {formulaOpen && <FormulaEditor id={id} label={label} formula={formula} view={view} onView={onView} />}
+      </details>}
     </details>}
   </>;
   return <details ref={root} open={open} className={styles.picker} name="chart-settings">

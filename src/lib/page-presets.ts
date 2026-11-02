@@ -11,6 +11,8 @@ export type ThemeFamily = "priors" | "aa" | "slop" | "classic" | "sketch";
 export interface ChartStyle {
   /** Gridlines: hairline or AA's dotted rules. */
   grid?: "solid" | "dotted";
+  /** Gridlines start hidden (Advanced > Background grid brings them back). */
+  gridOff?: boolean;
   /** Pareto frontier line style and color (defaults to ink). */
   frontier?: "solid" | "dotted";
   frontierColor?: string;
@@ -67,9 +69,9 @@ const BUILT_IN_PRESETS: PagePreset[] = [
     chart: { grid: "dotted", frontier: "dotted", frontierColor: "#FAFAFA", quadrant: "#0F2716", barLabels: "inside", barRadius: 3 } },
   /** Slopalytics' own look is dark: picking Slop starts dark, and the light version is a switch away. */
   { id: "slop", name: "Slop", family: "slop", pair: "slop-light", dark: true, bg: "#000000", surface: "#000000", ink: "#FFFFFF", ink2: "#AAA39D", grey: "#77716C", hair: "#1C1A18", hair2: "#0D0B0A", accent: "#C5AC98", panelAccent: "#806047", fonts: SLOP_FONTS, labColors: SLOP_DARK_LABS, radius: 2,
-    chart: { grid: "dotted", frontier: "solid", frontierColor: "#C5AC98", barLabels: "top", barRadius: 1 } },
+    chart: { grid: "dotted", gridOff: true, frontier: "solid", frontierColor: "#C5AC98", barLabels: "top", barRadius: 1 } },
   { id: "slop-light", name: "Slop Light", family: "slop", pair: "slop", dark: false, bg: "#FFFFFF", surface: "#FFFFFF", ink: "#20201E", ink2: "#625D57", grey: "#77716C", hair: "#E8E4DF", hair2: "#F8F6F3", accent: "#806047", fonts: SLOP_FONTS, labColors: SLOP_LIGHT_LABS, radius: 2,
-    chart: { grid: "dotted", frontier: "solid", frontierColor: "#806047", barLabels: "top", barRadius: 1 } },
+    chart: { grid: "dotted", gridOff: true, frontier: "solid", frontierColor: "#806047", barLabels: "top", barRadius: 1 } },
   { id: "paper", name: "Paper", family: "classic", dark: false, bg: "#FFFFFF", ink: "#141414", ink2: "#46463F", grey: "#8A8A80", hair: "#E2E1DB", hair2: "#EFEEE9", accent: "#1F6F5C", fonts: PRIORS_FONTS, radius: 4 },
   { id: "sand", name: "Sand", family: "classic", dark: false, bg: "#F4EFE6", ink: "#221D16", ink2: "#51483C", grey: "#8E8475", hair: "#DFD6C6", hair2: "#E9E2D5", accent: "#B4532A", fonts: PRIORS_FONTS, radius: 4 },
   { id: "graphite", name: "Graphite", family: "classic", dark: true, bg: "#151515", ink: "#F2F1EC", ink2: "#CBCAC2", grey: "#8F8E87", hair: "#2F2F2C", hair2: "#252523", accent: "#9DB2FF", panelAccent: "#2F4FB0", fonts: PRIORS_FONTS, radius: 4 },

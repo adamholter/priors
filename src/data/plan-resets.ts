@@ -80,10 +80,13 @@ export function planResetBoosts(snapshot: Snapshot): Map<string, PlanResetBoost>
 
 const LAB_NAMES: Record<string, string> = { openai: "OpenAI", anthropic: "Anthropic" };
 const x = (n: number) => `${n.toFixed(2).replace(/\.?0+$/, "")}×`;
-/** One line for the settings panel: what is being counted. Undefined without reset data. */
+/** Per lab, what is being counted: for the settings panel. */
+export function planResetRows(snapshot: Snapshot): { lab: string; text: string }[] {
+  return [...planResetBoosts(snapshot).values()].map((b) => ({ lab: LAB_NAMES[b.labId] ?? b.labId, text: `${b.resets} reset${b.resets === 1 ? "" : "s"} in 30 days${b.resets ? `, plans ${x(b.boost)} cheaper` : ""}` }));
+}
+/** The caveat behind those rows. Undefined without reset data. */
 export function planResetNote(snapshot: Snapshot): string | undefined {
-  const boosts = [...planResetBoosts(snapshot).values()];
-  if (!boosts.length) return undefined;
-  const parts = boosts.map((b) => `${LAB_NAMES[b.labId] ?? b.labId}: ${b.resets} reset${b.resets === 1 ? "" : "s"} in 30 days${b.resets ? `, plans ${x(b.boost)} cheaper` : ""}`);
-  return `${parts.join(" · ")}. Banked resets are not counted. A Claude reset is a bonus on top of its weekly limits; an OpenAI reset restarts the week, so it adds less the later in the week it lands.`;
+  const rows = planResetRows(snapshot);
+  if (!rows.length) return undefined;
+  return `${rows.map((r) => `${r.lab}: ${r.text}`).join(" · ")}. Banked resets are not counted. A Claude reset is a bonus on top of its weekly limits; an OpenAI reset restarts the week, so it adds less the later in the week it lands.`;
 }

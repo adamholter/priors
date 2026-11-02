@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef } from "react";
 import type { EChartsOption } from "echarts";
 import { echarts, themeFor, markColor } from "./theme";
 import { useChartPalette } from "./palette-context";
+import { useChartGrid } from "@/lib/chart-grid-pref";
 
 export * from "./theme";
 
@@ -17,7 +18,7 @@ export function useLabColor() {
 export function useEChart(option: EChartsOption, deps: unknown[] = [], onReady?: (chart: echarts.ECharts) => void, resetSeries = false) {
   const ref = useRef<HTMLDivElement>(null);
   const chart = useRef<echarts.ECharts | null>(null);
-  const theme = themeFor(useChartPalette());
+  const pal = useChartPalette(), theme = themeFor(pal, undefined, useChartGrid(pal));
   const latest = useRef(option);
   useEffect(() => { latest.current = option; });
   useEffect(() => {

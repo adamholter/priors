@@ -1,5 +1,5 @@
 /** What a screenshot link remembers: crop size, theme, title and the chart settings it overrides. Carried in `xe`. */
-export interface EditorView { scale?: "log" | "linear"; frontier?: boolean; links?: boolean; guides?: boolean; density?: number; labelScale?: number; allModels?: boolean }
+export interface EditorView { scale?: "log" | "linear"; frontier?: boolean; links?: boolean; guides?: boolean; density?: number; labelScale?: number; allModels?: boolean; grid?: boolean }
 /** `heading` is the title as drawn (custom title, else the chart name), so a link preview prints exactly what the image did. */
 export interface EditorState { w: number; h: number; ratio?: string; theme?: string; title?: string; heading?: string; view?: EditorView }
 
@@ -12,11 +12,11 @@ export const EDITOR_MIN = { w: 320, h: 220 }, EDITOR_MAX = 2400;
 const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, Math.round(n)));
 const num = (v: unknown, lo: number, hi: number) => typeof v === "number" && Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : undefined;
 
-/** A plain chart link's display toggles (`xv`): frontier, effort lines, guides as 0/1, then label density. The preview redraws with them. */
-export function viewParam(v: { frontier: boolean; links: boolean; guides?: boolean; density: number }): string { return `${+v.frontier}${+v.links}${v.guides === false ? 0 : 1}-${Math.round(v.density * 100)}`; }
+/** A plain chart link's display toggles (`xv`): frontier, effort lines, guides as 0/1, then label density, then the background grid. The preview redraws with them. */
+export function viewParam(v: { frontier: boolean; links: boolean; guides?: boolean; density: number; grid?: boolean }): string { return `${+v.frontier}${+v.links}${v.guides === false ? 0 : 1}-${Math.round(v.density * 100)}${v.grid === undefined ? "" : `-${+v.grid}`}`; }
 export function readViewParam(raw: string | null | undefined): EditorView | undefined {
-  const m = raw?.match(/^([01])([01])([01])-(\d{1,3})$/);
-  return m ? { frontier: m[1] === "1", links: m[2] === "1", guides: m[3] === "1", density: Math.min(100, Number(m[4])) / 100 } : undefined;
+  const m = raw?.match(/^([01])([01])([01])-(\d{1,3})(?:-([01]))?$/);
+  return m ? { frontier: m[1] === "1", links: m[2] === "1", guides: m[3] === "1", density: Math.min(100, Number(m[4])) / 100, ...(m[5] ? { grid: m[5] === "1" } : {}) } : undefined;
 }
 
 export function clampSize(w: number, h: number) { return { w: clamp(w, EDITOR_MIN.w, EDITOR_MAX), h: clamp(h, EDITOR_MIN.h, EDITOR_MAX) }; }

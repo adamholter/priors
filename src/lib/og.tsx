@@ -6,7 +6,7 @@ import type { Snapshot } from "@/data/types";
 import { chartVariantMode, computeIndex, PAGE_VIEW, rankingRows, selectVariants, type IndexConfig, type RankedVariant } from "@/engine";
 import { isShareDesign, type ShareDesign } from "@/lib/share-designs";
 import { effectiveBasis } from "@/data/subscription";
-import { chartLabel, costChart, type MetricPoint } from "@/lib/metrics";
+import { chartLabel, costChart, modelLabel, type MetricPoint } from "@/lib/metrics";
 import { cardPalette, renderChartPng, renderFramedPng, renderRadarPng, scatterSpec, type LinkFrame } from "@/lib/og-chart";
 import { DEFAULT_RADAR, RADAR_ANCHOR, RADAR_PALETTES, radarSnapshotView, radarSvg, type RadarSettings } from "@/components/chart/radar-view";
 import { markColor } from "@/components/chart/theme";
@@ -142,7 +142,7 @@ function ScatterCard({c,subtitle,pts,better,scale,formatX,xTitle,secsAxis,moneyA
   const best=new Map<string,MetricPoint>();
   for(const z of pts)if(!frontier.includes(z)){const cur=best.get(z.r.model.id);if(!cur||z.r.score>cur.r.score)best.set(z.r.model.id,z);}
   for(const z of best.values()){
-   const px=X(z.x),py=Y(z.r.score),w=chartLabel(z.r).length*7.6+10;
+   const px=X(z.x),py=Y(z.r.score),w=modelLabel(z.r).length*7.6+10;
    const box={x0:px+12,y0:py-9,x1:px+12+w,y1:py+10};
    if(box.x1>W-R)continue;
    if(placed.some(b=>b.x0<box.x1&&b.x1>box.x0&&b.y0<box.y1&&b.y1>box.y0))continue;
@@ -163,7 +163,7 @@ function ScatterCard({c,subtitle,pts,better,scale,formatX,xTitle,secsAxis,moneyA
     {yTicks.map((v,i)=><span key={`yl${i}`} style={{position:"absolute",left:0,top:Y(v)-8,width:L-12,textAlign:"right",fontFamily:"JetBrains Mono",fontSize:13,color:c.muted}}>{v.toFixed(0)}</span>)}
     {xTicksRaw.map((v,i)=><span key={`xl${i}`} style={{position:"absolute",left:X(v)-40,top:H-B+10,width:80,textAlign:"center",fontFamily:"JetBrains Mono",fontSize:12,color:c.muted}}>{tickLabel(v)}</span>)}
     {frontier.slice(0,8).map((z,i)=><span key={`label-${z.r.variant.id}`} style={{position:"absolute",left:X(z.x)-8,top:Y(z.r.score)-8,width:16,height:16,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"JetBrains Mono",fontSize:10,lineHeight:1,color:c.bg}}>{i+1}</span>)}
-    {named.map(z=><span key={`nl-${z.r.variant.id}`} style={{position:"absolute",left:X(z.x)+12,top:Y(z.r.score)-9,fontSize:13,color:c.ink,whiteSpace:"nowrap",display:"flex"}}>{chartLabel(z.r)}</span>)}
+    {named.map(z=><span key={`nl-${z.r.variant.id}`} style={{position:"absolute",left:X(z.x)+12,top:Y(z.r.score)-9,fontSize:13,color:c.ink,whiteSpace:"nowrap",display:"flex"}}>{modelLabel(z.r)}</span>)}
     <span style={{position:"absolute",left:L,top:H-21,width:W-L-R,textAlign:"center",fontSize:14}}>{xTitle}</span>
     <span style={{position:"absolute",left:-39,top:142,width:110,textAlign:"center",fontSize:14,transform:"rotate(-90deg)"}}>Score</span>
    </div>

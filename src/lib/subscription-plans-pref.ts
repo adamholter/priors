@@ -47,7 +47,7 @@ export function withPlansPref<C extends { subscriptionPlans?: Record<string, str
   return Object.keys(pref).length ? { ...config, subscriptionPlans: { ...pref, ...config.subscriptionPlans } } : config;
 }
 
-const optionsCache = new WeakMap<Snapshot, { labId: string; name: string; plans: { plan: string; feeUsd?: number; models: number }[] }[]>();
+const optionsCache = new WeakMap<Snapshot, (ReturnType<typeof subscriptionPlanOptions>[number] & { name: string })[]>();
 /** Advanced → Plan: the labs with more than one plan, named, and the plan each is priced at. `update` stores the change on the index (this view, or the page being edited). */
 export function planPicker(snapshot: Snapshot, config: { subscriptionPlans?: Record<string, string> }, pref: Record<string, string>, update: (plans: Record<string, string> | undefined) => void) {
   let labs = optionsCache.get(snapshot);

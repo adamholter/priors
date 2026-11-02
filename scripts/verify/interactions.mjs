@@ -167,6 +167,49 @@ try {
     assert.deepEqual(overlaps, [], "model labels have disjoint rendered text boxes");
   });
 
+  await check("cost chart labels name each model once, with no effort or fallback text", async () => {
+    const chart = page.locator('[role="img"][aria-label*="cost per task"]').first();
+    const texts = await chart.evaluate((el) => [...el.querySelectorAll("text")].map((n) => n.textContent.trim()).filter((t) => t && !/^(Index score|.*cost per task.*|\d+(\.\d+)?|\$.*|free)$/.test(t)));
+    assert.ok(texts.length > 3, "the chart has labels");
+    assert.deepEqual(texts.filter((t, i) => texts.indexOf(t) !== i), [], "no model is labeled twice");
+    assert.deepEqual(texts.filter((t) => /fallback|\b(none|low|medium|high|xhigh|max)\b/i.test(t)), [], "labels are model names");
+  });
+
+  await check("Advanced > Background grid hides the gridlines on every chart and remembers it", async () => {
+    const c = await (await browser.newContext({ viewport: { width: 1440, height: 1000 } })).newPage();
+    try {
+      await c.goto(`${BASE}/builder`, { waitUntil: "domcontentloaded" });
+      await c.locator(".ranking-list [data-k]").first().waitFor({ timeout: 30000 });
+      const chart = c.locator('[role="img"][aria-label*="cost per task"]').first();
+      await chart.locator("svg").waitFor({ timeout: 30000 });
+      const lines = () => chart.evaluate((el) => [...el.querySelectorAll("svg path")].filter((n) => { const b = n.getBBox(); return n.getAttribute("fill") === "none" && (b.width < 0.5 || b.height < 0.5); }).length);
+      await c.waitForFunction(() => document.querySelector('[role="img"][aria-label*="cost per task"] svg text'));
+      const before = await lines();
+      assert.ok(before > 3, `gridlines are drawn by default (${before})`);
+      const picker = c.locator("details", { has: c.locator("summary[aria-label='Pareto settings']") }).first();
+      await picker.scrollIntoViewIfNeeded();
+      await picker.locator("summary[aria-label='Pareto settings']").click();
+      const menu = picker.locator(".chart-settings-menu");
+      await menu.getByRole("tab", { name: "Settings" }).click();
+      await menu.locator("summary", { hasText: "Advanced" }).click();
+      const box = menu.getByLabel("Background grid");
+      assert.equal(await box.isChecked(), true);
+      await box.uncheck();
+      await c.waitForFunction(() => localStorage.getItem("priors:chart-grid") === "off");
+      await chart.locator("svg").waitFor();
+      await c.waitForTimeout(500);
+      assert.ok(await lines() < before, "gridlines are gone");
+      // A median plan says which plan it is.
+      await menu.locator("summary", { hasText: "Subscription plans" }).click();
+      const median = await menu.getByLabel("OpenAI plan").locator("option").first().textContent();
+      assert.match(median, /^Median: ChatGPT /);
+      await c.reload({ waitUntil: "domcontentloaded" });
+      await chart.locator("svg text").first().waitFor({ timeout: 30000 });
+      await c.waitForTimeout(500);
+      assert.ok(await lines() < before, "the choice is remembered");
+    } finally { await c.context().close(); }
+  });
+
   // Settings are opened from each chart's own summary; wait out hydration, since a click before it does nothing.
   const openSettings = async (label) => {
     const summary = page.locator(`summary[aria-label="${label}"]`).first();

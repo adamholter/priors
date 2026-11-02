@@ -52,6 +52,12 @@ export function linkedFormula(params: URLSearchParams): Pick<ScatterView, "formu
   return cf ? { formula: cf, formulaBetter: params.get("cb") === "lower" ? "lower" : "higher" } : undefined;
 }
 
+const FORMULA_EXAMPLES = [
+  { name: "Score per dollar", source: "score / cost", uses: ["score", "cost"] },
+  { name: "Score per second", source: "score / time", uses: ["score", "time"] },
+  { name: "Score per dollar and second", source: "score / (cost * time)", uses: ["score", "cost", "time"] },
+];
+
 /** The Advanced section's formula controls. Valid drafts apply after a short pause in typing. */
 export function FormulaEditor({ id, label, formula, view, onView }: { id: string; label: string; formula: FormulaSettings; view: ScatterView; onView: (view: ScatterView, persist?: boolean) => void }) {
   const [draft, setDraft] = useState(view.formula ?? "");
@@ -74,17 +80,22 @@ export function FormulaEditor({ id, label, formula, view, onView }: { id: string
     change(draft.slice(0, start) + name + draft.slice(end));
     requestAnimationFrame(() => { el?.focus(); el?.setSelectionRange(start + name.length, start + name.length); });
   };
+  const names = new Set(variables.map((v) => v.name));
   return <div className={styles.formula}>
-    <label htmlFor={`${id}-formula`}>Custom formula</label>
-    <p>Replaces this chart&rsquo;s metric. Bars sort by it; the scatter plots it against index score.</p>
+    <p>Replaces this chart&rsquo;s metric with your own.</p>
     <div className={styles.formulaInput}>
       <input ref={input} id={`${id}-formula`} type="text" aria-label={`${label} custom formula`} aria-invalid={!!result && "error" in result} aria-describedby={`${id}-formula-status`} placeholder="score / (cost * time)" value={draft} maxLength={FORMULA_MAX} spellCheck={false} autoCapitalize="off" autoCorrect="off" autoComplete="off" onChange={e => change(e.target.value)} />
       {draft && <button type="button" aria-label="Clear formula" onClick={() => { change(""); input.current?.focus(); }}>Clear</button>}
     </div>
-    <div className={styles.variables} role="group" aria-label="Insert a variable">{variables.map(v => <button key={v.name} type="button" title={v.label} onClick={() => insert(v.name)}>{v.name}</button>)}</div>
     <p id={`${id}-formula-status`} role={result && "error" in result ? "alert" : "status"} className={result && "error" in result ? styles.formulaError : undefined}>
-      {!result ? "Use + − × ÷ ^, parentheses, and log, ln, sqrt, abs, min, max." : "error" in result ? result.error : `${result.count} of ${result.total} models have every input${result.count < result.total ? "; the rest are left off" : ""}.`}
+      {!result ? "Pick an example or write your own." : "error" in result ? result.error : `${result.count} of ${result.total} models have every input${result.count < result.total ? "; the rest are left off" : ""}.`}
     </p>
+    <div className={styles.formulaExamples} role="group" aria-label="Example formulas">{FORMULA_EXAMPLES.filter((e) => e.uses.every((n) => names.has(n))).map((e) => <button key={e.name} type="button" title={e.source} aria-pressed={text === e.source} onClick={() => { change(e.source); if (better !== "higher") onView({ ...view, formulaBetter: "higher" }); }}>{e.name}</button>)}</div>
     <div className={styles.row}><span id={`${id}-better-label`}>Better is</span><div className={styles.choice} role="group" aria-labelledby={`${id}-better-label`}>{(["higher", "lower"] as const).map(value => <button key={value} type="button" aria-pressed={better === value} onClick={() => onView({ ...view, formulaBetter: value })}>{value === "higher" ? "Higher" : "Lower"}</button>)}</div></div>
+    <div className={styles.variables} role="group" aria-label="Insert a variable">
+      <p>Click to insert</p>
+      {variables.map(v => <button key={v.name} type="button" onClick={() => insert(v.name)}><code>{v.name}</code><span>{v.label}</span></button>)}
+      <p>Also + &minus; &times; &divide; ^ ( ), log, ln, sqrt, abs, min, max.</p>
+    </div>
   </div>;
 }

@@ -97,8 +97,8 @@ export function tokenPrice(snapshot: Snapshot, modelId: string, chosen: Record<s
   return { mix, ...(measured ? { measured } : {}), apiUsd, standardUsd: blendedApiPrice(prices, STANDARD_MIX), ...(positive(plan?.ratio) ? { subscription: { usd: plan.ratio * apiUsd, plan: plan.plan } } : {}) };
 }
 
-/** The plans a viewer can price each lab at (Advanced → Plan): every plan a model of that lab was measured on, by monthly fee. Labs with one plan are left out. */
-export function subscriptionPlanOptions(snapshot: Snapshot): { labId: string; plans: { plan: string; feeUsd?: number; models: number }[] }[] {
+/** The plans a viewer can price each lab at (Advanced → Plan): every plan a model of that lab was measured on, by monthly fee. Labs with one plan are left out. `median`: the plans its models fall on with nothing picked, most models first. */
+export function subscriptionPlanOptions(snapshot: Snapshot): { labId: string; plans: { plan: string; feeUsd?: number; models: number }[]; median: { plan: string; models: number }[] }[] {
   const lab = new Map(snapshot.models.map((m) => [m.id, m.labId])), variants = new Map(snapshot.variants.map((v) => [v.id, v.modelId]));
   const byLab = new Map<string, Map<string, { plan: string; feeUsd?: number; models: Set<string> }>>();
   for (const o of snapshot.observations) {
@@ -108,7 +108,12 @@ export function subscriptionPlanOptions(snapshot: Snapshot): { labId: string; pl
     const plans = byLab.get(labId) ?? byLab.set(labId, new Map()).get(labId)!;
     for (const p of d.plans) (plans.get(p.plan) ?? plans.set(p.plan, { plan: p.plan, feeUsd: p.feeUsd, models: new Set() }).get(p.plan)!).models.add(modelId);
   }
-  return [...byLab].map(([labId, plans]) => ({ labId, plans: [...plans.values()].map((p) => ({ plan: p.plan, feeUsd: p.feeUsd, models: p.models.size })).sort((a, b) => (a.feeUsd ?? 0) - (b.feeUsd ?? 0) || a.plan.localeCompare(b.plan)) }))
+  const medians = [...subscriptionPrices(snapshot)];
+  return [...byLab].map(([labId, plans]) => {
+    const median = new Map<string, number>();
+    for (const [id, p] of medians) if (lab.get(id) === labId && p.plan && plans.has(p.plan)) median.set(p.plan, (median.get(p.plan) ?? 0) + 1);
+    return { labId, plans: [...plans.values()].map((p) => ({ plan: p.plan, feeUsd: p.feeUsd, models: p.models.size })).sort((a, b) => (a.feeUsd ?? 0) - (b.feeUsd ?? 0) || a.plan.localeCompare(b.plan)), median: [...median].map(([plan, models]) => ({ plan, models })).sort((a, b) => b.models - a.models || a.plan.localeCompare(b.plan)) };
+  })
     .filter((l) => l.plans.length > 1)
     .sort((a, b) => Math.max(...b.plans.map((p) => p.models)) - Math.max(...a.plans.map((p) => p.models)) || a.labId.localeCompare(b.labId));
 }

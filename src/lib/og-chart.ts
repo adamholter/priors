@@ -212,7 +212,7 @@ export const framedSize = (f?: LinkFrame) => f ? { width: f.w + 64, height: f.h 
 export function linkFrame(q: URLSearchParams): LinkFrame | undefined {
   if (!q.get("c")) return undefined;
   const xe = decodeEditor(q.get("xe"));
-  if (xe) return { w: xe.w, h: xe.h, view: xe.view, heading: xe.heading ?? xe.title, theme: xe.theme };
+  if (xe) return { w: xe.w, h: xe.h, view: { ...xe.view, grid: readViewParam(q.get("xv"))?.grid }, heading: xe.heading ?? xe.title, theme: xe.theme };
   const m = q.get("xs")?.match(/^(\d{2,4})x(\d{2,4})$/);
   if (!m) return undefined;
   const { w, h } = clampSize(Number(m[1]), Number(m[2]));
@@ -230,7 +230,7 @@ export async function renderFramedPng(spec: ChartSpec, labs: Lab[], pal: ChartPa
   const view: ScatterView = { ...DEFAULT_VIEW, labelScale: spec.labelScale, frontier: spec.chart.defaultFrontier ?? DEFAULT_VIEW.frontier };
   for (const [k, v] of Object.entries(over)) if (v !== undefined) (view as unknown as Record<string, unknown>)[k] = v;
   const chartSpec = spec.chart.scale !== "time" && over.scale ? { ...spec.chart, scale: over.scale, xName: over.scale === "linear" ? spec.chart.xName.replace(/, log| \(log\)/g, "") : spec.chart.xName } : spec.chart;
-  const theme = themeFor(pal, staticFonts(pal));
+  const theme = themeFor(pal, staticFonts(pal), over.grid);
   const chart = echarts.init(null, theme, { renderer: "svg", ssr: true, width: w, height: h });
   const highlight: Highlight | undefined = spec.highlight?.length ? { items: spec.highlight, guides: view.guides !== false } : undefined;
   const opt = scatterOption({ ...chartSpec, axis: spec.axis, xUnit: chartSpec.xLabel, pts: spec.pts, hasTitle: spec.hasTitle, labs, view, pal, narrow: w < 560, width: () => w, height: () => h, dots: () => { try { return spec.pts.map((p) => { const [x, y] = chart.convertToPixel({ xAxisIndex: 0, yAxisIndex: 0 }, [p.x, p.r.score]) as number[]; return { x, y }; }); } catch { return undefined; } }, highlight });

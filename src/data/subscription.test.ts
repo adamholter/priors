@@ -4,7 +4,7 @@ import { LABS } from "./normalize";
 import { computeIndex, type IndexConfig } from "../engine";
 import { decodeIndex, encodeIndex } from "../lib/url";
 import { clientSnapshot } from "./client-snapshot";
-import { countedResets, extraWeeks, planResetBoosts, planResetNote } from "./plan-resets";
+import { countedResets, extraWeeks, planResetBoosts, planResetNote, planResetRows } from "./plan-resets";
 import { blendedApiPrice, CODEX_LIMITS_BENCHMARK, measuredTokenMixes, subscriptionPlanOptions, subscriptionPrices, SUBSCRIPTION_BENCHMARK, tokenPrice, type SubscriptionDetails } from "./subscription";
 
 const standard = { cache: 0.97, input: 0.025, output: 0.005 };
@@ -155,7 +155,7 @@ describe("subscription cost basis", () => {
     const cost = (plans?: Record<string, string>) => computeIndex(snapshot, { ...base, variants: "all", subscriptionPlans: plans }).ranked.find((r) => r.variant.id === "b@xhigh")!;
     expect(cost({ openai: "ChatGPT Plus" }).costUsd).toBeCloseTo(cost().costUsd! * 2, 9);
     expect(cost({ openai: "ChatGPT Plus" }).costSource).toContain("ChatGPT Plus");
-    expect(subscriptionPlanOptions(snapshot)).toEqual([{ labId: "openai", plans: [{ plan: "ChatGPT Plus", feeUsd: 20, models: 1 }, { plan: "ChatGPT Pro 10x", feeUsd: 100, models: 1 }, { plan: "ChatGPT Pro 20x", feeUsd: 200, models: 1 }] }]);
+    expect(subscriptionPlanOptions(snapshot)).toEqual([{ labId: "openai", plans: [{ plan: "ChatGPT Plus", feeUsd: 20, models: 1 }, { plan: "ChatGPT Pro 10x", feeUsd: 100, models: 1 }, { plan: "ChatGPT Pro 20x", feeUsd: 200, models: 1 }], median: [{ plan: "ChatGPT Pro 10x", models: 1 }] }]);
     const link = encodeIndex({ ...base, subscriptionPlans: { openai: "ChatGPT Plus", zhipu: "GLM Coding Lite (老客 ¥49), 闲时|x:y" } });
     expect(decodeIndex(link, "t")!.subscriptionPlans).toEqual({ openai: "ChatGPT Plus", zhipu: "GLM Coding Lite (老客 ¥49), 闲时|x:y" });
     expect(encodeIndex(base)).not.toContain("plans=");
@@ -235,6 +235,7 @@ describe("plan limit resets", () => {
     expect(planResetBoosts(snap()).size).toBe(0);
     expect(planResetNote(snap())).toBeUndefined();
     expect(planResetNote(withResets())).toMatch(/OpenAI: 3 resets in 30 days.*Banked resets are not counted.*restarts the week/);
+    expect(planResetRows(withResets()).find((r) => r.lab === "OpenAI")?.text).toMatch(/^3 resets in 30 days, plans .*× cheaper$/);
     const encoded = encodeIndex({ ...base, planResets: true });
     expect(encoded).toContain("resets=on");
     expect(decodeIndex(encoded, "t")!.planResets).toBe(true);

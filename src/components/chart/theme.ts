@@ -81,19 +81,20 @@ export function dimColor(color: string | undefined, pal: ChartPalette, amount = 
 export const markLabel = (pal: ChartPalette) => ({ show: true, position: "right" as const, formatter: "{b}", fontSize: 11.5, color: pal.ink, opacity: 1, distance: 7, textBorderColor: pal.bg, textBorderWidth: 3 });
 
 const registered = new Set<string>();
-export function themeFor(pal: ChartPalette, fonts?: { sans?: string; mono?: string }) {
+/** `showGrid`: the viewer's Background grid choice, when they made one (`useChartGrid`). */
+export function themeFor(pal: ChartPalette, fonts?: { sans?: string; mono?: string }, showGrid = !pal.style?.gridOff) {
   const sans = fonts?.sans ?? pal.fonts?.sans ?? SANS, mono = fonts?.mono ?? pal.fonts?.mono ?? MONO, grid = pal.style?.grid === "dotted" ? "dotted" : "solid";
-  const t = textSize(pal), name = `priors-${[pal.ink, pal.grey, pal.hair, pal.tipBg, sans, mono, grid, t === 1 ? "" : t].join("").replace(/[^a-z0-9]/gi, "")}`;
+  const t = textSize(pal), name = `priors-${[pal.ink, pal.grey, pal.hair, pal.tipBg, sans, mono, grid, showGrid ? "" : "nogrid", t === 1 ? "" : t].join("").replace(/[^a-z0-9]/gi, "")}`;
   if (!registered.has(name)) {
     registered.add(name);
-    const axis = { axisLine: { show: false }, axisTick: { show: false }, axisLabel: { color: pal.grey, fontFamily: mono, fontSize: 11 * t } };
+    const axis = { axisLine: { show: false }, axisTick: { show: false }, axisLabel: { color: pal.grey, fontFamily: mono, fontSize: 11 * t } }, splitLine = { show: showGrid, lineStyle: { color: pal.hair, type: grid } };
     echarts.registerTheme(name, {
       backgroundColor: "transparent",
       textStyle: { fontFamily: sans, color: pal.ink },
       categoryAxis: { ...axis, splitLine: { show: false } },
-      valueAxis: { ...axis, splitLine: { lineStyle: { color: pal.hair, type: grid } } },
-      logAxis: { ...axis, splitLine: { lineStyle: { color: pal.hair, type: grid } } },
-      timeAxis: { ...axis, splitLine: { lineStyle: { color: pal.hair, type: grid } } },
+      valueAxis: { ...axis, splitLine },
+      logAxis: { ...axis, splitLine },
+      timeAxis: { ...axis, splitLine },
       tooltip: { confine: true, backgroundColor: pal.tipBg, borderColor: pal.tipBorder, borderWidth: 1, textStyle: { color: pal.ink, fontSize: 12 * t, fontFamily: sans }, extraCssText: "box-shadow:none;border-radius:4px;padding:8px 10px" },
     });
   }

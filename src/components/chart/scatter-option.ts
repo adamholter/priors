@@ -4,7 +4,7 @@ import type { Lab } from "../../data/types";
 import type { RankedVariant } from "../../engine";
 import { CONTAIN_AXIS_LABELS, dimColor, markColor, markFill, markLabel, markSize, textSize, type ChartPalette } from "./theme";
 import { scatterLabelLayout } from "./scatter-label-layout";
-import { chartLabel } from "../../lib/metrics";
+import { chartLabel, modelLabel } from "../../lib/metrics";
 import { labelScale } from "./label-size";
 
 export interface ScatterPoint { x: number; r: RankedVariant; /** untransformed value for tooltips/export when x is transformed */ raw?: number; /** Costs nothing: drawn on the "free" line left of the cheapest paid point. */ free?: boolean }
@@ -41,10 +41,9 @@ export function restoreScatterView(kind: "bars" | "scatter" = "scatter", frontie
 }
 
 /**
- * Stable label priority: cover models before repeating dominated efforts. Extra frontier efforts
- * compete with new models near the frontier, but precede models far below it. There is no gap cutoff:
- * increasing density eventually covers weak models too, without waiting for the All setting.
- * Set insertion order is priority order, also used when resolving label collisions.
+ * Stable label priority, one label per model: each model is named at its best-placed effort, closest to
+ * the frontier first. There is no gap cutoff: increasing density eventually covers weak models too, and All
+ * names every model. Set insertion order is priority order, also used when resolving label collisions.
  */
 export function pickLabels(pts: ScatterPoint[], better: "lower" | "higher", density: number): Set<string> {
   if (!pts.length) return new Set();
@@ -60,19 +59,12 @@ export function pickLabels(pts: ScatterPoint[], better: "lower" | "higher", dens
   const gap = (p: ScatterPoint) => (level.get(p.r.variant.id)! - p.r.score) / range;
   const front = new Set(frontierOf(pts, better).map(p => p.r.variant.id));
   const order = [...pts].sort((a, b) => Number(front.has(b.r.variant.id)) - Number(front.has(a.r.variant.id)) || gap(a) - gap(b) || b.r.score - a.r.score || a.r.variant.id.localeCompare(b.r.variant.id));
-  const models = new Set<string>(), frontierEfforts = new Map<string, number>(), priorities = new Map<string, number>();
-  for (const p of order) {
-    const id = p.r.variant.id, model = p.r.model.id, repeated = models.has(model);
-    const effort = frontierEfforts.get(model) ?? 0;
-    priorities.set(id, !repeated ? gap(p) : front.has(id) ? 0.12 + effort * 0.04 : 1 + gap(p));
-    if (front.has(id)) frontierEfforts.set(model, effort + 1);
-    models.add(model);
-  }
-  order.sort((a, b) => priorities.get(a.r.variant.id)! - priorities.get(b.r.variant.id)! || b.r.score - a.r.score || a.r.variant.id.localeCompare(b.r.variant.id));
+  const seen = new Set<string>();
+  const firsts = order.filter((p) => !seen.has(p.r.model.id) && !!seen.add(p.r.model.id)).sort((a, b) => gap(a) - gap(b) || b.r.score - a.r.score || a.r.variant.id.localeCompare(b.r.variant.id));
   const sparse = new Set(pts.filter(p => front.has(p.r.variant.id)).map(p => p.r.model.id)).size;
   const d = Math.max(0, Math.min(1, density));
   const budget = Math.round(sparse + d * d * (pts.length - sparse));
-  return new Set(order.slice(0, budget).map(p => p.r.variant.id));
+  return new Set(firsts.slice(0, budget).map(p => p.r.variant.id));
 }
 
 /** The marks that get axis guide lines (when the chart's guides setting is on). */
@@ -142,7 +134,7 @@ export function scatterOption({ pts, labs, better, xName, xShort, xUnit = "", sc
     if (fallen?.has(id)) return { itemStyle: { opacity: 0 }, symbolSize: 0, label: { show: false }, silent: true };
     // An estimated score (RankedVariant.scoreEstimate) draws as a ring: placed, not measured.
     const est = !!p.r.scoreEstimate;
-    if (!on) { const show = labeled.has(id); return { itemStyle: { color: est ? pal.bg : c && markFill(c, pal, "dot"), borderColor: est ? c : front ? pal.ink : pal.bg, borderWidth: est ? 1.6 : 1.5, opacity: show || front ? 1 : 0.8 }, symbolSize: (front ? 11 : 9) * m, label: { show } }; }
+    if (!on) { const show = labeled.has(id); return { itemStyle: { color: est ? pal.bg : c && markFill(c, pal, "dot"), borderColor: est ? c : front ? pal.ink : pal.bg, borderWidth: est ? 1.6 : 1.5, opacity: show || front ? 1 : 0.8 }, symbolSize: (front ? 11 : 9) * m, label: { show, formatter: modelLabel(p.r) } }; }
     if (!hl.has(p.r.model.id)) return { itemStyle: { color: est ? pal.bg : dimColor(c, pal), borderColor: est ? dimColor(c, pal) : pal.bg, borderWidth: est ? 1.2 : 1, opacity: pal.dark ? 0.55 : 0.6 }, symbolSize: 7 * m, label: { show: false }, emphasis: { label: { show: true } } };
     const isBest = featured.has(p.r.variant.id);
     const label = isBest
@@ -152,6 +144,13 @@ export function scatterOption({ pts, labs, better, xName, xShort, xUnit = "", sc
   };
   // Chosen marks draw last so they sit on top and win label overlap.
   const drawOrder = on ? [...ordered].sort((a, b) => Number(hl.has(a.r.model.id)) - Number(hl.has(b.r.model.id))) : ordered;
+  // Labels steer around the frontier line where a clear slot exists: points along it count as marks.
+  const line = dots && view.frontier && frontier.length > 1 ? () => {
+    const all = dots();
+    if (!all) return all;
+    const at = new Map(pts.map((p, i) => [p.r.variant.id, all[i]])), path = frontier.map((p) => at.get(p.r.variant.id));
+    return [...all, ...path.slice(1).flatMap((b, i) => { const a = path[i]; if (!a || !b) return []; const n = Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) / 6); return Array.from({ length: n }, (_, k) => ({ x: a.x + (b.x - a.x) * k / n, y: a.y + (b.y - a.y) * k / n })); })];
+  } : dots;
   const marks = drawOrder.map((p) => ({ name: chartLabel(p.r), value: [p.x, p.r.score], id: p.r.variant.id, extra: p, ...markOf(p) }));
   const series: EChartsOption["series"] = [
     ...links.map((v) => { const mine = hl.has(v[0].r.model.id), c = color.get(v[0].r.model.labId); return { type: "line" as const, id: `link-${v[0].r.model.id}`, data: v.map((p) => ({ id: p.r.variant.id, value: [p.x, p.r.score] })), showSymbol: false, lineStyle: { color: on && !mine ? dimColor(c, pal) : c, width: mine ? 2 : 1, opacity: mine ? 1 : on ? 0.25 : pal.dark ? 0.45 : 0.35 }, silent: true, animationDuration: 500, z: mine ? 4 : 1 }; }),
@@ -161,8 +160,8 @@ export function scatterOption({ pts, labs, better, xName, xShort, xUnit = "", sc
       type: "scatter", id: "marks", z: 5,
       data: marks,
       label: { ...markLabel(pal), fontSize: (narrow ? 10.5 : 11.5) * fontScale },
-      labelLayout: scatterLabelLayout(width ?? (() => undefined), height ?? (() => undefined), marks.map(p => p.label.show), dots, marks.map(p => (p.label as { fontSize?: number }).fontSize ?? (narrow ? 10.5 : 11.5) * fontScale), onLabel && ((i, at) => onLabel(marks[i].id, at))),
-      emphasis: { scale: 1.4, label: { show: true, fontWeight: 600 } },
+      labelLayout: scatterLabelLayout(width ?? (() => undefined), height ?? (() => undefined), marks.map(p => p.label.show), line, marks.map(p => (p.label as { fontSize?: number }).fontSize ?? (narrow ? 10.5 : 11.5) * fontScale), onLabel && ((i, at) => onLabel(marks[i].id, at))),
+      emphasis: { scale: 1.4, label: { show: true, fontWeight: 600, formatter: "{b}" } },
       clip: true, universalTransition: { enabled: false },
       // AA-style themes shade the better corner: better-than-median metric and above-median score.
       ...(pal.style?.quadrant && scale !== "time" && pts.length >= 4 ? { markArea: { silent: true, z: -1, itemStyle: { color: pal.style.quadrant }, label: { show: false }, data: [quadrantArea(pts, better, scale)] } } : {}),

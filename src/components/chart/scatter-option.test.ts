@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { RankedVariant } from "../../engine";
 import { DEFAULT_VIEW, frontierOf, guidePoints, pickLabels, restoreScatterView, scatterOption, type ScatterPoint } from "./scatter-option";
-import { LIGHT_PALETTE } from "./theme";
+import { LIGHT_PALETTE, paletteFor, themeFor } from "./theme";
+import { themeById } from "../../lib/page-presets";
+import { modelLabel } from "../../lib/metrics";
 
 const point = (id: string, month: number, score: number): ScatterPoint => ({
   x: Date.UTC(2026, month - 1, 1),
@@ -19,11 +21,35 @@ describe("label priorities", () => {
     expect(labels.has("weak@high")).toBe(true);
   });
 
-  it("prioritizes another frontier effort over a distant weaker model, without starving that model at high density", () => {
+  it("names each model once, at its effort closest to the frontier, and lets density reach weak models", () => {
     const pts = [effort("front", "low", 1, 50), effort("front", "high", 2, 80), effort("near", "high", 2.1, 78), effort("weak", "high", 3, 20), effort("weak", "low", 4, 10)];
+    expect([...pickLabels(pts, "lower", 0)]).toEqual(["front@high"]);
     expect([...pickLabels(pts, "lower", 0.6)]).toEqual(["front@high", "near@high"]);
-    expect([...pickLabels(pts, "lower", 0.75)]).toEqual(["front@high", "near@high", "front@low"]);
-    expect(pickLabels(pts, "lower", 0.9).has("weak@high")).toBe(true);
+    expect([...pickLabels(pts, "lower", 0.9)]).toEqual(["front@high", "near@high", "weak@high"]);
+    expect([...pickLabels(pts, "lower", 1)]).toEqual(["front@high", "near@high", "weak@high"]);
+  });
+
+  it("labels a mark with the model alone and names its effort on hover", () => {
+    const pts = [effort("Opus", "max", 1, 80), effort("Opus", "low", 2, 60)];
+    pts[0].r = { ...pts[0].r, variant: { ...pts[0].r.variant, sourceModel: { name: "Opus (Max, Default Fallback)" } } } as ScatterPoint["r"];
+    const marks = (scatterOption({ pts, labs: [], better: "higher", xName: "Cost", formatX: String, view: { ...DEFAULT_VIEW, density: 1 }, pal: LIGHT_PALETTE, narrow: false }).series as { id: string; emphasis: { label: { formatter: string } }; data: { id: string; name: string; label: { show: boolean; formatter: string } }[] }[]).find(s => s.id === "marks")!;
+    const max = marks.data.find(m => m.id === "Opus@max")!;
+    expect(max.label).toMatchObject({ show: true, formatter: "Opus" });
+    expect(max.name).toBe("Opus max");
+    expect(marks.emphasis.label.formatter).toBe("{b}");
+    expect(marks.data.filter(m => m.label.show)).toHaveLength(1);
+  });
+
+  it("drops an effort the model name carries, and keeps labels clear of the frontier line", () => {
+    const named = effort("Muse Wonder (Max)", "max", 1, 80);
+    expect(modelLabel(named.r)).toBe("Muse Wonder");
+    const pts = [effort("a", "high", 1, 80), effort("b", "high", 2, 60), effort("c", "high", 3, 90)];
+    const px = pts.map((p, i) => ({ x: 100 + i * 200, y: 200 }));
+    const option = scatterOption({ pts, labs: [], better: "lower", xName: "Cost", formatX: String, view: { ...DEFAULT_VIEW, density: 1 }, pal: LIGHT_PALETTE, narrow: false, width: () => 800, height: () => 500, dots: () => px });
+    const marks = (option.series as { id: string; data: { id: string }[]; labelLayout: (p: unknown) => { align: string } }[]).find(s => s.id === "marks")!;
+    const i = marks.data.findIndex(m => m.id === "a@high");
+    const at = marks.labelLayout({ dataIndex: i, rect: { x: 96, y: 196, width: 8, height: 8 }, labelRect: { x: 110, y: 193, width: 30, height: 14 } });
+    expect(at.align).toBe("right");
   });
 
   it("adds labels monotonically, remains independent of input order, and treats equal x values together", () => {
@@ -36,14 +62,14 @@ describe("label priorities", () => {
       previous = labels;
     }
     expect([...pickLabels(pts, "lower", 0)]).toEqual(["b@high"]);
-    expect(previous.size).toBe(pts.length);
+    expect(previous.size).toBe(3);
   });
 
-  it("keeps All labels available on narrow charts too", () => {
+  it("keeps All labels available on narrow charts too, one per model", () => {
     const pts = [effort("a", "high", 1, 80), effort("a", "low", 2, 70), effort("b", "high", 3, 20)];
     const option = scatterOption({ pts, labs: [], better: "lower", xName: "Cost", formatX: String, view: { ...DEFAULT_VIEW, density: 1 }, pal: LIGHT_PALETTE, narrow: true });
-    const marks = (option.series as { id: string; data: { label: { show: boolean } }[] }[]).find(s => s.id === "marks")!;
-    expect(marks.data.every(p => p.label.show)).toBe(true);
+    const marks = (option.series as { id: string; data: { id: string; label: { show: boolean } }[] }[]).find(s => s.id === "marks")!;
+    expect(marks.data.filter(p => p.label.show).map(p => p.id).sort()).toEqual(["a@high", "b@high"]);
   });
 });
 
@@ -84,6 +110,15 @@ describe("release chronology", () => {
     expect(guidePoints(points, { items: ["best"], guides: true }).map(p => p.r.model.id)).toEqual(["best"]);
     expect(guidePoints(points, { items: ["best"], guides: false })).toEqual([]);
   });
+});
+
+it("Slop starts with no gridlines and the viewer's choice overrides any theme", () => {
+  const slop = paletteFor(themeById("slop")!);
+  expect(themeById("slop")!.chart?.gridOff).toBe(true);
+  expect(themeById("slop-light")!.chart?.gridOff).toBe(true);
+  expect(themeFor(slop)).toBe(themeFor(slop, undefined, false));
+  expect(themeFor(slop)).not.toBe(themeFor(slop, undefined, true));
+  expect(themeFor(LIGHT_PALETTE)).toBe(themeFor(LIGHT_PALETTE, undefined, true));
 });
 
 it("scales ordinary, mobile and highlighted effort labels without changing density", () => {

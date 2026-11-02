@@ -54,8 +54,14 @@ export function chartLabel(r: RankedVariant) {
   const named = new RegExp(`\\b${r.variant.effort}\\b`, "i").test(r.model.name);
   const name = r.variant.effort === "default" || named ? r.model.name : `${r.model.name} ${r.variant.effort}`;
   const source = r.variant.sourceModel?.name ?? "";
-  const label = /no fallback|without fallback/i.test(source) ? `${name}, no fallback` : /fallback/i.test(source) ? `${name}, fallback` : name;
+  // "Default fallback" is how most Claude models simply run, so only a different setup gets named.
+  const label = /no fallback|without fallback/i.test(source) ? `${name}, no fallback` : /fallback/i.test(source) && !/default fallback/i.test(source) ? `${name}, fallback` : name;
   return r.scoreEstimate ? `${label}, est.` : label;
+}
+/** A scatter mark's standing label: the model alone. Its efforts are joined by a line, and hovering a mark names its effort (`chartLabel`). */
+export function modelLabel(r: RankedVariant) {
+  const name = r.model.name.replace(/\s*\((?:none|minimal|low|medium|high|xhigh|max)\)$/i, "");
+  return r.scoreEstimate ? `${name}, est.` : name;
 }
 
 /** Gallery panel definitions — shared between the client gallery and share cards.
