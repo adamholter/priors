@@ -2,6 +2,19 @@ export function escapeSvg(value: string) {
   return value.replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&apos;" }[c]!));
 }
 
+/** What frameSvg adds around a plot: padding on each side, then padding, title band and footer. */
+export const FRAME_W = 64, FRAME_H = 88;
+
+/**
+ * The link-preview canvas for an image: X crops every card to 1.91:1 and prints its title over the bottom 12%, so the
+ * image sits whole inside that shape, above that band, and the theme's background fills the rest.
+ */
+export function previewCanvas(w: number, h: number) {
+  const ratio = 1200 / 630, band = 0.12;
+  const height = Math.ceil(Math.max(h / (1 - band), w / ratio)), width = Math.ceil(height * ratio);
+  return { width, height, y: Math.max(0, height - h - Math.max(height * band, (height - h) / 2)) };
+}
+
 /**
  * Frames a chart SVG for export: bone background, padding on every side, the chart title in the
  * site serif at top-left, and a quiet source line at bottom-left, so images never start flush at the

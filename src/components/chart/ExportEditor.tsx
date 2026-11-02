@@ -3,7 +3,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { ECharts } from "echarts";
 import { IconCheck, IconLink, IconX } from "@tabler/icons-react";
 import { PAGE_PRESETS, THEME_CHOICES, themeById } from "@/lib/page-presets";
-import { EDITOR_MAX, EDITOR_MIN, EDITOR_RATIOS, clampSize, ratioOf, type EditorState, type EditorView } from "@/lib/export-editor";
+import { EDITOR_MAX, EDITOR_MIN, EDITOR_RATIOS, clampSize, ratioOf, sizeForRatio, type EditorState, type EditorView } from "@/lib/export-editor";
 import { labelScale } from "./label-size";
 import { ChartPaletteContext, paletteFor, useChartPalette } from "./echarts";
 import { ChartExport } from "./ChartExport";
@@ -55,12 +55,12 @@ export default function ExportEditor({ name, initial, base, showScale, onClose, 
   useEffect(() => { const d = dialog.current; if (d && !d.open) d.showModal(); }, []);
 
   const lock = ratioOf(ratio);
-  const resize = (w: number, h?: number) => setSize(clampSize(w, lock ? w / lock : h ?? size.h));
-  const pickRatio = (id: string) => { setRatio(id); const r = ratioOf(id); if (r) setSize(clampSize(size.w, size.w / r)); };
+  const resize = (w: number, h?: number) => setSize(lock ? sizeForRatio(w, lock) : clampSize(w, h ?? size.h));
+  const pickRatio = (id: string) => { setRatio(id); const r = ratioOf(id); if (r) setSize(sizeForRatio(size.w, r)); };
   const drag = (e: React.PointerEvent<HTMLButtonElement>) => {
     const x0 = e.clientX, y0 = e.clientY, { w, h } = size;
     e.currentTarget.setPointerCapture(e.pointerId);
-    const move = (m: PointerEvent) => setSize(clampSize(w + m.clientX - x0, lock ? (w + m.clientX - x0) / lock : h + m.clientY - y0));
+    const move = (m: PointerEvent) => setSize(lock ? sizeForRatio(w + m.clientX - x0, lock) : clampSize(w + m.clientX - x0, h + m.clientY - y0));
     const up = () => { removeEventListener("pointermove", move); removeEventListener("pointerup", up); };
     addEventListener("pointermove", move); addEventListener("pointerup", up);
   };

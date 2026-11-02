@@ -1,3 +1,5 @@
+import { FRAME_H, FRAME_W } from "../components/chart/export-frame";
+
 /** What a screenshot link remembers: crop size, theme, title and the chart settings it overrides. Carried in `xe`. */
 export interface EditorView { scale?: "log" | "linear"; frontier?: boolean; links?: boolean; guides?: boolean; density?: number; labelScale?: number; allModels?: boolean; grid?: boolean }
 /** `heading` is the title as drawn (custom title, else the chart name), so a link preview prints exactly what the image did. */
@@ -21,6 +23,12 @@ export function readViewParam(raw: string | null | undefined): EditorView | unde
 
 export function clampSize(w: number, h: number) { return { w: clamp(w, EDITOR_MIN.w, EDITOR_MAX), h: clamp(h, EDITOR_MIN.h, EDITOR_MAX) }; }
 
+/** The plot size whose finished image (plot, title and footer) has this ratio. When the height would leave its limits, the width gives way so the ratio holds. */
+export function sizeForRatio(width: number, r: number) {
+  const w = clamp(width, EDITOR_MIN.w, EDITOR_MAX), h = clamp((w + FRAME_W) / r - FRAME_H, EDITOR_MIN.h, EDITOR_MAX);
+  return { w: Math.round((h + FRAME_H) * r - FRAME_W), h };
+}
+
 export function encodeEditor(s: EditorState): string {
   const v = s.view ?? {};
   const out: Record<string, unknown> = { w: s.w, h: s.h, r: s.ratio && s.ratio !== "free" ? s.ratio : undefined, t: s.theme, ti: s.title || undefined, hd: s.heading && s.heading !== s.title ? s.heading : undefined, am: v.allModels ? 1 : undefined,
@@ -35,7 +43,8 @@ export function decodeEditor(raw: string | null | undefined): EditorState | null
   try {
     const o = JSON.parse(decodeURIComponent(escape(atob(raw.replace(/-/g, "+").replace(/_/g, "/"))))) as Record<string, unknown>;
     if (!o || typeof o !== "object" || typeof o.w !== "number" || typeof o.h !== "number") return null;
-    const { w, h } = clampSize(o.w, o.h);
+    const ratio = typeof o.r === "string" ? ratioOf(o.r) : undefined;
+    const { w, h } = ratio ? sizeForRatio(o.w, ratio) : clampSize(o.w, o.h);
     const view: EditorView = {};
     if (o.sc === "log" || o.sc === "linear") view.scale = o.sc;
     if (o.fr != null) view.frontier = !!o.fr;

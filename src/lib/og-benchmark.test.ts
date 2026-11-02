@@ -44,13 +44,14 @@ describe("benchmark share card", async () => {
     expect(await renderBenchmarkChart(snap, "nope", new URLSearchParams({ c: "cost" }))).toBeNull();
   });
 
-  it("draws a screenshot-editor link at the editor's size, title and theme, like its PNG export", async () => {
+  it("draws a screenshot-editor link on the card-shaped canvas, so no platform crops it", async () => {
     const id = "frontiercode-1.1-main", i = encodeIndex(benchmarkIndex(benchmarkSnapshot(snap, id), id));
     const xe = encodeEditor({ w: 1036, h: 583, ratio: "16:9", theme: "slop", title: "Custom", heading: "Custom", view: { scale: "linear", frontier: false } });
     const png = (await renderBenchmarkChart(snap, id, new URLSearchParams({ c: "cost", i, xe })))!;
     const w = png.readUInt32BE(16), h = png.readUInt32BE(20);
-    expect(w / h).toBeCloseTo((1036 + 64) / (583 + 88), 2);
+    expect(w / h).toBeCloseTo(1200 / 630, 2);
     const plain = (await renderBenchmarkChart(snap, id, new URLSearchParams({ c: "cost", i })))!;
     expect(plain.readUInt32BE(16) / plain.readUInt32BE(20)).toBeCloseTo(1200 / 630, 1);
+    expect(png.equals(plain)).toBe(false);
   });
 });

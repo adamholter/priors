@@ -8,7 +8,7 @@ import { echarts, themeFor, paletteFor, markColor, DARK_PALETTE, SANS_STATIC, MO
 import { scatterOption, DEFAULT_VIEW, guidePoints, type Highlight, type ScatterPoint, type ScatterView } from "../components/chart/scatter-option";
 import { clampSize, decodeEditor, readViewParam, type EditorView } from "./export-editor";
 import { barsOption, defaultBarModels, filterBarModels, selectBars } from "../components/chart/bars-option";
-import { frameSvg } from "../components/chart/export-frame";
+import { FRAME_H, FRAME_W, frameSvg, previewCanvas } from "../components/chart/export-frame";
 import { answerHeight, answerOption } from "../components/chart/answer-option";
 import type { AnswerChart } from "./answer-chart";
 import { effectiveBasis } from "../data/subscription";
@@ -207,8 +207,8 @@ function staticFonts(pal: ChartPalette) {
   return { sans: pick(pal.fonts?.sans, SANS_STATIC), mono: pick(pal.fonts?.mono, MONO_STATIC) };
 }
 
-/** The preview image's size for a link: the export frame around its plot (see frameSvg), else the 1200×630 card. */
-export const framedSize = (f?: LinkFrame) => f ? { width: f.w + 64, height: f.h + 88 } : { width: 1200, height: 630 };
+/** The preview image's size for a link: the export frame around its plot, on the card-shaped canvas (see previewCanvas), else the 1200×630 card. */
+export const framedSize = (f?: LinkFrame) => { if (!f) return { width: 1200, height: 630 }; const { width, height } = previewCanvas(f.w + FRAME_W, f.h + FRAME_H); return { width, height }; };
 export function linkFrame(q: URLSearchParams): LinkFrame | undefined {
   if (!q.get("c")) return undefined;
   const xe = decodeEditor(q.get("xe"));
@@ -222,7 +222,7 @@ export function linkFrame(q: URLSearchParams): LinkFrame | undefined {
 
 /**
  * A chart exactly as its PNG export draws it: the page's option at the plot's own size and view, in the export frame
- * (title, plot, mypriors.com footer). Link previews use it so the embed is the image that was copied.
+ * (title, plot, mypriors.com footer), on a card-shaped canvas so no platform crops it. Link previews use it so the embed is the image that was copied.
  */
 export async function renderFramedPng(spec: ChartSpec, labs: Lab[], pal: ChartPalette, frame: LinkFrame): Promise<Buffer | null> {
   if (!spec.pts.length) return renderChartPng(spec, labs, pal);
@@ -256,7 +256,9 @@ export async function renderFramedPng(spec: ChartSpec, labs: Lab[], pal: ChartPa
     if (right && next < w) svg = svg.replace(/<svg[^>]*>/, (open) => open.replace(/width="[\d.]+"/, `width="${next}"`).replace(/viewBox="[^"]*"/, `viewBox="0 0 ${next} ${h}"`));
   }
   chart.dispose();
-  return rasterize(frameSvg(svg, frame.heading ?? spec.title, undefined, { bg: pal.bg, ink: pal.ink, grey: pal.grey }), pal.bg);
+  const framed = frameSvg(svg, frame.heading ?? spec.title, undefined, { bg: pal.bg, ink: pal.ink, grey: pal.grey });
+  const { width, height, y } = previewCanvas(w + FRAME_W, h + FRAME_H), x = (width - Number(framed.match(/width="([\d.]+)/)?.[1] ?? w + FRAME_W)) / 2;
+  return rasterize(`<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><rect width="${width}" height="${height}" fill="${pal.bg}"/>${framed.replace("<svg", `<svg x="${x}" y="${y}"`)}</svg>`, pal.bg);
 }
 
 /** A static radar (radar-view radarSvg) centered in the 1200×630 card frame, rasterized like chart cards. */

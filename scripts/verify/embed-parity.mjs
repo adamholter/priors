@@ -74,7 +74,11 @@ function borderBg(t) {
   const med = (c) => { const v = px.map((i) => t.data[i * 3 + c]).sort((a, b) => a - b); return v[v.length >> 1]; };
   return [med(0), med(1), med(2)];
 }
-async function compare(exportBuf, embedBuf) {
+/** Previews sit on a card-shaped canvas (previewCanvas in export-frame.ts), so compare what is drawn in each: both images cut to their content. */
+const content = async (buf) => sharp(await sharp(buf).flatten({ background: "#ffffff" }).png().toBuffer()).trim({ threshold: 12 }).png().toBuffer();
+
+async function compare(rawExport, rawEmbed) {
+  const exportBuf = await content(rawExport), embedBuf = await content(rawEmbed);
   const a = await thumb(exportBuf), b = await thumb(embedBuf);
   const arA = a.width / a.height, arB = b.width / b.height;
   const w = Math.min(a.w, b.w);

@@ -356,7 +356,7 @@ try {
     await page.getByRole("button", { name: "1:1", exact: true }).click();
     await page.waitForTimeout(600);
     const b = await box.boundingBox();
-    assert.ok(Math.abs(b.width - b.height) < 2, `1:1 makes the plot square, got ${b.width}x${b.height}`);
+    assert.ok(Math.abs(b.width + 64 - b.height - 88) < 2, `1:1 makes the image square, got a ${b.width}x${b.height} plot`);
     await page.locator("dialog.xe input[type=text]").fill("Link test");
     await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
     await page.locator(".xe-copy").click();
@@ -371,7 +371,7 @@ try {
     await other.locator("dialog.xe-viewer[open]").waitFor({ timeout: 15000 });
     assert.ok(await other.locator("dialog.xe-viewer .xe-title").innerText() === "Link test", "the title survives the link");
     const ob = await other.getByTestId("xe-box").boundingBox();
-    assert.ok(Math.abs(ob.width - ob.height) < 2, "the crop survives the link");
+    assert.ok(Math.abs(ob.width / ob.height - b.width / b.height) < 0.02, "the crop survives the link");
     await other.getByRole("button", { name: "Edit", exact: true }).click();
     assert.equal(await other.locator("dialog.xe input[type=text]").inputValue(), "Link test", "Edit opens the editor with the link's title");
     await other.keyboard.press("Escape");
@@ -763,6 +763,17 @@ try {
       await c.locator("button", { hasText: /^Linear$/ }).last().click();
       assert.ok(await c.locator("button", { hasText: /^Linear$/ }).last().getAttribute("aria-pressed") === "true", "scale switches to linear");
     } finally { await c.close(); }
+  });
+
+  await check("a chart link's preview image is card-shaped, whatever ratio it was copied at", async () => {
+    const xe = (o) => Buffer.from(JSON.stringify(o)).toString("base64url");
+    for (const o of [{ w: 360, h: 220, r: "16:9" }, { w: 600, h: 600, r: "1:1" }, { w: 400, h: 300 }]) {
+      const query = `c=cost&xe=${xe(o)}`, html = await (await fetch(`${BASE}/builder?${query}`, { headers: { "user-agent": "Twitterbot/1.0" } })).text();
+      const declared = (name) => Number(html.match(new RegExp(`og:image:${name}" content="(\\d+)`))?.[1]);
+      assert.ok(Math.abs(declared("width") / declared("height") - 1200 / 630) < 0.02, `declared ${declared("width")}x${declared("height")}`);
+      const png = Buffer.from(await (await fetch(`${BASE}/og?${query}`)).arrayBuffer());
+      assert.ok(Math.abs(png.readUInt32BE(16) / png.readUInt32BE(20) - 1200 / 630) < 0.02, `drawn ${png.readUInt32BE(16)}x${png.readUInt32BE(20)}`);
+    }
   });
 
   await check("the account menu opens inside the viewport and above the rail on phone and tablet widths", async () => {
