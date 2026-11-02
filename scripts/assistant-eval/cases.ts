@@ -210,7 +210,7 @@ export const CASES: Case[] = [
     checks: [ok, mixChanged, (r, env) => {
       const odd = Object.keys(r.after.weights).filter((id) => { const b = env.snapshot.benchmarks.find((x) => x.id === id); return !b || ["knowledge", "safety", "math", "creative", "economics", "cost", "speed", "reliability", "composite", "other"].includes(b.category); });
       return odd.length ? `unrelated benchmarks in the mix: ${odd.join(", ")}` : undefined;
-    }, (r) => Object.keys(r.after.weights).length >= 3 ? undefined : "fewer than three benchmarks"],
+    }, (r) => Object.keys(r.after.weights).length >= 3 ? undefined : "fewer than three benchmarks", (r) => /chart/i.test(reply(r)) ? undefined : "reply doesn't point to the cost and time charts"],
   },
   {
     id: "mix-from-legal-work", kind: "change", prompt: "I use AI almost only for legal work: reviewing contracts and drafting. Build me a mix for that.",
