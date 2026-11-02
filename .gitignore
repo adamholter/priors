@@ -34,5 +34,8 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 logs/
+/.open-next/
+/.wrangler/
+.dev.vars*
 .scrape-checkout
 /scripts/assistant-eval/results/

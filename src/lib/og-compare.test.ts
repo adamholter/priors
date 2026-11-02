@@ -28,8 +28,8 @@ describe("compare card", () => {
     expect(r.rho).toBeCloseTo(-1);
     expect(r.gap).toMatchObject({ shift: expect.any(Number) });
   });
-  it("draws a PNG", () => {
-    const png = renderCompareCard(snapshot(), choiceFromIndex(index("Up", { x: 100 })), choiceFromIndex(index("Down", { y: 100 })));
+  it("draws a PNG", async () => {
+    const png = await renderCompareCard(snapshot(), choiceFromIndex(index("Up", { x: 100 })), choiceFromIndex(index("Down", { y: 100 })));
     expect([...png.subarray(0, 4)]).toEqual([0x89, 0x50, 0x4e, 0x47]);
   });
 });

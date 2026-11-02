@@ -13,6 +13,16 @@ describe("live snapshot source", () => {
   beforeEach(() => { vi.stubEnv("SNAPSHOT_BASE_URL", "https://data.example/snapshots/"); });
   afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
 
+  it("uses data-live by default on Cloudflare without pretending to be Vercel", async () => {
+    vi.stubEnv("SNAPSHOT_BASE_URL", undefined);
+    vi.stubEnv("VERCEL", ""); vi.stubEnv("PRIORS_CLOUDFLARE", "1");
+    const fetchMock = vi.fn(async () => new Response(latest));
+    vi.stubGlobal("fetch", fetchMock);
+    const { loadSnapshot } = await fresh();
+    expect((await loadSnapshot())?.models.length).toBeGreaterThan(100);
+    expect(fetchMock).toHaveBeenCalledWith("https://raw.githubusercontent.com/adamholter/priors/data-live/data/snapshots/latest.json.gz", expect.any(Object));
+  });
+
   it("reads the latest snapshot from the live base and keeps it for the TTL", async () => {
     const fetchMock = vi.fn(async (_url: string) => new Response(latest));
     vi.stubGlobal("fetch", fetchMock);

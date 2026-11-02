@@ -22,7 +22,7 @@ export function compareLead(snapshot: Snapshot, a: Choice, b: Choice) {
 }
 
 /** The share card for a comparison (1200×630): both sides' top lists as a slope, with how much they agree. */
-export function renderCompareCard(snapshot: Snapshot, a: Choice, b: Choice): Buffer {
+export async function renderCompareCard(snapshot: Snapshot, a: Choice, b: Choice): Promise<Buffer> {
   const pal = RADAR_PALETTES.light, e = escapeSvg;
   const { sa, sb, shared, n, rho, gap } = compareLead(snapshot, a, b);
   const A = sa.placed.slice(0, SHOW), B = sb.placed.slice(0, SHOW);

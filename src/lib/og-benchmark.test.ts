@@ -16,12 +16,12 @@ describe("benchmark share card", async () => {
     expect(text).not.toMatch(/—/);
   });
 
-  it("renders a PNG card with and without a cost chart, and nothing for an unknown id", () => {
+  it("renders a PNG card with and without a cost chart, and nothing for an unknown id", async () => {
     for (const id of ["frontiercode-1.1-main", "arena-text"]) {
-      const png = renderBenchmarkCard(snap, id);
+      const png = await renderBenchmarkCard(snap, id);
       expect(png?.subarray(1, 4).toString()).toBe("PNG");
     }
-    expect(renderBenchmarkCard(snap, "nope")).toBeNull();
+    expect(await renderBenchmarkCard(snap, "nope")).toBeNull();
   });
 
   it("uses the benchmark's own published results only", () => {
@@ -31,7 +31,7 @@ describe("benchmark share card", async () => {
 
   it("draws the chart a copied link names, in its settings and scheme, instead of the general card", async () => {
     const id = "frontiercode-1.1-main", i = encodeIndex({ ...benchmarkIndex(benchmarkSnapshot(snap, id), id), costBasis: "api" });
-    const general = renderBenchmarkCard(snap, id)!;
+    const general = (await renderBenchmarkCard(snap, id))!;
     for (const c of ["rankings", "cost"]) {
       const png = await renderBenchmarkChart(snap, id, new URLSearchParams({ c, i, scheme: "dark" }));
       expect(png?.subarray(1, 4).toString()).toBe("PNG");

@@ -4,8 +4,8 @@ import { api } from "../../convex/_generated/api";
 import { loadSnapshot } from "@/data/load";
 import { SITE_URL } from "@/lib/site-meta";
 
-// Rebuilt at most hourly: new pages and models show up without a deploy.
-export const revalidate = 3600;
+// Rendered on request: new pages and models show up without a deploy, and the Workers build has no background revalidation.
+export const dynamic = "force-dynamic";
 
 /** The fixed routes, every model page, and every published page. Labs and account pages stay out. */
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {

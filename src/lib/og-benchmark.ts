@@ -66,7 +66,7 @@ function fit(text: string, max: number) { return text.length > max ? `${text.sli
  * the left; on the right, score against subscription cost per task when the benchmark measures cost (the leader's
  * API price beside it), else more of the leaderboard.
  */
-export function renderBenchmarkCard(full: Snapshot, benchmarkId: string): Buffer | null {
+export async function renderBenchmarkCard(full: Snapshot, benchmarkId: string): Promise<Buffer | null> {
   const s = benchmarkStanding(full, benchmarkId);
   if (!s) return null;
   const pal = RADAR_PALETTES.light, e = escapeSvg, b = s.benchmark;
@@ -165,7 +165,7 @@ export async function renderBenchmarkChart(full: Snapshot, benchmarkId: string, 
 }
 
 /** The page's leaderboard: one bar per row, length from the score across the field, the published value at the end. */
-function leaderboardPng(b: Benchmark, rows: RankedVariant[], labs: Lab[], pal: ChartPalette, title: string): Buffer {
+function leaderboardPng(b: Benchmark, rows: RankedVariant[], labs: Lab[], pal: ChartPalette, title: string): Promise<Buffer> {
   const e = escapeSvg, list = rows.slice(0, 14);
   const max = Math.max(...rows.map((r) => r.score)), min = Math.min(...rows.map((r) => r.score));
   const pitch = Math.min(38, (CHART_H - 24) / Math.max(list.length, 1)), nameW = 300, valueW = 110, barW = CHART_W - nameW - valueW - 40;

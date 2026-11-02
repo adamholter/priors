@@ -17,17 +17,22 @@
     "smoke": "node scripts/verify/smoke.mjs",
     "interactions": "node scripts/verify/interactions.mjs",
     "e2e": "node scripts/verify/e2e.mjs",
-    "assistant-eval": "tsx scripts/assistant-eval/run.mts"
+    "assistant-eval": "tsx scripts/assistant-eval/run.mts",
+    "cf:build": "node scripts/ops/cloudflare-build.mjs",
+    "cf:preview": "node scripts/ops/cloudflare-preview.mjs",
+    "cf:deploy": "node scripts/ops/cloudflare-deploy.mjs"
   },
   "dependencies": {
     "@clerk/nextjs": "^7.9.1",
+    "@opennextjs/cloudflare": "1.20.15",
     "@resvg/resvg-js": "^2.6.2",
+    "@resvg/resvg-wasm": "^2.6.2",
     "@tabler/icons-react": "^3.49.0",
     "convex": "^1.45.0",
     "csv-parse": "6.1.0",
     "echarts": "^6.1.0",
     "hyparquet": "^1.31.4",
-    "next": "16.3.4",
+    "next": "16.4.2",
     "nuqs": "^2.10.1",
     "posthog-js": "^1.438.1",
     "qrcode": "^1.5.4",
@@ -44,12 +49,13 @@
     "@types/react-dom": "^19",
     "@types/three": "^0.186.0",
     "eslint": "^9",
-    "eslint-config-next": "16.3.4",
+    "eslint-config-next": "16.4.2",
     "playwright": "^1.63.0",
     "tailwindcss": "^4",
     "tsx": "^4.23.13",
     "typescript": "^5",
-    "vitest": "^5.0.0"
+    "vitest": "^5.0.0",
+    "wrangler": "^4.156.2"
   },
   "optionalDependencies": {
     "@resvg/resvg-js-darwin-arm64": "^2.6.2"

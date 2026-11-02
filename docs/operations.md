@@ -27,6 +27,19 @@ Environment variables:
 - If `CONVEX_DEPLOY_KEY` is set in Vercel, the build also deploys Convex functions. Until then, run `npx convex deploy` before pushing a schema change. `npx convex dev --once` pushes to the dev deployment. Every checkout shares that one dev deployment, and a push replaces all of its functions: it removes functions and indexes that only exist in another checkout's uncommitted work, until that checkout pushes again.
 - A fix or change Adam asks for ships without a second request: verify, push to `main`, confirm it live. See "Working here" in `AGENTS.md`.
 
+## Cloudflare Workers migration
+
+Production remains on Vercel. The staging Worker is `https://priors.adamholter.workers.dev`, account `b38802397093b6d21eff2ac4c5159edd`. No DNS or nameserver change has occurred.
+
+- OpenNext 1.20.3 supports this checkout's Next 16.3.4. It uses Node compatibility for Clerk's proxy, WASM resvg for chart/model OG images, and private Workers static assets for the bundled snapshot archive and fonts. The live snapshot feed and intro cards still come from `data-live`. PostHog keeps `/ingest` and its trailing slashes.
+- `npm run cf:build` loads and trims app settings from ignored `.env.cloudflare.production`, then builds locally. It removes OpenNext's copied `.env.local` defaults from the output. Runtime credentials come exclusively from Cloudflare secrets. Vercel provider tokens and Convex deployment keys are excluded from runtime secrets.
+- `npm run cf:preview` runs the Worker locally on 48742 with the same app settings. `npm run cf:deploy` runs CI, optionally deploys Convex through `CONVEX_DEPLOY_KEY`, builds, uploads secrets, and deploys. A lock prevents overlapping deploys. Local builds avoid hosted build-minute charges. A deployment without source changes does not need a push to GitHub or a Vercel build.
+- Wrangler OAuth is restored and stored encrypted with its encryption key in macOS Keychain. Do not commit credentials or print their values.
+- The Free plan deploys the bundle, but model OG and history requests exceed its CPU limit. A live trace on 2026-10-21 recorded `exceededCpu` after 1,565 ms on `/models/gpt-6-sol/opengraph-image`. The same route and history work locally under workerd. Cloudflare Billing reports no payment method on file. Workers Paid starts at $5/month plus usage and is required before the production parity gate can pass.
+- Production Clerk keys reject the `workers.dev` hostname. Verify sign-in on a temporary subdomain of `mypriors.com` backed by the Worker, or in an isolated browser that resolves the production hostname to a test origin. Do not weaken Clerk origin restrictions.
+- Before cutover, compare home, model pages, leaderboard, profile pages, every API route, all OG card types, intro cards, sitemap, Clerk, Convex, and a uniquely tagged PostHog event read back from project 649581. Mirror the complete Porkbun DNS inventory, including MX, TXT, Clerk and verification records, and retain Vercel's DNS targets before changing nameservers or routes. Re-run the checks on the real domain after cutover.
+- Rollback before cutover requires no action. After a future cutover, restore the recorded Vercel DNS targets or remove the Worker route while retaining Vercel as the origin. Keep the Vercel project, domains, environment and deployments intact.
+
 ## The scrape job
 
 launchd job `com.adam.priors-scrape` runs `scripts/ops/daily-scrape.sh` every 15 minutes, from its own checkout at `~/priors-scrape`. The plist points at that path, so do not move or rename the script.

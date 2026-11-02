@@ -1,16 +1,15 @@
-import { readFile } from "node:fs/promises";
 import { SettingsButton } from "@/components/SiteSettings";
-import path from "node:path";
 import Link from "next/link";
 import { Wordmark } from "@/components/Wordmark";
 import { PageTransition } from "@/components/PageTransition";
 import { CopySkill } from "./CopySkill";
 import { pageMeta } from "@/lib/site-meta";
+import { readRuntimeFile } from "@/lib/runtime-files";
 
 export const metadata = pageMeta({ title: "Agent skill", description: "A skill that lets your own agent add benchmarks to Priors and edit your page.", path: "/skill" });
 
 export default async function SkillPage() {
-  const md = await readFile(path.join(process.cwd(), "public/skill/SKILL.md"), "utf8");
+  const md = (await readRuntimeFile("public/skill/SKILL.md")).toString("utf8");
   return (
     <PageTransition><main className="min-h-screen">
       <header className="flex items-center gap-6 px-8 h-14 border-b hairline"><Wordmark transitionTypes={["nav-back"]} /><Link href="/builder" transitionTypes={["nav-back"]} className="text-grey text-[13px] hover:text-ink">Builder</Link><span className="ml-auto"><SettingsButton /></span></header>

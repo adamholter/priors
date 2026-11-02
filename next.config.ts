@@ -4,13 +4,16 @@ const nextConfig: NextConfig = {
   allowedDevOrigins: ["127.0.0.1", "localhost"],
   typedRoutes: true,
   serverExternalPackages: ["@resvg/resvg-js"],
+  ...(process.env.PRIORS_CLOUDFLARE === "1" ? {
+    turbopack: { resolveAlias: { "@/lib/rasterize": "./src/lib/rasterize-cloudflare.ts" } },
+  } : {}),
   devIndicators: false,
   // PostHog posts to trailing-slash endpoints through /ingest (src/app/ingest); don't redirect them.
   skipTrailingSlashRedirect: true,
   // The scrape publishes the intro cards it renders to the repo's data-live branch, so production serves them from
   // there rather than from the build.
   async rewrites() {
-    if (!process.env.VERCEL) return [];
+    if (!process.env.VERCEL && process.env.PRIORS_CLOUDFLARE !== "1") return [];
     return { beforeFiles: [{ source: "/intro/:file([a-z0-9-]+\\.png)", destination: "https://raw.githubusercontent.com/adamholter/priors/data-live/public/intro/:file" }], afterFiles: [], fallback: [] };
   },
   async headers() {

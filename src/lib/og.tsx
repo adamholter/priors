@@ -1,6 +1,5 @@
 import type { ReactNode } from "react";
-import { readFile } from "node:fs/promises";
-import path from "node:path";
+import { readRuntimeFile } from "./runtime-files";
 import { ImageResponse } from "next/og";
 import type { Snapshot } from "@/data/types";
 import { chartVariantMode, computeIndex, PAGE_VIEW, rankingRows, selectVariants, type IndexConfig, type RankedVariant } from "@/engine";
@@ -57,7 +56,7 @@ export async function renderShareCard(snapshot: Snapshot,index:IndexConfig,who:{
   const v=radarSnapshotView(snapshot,index,opts?.radar??DEFAULT_RADAR,pal.dark,(lab)=>markColor(lab.color,pal,lab.id));
   if(v.axes.length>=3&&v.series.length){
    const svg=radarSvg({axes:v.axes,series:v.series,ghost:v.ghost,norm:(opts?.radar??DEFAULT_RADAR).norm,meta:v.meta,pal:{...RADAR_PALETTES[pal.dark?"dark":"light"],bg:pal.bg,ink:pal.ink,grey:pal.grey},size:440});
-   return new Response(renderRadarPng(svg,`Strengths · ${index.name}`,pal) as unknown as BodyInit,{headers:{"content-type":"image/png"}});
+   return new Response(await renderRadarPng(svg,`Strengths · ${index.name}`,pal) as unknown as BodyInit,{headers:{"content-type":"image/png"}});
   }
  }
  if(!c.top.length)body=<Empty c={c}/>;
@@ -183,7 +182,7 @@ function Constellation({c}:{c:Ctx}){
 function Empty({c}:{c:Ctx}){return <div style={{padding:68,width:"100%",display:"flex",flexDirection:"column",justifyContent:"space-between"}}><Identity c={c}/><div style={{display:"flex",flexDirection:"column"}}><div style={{fontFamily:"Newsreader",fontSize:64,display:"flex"}}>{c.index.name}</div><div style={{fontSize:21,color:c.muted,marginTop:15,display:"flex"}}>No models meet this index&apos;s current requirements.</div></div><div style={{width:550,borderTop:`1px solid ${c.line}`,display:"flex"}}/></div>}
 const cache=new Map<string,Promise<ArrayBuffer>>();
 /** OFL fonts vendored in src/lib/og-fonts — no runtime fetch (cold starts matter for link previews). */
-function font(file:string){if(!cache.has(file))cache.set(file,readFile(path.join(process.cwd(),"src/lib/og-fonts",file)).then(b=>b.buffer.slice(b.byteOffset,b.byteOffset+b.byteLength) as ArrayBuffer));return cache.get(file)!}
+function font(file:string){if(!cache.has(file))cache.set(file,readRuntimeFile(`src/lib/og-fonts/${file}`).then(b=>b.buffer.slice(b.byteOffset,b.byteOffset+b.byteLength) as ArrayBuffer));return cache.get(file)!}
 
 /** Head-to-head card for indexes with only a few visible models. */
 function Matchup({c}:{c:Ctx}){

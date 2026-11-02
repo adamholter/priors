@@ -87,7 +87,7 @@ function nameLines(name: string, max: number): string[] {
  * The model's share card (1200×630): name, lab and release on the left with its index score, rank and
  * best benchmark placements; its strengths radar against the index leader and the field median on the right.
  */
-export function renderModelCard(snapshot: Snapshot, modelId: string): Buffer | null {
+export async function renderModelCard(snapshot: Snapshot, modelId: string): Promise<Buffer | null> {
   const s = modelStanding(snapshot, modelId);
   if (!s) return null;
   const pal = RADAR_PALETTES.light, e = escapeSvg;
