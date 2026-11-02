@@ -826,6 +826,16 @@ try {
         });
       });
       assert.deepEqual(bad, []);
+      // The collapsed sections are one row each: title on the left, value and chevron on the right.
+      await c.locator(".chart-settings-menu summary", { hasText: "Subscription plans" }).last().click();
+      for (const name of ["Subscription plans", "Custom formula"]) {
+        const row = c.locator(".chart-settings-menu summary", { hasText: name }).last();
+        const box = await row.boundingBox(), value = await row.locator("span").boundingBox();
+        assert.ok(box.height < 50, `${name} is one row (${box.height}px)`);
+        assert.ok(value.x > box.x + box.width / 2 && value.y >= box.y && value.y + value.height <= box.y + box.height, `${name}'s value sits on the right of its row`);
+      }
+      const widths = await c.locator(".chart-settings-menu select[aria-label$='data source'], .chart-settings-menu select[aria-label$='release window']").evaluateAll((els) => els.filter((e) => e.offsetParent).map((e) => e.clientWidth));
+      assert.equal(new Set(widths).size, 1, `data selects line up: ${widths}`);
     } finally { await c.close(); }
   });
 

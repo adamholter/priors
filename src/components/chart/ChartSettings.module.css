@@ -14,7 +14,7 @@
 .dataField { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 42px; min-width: 0; }
 .dataField label { flex: none; }
 .dataField select, .search { width: 100%; min-width: 0; background: var(--bone); border: 1px solid var(--hair); border-radius: 3px; padding: 6px 8px; font-size: 12px; }
-.dataField select { width: 224px; }
+.dataField select { flex: none; width: 212px; }
 .row { min-height: 42px; display: flex; justify-content: space-between; align-items: center; gap: 12px; }
 .row select { max-width: 164px; border: 1px solid var(--hair); border-radius: 3px; padding: 6px 8px; background: var(--bone); }
 .choice { display: flex; border: 1px solid var(--hair); border-radius: 3px; overflow: hidden; }
@@ -52,6 +52,8 @@
   .menu[data-above="true"] { top: 50dvh; bottom: auto; }
   .modelList { max-height: min(330px, 45dvh); }
 }
+.sub > summary { display: flex; align-items: center; gap: 12px; min-height: 38px; padding: 0; color: var(--ink); background: none !important; border-radius: 0; }
+.sub > summary:has(span)::after { margin-left: 0; }
 .sub { border-top: 1px solid var(--hair); }
 .sub[open] { padding-bottom: 10px; }
 .sub > summary span { margin-left: auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--grey); font-size: 12px; }
