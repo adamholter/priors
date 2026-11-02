@@ -1,12 +1,18 @@
 import { describe, expect, it } from "vitest";
 import { decodeIndices, decodeIndex, encodeIndex } from "./url";
-import { chartLinkUrl, linkedHighlights, linkedViews, setHighlightParams, viewParam } from "./highlight-link";
+import { PREVIEW_VERSION, chartLinkUrl, linkedHighlights, linkedViews, setHighlightParams, viewParam } from "./highlight-link";
 import { readChartHidden, setChartHidden } from "../components/chart/chart-visibility";
 
 const first = decodeIndex("First|swe:50", "first")!;
 const second = { ...decodeIndex("Second|term:50", "second")!, highlight: ["gpt-6.1-sol@xhigh", "claude-opus-5.5@max~vals"] };
 
 describe("highlighted chart links", () => {
+  it("stamps the preview version, so a re-copied link gets a new URL and platforms fetch the new card", () => {
+    const url = chartLinkUrl("https://mypriors.com/builder?pv=1", "cost");
+    expect(url.searchParams.getAll("pv")).toEqual([PREVIEW_VERSION]);
+    expect(PREVIEW_VERSION).not.toBe("1");
+  });
+
   it("copies current chart removals alongside highlights and keeps other chart removals", () => {
     const hidden = { models: ["alpha"], efforts: ["beta@high"] };
     const current = setChartHidden(new URL("https://mypriors.com/adamholter"), "time-per-task", { models: ["gamma"], efforts: [] });

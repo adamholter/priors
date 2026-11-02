@@ -63,9 +63,13 @@ export function linkedViews(indices: IndexConfig[], params: URLSearchParams): In
 }
 
 /** Copy current React state, including the active mix, before the debounced address bar update. */
+/** Bump when chart previews draw differently. Platforms cache a card by its URL and the same settings shorten to the same slug, so without a new value a re-copied link keeps showing the old image. */
+export const PREVIEW_VERSION = "2";
+
 export function chartLinkUrl(current: string, id: string, params?: { cv?: "bars" | "scatter"; cm?: "best" | "all"; cs?: "log" | "linear"; ls?: number; hidden?: ChartHidden; extra?: Record<string, string | undefined> }, state?: { items: string[]; indexId?: string; view?: string; linkIndices?: IndexConfig[] }) {
   const url = new URL(current);
   url.searchParams.set("c", id);
+  url.searchParams.set("pv", PREVIEW_VERSION);
   url.hash = id;
   if (params) {
     if (params.hidden) setChartHidden(url, id, params.hidden);

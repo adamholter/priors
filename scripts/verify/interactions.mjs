@@ -785,6 +785,11 @@ try {
       const png = Buffer.from(await (await fetch(`${BASE}/og?${query}`)).arrayBuffer());
       assert.ok(Math.abs(png.readUInt32BE(16) / png.readUInt32BE(20) - 1200 / 630) < 0.02, `drawn ${png.readUInt32BE(16)}x${png.readUInt32BE(20)}`);
     }
+    // A new preview version reaches the image address, or X keeps serving the card it cached for the old one.
+    for (const path of ["/builder", "/benchmarks/frontiercode-1.1-main"]) {
+      const html = await (await fetch(`${BASE}${path}?c=cost&pv=test`, { headers: { "user-agent": "Twitterbot/1.0" } })).text();
+      assert.match(html.match(/og:image" content="([^"]+)/)?.[1] ?? "", /pv=test/, `${path} image carries the version`);
+    }
   });
 
   await check("the account menu opens inside the viewport and above the rail on phone and tablet widths", async () => {

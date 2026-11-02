@@ -29,7 +29,7 @@ function describe(snapshot: Snapshot, b: Benchmark) {
 
 type Search = Promise<Record<string, string | string[] | undefined>>;
 /** A chart link's settings, as the card route reads them: which chart, the page's index, view and hidden models, and the look it was copied in. */
-const CHART_KEYS = ["c", "i", "cv", "cm", "cs", "ls", "ch", "cf", "xe", "xs", "xv", "bm", "scheme", "theme"];
+const CHART_KEYS = ["c", "i", "cv", "cm", "cs", "ls", "ch", "cf", "xe", "xs", "xv", "pv", "bm", "scheme", "theme"];
 function chartQuery(sp: Record<string, string | string[] | undefined>): URLSearchParams {
   const q = new URLSearchParams();
   for (const key of CHART_KEYS) for (const v of [sp[key]].flat()) if (typeof v === "string" && v) q.append(key, v);
