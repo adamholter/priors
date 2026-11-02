@@ -39,7 +39,7 @@ import { IndexLabActions, type PublishPlacement } from "./lab/IndexLabActions";
 import { threeDUrl } from "@/lib/compare-ref";
 import { useTripleD } from "@/lib/use-triple-d";
 
-export function Builder({ snapshot: base, initialIndices, labPlacement }: { snapshot: Snapshot; initialIndices: IndexConfig[]; labPlacement?: PublishPlacement }) {
+export function Builder({ snapshot: base, initialIndices, labPlacement }: { snapshot: Snapshot; initialIndices: IndexConfig[]; labPlacement?: PublishPlacement | "none" }) {
   // Benchmarks imported in this browser (via /import without an account) are merged client-side.
   const calculations = useRef<CalculationSettingsHandle>(null);
   const [local, setLocal] = useState<ImportPayload[]>([]);
@@ -170,7 +170,7 @@ export function Builder({ snapshot: base, initialIndices, labPlacement }: { snap
       </header>
 
       <HighlightContext.Provider value={highlightState}>
-      <main className={`builder-main grid grid-cols-1 lg:grid-cols-[360px_minmax(0,1fr)] gap-10 px-4 sm:px-8 pt-5 lg:pt-8 pb-8 max-w-[1500px] items-start ${labPlacement && labPlacement !== "rail" ? "[&>aside]:order-2 [&>section]:order-1 lg:[&>aside]:order-1 lg:[&>section]:order-2" : ""}`}>
+      <main className={`builder-main grid grid-cols-1 lg:grid-cols-[360px_minmax(0,1fr)] gap-10 px-4 sm:px-8 pt-5 lg:pt-8 pb-8 max-w-[1500px] items-start ${labPlacement && labPlacement !== "rail" && labPlacement !== "none" ? "[&>aside]:order-2 [&>section]:order-1 lg:[&>aside]:order-1 lg:[&>section]:order-2" : ""}`}>
         <aside aria-label="Index controls" className="builder-aside relative z-30 flex flex-col gap-5 min-h-0 lg:sticky lg:top-[88px] lg:h-[calc(100dvh-120px)]">
           {labPlacement === "rail" && <IndexLabActions active={active} date={snapshot.date} top={topNames} placement="rail" />}
           <section aria-label="Benchmarks and eligibility" className="min-h-0 min-w-0 lg:flex-1 lg:overflow-y-auto lg:overflow-x-hidden lg:overscroll-contain pr-2 pb-2">

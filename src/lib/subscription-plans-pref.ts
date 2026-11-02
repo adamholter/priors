@@ -4,7 +4,7 @@ import { subscriptionPlanOptions } from "@/data/subscription";
 import type { Snapshot } from "@/data/types";
 
 /**
- * The visitor's plan per lab for subscription pricing (Advanced → Plan), kept in this browser. Unset, a lab's
+ * The visitor's plan per lab for subscription pricing (Advanced → Subscription plans), kept in this browser. Unset, a lab's
  * models are priced at their median plan. Picking a plan on any chart applies it everywhere and on later visits;
  * a link's or saved page's choice for a lab wins over the visitor's.
  */
@@ -32,6 +32,11 @@ export function setSubscriptionPlanPref(labId: string, plan: string | undefined)
   window.dispatchEvent(new Event(EVENT));
 }
 
+export function clearSubscriptionPlansPref() {
+  try { localStorage.removeItem(SUBSCRIPTION_PLANS_KEY); } catch { /* storage blocked */ }
+  window.dispatchEvent(new Event(EVENT));
+}
+
 function subscribe(cb: () => void) {
   window.addEventListener(EVENT, cb); window.addEventListener("storage", cb);
   return () => { window.removeEventListener(EVENT, cb); window.removeEventListener("storage", cb); };
@@ -48,7 +53,7 @@ export function withPlansPref<C extends { subscriptionPlans?: Record<string, str
 }
 
 const optionsCache = new WeakMap<Snapshot, (ReturnType<typeof subscriptionPlanOptions>[number] & { name: string })[]>();
-/** Advanced → Plan: the labs with more than one plan, named, and the plan each is priced at. `update` stores the change on the index (this view, or the page being edited). */
+/** Advanced → Subscription plans: the labs with more than one plan, named, and the plan each is priced at. `update` stores the change on the index (this view, or the page being edited). */
 export function planPicker(snapshot: Snapshot, config: { subscriptionPlans?: Record<string, string> }, pref: Record<string, string>, update: (plans: Record<string, string> | undefined) => void) {
   let labs = optionsCache.get(snapshot);
   if (!labs) { labs = subscriptionPlanOptions(snapshot).map((l) => ({ ...l, name: snapshot.labs.find((x) => x.id === l.labId)?.name ?? l.labId })); optionsCache.set(snapshot, labs); }
@@ -61,5 +66,6 @@ export function planPicker(snapshot: Snapshot, config: { subscriptionPlans?: Rec
       if (plan) next[labId] = plan; else delete next[labId];
       update(Object.keys(next).length ? next : undefined);
     },
+    onReset: () => { clearSubscriptionPlansPref(); update(undefined); },
   };
 }

@@ -203,6 +203,17 @@ try {
       await menu.locator("summary", { hasText: "Subscription plans" }).click();
       const median = await menu.getByLabel("OpenAI plan").locator("option").first().textContent();
       assert.match(median, /^Median: ChatGPT /);
+      // API pricing keeps the plans in view and says how to use them; picks reset in one click.
+      await menu.getByRole("button", { name: "API", exact: true }).click();
+      await menu.getByLabel("OpenAI plan").waitFor();
+      assert.equal(await menu.getByLabel("OpenAI plan").isDisabled(), true);
+      await menu.getByRole("button", { name: "Use subscription" }).click();
+      const openai = menu.getByLabel("OpenAI plan");
+      await openai.selectOption({ index: 1 });
+      await c.waitForFunction(() => localStorage.getItem("priors:subscription-plans")?.includes("openai"));
+      await menu.getByRole("button", { name: "Reset" }).click();
+      await c.waitForFunction(() => !localStorage.getItem("priors:subscription-plans"));
+      assert.equal(await openai.inputValue(), "");
       await c.reload({ waitUntil: "domcontentloaded" });
       await chart.locator("svg text").first().waitFor({ timeout: 30000 });
       await c.waitForTimeout(500);
