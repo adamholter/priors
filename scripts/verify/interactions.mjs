@@ -76,7 +76,8 @@ try {
       assert.ok((await library.locator(".theme-swatch").count()) >= 9, "the library lists the extra themes");
       await library.locator(".theme-swatch", { hasText: "Terminal" }).click();
       await c.waitForFunction(() => localStorage.getItem("priors:site-theme")?.includes('"terminal"'));
-      assert.notEqual(await bg(), before, "the page background changed");
+      // The choice is saved before its colors are set, so wait for them instead of reading once.
+      await c.waitForFunction((was) => getComputedStyle(document.documentElement).getPropertyValue("--bone").trim() + getComputedStyle(document.documentElement).backgroundColor !== was, before, { timeout: 5000 });
       assert.equal(await c.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--font-sans").toLowerCase().includes("plex")), true, "the theme's font reached the page");
       await library.locator(".theme-swatch", { hasText: "Geist" }).first().click();
       // The cards follow the scheme (Terminal made the site dark), so this picks Geist's dark version.
