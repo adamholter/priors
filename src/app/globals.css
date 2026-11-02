@@ -151,6 +151,9 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 /* Metric gallery */
 details.gallery-panel > summary::-webkit-details-marker { display: none; }
 /* Raise the whole toolbar while a menu is open so later chart toolbars cannot paint over it. */
+/* Above the builder rail (z 30) and any page content, even from a header with its own stacking context. */
+.account-popover { z-index: 70; max-width: calc(100vw - 32px); }
+header:has(.account-menu > [aria-expanded="true"]) { z-index: 60; }
 .chart-toolbar:has(details[open], .export-menu) { position: relative; z-index: 30; }
 .chart-toolbar:has(details[open] > .chart-settings-menu) { z-index: 60; }
 .chart-context-menu { position: fixed; z-index: 80; width: 232px; max-width: calc(100vw - 16px); max-height: calc(100dvh - 16px); overflow-y: auto; background: var(--white); color: var(--ink); border: 1px solid var(--hair); border-radius: 5px; box-shadow: 0 5px 24px var(--shadow); padding: 5px; font: 12.5px var(--font-sans); }

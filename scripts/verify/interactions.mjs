@@ -765,6 +765,23 @@ try {
     } finally { await c.close(); }
   });
 
+  await check("the account menu opens inside the viewport and above the rail on phone and tablet widths", async () => {
+    for (const width of [390, 900]) {
+      const c = await browser.newPage({ viewport: { width, height: 844 } });
+      try {
+        await c.goto(`${BASE}/builder`, { waitUntil: "networkidle" });
+        // It needs a session, so its popover goes in the slot it renders in (HeaderAuth, after Share).
+        const account = await c.evaluate(() => {
+          document.querySelector('.builder-header [aria-label="Share"]').parentElement.parentElement.insertAdjacentHTML("beforeend", `<div class="account-menu relative"><button aria-expanded="true" class="w-9 h-9"></button><div class="account-popover grid absolute right-0 top-full mt-1.5 w-64 p-2 bg-white"><a id="account-probe" href="#" style="height:240px">View my page</a></div></div>`);
+          const probe = document.getElementById("account-probe"), r = probe.getBoundingClientRect();
+          return { left: r.left, right: r.right, on: [.25, .5, .75].every((f) => document.elementFromPoint(r.left + r.width / 2, r.top + r.height * f) === probe) };
+        });
+        assert.ok(account.left >= 0 && account.right <= width, `account menu fits at ${width}px: ${account.left} to ${account.right}`);
+        assert.ok(account.on, `account menu is on top of the rail at ${width}px`);
+      } finally { await c.close(); }
+    }
+  });
+
   await check("benchmark page: published extras (agent steps, breakdown), version menu, no hydration errors", async () => {
     const c = await browser.newPage({ viewport: { width: 1200, height: 1000 } });
     const consoleErrors = [];

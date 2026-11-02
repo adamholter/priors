@@ -233,7 +233,7 @@ export function IndexPage({ profile, snapshot, edit, tab: linkedTab, linkedHighl
     <div className={`page-root min-h-screen ${editing ? "is-editing" : ""}`} data-dark={preset.dark || undefined} data-family={preset.family ?? "priors"} style={presetStyle(preset, accent) as React.CSSProperties}>
       {customCss && <style>{customCss}</style>}
       {/* Phones: one short row that scrolls away — logo, share, and a menu for the rest. */}
-      <header className="flex items-center gap-x-6 gap-y-2 px-4 sm:px-8 h-12 sm:h-auto sm:min-h-14 sm:py-2 border-b hairline sm:sticky top-0 z-10" style={{ background: surface + "E6", backdropFilter: "blur(8px)" }}>
+      <header className="flex items-center gap-x-6 gap-y-2 px-4 sm:px-8 h-12 sm:h-auto sm:min-h-14 sm:py-2 border-b hairline relative sm:sticky top-0 z-10" style={{ background: surface + "E6", backdropFilter: "blur(8px)" }}>
         <Wordmark />
         <span className="text-grey text-[13px] max-sm:hidden">/ {p.handle}</span>
         <span className="max-sm:hidden"><SiteNav /></span>

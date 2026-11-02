@@ -70,7 +70,7 @@ export function AccountMenuView({ photo, name, handle, hasPage, signInPhoto, bus
   const canEdit = hasPage && handle;
   return <div className="account-menu relative">
     <button type="button" className="grid place-items-center w-9 h-9 rounded-full hover:bg-hair-2 aria-expanded:bg-hair-2" aria-label="Account" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)}>{face("w-7 h-7")}</button>
-    <div className={`${open ? "grid" : "hidden"} absolute right-0 top-full mt-1.5 w-64 gap-1 p-2 bg-white border hairline rounded-md shadow-[0_18px_40px_-18px_var(--shadow)] z-30`} role="menu" aria-label="Account">
+    <div className={`${open ? "grid" : "hidden"} account-popover absolute right-0 top-full mt-1.5 w-64 gap-1 p-2 bg-white border hairline rounded-md shadow-[0_18px_40px_-18px_var(--shadow)]`} role="menu" aria-label="Account">
       <div className="flex items-center gap-3 p-1.5">
         {canEdit
           ? <button type="button" className="group relative shrink-0 rounded-full focus-visible:outline-indigo" aria-label={busy ? "Uploading photo" : "Change photo"} title="Change photo" disabled={busy} onClick={() => fileRef.current?.click()}>

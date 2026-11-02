@@ -164,7 +164,7 @@ export function Builder({ snapshot: base, initialIndices, labPlacement }: { snap
         <div className="col-span-3 row-start-2 lg:w-auto lg:ml-auto flex flex-wrap items-center gap-2 shrink-0">
           <span className="sm:hidden mr-auto"><SiteNav current="builder" /></span>
           <span className="cap">Data as of {snapshot.date}</span>
-          {!labPlacement && <><ShareCards indices={indices} active={active} top={topNames} hint={shareHint} onOpen={() => setShareHint(false)} /><HeaderAuth indices={indices} /></>}
+          {!labPlacement && <span className="ml-auto flex items-center gap-2"><ShareCards indices={indices} active={active} top={topNames} hint={shareHint} onOpen={() => setShareHint(false)} /><HeaderAuth indices={indices} /></span>}
         </div>
         <div className="col-start-3 row-start-1 shrink-0"><SettingsButton /></div>
       </header>
