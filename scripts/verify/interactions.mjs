@@ -794,6 +794,29 @@ try {
     }
   });
 
+  await check("benchmark directory rows line up: icon inside its tile, title beside it, columns under their labels", async () => {
+    const c = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+    try {
+      await c.goto(`${BASE}/benchmarks`, { waitUntil: "networkidle" });
+      const m = await c.evaluate(() => {
+        const box = (e) => e.getBoundingClientRect(), mid = (r) => [r.x + r.width / 2, r.y + r.height / 2];
+        const rows = [...document.querySelectorAll(".bench-row")].slice(0, 12).filter((r) => r.querySelector(".bench-cat"));
+        const heads = [...document.querySelectorAll(".bench-head > span")];
+        return { rows: rows.map((r) => { const tile = r.querySelector(".bench-cat"); return { tile: mid(box(tile)), icon: mid(box(tile.querySelector("svg"))), title: mid(box(r.querySelector(".bench-main .text-\\[15px\\]"))) }; }),
+          bars: rows.map((r) => box(r.querySelector(".bench-bars")).x),
+          name: box(rows[0].querySelector(".bench-leader .truncate")).x,
+          label: (() => { const range = document.createRange(); range.selectNodeContents(heads[1]); const t = [...heads[1].childNodes].find((n) => n.nodeType === 3); range.selectNode(t); return range.getBoundingClientRect().x; })() };
+      });
+      assert.ok(m.rows.length > 3, "rows carry category tiles");
+      for (const r of m.rows) {
+        assert.ok(Math.abs(r.icon[0] - r.tile[0]) < 1 && Math.abs(r.icon[1] - r.tile[1]) < 1, `icon centered in its tile: ${r.icon} vs ${r.tile}`);
+        assert.ok(Math.abs(r.title[1] - r.tile[1]) < 2, `title centered on its tile: ${r.title[1]} vs ${r.tile[1]}`);
+      }
+      assert.ok(Math.max(...m.bars) - Math.min(...m.bars) < 0.5, `quality bars share a column: ${m.bars}`);
+      assert.ok(Math.abs(m.name - m.label) < 1.5, `top model name sits under its label: ${m.name} vs ${m.label}`);
+    } finally { await c.close(); }
+  });
+
   await check("a benchmark's info modal opens that benchmark in Priors", async () => {
     const c = await browser.newPage({ viewport: { width: 1280, height: 900 } });
     try {

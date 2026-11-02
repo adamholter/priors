@@ -17,7 +17,7 @@
 .bench-row{align-items:center;padding:11px 0}
 .bench-main{display:flex;align-items:flex-start;gap:11px;min-width:0}
 .bench-main>span:last-child{flex:1}
-.bench-cat{display:inline-grid;place-items:center;flex-shrink:0;width:28px;height:28px;margin-top:1px;border-radius:6px;background:var(--hair-2);color:var(--ink-2)}
+.bench-cat{flex-shrink:0;width:28px;height:28px;margin-top:-2px;border-radius:6px;background:var(--hair-2);color:var(--ink-2)}
 .bench-host{display:flex;align-items:center;gap:5px;margin-top:3px}
 .bench-fav{width:14px;height:14px;border-radius:3px;flex-shrink:0}
 
@@ -27,16 +27,17 @@
 .bench-none .num{color:var(--grey)}
 svg.bench-inline,.bench-trophy{display:none}
 .bench-word{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
-.bench-leader i{width:8px;height:8px;border-radius:50%;flex-shrink:0}
-.bench-leader .bench-tip{min-width:0;gap:6px;max-width:100%}
+.bench-leader i{width:8px;height:8px;margin:0 2.5px;border-radius:50%;flex-shrink:0}
+.bench-leader .bench-tip{min-width:0;max-width:100%}
 .bench-quality{display:inline-flex;align-items:center;gap:2px}
 .bench-bars{display:inline-flex;gap:2px}
 .bench-bars i{width:5px;height:12px;border-radius:1.5px;background:var(--hair)}
 .bench-bars i.on{background:var(--indigo)}
-.bench-quality b{min-width:22px;margin-left:6px;font-weight:400;text-align:right;color:var(--ink)}
+.bench-quality b{min-width:25px;margin-left:6px;font-weight:400;text-align:right;color:var(--ink)}
 
 /* Tooltip: waits a moment on hover so moving across a row stays quiet. */
 .bench-tip{position:relative;display:inline-flex;align-items:center;gap:4px}
+.bench-tip.bench-cat{justify-content:center}
 .bench-tip::after{content:attr(data-bench-tip);position:absolute;bottom:calc(100% + 6px);left:0;width:max-content;max-width:260px;padding:6px 9px;border-radius:5px;background:var(--ink);color:var(--bone);font:500 12px/1.4 var(--font-sans);text-align:left;text-transform:none;letter-spacing:0;white-space:normal;pointer-events:none;opacity:0;visibility:hidden;z-index:40}
 .bench-tip-end::after{left:auto;right:0}
 .bench-tip:hover::after{opacity:1;visibility:visible;transition:opacity .12s .45s,visibility 0s .45s}
