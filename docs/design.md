@@ -50,3 +50,5 @@ The picker also has "Explore themes", a library of extra looks (see `docs/pages-
 - Rankings are keyed rows moving between list-local positions. See `docs/charts.md` for why viewport FLIP is banned.
 - Animations honor `prefers-reduced-motion`.
 - Page transitions use `PageTransition.tsx` and `transitionTypes` on links.
+
+**Disclosures and dropdowns.** A collapsible section's summary takes `.disclosure` (`.disclosure-inline` when it sits in running text): one drawn chevron on the right, never a text glyph or the browser marker. Every `<select>` gets the same chevron from `globals.css`, and long values end in an ellipsis clear of it.

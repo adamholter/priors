@@ -148,11 +148,10 @@ export function Panel({ anchor, title, desc, defaultOpen, dim, tools, children }
   useHashTarget(anchor, () => { setOpen(true); setMounted(true); });
   return (
     <details className={`gallery-panel border-b hairline ${dim ? "is-dim" : ""}`} open={open} onToggle={(e) => { const o = e.currentTarget.open; setOpen(o); if (o) setMounted(true); }}>
-      <summary className="flex flex-wrap items-baseline gap-x-4 gap-y-0.5 py-3.5 pr-6 relative cursor-pointer select-none list-none [&::-webkit-details-marker]:hidden">
+      <summary className="disclosure flex flex-wrap items-baseline gap-x-4 gap-y-0.5 py-3.5 pr-6 relative select-none">
         <span className="gallery-title text-[15px] font-medium whitespace-nowrap">{title}</span>
         <span className="cap text-grey">{desc}</span>
         {tools}
-        <span className="absolute right-0 top-3.5 text-grey transition-transform duration-200" style={{ transform: open ? "rotate(180deg)" : undefined }} aria-hidden="true">⌄</span>
       </summary>
       {mounted && <div className="pb-6">{children}</div>}
     </details>

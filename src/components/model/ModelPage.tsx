@@ -147,7 +147,7 @@ export function ModelPage({ snapshot: base, modelId, rank }: { snapshot: Snapsho
         </section>
 
         {others.length > 0 && <details className="group border-t hairline pt-4" onToggle={(e) => setShowAll(e.currentTarget.open)}>
-          <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden flex items-baseline justify-between"><h2 className="text-[22px]">All {measured.length} benchmarks</h2><span className="cap group-open:hidden">show {others.length} more</span><span className="cap hidden group-open:inline">hide</span></summary>
+          <summary className="disclosure items-baseline"><h2 className="text-[22px]">All {measured.length} benchmarks</h2><span className="cap ml-auto group-open:hidden">show {others.length} more</span><span className="cap ml-auto hidden group-open:inline">hide</span></summary>
           {showAll && <LazyCards list={others} perBench={perBench} modelId={modelId} color={color} onInfo={setInfo} />}
         </details>}
       </div>

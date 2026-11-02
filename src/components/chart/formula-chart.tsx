@@ -14,7 +14,7 @@ export interface FormulaSettings {
 }
 
 /**
- * Applies a chart's custom formula (Advanced settings). Returns the metric to draw: the formula
+ * Applies a chart's custom formula (chart settings). Returns the metric to draw: the formula
  * chart when one is set and valid, else the chart's own. A formula with zero or negative results
  * cannot use a log axis, so the view is forced linear and the scale switch is withheld.
  */
@@ -58,7 +58,7 @@ const FORMULA_EXAMPLES = [
   { name: "Score per dollar and second", source: "score / (cost * time)", uses: ["score", "cost", "time"] },
 ];
 
-/** The Advanced section's formula controls. Valid drafts apply after a short pause in typing. */
+/** The Custom formula section's controls. Valid drafts apply after a short pause in typing. */
 export function FormulaEditor({ id, label, formula, view, onView }: { id: string; label: string; formula: FormulaSettings; view: ScatterView; onView: (view: ScatterView, persist?: boolean) => void }) {
   const [draft, setDraft] = useState(view.formula ?? "");
   const input = useRef<HTMLInputElement>(null), timer = useRef<ReturnType<typeof setTimeout>>(undefined), latest = useRef({ view, onView });

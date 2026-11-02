@@ -77,7 +77,7 @@ export function ModelFinder({ data, initialGroup = "overall", initialBudget = 10
     </div>
     {!rows.length && <p className={styles.empty}>No measured model fits this budget. Turn the budget dial up.</p>}
     {models.length > 12 && <button className={styles.showMore} type="button" onClick={() => setExpanded(!expanded)}>{expanded ? "Show top 12" : `Show all ${models.length} models`}</button>}
-    <details className={styles.evidence}><summary>Benchmark mix <span>{mix.name}</span></summary><div>
+    <details className={styles.evidence}><summary className="disclosure disclosure-inline">Benchmark mix <span>{mix.name}</span></summary><div>
       <label>Mix <select value={mix.id} onChange={event => changeMix(event.target.value)}>{group.mixes.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
       <p>{mix.description}</p>
       <ul>{mix.benchmarks.map(benchmark => <li key={benchmark.id}><a href={benchmark.url} target="_blank" rel="noreferrer">{benchmark.name}</a><span>{benchmark.weight.toFixed(0)}%</span></li>)}</ul>

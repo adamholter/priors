@@ -46,7 +46,7 @@ export function ParetoChart({ ranked, mode = "all", labs, height = 460, title, a
     }
   };
   const baseChart = costChartFor(basis), subscription = basis === "subscription";
-  // Advanced settings can swap cost for a custom formula.
+  // Chart settings can swap cost for a custom formula.
   const formula = useFormulaChart(baseChart, savedView, formulaInputs, ranked), view = formula.view;
   const costChart = formula.custom ? { ...formula.custom, xShort: formula.custom.xName, formatValue: undefined } : baseChart;
   const allPoints = costChart.points(ranked), pts = pickPoints(costChart, ranked, mode);

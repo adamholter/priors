@@ -330,7 +330,7 @@ export function IndexPage({ profile, snapshot, edit, tab: linkedTab, linkedHighl
             <MixPie slices={footerMix} />
           </div>}
           <details className="text-[12px] text-grey">
-            <summary className="cursor-pointer hover:text-ink w-fit">Data as of {snapshot.date} · {footerSources.length} sources</summary>
+            <summary className="disclosure disclosure-inline hover:text-ink">Data as of {snapshot.date} · {footerSources.length} sources</summary>
             <p className="mt-2 leading-relaxed max-w-[110ch]">{footerSources.join(" · ")}</p>
           </details>
         </footer>

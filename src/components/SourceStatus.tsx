@@ -44,7 +44,7 @@ export function SourceStatus({ snapshot, onSnapshot }: { snapshot: Snapshot; onS
   };
   return (
     <details className="mt-4 text-[12px] text-ink-2">
-      <summary className="cap cursor-pointer">Sources · {checked || snapshot.date}</summary>
+      <summary className="disclosure disclosure-inline cap">Sources · {checked || snapshot.date}</summary>
       <div className="grid gap-2 mt-3">
         {canRefresh && <button className="btn-quiet" disabled={busy} onClick={refresh}>{busy ? "Scraping live sources…" : "Refresh sources"}</button>}
         <p className="cap">Local scrapers check the source sites. Open pages check for new snapshots every minute.</p>

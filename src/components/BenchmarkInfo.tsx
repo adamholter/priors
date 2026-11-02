@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef } from "react";
 import type { Benchmark, Snapshot } from "@/data/types";
+import { benchmarkPath } from "@/lib/benchmark-slug";
 import { useLabColor } from "./chart/echarts";
 
 const CATS: Record<string, string> = { coding: "Coding", agentic: "Agentic", reasoning: "Reasoning", knowledge: "Knowledge", math: "Math", "long-context": "Long context", instruction: "Instruction following", creative: "Creative", safety: "Safety", economics: "Economics", composite: "Composite index", speed: "Speed", cost: "Cost", reliability: "Reliability", other: "Other" };
@@ -73,7 +74,10 @@ export function BenchmarkInfo({ snapshot, benchmarkId, inMix, onAdd, onClose }: 
         </ol> : <p className="cap py-3">No results in this snapshot.</p>}
       </div>
       <div className="flex flex-wrap items-center justify-between gap-3 mt-6 pt-4 border-t hairline">
-        {b.url ? <a href={b.url} target="_blank" rel="noreferrer" className="text-[13px] text-indigo hover:underline">View on {data.host || "the source"} ↗</a> : <span />}
+        <span className="flex flex-wrap items-center gap-x-5 gap-y-2">
+          <Link href={benchmarkPath(b.id) as "/"} transitionTypes={["nav-forward"]} className="btn-quiet">Open in Priors</Link>
+          {b.url && <a href={b.url} target="_blank" rel="noreferrer" className="text-[13px] text-indigo hover:underline">View on {data.host || "the source"} ↗</a>}
+        </span>
         {onAdd && (inMix ? <span className="cap">In your mix</span> : <button type="button" className="btn-quiet" onClick={() => { onAdd(b.id); ref.current?.close(); }}>Add to your mix</button>)}
       </div>
     </div>}

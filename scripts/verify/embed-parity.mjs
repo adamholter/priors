@@ -188,15 +188,18 @@ async function chartSettings(page, wrap, applied) {
   const close = async () => { await page.keyboard.press("Escape"); await page.waitForTimeout(400); };
   if (chance(0.6)) {
     await open();
-    const settingsTab = page.getByRole("tab", { name: "Settings" });
+    const settingsTab = page.getByRole("tab", { name: "Display" });
     if (await settingsTab.count()) await settingsTab.first().click();
     const scale = chance(0.5) ? "Linear" : "Log";
     const scaleBtn = page.locator('[role="group"] button', { hasText: new RegExp(`^${scale}$`) }).first();
     if (await scaleBtn.isVisible().catch(() => false)) { await scaleBtn.click(); applied.scale = scale.toLowerCase(); }
     if (chance(0.4)) {
-      const all = page.locator("label", { hasText: /^All models$/ }).locator('input[type="checkbox"]').first();
+      const dataTab = page.getByRole("tab", { name: "Data" });
+      if (await dataTab.count()) await dataTab.first().click();
+      const all = page.locator("label", { hasText: /^Include older models$/ }).locator('input[type="checkbox"]').first();
       if (await all.count()) { await all.evaluate((el) => el.click()); applied.allModels = await all.isChecked(); }
     }
+    if (await settingsTab.count()) await settingsTab.first().click();
     if (chance(0.35)) {
       const dens = page.locator('input[type="range"][aria-label$="label density"]').first();
       if (await dens.count()) { const v = pick([0, 30, 60, 100]); await setRange(dens, v); applied.density = v / 100; }

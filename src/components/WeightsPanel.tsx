@@ -151,7 +151,7 @@ export function WeightsPanel({ snapshot, config, onChange }: { snapshot: Snapsho
                   </div>
                   {sections.map(([label, list]) => <BenchGroup key={label} label={label}>{list.map(row)}</BenchGroup>)}
                   {oldList.length > 0 && <details className="bench-old">
-                    <summary className="cap cursor-pointer hover:text-ink w-fit">Older and niche · {oldList.length}</summary>
+                    <summary className="disclosure disclosure-inline cap hover:text-ink">Older and niche · {oldList.length}</summary>
                     <p className="text-[12px] text-ink-2 my-2 max-w-[48ch]">Earlier-generation tests, superseded versions and benchmarks no top model has been run on.</p>
                     <div className="grid">{oldList.map(row)}</div>
                   </details>}

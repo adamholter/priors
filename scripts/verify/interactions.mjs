@@ -117,7 +117,7 @@ try {
     } finally { await c.context().close(); }
   });
 
-  await check("Advanced > Count limit resets is off by default, switches on in the link and remembers it", async () => {
+  await check("Subscription plans > Count limit resets is off by default, switches on in the link and remembers it", async () => {
     const c = await (await browser.newContext({ viewport: { width: 1440, height: 1000 } })).newPage();
     try {
       await c.goto(`${BASE}/builder`, { waitUntil: "domcontentloaded" });
@@ -126,8 +126,8 @@ try {
       await picker.scrollIntoViewIfNeeded();
       await picker.locator("summary[aria-label='Pareto settings']").click();
       const menu = picker.locator(".chart-settings-menu");
-      await menu.getByRole("tab", { name: "Settings" }).click();
-      await menu.locator("summary", { hasText: "Advanced" }).click();
+      await menu.getByRole("tab", { name: "Data" }).click();
+      await menu.locator("summary", { hasText: "Subscription plans" }).click();
       const box = menu.getByLabel("Count limit resets");
       assert.equal(await box.isChecked(), false, "resets are off by default");
       await box.check();
@@ -139,8 +139,8 @@ try {
       const resetsBox = async () => {
         await c.goto(`${BASE}/benchmarks/frontiercode-2.0-main`, { waitUntil: "networkidle" });
         await c.getByLabel("Pareto settings", { exact: true }).click();
-        await c.getByRole("tab", { name: "Settings" }).last().click();
-        await c.locator(".chart-settings-menu summary", { hasText: "Advanced" }).last().click();
+        await c.getByRole("tab", { name: "Data" }).last().click();
+        await c.locator(".chart-settings-menu summary", { hasText: "Subscription plans" }).last().click();
         return c.getByLabel("Count limit resets");
       };
       assert.equal(await (await resetsBox()).isChecked(), true, "resets stay on on the next page");
@@ -176,7 +176,7 @@ try {
     assert.deepEqual(texts.filter((t) => /fallback|\b(none|low|medium|high|xhigh|max)\b/i.test(t)), [], "labels are model names");
   });
 
-  await check("Advanced > Background grid hides the gridlines on every chart and remembers it", async () => {
+  await check("Display > Background grid hides the gridlines on every chart and remembers it", async () => {
     const c = await (await browser.newContext({ viewport: { width: 1440, height: 1000 } })).newPage();
     try {
       await c.goto(`${BASE}/builder`, { waitUntil: "domcontentloaded" });
@@ -191,8 +191,7 @@ try {
       await picker.scrollIntoViewIfNeeded();
       await picker.locator("summary[aria-label='Pareto settings']").click();
       const menu = picker.locator(".chart-settings-menu");
-      await menu.getByRole("tab", { name: "Settings" }).click();
-      await menu.locator("summary", { hasText: "Advanced" }).click();
+      await menu.getByRole("tab", { name: "Display" }).click();
       const box = menu.getByLabel("Background grid");
       assert.equal(await box.isChecked(), true);
       await box.uncheck();
@@ -201,6 +200,7 @@ try {
       await c.waitForTimeout(500);
       assert.ok(await lines() < before, "gridlines are gone");
       // A median plan says which plan it is.
+      await menu.getByRole("tab", { name: "Data" }).click();
       await menu.locator("summary", { hasText: "Subscription plans" }).click();
       const median = await menu.getByLabel("OpenAI plan").locator("option").first().textContent();
       assert.match(median, /^Median: ChatGPT /);
@@ -289,7 +289,7 @@ try {
 
   await check("the effort row filters the cost chart one effort at a time", async () => {
     const menu = await openSettings("Pareto settings");
-    await menu.getByRole("tab", { name: "Settings" }).click();
+    await menu.getByRole("tab", { name: "Data" }).click();
     const row = menu.getByRole("group", { name: "Reasoning" });
     const buttons = row.getByRole("button");
     assert.deepEqual(await buttons.allTextContents(), ["none", "low", "medium", "high", "xhigh", "max"]);
@@ -305,7 +305,7 @@ try {
 
   await check("cost data source options show model counts", async () => {
     const menu = await openSettings("Pareto settings");
-    await menu.getByRole("tab", { name: "Settings" }).click();
+    await menu.getByRole("tab", { name: "Data" }).click();
     const source = menu.getByLabel("Pareto data source");
     assert.ok((await source.locator("option").allTextContents()).every((text) => /\(\d+ models\)$/.test(text)));
     await close();
@@ -314,7 +314,7 @@ try {
   await check("the ranking list has its own effort row", async () => {
     const before = await page.locator(".ranking-list [data-k]").count();
     const menu = await openSettings("Ranking settings");
-    await menu.getByRole("tab", { name: "Settings" }).click();
+    await menu.getByRole("tab", { name: "Data" }).click();
     const row = menu.getByRole("group", { name: "Reasoning" });
     assert.equal(await row.getByRole("button", { name: "none", exact: true }).getAttribute("aria-pressed"), "true", "the ranking starts with every effort, none included");
     for (const effort of ["none", "low", "medium", "high", "xhigh"]) await row.getByRole("button", { name: effort, exact: true }).click();
@@ -322,7 +322,7 @@ try {
     await page.waitForTimeout(400);
     assert.match(page.url(), /reff=max/, "the choice is in the link");
     assert.ok(await page.locator(".ranking-list [data-k]").count() <= before, "only max-effort rows remain");
-    for (const effort of ["none", "low", "medium", "high", "xhigh"]) await (await openSettings("Ranking settings").then(async (m) => { await m.getByRole("tab", { name: "Settings" }).click(); return m; })).getByRole("group", { name: "Reasoning" }).getByRole("button", { name: effort, exact: true }).click();
+    for (const effort of ["none", "low", "medium", "high", "xhigh"]) await (await openSettings("Ranking settings").then(async (m) => { await m.getByRole("tab", { name: "Data" }).click(); return m; })).getByRole("group", { name: "Reasoning" }).getByRole("button", { name: effort, exact: true }).click();
     await close();
   });
 
@@ -437,7 +437,7 @@ try {
     assert.equal(res.status(), 200, "card endpoint answers");
     return (await res.json()).points;
   };
-  const settings = async () => { const menu = await openSettings("Pareto settings"); await menu.getByRole("tab", { name: "Settings" }).click(); return menu; };
+  const settings = async () => { const menu = await openSettings("Pareto settings"); await menu.getByRole("tab", { name: "Data" }).click(); return menu; };
   const same = async (what) => {
     const shown = await onScreen();
     assert.ok(shown.length > 3, `${what}: the chart draws points`);
@@ -724,7 +724,7 @@ try {
       const open = async (label) => {
         const summary = c.getByLabel(`${label} settings`, { exact: true }).first();
         await summary.waitFor({ timeout: 60000 }); await summary.scrollIntoViewIfNeeded(); await summary.click();
-        const tab = c.getByRole("tab", { name: "Settings" }).first();
+        const tab = c.getByRole("tab", { name: "Display" }).first();
         if (await tab.count()) await tab.click();
         return c.getByRole("group", { name: "Scale" }).first();
       };
@@ -738,7 +738,7 @@ try {
     } finally { await c.context().close(); }
   });
 
-  await check("pareto charts start on the frontier and each lab's current models; All models shows the rest", async () => {
+  await check("pareto charts start on the frontier and each lab's current models; Include older models shows the rest", async () => {
     const c = await browser.newPage({ viewport: { width: 1300, height: 1000 } });
     try {
       await c.goto(`${BASE}/benchmarks/frontiercode-2.0-main`, { waitUntil: "networkidle" });
@@ -748,11 +748,11 @@ try {
       for (const old of ["claude-opus-5", "gpt-5.5", "gpt-5.6-sol"]) assert.ok(!before.has(old), `${old} is hidden by default`);
       assert.ok(before.has("claude-opus-5.5"), "the current Opus stays");
       await c.getByLabel("Pareto settings", { exact: true }).click();
-      await c.getByRole("tab", { name: "Settings" }).last().click();
-      await c.getByRole("checkbox", { name: "All models" }).check();
+      await c.getByRole("tab", { name: "Data" }).last().click();
+      await c.getByRole("checkbox", { name: "Include older models" }).check();
       await c.waitForTimeout(400);
       const after = await models();
-      assert.ok(after.has("claude-opus-5") && after.size > before.size, "All models brings the older versions back");
+      assert.ok(after.has("claude-opus-5") && after.size > before.size, "Include older models brings the older versions back");
     } finally { await c.close(); }
   });
 
@@ -768,10 +768,11 @@ try {
       assert.notEqual(await first(), leader, "the hidden model leaves the table");
       await c.keyboard.press("Escape");
       await c.getByLabel("Pareto settings", { exact: true }).click();
-      await c.getByRole("tab", { name: "Settings" }).last().click();
+      await c.getByRole("tab", { name: "Data" }).last().click();
       await c.locator("button", { hasText: /^API$/ }).last().click();
       await c.waitForTimeout(300);
       assert.ok(await c.getByRole("heading", { name: "Score vs cost per task" }).isVisible(), "API pricing retitles the chart");
+      await c.getByRole("tab", { name: "Display" }).last().click();
       await c.locator("button", { hasText: /^Linear$/ }).last().click();
       assert.ok(await c.locator("button", { hasText: /^Linear$/ }).last().getAttribute("aria-pressed") === "true", "scale switches to linear");
     } finally { await c.close(); }
@@ -791,6 +792,41 @@ try {
       const html = await (await fetch(`${BASE}${path}?c=cost&pv=test`, { headers: { "user-agent": "Twitterbot/1.0" } })).text();
       assert.match(html.match(/og:image" content="([^"]+)/)?.[1] ?? "", /pv=test/, `${path} image carries the version`);
     }
+  });
+
+  await check("a benchmark's info modal opens that benchmark in Priors", async () => {
+    const c = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    try {
+      await c.goto(`${BASE}/builder`, { waitUntil: "networkidle" });
+      await c.getByRole("button", { name: /^About / }).first().click();
+      const link = c.getByRole("dialog").getByRole("link", { name: "Open in Priors" });
+      const href = await link.getAttribute("href");
+      assert.match(href, /^\/benchmarks\/./);
+      await link.click();
+      await c.waitForURL(`**${href}`);
+      await c.getByRole("heading").first().waitFor();
+      assert.equal((await c.goto(`${BASE}${href}`)).status(), 200);
+    } finally { await c.close(); }
+  });
+
+  await check("no dropdown's text runs under its arrow, and every one has the same chevron", async () => {
+    const c = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    try {
+      await c.goto(`${BASE}/benchmarks/frontiercode-2.0-main`, { waitUntil: "networkidle" });
+      await c.getByLabel("Pareto settings", { exact: true }).click();
+      await c.getByRole("tab", { name: "Data" }).last().click();
+      await c.locator(".chart-settings-menu summary", { hasText: "Subscription plans" }).last().click();
+      const bad = await c.evaluate(() => {
+        const ctx = document.createElement("canvas").getContext("2d");
+        return [...document.querySelectorAll("select")].filter((s) => s.offsetParent && !s.closest(".rl-m-compare")).flatMap((s) => {
+          const st = getComputedStyle(s); ctx.font = `${st.fontSize} ${st.fontFamily}`;
+          const room = s.clientWidth - parseFloat(st.paddingLeft) - parseFloat(st.paddingRight);
+          const text = s.options[s.selectedIndex]?.text ?? "", w = ctx.measureText(text).width;
+          return st.appearance !== "none" || !st.backgroundImage.includes("svg") ? [`${s.getAttribute("aria-label")}: native arrow`] : w > room + 1 ? [`${s.getAttribute("aria-label")}: "${text}" ${Math.round(w)} > ${Math.round(room)}`] : [];
+        });
+      });
+      assert.deepEqual(bad, []);
+    } finally { await c.close(); }
   });
 
   await check("the account menu opens inside the viewport and above the rail on phone and tablet widths", async () => {

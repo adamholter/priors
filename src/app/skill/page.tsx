@@ -26,7 +26,7 @@ export default async function SkillPage() {
           <p><span className="text-ink">Token:</span> on your page, Edit page → Agent access → Mint token. The agent needs it to write to your page.</p>
           <p><span className="text-ink">Then say things like:</span> “Add Vending-Bench 2 to my agentic index.” · “Rewrite my bio and put the coding index first.” · “Make the accent color terracotta.”</p>
         </div>
-        <details className="border-t hairline pt-6"><summary className="cursor-pointer text-[14px] text-ink-2">Read the skill</summary><pre className="mt-4 text-[12.5px] leading-relaxed whitespace-pre-wrap bg-white border hairline rounded-md p-5 mono">{md}</pre></details>
+        <details className="border-t hairline pt-6"><summary className="disclosure disclosure-inline text-[14px] text-ink-2">Read the skill</summary><pre className="mt-4 text-[12.5px] leading-relaxed whitespace-pre-wrap bg-white border hairline rounded-md p-5 mono">{md}</pre></details>
       </div>
     </main></PageTransition>
   );

@@ -1,4 +1,5 @@
 "use client";
+import type { ReactNode } from "react";
 import type { CostBasis } from "@/data/subscription";
 import styles from "./ChartSettings.module.css";
 
@@ -10,7 +11,7 @@ const withFee = (usd?: number) => usd ? ` · $${usd % 1 ? usd.toFixed(2) : usd}/
 /** A lab's unpicked option says which plan that is: one plan with its fee, or the most common one and how many more. */
 const medianLabel = (l: Lab) => {
   const [top, ...rest] = l.median;
-  return !top ? "Median plan" : rest.length ? `Median: ${top.plan} +${rest.length} more` : `Median: ${top.plan}${withFee(l.plans.find((p) => p.plan === top.plan)?.feeUsd)}`;
+  return !top ? "Median plan" : rest.length ? `Median: ${top.plan} +${rest.length}` : `Median: ${top.plan}${withFee(l.plans.find((p) => p.plan === top.plan)?.feeUsd)}`;
 };
 const medianTitle = (l: Lab) => l.median.map((m) => `${m.plan}: ${m.models === 1 ? "1 model" : `${m.models} models`}`).join(", ");
 
@@ -25,7 +26,7 @@ function Note({ plans, basis }: Pick<Props, "plans" | "basis">) {
 function SelectRows({ id, plans, basis }: Props) {
   return <>{plans.labs.map((l) => { const v = plans.value[l.labId] ?? ""; return <div key={l.labId} className={styles.planRow}>
     <label htmlFor={`${id}-plan-${l.labId}`}>{l.name}</label>
-    <select id={`${id}-plan-${l.labId}`} aria-label={`${l.name} plan`} disabled={basis.value !== "subscription"} title={v ? undefined : medianTitle(l)} value={v} onChange={(e) => plans.onChange(l.labId, e.target.value || undefined)}>
+    <select id={`${id}-plan-${l.labId}`} aria-label={`${l.name} plan`} disabled={basis.value !== "subscription"} title={v || medianTitle(l)} value={v} onChange={(e) => plans.onChange(l.labId, e.target.value || undefined)}>
       <option value="">{medianLabel(l)}</option>
       {l.plans.map((p) => <option key={p.plan} value={p.plan}>{p.plan}{withFee(p.feeUsd)}</option>)}
       {v && !l.plans.some((p) => p.plan === v) && <option value={v}>{v} (no data)</option>}
@@ -33,11 +34,12 @@ function SelectRows({ id, plans, basis }: Props) {
   </div>; })}</>;
 }
 
-/** Advanced's collapsed section: stays listed under API pricing, disabled, with the way back to subscription. */
-export function PlanSection({ id, plans, basis }: Props) {
+/** The Data tab's collapsed section: stays listed under API pricing, disabled, with the way back to subscription. */
+export function PlanSection({ id, plans, basis, extra, children }: Props & { extra?: string; children?: ReactNode }) {
   return <details className={styles.sub}>
-    <summary>Subscription plans<span>{planStatus({ plans, basis })}</span></summary>
+    <summary className="disclosure">Subscription plans<span>{[planStatus({ plans, basis }), extra].filter(Boolean).join(", ")}</span></summary>
     <Note plans={plans} basis={basis} />
     <SelectRows id={id} plans={plans} basis={basis} />
+    {children}
   </details>;
 }

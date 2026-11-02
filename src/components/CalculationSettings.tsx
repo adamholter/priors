@@ -82,7 +82,7 @@ export function CalculationSettings({ ref, config, result, snapshot, onChange, c
               </select>
               <ModelDetail r={row} snapshot={snapshot} result={result} />
             </> : <p>No models qualify under the current settings.</p>}
-            <details><summary className="cursor-pointer">Excluded variants ({result.excluded.length})</summary>
+            <details><summary className="disclosure disclosure-inline">Excluded variants ({result.excluded.length})</summary>
               <ul className="mt-3 max-h-60 overflow-y-auto grid gap-2">{result.excluded.map((r) => <li key={r.variant.id}>{r.model.name} · {r.variant.effort}<span className="block text-grey">{r.reason === "coverage" ? `Measured data covers ${Math.round(r.measuredShare * 100)}% of the index (needs ${Math.round(strictness)}%)` : `Missing usable data for ${r.missing.map((id) => snapshot.benchmarks.find((b) => b.id === id)?.name ?? id).join(", ")}`}</span></li>)}</ul>
             </details>
           </section>
