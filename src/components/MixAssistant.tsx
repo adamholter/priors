@@ -2,13 +2,12 @@
 import { track } from "@/lib/analytics";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
-import { useAuth } from "@clerk/nextjs";
+import { useAuth } from "@/lib/auth";
 import type { IndexConfig } from "@/engine";
 import { encodeIndex } from "@/lib/url";
 import { authEnabled } from "@/app/providers";
 import type { AnswerChart } from "@/lib/answer-chart";
 import { AssistantAnswer, type AnswerHighlight } from "./AssistantAnswer";
-import { chatDocument, printDocument } from "./assistant-print";
 import { useTheme, type ThemeMode } from "./Theme";
 import { IconAdjustmentsHorizontal, IconChartBar, IconCheck, IconEye, IconListDetails, IconPalette, IconScale, IconSearch, IconSparkles, IconStar, IconTable, IconZoomQuestion } from "@tabler/icons-react";
 
@@ -180,8 +179,9 @@ function Inner({ config, onApply, date, handle }: { config: IndexConfig; onApply
   }
   const submit = (e: FormEvent) => { e.preventDefault(); void send(draft); };
   const clear = () => { abort.current?.abort(); setTurns([]); setSteps([]); setDraft(""); input.current?.focus(); };
-  const save = () => {
+  const save = async () => {
     const title = `Priors assistant · ${config.name} · ${date}`;
+    const { chatDocument, printDocument } = await import("./assistant-print");
     printDocument(chatDocument(turns, { title, index: config.name, date, url: location.href }), title);
     track("assistant_saved", { turns: turns.length });
   };

@@ -13,7 +13,7 @@ let cached: { at: number; promise: Promise<Snapshot> } | null = null;
 
 export function loadCoreSnapshot(): Promise<Snapshot> {
   if (cached && Date.now() - cached.at < FRESH_MS) return cached.promise;
-  const promise = fetch("/api/snapshot?view=core&packed=1").then((r) => {
+  const promise = fetch("/api/snapshot?view=core&packed=2").then((r) => {
     if (!r.ok) throw new Error("Could not load benchmark data.");
     return readCoreSnapshot(r);
   });
@@ -24,15 +24,16 @@ export function loadCoreSnapshot(): Promise<Snapshot> {
   return promise;
 }
 
-export function useCoreSnapshot(): { snapshot: Snapshot | null; error: string; retry: () => void } {
+export function useCoreSnapshot(enabled = true): { snapshot: Snapshot | null; error: string; retry: () => void } {
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [error, setError] = useState("");
   const [attempt, setAttempt] = useState(0);
   const retry = useCallback(() => { setError(""); setAttempt((n) => n + 1); }, []);
   useEffect(() => {
+    if (!enabled) return;
     let live = true;
     loadCoreSnapshot().then((s) => { if (live) setSnapshot(s); }, (e) => { if (live) setError(e instanceof Error ? e.message : "Could not load benchmark data."); });
     return () => { live = false; };
-  }, [attempt]);
+  }, [attempt, enabled]);
   return { snapshot, error, retry };
 }

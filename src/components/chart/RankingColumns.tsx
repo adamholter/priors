@@ -5,7 +5,7 @@ import type { Lab } from "@/data/types";
 import type { RankedVariant } from "@/engine";
 import { variantLabel } from "./ParetoChart";
 import { markColor, useChartPalette, useEChart } from "./echarts";
-import { CONTAIN_AXIS_LABELS, dimColor, markFill, markSize, textSize } from "./theme";
+import { CONTAIN_AXIS_LABELS, dimColor, markFill, markSize, textSize } from "./theme-tokens";
 
 let ctx: CanvasRenderingContext2D | null = null;
 /** Cut a label with an ellipsis so it is at most `max` px wide in `font`. */

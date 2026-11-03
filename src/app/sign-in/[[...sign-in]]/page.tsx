@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { SignIn } from "@clerk/nextjs";
+import { SignInForm } from "@/components/auth/SignInForm";
 import { Wordmark } from "@/components/Wordmark";
 import { PageTransition } from "@/components/PageTransition";
 
@@ -11,7 +11,7 @@ export default function Page() {
     <PageTransition><main className="min-h-screen grid place-items-center p-8">
       <div className="grid gap-6 justify-items-center">
         <Wordmark size={30} />
-        <SignIn forceRedirectUrl="/claim" signUpForceRedirectUrl="/claim" />
+        <SignInForm forceRedirectUrl="/claim" signUpForceRedirectUrl="/claim" />
         <Link href="/privacy" className="cap hover:text-ink">Privacy</Link>
       </div>
     </main></PageTransition>

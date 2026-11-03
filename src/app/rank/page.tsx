@@ -13,6 +13,7 @@ import { onboardingSnapshot } from "@/data/client-snapshot";
 import { defaultLineup, defaultPriorsMix, PRIORS_MIX_COOKIE, savedMix } from "@/onboarding/defaults";
 import { benchmarkQuality } from "@/onboarding/quality";
 import { rankedCount } from "@/lib/ranked-count";
+import { defaultConfig } from "@/engine";
 import { pageMeta, RANK_DESCRIPTION } from "@/lib/site-meta";
 export const dynamic = "force-dynamic";
 export const metadata = pageMeta({ title: "What are your priors?", description: RANK_DESCRIPTION, path: "/rank" });
@@ -46,5 +47,9 @@ export default async function Rank() {
   // Skipping the ranking opens the builder on Artificial Analysis' composite, the first-time default.
   const skipHref = `/builder?${prettyQuery(encodeIndices([defaultPriorsMix(snapshot)]))}`;
   const observedModelIds = [...new Set(snapshot.observations.map((o) => variantModels.get(o.variantId)).filter((id): id is string => !!id))];
-  return <PageTransition><Onboarding snapshot={onboardingSnapshot(snapshot)} lineup={lineup} quality={quality} observedModelIds={observedModelIds} hasSavedMix={!!mix} seeds={lineup} rankedCount={count} evidence={evidence} skipHref={skipHref} /></PageTransition>;
+  const introWeights = Object.entries(defaultConfig(snapshot).weights).sort((a, b) => b[1] - a[1]).slice(0, 4);
+  const introTotal = introWeights.reduce((sum, [, v]) => sum + v, 0);
+  const introMix = introWeights.map(([id, v]) => { const b = snapshot.benchmarks.find((x) => x.id === id); return { name: b?.shortName ?? b?.name ?? id, share: v / introTotal }; });
+  // The lineup dialog offers observed models; the saved order it restores is checked against the same list.
+  return <PageTransition><Onboarding introMix={introMix} snapshot={onboardingSnapshot(snapshot, [...observedModelIds, ...lineup])} lineup={lineup} quality={quality.map(({ reason: _reason, ...q }) => { void _reason; return q; })} observedModelIds={observedModelIds} hasSavedMix={!!mix} seeds={lineup} rankedCount={count} evidence={evidence} skipHref={skipHref} /></PageTransition>;
 }

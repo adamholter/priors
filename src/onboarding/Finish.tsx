@@ -3,7 +3,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { IconArrowRight, IconX } from "@tabler/icons-react";
 import type { FitUpdate } from "@/onboarding/optimizer";
-import type { Model } from "@/data/types";
+import type { OnboardingModel as Model } from "@/data/client-snapshot";
 import { rankingSimilarity } from "@/onboarding/ranking-metric";
 import { ShareMenu } from "@/components/ShareMenu";
 import "@/components/share-menu.css";

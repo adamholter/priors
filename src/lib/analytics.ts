@@ -1,4 +1,4 @@
-import posthog from "posthog-js";
+import type { PostHog } from "posthog-js";
 
 /** Named product events. Autocapture already records clicks and pageviews; these add meaning. */
 export type AnalyticsEvent =
@@ -8,8 +8,35 @@ export type AnalyticsEvent =
   | "share_menu_opened" | "remix_clicked" | "explore_x_clicked"
   | "support_clicked" | "compare_opened" | "compare_link_copied" | "compare_changed";
 
-/** No-op until PostHog is initialized (no key, localhost, or server). */
+const key = process.env.NEXT_PUBLIC_POSTHOG_KEY?.trim();
+let loading: Promise<PostHog> | null = null;
+
+/** PostHog is over 300 KB and nothing on screen depends on it, so it downloads after the page has settled, or at the first event. Off without a key, and never on localhost. */
+export function startAnalytics(): Promise<PostHog> | null {
+  if (typeof window === "undefined" || !key || /^(localhost|127\.0\.0\.1)$/.test(window.location.hostname)) return null;
+  return loading ??= import("posthog-js").then(({ default: posthog }) => {
+    posthog.init(key, {
+      api_host: "/ingest",
+      ui_host: "https://us.posthog.com",
+      defaults: "2026-08-30",
+      // Anonymous visitors are counted without person profiles; signed-in users get one (see AnalyticsIdentity).
+      person_profiles: "identified_only",
+      // Inputs are masked; elements marked .ph-no-capture (e.g. the one-time agent token) are never recorded.
+      session_recording: { maskAllInputs: true },
+    });
+    return posthog;
+  });
+}
+
+/** Runs once PostHog is up. The returned function cancels it, for effects whose values have moved on. */
+export function whenAnalytics(run: (posthog: PostHog) => void): () => void {
+  let live = true;
+  startAnalytics()?.then((posthog) => { if (live) run(posthog); }).catch(() => { /* a blocked download only loses analytics */ });
+  return () => { live = false; };
+}
+
+/** No-op with no key, on localhost, or on the server. */
 export function track(event: AnalyticsEvent, props?: Record<string, unknown>) {
-  if (typeof window === "undefined" || window.location.pathname.startsWith("/lab/") || !posthog.__loaded) return;
-  posthog.capture(event, props);
+  if (typeof window === "undefined" || window.location.pathname.startsWith("/lab/")) return;
+  whenAnalytics((posthog) => posthog.capture(event, props));
 }

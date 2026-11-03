@@ -1,6 +1,6 @@
 import type { Snapshot } from "@/data/types";
 import { computeIndex, defaultConfig, selectVariants } from "@/engine";
-import { markColor, LIGHT_PALETTE } from "@/components/chart/theme";
+import { markColor, LIGHT_PALETTE } from "@/components/chart/theme-tokens";
 import { escapeSvg } from "@/components/chart/export-frame";
 import { RADAR_PALETTES, radarModelsFor, radarRows, radarSvg, type RadarSeries } from "@/components/chart/radar-view";
 import { rasterize } from "./og-chart";

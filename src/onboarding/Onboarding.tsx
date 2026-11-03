@@ -8,6 +8,7 @@ import { SupportLink } from "@/components/SupportLink";
 import { SettingsButton } from "@/components/SiteSettings";
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent } from "react";
 import type { Snapshot } from "@/data/types";
+import type { OnboardingSnapshot } from "@/data/client-snapshot";
 import { Wordmark } from "@/components/Wordmark";
 import { decodeIndices, encodeIndex, encodeIndices, prettyQuery } from "@/lib/url";
 import { PREFERRED, type BenchmarkQuality } from "./quality";
@@ -32,7 +33,7 @@ const phaseNames = { preparing: "Reading the evidence", searching: "Searching th
 function Arrow({ direction = "right" }: { direction?: "right" | "up" | "down" }) { return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true" style={{ transform: direction === "up" ? "rotate(-90deg)" : direction === "down" ? "rotate(90deg)" : undefined }}><path d="M4 12h15m-6-6 6 6-6 6" /></svg>; }
 function Grip() { return <svg width="16" height="18" viewBox="0 0 16 18" aria-hidden="true" fill="currentColor">{[4,9,14].flatMap(y => [5,10].map(x => <circle key={`${x}-${y}`} cx={x} cy={y} r="1" />))}</svg>; }
 function Cross() { return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg>; }
-function searchMessage(u: FitUpdate, snapshot: Snapshot) {
+function searchMessage(u: FitUpdate, snapshot: OnboardingSnapshot) {
   if (u.log.startsWith("Exploring ")) return "Trying a fresh search direction.";
   if (u.log.startsWith("Read a new search path")) return "Testing another mix against your lineup.";
   if (u.phase === "complete") return u.exactMatch ? "Your selected models match your order." : "No exact match found for this lineup.";
@@ -64,7 +65,7 @@ function LineupRecorder({ onRegister }: { onRegister: (fn: ((a: LineupArgs) => v
  * The ranking onboarding: a short pairwise sprint, a review list to confirm (the sprint cannot ask
  * every matchup), then the search for the benchmark mix that agrees with the list.
  */
-export function Onboarding({ snapshot, lineup, seeds, quality, observedModelIds, hasSavedMix, rankedCount = 0, evidence, skipHref }: { snapshot: Snapshot; /** The builder on the default mix, for visitors who want the data without ranking. */ skipHref?: string; lineup: string[]; seeds: string[]; quality: BenchmarkQuality[]; observedModelIds: string[]; hasSavedMix: boolean; rankedCount?: number; /** Rankings from today's benchmark mixes; they steer the smart sprint. */ evidence?: RankingEvidence[] }) {
+export function Onboarding({ snapshot, introMix, lineup, seeds, quality, observedModelIds, hasSavedMix, rankedCount = 0, evidence, skipHref }: { snapshot: OnboardingSnapshot; introMix: { name: string; share: number }[]; /** The builder on the default mix, for visitors who want the data without ranking. */ skipHref?: string; lineup: string[]; seeds: string[]; quality: Omit<BenchmarkQuality, "reason">[]; observedModelIds: string[]; hasSavedMix: boolean; rankedCount?: number; /** Rankings from today's benchmark mixes; they steer the smart sprint. */ evidence?: RankingEvidence[] }) {
   const adaptive = useMemo(() => evidence?.length ? { evidence, cap: SMART_CALLS } : undefined, [evidence]);
   const { dark } = useTheme();
   const models = useMemo(() => new Map(snapshot.models.map(m => [m.id, m])), [snapshot]);
@@ -75,6 +76,10 @@ export function Onboarding({ snapshot, lineup, seeds, quality, observedModelIds,
   const bracketSeeds = useMemo(() => resolvedSeeds.filter(id => models.has(id)), [resolvedSeeds, models]);
   const searchable = useMemo(() => snapshot.benchmarks.filter(b => !b.proxy && !["cost", "speed", "composite", "reliability"].includes(b.category)).map(b => ({ id: b.id, name: b.shortName ?? b.name })), [snapshot]);
   const qMap = useMemo(() => new Map(quality.map(q => [q.id, q])), [quality]);
+  // Each benchmark's explanation of its quality score is long and only the quality dialog and a fit's mix read it, so it comes with those.
+  const [reasons, setReasons] = useState<Record<string, string>>({});
+  const reasonsLoad = useRef<Promise<void> | null>(null);
+  const loadReasons = () => { reasonsLoad.current ??= fetch(`/api/quality?date=${encodeURIComponent(snapshot.date)}`).then((r) => (r.ok ? r.json() as Promise<Record<string, string>> : Promise.reject(new Error()))).then(setReasons).catch(() => { reasonsLoad.current = null; }); };
   const observedModels = useMemo(() => new Set(observedModelIds), [observedModelIds]);
   const original = useMemo(() => lineup.filter(id => models.has(id)), [lineup, models]);
   const [order, setOrder] = useState(original);
@@ -133,7 +138,6 @@ export function Onboarding({ snapshot, lineup, seeds, quality, observedModelIds,
     setStage("order"); window.scrollTo({ top: 0 });
   }
   const [focus, setFocus] = useState<FocusId>(DEFAULT_FOCUS);
-  const [library, setLibrary] = useState<MixLibrary | null>(null);
   const recordLineup = useRef<((a: LineupArgs) => void) | null>(null);
   // Restore the last focus after mount (localStorage is client-only).
   useEffect(() => {
@@ -143,12 +147,6 @@ export function Onboarding({ snapshot, lineup, seeds, quality, observedModelIds,
     return () => cancelAnimationFrame(raf);
   }, []);
   useEffect(() => { try { localStorage.setItem("priors:focus", focus); } catch { /* ignore */ } }, [focus]);
-  // Precomputed mix library seeds the search; absent or stale, the worker computes live.
-  useEffect(() => {
-    let live = true;
-    fetch("/api/library").then((r) => (r.ok ? r.json() : null)).then((l) => { if (live && l && l.date === snapshot.date) setLibrary(l); }).catch(() => {});
-    return () => { live = false; };
-  }, [snapshot.date]);
   const [drag, setDrag] = useState<{ id: string; y: number } | null>(null);
   const dragInfo = useRef<{ id: string; startY: number; top: number; scroll: number; original: string[]; pointerId: number; cleanup: () => void } | null>(null);
   const [announcement, setAnnouncement] = useState("");
@@ -238,12 +236,15 @@ export function Onboarding({ snapshot, lineup, seeds, quality, observedModelIds,
     release();
     worker.current?.terminate(); if (displayTimer.current) clearTimeout(displayTimer.current); displayTimer.current = null; setError(""); setCopied(false); setUpdate(null); latest.current = null; setLogs([]); setElapsed(0); startTime.current = performance.now(); setStage("fit");
     window.scrollTo({ top: 0, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth" });
+    // Precomputed mix library seeds the search; absent or stale, the worker computes live. Only a search reads it, so it downloads with the search's data.
+    loadReasons();
+    const library = fetch("/api/library").then((r) => (r.ok ? r.json() as Promise<MixLibrary> : null)).then((l) => (l?.date === snapshot.date ? l : null)).catch(() => null);
     let fullSnapshot = calculationSnapshot.current;
     if (!fullSnapshot || fullSnapshot.date !== snapshot.date) {
       try {
         // A refresh published mid-ranking (same date) is fine to fit against; reloading would lose the calls made so far.
-        let response = await fetch(`/api/snapshot?view=core&packed=1&date=${encodeURIComponent(snapshot.date)}&version=${encodeURIComponent(snapshot.generatedAt)}`);
-        if (response.status === 409) response = await fetch(`/api/snapshot?view=core&packed=1&date=${encodeURIComponent(snapshot.date)}`);
+        let response = await fetch(`/api/snapshot?view=core&packed=2&date=${encodeURIComponent(snapshot.date)}&version=${encodeURIComponent(snapshot.generatedAt)}`);
+        if (response.status === 409) response = await fetch(`/api/snapshot?view=core&packed=2&date=${encodeURIComponent(snapshot.date)}`);
         if (!response.ok) throw new Error("Could not load benchmark data.");
         fullSnapshot = await readCoreSnapshot(response);
         if (fullSnapshot.date !== snapshot.date) throw new Error("Benchmark data changed. Please reload the page.");
@@ -253,6 +254,7 @@ export function Onboarding({ snapshot, lineup, seeds, quality, observedModelIds,
         return;
       }
     }
+    const seeds = await library;
     if (searchAttempt.current !== attempt) return;
     try {
       const w = new Worker(new URL("./fit.worker.ts", import.meta.url)); worker.current = w;
@@ -284,11 +286,11 @@ export function Onboarding({ snapshot, lineup, seeds, quality, observedModelIds,
         if (e.data.phase === "complete") w.terminate();
       };
       w.onerror = () => { setError("The search stopped unexpectedly. Your order is still here."); w.terminate(); };
-      w.postMessage({ snapshot: fullSnapshot, target, priorities: { baseline: original }, reducedMotion: window.matchMedia("(prefers-reduced-motion: reduce)").matches, quality: Object.fromEntries(quality.map(q => [q.id, q.score])), focus, library });
+      w.postMessage({ snapshot: fullSnapshot, target, priorities: { baseline: original }, reducedMotion: window.matchMedia("(prefers-reduced-motion: reduce)").matches, quality: Object.fromEntries(quality.map(q => [q.id, q.score])), focus, library: seeds });
     } catch { setError("Could not start the search. Please try again."); }
   }
   function edit() { ++searchAttempt.current; release(); worker.current?.terminate(); worker.current = null; if (displayTimer.current) clearTimeout(displayTimer.current); displayTimer.current = null; latest.current = null; setStage("order"); setUpdate(null); setError(""); }
-  function openDialog(kind: "models" | "quality") { setModal(kind); setQuery(""); dialog.current?.showModal(); }
+  function openDialog(kind: "models" | "quality") { if (kind === "quality") loadReasons(); setModal(kind); setQuery(""); dialog.current?.showModal(); }
   const liveOrder = stage === "order" || !update?.ranking.length ? order : [...update.ranking.map(r => r.modelId).filter(id => order.includes(id)), ...order.filter(id => !update.ranking.some(r => r.modelId === id))];
   const liveScores = new Map(update?.ranking.map(r => [r.modelId, r]) ?? []);
   const maxScore = Math.max(1, ...[...liveScores.values()].map(r => r.score));
@@ -359,7 +361,7 @@ export function Onboarding({ snapshot, lineup, seeds, quality, observedModelIds,
             <SearchMonitor update={update} wanted={order} logs={logs} elapsed={elapsed} running={running} complete={complete} error={!!error} benchmarks={searchable} />
             {error && <div className="fit-error" role="alert"><p>{error}</p><button className="text-control" onClick={() => start()}>Try again <Arrow /></button></div>}
             <div className="mix-panel"><div className="mix-heading"><h2>{complete ? `${FOCUSES.find(f => f.id === focus)?.name ?? ""} fit · ${update?.benchmarkCount ?? 0} benchmarks` : update ? phaseNames[update.phase] : "Reading the evidence"}</h2><span className="phase-mark">{complete ? update?.exactMatch ? "✓" : "≈" : "⋯"}</span></div>
-              {activeWeights.length ? <div className="mix-rows">{activeWeights.map(([id, w]) => { const q = qMap.get(id); return <button key={id} className="mix-row" onClick={() => openDialog("quality")} title={q?.reason}><span className="mix-name">{q?.preferred && <span className="preferred-star" aria-label="Preferred benchmark">✳</span>}{q?.name ?? snapshot.benchmarks.find(b => b.id === id)?.name ?? id}</span><span className="mix-percent">{(w / totalWeight * 100).toFixed(1)}%</span><span className="mix-weight-track"><i style={{ width: `${w / totalWeight * 100}%` }} /></span></button>; })}</div> : <div className="mix-empty">Checking coverage across your models<span className="cursor">_</span></div>}
+              {activeWeights.length ? <div className="mix-rows">{activeWeights.map(([id, w]) => { const q = qMap.get(id); return <button key={id} className="mix-row" onClick={() => openDialog("quality")} title={reasons[id]}><span className="mix-name">{q?.preferred && <span className="preferred-star" aria-label="Preferred benchmark">✳</span>}{q?.name ?? snapshot.benchmarks.find(b => b.id === id)?.name ?? id}</span><span className="mix-percent">{(w / totalWeight * 100).toFixed(1)}%</span><span className="mix-weight-track"><i style={{ width: `${w / totalWeight * 100}%` }} /></span></button>; })}</div> : <div className="mix-empty">Checking coverage across your models<span className="cursor">_</span></div>}
               {update && <div className="mix-quality"><button className="text-control" onClick={() => openDialog("quality")}>Evidence quality <span>{Math.round(update.quality)}/100</span></button><span>✳ Your preferred benchmarks</span></div>}
             </div>
             {complete && <div className="result-actions"><p className="fit-disclosure">{update!.exactMatch ? "Every model matches your requested order." : "Approximate fit. Some models differ from your requested order."} {update!.estimatedShare > 0 && `${Math.round(update!.estimatedShare * 100)}% of weighted evidence is estimated.`}</p>{update!.mismatches.length > 0 && <details className="fit-details"><summary>See the disagreements</summary><ul>{update!.mismatches.map((pair, i) => <li key={i}>You placed <strong>{models.get(pair.above)?.name}</strong> above <strong>{models.get(pair.below)?.name}</strong>.</li>)}</ul></details>}<details className="fit-details"><summary>How this fit was calculated</summary><p>Strictness {update!.config.strictness ?? 20}/100. {update!.config.effortMatching === "strict" ? "Exact reasoning efforts only." : "Calibrated reasoning-effort estimates allowed."} {update!.config.estimateMissing ? "Peer estimates may fill remaining gaps." : "Remaining gaps are left out and available weights are renormalized."} Calibrated benchmark fallbacks are allowed below maximum strictness. Only the relative order of your selected models is optimized. An unselected model appearing between them adds no penalty. Displayed positions are within your lineup. Your reversals and the placements of added models take priority, starting at the top. Remaining comparisons favor higher ranks. A comparison checks whether one selected model ranks above another; it is not an extra model. Unselected models cannot compensate for a mistake in that lineup. Best effort per model. The search starts from benchmark mixes precomputed for your focus and favors tests with more coverage, fresher releases, more headroom, and more objective grading. The displayed fit is rank-weighted: mistakes near the top of your lineup cost the most, thin margins and extra benchmarks cost a little. Candidates are screened against a surrogate, then checked with the builder’s scoring engine under a time budget (about 30 seconds typical, 60 seconds at most). This is a best fit found, not a guarantee of the global minimum.</p></details><Link className="primary-action" href={resultUrl as "/builder"} transitionTypes={["nav-forward"]}>Explore this index <Arrow /></Link><button className="text-control copy-result" onClick={copy}>{copied ? "Link copied ✓" : "Copy index link"}</button></div>}
@@ -371,13 +373,13 @@ export function Onboarding({ snapshot, lineup, seeds, quality, observedModelIds,
     <dialog ref={done} className="done-dialog wide" aria-labelledby="done-heading" onClick={e => { if (e.target === e.currentTarget) done.current?.close(); }}>
       {complete && update && <Finish update={update} models={models} cardUrl={cardUrl} resultUrl={resultUrl} publicUrl={`https://mypriors.com${resultUrl}`} reference={via?.ids} referenceLabel={via ? `@${via.handle}` : undefined} baseline={original} baselineLabel={hasSavedMix ? "your last index" : "the benchmark consensus"} onSave={fittedIndex ? () => { track("publish_clicked", { from: "onboarding" }); stashForPublish([fittedIndex]); } : undefined} onClose={() => done.current?.close()} />}
     </dialog>
-    <Intro snapshot={snapshot} lineup={order} dialogRef={intro} />
+    <Intro snapshot={snapshot} mix={introMix} lineup={order} dialogRef={intro} />
     <dialog ref={dialog} className="evidence-dialog" aria-labelledby="dialog-heading" onClick={e => { if (e.target === e.currentTarget) { const r = e.currentTarget.getBoundingClientRect(); if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) dialog.current?.close(); } }}>
       <div className="dialog-heading"><div><h2 id="dialog-heading">{modal === "models" ? "Who’s in your lineup?" : "Better evidence, fewer benchmarks."}</h2><p>{modal === "models" ? `Choose 3 to 18 models. ${order.length} selected.` : "Your preferences guide the search. Quality helps break close calls."}</p></div><button aria-label="Close dialog" className="icon-close" onClick={() => dialog.current?.close()}><Cross /></button></div>
       {modal === "models" ? <><input className="model-search" type="search" placeholder="Find a model…" aria-label="Find a model" value={query} onChange={e => setQuery(e.target.value)} /><div className="model-options">{modelOptions.map(m => <label key={m.id}><input type="checkbox" checked={order.includes(m.id)} disabled={order.includes(m.id) ? order.length <= 3 : order.length >= 18} onChange={() => { edited.current = true; setOrder(o => o.includes(m.id) ? o.filter(id => id !== m.id) : [...o, m.id]); }} /><i style={{ background: colors.get(m.labId) ?? "#8A8A80" }} /><span>{m.name}</span></label>)}{!modelOptions.length && <p>No models found.</p>}</div><button className="primary-action" onClick={() => dialog.current?.close()}>Use this lineup <Arrow /></button></> : <>
         <div className="quality-explainer"><p><strong>Coverage</strong> counts how many models have measured results — a test most models took beats a niche one.</p><p><strong>Recency</strong> rewards recent test releases. An unknown release date gets a neutral score. A fresh scrape is not a fresh benchmark.</p><p><strong>Headroom</strong> measures saturation and score spread. Tests that separate models beat tests everyone passes.</p><p><strong>Objectivity</strong> favors verifiable outcomes over preferences and subjective judging.</p></div>
         <p className="quality-caveat">Quality combines 25% coverage, 25% recency, 30% headroom, and 20% objectivity — plus a bonus for preferred benchmarks, minus a penalty for superseded versions. Objectivity is an assigned judgment score. This heuristic does not measure contamination or scientific validity.</p>
-        <div className="quality-table"><div className="quality-table-head"><span>Benchmark</span><span>Recent</span><span>Headroom</span><span>Objective</span><span>Quality</span></div>{quality.filter(q => q.preferred || activeWeights.some(([id]) => id === q.id)).sort((a, b) => Number(b.preferred) - Number(a.preferred) || b.score - a.score).map(q => <div className="quality-entry" key={q.id}><div className="quality-table-row"><span>{q.preferred && <span className="preferred-star">✳ </span>}{q.name}</span><span>{q.dateConfidence === "unknown" ? "?" : Math.round(q.recency)}</span><span>{Math.round(q.saturation)}</span><span>{Math.round(q.objectivity)}</span><strong>{Math.round(q.score)}</strong></div><details><summary>{q.releaseDate ? `Released ${q.releaseDate}` : "Release date unverified"} · Why this score</summary><p>{q.reason} <a href={q.sourceUrl} target="_blank" rel="noreferrer">Source ↗</a></p></details></div>)}</div>
+        <div className="quality-table"><div className="quality-table-head"><span>Benchmark</span><span>Recent</span><span>Headroom</span><span>Objective</span><span>Quality</span></div>{quality.filter(q => q.preferred || activeWeights.some(([id]) => id === q.id)).sort((a, b) => Number(b.preferred) - Number(a.preferred) || b.score - a.score).map(q => <div className="quality-entry" key={q.id}><div className="quality-table-row"><span>{q.preferred && <span className="preferred-star">✳ </span>}{q.name}</span><span>{q.dateConfidence === "unknown" ? "?" : Math.round(q.recency)}</span><span>{Math.round(q.saturation)}</span><span>{Math.round(q.objectivity)}</span><strong>{Math.round(q.score)}</strong></div><details><summary>{q.releaseDate ? `Released ${q.releaseDate}` : "Release date unverified"} · Why this score</summary><p>{reasons[q.id]} <a href={q.sourceUrl} target="_blank" rel="noreferrer">Source ↗</a></p></details></div>)}</div>
       </>}
     </dialog>
   </div>;

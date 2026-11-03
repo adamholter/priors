@@ -8,10 +8,10 @@ import { effectiveBasis } from "@/data/subscription";
 import { chartLabel, costChart, modelLabel, type MetricPoint } from "@/lib/metrics";
 import { cardPalette, renderChartPng, renderFramedPng, renderRadarPng, scatterSpec, type LinkFrame } from "@/lib/og-chart";
 import { DEFAULT_RADAR, RADAR_ANCHOR, RADAR_PALETTES, radarSnapshotView, radarSvg, type RadarSettings } from "@/components/chart/radar-view";
-import { markColor } from "@/components/chart/theme";
+import { markColor } from "@/components/chart/theme-tokens";
 import type { ChartHidden } from "@/components/chart/chart-visibility";
 import QRCode from "qrcode";
-import { DARK_LAB_COLORS } from "@/components/chart/theme";
+import { DARK_LAB_COLORS } from "@/components/chart/theme-tokens";
 import { cardPreset, cardTheme } from "@/lib/og-chart";
 
 type Ctx = { index: IndexConfig; who: { name: string; handle?: string; avatarUrl?: string }; top: RankedVariant[]; board: RankedVariant[]; pts: RankedVariant[]; ranked: RankedVariant[]; estimated: RankedVariant[]; pareto: RankedVariant[]; benches: { id: string; name: string; share: number }[]; colors: Map<string,string>; accent: string; bg: string; date: string; dark: boolean; ink: string; muted: string; line: string; pale: string; onBar: string; panel: string; onPanel: string; panelMuted: string; qr: string; snapshot: Snapshot };

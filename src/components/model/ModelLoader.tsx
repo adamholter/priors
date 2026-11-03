@@ -1,31 +1,37 @@
 "use client";
-import Link from "next/link";
-import { HeaderAccount } from "@/components/AccountMenu";
-import { SiteFooter } from "@/components/SiteFooter";
-import { SettingsButton } from "../SiteSettings";
-import { SiteNav } from "../SiteNav";
-import { Wordmark } from "../Wordmark";
+import { useEffect, useMemo, useState } from "react";
+import type { ModelView } from "@/lib/model-view";
+import { findRanking, rankParam, rankingOptions } from "@/lib/model-ranking-param";
+import { usePlanResetsOn, withResetsPref } from "@/lib/plan-resets-pref";
+import { useSubscriptionPlansPref, withPlansPref } from "@/lib/subscription-plans-pref";
+import type { IndexConfig } from "@/engine";
+import { useMyRankings } from "../my-rankings";
 import { useCoreSnapshot } from "../use-core-snapshot";
 import { ModelPage } from "./ModelPage";
 
 /**
- * The model page without the dataset in its HTML (it was 21 MB per page): the server sends the model's name and
- * standing, and the browser loads the shared calculation dataset once for every page that needs it.
+ * A model page draws from what the server sent (`serverView`, a standard ranking at standard prices). The calculation
+ * dataset and the engine download only when the visitor needs something else: a ranking of their own, another ranking
+ * picked here, their pricing choices, or a benchmark's details.
  */
-export function ModelLoader({ modelId, rank, name, lab, summary }: { modelId: string; rank?: string; name: string; lab?: string; summary?: string }) {
-  const { snapshot, error, retry } = useCoreSnapshot();
-  if (snapshot?.models.some((m) => m.id === modelId)) return <ModelPage snapshot={snapshot} modelId={modelId} rank={rank} />;
-  return <main className="min-h-screen">
-    <header className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 sm:px-8 py-2 sm:h-14 border-b hairline"><div className="flex items-center gap-5"><Wordmark /><Link href="/builder" className="max-sm:hidden text-grey text-[13px] hover:text-ink">Builder</Link></div><span className="ml-auto flex items-center gap-2"><HeaderAccount /><SettingsButton /></span><span className="sm:hidden w-full"><SiteNav /></span></header>
-    <div className="max-w-[1100px] mx-auto px-5 sm:px-8 py-10 grid gap-12" aria-busy={!error}>
-      <section>
-        {lab && <p className="cap">{lab}</p>}
-        <h1 className="text-[44px] leading-[1.05] mt-2">{name}</h1>
-        {summary && <p className="text-[13.5px] text-ink-2 mt-2 max-w-[70ch]">{summary}</p>}
-      </section>
-      <div className="grid gap-4"><div className="load-bar w-44 h-8" /><div className="load-bar w-full h-48" /><div className="load-bar w-full h-48" /></div>
-      <div role="status" className="text-[12px] text-grey">{error ? <>{error} <button type="button" className="underline" onClick={retry}>Retry</button></> : "Loading benchmark data…"}</div>
-    </div>
-    <SiteFooter />
-  </main>;
+export function ModelLoader({ view: serverView, rankingKey, modelId, rank, summary }: { view: ModelView; rankingKey: string; modelId: string; rank?: string; summary?: string }) {
+  const mine = useMyRankings();
+  const options = useMemo(() => rankingOptions(mine.page, mine.builder), [mine.page, mine.builder]);
+  // The ranking in the address (`?r=`), so a shared link opens in it; kept as the param, because a visitor's own rankings only load after mount.
+  const [picked, setPicked] = useState<string | null>(rank ?? null);
+  const pickedOption = findRanking(options, picked);
+  const resetsOn = usePlanResetsOn(), plansPref = useSubscriptionPlansPref();
+  const needsData = resetsOn || Object.keys(plansPref).length > 0 || (pickedOption ? pickedOption.key !== rankingKey : options.some((o) => o.config));
+  const [info, setInfo] = useState<string | null>(null);
+  const { snapshot, error, retry } = useCoreSnapshot(needsData || info !== null);
+  const [lib, setLib] = useState<typeof import("@/lib/model-view") | null>(null);
+  useEffect(() => { if (needsData && !lib) void import("@/lib/model-view").then(setLib); }, [needsData, lib]);
+  const chosen = useMemo(() => {
+    if (!needsData || !snapshot || !lib) return null;
+    return lib.chosenView(snapshot, modelId, options, pickedOption, mine.ready, (c: IndexConfig) => withPlansPref(withResetsPref(c, resetsOn), plansPref));
+  }, [needsData, snapshot, lib, modelId, options, pickedOption, mine.ready, resetsOn, plansPref]);
+  const currentKey = pickedOption?.key ?? chosen?.key ?? rankingKey;
+  const current = options.find((o) => o.key === currentKey) ?? options.find((o) => o.key === rankingKey)!;
+  const onPick = (param: string) => { setPicked(param); const url = new URL(window.location.href); url.searchParams.set("r", param); window.history.replaceState(window.history.state, "", url); };
+  return <ModelPage view={chosen?.view ?? serverView} othersUrl={`/api/models/${encodeURIComponent(modelId)}/field?r=${rankingKey.slice("preset:".length)}`} summary={summary} options={options} current={rankParam(current)} onPick={onPick} pending={needsData && !chosen && !error} error={needsData ? error : ""} retry={retry} infoSnapshot={chosen?.snapshot ?? snapshot} info={info} onInfo={setInfo} probe={mine.probe} />;
 }

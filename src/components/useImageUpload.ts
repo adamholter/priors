@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { useAuth, useUser } from "@clerk/nextjs";
+import { useAuth, useUser } from "@/lib/auth";
 import { useRouter } from "next/navigation";
 
 /** What the picker offers; the upload endpoint (convex/http.ts) decides by the file's bytes. */

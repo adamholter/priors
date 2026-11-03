@@ -1,7 +1,7 @@
 import { INDEX_SCORE_AXIS, type ScoreAxis } from "./score-scale";
 import type { EChartsOption } from "echarts";
 import type { Lab } from "../../data/types";
-import { CONTAIN_AXIS_LABELS, dimColor, markColor, markFill, markSize, textSize, type ChartPalette } from "./theme";
+import { CONTAIN_AXIS_LABELS, dimColor, markColor, markFill, markSize, textSize, type ChartPalette } from "./theme-tokens";
 import { chartLabel } from "../../lib/metrics";
 import { featuredPoints, highlightedModels, type ScatterPoint } from "./scatter-option";
 

@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import type { CSSProperties } from "react";
-import { markColor, paletteFor } from "@/components/chart/theme";
+import { markColor, paletteFor } from "@/components/chart/theme-tokens";
 import { useTheme } from "@/components/Theme";
 import { track } from "@/lib/analytics";
 import { presetStyle, resolveAccent, resolvePreset } from "@/lib/page-presets";

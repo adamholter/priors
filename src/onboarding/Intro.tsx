@@ -3,8 +3,7 @@ import Link from "next/link";
 import { useLabColor } from "@/components/chart/echarts";
 import { useTheme } from "@/components/Theme";
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import type { Snapshot } from "@/data/types";
-import { defaultConfig } from "@/engine";
+import type { OnboardingSnapshot } from "@/data/client-snapshot";
 import { INTRO_CARDS } from "@/lib/share-designs";
 
 const STEP_MS = [3200, 3400, 5200];
@@ -17,7 +16,7 @@ const STEPS = [
 function Arrow() { return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="M4 12h15m-6-6 6 6-6 6" /></svg>; }
 function Cross() { return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg>; }
 
-export function Intro({ snapshot, lineup, dialogRef }: { snapshot: Snapshot; lineup: string[]; dialogRef: React.RefObject<HTMLDialogElement | null> }) {
+export function Intro({ snapshot, lineup, mix, dialogRef }: { snapshot: OnboardingSnapshot; mix: { name: string; share: number }[]; lineup: string[]; dialogRef: React.RefObject<HTMLDialogElement | null> }) {
   const [step, setStep] = useState(2);
   const [open, setOpen] = useState(false);
   const [reduced, setReduced] = useState(false);
@@ -27,11 +26,6 @@ export function Intro({ snapshot, lineup, dialogRef }: { snapshot: Snapshot; lin
   const { dark } = useTheme();
   const colors = useMemo(() => new Map(snapshot.labs.map(l => [l.id, labColor(l.id, l.color)])), [snapshot, labColor]);
   const rows = lineup.slice(0, 4).map(id => models.get(id)).filter(m => !!m);
-  const mix = useMemo(() => {
-    const w = Object.entries(defaultConfig(snapshot).weights).sort((a, b) => b[1] - a[1]).slice(0, 4);
-    const total = w.reduce((s, [, v]) => s + v, 0);
-    return w.map(([id, v]) => ({ name: snapshot.benchmarks.find(b => b.id === id)?.shortName ?? snapshot.benchmarks.find(b => b.id === id)?.name ?? id, share: v / total }));
-  }, [snapshot]);
 
   useEffect(() => {
     const el = dialogRef.current; if (!el) return;

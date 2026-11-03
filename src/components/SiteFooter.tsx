@@ -8,11 +8,11 @@ export function SiteFooter() {
     <Wordmark size={20} />
     <nav aria-label="Footer" className="flex items-center gap-4 cap">
       <SupportLink from="footer" className="support-link support-link-foot" />
-      <Link href="/privacy" className="hover:text-ink">Privacy</Link>
-      <Link href="/skill" className="hover:text-ink">Agent skill</Link>
-      <Link href="/benchmarks" className="hover:text-ink">Benchmarks</Link>
-      <Link href="/cli" className="hover:text-ink">CLI and MCP</Link>
-      <Link href="/import" className="hover:text-ink">Import</Link>
+      <Link prefetch={false} href="/privacy" className="hover:text-ink">Privacy</Link>
+      <Link prefetch={false} href="/skill" className="hover:text-ink">Agent skill</Link>
+      <Link prefetch={false} href="/benchmarks" className="hover:text-ink">Benchmarks</Link>
+      <Link prefetch={false} href="/cli" className="hover:text-ink">CLI and MCP</Link>
+      <Link prefetch={false} href="/import" className="hover:text-ink">Import</Link>
     </nav>
   </footer>;
 }

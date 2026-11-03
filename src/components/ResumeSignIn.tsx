@@ -1,7 +1,7 @@
 "use client";
 import { useAuth, useClerk, useUser } from "@clerk/nextjs";
 import { useEffect, useRef } from "react";
-import { RESUME_KEY, RESUME_TRIED, resumeTarget, resumeWhileSignedIn, signedOutMark } from "@/lib/resume-sign-in";
+import { RESUME_KEY, RESUME_TRIED, resumeTarget, resumeWhileSignedIn } from "@/lib/resume-sign-in";
 
 /** Signs a returning Google user back in when their session has run out. Google is asked with prompt=none, so it either answers silently or the visit stays signed out; nothing is ever shown. */
 export function ResumeSignIn() {
@@ -31,10 +31,4 @@ export function ResumeSignIn() {
     } catch { /* private mode */ }
   }, [clerk, isLoaded, isSignedIn, user, sessionId]);
   return null;
-}
-
-/** An explicit sign-out is a choice: the next visit stays signed out. The mark names the session, so the signed-in state cannot re-arm the resume while the sign-out is still in flight. */
-export function useForgetResume() {
-  const { sessionId } = useAuth();
-  return () => { try { localStorage.setItem(RESUME_KEY, signedOutMark(sessionId)); } catch { /* private mode */ } };
 }
