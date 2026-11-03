@@ -104,8 +104,8 @@ export function WeightsPanel({ snapshot, config, onChange }: { snapshot: Snapsho
           return (
             <div key={b.id} className="grid gap-1.5">
               <div className="flex items-center justify-between gap-2 min-w-0">
-                <span className="flex items-center gap-1 min-w-0"><LeaderDot leader={leaders.get(b.id)} color={labs.get(leaders.get(b.id)?.labId ?? "")} /><span className="truncate text-[13px]" title={b.description}>{b.name}</span><InfoIcon name={b.name} onClick={() => setInfo(b.id)} />{gear(b, "swap")}{req && <span className="cap shrink-0" title="Models without a measured score here are not ranked. Change this in Calculation settings.">required</span>}</span>
-                <span className="flex items-center shrink-0"><span className="num text-right text-[12.5px] w-9">{share.toFixed(0)}%</span><button type="button" onClick={() => setW(b.id, 0)} className="bench-remove" aria-label={`Remove ${b.name}`} title={`Remove ${b.name}`}>×</button></span>
+                <span className="flex items-center gap-1 min-w-0"><LeaderDot leader={leaders.get(b.id)} color={labs.get(leaders.get(b.id)?.labId ?? "")} /><span className="truncate text-[13px] max-lg:whitespace-normal max-lg:overflow-visible" title={b.description}>{b.name}</span><InfoIcon name={b.name} onClick={() => setInfo(b.id)} />{gear(b, "swap")}{req && <span className="cap shrink-0" title="Models without a measured score here are not ranked. Change this in Calculation settings.">required</span>}</span>
+                <span className="flex items-center shrink-0"><span className="num text-right text-[12.5px] w-9">{share.toFixed(0)}%</span><button type="button" onClick={() => setW(b.id, 0)} className="bench-remove hit" aria-label={`Remove ${b.name}`} title={`Remove ${b.name}`}>×</button></span>
               </div>
               <input type="range" min={0} max={Math.max(70, Math.ceil(share))} step={1} value={Math.round(share)} onChange={(e) => setShare(b.id, +e.target.value)} className="w-full h-[3px]" aria-label={`${b.name} weight`} />
             </div>

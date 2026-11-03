@@ -18,7 +18,7 @@
 | `/sitemap.xml`, `/robots.txt` | The fixed routes, every model page and every published page, rebuilt hourly. |
 | anything else | `src/app/not-found.tsx`, for a mistyped handle, a model that left the data, or a broken link. |
 | `/benchmarks/methodology` | How the directory's quality and recommended scores are calculated. |
-| `/lab/*` | Design labs, not indexed. See below. |
+| `/lab/*` | Design labs while a question is open, not indexed. See below. |
 | `/api/agent`, `/api/assistant` | See `docs/assistant.md`. |
 | `/api/benchmarks`, `/api/snapshot`, `/api/library`, `/api/lineup` | Data for agents, the onboarding search, and returning visitors. |
 | `/ingest/*` | PostHog proxy. |
@@ -112,8 +112,7 @@ The builder's benchmark browser (`WeightsPanel.tsx`) opens on what is in the mix
 
 A lab is a noindex page under `/lab/` that shows three or four switchable variants of one design question, on the real page. When the question is settled, the winner goes live and the lab and losing variants are deleted.
 
-- `/lab/themes`: every page theme on a sample page, with edit mode available without signing in. Nothing saves. Kept as a tool.
-- `/lab/index`: where "Publish to Explore" sits on the builder (`labPlacement` in `Builder.tsx`). Open question.
+No labs are open at the moment.
 
 ## History
 `/history` is not linked from anywhere. It shows the top 20 of an index on every snapshot date (`data/snapshots/<date>.json.gz`), played back in time (or forward) with a scrubber. The index comes from `?i=`, else the builder's saved index, else General frontier. `/api/history?i=&mode=` computes it server-side (`src/lib/history.ts`, no sign-in, cached per index), and `src/lib/history-frames.ts` interpolates between dates (ranks slide, scores blend, a model in one frame fades).

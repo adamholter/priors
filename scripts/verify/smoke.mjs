@@ -27,15 +27,13 @@ try {
     ["/benchmarks", () => page.getByRole("heading", { name: "Benchmarks" })],
     ["/benchmarks/methodology", () => page.getByRole("heading", { name: "How benchmark scores work" })],
     ["/privacy", () => page.getByRole("heading").first()],
-    ["/lab/themes", () => page.getByRole("group", { name: "Page theme" })],
-    ["/lab/index", () => page.getByRole("group", { name: "Publishing placement" })],
   ];
   for (const [path, landmark] of routes) {
     const res = await page.goto(BASE + path, { waitUntil: "domcontentloaded" });
     assert.equal(res.status(), 200, `${path} status`);
     await landmark().waitFor({ timeout: 30000 });
-    // Every header carries the same settings gear (theme and mode), published pages included (/lab/index renders one).
-    if (!path.startsWith("/lab/themes")) assert.ok(await page.getByRole("button", { name: "Settings", exact: true }).first().isVisible(), `${path} has the settings gear`);
+    // Every header carries the same settings gear (theme and mode), published pages included.
+    assert.ok(await page.getByRole("button", { name: "Settings", exact: true }).first().isVisible(), `${path} has the settings gear`);
   }
 
   // A model page, reached the way a visitor does.

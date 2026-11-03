@@ -9,7 +9,7 @@ const CATS: Record<string, string> = { coding: "Coding", agentic: "Agentic", rea
 const UNIT: Record<string, string> = { percent: "Percent", elo: "Elo rating", score: "Score", usd: "US dollars", seconds: "Seconds", count: "Count" };
 
 export function InfoIcon({ name, onClick }: { name: string; onClick: () => void }) {
-  return <button type="button" onClick={onClick} aria-label={`About ${name}`} title={`About ${name}`} className="shrink-0 grid place-items-center w-[18px] h-[18px] rounded-full text-grey hover:text-indigo focus-visible:outline-indigo">
+  return <button type="button" onClick={onClick} aria-label={`About ${name}`} title={`About ${name}`} className="hit shrink-0 grid place-items-center w-[18px] h-[18px] rounded-full text-grey hover:text-indigo focus-visible:outline-indigo">
     <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" aria-hidden="true"><circle cx="8" cy="8" r="6.4" /><path d="M8 7.2v4" strokeLinecap="round" /><circle cx="8" cy="4.9" r=".55" fill="currentColor" stroke="none" /></svg>
   </button>;
 }

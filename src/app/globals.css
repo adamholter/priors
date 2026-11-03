@@ -215,6 +215,19 @@ header:has(.account-menu > [aria-expanded="true"]) { z-index: 60; }
 @keyframes sheet-in { from { opacity: 0; transform: translateX(-8px); } to { opacity: 1; transform: none; } }
 @media (max-width: 1023px) { .bench-sheet { inset: 0; width: auto; border-radius: 0; border: 0; } }
 @media (prefers-reduced-motion: reduce) { .bench-sheet { animation: none; } }
+/* Touch screens: a small control keeps its look but takes a finger-sized tap. */
+@media (pointer: coarse) { .hit { position: relative; } .hit::before { content: ""; position: absolute; inset: 50% auto auto 50%; width: max(100%, 40px); height: max(100%, 40px); transform: translate(-50%, -50%); } }
+.nav-progress { position: fixed; inset: 0 0 auto 0; height: 2px; z-index: 100; background: var(--indigo-fill); transform-origin: left; animation: nav-progress 12s cubic-bezier(.08, .7, .2, 1) forwards; pointer-events: none; }
+/* It ends on its own: a page that never arrives must not leave the bar up, and React can be held waiting by that same navigation. */
+@keyframes nav-progress { 0% { transform: scaleX(.08); opacity: 1; } 50% { transform: scaleX(.92); opacity: 1; } 99% { transform: scaleX(.92); opacity: 1; } 100% { transform: scaleX(.92); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .nav-progress { animation: nav-progress-still 12s step-end forwards; transform: scaleX(.6); } }
+@keyframes nav-progress-still { to { opacity: 0; } }
+.chart-method { position: relative; display: inline-flex; vertical-align: middle; }
+.chart-method > button { display: grid; place-items: center; width: 18px; height: 18px; color: var(--grey); border-radius: 50%; }
+.chart-method > button:hover, .chart-method > button[aria-expanded="true"] { color: var(--indigo); }
+.chart-method-pop { position: absolute; left: 0; top: calc(100% + 6px); z-index: 40; display: grid; gap: 8px; width: min(320px, calc(100vw - 48px)); padding: 10px 12px; background: var(--white); border: 1px solid var(--hair); border-radius: 6px; box-shadow: 0 8px 28px var(--shadow); font: 12.5px/1.5 var(--font-sans); color: var(--ink-2); text-align: left; }
+.chart-method-link { color: var(--indigo); }
+.chart-method-link:hover { text-decoration: underline; }
 .icon-btn { display: inline-grid; place-items: center; width: 36px; height: 36px; border-radius: 6px; color: var(--ink-2); background: transparent; border: 0; }
 .icon-btn:hover, .icon-btn[aria-expanded="true"] { background: var(--hair-2); color: var(--ink); }
 /* A word for an icon: shows on hover and keyboard focus, under the button. */
@@ -233,6 +246,7 @@ header:has(.account-menu > [aria-expanded="true"]) { z-index: 60; }
 /* Assistant: a round button in the bottom-right corner that opens a chat panel. */
 .assistant { z-index: 45; font-size: 13px; }
 .assistant-fab { position: fixed; right: 20px; bottom: 20px; z-index: 45; width: 48px; height: 48px; border-radius: 50%; display: grid; place-items: center; border: 1px solid var(--hair); background: var(--white); color: var(--ink); box-shadow: 0 12px 32px -14px var(--shadow); transition: transform .15s ease, box-shadow .15s ease; }
+.assistant-fab.is-clear { opacity: 0; pointer-events: none; }
 .assistant-fab:hover { transform: translateY(-1px); box-shadow: 0 16px 36px -14px var(--shadow); }
 .assistant-fab:focus-visible { outline: 2px solid var(--indigo); outline-offset: 2px; }
 .assistant-fab-dot { position: absolute; top: 9px; right: 9px; width: 8px; height: 8px; border-radius: 50%; background: var(--indigo); }

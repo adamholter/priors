@@ -23,6 +23,8 @@ export function startAnalytics(): Promise<PostHog> | null {
       person_profiles: "identified_only",
       // Inputs are masked; elements marked .ph-no-capture (e.g. the one-time agent token) are never recorded.
       session_recording: { maskAllInputs: true },
+      // Uncaught errors reach error tracking; error.tsx and global-error.tsx report the ones React catches.
+      capture_exceptions: true,
     });
     return posthog;
   });
@@ -35,8 +37,13 @@ export function whenAnalytics(run: (posthog: PostHog) => void): () => void {
   return () => { live = false; };
 }
 
+/** A crash an error boundary caught, so it still gets reported. */
+export function reportError(error: Error & { digest?: string }, boundary: "page" | "root") {
+  whenAnalytics((posthog) => posthog.captureException(error, { boundary, digest: error.digest }));
+}
+
 /** No-op with no key, on localhost, or on the server. */
 export function track(event: AnalyticsEvent, props?: Record<string, unknown>) {
-  if (typeof window === "undefined" || window.location.pathname.startsWith("/lab/")) return;
+  if (typeof window === "undefined") return;
   whenAnalytics((posthog) => posthog.capture(event, props));
 }

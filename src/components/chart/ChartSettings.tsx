@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useId, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
+import { startTransition, useCallback, useEffect, useId, useMemo, useOptimistic, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
 import { IconAdjustmentsHorizontal, IconStar, IconStarFilled, IconX } from "@tabler/icons-react";
 import { COST_BASES, type CostBasis } from "@/data/subscription";
 import type { TaskMetricSource } from "@/data/task-metrics";
@@ -37,7 +37,7 @@ export function ChartSettings({ label, mode, onChange, efforts, releasedAfter, o
   releasedAfter?: string;
   onChangeReleased?: (value: string) => void;
   /** Model picker: ranked-order list + the index's excluded set. */
-  models?: { id: string; name: string; color?: string; /** weights are downloadable; undefined when unknown */ open?: boolean }[];
+  models?: { id: string; name: string; color?: string; /** weights are downloadable; undefined when unknown */ open?: boolean; /** Lab name: gives the picker a checkbox per lab. */ lab?: string }[];
   excluded?: Set<string>;
   onToggleModel?: (id: string) => void;
   onShowAllModels?: () => void;
@@ -74,16 +74,22 @@ export function ChartSettings({ label, mode, onChange, efforts, releasedAfter, o
   // Rows keep the order they had when the menu opened, so a model you untick stays under your cursor instead of jumping to the bottom.
   const [openOrder, setOpenOrder] = useState<string[]>([]);
   const place = useMemo(() => new Map(openOrder.map((id, i) => [id, i])), [openOrder]);
-  const filtered = useMemo(() => models.filter(m => m.name.toLowerCase().includes(query.trim().toLowerCase())).sort((a, b) => (place.get(a.id) ?? 1e9) - (place.get(b.id) ?? 1e9)).sort((a, b) => Number(!!hl && isHighlighted(hl.items, b.id)) - Number(!!hl && isHighlighted(hl.items, a.id))), [models, query, hl, place]);
+  const filtered = useMemo(() => models.filter(m => `${m.name} ${m.lab ?? ""}`.toLowerCase().includes(query.trim().toLowerCase())).sort((a, b) => (place.get(a.id) ?? 1e9) - (place.get(b.id) ?? 1e9)).sort((a, b) => Number(!!hl && isHighlighted(hl.items, b.id)) - Number(!!hl && isHighlighted(hl.items, a.id))), [models, query, hl, place]);
   const hasModels = !!onToggleModel && models.length > 0;
+  // Ticking a box redraws every chart: the box answers now and the charts follow when they are ready.
+  const [ticked, tick] = useOptimistic(excluded, (now, { ids, show }: { ids: string[]; show: boolean }) => { const next = new Set(now); for (const id of ids) if (show) next.delete(id); else next.add(id); return next; });
+  const toggleTick = (id: string) => startTransition(() => { tick({ ids: [id], show: !!ticked?.has(id) }); onToggleModel?.(id); });
+  const labRows = useMemo(() => { const by = new Map<string, { lab: string; color?: string; ids: string[] }>(); for (const m of models) if (m.lab) { const row = by.get(m.lab) ?? by.set(m.lab, { lab: m.lab, color: m.color, ids: [] }).get(m.lab)!; row.ids.push(m.id); } return [...by.values()]; }, [models]);
+  const setLab = (ids: string[], on: boolean) => { const shown = new Set(models.map((m) => m.id).filter((id) => !ticked?.has(id))); for (const id of ids) if (on) shown.add(id); else shown.delete(id); startTransition(() => { tick({ ids, show: on }); onShowOnly?.([...shown]); }); };
   const modelPanel = <>
-    <div className={styles.modelCount}><span>{models.filter(m => !excluded?.has(m.id)).length} of {models.length} selected</span>{onShowAllModels && <button type="button" onClick={onShowAllModels}>All</button>}{onHideAllModels && <button type="button" onClick={onHideAllModels}>None</button>}{onShowOnly && models.some((m) => m.open !== undefined) && <>
+    <div className={styles.modelCount}><span>{models.filter(m => !ticked?.has(m.id)).length} of {models.length} selected</span>{onShowAllModels && <button type="button" onClick={onShowAllModels}>All</button>}{onHideAllModels && <button type="button" onClick={onHideAllModels}>None</button>}{onShowOnly && models.some((m) => m.open !== undefined) && <>
       <button type="button" onClick={() => onShowOnly(models.filter((m) => m.open === true).map((m) => m.id))} title="Show only models whose weights can be downloaded">Open</button>
       <button type="button" onClick={() => onShowOnly(models.filter((m) => m.open === false).map((m) => m.id))} title="Show only models with closed weights">Closed</button></>}</div>
+    {onShowOnly && labRows.length > 1 && <div className={styles.labRows} role="group" aria-label="Models by lab">{labRows.map(({ lab, color, ids }) => { const on = ids.filter((id) => !ticked?.has(id)).length; return <label key={lab}><input type="checkbox" checked={on === ids.length} ref={(el) => { if (el) el.indeterminate = on > 0 && on < ids.length; }} onChange={() => setLab(ids, on !== ids.length)} />{color && <i aria-hidden="true" style={{ background: color }} />}<span>{lab}</span></label>; })}</div>}
     <input type="search" className={styles.search} aria-label="Search models" placeholder="Search models" value={query} onChange={e => setQuery(e.target.value)} />
     <div className={styles.modelList}>{filtered.map(m => {
       const star = !!hl && isHighlighted(hl.items, m.id);
-      return <div key={m.id} className={styles.model}><label><input type="checkbox" checked={!excluded?.has(m.id)} onChange={() => onToggleModel?.(m.id)} />{m.color && <i aria-hidden="true" style={{ background: m.color }} />}<span>{m.name}</span></label>{hl && <button type="button" className={star ? styles.starred : undefined} aria-label={`${star ? "Unstar" : "Star"} ${m.name}`} aria-pressed={star} onClick={() => { if (!hl) return; if (!star && excluded?.has(m.id)) onToggleModel?.(m.id); hl.set(toggleModel(hl.items, m.id)); }}>{star ? <IconStarFilled size={15} aria-hidden="true" /> : <IconStar size={15} stroke={1.5} aria-hidden="true" />}</button>}</div>;
+      return <div key={m.id} className={styles.model}><label><input type="checkbox" checked={!ticked?.has(m.id)} onChange={() => toggleTick(m.id)} />{m.color && <i aria-hidden="true" style={{ background: m.color }} />}<span>{m.name}</span></label>{hl && <button type="button" className={star ? styles.starred : undefined} aria-label={`${star ? "Unstar" : "Star"} ${m.name}`} aria-pressed={star} onClick={() => { if (!hl) return; if (!star && excluded?.has(m.id)) onToggleModel?.(m.id); hl.set(toggleModel(hl.items, m.id)); }}>{star ? <IconStarFilled size={15} aria-hidden="true" /> : <IconStar size={15} stroke={1.5} aria-hidden="true" />}</button>}</div>;
     })}{!filtered.length && <p>No matching models.</p>}</div>
   </>;
   const resets = costBasis?.value === "subscription" ? planResets : undefined;

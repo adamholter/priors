@@ -23,7 +23,7 @@ Stack: Next.js App Router, React, TypeScript, Tailwind, ECharts, Convex, Clerk, 
 | `src/lib/` | Pure helpers: URL codec (`url.ts`), chart metrics, formulas, page themes, share cards (`og.tsx`, `og-chart.ts`), imports |
 | `src/onboarding/` | The ranking onboarding: matchups, review list, and the weight search (worker, optimizer, quality) |
 | `src/agent/` | The mix assistant: tool loop, tools, edit solver |
-| `src/components/` | UI. `chart/` charts and their option builders, `page/` profile pages and editing, `model/`, `model-finder/`, `lab/` |
+| `src/components/` | UI. `chart/` charts and their option builders, `page/` profile pages and editing, `model/`, `model-finder/` |
 | `src/app/` | Routes. Pages are thin: load a snapshot, render a component |
 | `convex/` | Profiles, imports, recorded lineups, assistant budget. `validators.ts` defines every stored shape |
 | `scripts/scrape/` | Scrapers (`sources/`), snapshot build, mix library |

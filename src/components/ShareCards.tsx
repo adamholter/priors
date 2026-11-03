@@ -1,6 +1,8 @@
 "use client";
 import { track } from "@/lib/analytics";
-import { useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useLightDismiss } from "@/lib/useLightDismiss";
+import "@/components/share-menu.css";
 import type { IndexConfig } from "@/engine";
 import { encodeIndices, prettyQuery } from "@/lib/url";
 import { useConvexAuth, useQuery } from "convex/react";
@@ -25,6 +27,10 @@ function CopyIcon() {
 
 function DownloadIcon() {
   return <svg aria-hidden="true" viewBox="0 0 24 24" className={iconClass} fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M12 4v11m-4-4 4 4 4-4M5 19h14" /></svg>;
+}
+
+function CardIcon() {
+  return <svg aria-hidden="true" viewBox="0 0 24 24" className={iconClass} fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="3.5" y="5.5" width="17" height="13" rx="1.5" /><path d="M7 14.5h6M7 10.5h10" /></svg>;
 }
 
 function CloseIcon() {
@@ -59,6 +65,10 @@ function ShareCardsContent({ indices, active, profile, pageUrl, defaultDesign, c
   const themeParam = (q: URLSearchParams) => { if (cardThemeId !== "bone" && cardThemeId !== "night") { q.set("theme", cardThemeId); q.set("scheme", scheme); } else if (scheme === "dark" || cardThemeId === "night") q.set("scheme", scheme); };
   const [design, setDesign] = useState<string>(SHARE_DESIGNS.some((d) => d.id === defaultDesign) ? defaultDesign! : SHARE_DESIGNS[0].id);
   const [message, setMessage] = useState("");
+  const [menu, setMenu] = useState(false);
+  const menuRoot = useRef<HTMLSpanElement>(null);
+  const closeMenu = useCallback(() => setMenu(false), []);
+  useLightDismiss(menuRoot, closeMenu);
   const [origin, setOrigin] = useState("");
   const [loaded, setLoaded] = useState("");
   const [failed, setFailed] = useState("");
@@ -66,6 +76,12 @@ function ShareCardsContent({ indices, active, profile, pageUrl, defaultDesign, c
   const [primed, setPrimed] = useState(false);
   const backdrop = useRef(false);
   const openedBefore = useRef(false);
+  // With the dialog shut, the outcome of a quick share shows briefly beside the button.
+  useEffect(() => {
+    if (!message || open) return;
+    const off = setTimeout(() => setMessage(""), 7000);
+    return () => clearTimeout(off);
+  }, [message, open]);
   useEffect(() => {
     if (!open) return;
     const previous = document.body.style.overflow;
@@ -115,9 +131,16 @@ function ShareCardsContent({ indices, active, profile, pageUrl, defaultDesign, c
   };
   const openCard = () => { onOpen?.(); const saved = new URLSearchParams(window.location.search).get("design"); if (!openedBefore.current && SHARE_DESIGNS.some((d) => d.id === saved)) setDesign(saved!); openedBefore.current = true; setOrigin(window.location.origin); setMessage(""); dialog.current?.showModal(); setOpen(true); track("share_card_opened"); };
   return <>
-    <span className="relative inline-flex items-center">
-      <button type="button" className="icon-btn" onClick={openCard} aria-label="Share" data-tip="Share"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v12M7.5 7.5 12 3l4.5 4.5M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7" /></svg></button>
-      {hint && !compact && <span role="status" className="share-hint">Like this mix? Share it</span>}
+    <span ref={menuRoot} className="relative inline-flex items-center">
+      <button type="button" className="icon-btn" onClick={() => { if (!menu) { onOpen?.(); setOrigin(window.location.origin); setMessage(""); track("share_menu_opened", { from: "header" }); } setMenu(!menu); }} aria-label="Share" aria-haspopup="menu" aria-expanded={menu} data-tip={menu ? undefined : "Share"}><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v12M7.5 7.5 12 3l4.5 4.5M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7" /></svg></button>
+      {hint && !compact && !menu && <span role="status" className="share-hint">Like this mix? Share it</span>}
+      {message && !open && !menu && <span role="status" className="share-hint !whitespace-normal w-[min(260px,calc(100vw-32px))]">{message}</span>}
+      {menu && <div role="menu" aria-label="Share options" className="share-options" onKeyDown={(e) => { if (e.key === "Escape") { e.stopPropagation(); setMenu(false); } }}>
+        <button role="menuitem" type="button" onClick={() => { setMenu(false); shareToX(); }}><XLogo />Share on X</button>
+        <button role="menuitem" type="button" onClick={() => { setMenu(false); void copy(); }}><CopyIcon />Copy link</button>
+        <a role="menuitem" href={selectedUrl} download={`priors-${design}.png`} onClick={() => { setMenu(false); track("share_card_shared", { design, scheme, target: "download" }); }}><DownloadIcon />Download image</a>
+        <button role="menuitem" type="button" onClick={() => { setMenu(false); openCard(); }}><CardIcon />Choose a card design</button>
+      </div>}
     </span>
     <dialog ref={dialog} aria-labelledby={heading} onClose={() => setOpen(false)}
       onPointerDown={(e) => { backdrop.current = e.target === e.currentTarget && outside(e.clientX, e.clientY); }}

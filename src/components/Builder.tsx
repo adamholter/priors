@@ -35,11 +35,14 @@ import { effectiveBasis } from "@/data/subscription";
 import { costDescription, hasSubscriptionPrices, taskMetricOptions } from "@/data/task-metrics";
 import { formulaInputs } from "@/lib/metrics";
 import { MetricGallery } from "./page/MetricGallery";
-import { IndexLabActions, type PublishPlacement } from "./lab/IndexLabActions";
 import { threeDUrl } from "@/lib/compare-ref";
 import { useTripleD } from "@/lib/use-triple-d";
+import { useUndoable } from "@/lib/undoable";
+import { useNewModels } from "@/lib/seen-models";
+import { usePhone } from "./builder-size";
+import { leaving } from "./nav-progress";
 
-export function Builder({ snapshot: base, initialIndices, labPlacement }: { snapshot: Snapshot; initialIndices: IndexConfig[]; labPlacement?: PublishPlacement }) {
+export function Builder({ snapshot: base, initialIndices }: { snapshot: Snapshot; initialIndices: IndexConfig[] }) {
   // Benchmarks imported in this browser (via /import without an account) are merged client-side.
   const calculations = useRef<CalculationSettingsHandle>(null);
   const [local, setLocal] = useState<ImportPayload[]>([]);
@@ -49,13 +52,13 @@ export function Builder({ snapshot: base, initialIndices, labPlacement }: { snap
   const receiveSnapshot = useCallback((s: Snapshot) => setLive({ base, snapshot: s }), [base]);
   const snapshot = useMemo(() => mergeImports(sourceSnapshot, local).snapshot, [sourceSnapshot, local]);
   // URL is the source of truth for anonymous builds; multiple `i` params = multiple indices.
-  const [indices, setIndices] = useState<IndexConfig[]>(() => (initialIndices.length ? withoutPristineDefault(initialIndices) : [defaultConfig(base)]));
+  const { value: indices, set: setIndices, load: loadIndices, undo, canUndo } = useUndoable<IndexConfig[]>(() => (initialIndices.length ? withoutPristineDefault(initialIndices) : [defaultConfig(base)]));
   // Restore the last edited indices when the URL carries none, and persist
   // edits so returning to /builder picks up where you left off.
   useEffect(() => {
-    if (labPlacement || initialIndices.length) return;
+    if (initialIndices.length) return;
     const id = requestAnimationFrame(() => {
-      try { const saved = localStorage.getItem("priors:indices"); if (saved) { const list = decodeIndices(JSON.parse(saved) as string[]); if (list.length) setIndices(withoutPristineDefault(list)); } } catch { /* ignore */ }
+      try { const saved = localStorage.getItem("priors:indices"); if (saved) { const list = decodeIndices(JSON.parse(saved) as string[]); if (list.length) loadIndices(withoutPristineDefault(list)); } } catch { /* ignore */ }
     });
     return () => cancelAnimationFrame(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -74,10 +77,10 @@ export function Builder({ snapshot: base, initialIndices, labPlacement }: { snap
   const basePalette = useChartPalette(), size = useBuilderSize();
   const palette = useMemo(() => ({ ...basePalette, size }), [basePalette, size]);
   const pickerModels = useMemo(() => {
-    const col = new Map(snapshot.labs.map((l) => [l.id, labColor(l.id, l.color)]));
-    const seen = new Map<string, { id: string; name: string; color?: string; open?: boolean }>();
-    const add = (id: string) => { if (!seen.has(id)) { const m = snapshot.models.find((x) => x.id === id); if (m) seen.set(id, { id, name: m.name, color: col.get(m.labId), open: m.openWeights }); } };
-    for (const r of result.ranked) if (!seen.has(r.model.id)) seen.set(r.model.id, { id: r.model.id, name: r.model.name, color: col.get(r.model.labId), open: r.model.openWeights });
+    const col = new Map(snapshot.labs.map((l) => [l.id, labColor(l.id, l.color)])), labName = new Map(snapshot.labs.map((l) => [l.id, l.name]));
+    const seen = new Map<string, { id: string; name: string; color?: string; open?: boolean; lab?: string }>();
+    const add = (id: string) => { if (!seen.has(id)) { const m = snapshot.models.find((x) => x.id === id); if (m) seen.set(id, { id, name: m.name, color: col.get(m.labId), open: m.openWeights, lab: labName.get(m.labId) }); } };
+    for (const r of result.ranked) if (!seen.has(r.model.id)) seen.set(r.model.id, { id: r.model.id, name: r.model.name, color: col.get(r.model.labId), open: r.model.openWeights, lab: labName.get(r.model.labId) });
     for (const id of result.candidateModelIds) add(id);
     for (const id of active.excludeModels ?? []) add(id);
     return [...seen.values()];
@@ -97,10 +100,10 @@ export function Builder({ snapshot: base, initialIndices, labPlacement }: { snap
   const [shareHint, setShareHint] = useState(false);
   const edits = useRef({ count: 0, first: active });
   useEffect(() => {
-    if (labPlacement || active === edits.current.first || ++edits.current.count !== 4) return;
+    if (active === edits.current.first || ++edits.current.count !== 4) return;
     const id = requestAnimationFrame(() => { try { if (!localStorage.getItem("priors:share-hint")) { localStorage.setItem("priors:share-hint", "1"); setShareHint(true); } } catch { /* ignore */ } });
     return () => cancelAnimationFrame(id);
-  }, [active, labPlacement]);
+  }, [active]);
   useEffect(() => {
     if (!shareHint) return;
     const off = setTimeout(() => setShareHint(false), 9000);
@@ -108,10 +111,15 @@ export function Builder({ snapshot: base, initialIndices, labPlacement }: { snap
   }, [shareHint]);
   // One event per settled edit, not one per slider tick.
   useEffect(() => {
-    if (labPlacement || active === edits.current.first) return;
+    if (active === edits.current.first) return;
     const t = setTimeout(() => track("index_changed", { benchmarks: Object.values(active.weights).filter((w) => w > 0).length }), 3000);
     return () => clearTimeout(t);
-  }, [active, labPlacement]);
+  }, [active]);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z" && !e.shiftKey && !(e.target as HTMLElement)?.closest("input:not([type=range]),textarea,[contenteditable=true]")) { e.preventDefault(); undo(); } };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [undo]);
   const effortProps = { efforts: { value: active.efforts ?? DEFAULT_EFFORTS, onChange: (efforts: string[]) => update({ ...active, efforts }) } };
   const metricRanked = useMemo(() => filterEfforts(result.ranked, active.efforts), [result.ranked, active.efforts]);
   const metricEstimated = useMemo(() => filterEfforts(result.estimated, active.efforts), [result.estimated, active.efforts]);
@@ -127,17 +135,19 @@ export function Builder({ snapshot: base, initialIndices, labPlacement }: { snap
       p.getAll("i").forEach((value) => url.searchParams.append("i", value));
       url.searchParams.delete("date");
       url.search = prettyQuery(url.searchParams);
-      window.history.replaceState(null, "", url.toString());
-      if (!labPlacement) try {
+      if (!leaving()) window.history.replaceState(null, "", url.toString());
+      try {
         localStorage.setItem("priors:indices", JSON.stringify(p.getAll("i")));
         const encoded = encodeIndex({ ...active, onlyModels: undefined, excludeModels: undefined });
         if (encoded.length <= 2048) document.cookie = `${PRIORS_MIX_COOKIE}=${encodeURIComponent(encoded)}; Path=/; Max-Age=31536000; SameSite=Lax${location.protocol === "https:" ? "; Secure" : ""}`;
       } catch { /* ignore */ }
     }, 150);
     return () => { if (t.current) window.clearTimeout(t.current); };
-  }, [indices, active, labPlacement]);
+  }, [indices, active]);
 
-  const update = useCallback((c: IndexConfig) => setIndices((list) => list.map((i) => (i.id === c.id ? c : i))), []);
+  const update = useCallback((c: IndexConfig) => setIndices((list) => list.map((i) => (i.id === c.id ? c : i))), [setIndices]);
+  const phone = usePhone(), fresh = useNewModels(snapshot.models);
+  const mixEmpty = !Object.values(active.weights).some((w) => w > 0);
   const highlightState = useMemo(() => ({ items: active.highlight ?? [], set: (h: string[]) => update({ ...active, highlight: h.length ? h : undefined }), models: pickerModels, linkIndices: [active, ...indices.filter((i) => i.id !== active.id)], curated: active.excludeModels !== undefined || active.onlyModels !== undefined }), [active, indices, update, pickerModels]);
   // The + copies the index you are viewing (weights, filters, highlights), so a variation never starts from a blank mix.
   const add = () => {
@@ -163,19 +173,19 @@ export function Builder({ snapshot: base, initialIndices, labPlacement }: { snap
         </div>
         <div className="col-span-3 row-start-2 lg:w-auto lg:ml-auto flex flex-wrap items-center gap-2 shrink-0">
           <span className="sm:hidden mr-auto"><SiteNav current="builder" /></span>
-          <span className="cap">Data as of {snapshot.date}</span>
-          {!labPlacement && <span className="ml-auto flex items-center gap-2"><ShareCards indices={indices} active={active} top={topNames} hint={shareHint} onOpen={() => setShareHint(false)} /><HeaderAuth indices={indices} /></span>}
+          <span className="cap max-sm:hidden">Data as of {snapshot.date}</span>
+          <span className="ml-auto flex items-center gap-2"><ShareCards indices={indices} active={active} top={topNames} hint={shareHint} onOpen={() => setShareHint(false)} /><HeaderAuth indices={indices} /></span>
         </div>
         <div className="col-start-3 row-start-1 shrink-0"><SettingsButton /></div>
       </header>
 
       <HighlightContext.Provider value={highlightState}>
-      <main className={`builder-main grid grid-cols-1 lg:grid-cols-[360px_minmax(0,1fr)] gap-10 px-4 sm:px-8 pt-5 lg:pt-8 pb-8 max-w-[1500px] items-start ${labPlacement && labPlacement !== "rail" ? "[&>aside]:order-2 [&>section]:order-1 lg:[&>aside]:order-1 lg:[&>section]:order-2" : ""}`}>
-        <aside aria-label="Index controls" className="builder-aside relative z-30 flex flex-col gap-5 min-h-0 lg:sticky lg:top-[88px] lg:h-[calc(100dvh-120px)]">
-          {labPlacement === "rail" && <IndexLabActions active={active} date={snapshot.date} top={topNames} placement="rail" />}
+      <main className="builder-main grid grid-cols-1 lg:grid-cols-[360px_minmax(0,1fr)] gap-10 px-4 sm:px-8 pt-5 lg:pt-8 pb-8 max-w-[1500px] items-start">
+        <aside id="mix" aria-label="Index controls" className="builder-aside scroll-mt-4 relative z-30 flex flex-col gap-5 min-h-0 lg:sticky lg:top-[88px] lg:h-[calc(100dvh-120px)]">
           <section aria-label="Benchmarks and eligibility" className="min-h-0 min-w-0 lg:flex-1 lg:overflow-y-auto lg:overflow-x-hidden lg:overscroll-contain pr-2 pb-2">
-            <h2 className="text-[22px] mb-1">Your mix</h2>
-            <p className="cap mb-1">{result.benchmarks.length} benchmarks · {new Set(result.ranked.map((r) => r.model.id)).size} models</p>
+            <div className="flex items-baseline justify-between gap-3 mb-1"><h2 className="text-[22px]">Your mix</h2><span className="flex items-baseline gap-3 text-[12px]">{canUndo && <button type="button" className="hit text-indigo hover:underline" onClick={undo}>Undo</button>}{!mixEmpty && <button type="button" className="hit text-ink-2 hover:text-ink" onClick={() => update({ ...active, weights: {}, required: [], optional: undefined })}>Clear all</button>}</span></div>
+            <p className="cap mb-1">{result.benchmarks.length} benchmarks · {new Set(result.ranked.map((r) => r.model.id)).size} models<span className="sm:hidden"> · data as of {snapshot.date}</span></p>
+            {indices.length === 1 && !isPristineDefault(active) && <button type="button" onClick={addReference} className="cap sm:hidden underline underline-offset-2 mb-1">Compare with the {DEFAULT_LABEL.toLowerCase()}</button>}
             {indexNote(active, "yours") && <p className="cap mb-4 text-ink-2">{indexNote(active, "yours")}</p>}
             {!indexNote(active, "yours") && <div className="mb-4" />}
             <WeightsPanel snapshot={snapshot} config={active} result={result} onChange={update} />
@@ -188,9 +198,8 @@ export function Builder({ snapshot: base, initialIndices, labPlacement }: { snap
         {/* Keep the assistant clearance inside this column so the sidebar stays below the header at the page bottom. */}
         <section className="builder-charts grid gap-10 min-w-0 content-start pb-20 [&>div]:min-w-0">
           <div className="builder-rank">
-            <Rankings anchor="rankings" limit={labPlacement ? 10 : undefined} title={<h2 className="text-[26px]">{active.name}</h2>} actions={<ChartSettings label="Ranking" efforts={{ value: active.rankingEfforts ?? [...EFFORT_CHOICES], onChange: (rankingEfforts) => update({ ...active, rankingEfforts }), withMode: true }} mode={rankingMode} onChange={(rankingVariants) => update({ ...active, rankingVariants })} {...releaseProps} {...modelPicker} />} onSelect={(r) => { if (r) calculations.current?.inspect(r.variant.id); }} ranked={rankingRows} labs={snapshot.labs} showEffort={rankingMode === "all"} />
+            <Rankings anchor="rankings" fresh={fresh} empty={mixEmpty ? "Your mix is empty. Add a benchmark to rank models." : undefined} limit={phone ? 10 : undefined} title={<><h2 className="text-[26px]">{active.name}</h2><p className="cap mt-1 lg:hidden">Ranked by your mix of benchmarks. <button type="button" className="underline underline-offset-2 hover:text-ink" onClick={() => document.getElementById("mix")?.scrollIntoView({ behavior: "smooth" })}>Change the mix</button></p></>} actions={<ChartSettings label="Ranking" efforts={{ value: active.rankingEfforts ?? [...EFFORT_CHOICES], onChange: (rankingEfforts) => update({ ...active, rankingEfforts }), withMode: true }} mode={rankingMode} onChange={(rankingVariants) => update({ ...active, rankingVariants })} {...releaseProps} {...modelPicker} />} onSelect={(r) => { if (r) calculations.current?.inspect(r.variant.id); }} ranked={rankingRows} labs={snapshot.labs} showEffort={rankingMode === "all"} />
           </div>
-          {labPlacement === "inline" && <IndexLabActions active={active} date={snapshot.date} top={topNames} placement="inline" />}
           <div className="builder-cost">
             <ParetoChart formulaInputs={formulaInputs(snapshot, result.ranked, active.timeSource)} basis={effectiveBasis(active.costBasis, hasSubscriptionPrices(snapshot))} description={costDescription(active.costSource ?? "aa", effectiveBasis(active.costBasis, hasSubscriptionPrices(snapshot)))} anchor="cost" ranked={metricRanked} mode={paretoMode} labs={snapshot.labs} view={paretoView} onView={setParetoView} title={<h2 className="text-[22px]">{effectiveBasis(active.costBasis, hasSubscriptionPrices(snapshot)) === "subscription" ? "Score vs subscription cost per task" : "Score vs cost per task"}</h2>}
               actions={(barModels) => <ChartSettings anchor="cost" defaultScale="log" dataSource={{ value: active.costSource ?? "aa", options: taskMetricOptions(snapshot, "cost"), onChange: (costSource) => update({ ...active, costSource }) }} costBasis={hasSubscriptionPrices(snapshot) ? { value: effectiveBasis(active.costBasis), onChange: (basis) => update({ ...active, costBasis: basis === "subscription" ? undefined : basis }) } : undefined} subscriptionPlans={planPicker(snapshot, active, plansPref, (subscriptionPlans) => update({ ...active, subscriptionPlans }))} planResets={{ value: withResetsPref(active, resetsOn).planResets === true, onChange: (on) => { setPlanResetsPref(on); update({ ...active, planResets: on ? true : undefined }); }, note: planResetNote(snapshot), rows: planResetRows(snapshot) }} label="Pareto" mode={paretoMode} onChange={(paretoVariants) => update({ ...active, paretoVariants })} view={paretoView} onView={setParetoView} {...releaseProps} {...effortProps} {...modelPicker} {...(barModels ?? {})} />} />
@@ -201,11 +210,10 @@ export function Builder({ snapshot: base, initialIndices, labPlacement }: { snap
           </div>
         </section>
       </main>
-      {!labPlacement && <SiteFooter />}
+      <SiteFooter />
       </HighlightContext.Provider>
-      {labPlacement === "dock" && <IndexLabActions active={active} date={snapshot.date} top={topNames} placement="dock" />}
-      {!labPlacement && <SharedChart highlight={active.highlight} onHighlight={(items) => update({ ...active, highlight: items.length ? items : undefined })} />}
-      {!labPlacement && <MixAssistant config={active} onApply={update} date={snapshot.date} />}
+      <SharedChart highlight={active.highlight} onHighlight={(items) => update({ ...active, highlight: items.length ? items : undefined })} />
+      <MixAssistant config={active} onApply={update} date={snapshot.date} />
     </div>
     </ChartPaletteContext.Provider>
   );

@@ -112,6 +112,15 @@ function Inner({ config, onApply, date, handle }: { config: IndexConfig; onApply
   const latest = useRef(config);
   useEffect(() => { latest.current = config; }, [config]);
   useEffect(() => { if (open) input.current?.focus(); }, [open]);
+  // On one-column screens the round button would sit on top of the mix's sliders, so it steps aside while they pass under it.
+  const [overControls, setOverControls] = useState(false);
+  useEffect(() => {
+    const controls = document.querySelector(".builder-aside");
+    if (!controls || !window.matchMedia("(max-width: 1023.98px)").matches) return;
+    const watch = new IntersectionObserver(([e]) => setOverControls(e.isIntersecting), { rootMargin: `-${Math.max(0, window.innerHeight - 80)}px 0px 0px 0px` });
+    watch.observe(controls);
+    return () => watch.disconnect();
+  }, []);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null;
@@ -215,7 +224,7 @@ function Inner({ config, onApply, date, handle }: { config: IndexConfig; onApply
   };
 
   if (!isLoaded) return null;
-  if (!open) return <button ref={fab} type="button" className="assistant-fab" onClick={() => setOpen(true)} aria-label="Open the assistant" title="Ask about the data, or adjust this ranking (/)">
+  if (!open) return <button ref={fab} type="button" className={`assistant-fab ${overControls ? "is-clear" : ""}`} onClick={() => setOpen(true)} aria-label="Open the assistant" title="Ask about the data, or adjust this ranking (/)">
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" aria-hidden="true"><path d="M5 5.5h14a1.5 1.5 0 0 1 1.5 1.5v8.5A1.5 1.5 0 0 1 19 17h-7.5L7 20.5V17H5a1.5 1.5 0 0 1-1.5-1.5V7A1.5 1.5 0 0 1 5 5.5Z" /></svg>
     {busy && <i className="assistant-fab-dot" aria-hidden="true" />}
   </button>;

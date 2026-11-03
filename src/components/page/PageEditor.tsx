@@ -21,7 +21,7 @@ import { authEnabled } from "@/app/providers";
  * this holds what has no place on the page: theme, share card, photo/banner/links and agent access.
  * Changes apply live and autosave with the rest of the page.
  */
-export function PageSettings({ profile, set, open, onClose, lab }: { profile: Profile; set: (patch: Partial<Profile>) => void; open: boolean; onClose: () => void; lab?: boolean }) {
+export function PageSettings({ profile, set, open, onClose }: { profile: Profile; set: (patch: Partial<Profile>) => void; open: boolean; onClose: () => void }) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => { const id = requestAnimationFrame(() => setMounted(true)); return () => cancelAnimationFrame(id); }, []);
   // "Open in builder" marks each index with its page index, good for this tab only (see FromPage in url.ts).
@@ -35,7 +35,7 @@ export function PageSettings({ profile, set, open, onClose, lab }: { profile: Pr
             <button type="button" aria-pressed={profile.theme?.mode === "fixed" && !chosen.dark} onClick={() => set({ theme: { ...profile.theme, preset: chosen.dark ? chosen.pair : chosen.id, mode: "fixed" } })}>Always light</button>
             <button type="button" aria-pressed={profile.theme?.mode === "fixed" && chosen.dark} onClick={() => set({ theme: { ...profile.theme, preset: chosen.dark ? chosen.id : chosen.pair, mode: "fixed" } })}>Always dark</button>
           </div> : null;
-  const cardQuery = lab ? encodeIndices(profile.indices.slice(0, 1)).toString() : profile.indices[0] ? `${encodeIndices([profile.indices[0]]).toString()}&handle=${profile.handle}` : `handle=${profile.handle}`;
+  const cardQuery = profile.indices[0] ? `${encodeIndices([profile.indices[0]]).toString()}&handle=${profile.handle}` : `handle=${profile.handle}`;
   return createPortal(
     <aside className="page-editor fixed top-0 right-0 bottom-0 w-[400px] max-w-full bg-white border-l hairline overflow-auto p-5 grid gap-7 content-start text-[13px] z-50 shadow-[-24px_0_60px_-30px_var(--shadow)]" aria-label="Page settings">
       <div className="flex items-center justify-between gap-3 sticky -top-5 -mx-5 -mt-5 px-5 py-4 bg-white border-b hairline z-10"><h2 className="text-[22px]">Page settings</h2><button type="button" className="btn-quiet" onClick={onClose}>Done</button></div>
@@ -68,15 +68,15 @@ export function PageSettings({ profile, set, open, onClose, lab }: { profile: Pr
             <div className="flex flex-wrap gap-1.5">{[["X", "https://x.com/"], ["GitHub", "https://github.com/"], ["LinkedIn", "https://linkedin.com/in/"], ["Website", "https://"]].filter(([l]) => !(profile.socials ?? []).some((x) => x.label === l)).map(([label, url]) => <button key={label} type="button" className="btn-quiet" onClick={() => set({ socials: [...(profile.socials ?? []), { label, url }] })}>+ {label}</button>)}</div>
           </div>
         </Field>
-        {authEnabled && !lab ? <MediaFields profile={profile} set={set} /> : <p className="cap">Photo, banner and agent access are available on your live page.</p>}
+        {authEnabled ? <MediaFields profile={profile} set={set} /> : <p className="cap">Photo, banner and agent access are available on your live page.</p>}
       </Group>
 
       <Group title="Indices">
         <p className="text-ink-2">Weights and benchmarks are edited in the builder; saving there updates this page.</p>
-        <a className="btn-quiet inline-block w-fit" href={`/builder?${prettyQuery(encodeIndices(lab ? profile.indices : profile.indices.map((i) => ({ ...i, page: pageRef(profile.handle, i.id, pageKey) })), true))}`} onClick={() => { try { sessionStorage.setItem(PAGE_KEY, pageKey); } catch { /* storage can be disabled */ } }}>Open in builder</a>
+        <a className="btn-quiet inline-block w-fit" href={`/builder?${prettyQuery(encodeIndices(profile.indices.map((i) => ({ ...i, page: pageRef(profile.handle, i.id, pageKey) })), true))}`} onClick={() => { try { sessionStorage.setItem(PAGE_KEY, pageKey); } catch { /* storage can be disabled */ } }}>Open in builder</a>
       </Group>
 
-      {authEnabled && !lab && <DeletePage handle={profile.handle} />}
+      {authEnabled && <DeletePage handle={profile.handle} />}
     </aside>, document.body);
 }
 

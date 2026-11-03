@@ -20,24 +20,12 @@ try {
   await page.goto(`${BASE}/builder`, { waitUntil: "domcontentloaded" });
   await page.locator(".ranking-list [data-k]").first().waitFor({ timeout: 30000 });
 
-  await check("mobile pages fit the viewport, including the themes editor", async () => {
+  await check("mobile pages fit the viewport", async () => {
     const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
     const mobile = await context.newPage();
     try {
-      for (const route of ["/explore", "/compare?a=preset:aa&b=preset:general", "/models/claude-opus-5.5", "/model-finder", "/builder", "/lab/themes", "/privacy", "/skill", "/import", "/history"]) {
+      for (const route of ["/explore", "/compare?a=preset:aa&b=preset:general", "/models/claude-opus-5.5", "/model-finder", "/builder", "/privacy", "/skill", "/import", "/history"]) {
         await mobile.goto(`${BASE}${route}`, { waitUntil: "domcontentloaded" });
-        if (route === "/lab/themes") {
-          // The editor opens from the header on a wide screen; the bug was how it looked after narrowing.
-          await mobile.setViewportSize({ width: 1440, height: 900 });
-          const edit = mobile.getByRole("button", { name: "Edit page", exact: true }).first();
-          await edit.waitFor();
-          for (let attempt = 0; attempt < 5 && !(await mobile.locator(".page-root").evaluate((el) => el.classList.contains("is-editing"))); attempt++) {
-            await edit.click();
-            await mobile.waitForTimeout(200);
-          }
-          assert.equal(await mobile.locator(".page-root").evaluate((el) => el.classList.contains("is-editing")), true, "themes lab entered edit mode");
-          await mobile.setViewportSize({ width: 390, height: 844 });
-        }
         await mobile.waitForTimeout(800);
         const widths = await mobile.evaluate(() => ({ inner: innerWidth, scroll: document.documentElement.scrollWidth }));
         assert.ok(widths.scroll <= widths.inner, `${route} scrollWidth ${widths.scroll} exceeds innerWidth ${widths.inner}`);
@@ -45,6 +33,146 @@ try {
     } finally {
       await context.close();
     }
+  });
+
+  await check("phones: the ranking comes first, then the mix, in one short header", async () => {
+    const context = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+    const phone = await context.newPage();
+    try {
+      await phone.goto(`${BASE}/builder`, { waitUntil: "domcontentloaded" });
+      await phone.locator(".ranking-list [data-k]").first().waitFor({ timeout: 30000 });
+      const y = (sel) => phone.locator(sel).first().evaluate((el) => el.getBoundingClientRect().top + scrollY);
+      assert.ok(await y(".builder-rank") < await y("#mix"), "the ranking sits above the mix");
+      assert.ok(await y("#mix") < await y(".builder-cost"), "the mix sits above the other charts");
+      assert.ok(await y(".ranking-list [data-k]") < 844, "the first ranking row is on the first screen");
+      assert.equal(await phone.locator(".ranking-list [data-k]").count(), 10, "a phone shows the top 10 until asked for more");
+      await phone.getByRole("button", { name: /^Show all/ }).first().click();
+      assert.ok(await phone.locator(".ranking-list [data-k]").count() > 10, "Show all expands the ranking");
+      assert.ok((await phone.locator(".builder-header").evaluate((el) => el.getBoundingClientRect().height)) < 110, "the header stays short");
+      assert.equal(await phone.getByText(/^Data as of/).isVisible(), false, "the date moved out of the header");
+      const widths = await phone.evaluate(() => [innerWidth, document.documentElement.scrollWidth]);
+      assert.ok(widths[1] <= widths[0], `no sideways scroll, ${widths}`);
+      const fab = phone.locator(".assistant-fab");
+      await fab.waitFor();
+      await phone.evaluate(() => window.scrollTo(0, scrollY + document.querySelector("#mix").getBoundingClientRect().bottom - innerHeight + 10));
+      await phone.waitForFunction(() => document.querySelector(".assistant-fab")?.classList.contains("is-clear"), null, { timeout: 5000 });
+    } finally { await context.close(); }
+  });
+
+  await check("Clear all empties the mix and Undo brings it back", async () => {
+    const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+    const p = await context.newPage();
+    try {
+      await p.goto(`${BASE}/builder`, { waitUntil: "domcontentloaded" });
+      await p.locator(".ranking-list [data-k]").first().waitFor({ timeout: 30000 });
+      assert.equal(await p.getByRole("button", { name: "Undo", exact: true }).count(), 0, "nothing to undo on arrival");
+      const sliders = await p.locator("#mix input[aria-label$=weight]").count();
+      assert.ok(sliders > 0);
+      await p.getByRole("button", { name: "Clear all", exact: true }).click();
+      await p.getByText("Your mix is empty.").waitFor();
+      assert.equal(await p.locator("#mix input[aria-label$=weight]").count(), 0);
+      await p.getByRole("button", { name: "Undo", exact: true }).click();
+      await p.locator(".ranking-list [data-k]").first().waitFor();
+      assert.equal(await p.locator("#mix input[aria-label$=weight]").count(), sliders, "every benchmark came back");
+      // Removing one and pressing the keyboard shortcut does the same.
+      await p.waitForTimeout(900);
+      await p.locator("#mix .bench-remove").first().click();
+      assert.equal(await p.locator("#mix input[aria-label$=weight]").count(), sliders - 1);
+      await p.locator("body").click({ position: { x: 700, y: 5 } });
+      await p.keyboard.press("ControlOrMeta+z");
+      await p.waitForFunction((n) => document.querySelectorAll("#mix input[aria-label$=weight]").length === n, sliders, { timeout: 5000 });
+    } finally { await context.close(); }
+  });
+
+  await check("the model picker turns a whole lab off and on", async () => {
+    const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+    const p = await context.newPage();
+    try {
+      await p.goto(`${BASE}/builder`, { waitUntil: "domcontentloaded" });
+      await p.locator(".ranking-list [data-k]").first().waitFor({ timeout: 30000 });
+      await p.getByLabel("Ranking settings", { exact: true }).first().click();
+      const labs = p.getByRole("group", { name: "Models by lab" });
+      await labs.waitFor();
+      const lab = labs.getByRole("checkbox", { name: "Anthropic" });
+      const count = async () => Number((await p.getByText(/of \d+ selected/).first().textContent()).match(/^(\d+)/)[1]);
+      const before = await count();
+      if (!(await lab.isChecked())) await lab.click();
+      const all = await count();
+      assert.ok(before <= all, "ticking a lab shows all of its models");
+      await lab.click();
+      assert.ok(await count() < all, "the count answers at once");
+      assert.equal(await lab.isChecked(), false);
+      await lab.click();
+      assert.equal(await count(), all);
+      assert.equal(await lab.isChecked(), true);
+    } finally { await context.close(); }
+  });
+
+  await check("a link answers at once while its page is on the way", async () => {
+    const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+    const p = await context.newPage();
+    try {
+      await p.goto(`${BASE}/builder`, { waitUntil: "domcontentloaded" });
+      await p.locator(".ranking-list [data-k]").first().waitFor({ timeout: 30000 });
+      await p.route("**/explore**", async (route) => { await new Promise((r) => setTimeout(r, 1200)); await route.continue(); });
+      await p.locator(".builder-header").getByRole("link", { name: "Explore", exact: true }).first().click();
+      await p.locator(".nav-progress").waitFor({ timeout: 500 });
+      await p.waitForURL(/\/explore/, { timeout: 30000 });
+      await p.locator(".nav-progress").waitFor({ state: "detached", timeout: 5000 });
+    } finally { await context.close(); }
+  });
+
+  await check("a model added since the last visit is labeled New once", async () => {
+    const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+    const p = await context.newPage();
+    try {
+      await p.goto(`${BASE}/builder`, { waitUntil: "domcontentloaded" });
+      await p.locator(".ranking-list [data-k]").first().waitFor({ timeout: 30000 });
+      await p.waitForFunction(() => localStorage.getItem("priors:seen-models"));
+      assert.equal(await p.locator("[data-new-model]").count(), 0, "a first visit labels nothing");
+      // The top row's model counts as unseen on the next visit.
+      const top = await p.locator(".ranking-list [data-k]").first().getAttribute("data-k");
+      await p.evaluate((id) => { const model = id.split("@")[0]; localStorage.setItem("priors:seen-models", JSON.stringify(JSON.parse(localStorage.getItem("priors:seen-models")).filter((x) => x !== model))); }, top);
+      await p.reload({ waitUntil: "domcontentloaded" });
+      await p.locator("[data-new-model]").first().waitFor({ timeout: 30000 });
+      await p.reload({ waitUntil: "domcontentloaded" });
+      await p.locator(".ranking-list [data-k]").first().waitFor({ timeout: 30000 });
+      await p.waitForTimeout(300);
+      assert.equal(await p.locator("[data-new-model]").count(), 0, "seen once, it is no longer new");
+    } finally { await context.close(); }
+  });
+
+  await check("Share opens quick actions, and the card designs are one step further", async () => {
+    const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+    const p = await context.newPage();
+    try {
+      await p.goto(`${BASE}/builder`, { waitUntil: "domcontentloaded" });
+      await p.locator(".ranking-list [data-k]").first().waitFor({ timeout: 30000 });
+      await p.locator(".builder-header").getByRole("button", { name: "Share", exact: true }).click();
+      const menu = p.getByRole("menu", { name: "Share options" });
+      await menu.waitFor();
+      for (const name of ["Share on X", "Copy link", "Download image", "Choose a card design"]) assert.equal(await menu.getByRole("menuitem", { name }).count(), 1, name);
+      assert.match(await menu.getByRole("menuitem", { name: "Download image" }).getAttribute("href"), /^\/og\?/);
+      await menu.getByRole("menuitem", { name: "Choose a card design" }).click();
+      await p.getByRole("dialog", { name: "Share" }).waitFor();
+    } finally { await context.close(); }
+  });
+
+  await check("the cost chart's methodology icon explains its pricing and links to the detail", async () => {
+    const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+    const p = await context.newPage();
+    try {
+      await p.goto(`${BASE}/builder`, { waitUntil: "domcontentloaded" });
+      await p.locator(".ranking-list [data-k]").first().waitFor({ timeout: 30000 });
+      const button = p.getByRole("button", { name: "How this cost is worked out" });
+      await button.scrollIntoViewIfNeeded();
+      assert.equal(await p.locator(".chart-method-pop").count(), 0, "closed until asked for");
+      await button.click();
+      assert.match(await p.locator(".chart-method-pop").textContent(), /median plan/);
+      assert.equal(await p.locator(".chart-method-pop a").getAttribute("href"), "/benchmarks/methodology#cost");
+      await p.locator("body").click({ position: { x: 5, y: 5 } });
+      assert.equal(await p.locator(".chart-method-pop").count(), 0, "a click elsewhere closes it");
+    } finally { await context.close(); }
   });
 
   await check("site settings opens as a named modal and Escape restores focus", async () => {

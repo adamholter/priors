@@ -1,5 +1,6 @@
 "use client";
-import { useEffect, useState, type ReactNode } from "react";
+import { startTransition, useEffect, useOptimistic, useState, type ReactNode } from "react";
+import { ChartMethod } from "./ChartMethod";
 import { MetricBars } from "./MetricBars";
 import type { Lab } from "@/data/types";
 import { subscriptionShare, type RankedVariant } from "@/engine";
@@ -36,9 +37,10 @@ export function ParetoChart({ ranked, mode = "all", labs, height = 460, title, a
     // eslint-disable-next-line react-hooks/exhaustive-deps -- initialize only when the chart anchor changes
   }, [anchor]);
   const bars = (linkedKind ?? savedView.kind) === "bars";
+  // The switch answers now; the heavier chart follows when it is ready.
+  const [shownBars, showBars] = useOptimistic(bars);
   const changeKind = (kind: "bars" | "scatter") => {
-    setLinkedKind(kind);
-    onView({ ...savedView, kind });
+    startTransition(() => { showBars(kind === "bars"); setLinkedKind(kind); onView({ ...savedView, kind }); });
     const url = new URL(window.location.href);
     if (anchor && (decodeURIComponent(url.hash.slice(1)) === anchor || url.searchParams.get("c") === anchor)) {
       if (kind === "bars") url.searchParams.set("cv", "bars"); else url.searchParams.delete("cv");
@@ -55,8 +57,8 @@ export function ParetoChart({ ranked, mode = "all", labs, height = 460, title, a
   const scatterActions = typeof actions === "function" ? actions(formulaSettings) : actions;
   const barActions = typeof actions === "function" ? actions({ ...barVisibility.picker, ...formulaSettings }) : actions;
   const controls = <><div className="seg" role="group" aria-label="Cost chart type">
-    <button type="button" aria-pressed={!bars} title="Score vs cost" onClick={() => changeKind("scatter")}><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><circle cx="4" cy="11" r="1.6" /><circle cx="8" cy="6" r="1.6" /><circle cx="12.5" cy="4" r="1.6" /><circle cx="10" cy="10" r="1.6" /></svg></button>
-    <button type="button" aria-pressed={bars} title="Bar chart" onClick={() => changeKind("bars")}><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><rect x="2" y="3" width="3" height="11" /><rect x="6.5" y="6" width="3" height="8" /><rect x="11" y="9" width="3" height="5" /></svg></button>
+    <button type="button" aria-pressed={!shownBars} title="Score vs cost" onClick={() => changeKind("scatter")}><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><circle cx="4" cy="11" r="1.6" /><circle cx="8" cy="6" r="1.6" /><circle cx="12.5" cy="4" r="1.6" /><circle cx="10" cy="10" r="1.6" /></svg></button>
+    <button type="button" aria-pressed={shownBars} title="Bar chart" onClick={() => changeKind("bars")}><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><rect x="2" y="3" width="3" height="11" /><rect x="6.5" y="6" width="3" height="8" /><rect x="11" y="9" width="3" height="5" /></svg></button>
   </div>{bars ? barActions : scatterActions}</>;
   const linkParams = { cv: bars ? "bars" as const : undefined, cs: !bars ? view.scale : undefined, extra: formula.link };
   useEffect(() => {
@@ -68,7 +70,8 @@ export function ParetoChart({ ranked, mode = "all", labs, height = 460, title, a
     for (const [key, value] of Object.entries(formula.link)) { if (value) url.searchParams.set(key, value); else url.searchParams.delete(key); }
     window.history.replaceState(null, "", url.toString());
   }, [anchor, bars, view.scale, formula.link.cf, formula.link.cb]); // eslint-disable-line react-hooks/exhaustive-deps
-  const heading = <div>{bars ? <h2 className="text-[22px]">{subscription ? "Subscription cost per task" : "Cost per task"}</h2> : title}{description && <p className="cap mt-1">{description}</p>}</div>;
+  const method = description && <ChartMethod name="this cost" href="/benchmarks/methodology#cost"><span>{description}.</span>{subscription && <span>Each model uses its median plan until you pick one in this chart&rsquo;s settings. Models with no plan data use API price.</span>}</ChartMethod>;
+  const heading = <div className="flex items-center gap-1.5 min-w-0">{bars ? <h2 className="text-[22px]">{subscription ? "Subscription cost per task" : "Cost per task"}</h2> : title}{method}</div>;
   if (formula.custom) {
     const source = formula.custom.source, customHeading = <div><h2 className="text-[22px] break-words">{bars ? source : `Score vs ${source}`}</h2><p className="cap mt-1">{formula.caption}</p></div>;
     if (bars) return <MetricBars bestFirst labelScale={view.labelScale} pts={barVisibility.points} labs={labs} better={costChart.better} xName={costChart.xName} formatValue={costChart.formatX} height={height} aria={`By model: ${source}`} title={customHeading} actions={controls} anchor={anchor} linkParams={linkParams} exportName="Custom formula" />;

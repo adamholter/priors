@@ -33,7 +33,7 @@ export function taskMetricDescription(source: TaskMetricSource, metric: TaskMetr
 /** Cost chart caption: the measurement, then how it is priced when not at API list prices. */
 export function costDescription(source: TaskMetricSource, basis: CostBasis = "api"): string {
   const measured = taskMetricDescription(source, "cost");
-  return basis === "subscription" ? `${measured} · subscription-priced where plan data exists (Real API Pricing, full allowance used)` : measured;
+  return basis === "subscription" ? `${measured}, then priced by subscription where plan data exists (Real API Pricing, full allowance used)` : measured;
 }
 
 /** The subscription view needs the plan-price source, which older snapshots predate. */

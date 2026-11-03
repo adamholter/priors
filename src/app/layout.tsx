@@ -3,6 +3,7 @@ import { DM_Sans, Geist, Geist_Mono, IBM_Plex_Mono, Inter, JetBrains_Mono, Lora,
 import localFont from "next/font/local";
 import "./globals.css";
 import { Providers } from "./providers";
+import { NavProgress } from "@/components/NavProgress";
 import { THEME_SCRIPT } from "@/components/Theme";
 import { THEME_CRITICAL_CSS } from "@/lib/theme-critical";
 import { SITE_DESCRIPTION, SITE_IMAGE, SITE_NAME } from "@/lib/site-meta";
@@ -41,7 +42,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html lang="en" className={`${newsreader.variable} ${inter.variable} ${jetbrains.variable} ${switzer.variable} ${dmSans.variable} ${sourceSerif.variable} ${geist.variable} ${geistMono.variable} ${plexMono.variable} ${outfit.variable} ${poppins.variable} ${lora.variable} ${excalifont.variable} ${comicShanns.variable} h-full antialiased`} suppressHydrationWarning>
       <head><style dangerouslySetInnerHTML={{ __html: THEME_CRITICAL_CSS }} /><script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} suppressHydrationWarning /></head>
       <body className="min-h-full flex flex-col">
-        <Providers>{children}</Providers>
+        <NavProgress /><Providers>{children}</Providers>
       </body>
     </html>
   );

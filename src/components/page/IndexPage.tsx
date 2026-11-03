@@ -43,6 +43,7 @@ import { HighlightContext } from "../chart/highlight";
 import { setHighlightParams, viewParam } from "@/lib/highlight-link";
 import "./page-themes.css";
 import { VIA_KEY } from "@/lib/share";
+import { useNewModels } from "@/lib/seen-models";
 
 /** Stored shapes come from the Convex validators, so the page and the database can't disagree. */
 export type { Section };
@@ -53,12 +54,20 @@ export interface Profile {
   imports?: { benchmark: Snapshot["benchmarks"][0]; rows: import("@/data/types").RawRow[] }[];
 }
 
-export function IndexPage({ profile, snapshot, edit, tab: linkedTab, linkedHighlight, linkedView, lab, onProfileChange }: { profile: Profile; snapshot: Snapshot; edit: boolean; /** The index a link opens on (`hi`: an id or a name slug). */ tab?: string; /** The id of the index whose display settings came from the link (`hv`: hidden models and so on). */ linkedView?: string; /** The id of the index whose selection came from the link (`hl`) rather than the saved page. */ linkedHighlight?: string; /** Lab preview: act as the owner, never save. */ lab?: boolean; /** Lab: mirror edits outward so the theme switcher keeps them. */ onProfileChange?: (p: Profile) => void }) {
+/** Whose ranking this is and how to make your own. In the server-rendered page too, so it does not push the page down when it arrives. */
+export function VisitorBanner({ name, surface }: { name: string; surface: string }) {
+  return <div className="border-b hairline px-4 sm:px-8 py-2 sm:py-2.5 flex items-center justify-center gap-x-4 text-[13px]" style={{ background: surface }}>
+    <span className="text-ink-2 min-w-0"><span className="text-ink">{name}</span>’s ranking of AI models<span className="max-sm:hidden">. What’s yours?</span></span>
+    <Link href="/rank" className="btn !py-1 !text-[12.5px] shrink-0">Rank models<span className="max-sm:hidden"> · 1 min</span></Link>
+  </div>;
+}
+
+export function IndexPage({ profile, snapshot, edit, tab: linkedTab, linkedHighlight, linkedView }: { profile: Profile; snapshot: Snapshot; edit: boolean; /** The index a link opens on (`hi`: an id or a name slug). */ tab?: string; /** The id of the index whose display settings came from the link (`hv`: hidden models and so on). */ linkedView?: string; /** The id of the index whose selection came from the link (`hl`) rather than the saved page. */ linkedHighlight?: string; }) {
   const [p, setPState] = useState(() => tidyProfile(profile));
   const [prevProfile, setPrevProfile] = useState(profile);
   if (profile !== prevProfile) { setPrevProfile(profile); setPState(tidyProfile(profile)); }
   const setP = setPState;
-  const resetsOn = usePlanResetsOn(), plansPref = useSubscriptionPlansPref();
+  const resetsOn = usePlanResetsOn(), plansPref = useSubscriptionPlansPref(), fresh = useNewModels(snapshot.models);
   const results = useMemo(() => new Map(p.indices.map((i) => [i.id, computeIndex(snapshot, { ...withPlansPref(withResetsPref(i, resetsOn), plansPref), variants: "all" }, PAGE_VIEW)])), [snapshot, p.indices, resetsOn, plansPref]);
   const { dark: siteDark } = useTheme();
   const preset = resolvePreset(p.theme, siteDark);
@@ -107,22 +116,22 @@ export function IndexPage({ profile, snapshot, edit, tab: linkedTab, linkedHighl
   // The editor autosaves what it shows, so a page opened through a link's overrides (hl, hv) must not turn editing on in place:
   // it reloads through the server path that ignores them (the saved page), keeping the tab.
   const toggleEditing = () => {
-    if (!editing && !lab && (linkedView || linkedHighlight)) {
+    if (!editing && (linkedView || linkedHighlight)) {
       const tabParam = active && active !== p.indices[0] ? `&hi=${encodeURIComponent(tabKey(p.indices, active))}` : "";
       window.location.assign(`/${p.handle}?edit=1${tabParam}`);
       return;
     }
     setEditing(!editing);
   };
-  const [isOwner, setIsOwner] = useState(!!lab);
-  const onOwner = useCallback((o: boolean) => setIsOwner(o || !!lab), [lab]);
+  const [isOwner, setIsOwner] = useState(false);
+  const onOwner = useCallback((o: boolean) => setIsOwner(o), []);
   // For the owner, each index remembers the page index it came from, so saving from the builder updates that one
   // even after a rename. The key makes the reference good for this tab only (see FromPage); visitors get a plain link.
   const [pageKey] = useState(() => crypto.randomUUID().replace(/-/g, ""));
   const inBuilder = active ? [active, ...p.indices.filter((i) => i.id !== active.id)] : [];
-  useTripleD(lab || !active ? null : threeDUrl(refForPage(p.handle, p.indices, active)));
-  const compareHref = isOwner && !lab ? "/compare?a=me" : `/compare?a=me&b=@${p.handle}${active && active !== p.indices[0] ? `~${tabKey(p.indices, active)}` : ""}`;
-  const builderHref = `/?${prettyQuery(encodeIndices(isOwner && !lab ? inBuilder.map((i) => ({ ...i, page: pageRef(p.handle, i.id, pageKey) })) : inBuilder, true))}`;
+  useTripleD(!active ? null : threeDUrl(refForPage(p.handle, p.indices, active)));
+  const compareHref = isOwner ? "/compare?a=me" : `/compare?a=me&b=@${p.handle}${active && active !== p.indices[0] ? `~${tabKey(p.indices, active)}` : ""}`;
+  const builderHref = `/?${prettyQuery(encodeIndices(isOwner ? inBuilder.map((i) => ({ ...i, page: pageRef(p.handle, i.id, pageKey) })) : inBuilder, true))}`;
   const keepPageKey = () => { try { sessionStorage.setItem(PAGE_KEY, pageKey); } catch { /* storage can be disabled */ } };
   // The link people share: the bare page address unless it has to name another tab or a changed selection.
   const pageUrl = new URL(`${origin || "https://mypriors.com"}/${p.handle}`);
@@ -135,19 +144,19 @@ export function IndexPage({ profile, snapshot, edit, tab: linkedTab, linkedHighl
   useEffect(() => {
     const id = requestAnimationFrame(() => {
       let owner = false;
-      try { owner = !!lab || localStorage.getItem("priors:handle") === p.handle; } catch { /* storage can be disabled */ }
+      try { owner = localStorage.getItem("priors:handle") === p.handle; } catch { /* storage can be disabled */ }
       setViewer({ owner, published: owner && new URLSearchParams(window.location.search).get("published") === "1" });
       if (!owner && viaNames.length) try { localStorage.setItem(VIA_KEY, JSON.stringify({ handle: p.handle, name: p.displayName, top: viaNames, ids: topIds })); } catch { /* ignore */ }
     });
     return () => cancelAnimationFrame(id);
-  }, [p.handle, p.displayName, viaNames, topIds, lab]);
-  // Edit mode: the owner edits the page in place; changes autosave (lab previews never save).
-  const [editing, setEditing] = useState(edit && !!lab);
+  }, [p.handle, p.displayName, viaNames, topIds]);
+  // Edit mode: the owner edits the page in place; changes autosave.
+  const [editing, setEditing] = useState(false);
   useEffect(() => { if (edit && isOwner) { const id = requestAnimationFrame(() => setEditing(true)); return () => cancelAnimationFrame(id); } }, [edit, isOwner]);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [saveState, setSaveState] = useState<SaveState>("saved");
   const [history, setHistory] = useState<Profile[]>([]);
-  const change = useCallback((next: Profile) => { setHistory((h) => [...h.slice(-49), p]); setP(next); onProfileChange?.(next); }, [p, setP, onProfileChange]);
+  const change = useCallback((next: Profile) => { setHistory((h) => [...h.slice(-49), p]); setP(next); }, [p, setP]);
   const undo = useCallback(() => { if (!history.length) return; setP(history[history.length - 1]); setHistory(history.slice(0, -1)); }, [history, setP]);
   useEffect(() => {
     if (!editing) return;
@@ -193,10 +202,10 @@ export function IndexPage({ profile, snapshot, edit, tab: linkedTab, linkedHighl
           // While editing, index tweaks (effort mode, filters, hidden models, highlights) are page edits; otherwise they stay local to this visit.
           const updateIndex = (patch: Partial<IndexConfig>) => (editing ? change : setP)({ ...p, indices: p.indices.map((i) => i.id === idx.id ? { ...i, ...patch } : i) });
           const pickerModels = (() => {
-            const col = new Map(snapshot.labs.map((l) => [l.id, markColor(l.color, palette, l.id)]));
-            const seen = new Map<string, { id: string; name: string; color?: string; open?: boolean }>();
-            const add = (id: string) => { if (!seen.has(id)) { const m = snapshot.models.find((x) => x.id === id); if (m) seen.set(id, { id, name: m.name, color: col.get(m.labId), open: m.openWeights }); } };
-            for (const v of r.ranked) if (!seen.has(v.model.id)) seen.set(v.model.id, { id: v.model.id, name: v.model.name, color: col.get(v.model.labId), open: v.model.openWeights });
+            const col = new Map(snapshot.labs.map((l) => [l.id, markColor(l.color, palette, l.id)])), labName = new Map(snapshot.labs.map((l) => [l.id, l.name]));
+            const seen = new Map<string, { id: string; name: string; color?: string; open?: boolean; lab?: string }>();
+            const add = (id: string) => { if (!seen.has(id)) { const m = snapshot.models.find((x) => x.id === id); if (m) seen.set(id, { id, name: m.name, color: col.get(m.labId), open: m.openWeights, lab: labName.get(m.labId) }); } };
+            for (const v of r.ranked) if (!seen.has(v.model.id)) seen.set(v.model.id, { id: v.model.id, name: v.model.name, color: col.get(v.model.labId), open: v.model.openWeights, lab: labName.get(v.model.labId) });
             for (const id of r.candidateModelIds) add(id);
             for (const id of idx.excludeModels ?? []) add(id);
             return [...seen.values()];
@@ -215,7 +224,7 @@ export function IndexPage({ profile, snapshot, edit, tab: linkedTab, linkedHighl
           const settings = (label: string, mode: "all" | "best", key: "rankingVariants" | "paretoVariants") => <ChartSettings label={label} efforts={{ value: idx.rankingEfforts ?? [...EFFORT_CHOICES], onChange: (rankingEfforts) => updateIndex({ rankingEfforts }), withMode: true }} mode={mode} onChange={(v) => updateIndex({ [key]: v })} releasedAfter={idx.releasedAfter} onChangeReleased={(v) => updateIndex({ releasedAfter: v })} models={pickerModels} excluded={excludedIds} onToggleModel={toggleModel} onShowAllModels={() => updateIndex(SHOW_ALL)} onHideAllModels={() => updateIndex({ excludeModels: pickerIds, onlyModels: undefined })} onShowOnly={modelPicker.onShowOnly} />;
           if (s.kind === "rankings") return wrap(
             <section key={s.id} className="chart-panel">
-              <Rankings anchor={anchorOf(title)} title={heading(s, title, "text-[21px] sm:text-[24px]")} actions={settings("Ranking", rankingMode, "rankingVariants")} ranked={rankingRows(r.ranked, idx)} showEffort={rankingMode === "all"} labs={snapshot.labs} limit={25} selected={selected} onSelect={(x) => setSelected(x?.variant.id ?? null)} />
+              <Rankings fresh={fresh} anchor={anchorOf(title)} title={!s.title && !editing && p.indices.length > 1 ? undefined : heading(s, title, "text-[21px] sm:text-[24px]")} actions={settings("Ranking", rankingMode, "rankingVariants")} ranked={rankingRows(r.ranked, idx)} showEffort={rankingMode === "all"} labs={snapshot.labs} limit={25} selected={selected} onSelect={(x) => setSelected(x?.variant.id ?? null)} />
             </section>
           );
           if (s.kind === "pareto") return wrap(<section key={s.id} className="chart-panel"><WithView id={`pareto-${s.id}`} owner={s.view} onOwner={editing ? (view) => patchSection(s.id, { view }) : undefined}>{(paretoView, setParetoView) => <ParetoChart formulaInputs={formulaInputs(snapshot, r.ranked, idx.timeSource)} basis={effectiveBasis(idx.costBasis, hasSubscriptionPrices(snapshot))} description={costDescription(idx.costSource ?? "aa", effectiveBasis(idx.costBasis, hasSubscriptionPrices(snapshot)))} anchor={anchorOf(title)} ranked={metricRanked} mode={paretoMode} labs={snapshot.labs} height={440} view={paretoView} onView={setParetoView} title={heading(s, title, "text-[21px] sm:text-[24px]")} actions={(barModels) => {
@@ -240,10 +249,10 @@ export function IndexPage({ profile, snapshot, edit, tab: linkedTab, linkedHighl
         <div className="ml-auto hidden sm:flex flex-wrap items-center justify-end gap-3">
           <span className="flex items-center">
             {active && <ShareCards compact indices={p.indices} active={active} profile={p} pageUrl={pageUrl.toString()} defaultDesign={p.theme?.cardDesign} top={topNames} pageTheme={p.theme?.preset} />}
-            {!lab && <Link href={compareHref as "/compare"} onClick={() => track("compare_opened", { from: "profile", handle: p.handle })} className="icon-btn" aria-label="Compare" data-tip={isOwner ? "Compare with someone" : `Compare with @${p.handle}`}><CompareIcon /></Link>}
-            {(isOwner || lab) && <Link href={builderHref as "/"} onClick={keepPageKey} className="icon-btn" aria-label="Open in builder" data-tip="Open in builder"><BuilderIcon /></Link>}
+            <Link href={compareHref as "/compare"} onClick={() => track("compare_opened", { from: "profile", handle: p.handle })} className="icon-btn" aria-label="Compare" data-tip={isOwner ? "Compare with someone" : `Compare with @${p.handle}`}><CompareIcon /></Link>
+            {isOwner && <Link href={builderHref as "/"} onClick={keepPageKey} className="icon-btn" aria-label="Open in builder" data-tip="Open in builder"><BuilderIcon /></Link>}
           </span>
-          {isOwner || lab
+          {isOwner
             ? null
             : <Link href={builderHref as "/"} onClick={() => track("remix_clicked", { from: "profile", handle: p.handle })} className="btn inline-flex items-center gap-2" title={`Open @${p.handle}'s mix in the builder as your own copy`}><RemixIcon />Remix</Link>}
           {isOwner && <button type="button" className="btn" onClick={toggleEditing}>{editing ? "Done editing" : "Edit page"}</button>}
@@ -252,32 +261,29 @@ export function IndexPage({ profile, snapshot, edit, tab: linkedTab, linkedHighl
         </div>
         <div className="ml-auto flex sm:hidden items-center gap-1">
           {active && <ShareCards compact indices={p.indices} active={active} profile={p} pageUrl={pageUrl.toString()} defaultDesign={p.theme?.cardDesign} top={topNames} pageTheme={p.theme?.preset} />}
-          {!lab && <Link href={compareHref as "/compare"} onClick={() => track("compare_opened", { from: "profile", handle: p.handle })} className="icon-btn" aria-label="Compare"><CompareIcon /></Link>}
-          {!isOwner && !lab && <Link href={builderHref as "/"} onClick={() => track("remix_clicked", { from: "profile", handle: p.handle })} className="btn !px-3 !py-1.5 inline-flex items-center gap-1.5 text-[12.5px]"><RemixIcon size={13} />Remix</Link>}
+          <Link href={compareHref as "/compare"} onClick={() => track("compare_opened", { from: "profile", handle: p.handle })} className="icon-btn" aria-label="Compare"><CompareIcon /></Link>
+          {!isOwner && <Link href={builderHref as "/"} onClick={() => track("remix_clicked", { from: "profile", handle: p.handle })} className="btn !px-3 !py-1.5 inline-flex items-center gap-1.5 text-[12.5px]"><RemixIcon size={13} />Remix</Link>}
           <SettingsButton support={false} pageNote={settingsNote} />
           <MobileMenu>
-            {(isOwner || lab) && <Link href={builderHref as "/"} onClick={keepPageKey} className="btn-quiet text-center">Open in builder</Link>}
+            {isOwner && <Link href={builderHref as "/"} onClick={keepPageKey} className="btn-quiet text-center">Open in builder</Link>}
             <Link href="/explore" className="btn-quiet text-center">Explore rankings</Link>
             <Link href="/rank" className="btn-quiet text-center">Rank models</Link>
             {isOwner && <button type="button" className="btn text-center" onClick={toggleEditing}>{editing ? "Done editing" : "Edit page"}</button>}
           </MobileMenu>
         </div>
       </header>
-      {authEnabled && !lab && <OwnerProbe handle={p.handle} onOwner={onOwner} />}
-      {editing && !lab && <Autosave profile={p} onState={setSaveState} />}
+      {authEnabled && <OwnerProbe handle={p.handle} onOwner={onOwner} />}
+      {editing && <Autosave profile={p} onState={setSaveState} />}
       {editing && <div className="edit-bar" role="region" aria-label="Editing your page">
         <span className="edit-bar-title">Editing your page</span>
-        <span className="edit-bar-status" role="status">{lab ? "Lab preview · not saved" : saveState === "saving" ? "Saving…" : saveState === "dirty" ? "Unsaved changes" : saveState === "error" ? "Couldn’t save. Retrying on your next change." : "All changes saved"}</span>
+        <span className="edit-bar-status" role="status">{saveState === "saving" ? "Saving…" : saveState === "dirty" ? "Unsaved changes" : saveState === "error" ? "Couldn’t save. Retrying on your next change." : "All changes saved"}</span>
         <button type="button" className="btn-quiet" disabled={!history.length} onClick={undo}>Undo</button>
         <button type="button" className="btn-quiet" onClick={() => setSettingsOpen(true)}>Theme & settings</button>
         <button type="button" className="btn" onClick={() => { setEditing(false); setSettingsOpen(false); }}>Done</button>
       </div>}
-      <PageSettings profile={p} set={(patch) => change({ ...p, ...patch })} open={editing && settingsOpen} onClose={() => setSettingsOpen(false)} lab={lab} />
+      <PageSettings profile={p} set={(patch) => change({ ...p, ...patch })} open={editing && settingsOpen} onClose={() => setSettingsOpen(false)} />
 
-      {viewer && !viewer.owner && !edit && <div className="border-b hairline px-4 sm:px-8 py-2.5 flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5 text-[13px]" style={{ background: surface }}>
-        <span className="text-ink-2">This is <span className="text-ink">{p.displayName}</span>’s ranking of AI models. What’s yours?</span>
-        <Link href="/rank" className="btn !py-1 !text-[12.5px]">Rank models · 1 min</Link>
-      </div>}
+      {!viewer?.owner && !edit && <VisitorBanner name={p.displayName} surface={surface} />}
       {viewer?.published && <div className="border-b hairline px-4 sm:px-8 py-3 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-[13px]" style={{ background: surface }} role="status">
         <span><span className="text-ink">Your page is live</span> <span className="text-ink-2">at mypriors.com/{p.handle} and listed on Explore.</span></span>
         {active && <ShareCards indices={p.indices} active={active} profile={p} pageUrl={pageUrl.toString()} defaultDesign={p.theme?.cardDesign} top={topNames} pageTheme={p.theme?.preset} />}
@@ -285,16 +291,16 @@ export function IndexPage({ profile, snapshot, edit, tab: linkedTab, linkedHighl
         <Link href="/explore" className="btn-quiet">See Explore</Link>
       </div>}
       {p.bannerUrl && <div className="page-banner-frame"><img src={p.bannerUrl} alt="" className="page-banner" /></div>}
-      <main className={`max-w-[1100px] mx-auto px-5 sm:px-8 grid gap-10 sm:gap-14 ${p.bannerUrl ? "pb-12" : "py-8 sm:py-12"}`}>
+      <main className={`max-w-[1100px] mx-auto px-5 sm:px-8 grid gap-6 sm:gap-14 ${p.bannerUrl ? "pb-12" : "py-5 sm:py-12"}`}>
         <section className={`flex items-start gap-4 sm:gap-5 ${p.bannerUrl ? "-mt-8 sm:-mt-10" : ""}`}>
           {p.avatarUrl ? <img src={p.avatarUrl} alt="" className="w-16 h-16 sm:w-20 sm:h-20 rounded-full object-cover shrink-0" style={{ boxShadow: `0 0 0 4px ${surface}` }} /> : <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-hair-2 grid place-items-center serif text-3xl text-ink-2 shrink-0" style={{ boxShadow: `0 0 0 4px ${surface}` }}>{p.displayName[0]}</div>}
           <div className={`grid gap-1 sm:gap-1.5 min-w-0 ${p.bannerUrl ? "pt-9 sm:pt-11" : ""}`}>
             <h1 className="text-[28px] sm:text-[34px] leading-tight">{editing ? <InlineText editing label="Your name" value={p.displayName} onChange={(displayName) => change({ ...p, displayName })} /> : p.displayName}</h1>
             <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-[13px] text-ink-2">
-              <span className="mono text-grey">mypriors.com/{p.handle}</span>
+              <span className="mono text-grey max-sm:hidden">mypriors.com/{p.handle}</span>
               {p.socials?.map((s) => <a key={s.url} href={s.url} target="_blank" rel="noreferrer" className="hover:text-ink" style={{ color: accent }}>{s.label}</a>)}
             </div>
-            {editing ? <InlineText editing multiline label="Bio" value={p.bio ?? ""} placeholder="A sentence or two about how you pick models." className="text-[15px] text-ink-2 w-full max-w-[62ch] mt-1" onChange={(bio) => change({ ...p, bio: bio || undefined })} /> : p.bio && <p className="text-[15px] text-ink-2 max-w-[62ch] mt-1">{p.bio}</p>}
+            {editing ? <InlineText editing multiline label="Bio" value={p.bio ?? ""} placeholder="A sentence or two about how you pick models." className="text-[15px] text-ink-2 w-full max-w-[62ch] mt-1" onChange={(bio) => change({ ...p, bio: bio || undefined })} /> : p.bio && <p className="text-[15px] text-ink-2 max-w-[62ch] sm:mt-1">{p.bio}</p>}
           </div>
         </section>
 

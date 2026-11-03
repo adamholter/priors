@@ -9,7 +9,7 @@ import { presetStyle, resolveAccent, resolvePreset } from "@/lib/page-presets";
 import { useTheme } from "../Theme";
 import { SettingsButton } from "../SiteSettings";
 import { Wordmark } from "../Wordmark";
-import { IndexPage, type Profile } from "./IndexPage";
+import { IndexPage, VisitorBanner, type Profile } from "./IndexPage";
 import { snapshotVersionChanged } from "./profile-version";
 
 /** Render the profile identity immediately, then load calculation rows for its charts. */
@@ -80,8 +80,9 @@ export function ProfileLoader({ profile, version, edit, tab, linkedHighlight, li
   const surface = preset.bg;
   return <div className="page-root min-h-screen" data-dark={preset.dark || undefined} style={presetStyle(preset, resolveAccent(profile.theme, preset)) as React.CSSProperties}>
     <header className="flex items-center px-4 sm:px-8 h-12 sm:min-h-14 border-b hairline" style={{ background: surface }}><Wordmark /><div className="ml-auto flex items-center gap-2"><div className="load-bar w-24 h-6" /><SettingsButton support={false} /></div></header>
+    {!edit && <VisitorBanner name={profile.displayName} surface={surface} />}
     {profile.bannerUrl && <div className="page-banner-frame"><img src={profile.bannerUrl} alt="" className="page-banner" /></div>}
-    <main className={`max-w-[1100px] mx-auto px-5 sm:px-8 grid gap-10 ${profile.bannerUrl ? "pb-12" : "py-8 sm:py-12"}`} aria-busy={!error}>
+    <main className={`max-w-[1100px] mx-auto px-5 sm:px-8 grid gap-6 sm:gap-14 ${profile.bannerUrl ? "pb-12" : "py-5 sm:py-12"}`} aria-busy={!error}>
       <section className={`flex items-start gap-4 sm:gap-5 ${profile.bannerUrl ? "-mt-8 sm:-mt-10" : ""}`}>
         {profile.avatarUrl ? <img src={profile.avatarUrl} alt="" className="w-16 h-16 sm:w-20 sm:h-20 rounded-full object-cover shrink-0" style={{ boxShadow: `0 0 0 4px ${surface}` }} /> : <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-hair-2 grid place-items-center serif text-3xl text-ink-2 shrink-0" style={{ boxShadow: `0 0 0 4px ${surface}` }}>{profile.displayName[0]}</div>}
         <div className={`grid gap-1 min-w-0 ${profile.bannerUrl ? "pt-9 sm:pt-11" : ""}`}><h1 className="text-[28px] sm:text-[34px] leading-tight">{profile.displayName}</h1><p className="text-[13px] text-grey">mypriors.com/{profile.handle}</p>{profile.bio && <p className="text-[15px] text-ink-2 mt-1">{profile.bio}</p>}</div>

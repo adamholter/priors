@@ -54,6 +54,12 @@ export default async function Page() {
           <p className="num text-[14px] text-ink">quality + {USE_LIFT} &times; log2(1 + pages using it)</p>
           <p>One page adds {USE_LIFT} points and three add {USE_LIFT * 2}. Each doubling adds another {USE_LIFT}, so the first few pages count most.</p>
         </section>
+        <section id="cost" className="grid gap-3 scroll-mt-6">
+          <h2 className="text-[22px] text-ink">Cost per task</h2>
+          <p>Cost is what a model actually spent on a benchmark&rsquo;s tasks, never its token price alone. By default it is then priced the way subscribers pay: measured cost times the model&rsquo;s share of API price on a subscription plan.</p>
+          <p>Each model uses its median plan until you pick one for its lab in a cost chart&rsquo;s settings, and the share assumes the plan&rsquo;s full allowance is used. A new OpenAI model with no plan data yet is estimated from Codex&rsquo;s published limits. A model with no plan data at all stays at API price. Plan data comes from Real API Pricing.</p>
+          <p>The Pricing setting in a cost chart switches the whole chart to API prices.</p>
+        </section>
         <section className="grid gap-3">
           <h2 className="text-[22px] text-ink">The other columns</h2>
           <ul className="grid gap-1 list-disc pl-5">

@@ -28,7 +28,7 @@ export function IndexTabs({ indices, activeId, onSelect, onRename, onAdd, onRemo
   };
   return (
     <div className="flex items-center gap-1 min-w-0 max-w-full" aria-label="Your indices">
-      <span className="text-grey text-[13px] mr-1 shrink-0">Index:</span>
+      <span className="text-grey text-[13px] mr-1 shrink-0 max-sm:hidden">Index:</span>
       {/* Tabs scroll sideways when there are many; the + and the reference link stay put so adding is always reachable. */}
       <div className="index-tabs-scroll flex items-center gap-1 min-w-0 overflow-x-auto">
       {indices.map((i) => {
@@ -49,15 +49,15 @@ export function IndexTabs({ indices, activeId, onSelect, onRename, onAdd, onRemo
             {/* Every tab carries its own ×, always visible, so deleting never needs a hover or a click to open it first.
                 Deleting the only index puts the untouched default mix back. */}
             <button type="button" onClick={() => { const next = indices.find((x) => x.id !== i.id); onRemove(i.id); if (on && next) requestAnimationFrame(() => triggers.current.get(next.id)?.focus()); }}
-              className="cap opacity-60 hover:opacity-100 focus-visible:opacity-100 hover:text-ink p-1" data-remove-index={i.id}
+              className="hit cap opacity-60 hover:opacity-100 focus-visible:opacity-100 hover:text-ink p-1" data-remove-index={i.id}
               aria-label={indices.length > 1 ? `Delete index ${labels?.[i.id] ?? i.name}` : "Reset index to the default mix"}
               title={indices.length > 1 ? "Delete this index" : "Reset to the default mix"}>×</button>
           </span>
         );
       })}
       </div>
-      <button type="button" onClick={() => { const added = onAdd(); start(added.id, added.name); }} className="shrink-0 w-6 h-6 rounded-full border hairline grid place-items-center text-grey hover:text-ink hover:border-ink text-[15px] leading-none" title="Copy this index as a new one" aria-label="Copy this index as a new index">+</button>
-      {reference && <button type="button" onClick={reference.onAdd} className="cap ml-2 shrink-0 underline-offset-2 hover:underline hover:text-ink whitespace-nowrap">{reference.label}</button>}
+      <button type="button" onClick={() => { const added = onAdd(); start(added.id, added.name); }} className="hit shrink-0 w-6 h-6 rounded-full border hairline grid place-items-center text-grey hover:text-ink hover:border-ink text-[15px] leading-none" title="Copy this index as a new one" aria-label="Copy this index as a new index">+</button>
+      {reference && <button type="button" onClick={reference.onAdd} className="cap ml-2 shrink-0 underline-offset-2 hover:underline hover:text-ink whitespace-nowrap max-sm:hidden">{reference.label}</button>}
     </div>
   );
 }
