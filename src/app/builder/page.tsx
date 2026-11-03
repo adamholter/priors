@@ -1,3 +1,4 @@
+import { preload } from "react-dom";
 import type { Metadata } from "next";
 import { framedSize, linkFrame } from "@/lib/og-chart";
 import { BuilderLoader } from "@/components/BuilderLoader";
@@ -63,5 +64,7 @@ export default async function Home({ searchParams }: PageProps<"/builder">) {
     if (!snapshot) return <main className="p-10">No benchmark snapshot available.</main>;
     return <PageTransition><Builder snapshot={clientSnapshot(snapshot)} initialIndices={decodeIndices(i)} /></PageTransition>;
   }
+  // Starts the data with the page instead of after its scripts have run. The address has to match the loader's fetch exactly.
+  preload("/api/snapshot?view=core&packed=2", { as: "fetch", crossOrigin: "anonymous" });
   return <PageTransition><BuilderLoader initialIndices={decodeIndices(i)} /></PageTransition>;
 }

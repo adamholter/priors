@@ -3,7 +3,7 @@ import Link from "next/link";
 import { readCoreSnapshot } from "@/data/packed-snapshot";
 import { useEffect, useRef, useState } from "react";
 import type { Snapshot } from "@/data/types";
-import { mergeImports } from "@/lib/import";
+import { mergeImports } from "@/lib/import-merge";
 import { findTab } from "@/lib/page-layout";
 import { presetStyle, resolveAccent, resolvePreset } from "@/lib/page-presets";
 import { useTheme } from "../Theme";
@@ -11,6 +11,7 @@ import { SettingsButton } from "../SiteSettings";
 import { Wordmark } from "../Wordmark";
 import { IndexPage, VisitorBanner, type Profile } from "./IndexPage";
 import { snapshotVersionChanged } from "./profile-version";
+import { avatarSrc } from "@/lib/avatar";
 
 /** Render the profile identity immediately, then load calculation rows for its charts. */
 export function ProfileLoader({ profile, version, edit, tab, linkedHighlight, linkedView, leaders }: {
@@ -84,7 +85,7 @@ export function ProfileLoader({ profile, version, edit, tab, linkedHighlight, li
     {profile.bannerUrl && <div className="page-banner-frame"><img src={profile.bannerUrl} alt="" className="page-banner" /></div>}
     <main className={`max-w-[1100px] mx-auto px-5 sm:px-8 grid gap-6 sm:gap-14 ${profile.bannerUrl ? "pb-12" : "py-5 sm:py-12"}`} aria-busy={!error}>
       <section className={`flex items-start gap-4 sm:gap-5 ${profile.bannerUrl ? "-mt-8 sm:-mt-10" : ""}`}>
-        {profile.avatarUrl ? <img src={profile.avatarUrl} alt="" className="w-16 h-16 sm:w-20 sm:h-20 rounded-full object-cover shrink-0" style={{ boxShadow: `0 0 0 4px ${surface}` }} /> : <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-hair-2 grid place-items-center serif text-3xl text-ink-2 shrink-0" style={{ boxShadow: `0 0 0 4px ${surface}` }}>{profile.displayName[0]}</div>}
+        {profile.avatarUrl ? <img src={avatarSrc(profile.avatarUrl, 80)} alt="" className="w-16 h-16 sm:w-20 sm:h-20 rounded-full object-cover shrink-0" style={{ boxShadow: `0 0 0 4px ${surface}` }} /> : <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-hair-2 grid place-items-center serif text-3xl text-ink-2 shrink-0" style={{ boxShadow: `0 0 0 4px ${surface}` }}>{profile.displayName[0]}</div>}
         <div className={`grid gap-1 min-w-0 ${profile.bannerUrl ? "pt-9 sm:pt-11" : ""}`}><h1 className="text-[28px] sm:text-[34px] leading-tight">{profile.displayName}</h1><p className="text-[13px] text-grey">mypriors.com/{profile.handle}</p>{profile.bio && <p className="text-[15px] text-ink-2 mt-1">{profile.bio}</p>}</div>
       </section>
       <section><div className="flex items-center justify-between gap-3 mb-4"><h2 className="text-[21px] sm:text-[24px]">{(findTab(profile.indices, tab) ?? profile.indices[0])?.name ?? "Rankings"}</h2><Link href="/" className="text-[12px] text-ink-2 underline">Build your own</Link></div>

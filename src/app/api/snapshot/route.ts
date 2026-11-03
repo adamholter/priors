@@ -23,7 +23,13 @@ export async function GET(req: Request) {
   if (requestedVersion && requestedVersion !== snapshot.generatedAt) return NextResponse.json({ error: "Snapshot changed. Reload to see the latest data." }, { status: 409 });
   if (view === "meta") return NextResponse.json({ date: snapshot.date, generatedAt: snapshot.generatedAt, refreshing: !!state.priorsRefresh, canRefresh: localRefresh }, { headers: { "Cache-Control": "no-store" } });
   // `packed=2`: the current pages read the columnar form (`src/data/packed-snapshot.ts`). Plain JSON otherwise: tabs still running an older bundle ask for `packed=1` and read plain JSON just as well.
-  if (view === "core") return NextResponse.json({ snapshot: url.searchParams.get("packed") === "2" ? packSnapshot(coreSnapshot(snapshot)) : clientSnapshot(snapshot) }, { headers: { "Cache-Control": "public, max-age=0, s-maxage=60, stale-while-revalidate=300" } });
+  if (view === "core") {
+    const packed = url.searchParams.get("packed") === "2", cache = "public, max-age=0, s-maxage=60, stale-while-revalidate=300";
+    // The same data as last time costs a returning visitor nothing but this answer.
+    const etag = `"${snapshot.generatedAt}${packed ? "-p2" : ""}"`;
+    if (req.headers.get("if-none-match") === etag) return new Response(null, { status: 304, headers: { ETag: etag, "Cache-Control": cache } });
+    return NextResponse.json({ snapshot: packed ? packSnapshot(coreSnapshot(snapshot)) : clientSnapshot(snapshot) }, { headers: { ETag: etag, "Cache-Control": cache } });
+  }
   return NextResponse.json({ snapshot, refreshing: !!state.priorsRefresh, canRefresh: localRefresh }, { headers: { "Cache-Control": "no-store" } });
 }
 

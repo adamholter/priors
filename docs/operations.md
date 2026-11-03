@@ -29,16 +29,17 @@ Environment variables:
 
 ## Cloudflare Workers migration
 
-Production remains on Vercel. The staging Worker is `https://priors.adamholter.workers.dev`, account `b38802397093b6d21eff2ac4c5159edd`. No DNS or nameserver change has occurred.
+Production is still served by Vercel, but the domain's DNS has moved to Cloudflare: account `b38802397093b6d21eff2ac4c5159edd`, zone `mypriors.com` on the Free website plan, nameservers `dolly.ns.cloudflare.com` and `mike.ns.cloudflare.com`. All 12 records were copied from Porkbun and are DNS only, so traffic still goes straight to Vercel (A apex `76.76.21.21`, CNAME `www` `cname.vercel-dns.com`, Clerk, mail).
 
-- OpenNext 1.20.3 supports this checkout's Next 16.3.4. It uses Node compatibility for Clerk's proxy, WASM resvg for chart/model OG images, and private Workers static assets for the bundled snapshot archive and fonts. The live snapshot feed and intro cards still come from `data-live`. PostHog keeps `/ingest` and its trailing slashes.
-- `npm run cf:build` loads and trims app settings from ignored `.env.cloudflare.production`, then builds locally. It removes OpenNext's copied `.env.local` defaults from the output. Runtime credentials come exclusively from Cloudflare secrets. Vercel provider tokens and Convex deployment keys are excluded from runtime secrets.
-- `npm run cf:preview` runs the Worker locally on 48742 with the same app settings. `npm run cf:deploy` runs CI, optionally deploys Convex through `CONVEX_DEPLOY_KEY`, builds, uploads secrets, and deploys. A lock prevents overlapping deploys. Local builds avoid hosted build-minute charges. A deployment without source changes does not need a push to GitHub or a Vercel build.
-- Wrangler OAuth is restored and stored encrypted with its encryption key in macOS Keychain. Do not commit credentials or print their values.
-- The Free plan deploys the bundle, but model OG and history requests exceed its CPU limit. A live trace on 2026-10-21 recorded `exceededCpu` after 1,565 ms on `/models/gpt-6-sol/opengraph-image`. The same route and history work locally under workerd. Cloudflare Billing reports no payment method on file. Workers Paid starts at $5/month plus usage and is required before the production parity gate can pass.
-- Production Clerk keys reject the `workers.dev` hostname. Verify sign-in on a temporary subdomain of `mypriors.com` backed by the Worker, or in an isolated browser that resolves the production hostname to a test origin. Do not weaken Clerk origin restrictions.
-- Before cutover, compare home, model pages, leaderboard, profile pages, every API route, all OG card types, intro cards, sitemap, Clerk, Convex, and a uniquely tagged PostHog event read back from project 649581. Mirror the complete Porkbun DNS inventory, including MX, TXT, Clerk and verification records, and retain Vercel's DNS targets before changing nameservers or routes. Re-run the checks on the real domain after cutover.
-- Rollback before cutover requires no action. After a future cutover, restore the recorded Vercel DNS targets or remove the Worker route while retaining Vercel as the origin. Keep the Vercel project, domains, environment and deployments intact.
+- Two Workers: `priors` (the app, about 27 MB, slow to start cold) and `priors-edge` (a small front Worker with a service binding to the app, `edge/worker.ts`). The front Worker serves cached pages and asks the app for the rest (`src/lib/edge-cache.ts`). Workers Paid is active.
+- **The page cache only applies to a browser user agent.** A bare `curl` always measures an uncached render, so send a browser `User-Agent` when testing speed.
+- `cf.mypriors.com` is the test address, a Worker custom domain on `priors-edge`, attached by hand with `wrangler deploy --config edge/wrangler.jsonc --domain cf.mypriors.com`. Production Clerk keys reject `workers.dev`, so sign-in can only be tested on a subdomain of `mypriors.com`.
+- `npm run cf:build` loads and trims app settings from ignored `.env.cloudflare.production`, then builds locally. It removes OpenNext's copied `.env.local` defaults from the output. Runtime credentials come only from Cloudflare secrets. Vercel provider tokens and Convex deployment keys are excluded.
+- `npm run cf:preview` runs the Worker locally on 48742. `npm run cf:deploy` runs CI, optionally deploys Convex through `CONVEX_DEPLOY_KEY`, builds, uploads secrets, and deploys. A lock prevents overlapping deploys. Local builds avoid hosted build-minute charges.
+- Wrangler OAuth is stored encrypted with its key in macOS Keychain. Do not commit credentials or print them.
+- **Left before the switch:** test a Convex save, the assistant while signed in, a PostHog event read back from project 649581 and the Google sign-in return trip on `cf.mypriors.com`. Then attach `mypriors.com` and `www` to `priors-edge`, re-run `scripts/verify/cloudflare-parity.mjs`, set up deploys from GitHub, and turn off Vercel's auto-deploy.
+- **Rollback.** Before the switch, nothing to do. After it, restore the DNS-only records above, or remove the Worker's custom domains. Keep the Vercel project, domains, environment and deployments intact until Cloudflare has run clean for a while.
+- **After the switch:** move the snapshot archive out of git to R2. Production builds on Vercel still read it from the checkout, so it stays until then.
 
 ## The scrape job
 
@@ -64,7 +65,9 @@ The job pushes to `main` all day, so do feature work in a worktree and expect `m
 
 ## Analytics
 
-PostHog (US), proxied through `/ingest`. It downloads after the page's load event, once the browser is idle (at the latest 2 seconds after that), or at the first `track()`. A visitor who leaves before then is not counted. Events go through `track()` in `src/lib/analytics.ts`. Signed-in events carry the Clerk user id and name, never the email. `scripts/posthog-dashboard.mjs <project_id>` recreates the dashboard; keys come from the macOS keychain.
+PostHog (US), proxied through `/ingest`. It downloads after the page's load event, once the browser is idle (at the latest 2 seconds after that), or at the first `track()`. A visitor who leaves before then is not counted. Events go through `track()` in `src/lib/analytics.ts`. Signed-in events carry the Clerk user id and name, never the email. `scripts/ops/posthog-dashboard.mjs <project_id>` recreates the dashboard; keys come from the macOS keychain.
+
+Errors: `capture_exceptions` sends uncaught errors to PostHog error tracking, and `src/app/error.tsx` and `global-error.tsx` report what React catches (`reportError`). Errors before PostHog has loaded are only caught if a boundary shows them.
 
 ## Browser storage
 
@@ -79,6 +82,7 @@ All keys are prefixed `priors:`.
 | `pending`, `return` | The index and page to come back to after sign-in |
 | `chart:<key>` | Per-chart display preferences |
 | `theme` | Pinned light or dark |
+| `seen-models` | Every model this visitor has been shown, for the New label |
 | `imports` | Benchmarks imported without an account |
 | `via` | The profile a visitor arrived from, for the similarity line |
 | `share-hint`, `assistant-mode`, `assistant-hint`, `assistant-size` | Small UI state |

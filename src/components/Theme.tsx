@@ -100,17 +100,3 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const value = useMemo(() => ({ mode, dark, setMode, siteTheme, setSiteTheme }), [mode, dark, setMode, siteTheme, setSiteTheme]);
   return <ThemeContext.Provider value={value}><ChartPaletteContext.Provider value={palette}>{children}</ChartPaletteContext.Provider></ThemeContext.Provider>;
 }
-
-/** Light/dark switch. Starts from the system setting; a click pins the other scheme. */
-export function ThemeToggle({ className = "icon-btn" }: { className?: string }) {
-  const { dark, setMode } = useTheme();
-  const label = dark ? "Switch to light mode" : "Switch to dark mode";
-  return (
-    <button type="button" className={`theme-toggle ${className}`} aria-label={label} title={label} onClick={() => setMode(dark ? "light" : "dark")}>
-      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden="true">
-        <g className="theme-sun"><circle cx="12" cy="12" r="4" /><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M5.3 18.7l1.6-1.6M17.1 6.9l1.6-1.6" /></g>
-        <path className="theme-moon" d="M19.5 14.6A7.8 7.8 0 0 1 9.4 4.5a7.8 7.8 0 1 0 10.1 10.1Z" />
-      </svg>
-    </button>
-  );
-}

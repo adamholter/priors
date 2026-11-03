@@ -122,7 +122,7 @@ body:has(.done-dialog[open]){overflow:hidden}
 .duel-name{font:400 clamp(32px,3.6vw,48px)/1.02 var(--font-serif);letter-spacing:-.025em;margin:auto 0 14px;padding-top:40px;overflow-wrap:anywhere}
 .duel-meta{font:10px/1.7 var(--font-mono);color:var(--ob-8a8a80)}
 .duel-stamp{position:absolute;top:22px;right:20px;display:flex;align-items:center;gap:5px;font:11px var(--font-mono);letter-spacing:.04em;text-transform:uppercase;color:var(--indigo);opacity:var(--pull,0);transform:translateY(calc((1 - var(--pull,0)) * -4px))}
-.duel-vs{align-self:center;justify-self:center;font:italic 22px var(--font-serif);color:var(--ob-9a9c92);transition:color .2s,opacity .2s}
+.duel-vs{align-self:center;justify-self:center;font:italic 22px var(--font-newsreader-italic),var(--font-serif);color:var(--ob-9a9c92);transition:color .2s,opacity .2s}
 .duel-vs.toward-left,.duel-vs.toward-right{font:400 34px/1 var(--font-sans);color:var(--indigo)}
 .leaving-left .duel-vs,.leaving-right .duel-vs,.leaving-tie .duel-vs{opacity:0}
 .dragging .duel-card{transition:transform .08s linear,opacity .08s linear,box-shadow .08s,border-color .08s,filter .08s}

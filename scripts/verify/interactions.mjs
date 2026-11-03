@@ -175,6 +175,23 @@ try {
     } finally { await context.close(); }
   });
 
+  await check("the builder downloads its data once, and a returning visitor gets no body back", async () => {
+    const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+    const p = await context.newPage();
+    try {
+      await p.goto(`${BASE}/builder`, { waitUntil: "domcontentloaded" });
+      await p.locator(".ranking-list [data-k]").first().waitFor({ timeout: 30000 });
+      // The preload and the loader's fetch may both show up, but the second must be answered from the first's copy.
+      const bodies = await p.evaluate(() => performance.getEntriesByType("resource").filter((e) => e.name.includes("view=core") && e.encodedBodySize > 0).length);
+      assert.equal(bodies, 1, `one download, not ${bodies}`);
+      const first = await context.request.get(`${BASE}/api/snapshot?view=core&packed=2`);
+      const etag = first.headers().etag;
+      assert.ok(etag, "the data carries a version tag");
+      const again = await context.request.get(`${BASE}/api/snapshot?view=core&packed=2`, { headers: { "if-none-match": etag } });
+      assert.equal(again.status(), 304);
+    } finally { await context.close(); }
+  });
+
   await check("site settings opens as a named modal and Escape restores focus", async () => {
     const trigger = page.getByRole("button", { name: "Settings", exact: true });
     await trigger.focus();

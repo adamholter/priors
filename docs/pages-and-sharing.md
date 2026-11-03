@@ -66,7 +66,7 @@
 - `/og` takes an index (`i=`), `design`, `date`, `theme` (a preset id), `scheme` (`light` or `dark`), `handle`, and `c` for a single chart.
 - Chart cards are real ECharts renders: `src/lib/og-chart.ts` builds the same option the page uses and rasterizes it with resvg.
 - Dark cards (`SCHEMES` in `og.tsx`) use dark-tuned lab colors, dark text inside bars, an indigo spotlight panel, and a QR code on a light tile.
-- The share dialog is `src/components/ShareCards.tsx`. It starts in the page's theme and mode, can pick another theme, and has a Light/Dark switch for themes that have both. From the builder it carries `theme` and `scheme` into the posted `/builder` link so the unfurl matches the preview. From a profile page it posts the page's own URL, so the unfurl follows the saved page theme.
+- The Share button opens a menu (Share on X, Copy link, Download image, Choose a card design), which use the default card. The share dialog, one step further, is `src/components/ShareCards.tsx`. It starts in the page's theme and mode, can pick another theme, and has a Light/Dark switch for themes that have both. From the builder it carries `theme` and `scheme` into the posted `/builder` link so the unfurl matches the preview. From a profile page it posts the page's own URL, so the unfurl follows the saved page theme.
 - X's web intent cannot attach an image, so the dialog offers Download for that.
 - The three intro cards shown in "How it works" are pre-rendered into `public/intro/` (light and dark) by `scripts/scrape/intro-cards.ts` on every scrape.
 

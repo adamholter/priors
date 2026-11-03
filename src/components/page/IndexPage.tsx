@@ -44,6 +44,7 @@ import { setHighlightParams, viewParam } from "@/lib/highlight-link";
 import "./page-themes.css";
 import { VIA_KEY } from "@/lib/share";
 import { useNewModels } from "@/lib/seen-models";
+import { avatarSrc } from "@/lib/avatar";
 
 /** Stored shapes come from the Convex validators, so the page and the database can't disagree. */
 export type { Section };
@@ -293,7 +294,7 @@ export function IndexPage({ profile, snapshot, edit, tab: linkedTab, linkedHighl
       {p.bannerUrl && <div className="page-banner-frame"><img src={p.bannerUrl} alt="" className="page-banner" /></div>}
       <main className={`max-w-[1100px] mx-auto px-5 sm:px-8 grid gap-6 sm:gap-14 ${p.bannerUrl ? "pb-12" : "py-5 sm:py-12"}`}>
         <section className={`flex items-start gap-4 sm:gap-5 ${p.bannerUrl ? "-mt-8 sm:-mt-10" : ""}`}>
-          {p.avatarUrl ? <img src={p.avatarUrl} alt="" className="w-16 h-16 sm:w-20 sm:h-20 rounded-full object-cover shrink-0" style={{ boxShadow: `0 0 0 4px ${surface}` }} /> : <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-hair-2 grid place-items-center serif text-3xl text-ink-2 shrink-0" style={{ boxShadow: `0 0 0 4px ${surface}` }}>{p.displayName[0]}</div>}
+          {p.avatarUrl ? <img src={avatarSrc(p.avatarUrl, 80)} alt="" className="w-16 h-16 sm:w-20 sm:h-20 rounded-full object-cover shrink-0" style={{ boxShadow: `0 0 0 4px ${surface}` }} /> : <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-hair-2 grid place-items-center serif text-3xl text-ink-2 shrink-0" style={{ boxShadow: `0 0 0 4px ${surface}` }}>{p.displayName[0]}</div>}
           <div className={`grid gap-1 sm:gap-1.5 min-w-0 ${p.bannerUrl ? "pt-9 sm:pt-11" : ""}`}>
             <h1 className="text-[28px] sm:text-[34px] leading-tight">{editing ? <InlineText editing label="Your name" value={p.displayName} onChange={(displayName) => change({ ...p, displayName })} /> : p.displayName}</h1>
             <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-[13px] text-ink-2">

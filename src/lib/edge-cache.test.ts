@@ -24,6 +24,20 @@ describe("edgeCached", () => {
     expect(t.origin).toHaveBeenCalledTimes(1);
   });
 
+  it("answers a browser that already holds this version without the body", async () => {
+    const t = setup("public, max-age=0, s-maxage=60");
+    t.origin.mockImplementation(async () => new Response("body", { headers: { "cache-control": "public, max-age=0, s-maxage=60", etag: '"v1"' } }));
+    await t.go("https://x.test/api/snapshot?view=core");
+    await Promise.all(t.work);
+    const same = await t.go("https://x.test/api/snapshot?view=core", { headers: { "user-agent": CHROME, "if-none-match": '"v1"' } });
+    expect(same.status).toBe(304);
+    expect(same.headers.get("etag")).toBe('"v1"');
+    expect(await same.text()).toBe("");
+    const older = await t.go("https://x.test/api/snapshot?view=core", { headers: { "user-agent": CHROME, "if-none-match": '"v0"' } });
+    expect(older.status).toBe(200);
+    expect(await older.text()).toBe("body");
+  });
+
   it("serves an anonymous page from the edge and never lets the browser keep it", async () => {
     const t = setup("private, no-cache, no-store");
     expect((await t.go("https://x.test/builder")).headers.get("x-priors-edge")).toBe("miss");

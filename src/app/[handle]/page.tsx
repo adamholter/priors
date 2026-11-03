@@ -1,3 +1,4 @@
+import { preload } from "react-dom";
 import { ConvexHttpClient } from "convex/browser";
 import { framedSize, linkFrame } from "@/lib/og-chart";
 import { RADAR_PARAM_KEYS } from "@/components/chart/radar-view";
@@ -103,5 +104,7 @@ export default async function Page({ params, searchParams }: PageProps<"/[handle
   const linkedView = typeof sp.hv === "string" && sp.edit !== "1" ? open?.id : undefined;
   if (await isSearchBot()) return <PageTransition><IndexPage profile={p} snapshot={clientSnapshot(snapshot)} edit={false} tab={tab} linkedHighlight={linkedHighlight} linkedView={linkedView} /></PageTransition>;
   const leaders = open ? rankingRows(computeIndex(snapshot, { ...open, variants: "all" }, PAGE_VIEW).ranked, open).slice(0, 10).map((r) => ({ name: r.model.name, score: r.score })) : [];
+  // Starts the data with the page instead of after its scripts have run. The address has to match the loader's fetch exactly.
+  preload(`/api/snapshot?view=core&packed=2&version=${encodeURIComponent(snapshot.generatedAt)}`, { as: "fetch", crossOrigin: "anonymous" });
   return <PageTransition><ProfileLoader key={`${p.handle}-${snapshot.generatedAt}`} profile={p} version={snapshot.generatedAt} edit={sp.edit === "1"} tab={tab} linkedHighlight={linkedHighlight} linkedView={linkedView} leaders={leaders} /></PageTransition>;
 }

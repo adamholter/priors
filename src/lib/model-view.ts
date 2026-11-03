@@ -4,7 +4,7 @@ import { tokenPrice, type TokenPrice } from "@/data/subscription";
 import type { Benchmark, Snapshot } from "@/data/types";
 import { freeFloor, metricPanels } from "@/lib/metrics";
 import { encodeIndices, prettyQuery } from "@/lib/url";
-import { mergeImports } from "@/lib/import";
+import { mergeImports } from "@/lib/import-merge";
 import { radarModelsFor, radarRows } from "@/components/chart/radar-view";
 import type { RadarAxis, RadarModel, RadarPoint } from "@/components/chart/radar-data";
 import type { RankingOption } from "@/lib/model-ranking-param";

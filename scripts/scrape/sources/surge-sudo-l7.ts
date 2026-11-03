@@ -22,14 +22,15 @@ export function parseSudoL7(html: string): RawRow[] {
     const label = `${brand} ${name}`.trim();
     const score = text(block.match(/<[^>]*\bdata-score(?:\s|=|>)[^>]*>([^<]*)<\//i)?.[1] ?? "");
     const value = Number(score);
+    // The board has at times named the harness in brackets; it is only kept when published.
     const harness = name.match(/\[([^\]]+)\]\s*$/)?.[1];
     const effort = name.match(/\((?:Adaptive\/)?(none|minimal|low|medium|high|xhigh|max)(?:\s+reasoning)?\)/i)?.[1]?.toLowerCase();
-    if (!brand || !name || !harness || !effort || !/^\d+(?:\.\d+)?$/.test(score) || value < 0 || value > 100) {
+    if (!brand || !name || !effort || !/^\d+(?:\.\d+)?$/.test(score) || value < 0 || value > 100) {
       throw new Error(`sudo L7 leaderboard schema changed: ${label || "missing model"}`);
     }
     return {
-      benchmarkId: SUDO_L7_ID, modelLabel: `${brand} ${name.replace(/\s*\([^)]*\)\s*\[[^\]]+\]\s*$/, "")}`.trim(),
-      effort, value, harness, sourceUrl: SUDO_L7_PAGE,
+      benchmarkId: SUDO_L7_ID, modelLabel: `${brand} ${name.replace(/\s*\([^)]*\)\s*(?:\[[^\]]+\]\s*)?$/, "")}`.trim(),
+      effort, value, ...(harness ? { harness } : {}), sourceUrl: SUDO_L7_PAGE,
       // The static page's rank fields all read 1; do not pass them off as rankings.
       note: `Published configuration: ${label}`,
     };

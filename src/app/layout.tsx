@@ -8,7 +8,9 @@ import { THEME_SCRIPT } from "@/components/Theme";
 import { THEME_CRITICAL_CSS } from "@/lib/theme-critical";
 import { SITE_DESCRIPTION, SITE_IMAGE, SITE_NAME } from "@/lib/site-meta";
 
-const newsreader = Newsreader({ variable: "--font-newsreader", subsets: ["latin"], style: ["normal", "italic"], axes: ["opsz"] });
+const newsreader = Newsreader({ variable: "--font-newsreader", subsets: ["latin"], axes: ["opsz"] });
+// Only the matchups' "vs" is italic, so this cut downloads when that shows, not on every page.
+const newsreaderItalic = Newsreader({ variable: "--font-newsreader-italic", subsets: ["latin"], style: "italic", axes: ["opsz"], preload: false });
 const inter = Inter({ variable: "--font-inter", subsets: ["latin"] });
 const jetbrains = JetBrains_Mono({ variable: "--font-jetbrains", subsets: ["latin"] });
 // Page-theme fonts: only downloaded when a themed page actually uses them.
@@ -39,7 +41,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`${newsreader.variable} ${inter.variable} ${jetbrains.variable} ${switzer.variable} ${dmSans.variable} ${sourceSerif.variable} ${geist.variable} ${geistMono.variable} ${plexMono.variable} ${outfit.variable} ${poppins.variable} ${lora.variable} ${excalifont.variable} ${comicShanns.variable} h-full antialiased`} suppressHydrationWarning>
+    <html lang="en" className={`${newsreader.variable} ${newsreaderItalic.variable} ${inter.variable} ${jetbrains.variable} ${switzer.variable} ${dmSans.variable} ${sourceSerif.variable} ${geist.variable} ${geistMono.variable} ${plexMono.variable} ${outfit.variable} ${poppins.variable} ${lora.variable} ${excalifont.variable} ${comicShanns.variable} h-full antialiased`} suppressHydrationWarning>
       <head><style dangerouslySetInnerHTML={{ __html: THEME_CRITICAL_CSS }} /><script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} suppressHydrationWarning /></head>
       <body className="min-h-full flex flex-col">
         <NavProgress /><Providers>{children}</Providers>

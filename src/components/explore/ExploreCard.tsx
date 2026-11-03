@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { avatarSrc } from "@/lib/avatar";
 import type { CSSProperties } from "react";
 import { markColor, paletteFor } from "@/components/chart/theme-tokens";
 import { useTheme } from "@/components/Theme";
@@ -36,7 +37,7 @@ export function ExploreCard({ c }: { c: ExploreCardData }) {
     <div className="ex-head">
       {c.avatarUrl
         // eslint-disable-next-line @next/next/no-img-element
-        ? <img src={c.avatarUrl} alt="" width={36} height={36} className="ex-avatar" style={{ width: 36, height: 36 }} />
+        ? <img src={avatarSrc(c.avatarUrl, 36)} alt="" width={36} height={36} loading="lazy" decoding="async" className="ex-avatar" style={{ width: 36, height: 36 }} />
         : <span aria-hidden="true" className="ex-avatar ex-avatar-ph" style={{ width: 36, height: 36 }}>{c.name.slice(0, 1).toUpperCase()}</span>}
       <div className="ex-who"><div className="ex-name">{c.name}</div><div className="cap ex-sub">@{c.handle} · {c.when}</div></div>
       {c.x && <a className="ex-chip" href={`https://x.com/${c.x}`} target="_blank" rel="noreferrer" onClick={() => track("explore_x_clicked", { handle: c.handle })} aria-label={`${c.name} on X`}><svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" /></svg>@{c.x}</a>}

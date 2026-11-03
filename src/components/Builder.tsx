@@ -29,7 +29,8 @@ import { DEFAULT_LABEL, REFERENCE_ID, indexNote, isPristineDefault, tabLabel, wi
 import { CalculationSettings, type CalculationSettingsHandle } from "./CalculationSettings";
 import { ChartSettings } from "./chart/ChartSettings";
 import { HeaderAuth } from "./HeaderAuth";
-import { mergeImports, type ImportPayload } from "@/lib/import";
+import { mergeImports } from "@/lib/import-merge";
+import type { ImportPayload } from "@/lib/import";
 import { SourceStatus } from "./SourceStatus";
 import { effectiveBasis } from "@/data/subscription";
 import { costDescription, hasSubscriptionPrices, taskMetricOptions } from "@/data/task-metrics";

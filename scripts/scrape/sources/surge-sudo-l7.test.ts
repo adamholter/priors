@@ -16,6 +16,11 @@ describe("Surge sudo L7", () => {
     expect(data.rows).toEqual([]);
     expect(parseSudoL7(row("Claude", "Opus 5.5 (Adaptive/Max) [Claude Code]", "41.7"))[0].benchmarkId).toBe("bg-sudo-l7");
   });
+  it("reads a board that no longer names the harness", () => {
+    const [r] = parseSudoL7(row("Claude", "Sonnet 5.5 (Adaptive/Max)", "50.6"));
+    expect(r).toMatchObject({ modelLabel: "Claude Sonnet 5.5", effort: "max", value: 50.6 });
+    expect(r.harness).toBeUndefined();
+  });
   it("keeps source scores, effort and harness, excluding the related benchmark cards", () => {
     const rows = parseSudoL7([
       row("Claude", "Opus 5.5 (Adaptive/Max) [Claude Code]", "41.7"),

@@ -57,6 +57,11 @@ describe("Adam's published benchmarks", () => {
     expect(parseAgiPilled(d).rows[0]).toMatchObject({ value: 150, ci: [125, 175] });
   });
 
+  it("accepts a ClutterBench build time with an offset and microseconds", () => {
+    expect(parseClutterBench({ ...clutter(), builtAt: "2026-10-27T15:35:13.469651+00:00" }).rows.length).toBeGreaterThan(0);
+    expect(() => parseClutterBench({ ...clutter(), builtAt: "last Tuesday" })).toThrow();
+  });
+
   it("keeps raw and simple ClutterBench scores separate and excludes showcase posts", () => {
     const r = parseClutterBench(clutter());
     expect(r.rows.map(row => [row.benchmarkId, row.value, row.effort])).toEqual([

@@ -4,7 +4,7 @@ import { useCoreSnapshot } from "../use-core-snapshot";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { effectiveBasis } from "@/data/subscription";
 import { hasSubscriptionPrices } from "@/data/task-metrics";
-import { mergeImports } from "@/lib/import";
+import { mergeImports } from "@/lib/import-merge";
 import { PRESET_IDS, threeDUrl } from "@/lib/compare-ref";
 import { formulaInputs, chartLabel } from "@/lib/metrics";
 import { metaFor, placePoints, type Point3 } from "@/lib/three-d";

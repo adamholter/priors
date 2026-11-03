@@ -35,7 +35,7 @@ The builder grows with the screen (`src/components/builder.css`, `builder-size.t
 
 ## Light and dark
 
-`src/components/Theme.tsx`. System default; the Mode control in Settings pins `localStorage["priors:theme"]` (mirrored in the `priors_theme` cookie). Published pages keep the moon toggle. No flash of white for a dark system: the root `viewport` declares `colorScheme: "light dark"`, and an inline `<style>` (`THEME_CRITICAL_CSS` in `src/lib/theme-critical.ts`) paints the dark page color while `<html>` has no `data-theme`, so the first paint is dark even before the stylesheet or the head script run. The head script then sets the real scheme.
+`src/components/Theme.tsx`. System default; the Mode control in Settings pins `localStorage["priors:theme"]` (mirrored in the `priors_theme` cookie). No flash of white for a dark system: the root `viewport` declares `colorScheme: "light dark"`, and an inline `<style>` (`THEME_CRITICAL_CSS` in `src/lib/theme-critical.ts`) paints the dark page color while `<html>` has no `data-theme`, so the first paint is dark even before the stylesheet or the head script run. The head script then sets the real scheme.
 
 **Site theme.** The gear in every header (`SiteSettings.tsx`) opens Settings: any page theme (`THEME_CHOICES`) can be the visitor's theme for the builder, Explore, model pages and onboarding. `src/lib/site-theme.ts` turns a preset into site tokens (`presetStyle` plus the wordmark i and onboarding's surface tokens) and sets them inline on `<html>`; Priors sets nothing. `localStorage["priors:site-theme"]` holds the id and both modes' tokens so the no-flash script paints them before React. Single-mode themes force the scheme (Midnight is always dark). The root `ChartPaletteContext` uses `paletteFor(preset)`, so lab colors and chart style follow. `.page-root` sets its owner's tokens on top, so published pages are unchanged; family stylesheets (layout details) apply only on pages.
 
@@ -45,10 +45,16 @@ The picker also has "Explore themes", a library of extra looks (see `docs/pages-
 - The root `ChartPaletteContext` switches charts between `LIGHT_PALETTE` and `DARK_PALETTE` (or the site theme's palette).
 - Lab colors have dark-tuned versions. Never read `lab.color` directly for display: use `markColor()` in charts and `useLabColor()` in the DOM.
 
+## Phones
+
+Below 1024px the builder is one column in this order: ranking (top 10, then Show all), the mix, the other charts (`builder.css`). `.builder-charts` becomes `display: contents` so the mix can sit between its children. The header is two short rows: the date moves into the mix's caption, and "Compare with the default mix" moves under it. Long benchmark names wrap there. Any small control takes `.hit`, which gives it a 40px tap area on touch screens without changing how it looks. The assistant button steps aside while the mix's sliders pass under it.
+
 ## Motion
 
 - Rankings are keyed rows moving between list-local positions. See `docs/charts.md` for why viewport FLIP is banned.
 - Animations honor `prefers-reduced-motion`.
 - Page transitions use `PageTransition.tsx` and `transitionTypes` on links.
+- `NavProgress.tsx` answers a link's click at once with a thin bar until the new page arrives. Between the click and the arrival a `history.replaceState` makes the router drop the navigation, so URL writers on a timer check `leaving()` first (`nav-progress.ts`).
+- Controls whose change redraws charts (model checkboxes, the cost chart's scatter and bars switch) use `useOptimistic` and `startTransition`: the control answers now and the charts follow.
 
 **Disclosures and dropdowns.** A collapsible section's summary takes `.disclosure` (`.disclosure-inline` when it sits in running text): one drawn chevron on the right, never a text glyph or the browser marker. Every `<select>` gets the same chevron from `globals.css`, and long values end in an ellipsis clear of it.

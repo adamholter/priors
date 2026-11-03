@@ -1,0 +1,7 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "entry": ["src/app/**/*.{ts,tsx}", "src/proxy.ts", "edge/worker.ts", "open-next.config.ts", "convex/*.ts", "scripts/**/*.{ts,mts,mjs}", "next.config.ts", "vitest.config.*"],
+  "project": ["src/**/*.{ts,tsx}", "scripts/**/*.{ts,mts,mjs}", "convex/**/*.ts", "edge/**/*.ts"],
+  "ignore": ["convex/_generated/**", "public/cli/**"],
+  "ignoreExportsUsedInFile": true
+}

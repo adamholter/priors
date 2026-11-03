@@ -1,7 +1,7 @@
 import { computeIndex, defaultConfig, PAGE_VIEW, type IndexConfig } from "../../engine";
 import { defaultPriorsMix } from "../../onboarding/defaults";
 import type { Snapshot } from "../../data/types";
-import { mergeImports } from "../../lib/import";
+import { mergeImports } from "../../lib/import-merge";
 import { placeModels, type Placed } from "../../lib/compare";
 import { pageIndex, pageRef, type Ref } from "../../lib/compare-ref";
 import { tabKey } from "../../lib/page-layout";

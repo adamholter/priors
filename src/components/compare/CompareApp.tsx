@@ -52,4 +52,3 @@ export function CompareApp({ initialA, initialB, wantMine, top: top0, same: same
     <SiteFooter />
   </main>;
 }
-export { TOPS };

@@ -1,10 +1,10 @@
 import * as echarts from "echarts/core";
 import { LineChart, ScatterChart, BarChart } from "echarts/charts";
-import { GridComponent, TooltipComponent, DatasetComponent, MarkLineComponent, MarkAreaComponent, GraphicComponent, DataZoomComponent } from "echarts/components";
+import { GridComponent, TooltipComponent, MarkLineComponent, MarkAreaComponent, GraphicComponent } from "echarts/components";
 import { SVGRenderer } from "echarts/renderers";
 import { LabelLayout, UniversalTransition } from "echarts/features";
 
-echarts.use([LineChart, ScatterChart, BarChart, GridComponent, TooltipComponent, DatasetComponent, MarkLineComponent, MarkAreaComponent, GraphicComponent, DataZoomComponent, SVGRenderer, LabelLayout, UniversalTransition]);
+echarts.use([LineChart, ScatterChart, BarChart, GridComponent, TooltipComponent, MarkLineComponent, MarkAreaComponent, GraphicComponent, SVGRenderer, LabelLayout, UniversalTransition]);
 
 export * from "./theme-tokens";
 import { DARK_PALETTE, LIGHT_PALETTE, themeSpec, type ChartPalette } from "./theme-tokens";

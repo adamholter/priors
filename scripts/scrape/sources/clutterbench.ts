@@ -6,7 +6,8 @@ const EFFORTS = ["none", "minimal", "low", "medium", "high", "xhigh", "max"] as 
 const effortSchema = z.enum(EFFORTS);
 const resultSchema = z.object({ n: z.number().int().positive(), clutter: z.number().min(0).max(100) });
 const dataSchema = z.object({
-  builtAt: z.iso.datetime(), grader: z.literal("consensus-v4"),
+  // Newer builds stamp "+00:00" and microseconds.
+  builtAt: z.iso.datetime({ offset: true }), grader: z.literal("consensus-v4"),
   tasks: z.record(z.string(), z.string()), showcase: z.array(z.string()),
   models: z.record(z.string(), z.object({ effort: effortSchema.optional() })),
   board: z.array(z.object({ model: z.string().min(1), name: z.string().min(1), effort: effortSchema.optional(), raw: resultSchema, simple: resultSchema })).min(1),

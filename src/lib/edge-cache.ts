@@ -26,6 +26,12 @@ function forVisitor(response: Response, state: "hit" | "stale" | "miss"): Respon
   return visitor;
 }
 
+/** The browser already holds this version: answer without the body. */
+function revalidated(request: Request, response: Response): Response {
+  const tag = response.headers.get("etag");
+  return tag && request.headers.get("if-none-match") === tag ? new Response(null, { status: 304, headers: response.headers }) : response;
+}
+
 /** A copy for the Cache API, or nothing when the response isn't shareable. `fresh` seconds serve as they are, `stale` more serve while a new copy is fetched. */
 function storable(response: Response, page: boolean, build: string): { copy: Response } | undefined {
   if (!response.ok || response.headers.has("set-cookie")) return undefined;
@@ -67,9 +73,9 @@ export async function edgeCached(request: Request, cache: Cache, defer: (work: P
       const visitor = new Response(hit.body, hit);
       if (original) { visitor.headers.set("cache-control", original); visitor.headers.delete("x-priors-control"); }
       const age = (now - Number(at)) / 1000;
-      if (age < Number(fresh)) return forVisitor(visitor, "hit");
+      if (age < Number(fresh)) return revalidated(request, forVisitor(visitor, "hit"));
       defer(update().catch(() => undefined));
-      return forVisitor(visitor, "stale");
+      return revalidated(request, forVisitor(visitor, "stale"));
     }
   }
   const { response, stored } = await update();
