@@ -61,7 +61,7 @@ export function blendedApiPrice(p: Prices, mix: TokenMix): number {
 export const CODEX_LIMITS_BENCHMARK = "codex-plus-messages";
 /** The workload assumed when usage can't tell: Real API Pricing's standard convention. */
 export const STANDARD_MIX: TokenMix = { cache: 0.97, input: 0.025, output: 0.005 };
-const T3_USAGE_BENCHMARK = "t3-usage-share";
+export const T3_USAGE_BENCHMARK = "t3-usage-share";
 const median = (xs: number[]) => { const s = [...xs].sort((a, b) => a - b); return s.length % 2 ? s[(s.length - 1) / 2] : (s[s.length / 2 - 1] + s[s.length / 2]) / 2; };
 
 /** Each model's measured token mix (`scripts/scrape/sources/slopalytics.ts`). Models with too little T3 Code usage are absent. */
@@ -74,7 +74,7 @@ export function measuredTokenMixes(snapshot: Snapshot): Map<string, MeasuredToke
   return out;
 }
 
-const listPrices = (m: NonNullable<Snapshot["variants"][number]["sourceModel"]>["metadata"] | undefined): Prices | undefined =>
+export const listPrices = (m: NonNullable<Snapshot["variants"][number]["sourceModel"]>["metadata"] | undefined): Prices | undefined =>
   m && positive(m.price1mInputTokens) && positive(m.price1mOutputTokens) ? { input: m.price1mInputTokens, output: m.price1mOutputTokens, cached: positive(m.cacheHitPrice) ? m.cacheHitPrice : undefined, cacheWrite: positive(m.cacheWritePrice) ? m.cacheWritePrice : undefined } : undefined;
 
 /** What one million of a model's tokens cost, at its measured mix when it has one and otherwise its plan's assumed mix. */

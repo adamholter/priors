@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { computeIndex } from "@/engine";
 import { loadSnapshot } from "@/data/load";
+import { subscriptionPrices } from "@/data/subscription";
 import { benchmarkIndex, benchmarkSnapshot, benchmarkView, directoryItems, hasOwnCost } from "./benchmark-page";
 
 describe("benchmark pages", async () => {
@@ -23,6 +24,31 @@ describe("benchmark pages", async () => {
     const a = computeIndex(snap, benchmarkIndex(snap, id), benchmarkView(snap, id)), b = computeIndex(small, benchmarkIndex(small, id), benchmarkView(small, id));
     expect(b.ranked.length).toBeGreaterThan(10);
     expect(b.ranked.map((r) => [r.variant.id, r.score, r.costUsd])).toEqual(a.ranked.map((r) => [r.variant.id, r.score, r.costUsd]));
+  });
+
+  it("prices every model at the same plan share as the builder, on every benchmark's page", () => {
+    const openAiPlans = { openai: "ChatGPT Plus" };
+    for (const chosen of [{}, openAiPlans]) {
+      const full = subscriptionPrices(snap, chosen);
+      for (const b of snap.benchmarks) {
+        if (b.proxy) continue;
+        const small = benchmarkSnapshot(snap, b.id), page = subscriptionPrices(small, chosen);
+        const shown = new Set(computeIndex(small, benchmarkIndex(small, b.id), benchmarkView(small, b.id)).ranked.map((r) => r.model.id));
+        for (const id of shown) expect([b.id, id, page.get(id)?.plan, page.get(id)?.ratio]).toEqual([b.id, id, full.get(id)?.plan, full.get(id)?.ratio]);
+      }
+    }
+  }, 120_000);
+
+  it("keeps a model priced from Codex limits subsidized on the benchmark page, and leaves out the usage series", () => {
+    const estimated = [...subscriptionPrices(snap)].filter(([, p]) => /Codex Plus message limits/.test(p.confidence ?? "")).map(([model]) => model);
+    const usageSize = (s: typeof snap) => JSON.stringify(s.observations.filter((o) => o.benchmarkId === "t3-usage-share")).length;
+    for (const model of estimated) {
+      const b = snap.observations.find((o) => o.costUsd != null && o.benchmarkId !== "aa-cost" && o.variantId.startsWith(`${model}@`))?.benchmarkId;
+      if (!b) continue;
+      const small = benchmarkSnapshot(snap, b), ranked = computeIndex(small, benchmarkIndex(small, b), benchmarkView(small, b)).ranked.filter((r) => r.model.id === model);
+      for (const r of ranked) if (r.costUsd != null) expect(r.costPlan?.ratio).toBeGreaterThan(0);
+    }
+    expect(usageSize(benchmarkSnapshot(snap, id))).toBeLessThan(usageSize(snap));
   });
 
   it("takes cost from the benchmark and adjusts it by subscription plan", () => {

@@ -9,13 +9,14 @@ delete env.VERCEL;
 const lock = ".wrangler/priors-deploy.lock";
 mkdirSync(".wrangler", { recursive: true });
 try { mkdirSync(lock); } catch { throw new Error(`Another deploy holds ${lock}. Check that process before removing its lock.`); }
-function run(command, args, input) {
-  const result = spawnSync(command, args, { env, stdio: input ? ["pipe", "inherit", "inherit"] : "inherit", input });
+function run(command, args, input, runEnv = env) {
+  const result = spawnSync(command, args, { env: runEnv, stdio: input ? ["pipe", "inherit", "inherit"] : "inherit", input });
   if (result.error) throw result.error;
   if (result.status !== 0) throw new Error(`${command} ${args[0]} failed with status ${result.status}`);
 }
 try {
-  run("npm", ["run", "ci"]);
+  // The checks read the checkout. Under PRIORS_CLOUDFLARE they would look for the Workers binding and fail.
+  run("npm", ["run", "ci"], undefined, process.env);
   if (app.CONVEX_DEPLOY_KEY) run("npx", ["convex", "deploy", "--cmd", "npm run cf:build"]);
   else run("npm", ["run", "cf:build"]);
   const runtime = Object.fromEntries(Object.entries(app).filter(([key]) => !["CONVEX_DEPLOY_KEY", "NEXT_PUBLIC_SITE_URL"].includes(key)));
