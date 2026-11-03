@@ -2,6 +2,18 @@ import type { Snapshot } from "./types";
 
 const FIELDS = ["benchmarkId", "variantId", "sourceUrl", "observedAt", "harness", "sourceModelId", "note"] as const;
 
+/** Shares the repeated strings of one record at a time, for parsing without ever holding every copy. */
+export function sharedStrings() {
+  const pool = new Map<string, string>();
+  return <T>(record: T): T => {
+    if (record && typeof record === "object") {
+      const r = record as Record<string, unknown>;
+      for (const k of FIELDS) { const s = r[k]; if (typeof s !== "string") continue; const x = pool.get(s); if (x !== undefined) r[k] = x; else pool.set(s, s); }
+    }
+    return record;
+  };
+}
+
 /**
  * Point every observation's repeated strings (benchmark and variant ids, source pages, scrape times, harness
  * names) at one shared copy. JSON.parse makes a new string for each value, so a parsed snapshot holds 34k
