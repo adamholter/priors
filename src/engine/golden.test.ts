@@ -8,7 +8,7 @@ import { packSnapshot, unpackSnapshot } from "../data/packed-snapshot";
 import type { Snapshot } from "../data/types";
 import { fitPriors } from "../onboarding/optimizer";
 import { benchmarkQuality } from "../onboarding/quality";
-import { GOLDEN_DATE, goldenConfigs, withVirtualClock } from "./golden-cases";
+import { GOLDEN_DATE, goldenConfigs, goldenJson, withVirtualClock } from "./golden-cases";
 import { computeIndex, defaultConfig, PAGE_VIEW, type IndexResult } from "./index";
 
 /**
@@ -20,7 +20,7 @@ const expected = JSON.parse(readFileSync(path.join(FIXTURES, "expected.json"), "
 const sha = (s: string) => createHash("sha256").update(s).digest("hex");
 const clientOf = (s: Snapshot) => unpackSnapshot(JSON.parse(JSON.stringify(packSnapshot(clientSnapshot(s)))));
 const mismatches = (s: Snapshot, cases: Snapshot, prefix: string, want: Record<string, string>) => goldenConfigs(cases, defaultConfig(cases), PAGE_VIEW)
-  .filter(({ id, config, view }) => sha(JSON.stringify(computeIndex(s, config, view ?? {}))) !== want[`${prefix}/${id}`]).map((c) => c.id);
+  .filter(({ id, config, view }) => sha(goldenJson(computeIndex(s, config, view ?? {}))) !== want[`${prefix}/${id}`]).map((c) => c.id);
 
 describe("golden outputs", () => {
   let dir: string, fixture: Snapshot;

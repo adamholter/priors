@@ -61,3 +61,6 @@ export async function withVirtualClock<T>(run: () => Promise<T>): Promise<T> {
   performance.now = () => ++tick;
   try { return await run(); } finally { performance.now = real; }
 }
+
+/** Output as text for hashing, at 9 significant digits: the last bits of a double differ between x86 and arm. */
+export const goldenJson = (value: unknown) => JSON.stringify(value, (_k, v) => typeof v === "number" ? +v.toPrecision(9) : v);

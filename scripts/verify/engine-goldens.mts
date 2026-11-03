@@ -10,7 +10,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { gunzipSync, gzipSync } from "node:zlib";
 import type { Benchmark, Snapshot } from "../../src/data/types";
-import { GOLDEN_DATE, goldenConfigs, goldenHistories, withVirtualClock } from "../../src/engine/golden-cases";
+import { GOLDEN_DATE, goldenConfigs, goldenHistories, goldenJson, withVirtualClock } from "../../src/engine/golden-cases";
 
 const repo = process.cwd(), FIXTURES = path.join(repo, "src/engine/fixtures");
 const FIXTURE_DATES = ["2026-09-20", "2026-10-15", GOLDEN_DATE];
@@ -99,7 +99,7 @@ const { clientSnapshot } = await src("data/client-snapshot.ts"), { packSnapshot,
 const { computeHistory } = await src("lib/history.ts"), { loadSnapshot, readSnapshot } = await src("data/load.ts");
 const { fitPriors } = await src("onboarding/optimizer.ts"), { defaultLineup } = await src("onboarding/defaults.ts"), { benchmarkQuality } = await src("onboarding/quality.ts");
 const clientOf = (s: Snapshot) => unpackSnapshot(JSON.parse(JSON.stringify(packSnapshot(clientSnapshot(s)))));
-const results = (s: Snapshot, cases: Snapshot) => goldenConfigs(cases, defaultConfig(cases), PAGE_VIEW).map(({ id, config, view }) => [id, JSON.stringify(computeIndex(s, config, view ?? {}))] as const);
+const results = (s: Snapshot, cases: Snapshot) => goldenConfigs(cases, defaultConfig(cases), PAGE_VIEW).map(({ id, config, view }) => [id, goldenJson(computeIndex(s, config, view ?? {}))] as const);
 
 // The real data: the full and client snapshots of one finished day.
 const real = await readSnapshot(GOLDEN_DATE) as Snapshot;
