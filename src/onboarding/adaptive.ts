@@ -8,13 +8,14 @@ type Edge = { above: string; below: string };
 
 /** Match the whole family name, keeping class and suffix qualifiers. Parameter
  * counts such as 27B are sizes, not versions. Unknown formats get no assumption. */
-function family(model: Model) {
+function family(model: AdaptiveModel) {
  const match = /\d+(?:\.\d+)*/.exec(model.name);
  if (!match || /^[bm](?:\b|\s)/i.test(model.name.slice(match.index + match[0].length))) return null;
  const name = `${model.name.slice(0, match.index)}#${model.name.slice(match.index + match[0].length)}`.toLowerCase().replace(/[^a-z0-9#]+/g, " ").trim();
  return { key: `${model.labId}|${model.kind}|${name}`, version: match[0].split(".").map(Number) };
 }
-export function versionAssumptions(models: Model[]): Edge[] {
+type AdaptiveModel = Pick<Model, "id" | "name" | "labId" | "kind" | "releaseDate">;
+export function versionAssumptions(models: AdaptiveModel[]): Edge[] {
  const out: Edge[] = [];
  for (let i = 0; i < models.length; i++) for (let j = i + 1; j < models.length; j++) {
   const a = family(models[i]), b = family(models[j]);
@@ -63,7 +64,7 @@ function sides(a: string, b: string): [string, string] {
  * Ask the unresolved pair with the greatest expected reduction in the solver's
  * top-weighted pair errors. Reweight evidence after each call and infer transitive
  * answers. A small local prior keeps near neighbors contestable when tests agree. */
-export function runAdaptive(seeds: string[], models: Map<string, Model>, answers: Answer[], options: AdaptiveOptions, finish = false): BracketStep {
+export function runAdaptive(seeds: string[], models: Map<string, AdaptiveModel>, answers: Answer[], options: AdaptiveOptions, finish = false): BracketStep {
  const ids = [...new Set(seeds)], keep = new Set(ids);
  const calls = answers.filter(a => keep.has(a.a) && keep.has(a.b) && (!a.winner || a.winner === a.a || a.winner === a.b));
  const edges: Edge[] = [];

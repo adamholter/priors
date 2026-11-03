@@ -59,11 +59,12 @@ The job pushes to `main` all day, so do feature work in a worktree and expect `m
 ## Sign-in
 
 - Clerk handles sign-in (Google, or email and password). Convex verifies Clerk's JWT.
+- **Clerk's browser code loads only when needed.** `src/lib/auth.ts` holds the sign-in state and the `useAuth`, `useUser`, `useClerk` hooks every component uses; never import those from `@clerk/nextjs`. `clerkNeeded` decides: a `__session` cookie or non-zero `__client_uat`, a Google sign-in to resume, a `__clerk_*` URL parameter, or `/sign-in`. Otherwise the visitor is anonymous from the first client render and downloads none of it. A tab rechecks on focus, so signing in elsewhere is picked up. `components/auth/ClerkLayer.tsx` mounts `ClerkProvider` beside the app, not around it, so it can arrive mid-visit without a remount; `<SignIn>` is portaled into the page from there. The server side (`src/proxy.ts`, `auth()`) is unchanged.
 - Clerk's free plan ends every session after 7 days. `ResumeSignIn` (mounted in `providers.tsx`, logic in `src/lib/resume-sign-in.ts`) keeps a signed-in Google user's Google account id in `localStorage["priors:resume"]`. On a signed-out arrival it asks Google once with `prompt=none` and that id, and returns to the same URL. One try per expiry. The header's sign-out stores a mark for that session, so a deliberate sign-out stays signed out. Password users sign in by hand.
 
 ## Analytics
 
-PostHog (US), proxied through `/ingest`. Events go through `track()` in `src/lib/analytics.ts`. Signed-in events carry the Clerk user id and name, never the email. `scripts/posthog-dashboard.mjs <project_id>` recreates the dashboard; keys come from the macOS keychain.
+PostHog (US), proxied through `/ingest`. It downloads after the page's load event, once the browser is idle (at the latest 2 seconds after that), or at the first `track()`. A visitor who leaves before then is not counted. Events go through `track()` in `src/lib/analytics.ts`. Signed-in events carry the Clerk user id and name, never the email. `scripts/posthog-dashboard.mjs <project_id>` recreates the dashboard; keys come from the macOS keychain.
 
 ## Browser storage
 

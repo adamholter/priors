@@ -1,16 +1,6 @@
-import posthog from "posthog-js";
+import { startAnalytics } from "@/lib/analytics";
 
-// Product analytics. Off unless NEXT_PUBLIC_POSTHOG_KEY is set, and never on localhost.
-// Events go through the same-origin /ingest proxy (next.config rewrites) so blockers don't drop them.
-const key = process.env.NEXT_PUBLIC_POSTHOG_KEY?.trim();
-if (key && !/^(localhost|127\.0\.0\.1)$/.test(window.location.hostname)) {
-  posthog.init(key, {
-    api_host: "/ingest",
-    ui_host: "https://us.posthog.com",
-    defaults: "2026-08-30",
-    // Anonymous visitors are counted without person profiles; signed-in users get one (see AnalyticsIdentity).
-    person_profiles: "identified_only",
-    // Inputs are masked; elements marked .ph-no-capture (e.g. the one-time agent token) are never recorded.
-    session_recording: { maskAllInputs: true },
-  });
-}
+// Product analytics start once the page has loaded and the browser is idle. Events go through the same-origin /ingest proxy (next.config rewrites) so blockers don't drop them.
+const start = () => { if ("requestIdleCallback" in window) requestIdleCallback(() => void startAnalytics(), { timeout: 2000 }); else setTimeout(() => void startAnalytics(), 1000); };
+if (document.readyState === "complete") start();
+else window.addEventListener("load", start, { once: true });

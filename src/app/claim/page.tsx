@@ -1,6 +1,6 @@
 "use client";
 import { track } from "@/lib/analytics";
-import { useUser } from "@clerk/nextjs";
+import { useUser } from "@/lib/auth";
 import { storableIndex } from "../../../convex/validators";
 import Link from "next/link";
 import type { Route } from "next";

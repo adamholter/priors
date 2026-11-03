@@ -1,5 +1,5 @@
 "use client";
-import { useClerk, useUser } from "@clerk/nextjs";
+import { useClerk, useForgetResume, useUser } from "@/lib/auth";
 import { useConvexAuth, useMutation, useQuery } from "convex/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -7,7 +7,6 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "../../convex/_generated/api";
 import { authEnabled } from "@/app/providers";
 import { stashReturn } from "@/lib/share";
-import { useForgetResume } from "./ResumeSignIn";
 import { IMAGE_ACCEPT, useImageUpload, useSignInPhoto } from "./useImageUpload";
 
 /** Header account control. Signed out: "Sign in". Signed in: your photo, opening a menu to change it, edit your page and sign out. */
@@ -25,7 +24,7 @@ function Gate({ className }: { className: string }) {
 /** The signed-in person's photo, which is their page's photo (an upload, or the sign-in photo until they pick one). */
 export function AccountMenu() {
   const { user } = useUser();
-  const { signOut } = useClerk();
+  const clerk = useClerk();
   const { isAuthenticated } = useConvexAuth();
   const mine = useQuery(api.profiles.mine, isAuthenticated ? {} : "skip");
   const update = useMutation(api.profiles.update);
@@ -38,7 +37,7 @@ export function AccountMenu() {
     handle={mine?.handle} hasPage={mine !== null} signInPhoto={signInPhoto && signInPhoto !== mine?.avatarUrl ? signInPhoto : undefined}
     busy={busy} error={error} onClose={clearError} onUpload={upload}
     onUseSignInPhoto={async () => { await update({ patch: { avatarUrl: signInPhoto } }); router.refresh(); }}
-    onSignOut={() => { forgetResume(); void signOut({ redirectUrl: "/" }); }} />;
+    onSignOut={() => { forgetResume(); void clerk?.signOut({ redirectUrl: "/" }); }} />;
 }
 
 export interface AccountMenuViewProps {

@@ -80,3 +80,7 @@ Embeds inline the same rules.
 `StrengthsRadar.tsx`, `Radar.tsx`, `RadarModal.tsx`, with data in `radar-data.ts` and the SVG renderer in `radar-view.ts` (also used for the radar share card).
 
 The toolbar toggle switches the panel to `BenchBars.tsx`: one bar chart per benchmark (Artificial Analysis style), the selected models best first on each, top 8 until the user picks models (the radar follows the top 4). Link param `rv=bars`. Export is a sheet of the on-screen charts (PNG/SVG, CSV/JSON); no HTML embed in this view.
+
+## Loading the library
+
+ECharts is about 650 KB of script, so `useEChart` imports it the first time a chart mounts, and `BuilderLoader` starts that import early because the builder opens on a chart. Import colors, option builders and other helpers from `chart/theme-tokens.ts` or `chart/echarts.ts`, never `chart/theme.ts`, which pulls in the library (only server cards and the assistant's print view, itself a dynamic import, use it). A chart's effects may run before its instance exists: read `chart.current` with a null check, and put event wiring in `onReady`.

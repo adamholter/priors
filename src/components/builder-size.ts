@@ -1,6 +1,6 @@
 "use client";
 import { useSyncExternalStore } from "react";
-import type { ChartSize } from "./chart/theme";
+import type { ChartSize } from "./chart/theme-tokens";
 
 /**
  * Builder chart scale by viewport width. Mirrors the `--t` steps in builder.css: text and ranking rows

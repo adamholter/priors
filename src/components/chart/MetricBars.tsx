@@ -12,7 +12,7 @@ import { barsOption, compact, selectBars } from "./bars-option";
 import { barsHtml, unitOf } from "./embed";
 import { ChartLink, type ChartLinkParams } from "./ChartLink";
 import { useChartExpand } from "./ChartExpand";
-import { dimColor } from "./theme";
+import { dimColor } from "./theme-tokens";
 import { featuredPoints, highlightedModels } from "./scatter-option";
 import { ChartContextMenu, useChartContextMenu, useChartVisibility } from "./ChartContextMenu";
 

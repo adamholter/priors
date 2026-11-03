@@ -3,7 +3,7 @@ import { useMemo, useState, type PointerEvent, type KeyboardEvent } from "react"
 import Link from "next/link";
 import { affordableModels, type ModelFinderData } from "@/lib/model-finder";
 import { useTheme } from "@/components/Theme";
-import { markColor, DARK_PALETTE, LIGHT_PALETTE } from "@/components/chart/theme";
+import { markColor, DARK_PALETTE, LIGHT_PALETTE } from "@/components/chart/theme-tokens";
 import styles from "./ModelFinder.module.css";
 
 const money = (value: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: value < .01 ? 3 : 2, maximumFractionDigits: value < .01 ? 3 : 2 }).format(value);

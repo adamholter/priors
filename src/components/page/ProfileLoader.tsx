@@ -24,7 +24,7 @@ export function ProfileLoader({ profile, version, edit, tab, linkedHighlight, li
   const currentVersion = useRef(version);
   useEffect(() => {
     const controller = new AbortController();
-    fetch(`/api/snapshot?view=core&packed=1&version=${encodeURIComponent(version)}`, { signal: controller.signal })
+    fetch(`/api/snapshot?view=core&packed=2&version=${encodeURIComponent(version)}`, { signal: controller.signal })
       .then(async (response) => {
         // New data was published after this page rendered: the page's own numbers are from the old
         // snapshot, so reload it (once) instead of showing an error.
@@ -50,7 +50,7 @@ export function ProfileLoader({ profile, version, edit, tab, linkedHighlight, li
       loading = true;
       controller = new AbortController();
       try {
-        const response = await fetch("/api/snapshot?view=core&packed=1", { signal: controller.signal, cache: "no-store" });
+        const response = await fetch("/api/snapshot?view=core&packed=2", { signal: controller.signal, cache: "no-store" });
         if (!response.ok) return;
         const latest = await readCoreSnapshot(response);
         if (!controller.signal.aborted && snapshotVersionChanged(currentVersion.current, latest.generatedAt)) {

@@ -1,5 +1,5 @@
 import { SUBSCRIPTION_BENCHMARK } from "./subscription";
-import type { Observation, Snapshot } from "./types";
+import type { Benchmark, Lab, Model, Observation, Snapshot } from "./types";
 
 /**
  * Observation fields the browser never reads, dropped to shrink the download and the parse: the scrape
@@ -48,7 +48,26 @@ export function clientSnapshot(snapshot: Snapshot): Snapshot {
   };
 }
 
-/** Onboarding can show the lineup before downloading calculation rows. */
-export function onboardingSnapshot(snapshot: Snapshot): Snapshot {
-  return { ...snapshot, variants: [], observations: [], estimates: [], series: [], sources: [] };
+/** The dataset the builder, model, compare and profile pages share (`/api/snapshot?view=core&packed=2`). Each benchmark's page has its own data, so the published intervals and ranks it alone shows stay out. */
+export function coreSnapshot(snapshot: Snapshot): Snapshot {
+  const client = clientSnapshot(snapshot);
+  return {
+    ...client,
+    sources: client.sources.map(({ rawPath: _rawPath, ...source }) => { void _rawPath; return source; }) as Snapshot["sources"],
+    observations: client.observations.map(({ ci: _ci, rank: _rank, ...o }) => { void _ci; void _rank; return o; }),
+  };
+}
+
+/** What the ranking onboarding shows before anyone asks for a fit: the rankable models and each benchmark's label. The search downloads the calculation rows when it starts. */
+export type OnboardingModel = Pick<Model, "id" | "name" | "labId" | "kind" | "releaseDate" | "priceTier" | "reasoning">;
+export type OnboardingBenchmark = Pick<Benchmark, "id" | "name" | "shortName" | "category" | "proxy">;
+export interface OnboardingSnapshot { date: string; generatedAt: string; labs: Lab[]; models: OnboardingModel[]; benchmarks: OnboardingBenchmark[] }
+
+export function onboardingSnapshot(snapshot: Snapshot, modelIds: Iterable<string>): OnboardingSnapshot {
+  const keep = new Set(modelIds);
+  return {
+    date: snapshot.date, generatedAt: snapshot.generatedAt, labs: snapshot.labs,
+    models: snapshot.models.filter((m) => keep.has(m.id)).map(({ id, name, labId, kind, releaseDate, priceTier, reasoning }) => ({ id, name, labId, kind, releaseDate, priceTier, reasoning })),
+    benchmarks: snapshot.benchmarks.map(({ id, name, shortName, category, proxy }) => ({ id, name, shortName, category, proxy })),
+  };
 }

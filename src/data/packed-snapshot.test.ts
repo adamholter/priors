@@ -23,6 +23,12 @@ describe("packed snapshot", () => {
     const out = unpackSnapshot(JSON.parse(JSON.stringify(packed)));
     expect(out.observations[0].harness).toBe(out.observations[2].harness);
   });
+  it("keeps a falsy field and a field on the first row", () => {
+    const s = snap();
+    s.observations[0].costUsd = 0;
+    s.observations[1].value = 0;
+    expect(unpackSnapshot(JSON.parse(JSON.stringify(packSnapshot(s))))).toEqual(s);
+  });
   it("passes a plain snapshot through", () => {
     const s = snap();
     expect(unpackSnapshot(s)).toBe(s);

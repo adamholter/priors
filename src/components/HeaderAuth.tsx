@@ -1,5 +1,5 @@
 "use client";
-import { useUser } from "@clerk/nextjs";
+import { useUser } from "@/lib/auth";
 import { storableIndex } from "../../convex/validators";
 import { useMutation, useQuery, useConvexAuth } from "convex/react";
 import { ConvexError } from "convex/values";

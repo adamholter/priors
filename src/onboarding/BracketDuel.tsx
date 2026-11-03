@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
-import type { Lab, Model } from "@/data/types";
+import type { Lab } from "@/data/types";
+import type { OnboardingModel as Model } from "@/data/client-snapshot";
 import { QUICK, finishWithIndex, pairKey, runBracket, type Answer, type BracketOptions, type BracketStep } from "./bracket";
 import { track } from "@/lib/analytics";
 import { runAdaptive, type AdaptiveOptions } from "./adaptive";

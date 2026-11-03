@@ -1,6 +1,6 @@
 import type { EChartsOption } from "echarts";
 import { formatMetric, type AnswerChart, type AnswerMark, type AnswerMetric } from "../../lib/answer-chart";
-import { CONTAIN_AXIS_LABELS, dimColor, insideLabels, markColor, markLabel, MONO, SANS, type ChartPalette } from "./theme";
+import { CONTAIN_AXIS_LABELS, dimColor, insideLabels, markColor, markLabel, MONO, SANS, type ChartPalette } from "./theme-tokens";
 
 const ROW = 24;
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));

@@ -15,7 +15,7 @@ import { ChartLink, type ChartLinkParams } from "./ChartLink";
 import { useChartExpand } from "./ChartExpand";
 import { chartLabel, modelLabel } from "@/lib/metrics";
 import { scatterOption, frontierOf, featuredPoints, guidePoints, highlightedModels, pickLabels, DEFAULT_VIEW, restoreScatterView, type Highlight, type ScatterPoint, type ScatterView } from "./scatter-option";
-import { dimColor, type ChartPalette } from "./theme";
+import { dimColor, type ChartPalette } from "./theme-tokens";
 import { IconX } from "@tabler/icons-react";
 import { labelScale } from "./label-size";
 import { ChartContextMenu, useChartContextMenu, useChartVisibility } from "./ChartContextMenu";

@@ -20,7 +20,7 @@ export function SourceStatus({ snapshot, onSnapshot }: { snapshot: Snapshot; onS
         setCanRefresh(data.canRefresh);
         setBusy(data.refreshing);
         if (data.generatedAt !== snapshot.generatedAt) {
-          const updated = await fetch(`/api/snapshot?view=core&packed=1&version=${encodeURIComponent(data.generatedAt)}`, { cache: "no-store" });
+          const updated = await fetch(`/api/snapshot?view=core&packed=2&version=${encodeURIComponent(data.generatedAt)}`, { cache: "no-store" });
           if (!updated.ok) throw new Error("Could not load updated data.");
           const fresh = await readCoreSnapshot(updated);
           if (active) onSnapshot(fresh);

@@ -22,13 +22,14 @@ function format(b: Benchmark, v: number) {
 }
 
 /** A benchmark's own leaderboard (best configuration per model, as published), what it measures, and its source. */
-export function BenchmarkInfo({ snapshot, benchmarkId, inMix, onAdd, onClose }: { snapshot: Snapshot; benchmarkId: string | null; inMix?: boolean; onAdd?: (id: string) => void; onClose: () => void }) {
+/** `snapshot` is null while a page that loads it on demand is still waiting for it. */
+export function BenchmarkInfo({ snapshot, benchmarkId, inMix, onAdd, onClose }: { snapshot: Snapshot | null; benchmarkId: string | null; inMix?: boolean; onAdd?: (id: string) => void; onClose: () => void }) {
   const labColor = useLabColor();
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => { const d = ref.current; if (!d) return; if (benchmarkId && !d.open) d.showModal(); if (!benchmarkId && d.open) d.close(); }, [benchmarkId]);
-  const b = snapshot.benchmarks.find((x) => x.id === benchmarkId);
+  const b = snapshot?.benchmarks.find((x) => x.id === benchmarkId);
   const data = useMemo(() => {
-    if (!b) return null;
+    if (!b || !snapshot) return null;
     const variants = new Map(snapshot.variants.map((v) => [v.id, v]));
     const models = new Map(snapshot.models.map((m) => [m.id, m]));
     const color = new Map(snapshot.labs.map((l) => [l.id, labColor(l.id, l.color)]));
@@ -49,6 +50,7 @@ export function BenchmarkInfo({ snapshot, benchmarkId, inMix, onAdd, onClose }: 
   }, [b, snapshot, labColor]);
 
   return <dialog ref={ref} className="bench-dialog" aria-labelledby="bench-title" onClose={onClose} onClick={(e) => { if (e.target === e.currentTarget) ref.current?.close(); }}>
+    {!snapshot && benchmarkId && <div role="status" className="p-6 sm:p-7 cap">Loading benchmark data…</div>}
     {b && data && <div className="p-6 sm:p-7">
       <div className="flex items-start justify-between gap-6">
         <div className="min-w-0">

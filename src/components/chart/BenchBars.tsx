@@ -2,7 +2,7 @@
 import type { EChartsOption } from "echarts";
 import { useEffect, useMemo } from "react";
 import { useChartPalette, useEChart } from "./echarts";
-import { CONTAIN_AXIS_LABELS, markFill, markSize, textSize, type ChartPalette } from "./theme";
+import { CONTAIN_AXIS_LABELS, markFill, markSize, textSize, type ChartPalette } from "./theme-tokens";
 import { formatValue, type RadarAxis } from "./radar-data";
 import type { RadarSeries } from "./radar-view";
 

@@ -2,7 +2,7 @@ import { INDEX_SCORE_AXIS, scoreRange, type ScoreAxis } from "./score-scale";
 import type { EChartsOption } from "echarts";
 import type { Lab } from "../../data/types";
 import type { RankedVariant } from "../../engine";
-import { CONTAIN_AXIS_LABELS, dimColor, markColor, markFill, markLabel, markSize, textSize, type ChartPalette } from "./theme";
+import { CONTAIN_AXIS_LABELS, dimColor, markColor, markFill, markLabel, markSize, textSize, type ChartPalette } from "./theme-tokens";
 import { scatterLabelLayout } from "./scatter-label-layout";
 import { chartLabel, modelLabel } from "../../lib/metrics";
 import { labelScale } from "./label-size";

@@ -1,11 +1,10 @@
 "use client";
-import { useMemo, useState } from "react";
-import type { Snapshot } from "@/data/types";
-import type { IndexConfig, IndexResult } from "@/engine";
+import { useState } from "react";
+import type { ModelView } from "@/lib/model-view";
 import { markColor, useChartPalette } from "../chart/echarts";
 import { Radar, RadarSwatch } from "../chart/Radar";
 import { formatValue } from "../chart/radar-data";
-import { radarModelsFor, radarRows, type RadarSeries } from "../chart/radar-view";
+import type { RadarSeries } from "../chart/radar-view";
 import { InfoIcon } from "../BenchmarkInfo";
 import "../chart/radar.css";
 
@@ -14,27 +13,15 @@ import "../chart/radar.css";
  * this model against the index leader and the field median, and beside it one bar per benchmark
  * showing where the model sits in the field (the median ticked), with its value and place.
  */
-export function ModelStrengths({ snapshot, mix, result, modelId, onInfo }: { snapshot: Snapshot; mix: IndexConfig; result: IndexResult; modelId: string; onInfo: (benchmarkId: string) => void }) {
+export function ModelStrengths({ data, labColors, onInfo }: { data: NonNullable<ModelView["strengths"]>; labColors: ModelView["labColors"]; onInfo: (benchmarkId: string) => void }) {
   const pal = useChartPalette();
-  const rows = useMemo(() => radarRows(snapshot, mix, result.ranked, result.benchmarks), [snapshot, mix, result]);
-  const { axes, models, median } = useMemo(() => radarModelsFor(rows, result.benchmarks, "field"), [rows, result.benchmarks]);
+  const { axes, me, leader, median, place, models, mixName } = data;
   const [axis, setAxis] = useState<number | null>(null);
-  const me = models.find((m) => m.id === modelId), leader = models[0];
-  const labs = useMemo(() => new Map(snapshot.labs.map((l) => [l.id, l])), [snapshot.labs]);
-  if (!me || axes.length < 3) return null;
-  const colorOf = (labId: string) => markColor(labs.get(labId)?.color, pal, labId);
+  const colorOf = (labId: string) => markColor(labColors[labId], pal, labId);
   const series: RadarSeries[] = [
     { id: me.id, name: me.name, color: colorOf(me.labId), points: me.points },
     ...(leader && leader.id !== me.id ? [{ id: leader.id, name: `${leader.name} (#1)`, color: leader.labId === me.labId ? pal.ink2 : colorOf(leader.labId), dash: "5 4", points: leader.points }] : []),
   ];
-  // Place among ranked models on each benchmark (best first).
-  const place = axes.map((_, i) => {
-    const r = me.points[i].r;
-    if (r == null) return null;
-    // r is normalized so that higher is better, whichever way the benchmark scores.
-    const pool = models.map((m) => m.points[i].r).filter((x): x is number => x != null);
-    return { n: pool.length, rank: 1 + pool.filter((x) => x > r).length };
-  });
   return (
     <section className="grid gap-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2 border-b hairline pb-2">
@@ -46,7 +33,7 @@ export function ModelStrengths({ snapshot, mix, result, modelId, onInfo }: { sna
       </div>
       <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] items-center">
         <div className="flex justify-center min-w-0 overflow-hidden">
-          <Radar axes={axes} series={series} ghost={median} norm="field" size={300} hoverAxis={axis} onHoverAxis={setAxis} onAxisClick={onInfo} ariaLabel={`${me.name} across the ${axes.length} benchmarks in ${mix.name}, against ${leader?.name ?? "the leader"} and the field median`} />
+          <Radar axes={axes} series={series} ghost={median} norm="field" size={300} hoverAxis={axis} onHoverAxis={setAxis} onAxisClick={onInfo} ariaLabel={`${me.name} across the ${axes.length} benchmarks in ${mixName}, against ${leader?.name ?? "the leader"} and the field median`} />
         </div>
         <ol className="grid gap-3 min-w-0" onMouseLeave={() => setAxis(null)}>
           {axes.map((a, i) => {
@@ -66,7 +53,7 @@ export function ModelStrengths({ snapshot, mix, result, modelId, onInfo }: { sna
           })}
         </ol>
       </div>
-      <p className="cap">Bars show where {me.name} sits among the {models.length} ranked models on each benchmark (right is best); the tick is the field median.</p>
+      <p className="cap">Bars show where {me.name} sits among the {models} ranked models on each benchmark (right is best); the tick is the field median.</p>
     </section>
   );
 }

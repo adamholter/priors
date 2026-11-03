@@ -3,12 +3,16 @@ import type { IndexConfig } from "@/engine";
 import { SettingsButton } from "./SiteSettings";
 import { Wordmark } from "./Wordmark";
 import { Builder } from "./Builder";
+import { useEffect } from "react";
+import { loadECharts } from "./chart/echarts";
 import { useCoreSnapshot } from "./use-core-snapshot";
 import "./builder.css";
 
 /** Keep the large calculation dataset out of the HTML response. */
 export function BuilderLoader({ initialIndices }: { initialIndices: IndexConfig[] }) {
   const { snapshot, error, retry: load } = useCoreSnapshot();
+  // The builder opens on a chart: fetch its library alongside the data rather than after it.
+  useEffect(() => { void loadECharts(); }, []);
   if (snapshot) return <Builder snapshot={snapshot} initialIndices={initialIndices} />;
   return <div className="builder min-h-screen">
     <header className="builder-header flex items-center px-4 sm:px-8 h-14 border-b hairline"><Wordmark /><span className="ml-auto"><SettingsButton /></span></header>

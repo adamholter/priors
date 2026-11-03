@@ -1,8 +1,11 @@
 import { expect, test } from "vitest";
 import { computeIndex, defaultConfig } from "../engine";
 import { DEFAULT_PRIORS_MIX } from "../onboarding/defaults";
-import { clientSnapshot, onboardingSnapshot, slimObservation } from "./client-snapshot";
+import { clientSnapshot, coreSnapshot, onboardingSnapshot, slimObservation } from "./client-snapshot";
 import { loadSnapshot } from "./load";
+import type { Snapshot } from "./types";
+
+const result2 = (a: Snapshot, b: Snapshot) => { const ranked = (s: Snapshot) => JSON.stringify(computeIndex(s, defaultConfig(b)).ranked.map((r) => [r.variant.id, r.score, r.costUsd, r.speed, r.values])); return ranked(a) === ranked(b); };
 
 test("client snapshot preserves rankings and calculation details", async () => {
   const full = await loadSnapshot();
@@ -15,7 +18,9 @@ test("client snapshot preserves rankings and calculation details", async () => {
     }));
     expect(result(compact)).toEqual(result(full));
   }
-  expect(onboardingSnapshot(full).observations).toEqual([]);
+  const lineup = full.models.slice(0, 3).map((m) => m.id);
+  expect(onboardingSnapshot(full, lineup).models.map((m) => m.id)).toEqual(lineup);
+  expect(result2(coreSnapshot(full), full)).toBe(true);
   expect(JSON.stringify(compact).length).toBeLessThan(JSON.stringify(full).length);
 });
 

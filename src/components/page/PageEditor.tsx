@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { useUser } from "@clerk/nextjs";
+import { useUser } from "@/lib/auth";
 import { IMAGE_ACCEPT, useImageUpload } from "../useImageUpload";
 import { ACCENTS, THEME_CHOICES, pickerThemeOf, presetOf, type PagePreset } from "@/lib/page-presets";
 import { ExploreThemes } from "../ExploreThemes";

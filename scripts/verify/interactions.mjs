@@ -624,6 +624,115 @@ try {
     } finally { await c.context().close(); }
   });
 
+  await check("an anonymous visitor downloads no Clerk, chart library, analytics or dataset they do not need", async () => {
+    const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+    const c = await context.newPage();
+    try {
+      const seen = [], bytes = new Map();
+      c.on("request", (r) => seen.push(r.url()));
+      c.on("response", async (r) => { if (r.request().resourceType() === "script") bytes.set(r.url(), (await r.body().catch(() => Buffer.alloc(0))).length); });
+      await c.goto(`${BASE}/`, { waitUntil: "networkidle" });
+      await c.waitForTimeout(500);
+      assert.equal(seen.filter((u) => /clerk\.browser|@clerk\/ui|\/api\/library|\/api\/snapshot/.test(u)).length, 0, `home fetched ${seen.filter((u) => /clerk|\/api\//.test(u)).join(", ")}`);
+      // ECharts alone is about 650 KB of script: the home page draws no chart.
+      const total = [...bytes.values()].reduce((a, b) => a + b, 0);
+      assert.ok(total < 1_100_000, `home loads ${Math.round(total / 1024)} KB of script`);
+      const html = await (await c.request.get(`${BASE}/`, { headers: { "user-agent": "Mozilla/5.0 AppleWebKit/537.36 Chrome/140 Safari/537.36" } })).text();
+      assert.ok(html.length < 450_000, `home HTML is ${Math.round(html.length / 1024)} KB`);
+    } finally { await context.close(); }
+  });
+
+  await check("sign-in: Clerk loads for a sign-in page or a Google sign-in to resume, and not after a deliberate sign-out (session cookies: src/lib/auth.test.ts)", async () => {
+    const clerkLoads = async (prepare, route = "/benchmarks") => {
+      const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+      await prepare(context);
+      const c = await context.newPage();
+      let hit = false;
+      c.on("request", (r) => { if (/clerk\.browser/.test(r.url())) hit = true; });
+      // A resume leaves for Google; this check stops at the decision to load.
+      await c.route(/accounts\.google\.com/, (r) => r.abort());
+      await c.goto(`${BASE}${route}`, { waitUntil: "domcontentloaded" });
+      await c.waitForTimeout(2500);
+      const signedOutLink = await c.getByRole("link", { name: "Sign in" }).count();
+      await context.close();
+      return { hit, signedOutLink };
+    };
+    const probe = await (await browser.newContext()).newPage();
+    await probe.goto(`${BASE}/sign-in`, { waitUntil: "domcontentloaded" });
+    const configured = !(await probe.getByText(/isn.t configured/).count());
+    await probe.context().close();
+    if (!configured) return;
+    const storage = (value) => (context) => context.addInitScript((v) => { try { localStorage.setItem("priors:resume", v); } catch { /* about:blank */ } }, value);
+    const none = await clerkLoads(async () => {});
+    assert.equal(none.hit, false, "anonymous: Clerk loaded");
+    assert.ok(none.signedOutLink > 0, "anonymous: the header offers Sign in");
+    assert.equal((await clerkLoads(async () => {}, "/sign-in")).hit, true, "the sign-in page must load Clerk");
+    const host = new URL(BASE).hostname;
+    assert.equal((await clerkLoads((context) => context.addCookies([{ name: "__client_uat", value: "0", domain: host, path: "/" }]))).hit, false, "a signed-out cookie must not");
+    assert.equal((await clerkLoads(storage("google:123"))).hit, true, "a Google sign-in to resume must load Clerk");
+    assert.equal((await clerkLoads(storage("tried"))).hit, true, "finishing a resumed sign-in must load Clerk");
+    assert.equal((await clerkLoads(storage("off:sess_1"))).hit, false, "a deliberate sign-out stays without Clerk");
+  });
+
+  await check("model page: real content in the HTML, no dataset for a plain visit; the dataset loads when something needs it", async () => {
+    const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+    const c = await context.newPage();
+    c.on("pageerror", (e) => errors.push(`${c.url()}: ${e.message}`));
+    try {
+      const seen = [];
+      c.on("request", (r) => seen.push(r.url()));
+      const html = await (await c.goto(`${BASE}/models/claude-opus-5.5`, { waitUntil: "domcontentloaded" })).text();
+      assert.match(html, /of (<!-- -->)?\d+(<!-- -->)? models/, "the first HTML carries the ranking");
+      assert.match(html, /Reasoning efforts in this ranking/, "and the efforts");
+      await c.waitForLoadState("networkidle");
+      const data = () => seen.filter((u) => /\/api\/snapshot/.test(u)).length;
+      assert.equal(data(), 0, "a plain visit downloads the dataset");
+      // The long list arrives when it opens.
+      const all = c.locator("details", { has: c.locator("summary", { hasText: /^All \d+ benchmarks/ }) });
+      await all.locator("summary").click();
+      await all.locator("article").first().waitFor({ timeout: 10000 });
+      assert.equal(data(), 0, "opening the list downloads the dataset");
+      // A benchmark's details do need the dataset.
+      await c.getByRole("button", { name: /^About / }).first().click();
+      await c.locator("dialog.bench-dialog[open] h3", { hasText: "Top models" }).waitFor({ timeout: 30000 });
+      assert.equal(data(), 1, "the details load the dataset once");
+      await c.keyboard.press("Escape");
+      // The other standard ranking draws the same page from the dataset, and a link to it is drawn by the server.
+      await c.getByLabel("Ranking to place this model in").selectOption("aa");
+      await c.locator("select[aria-label='Ranking to place this model in'][aria-busy='false']").waitFor({ timeout: 30000 });
+      const fromBrowser = await c.locator("main").first().innerText();
+      assert.match(c.url(), /r=aa/);
+      await c.goto(`${BASE}/models/claude-opus-5.5?r=aa`, { waitUntil: "networkidle" });
+      const fromServer = await c.locator("main").first().innerText();
+      assert.equal(fromServer.split("\n").slice(0, 30).join("\n"), fromBrowser.split("\n").slice(0, 30).join("\n"), "server and browser draw the same ranking");
+      assert.equal(await c.locator("select[aria-label='Ranking to place this model in']").inputValue(), "aa");
+    } finally { await context.close(); }
+  });
+
+  await check("model page: a visitor's pricing choice loads the dataset and still draws the ranking", async () => {
+    const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+    const c = await context.newPage();
+    try {
+      await c.goto(`${BASE}/models/claude-opus-5.5`, { waitUntil: "networkidle" });
+      await c.evaluate(() => localStorage.setItem("priors:plan-resets", "on"));
+      const seen = [];
+      c.on("request", (r) => seen.push(r.url()));
+      await c.reload({ waitUntil: "networkidle" });
+      assert.ok(seen.some((u) => /\/api\/snapshot/.test(u)), "a pricing choice needs the dataset");
+      await c.locator("p.num").first().waitFor();
+    } finally { await context.close(); }
+  });
+
+  await check("onboarding: the quality dialog's reasons are served on demand", async () => {
+    const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+    const c = await context.newPage();
+    try {
+      const res = await c.request.get(`${BASE}/api/quality`);
+      assert.equal(res.ok(), true);
+      assert.ok(Object.values(await res.json()).every((x) => typeof x === "string" && x.length > 20), "every benchmark has a reason");
+    } finally { await context.close(); }
+  });
+
   await check("benchmark gear: another cut of a benchmark takes the weight of the one it replaces", async () => {
     const c = await (await browser.newContext({ viewport: { width: 1360, height: 950 } })).newPage();
     c.on("pageerror", (e) => errors.push(`${c.url()}: ${e.message}`));

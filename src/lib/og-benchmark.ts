@@ -1,6 +1,6 @@
 import type { Benchmark, Lab, Snapshot } from "@/data/types";
 import { computeIndex, rankingRows, selectVariants, type IndexConfig, type RankedVariant } from "@/engine";
-import { markColor, markFillSvg, LIGHT_PALETTE, type ChartPalette } from "@/components/chart/theme";
+import { markColor, markFillSvg, LIGHT_PALETTE, type ChartPalette } from "@/components/chart/theme-tokens";
 import { escapeSvg, frameSvg } from "@/components/chart/export-frame";
 import { RADAR_PALETTES } from "@/components/chart/radar-view";
 import { INDEX_SCORE_AXIS, type ScoreAxis } from "@/components/chart/score-scale";

@@ -1,5 +1,5 @@
 import type { Snapshot } from "../data/types";
-import { LIGHT_PALETTE } from "../components/chart/theme";
+import { LIGHT_PALETTE } from "../components/chart/theme-tokens";
 import { escapeSvg } from "../components/chart/export-frame";
 import { RADAR_PALETTES } from "../components/chart/radar-view";
 import { rankSide, type Choice } from "../components/compare/choice";
