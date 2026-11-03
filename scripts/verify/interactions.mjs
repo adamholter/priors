@@ -354,6 +354,8 @@ try {
       }
     }
     assert.ok(found, "a card appears over some mark");
+    assert.match(await card.innerText(), /score[\s\S]*per task/, "the card lays out score and cost as columns");
+    assert.match(await card.innerText(), /at API price|API price, no plan data/, "the card's last row names the plan and the API price");
     const bbox = await card.boundingBox();
     assert.ok(bbox.x > box.x + box.width / 2 && bbox.y > box.y + box.height / 2, "the card sits in the lower right, not beside the mark");
   });

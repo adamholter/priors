@@ -84,14 +84,27 @@ function escapeHtml(s: string) { return s.replace(/[&<>"']/g, (c) => ({ "&": "&a
  * Pareto frontier traced in ink, labels thinned by density. Title, settings and export share one row.
  */
 /** The selected point's details, pinned to the chart's lower right so it never covers the marks it describes. */
-function PointCard({ point, labs, pal, onFrontier, format, unit, extra, onClose }: { point: ScatterPoint; labs: Lab[]; pal: ChartPalette; onFrontier: boolean; format: (v: number) => string; unit: string; extra?: string; onClose?: () => void }) {
+function PointCard({ point, labs, pal, onFrontier, format, unit, extra, onClose, xLabel }: { point: ScatterPoint; labs: Lab[]; pal: ChartPalette; onFrontier: boolean; format: (v: number) => string; unit: string; extra?: string; onClose?: () => void; xLabel?: string }) {
   const axis = useScoreAxis();
-  const lab = labs.find((l) => l.id === point.r.model.labId)?.name ?? point.r.model.labId;
-  return <div role="status" aria-label="Selected model" className="absolute right-3 bottom-12 z-10 w-[min(250px,calc(100%-24px))] rounded-[4px] border px-3 py-2.5 text-[12px] leading-[1.45] pointer-events-none" style={{ background: pal.tipBg, borderColor: pal.tipBorder, color: pal.ink }}>
-    <div className="flex items-start justify-between gap-2"><div className="font-semibold">{point.r.variant.sourceModel?.name ?? chartLabel(point.r)}</div>{onClose && <button type="button" aria-label="Close selection" className="pointer-events-auto -mr-1 -mt-0.5 p-0.5" style={{ color: pal.grey }} onClick={onClose}><IconX size={13} aria-hidden="true" /></button>}</div>
-    <div style={{ color: pal.grey, fontSize: 11 }}>{lab}{onFrontier ? " · on the frontier" : ""}</div>
-    <div className="mt-1.5 font-mono">{axis.format(point.r.score)} · {format(point.raw ?? point.x)}{unit ? ` ${unit}` : ""}{extra}</div>
-    {point.r.scoreEstimate && <div className="mt-1" style={{ color: pal.grey, fontSize: 11 }}>Estimated: the index lacks its evaluations. From AA Progress Index {Math.round(point.r.scoreEstimate.progress)}, fit on {point.r.scoreEstimate.pairs} scored efforts (R² {point.r.scoreEstimate.r2.toFixed(2)}).</div>}
+  const r = point.r, lab = labs.find((l) => l.id === r.model.labId)?.name ?? r.model.labId;
+  const effort = r.variant.effort !== "default" && !new RegExp(`\\b${r.variant.effort}\\b`, "i").test(r.model.name) ? r.variant.effort : undefined;
+  const setup = /no fallback|without fallback/i.test(r.variant.sourceModel?.name ?? "") ? "no fallback" : undefined;
+  const x = format(point.raw ?? point.x), perTask = /\/task$/.test(x), value = x.replace(/\/task$/, "");
+  const metric = perTask || /task$/.test(unit.replace(/\s/g, "")) ? "per task" : unit || (xLabel ?? "").replace(/\s*\(.*\)|,.*$/, "");
+  const speed = r.speed ? Math.round(r.speed) : undefined, plan = r.costPlan;
+  const api = plan && plan.ratio > 0 && r.costUsd != null ? r.costUsd / plan.ratio : undefined;
+  const apiPrice = api == null ? undefined : perTask ? format(api).replace(/\/task$/, "") : api >= 1 ? `$${api.toFixed(2)}` : `$${api.toPrecision(2)}`;
+  const planName = plan?.plan ?? (extra?.includes("API price, no plan data") ? "API price, no plan data" : undefined);
+  return <div role="status" aria-label="Selected model" className="absolute right-3 bottom-12 z-10 w-[min(300px,calc(100%-24px))] rounded-[4px] border text-[12px] leading-[1.45] pointer-events-none" style={{ background: pal.tipBg, borderColor: pal.tipBorder, color: pal.ink }}>
+    <div className="px-3 pt-2.5 pb-2">
+      <div className="flex items-start justify-between gap-3"><div className="min-w-0"><span className="font-semibold">{modelLabel(r)}</span>{effort && <span style={{ color: pal.grey }}> {effort}</span>}{setup && <span style={{ color: pal.grey }}>, {setup}</span>}</div>{onClose && <button type="button" aria-label="Close selection" className="pointer-events-auto -mr-1 -mt-0.5 p-0.5" style={{ color: pal.grey }} onClick={onClose}><IconX size={13} aria-hidden="true" /></button>}</div>
+      <div style={{ color: pal.grey, fontSize: 11 }}>{lab}{onFrontier ? " · on the frontier" : ""}</div>
+    </div>
+    <div className="grid border-t" style={{ borderColor: pal.hair, gridTemplateColumns: speed ? "1fr 1.2fr 1fr" : "1fr 1.2fr" }}>
+      {[[axis.format(r.score), "score"], [value, metric], ...(speed ? [[String(speed), "tok/s"]] : [])].map(([big, small], i) => <div key={i} className="px-3 py-1.5" style={i ? { borderLeft: `1px solid ${pal.hair}` } : undefined}><div className="font-mono text-[14px] leading-tight whitespace-nowrap">{big}</div><div style={{ color: pal.grey, fontSize: 10.5 }}>{small}</div></div>)}
+    </div>
+    {planName && <div className="flex items-baseline justify-between gap-3 border-t px-3 py-1.5" style={{ borderColor: pal.hair, color: pal.grey, fontSize: 11 }}><span className="min-w-0">{planName}</span>{apiPrice && <span className="whitespace-nowrap"><span className="font-mono">{apiPrice}</span> at API price</span>}</div>}
+    {r.scoreEstimate && <div className="px-3 pb-2" style={{ color: pal.grey, fontSize: 11 }}>Estimated: the index lacks its evaluations. From AA Progress Index {Math.round(r.scoreEstimate.progress)}, fit on {r.scoreEstimate.pairs} scored efforts (R² {r.scoreEstimate.r2.toFixed(2)}).</div>}
   </div>;
 }
 
@@ -340,7 +353,7 @@ export function ScoreScatter(props: ScatterProps) {
         <div ref={ref} role="img" aria-label={aria} data-points={pts.map((p) => p.r.variant.id).sort().join(",")} tabIndex={0} onContextMenu={onContextMenu} onKeyDown={context.onKeyDown} style={{ width: "100%", height: expand.expanded ? "100%" : bare ? height : Math.round(height * (pal.size?.height ?? 1)), overflow: "hidden", position: "relative", isolation: "isolate" }} />
         {fall && !!fallen?.size && <GravityLayer key={fall.run} dots={fall.dots} width={fall.width} height={fall.height} floor={fall.floor} left={fall.left} right={fall.right} stroke={pal.bg} />}
         {!pts.length && <p className="cap absolute inset-0 grid place-items-center">No model in this view has this metric.</p>}
-        {focus && <PointCard point={focus} labs={labs} pal={pal} onFrontier={view.frontier && onFrontierIds.has(focus.r.variant.id)} format={formatValue ?? formatX} unit={xUnit} extra={tooltipExtra?.(focus)} onClose={pinned && !hover ? () => setPinned(null) : undefined} />}
+        {focus && <PointCard point={focus} labs={labs} pal={pal} onFrontier={view.frontier && onFrontierIds.has(focus.r.variant.id)} format={formatValue ?? formatX} unit={xUnit} extra={tooltipExtra?.(focus)} xLabel={xShort ?? xName} onClose={pinned && !hover ? () => setPinned(null) : undefined} />}
       </div>
       {!bare && <ChartContextMenu exportControl={exportControl} state={context.menu} close={context.close} name={exportName} points={pts} visibility={visibility} chart={chart} wrap={wrapRef} expanded={expand.expanded} anchor={anchor} />}
       {editor && <ExportEditor name={exportName} initial={editor} viewOnly={editor.viewOnly} defaultScale={defaultScale === "log" ? "log" : "linear"} base={view} showScale={defaultScale !== "time"} onClose={closeEditor}
