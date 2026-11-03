@@ -1,0 +1,9 @@
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  "name": "priors-edge",
+  "main": "worker.ts",
+  "compatibility_date": "2026-10-21",
+  "workers_dev": true,
+  "services": [{ "binding": "APP", "service": "priors" }],
+  "observability": { "enabled": true, "head_sampling_rate": 0.01 }
+}

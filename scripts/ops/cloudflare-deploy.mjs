@@ -21,6 +21,9 @@ try {
   const runtime = Object.fromEntries(Object.entries(app).filter(([key]) => !["CONVEX_DEPLOY_KEY", "NEXT_PUBLIC_SITE_URL"].includes(key)));
   run("npx", ["wrangler", "secret", "bulk"], JSON.stringify(runtime));
   run("npx", ["opennextjs-cloudflare", "deploy"]);
+  // The front keys its cache by build, so a page from before this deploy never asks for chunks that are gone.
+  const build = spawnSync("git", ["rev-parse", "--short", "HEAD"], { encoding: "utf8" }).stdout.trim() + `-${Date.now()}`;
+  run("npx", ["wrangler", "deploy", "--config", "edge/wrangler.jsonc", "--var", `BUILD_ID:${build}`]);
 } finally {
   // Use Adam's reversible rm shim, including on a failed build or deploy.
   spawnSync("rm", ["-rf", lock], { stdio: "inherit" });
