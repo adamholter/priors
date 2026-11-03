@@ -64,7 +64,8 @@ describe("edgeCached", () => {
     expect(cachesPage(req("__client_uat=0; priors_theme=dark"))).toBe(true);
     expect(cachesPage(new Request("https://x.test/rank", { headers: { "user-agent": CHROME } }))).toBe(false);
     expect(cachesPage(new Request("https://x.test/builder", { headers: { "user-agent": CHROME, rsc: "1" } }))).toBe(false);
-    expect(cachesPage(new Request("https://x.test/builder?_rsc=a1", { headers: { "user-agent": CHROME, rsc: "1" } }))).toBe(true);
+    expect(cachesPage(new Request("https://x.test/builder?_rsc=a1", { headers: { "user-agent": CHROME, rsc: "1" } }))).toBe(false);
+    expect(cachesPage(new Request("https://x.test/builder?_rsc=a1", { headers: { "user-agent": CHROME } }))).toBe(false);
   });
 
   it.each([

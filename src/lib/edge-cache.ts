@@ -10,8 +10,8 @@ const BROWSER = /applewebkit|gecko\/|chrome\/|safari\/|firefox\//i;
 
 export function cachesPage(request: Request): boolean {
   const ua = request.headers.get("user-agent") ?? "", url = new URL(request.url);
-  // A client navigation's response differs from the HTML at the same path; `_rsc` keeps it at an address of its own.
-  if (request.headers.has("rsc") && !url.searchParams.has("_rsc")) return false;
+  // A client navigation's response depends on its router headers, so only plain document requests share a copy.
+  if (request.headers.has("rsc") || url.searchParams.has("_rsc")) return false;
   return PAGES.test(url.pathname) && !BOT.test(ua) && BROWSER.test(ua) && !PERSONAL_COOKIE.test(request.headers.get("cookie") ?? "");
 }
 
