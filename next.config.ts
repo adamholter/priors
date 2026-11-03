@@ -21,7 +21,7 @@ const nextConfig: NextConfig = {
   },
   outputFileTracingIncludes: {
     "/og": ["./src/lib/og-fonts/*"],
-    "/api/history": ["./data/snapshots/????-??-??.json.gz"],
+    "/api/history": ["./data/snapshots/????-??-??.json.gz", "./data/snapshots/history.bin.gz"],
     "/\\[handle\\]/opengraph-image": ["./src/lib/og-fonts/*"],
   },
 };

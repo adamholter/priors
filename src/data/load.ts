@@ -4,6 +4,7 @@ import type { Snapshot } from "./types";
 import type { MixLibrary } from "../onboarding/library";
 import { canonicalizeSnapshot } from "./canonical-snapshot";
 import { shareStrings } from "./share-strings";
+import { decodeHistoryArchive, HISTORY_ARCHIVE, type HistoryArchive } from "../lib/history-archive";
 
 /**
  * Where the live data comes from. The scrape job publishes each changed snapshot to the repo's `data-live`
@@ -53,7 +54,7 @@ function remoteCache<T>(parse: (raw: Buffer) => T) {
   };
 }
 /** A snapshot file, parsed, with its identities repaired and its repeated strings shared (40% less memory). */
-const parseSnapshot = (raw: Buffer) => shareStrings(canonicalizeSnapshot(JSON.parse(gunzipSync(raw).toString("utf8")) as Snapshot));
+export const parseSnapshot = (raw: Buffer) => shareStrings(canonicalizeSnapshot(JSON.parse(gunzipSync(raw).toString("utf8")) as Snapshot));
 const remoteSnapshot = remoteCache(parseSnapshot);
 const remoteLibrary = remoteCache((raw) => JSON.parse(gunzipSync(raw).toString("utf8")) as MixLibrary);
 
@@ -93,6 +94,14 @@ function bundledSnapshot(file: string): Promise<Snapshot | null> {
 export async function readSnapshot(date: string): Promise<Snapshot | null> {
   try { return parseSnapshot(await readRuntimeFile(`data/snapshots/${date}.json.gz`)); }
   catch { return null; }
+}
+
+const remoteArchive = remoteCache(decodeHistoryArchive);
+let bundledArchive: Promise<HistoryArchive | null> | undefined;
+/** Every dated snapshot in one columnar file (`src/lib/history-archive.ts`): the live copy, else the build's. Null when neither is there. */
+export async function loadHistoryArchive(): Promise<HistoryArchive | null> {
+  if (remoteBase()) { const live = await remoteArchive(HISTORY_ARCHIVE); if (live) return live; }
+  return bundledArchive ??= readRuntimeFile(`data/snapshots/${HISTORY_ARCHIVE}`).then(decodeHistoryArchive).catch(() => null);
 }
 
 /** Load the precomputed mix library for a snapshot date, or null when absent. */

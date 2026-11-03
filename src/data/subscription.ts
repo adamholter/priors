@@ -1,3 +1,4 @@
+import { columnsOf, observationsOf } from "./columns";
 import type { Snapshot } from "./types";
 
 /** Subscription token price per model, scraped from Real API Pricing (`scripts/scrape/sources/realapipricing.ts`). */
@@ -65,9 +66,9 @@ const median = (xs: number[]) => { const s = [...xs].sort((a, b) => a - b); retu
 
 /** Each model's measured token mix (`scripts/scrape/sources/slopalytics.ts`). Models with too little T3 Code usage are absent. */
 export function measuredTokenMixes(snapshot: Snapshot): Map<string, MeasuredTokenMix> {
-  const variants = new Map(snapshot.variants.map((v) => [v.id, v.modelId])), out = new Map<string, MeasuredTokenMix>();
-  for (const o of snapshot.observations) {
-    const mix = o.benchmarkId === T3_USAGE_BENCHMARK ? o.details?.tokenMix as MeasuredTokenMix | undefined : undefined;
+  const variants = columnsOf(snapshot).modelOf, out = new Map<string, MeasuredTokenMix>();
+  for (const o of observationsOf(snapshot, T3_USAGE_BENCHMARK)) {
+    const mix = o.details?.tokenMix as MeasuredTokenMix | undefined;
     if (mix) out.set(variants.get(o.variantId) ?? o.variantId.split("@")[0], mix);
   }
   return out;
@@ -130,10 +131,10 @@ export function subscriptionPlanOptions(snapshot: Snapshot): { labId: string; pl
  * Only comparing two different models' prices depends on the mix, so that (below) uses measured mixes.
  */
 export function subscriptionPrices(snapshot: Snapshot, chosen: Record<string, string> = {}): Map<string, SubscriptionPrice> {
-  const labOf = new Map(snapshot.models.map((m) => [m.id, m.labId]));
+  const labOf = Object.keys(chosen).length ? new Map(snapshot.models.map((m) => [m.id, m.labId])) : undefined;
   const out = new Map<string, SubscriptionPrice>();
   const mixes = new Map<string, TokenMix>();
-  const variants = new Map(snapshot.variants.map((v) => [v.id, v]));
+  const variants = columnsOf(snapshot).modelOf;
   const aaPrices = new Map<string, Prices>();
   for (const v of snapshot.variants) {
     const m = v.sourceModel?.metadata;
@@ -141,14 +142,13 @@ export function subscriptionPrices(snapshot: Snapshot, chosen: Record<string, st
     if (prices) aaPrices.set(v.modelId, prices);
   }
   const assumed: [string, SubscriptionDetails][] = [];
-  for (const o of snapshot.observations) {
-    if (o.benchmarkId !== SUBSCRIPTION_BENCHMARK) continue;
+  for (const o of observationsOf(snapshot, SUBSCRIPTION_BENCHMARK)) {
     const d = o.details as unknown as SubscriptionDetails | undefined;
-    const modelId = variants.get(o.variantId)?.modelId ?? o.variantId.split("@")[0];
+    const modelId = variants.get(o.variantId) ?? o.variantId.split("@")[0];
     if (d?.sameAs) assumed.push([modelId, d]);
     // A curated ratio is taken as is; 0 is a free tier.
     if (typeof d?.ratio === "number" && Number.isFinite(d.ratio) && d.ratio >= 0) { out.set(modelId, { ratio: d.ratio, plan: d.plan, feeUsd: d.feeUsd, confidence: d.confidence }); continue; }
-    const want = chosen[labOf.get(modelId) ?? ""], pick = want !== undefined ? d?.plans?.find((p) => p.plan === want && positive(p.usdPerMtok)) : undefined;
+    const want = labOf && chosen[labOf.get(modelId) ?? ""], pick = want !== undefined ? d?.plans?.find((p) => p.plan === want && positive(p.usdPerMtok)) : undefined;
     const value = pick?.usdPerMtok ?? o.value;
     if (!positive(value)) continue;
     const prices = d?.listPrice ?? aaPrices.get(modelId);
@@ -164,7 +164,7 @@ export function subscriptionPrices(snapshot: Snapshot, chosen: Record<string, st
   // API price per token pays 1/(k·p) of that model's share (same tokens per message assumed). The median over every
   // measured model keeps one odd reference from setting the price. Real plan data replaces it once the model has some.
   const messages = new Map<string, number>();
-  for (const o of snapshot.observations) if (o.benchmarkId === CODEX_LIMITS_BENCHMARK && positive(o.value)) messages.set(variants.get(o.variantId)?.modelId ?? o.variantId.split("@")[0], o.value);
+  for (const o of observationsOf(snapshot, CODEX_LIMITS_BENCHMARK)) if (positive(o.value)) messages.set(variants.get(o.variantId) ?? o.variantId.split("@")[0], o.value);
   const measured = [...messages.keys()].filter((id) => out.has(id) && aaPrices.has(id)), usage = measuredTokenMixes(snapshot);
   for (const [modelId, n] of messages) {
     const prices = aaPrices.get(modelId);

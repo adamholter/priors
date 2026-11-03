@@ -32,7 +32,7 @@ export function canonicalizeSnapshot(snapshot: Snapshot): Snapshot {
   });
   const repaired = (id: string) => repairs.get(id) ?? id;
   snapshot = { ...snapshot, models, variants: inputVariants,
-    observations: snapshot.observations.map(o => ({ ...o, variantId: repaired(o.variantId) })),
+    observations: snapshot.observations.map(o => { const id = repaired(o.variantId); return id === o.variantId ? o : { ...o, variantId: id }; }),
     series: snapshot.series.map(s => ({ ...s, variantId: repaired(s.variantId) })),
     ...(snapshot.estimates ? { estimates: snapshot.estimates.map(e => ({ ...e, variantId: repaired(e.variantId), ...(e.sourceVariantId ? { sourceVariantId: repaired(e.sourceVariantId) } : {}) })) } : {}),
   };
@@ -40,10 +40,18 @@ export function canonicalizeSnapshot(snapshot: Snapshot): Snapshot {
     v.sourceModel && isBaselineVariant(v.modelId, v.effort, v.sourceModel.slug, v.sourceModel.name)
       ? `${v.modelId}@${v.effort}` : v.id,
   ]));
+  // Only an id that several source ids merge into can conflict; the rest need no comparing.
+  const firstSource = new Map<string, string>(), merging = new Set<string>();
+  for (const o of snapshot.observations) {
+    const target = proposed.get(o.variantId) ?? o.variantId, first = firstSource.get(target);
+    if (first === undefined) firstSource.set(target, o.variantId);
+    else if (first !== o.variantId) merging.add(target);
+  }
   const measurements = new Map<string, { variantId: string; signature: string }>();
   const ambiguous = new Set<string>();
   for (const o of snapshot.observations) {
     const target = proposed.get(o.variantId) ?? o.variantId;
+    if (!merging.has(target)) continue;
     const key = JSON.stringify([o.benchmarkId, target, o.harness ?? ""]);
     const signature = JSON.stringify([o.value, o.sourceModelId, o.costUsd, o.durationSec, o.outputTokens, o.steps]);
     const previous = measurements.get(key);
@@ -76,7 +84,7 @@ export function canonicalizeSnapshot(snapshot: Snapshot): Snapshot {
   }).sort((a, b) => a.id.localeCompare(b.id));
   const remap = (id: string) => ids.get(id) ?? id;
   return { ...snapshot, variants, ...(snapshot.benchmarks ? { benchmarks: withFamilies(snapshot.benchmarks) } : {}),
-    observations: snapshot.observations.map(o => ({ ...o, variantId: remap(o.variantId) })),
+    observations: snapshot.observations.map(o => { const id = remap(o.variantId); return id === o.variantId ? o : { ...o, variantId: id }; }),
     series: snapshot.series.map(s => ({ ...s, variantId: remap(s.variantId) })),
     ...(snapshot.estimates ? { estimates: snapshot.estimates.map(e => ({ ...e, variantId: remap(e.variantId), ...(e.sourceVariantId ? { sourceVariantId: remap(e.sourceVariantId) } : {}) })) } : {}),
   };

@@ -19,7 +19,7 @@ Stack: Next.js App Router, React, TypeScript, Tailwind, ECharts, Convex, Clerk, 
 | Path | What lives there |
 | --- | --- |
 | `src/data/` | The data contract (`types.ts`, read first), model-label normalization, snapshot loading, cost and time sources |
-| `src/engine/index.ts` | Index math: shares, coverage floor, effort matching, peer estimation, Pareto frontier |
+| `src/engine/index.ts` | Index math on the flat arrays of `src/data/columns.ts`: shares, coverage floor, effort matching, peer estimation, Pareto frontier |
 | `src/lib/` | Pure helpers: URL codec (`url.ts`), chart metrics, formulas, page themes, share cards (`og.tsx`, `og-chart.ts`), imports |
 | `src/onboarding/` | The ranking onboarding: matchups, review list, and the weight search (worker, optimizer, quality) |
 | `src/agent/` | The mix assistant: tool loop, tools, edit solver |
