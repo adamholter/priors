@@ -230,8 +230,8 @@ const readTools: Tool[] = [
     name: "index_history", description: "How an index's ranking moved: the top models on each snapshot date. mode fixed scores every day with the index as written; adapting drops benchmarks that were not yet established that day.",
     inputSchema: withIndex({ mode: { type: "string", enum: ["fixed", "adapting"] }, top: num("Models per date (default 8, max 20).") }),
     async run(a) {
-      const { config, snapshot: s } = await resolveIndex(a.index);
-      const data = await computeHistory(config, a.mode === "adapting" ? "adapting" : "fixed", `mcp|${JSON.stringify(a.index ?? null)}|${s.date}`);
+      const { config } = await resolveIndex(a.index);
+      const data = await computeHistory(config, a.mode === "adapting" ? "adapting" : "fixed");
       const top = cap(a.top, 8, 20);
       return { name: data.name, mode: data.mode, frames: data.frames.map((f) => ({ date: f.date, models: f.models, benchmarksCounted: f.used, rows: f.rows.slice(0, top).map((r) => ({ model: r.name, effort: r.effort, score: round(r.score) })) })) };
     },

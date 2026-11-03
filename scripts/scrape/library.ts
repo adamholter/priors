@@ -98,7 +98,7 @@ async function fitFingerprint(snapshot: Snapshot): Promise<string> {
   h.update([...ids].sort().join(","));
   for (const o of snapshot.observations) if (ids.has(o.benchmarkId)) h.update(`${o.benchmarkId}|${o.variantId}|${o.value}|${o.harness ?? ""}\n`);
   for (const m of snapshot.models) h.update(`${m.id}|${m.releaseDate ?? ""}|${m.kind}\n`);
-  for (const f of ["src/engine/index.ts", "src/onboarding/optimizer.ts", "src/onboarding/quality.ts"]) h.update(await readFile(path.resolve(f), "utf8").catch(() => ""));
+  for (const f of ["src/engine/index.ts", "src/data/columns.ts", "src/onboarding/optimizer.ts", "src/onboarding/quality.ts"]) h.update(await readFile(path.resolve(f), "utf8").catch(() => ""));
   return h.digest("hex");
 }
 

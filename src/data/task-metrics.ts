@@ -1,4 +1,5 @@
 import { SUBSCRIPTION_BENCHMARK, type CostBasis } from "./subscription";
+import { columnsOf, observationsOf } from "./columns";
 import type { Observation, Snapshot } from "./types";
 
 export type TaskMetricSource = "aa" | "terminalbench-4" | "deepswe-1.1" | "frontierswe-v2";
@@ -44,21 +45,17 @@ export function taskMetricData(snapshot: Snapshot, source: string, metric: TaskM
   const benchmarkId = source !== "aa" ? source : metric === "cost" ? "aa-cost-per-task-index"
     : snapshot.benchmarks.filter((b) => b.id.startsWith("aa-intelligence-index")).sort((a, b) => b.id.localeCompare(a.id))[0]?.id;
   const rows = new Map<string, { value: number; observation: Observation }>();
-  const models = new Set<string>();
-  const variantModels = new Map(snapshot.variants.map((v) => [v.id, v.modelId]));
-  for (const o of snapshot.observations) {
-    if (o.benchmarkId !== benchmarkId || o.details?.priorsEstimate) continue;
+  for (const o of benchmarkId === undefined ? [] : observationsOf(snapshot, benchmarkId)) {
+    if (o.details?.priorsEstimate) continue;
     const value = source !== "aa" ? (metric === "cost" ? o.costUsd : o.durationSec)
       : metric === "cost" ? o.value : o.details?.estimatedDecodeSecondsPerTask;
     if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) continue;
     // Scraper order selects the published best-scoring harness when several share an identity.
     if (!rows.has(o.variantId)) rows.set(o.variantId, { value, observation: o });
-    const modelId = variantModels.get(o.variantId);
-    if (modelId) models.add(modelId);
   }
-  const aliases = new Map(snapshot.variants.flatMap(v => (v.aliases ?? []).map(id => [id, v.id] as const)));
+  const { aliases, modelOf } = columnsOf(snapshot);
   return {
-    modelCount: models.size,
+    get modelCount() { return new Set([...rows.keys()].map((id) => modelOf.get(id)).filter(Boolean)).size; },
     get: (variantId: string) => rows.get(aliases.get(variantId) ?? variantId),
   };
 }

@@ -4,6 +4,7 @@ import { supersededModelIds } from "./superseded";
 import { progressEstimates, type ScoreEstimate } from "./progress-estimate";
 import { taskMetricData, taskMetricDescription, type TaskMetricSource } from "../data/task-metrics";
 import type { Benchmark, FocusId, Model, Observation, Snapshot, Variant } from "../data/types";
+import { columnsOf, DEFAULT_RANK, effortLocked, ROW_FLAGS, type Columns, type EstimationRoute } from "../data/columns";
 import { AA_V5_WEIGHTS, aaComponentWeights } from "../data/aa-index";
 
 /* ------------------------------------------------------------------ */
@@ -189,110 +190,65 @@ export interface IndexResult {
 /* Engine                                                              */
 /* ------------------------------------------------------------------ */
 
-type ObsIndex = Map<string, Map<string, Observation>>; // benchmarkId -> variantId -> obs
-
-function indexObservations(snapshot: Snapshot): ObsIndex {
-  const idx: ObsIndex = new Map();
-  for (const o of snapshot.observations) {
-    let m = idx.get(o.benchmarkId);
-    if (!m) idx.set(o.benchmarkId, (m = new Map()));
-    // prefer rows without harness (source's canonical) or first seen
-    if (!m.has(o.variantId)) m.set(o.variantId, o);
-  }
-  for (const estimate of snapshot.estimates ?? []) {
-    let m = idx.get(estimate.benchmarkId);
-    if (!m) idx.set(estimate.benchmarkId, (m = new Map()));
-    if (!m.has(estimate.variantId)) m.set(estimate.variantId, {
-      benchmarkId: estimate.benchmarkId, variantId: estimate.variantId, value: estimate.value,
-      observedAt: "", sourceUrl: estimate.sourceUrl ?? "", sourceModelId: estimate.sourceVariantId, details: { priorsEstimate: estimate },
-    });
-  }
-  return idx;
-}
-
 export function inferredObservation(o: Observation) {
   return Boolean(o.details?.priorsEstimate || (o.details?.realIndex as { effortAttribution?: string } | undefined)?.effortAttribution === "assumed-top");
 }
 
-/** Resolve a logical benchmark value through fallback chains. */
-function lookup(idx: ObsIndex, benches: Map<string, Benchmark>, benchmarkId: string, variantId: string, depth = 0, allowEstimated = true, allowCrossEffort = true): { obs: Observation; from: string; value?: number; estimated?: boolean; evidence?: string[] } | undefined {
-  const o = idx.get(benchmarkId)?.get(variantId);
-  const explicitEstimate = o?.details?.priorsEstimate as { sourceBenchmarkId?: string; estimateKind?: string; evidence?: string[] } | undefined;
-  const assumedTop = (o?.details?.realIndex as { effortAttribution?: string } | undefined)?.effortAttribution === "assumed-top";
-  if (o && (!(explicitEstimate || assumedTop) || allowEstimated) && (allowCrossEffort || !["cross-effort", "performance"].includes(explicitEstimate?.estimateKind ?? ""))) return {
-    obs: o, from: explicitEstimate?.sourceBenchmarkId ?? benchmarkId,
-    estimated: Boolean(explicitEstimate || assumedTop), evidence: explicitEstimate?.evidence ?? (assumedTop ? ["Real Index Top-effort assumption; native effort not published"] : undefined),
-  };
-  const b = benches.get(benchmarkId);
-  if (b?.versionPolicy?.kind === "fallback" && depth < 4) {
-    const version = lookup(idx, benches, b.versionPolicy.fallbackTo, variantId, depth + 1, allowEstimated, allowCrossEffort);
-    if (version) return version;
+// Plain locals: the loops below read these millions of times, and tsx (the scrape, the library) turns an import into a getter.
+const { ROW_ASSUMED_TOP, ROW_CROSS_EFFORT, ROW_INFERRED, ROW_NOTE_ESTIMATED, ROW_PERFORMANCE } = ROW_FLAGS;
+// Where the last lookup landed: the benchmark holding the row, whose variant it is, and the conversion if it took one.
+let foundBench = 0, foundVariant = 0, foundValue = 0, foundRoute: EstimationRoute | undefined;
+
+/** Resolve a logical benchmark value through fallback chains: the row, or -1. */
+function lookup(c: Columns, b: number, v: number, depth = 0, allowEstimated = true, allowCrossEffort = true): number {
+  const r = c.at[v * c.nb + b];
+  if (r >= 0) {
+    const f = c.flags[r];
+    if ((!(f & ROW_INFERRED) || allowEstimated) && (allowCrossEffort || !(f & (ROW_CROSS_EFFORT | ROW_PERFORMANCE)))) { foundBench = b; foundRoute = undefined; return r; }
   }
-  if (allowEstimated && depth < 4) {
-    for (const route of b?.estimationRoutes ?? []) {
-      const source = idx.get(route.sourceId)?.get(variantId);
-      const factor = route.variantFactors?.[variantId] ?? route.factor;
-      if (!source || inferredObservation(source) || !Number.isFinite(factor) || factor < 0) continue;
-      return {
-        obs: source, from: route.sourceId, value: clamp(source.value * factor, 0, 100), estimated: true,
-        evidence: [route.evidenceId, ...(route.variantFactors?.[variantId] == null ? [] : ["Release-specific paired calibration"]), ...(route.pairedCount == null ? [] : [`${route.pairedCount} paired configurations`])],
-      };
-    }
+  if (depth >= 4) return -1;
+  const fallback = c.fallback[b];
+  if (fallback >= 0) {
+    const version = lookup(c, fallback, v, depth + 1, allowEstimated, allowCrossEffort);
+    if (version >= 0) return version;
   }
-  return undefined;
+  const routes = allowEstimated ? c.routes[b] : undefined;
+  if (routes) for (const route of routes) {
+    const source = c.at[v * c.nb + route.source], factor = route.variantFactors?.[c.variantIds[v]] ?? route.factor;
+    if (source < 0 || c.flags[source] & ROW_INFERRED || !Number.isFinite(factor) || factor < 0) continue;
+    foundBench = route.source; foundRoute = route; foundValue = clamp(c.value[source] * factor, 0, 100);
+    return source;
+  }
+  return -1;
 }
 
-function lookupEffort(idx: ObsIndex, benches: Map<string, Benchmark>, benchmarkId: string, variant: Variant, strictEffort: boolean, allowEstimated: boolean) {
-  const exact = lookup(idx, benches, benchmarkId, variant.id, 0, allowEstimated, !strictEffort);
-  if (exact || strictEffort) return exact;
-  const order = ["none", "minimal", "low", "medium", "high", "xhigh", "max", "default"];
-  const target = order.indexOf(variant.effort);
-  const visited = new Set<string>();
-  let id: string | undefined = benchmarkId;
-  while (id && !visited.has(id)) {
-    visited.add(id);
-    const candidates = [...(idx.get(id)?.values() ?? [])].filter((o) => !inferredObservation(o) && o.variantId.startsWith(`${variant.modelId}@`) && o.variantId.split("~")[1] === variant.id.split("~")[1]);
-    candidates.sort((a, b) => {
-      const ai = order.indexOf(a.variantId.split("@")[1].split("~")[0]), bi = order.indexOf(b.variantId.split("@")[1].split("~")[0]);
-      return Math.abs(ai - target) - Math.abs(bi - target) || ai - bi || a.variantId.localeCompare(b.variantId);
-    });
-    if (candidates.length) return { obs: candidates[0], from: id };
-    const policy: Benchmark["versionPolicy"] = benches.get(id)?.versionPolicy;
-    id = policy?.kind === "fallback" ? policy.fallbackTo : undefined;
+function lookupEffort(c: Columns, b: number, v: number, target: number, siblings: number, strictEffort: boolean, allowEstimated: boolean): number {
+  foundVariant = v;
+  const exact = lookup(c, b, v, 0, allowEstimated, !strictEffort);
+  if (exact >= 0 || strictEffort || siblings < 0) return exact;
+  const members = c.siblings[siblings];
+  // Bounded by the benchmark count, which also ends a chain that loops.
+  for (let id = b, steps = 0; id >= 0 && steps <= c.nb; id = c.fallback[id], steps++) {
+    let best = -1, bestVariant = -1, bestRank = 0;
+    for (let i = 0; i < members.length; i++) {
+      const u = members[i], r = c.at[u * c.nb + id];
+      if (r < 0 || c.flags[r] & ROW_INFERRED) continue;
+      const rank = c.idRank[u];
+      if (best < 0 || (Math.abs(rank - target) - Math.abs(bestRank - target) || rank - bestRank || c.variantIds[u].localeCompare(c.variantIds[bestVariant])) < 0) { best = r; bestVariant = u; bestRank = rank; }
+    }
+    if (best >= 0) { foundBench = id; foundRoute = undefined; foundVariant = bestVariant; return best; }
   }
-  return undefined;
+  return -1;
 }
 
-function effortAdjustment(idx: ObsIndex, benches: Map<string, Benchmark>, normalize: Map<string, (v: number) => number>, targetBenchmark: string, target: Variant, source: Observation, strictness: number) {
-  const order = ["none", "minimal", "low", "medium", "high", "xhigh", "max"];
-  const from = order.indexOf(source.variantId.split("@")[1].split("~")[0]), to = order.indexOf(target.effort);
-  if (from < 0 || to < 0 || strictness === 100 || (strictness >= 85 && Math.abs(from - to) > 1)) return undefined;
-  const related = new Set([targetBenchmark, source.benchmarkId]);
-  for (let changed = true; changed;) {
-    changed = false;
-    for (const b of benches.values()) {
-      const link = b.versionPolicy?.kind === "fallback" ? b.versionPolicy.fallbackTo : b.versionPolicy?.supersedes;
-      if (link && (related.has(b.id) || related.has(link)) && (!related.has(b.id) || !related.has(link))) {
-        related.add(b.id); related.add(link); changed = true;
-      }
-    }
+function measuredNormalizer(c: Columns, b: number) {
+  let norm = c.measured[b];
+  if (!norm) {
+    const values: number[] = [];
+    for (let v = 0, slot = b; v < c.nv; v++, slot += c.nb) if (c.at[slot] >= 0) values.push(c.value[c.at[slot]]);
+    norm = c.measured[b] = makeNormalizer(c.bench[b]!, values);
   }
-  const comparisons: { id: string; numerator: number; denominator: number }[] = [];
-  for (const b of benches.values()) {
-    if (related.has(b.id) || b.proxy || ["cost", "speed", "composite"].includes(b.category)) continue;
-    const a = idx.get(b.id)?.get(target.id), donor = idx.get(b.id)?.get(source.variantId);
-    if (!a || !donor || inferredObservation(a) || inferredObservation(donor) || a.harness !== donor.harness || /estimated/i.test(`${a.note ?? ""} ${donor.note ?? ""}`)) continue;
-    const denominator = normalize.get(b.id)!(donor.value), numerator = normalize.get(b.id)!(a.value);
-    if (!Number.isFinite(numerator) || !Number.isFinite(denominator) || denominator < 5) continue;
-    comparisons.push({ id: b.id, numerator, denominator });
-  }
-  const minimum = strictness >= 95 ? 3 : strictness >= 75 ? 2 : 1;
-  if (comparisons.length < minimum) return undefined;
-  comparisons.sort((a, b) => a.id.localeCompare(b.id));
-  // Ratio of means over paired, directly measured benchmarks. Each benchmark counts once.
-  const ratio = comparisons.reduce((sum, c) => sum + c.numerator, 0) / comparisons.reduce((sum, c) => sum + c.denominator, 0);
-  const effortFactor = shrinkEffortFactor(ratio, comparisons.length, to - from);
-  return effortFactor == null ? undefined : { effortFactor, evidence: comparisons.map((c) => c.id) };
+  return norm;
 }
 
 /** Paired benchmarks it takes for an effort ratio to count for half its measured size. */
@@ -357,125 +313,17 @@ export interface ViewOptions {
 export const PAGE_VIEW: ViewOptions = { defaultView: true };
 
 export function computeIndex(snapshot: Snapshot, config: IndexConfig, view: ViewOptions = {}): IndexResult {
-  const benches = new Map(snapshot.benchmarks.map((b) => [b.id, b]));
-  const models = new Map(snapshot.models.map((m) => [m.id, m]));
-  const idx = indexObservations(snapshot);
-  const costData = taskMetricData(snapshot, view.costBenchmark ?? config.costSource ?? "aa", "cost");
+  const c = columnsOf(snapshot);
+  const shares = sharesOf(c, config);
+  if (!shares.length) return { config, benchmarks: [], ranked: [], excluded: [], candidateModelIds: [], autoHidden: [], estimated: [] };
   const plans = effectiveBasis(config.costBasis) === "subscription" ? subscriptionPrices(snapshot, config.subscriptionPlans) : undefined;
-  const resetBoosts = plans && config.planResets === true ? planResetBoosts(snapshot) : undefined;
-
-  const used = Object.entries(config.weights).filter(([id, w]) => w > 0 && benches.has(id));
-  const total = used.reduce((a, [, w]) => a + w, 0);
-  if (!used.length || total <= 0) return { config, benchmarks: [], ranked: [], excluded: [], candidateModelIds: [], autoHidden: [], estimated: [] };
-  const strictness = strictnessOf(config);
-  const shares = used.map(([id, w]) => ({ benchmark: benches.get(id)!, share: (w / total) * 100, required: isBenchmarkRequired(config, id) }));
-  const normalizeMeasured = new Map(snapshot.benchmarks.map((b) => [b.id, makeNormalizer(b, [...(idx.get(b.id)?.values() ?? [])].map((o) => o.value))]));
-
-  // pool: llm variants with at least one used benchmark value, passing filters
-  const after = config.releasedAfter === undefined ? defaultReleasedAfter(snapshot.date) : config.releasedAfter;
-  const candidates = snapshot.variants.filter((v) => {
-    const m = models.get(v.modelId);
-    if (!m || m.kind !== "llm") return false;
-    if (config.labs?.length && !config.labs.includes(m.labId)) return false;
-    if (after && m.releaseDate && m.releaseDate < after) return false;
-    return shares.some((s) => lookup(idx, benches, s.benchmark.id, v.id));
-  });
-  const candidateModelIds = [...new Set(candidates.map((v) => v.modelId))];
-  const hidden = new Set(config.excludeModels ?? []), only = config.onlyModels && new Set(config.onlyModels);
-  const pool = candidates.filter((v) => !hidden.has(v.modelId) && (!only || only.has(v.modelId)));
-
-  // raw values per benchmark over the pool -> normalizers
-  type Resolved = { normalizedEstimate: boolean; raw: number; from: string; sourceVariantId: string; sourceUrl: string; substituted: boolean; estimateKind?: BenchValue["estimateKind"]; effortFactor?: number; evidence?: string[] };
-  const rawByBench = new Map<string, Map<string, Resolved>>();
-  for (const s of shares) {
-    const m = new Map<string, Resolved>();
-    for (const v of pool) {
-      const r = lookupEffort(idx, benches, s.benchmark.id, v, config.effortMatching === "strict" || strictness === 100 || s.benchmark.proxy === true || ["cost", "speed"].includes(s.benchmark.category), strictness < 100);
-      if (!r) continue;
-      const substituted = r.obs.variantId !== v.id;
-      const adjustment = substituted ? effortAdjustment(idx, benches, normalizeMeasured, s.benchmark.id, v, r.obs, strictness) : undefined;
-      if (substituted && !adjustment) continue;
-      const shippedKind = (r.obs.details?.priorsEstimate as { estimateKind?: string } | undefined)?.estimateKind;
-      m.set(v.id, { normalizedEstimate: Boolean(r.obs.details?.priorsEstimate), raw: r.value ?? r.obs.value, from: r.from, sourceVariantId: (r.obs.details?.priorsEstimate as { sourceVariantId?: string } | undefined)?.sourceVariantId ?? r.obs.variantId, sourceUrl: r.obs.sourceUrl, substituted: substituted || r.estimated === true, estimateKind: r.estimated ? (shippedKind === "cross-effort" ? "effort" : shippedKind === "performance" ? "performance" : "calibrated-fallback") : substituted ? "effort" : undefined, ...adjustment, evidence: [...(r.evidence ?? []), ...(adjustment?.evidence ?? [])] });
-    }
-    rawByBench.set(s.benchmark.id, m);
-  }
-  const norm = new Map(shares.map((s) => [s.benchmark.id, makeNormalizer(s.benchmark, [...rawByBench.get(s.benchmark.id)!.values()].map((x) => x.raw))]));
-  const normValue = (bid: string, vid: string) => { const r = rawByBench.get(bid)!.get(vid); return r ? { ...r, value: clamp(norm.get(bid)!(r.raw) * (r.effortFactor ?? 1), 0, 100) } : undefined; };
-  const observedValue = (bid: string, vid: string) => { const v = normValue(bid, vid); return v?.substituted ? undefined : v; };
-  // Every directly measured percent score a variant has, whether or not the mix uses it: the evidence for who resembles whom.
-  const panelCache = new Map<string, Map<string, number>>();
-  const panelBenchmarks = snapshot.benchmarks.filter((b) => b.unit === "percent" && b.higherIsBetter && !b.proxy && !["cost", "speed", "composite"].includes(b.category));
-  const panel = (vid: string) => {
-    let m = panelCache.get(vid);
-    if (!m) {
-      m = new Map();
-      for (const b of panelBenchmarks) { const o = idx.get(b.id)?.get(vid); if (o && !inferredObservation(o) && Number.isFinite(o.value)) m.set(b.id, o.value); }
-      panelCache.set(vid, m);
-    }
-    return m;
+  const detail: Detail = {
+    costData: taskMetricData(snapshot, view.costBenchmark ?? config.costSource ?? "aa", "cost"), plans,
+    resetBoosts: plans && config.planResets === true ? planResetBoosts(snapshot) : undefined,
+    excluded: [], candidateModelIds: [],
   };
-
-  // eligibility: explicit required gates first, then the measured-coverage floor —
-  // a variant is ranked only when observed or effort-substituted values cover at
-  // least strictness% of the index's weight. Peer-estimated values do not count.
-  const ranked: RankedVariant[] = [];
-  const excluded: IndexResult["excluded"] = [];
-  const floor = minMeasuredShare(config);
-  for (const v of pool) {
-    const model = models.get(v.modelId)!;
-    let measured = 0;
-    const unmeasured: string[] = [];
-    for (const s of shares) {
-      const nv = normValue(s.benchmark.id, v.id);
-      if (nv && (!nv.substituted || nv.estimateKind === "effort")) measured += s.share;
-      else unmeasured.push(s.benchmark.id);
-    }
-    const measuredShare = measured / 100;
-    const missingRequired = shares.filter((s) => s.required && !rawByBench.get(s.benchmark.id)!.has(v.id)).map((s) => s.benchmark.id);
-    if (missingRequired.length) { excluded.push({ variant: v, model, missing: missingRequired, reason: "required", measuredShare }); continue; }
-    if (measuredShare < floor - 1e-9) { excluded.push({ variant: v, model, missing: unmeasured, reason: "coverage", measuredShare }); continue; }
-
-    const values: BenchValue[] = [];
-    let peers: Variant[] | undefined;
-    let num = 0, den = 0, covered = 0;
-    for (const s of shares) {
-      const nv = normValue(s.benchmark.id, v.id);
-      if (nv) {
-        const { raw, normalizedEstimate, ...publicValue } = nv;
-        values.push({ benchmarkId: s.benchmark.id, ...publicValue, ...(normalizedEstimate || nv.estimateKind === "calibrated-fallback" ? {} : { raw }), estimated: nv.substituted });
-        num += nv.value * s.share; den += s.share; if (!nv.substituted) covered += s.share; continue;
-      }
-      if (!config.estimateMissing || strictness === 100) continue; // renormalize: just skip
-      peers ??= eligiblePeers(v, pool, models, strictness);
-      const est = estimate(v, s.benchmark.id, peers, shares.map((x) => x.benchmark.id), observedValue, models, 5, strictness, view.peerMethod === "mix" ? undefined : { benchmark: s.benchmark, panel }, );
-      if (est != null) { values.push({ benchmarkId: s.benchmark.id, value: est.value, estimated: true, estimateKind: "peer", estimateRange: est.range, donors: est.donors }); num += est.value * s.share; den += s.share; }
-    }
-    if (den <= 0) continue;
-    const measuredCost = costData.get(v.id);
-    // Preserve AA's mix-weighted cost when every selected benchmark publishes it.
-    const aaCosts = !view.costBenchmark && (config.costSource ?? "aa") === "aa" ? shares.map((s) => ({ share: s.share, observation: idx.get(s.benchmark.id)?.get(v.id) })) : [];
-    const weightedAaCost = aaCosts.length && aaCosts.every(({ observation: o }) => o?.sourceModelId && o.costUsd != null && Number.isFinite(o.costUsd) && o.costUsd >= 0)
-      ? aaCosts.reduce((sum, { share, observation: o }) => sum + o!.costUsd! * share / 100, 0) : undefined;
-    const cost = weightedAaCost != null ? { usd: weightedAaCost, source: "AA measured task costs, weighted by this mix" } : measuredCost ? { usd: measuredCost.value, source: (view.costBenchmark ? `${benches.get(view.costBenchmark)?.name ?? view.costBenchmark} · measured cost per task` : taskMetricDescription(config.costSource ?? "aa", "cost")) + (measuredCost.observation.harness ? ` · ${measuredCost.observation.harness}` : "") } : undefined;
-    // Subscription basis: the measured API cost scaled by the share of API price the plan works out to.
-    // Models without a first-party plan keep their API cost — that is what they cost to use.
-    // Limit resets (src/data/plan-resets.ts) give the plan's subscribers extra usage, so its share of API price falls by that factor.
-    const listed = cost && plans?.get(model.id), reset = listed && listed.ratio > 0 ? resetBoosts?.get(model.labId) : undefined;
-    const plan = listed && reset && reset.boost > 1 ? { ...listed, ratio: listed.ratio / reset.boost } : listed;
-    if (cost && plan) { cost.usd *= plan.ratio; cost.source += plan.ratio === 0 ? ` · free on ${plan.plan}` : ` · ${plan.plan}, ${subscriptionShare(plan.ratio)} of API price at full use${reset && reset.boost > 1 ? `, with ${reset.resets} limit resets in 30 days` : ""}`; }
-    const speedObs = idx.get(SPEED_BENCHMARK)?.get(v.id);
-    ranked.push({ variant: v, model, score: num / den, coverage: Math.min(1, Math.round(covered * 1e4) / 1e6), measuredShare, values, mixedEfforts: values.some((value) => value.estimateKind === "effort"), costUsd: cost?.usd, costSource: cost?.source, costPlan: plan || undefined, speed: speedObs && speedObs.value > 0 ? speedObs.value : undefined, onFrontier: false, rank: 0 });
-  }
-
-  let out = ranked;
-  if (config.variants === "best") {
-    const best = new Map<string, RankedVariant>();
-    for (const r of ranked) { const b = best.get(r.model.id); if (!b || r.score > b.score) best.set(r.model.id, r); }
-    out = [...best.values()];
-  }
-  out.sort((a, b) => b.score - a.score);
-  out.forEach((r, i) => (r.rank = i + 1));
+  const ranked = rankVariants(c, config, shares, view, detail), excluded = detail.excluded;
+  let out = ordered(ranked, config);
   markFrontier(out);
   // A view nobody has curated leaves out superseded, off-frontier versions. Scores are unchanged: the models still shaped the normalization.
   const keep = (config.highlight ?? []).map((h) => h.split("@")[0]);
@@ -485,92 +333,386 @@ export function computeIndex(snapshot: Snapshot, config: IndexConfig, view: View
   // Estimates never change which ranked models a view drops; they only go when a newer version replaces them.
   if (!curated && estimated.length) { const gone = supersededModelIds([...out, ...estimated], keep); estimated = estimated.filter((r) => !gone.has(r.model.id)); }
   if (!curated && superseded.size) { out = out.filter((r) => !superseded.has(r.model.id)); out.forEach((r, i) => (r.rank = i + 1)); }
-  return { config, benchmarks: shares, ranked: out, excluded, candidateModelIds, autoHidden: curated ? [] : [...superseded], estimated };
+  return { config, benchmarks: shares, ranked: out, excluded, candidateModelIds: detail.candidateModelIds, autoHidden: curated ? [] : [...superseded], estimated };
 }
 
-const eligibility = new WeakMap<Map<string, Model>, Map<string, boolean>>();
-
-interface PeerEstimate { value: number; range: [number, number]; donors: PeerDonor[] }
-interface PeerGuess { variantId: string; pred: number; weight: number }
-
-/** Peers an estimate may lean on: other models of a similar age and price tier. Depends on the target only, so callers filter once per target, not once per benchmark. */
-function eligiblePeers(target: Variant, pool: Variant[], models: Map<string, Model>, strictness: number): Variant[] {
-  const tm = models.get(target.modelId);
-  const window = 365 - strictness * 2.75;
-  return pool.filter((p) => {
-    if (p.modelId === target.modelId) return false; // don't lean on sibling efforts; they share the gap
-    const pm = models.get(p.modelId);
-    if (tm?.releaseDate && pm?.releaseDate && Math.abs(daysBetween(tm.releaseDate, pm.releaseDate)) > window) return false;
-    if (tm?.priceTier && pm?.priceTier && tm.priceTier !== pm.priceTier) return false;
-    return true;
-  });
+/** Scores alone, for a walk over many dates: rows carry no per-benchmark values, costs or exclusions. The same arithmetic as `computeIndex`. */
+export function rankScores(c: Columns, config: IndexConfig): RankedVariant[] {
+  const shares = sharesOf(c, config);
+  return shares.length ? ordered(rankVariants(c, config, shares, {}), config) : [];
 }
 
-/**
- * Peer estimate for a missing benchmark: the weighted average of up to two guesses.
- * Mix match: the k variants closest on the benchmarks in the mix, each shifted by the target's average offset on them.
- * Panel match (percent benchmarks, with `panel`): the k variants whose scores are closest, as ratios, across every
- * benchmark both have; each is scaled by the median ratio. Restricted to a release window, price tier and other
- * models. The range is the spread between the donors' own guesses, never narrower than 1.5 points.
- */
-function estimate(
-  target: Variant, benchmarkId: string, pool: Variant[] /* already filtered by eligiblePeers */, benchIds: string[],
-  normValue: (bid: string, vid: string) => { value: number } | undefined, models: Map<string, Model>, k = 5, strictness = 50,
-  panelCtx?: { benchmark: Benchmark; panel: (vid: string) => Map<string, number> },
-): PeerEstimate | undefined {
-  const tVals = new Map(benchIds.filter((b) => b !== benchmarkId).map((b) => [b, normValue(b, target.id)?.value]).filter((x): x is [string, number] => x[1] != null));
-  // Above moderate strictness a target needs real measured evidence of its own —
-  // a single strong benchmark must not seed estimates across the whole mix.
-  if (tVals.size < (strictness >= 50 ? 2 : 1)) return undefined;
-  const mix: { dist: number; guess: PeerGuess }[] = [];
-  for (const p of pool) {
-    const pv = normValue(benchmarkId, p.id); if (!pv) continue;
-    let d = 0, n = 0, off = 0;
-    for (const [b, tv] of tVals) { const x = normValue(b, p.id)?.value; if (x == null) continue; d += Math.abs(tv - x); off += tv - x; n++; }
-    if (n < (strictness >= 75 ? 3 : strictness >= 50 ? 2 : 1)) continue;
-    // Shrink the peer offset by evidence: off/(n+1) applies half the gap on
-    // one shared benchmark, converging to the full offset as evidence grows.
-    mix.push({ dist: d / n + (n < 2 ? 10 : 0), guess: { variantId: p.id, pred: pv.value + off / (n + 1), weight: 0 } });
+function sharesOf(c: Columns, config: IndexConfig): IndexResult["benchmarks"] {
+  const used = Object.entries(config.weights).filter(([id, w]) => { if (!(w > 0)) return false; const b = c.benchIndex.get(id); return b !== undefined && c.bench[b] !== undefined; });
+  const total = used.reduce((a, [, w]) => a + w, 0);
+  if (!used.length || total <= 0) return [];
+  return used.map(([id, w]) => ({ benchmark: c.bench[c.benchIndex.get(id)!]!, share: (w / total) * 100, required: isBenchmarkRequired(config, id) }));
+}
+
+function ordered(ranked: RankedVariant[], config: IndexConfig): RankedVariant[] {
+  let out = ranked;
+  if (config.variants === "best") {
+    const best = new Map<string, RankedVariant>();
+    for (const r of ranked) { const b = best.get(r.model.id); if (!b || r.score > b.score) best.set(r.model.id, r); }
+    out = [...best.values()];
   }
-  const panelGuesses: { dist: number; guess: PeerGuess }[] = [];
-  if (panelCtx && panelCtx.benchmark.unit === "percent" && panelCtx.benchmark.higherIsBetter) {
-    const tp = panelCtx.panel(target.id);
-    const minShared = strictness >= 75 ? 10 : 8;
-    for (const p of pool) {
-        const pv = normValue(benchmarkId, p.id); if (!pv) continue;
-      const pp = panelCtx.panel(p.id);
-      const ratios: number[] = []; let d = 0;
-      for (const [b, tv] of tp) {
-        const x = pp.get(b);
-        if (b === benchmarkId || x == null || x < 5 || tv <= 0) continue;
-        ratios.push(tv / x); d += Math.abs(Math.log(tv / x));
+  out.sort((a, b) => b.score - a.score);
+  out.forEach((r, i) => (r.rank = i + 1));
+  return out;
+}
+
+/** What a full result adds to the scores. */
+interface Detail {
+  costData: ReturnType<typeof taskMetricData>;
+  plans?: Map<string, SubscriptionPrice>;
+  resetBoosts?: ReturnType<typeof planResetBoosts>;
+  excluded: IndexResult["excluded"];
+  candidateModelIds: string[];
+}
+
+// A resolved value's state, per cell (pool position × share).
+const CELL_PRESENT = 1, CELL_SUBSTITUTED = 2, CELL_ESTIMATED = 4, CELL_EFFORT = 8;
+const DONORS = 5;
+/** More than the rounding between a mean of log differences and the mean of the logs of ratios. */
+const ROUNDING = 1e-9;
+
+/** `xs[k]` of the first `n` values once sorted; reorders them. */
+function select(xs: Float64Array, n: number, k: number): number {
+  let lo = 0, hi = n - 1;
+  while (lo < hi) {
+    const pivot = xs[(lo + hi) >> 1];
+    let i = lo, j = hi;
+    while (i <= j) {
+      while (xs[i] < pivot) i++;
+      while (xs[j] > pivot) j--;
+      if (i <= j) { const t = xs[i]; xs[i] = xs[j]; xs[j] = t; i++; j--; }
+    }
+    if (k <= j) hi = j; else if (k >= i) lo = i; else break;
+  }
+  return xs[k];
+}
+
+const weigh = (list: Nearest, soft: number, methods: number, total: number) => {
+  let sum = 0;
+  for (let i = 0; i < list.n; i++) sum += 1 / (soft + list.dist[i]);
+  for (let i = 0; i < list.n; i++) total += list.pred[i] * ((1 / (soft + list.dist[i])) / sum / methods);
+  return total;
+};
+/** The up to `DONORS` closest donors, ties in the order they came. */
+class Nearest {
+  n = 0; dist = new Float64Array(DONORS); pred = new Float64Array(DONORS); peer = new Int32Array(DONORS);
+  add(dist: number, pred: number, peer: number) {
+    if (this.n === DONORS && !(dist < this.dist[DONORS - 1])) return;
+    let i = this.n < DONORS ? this.n++ : DONORS - 1;
+    for (; i > 0 && dist < this.dist[i - 1]; i--) { this.dist[i] = this.dist[i - 1]; this.pred[i] = this.pred[i - 1]; this.peer[i] = this.peer[i - 1]; }
+    this.dist[i] = dist; this.pred[i] = pred; this.peer[i] = peer;
+  }
+}
+
+function rankVariants(c: Columns, config: IndexConfig, shares: IndexResult["benchmarks"], view: ViewOptions, detail?: Detail): RankedVariant[] {
+  const { nb, at, value, flags, panelLog, harness, variants, models, vIndex, vModel, vRank, vSiblings, mLlm, mReleaseMs, mTier, idRank, family, pairable, panel } = c;
+  const S = shares.length, strictness = strictnessOf(config);
+  const shareBench = Int32Array.from(shares, (s) => c.benchIndex.get(s.benchmark.id)!), shareOf = Float64Array.from(shares, (s) => s.share);
+
+  // pool: llm variants with at least one used benchmark value, passing filters
+  const after = config.releasedAfter === undefined ? defaultReleasedAfter(c.date) : config.releasedAfter;
+  const allowed = new Uint8Array(models.length);
+  for (let i = 0; i < models.length; i++) {
+    const m = models[i];
+    allowed[i] = mLlm[i] && !(config.labs?.length && !config.labs.includes(m.labId)) && !(after && m.releaseDate && m.releaseDate < after) ? 1 : 0;
+  }
+  const hidden = config.excludeModels?.length ? new Set(config.excludeModels) : undefined, only = config.onlyModels && new Set(config.onlyModels);
+  const candidateModels = detail && new Set<string>();
+  const pooled = new Int32Array(variants.length);
+  let P = 0;
+  for (let pos = 0; pos < variants.length; pos++) {
+    const m = vModel[pos];
+    if (m < 0 || !allowed[m]) continue;
+    let any = false;
+    for (let s = 0; s < S && !any; s++) any = lookup(c, shareBench[s], vIndex[pos]) >= 0;
+    if (!any) continue;
+    const modelId = variants[pos].modelId;
+    candidateModels?.add(modelId);
+    if (!hidden?.has(modelId) && (!only || only.has(modelId))) pooled[P++] = pos;
+  }
+  if (detail) detail.candidateModelIds = [...candidateModels!];
+
+  // Resolve every cell: raw values per benchmark over the pool, then their normalizers.
+  const n = S * P;
+  const cell = new Uint8Array(n), raw = new Float64Array(n), norm = new Float64Array(n), observed = new Float64Array(n).fill(NaN);
+  const cellRow = detail && new Int32Array(n), cellBench = detail && new Int32Array(n), cellVariant = detail && new Int32Array(n), cellFactor = detail && new Float64Array(n);
+  const cellRoute = detail && new Map<number, EstimationRoute>(), cellEvidence = detail && new Map<number, number[]>();
+  const strict = Uint8Array.from(shares, (s) => config.effortMatching === "strict" || strictness === 100 || effortLocked(s.benchmark) ? 1 : 0);
+  // Effort pairs repeat across a variant's benchmarks, so the paired evidence is read once for each donor.
+  const pairBench = new Int32Array(pairable.length), pairNum = new Float64Array(pairable.length), pairDen = new Float64Array(pairable.length);
+  const minimumPairs = strictness >= 95 ? 3 : strictness >= 75 ? 2 : 1;
+  for (let pp = 0; pp < P; pp++) {
+    const pos = pooled[pp], v = vIndex[pos];
+    const to = vRank[pos] === DEFAULT_RANK ? -1 : vRank[pos];
+    let pairDonor = -1, pairs = 0;
+    for (let s = 0; s < S; s++) {
+      const row = lookupEffort(c, shareBench[s], v, vRank[pos], vSiblings[pos], strict[s] === 1, strictness < 100);
+      if (row < 0) continue;
+      const k = pp * S + s, donor = foundVariant, from = foundBench, route = foundRoute, f = flags[row];
+      const estimated = route !== undefined || (donor === v && (f & ROW_INFERRED) !== 0), substituted = donor !== v;
+      let factor = NaN;
+      if (substituted) {
+        const was = idRank[donor] === DEFAULT_RANK ? -1 : idRank[donor];
+        if (was < 0 || to < 0 || strictness === 100 || (strictness >= 85 && Math.abs(was - to) > 1)) continue;
+        if (pairDonor !== donor) {
+          pairDonor = donor; pairs = 0;
+          const a0 = v * nb, d0 = donor * nb;
+          for (let i = 0; i < pairable.length; i++) {
+            const b = pairable[i], a = at[a0 + b], d = at[d0 + b];
+            if (a < 0 || d < 0 || (flags[a] | flags[d]) & (ROW_INFERRED | ROW_NOTE_ESTIMATED) || harness[a] !== harness[d]) continue;
+            const measure = measuredNormalizer(c, b), denominator = measure(value[d]), numerator = measure(value[a]);
+            if (!Number.isFinite(numerator) || !Number.isFinite(denominator) || denominator < 5) continue;
+            pairBench[pairs] = b; pairNum[pairs] = numerator; pairDen[pairs] = denominator; pairs++;
+          }
+        }
+        // Ratio of means over paired, directly measured benchmarks outside the two version families. Each benchmark counts once.
+        const f1 = family[shareBench[s]], f2 = family[from];
+        let count = 0, top = 0, bottom = 0;
+        for (let i = 0; i < pairs; i++) { const g = family[pairBench[i]]; if (g !== f1 && g !== f2) { top += pairNum[i]; bottom += pairDen[i]; count++; } }
+        if (count < minimumPairs) continue;
+        const adjusted = shrinkEffortFactor(top / bottom, count, to - was);
+        if (adjusted === undefined) continue;
+        factor = adjusted;
+        if (cellEvidence) { const list: number[] = []; for (let i = 0; i < pairs; i++) { const g = family[pairBench[i]]; if (g !== f1 && g !== f2) list.push(pairBench[i]); } cellEvidence.set(k, list); }
       }
-      if (ratios.length < minShared) continue;
-      ratios.sort((a, b) => a - b);
-      panelGuesses.push({ dist: d / ratios.length, guess: { variantId: p.id, pred: pv.value * ratios[Math.floor(ratios.length / 2)], weight: 0 } });
+      cell[k] = CELL_PRESENT | (substituted || estimated ? CELL_SUBSTITUTED : 0) | (estimated ? CELL_ESTIMATED : 0)
+        | ((estimated ? f & ROW_CROSS_EFFORT : substituted) ? CELL_EFFORT : 0);
+      raw[k] = route ? foundValue : value[row];
+      norm[k] = factor;
+      if (detail) { cellRow![k] = row; cellBench![k] = from; cellVariant![k] = donor; cellFactor![k] = factor; if (route) cellRoute!.set(k, route); }
     }
   }
-  const top = (list: { dist: number; guess: PeerGuess }[], soft: number) => {
-    const best = [...list].sort((a, b) => a.dist - b.dist).slice(0, k);
-    const w = best.map((c) => 1 / (soft + c.dist)), sum = w.reduce((a, x) => a + x, 0);
-    return best.map((c, i) => ({ ...c.guess, weight: w[i] / sum }));
+  const normalizers = shares.map((share, s) => {
+    const values: number[] = [];
+    for (let k = s; k < n; k += S) if (cell[k]) values.push(raw[k]);
+    return makeNormalizer(share.benchmark, values);
+  });
+  for (let s = 0; s < S; s++) {
+    const f = normalizers[s];
+    for (let k = s; k < n; k += S) {
+      if (!cell[k]) continue;
+      const factor = norm[k];
+      norm[k] = clamp(f(raw[k]) * (factor === factor ? factor : 1), 0, 100);
+      if (!(cell[k] & CELL_SUBSTITUTED)) observed[k] = norm[k];
+    }
+  }
+
+  // Peer estimates. A missing cell has no observed value and no panel score of its own (either would have resolved), so what a
+  // target shares with a peer does not depend on which benchmark is missing: it is worked out once per target.
+  const window = 365 - strictness * 2.75, needShared = strictness >= 75 ? 3 : strictness >= 50 ? 2 : 1, needObserved = strictness >= 50 ? 2 : 1, minPanel = strictness >= 75 ? 10 : 8;
+  let peers: Int32Array | undefined, peerCount = 0, mixShared: Int32Array, mixGap: Float64Array, mixOffset: Float64Array, panelNear: Float64Array, panelDist: Float64Array, panelRatio: Float64Array;
+  let panelFor = -1, panelCount = 0, poolLog: Float64Array | undefined;
+  const targetObserved = new Int32Array(S), targetPanelAt = new Int32Array(panel.length), targetPanelValue = new Float64Array(panel.length), targetPanelLog = new Float64Array(panel.length), ratios = new Float64Array(panel.length);
+  let observedCount = 0;
+  const preparePeers = (pp: number) => {
+    if (!peers) { peers = new Int32Array(P); mixShared = new Int32Array(P); mixGap = new Float64Array(P); mixOffset = new Float64Array(P); panelNear = new Float64Array(P); panelDist = new Float64Array(P); panelRatio = new Float64Array(P); }
+    const tm = vModel[pooled[pp]], tMs = mReleaseMs[tm], tTier = mTier[tm];
+    peerCount = 0;
+    for (let q = 0; q < P; q++) {
+      const pm = vModel[pooled[q]];
+      if (variants[pooled[q]].modelId === variants[pooled[pp]].modelId) continue; // don't lean on sibling efforts; they share the gap
+      // NaN (no release date) compares false, so it never excludes.
+      if (Math.abs((tMs - mReleaseMs[pm]) / 86_400_000) > window) continue;
+      if (tTier && mTier[pm] && tTier !== mTier[pm]) continue;
+      peers[peerCount++] = q;
+    }
+    observedCount = 0;
+    const t0 = pp * S;
+    for (let s = 0; s < S; s++) if (observed[t0 + s] === observed[t0 + s]) targetObserved[observedCount++] = s;
+    for (let i = 0; i < peerCount; i++) {
+      const q0 = peers[i] * S;
+      let d = 0, shared = 0, off = 0;
+      for (let j = 0; j < observedCount; j++) {
+        const s = targetObserved[j], x = observed[q0 + s];
+        if (x !== x) continue;
+        const tv = observed[t0 + s];
+        d += Math.abs(tv - x); off += tv - x; shared++;
+      }
+      mixShared[i] = shared; mixGap[i] = d; mixOffset[i] = off;
+    }
   };
-  const a = top(mix, 1), c = top(panelGuesses, 0.05);
-  const methods = [a, c].filter((g) => g.length);
-  if (!methods.length) return undefined;
-  const all = methods.flatMap((g) => g.map((x) => ({ ...x, weight: x.weight / methods.length })));
-  const value = clamp(all.reduce((sum, g) => sum + g.pred * g.weight, 0), 0, 100);
-  const sd = Math.sqrt(all.reduce((sum, g) => sum + g.weight * (g.pred - value) ** 2, 0));
-  const half = Math.max(1.5, 1.5 * sd);
-  const byVariant = new Map<string, PeerDonor>();
-  for (const g of all) { const prev = byVariant.get(g.variantId); byVariant.set(g.variantId, { variantId: g.variantId, value: g.pred, weight: (prev?.weight ?? 0) + g.weight }); }
-  return { value, range: [clamp(value - half, 0, 100), clamp(value + half, 0, 100)], donors: [...byVariant.values()].sort((x, y) => y.weight - x.weight) };
+  // Ranks peers by the difference of logs, which costs a subtraction and is within rounding of the ratio's log. Only the peers that can make the top get the exact figures.
+  const preparePanel = (pp: number) => {
+    panelFor = pp;
+    if (!poolLog) {
+      poolLog = new Float64Array(P * panel.length);
+      for (let q = 0, k = 0; q < P; q++) {
+        const v0 = vIndex[pooled[q]] * nb;
+        for (let i = 0; i < panel.length; i++, k++) { const r = at[v0 + panel[i]]; poolLog[k] = r < 0 ? NaN : panelLog[r]; }
+      }
+    }
+    const t = vIndex[pooled[pp]] * nb, np = panel.length;
+    panelCount = 0;
+    for (let i = 0; i < np; i++) {
+      const r = at[t + panel[i]];
+      if (r < 0 || flags[r] & ROW_INFERRED || !Number.isFinite(value[r]) || value[r] <= 0) continue;
+      targetPanelAt[panelCount] = i; targetPanelValue[panelCount] = value[r]; targetPanelLog[panelCount++] = Math.log(value[r]);
+    }
+    for (let i = 0; i < peerCount; i++) {
+      const q = peers![i] * np;
+      let shared = 0, d = 0;
+      for (let j = 0; j < panelCount; j++) {
+        const x = poolLog[q + targetPanelAt[j]];
+        if (x === x) { d += Math.abs(targetPanelLog[j] - x); shared++; }
+      }
+      panelNear[i] = shared < minPanel ? NaN : d / shared; panelDist[i] = NaN;
+    }
+  };
+  const panelExact = (i: number) => {
+    const q = vIndex[pooled[peers![i]]] * nb;
+    let shared = 0, d = 0;
+    for (let j = 0; j < panelCount; j++) {
+      const r = at[q + panel[targetPanelAt[j]]];
+      if (r < 0 || panelLog[r] !== panelLog[r]) continue;
+      const ratio = targetPanelValue[j] / value[r];
+      ratios[shared++] = ratio; d += Math.abs(Math.log(ratio));
+    }
+    panelDist[i] = d / shared; panelRatio[i] = select(ratios, shared, Math.floor(shared / 2));
+  };
+  const mix = new Nearest(), byPanel = new Nearest(), near = new Nearest();
+  let estimateValue = 0;
+  /**
+   * Peer estimate for a missing benchmark: the weighted average of up to two guesses.
+   * Mix match: the k variants closest on the benchmarks in the mix, each shifted by the target's average offset on them.
+   * Panel match (percent benchmarks, unless `peerMethod` is "mix"): the k variants whose scores are closest, as ratios, across every
+   * benchmark both have; each is scaled by the median ratio. Restricted to a release window, price tier and other
+   * models. The range is the spread between the donors' own guesses, never narrower than 1.5 points.
+   */
+  const estimate = (pp: number, s: number): boolean => {
+    // Above moderate strictness a target needs real measured evidence of its own —
+    // a single strong benchmark must not seed estimates across the whole mix.
+    if (observedCount < needObserved) return false;
+    const b = shares[s].benchmark, usePanel = view.peerMethod !== "mix" && b.unit === "percent" && b.higherIsBetter;
+    if (usePanel && panelFor !== pp) preparePanel(pp);
+    mix.n = byPanel.n = near.n = 0;
+    for (let i = 0; i < peerCount; i++) {
+      const q = peers![i], pv = observed[q * S + s];
+      if (pv !== pv) continue;
+      const shared = mixShared[i];
+      // Shrink the peer offset by evidence: off/(n+1) applies half the gap on
+      // one shared benchmark, converging to the full offset as evidence grows.
+      if (shared >= needShared) mix.add(mixGap[i] / shared + (shared < 2 ? 10 : 0), pv + mixOffset[i] / (shared + 1), q);
+      if (usePanel && panelNear[i] === panelNear[i]) near.add(panelNear[i], 0, i);
+    }
+    if (near.n) {
+      const reach = near.n < DONORS ? Infinity : near.dist[DONORS - 1] + ROUNDING;
+      for (let i = 0; i < peerCount; i++) {
+        if (!(panelNear[i] <= reach)) continue;
+        const q = peers![i], pv = observed[q * S + s];
+        if (pv !== pv) continue;
+        if (panelDist[i] !== panelDist[i]) panelExact(i);
+        byPanel.add(panelDist[i], pv * panelRatio[i], q);
+      }
+    }
+    if (!mix.n && !byPanel.n) return false;
+    const methods = (mix.n ? 1 : 0) + (byPanel.n ? 1 : 0);
+    let total = 0;
+    total = weigh(mix, 1, methods, total); total = weigh(byPanel, 0.05, methods, total);
+    estimateValue = clamp(total, 0, 100);
+    return true;
+  };
+  const peerDetail = (value: number) => {
+    const methods = (mix.n ? 1 : 0) + (byPanel.n ? 1 : 0);
+    const guesses: { variantId: string; pred: number; weight: number }[] = [];
+    for (const [list, soft] of [[mix, 1], [byPanel, 0.05]] as const) {
+      if (!list.n) continue;
+      let sum = 0;
+      for (let i = 0; i < list.n; i++) sum += 1 / (soft + list.dist[i]);
+      for (let i = 0; i < list.n; i++) guesses.push({ variantId: variants[pooled[list.peer[i]]].id, pred: list.pred[i], weight: (1 / (soft + list.dist[i])) / sum / methods });
+    }
+    const sd = Math.sqrt(guesses.reduce((sum, g) => sum + g.weight * (g.pred - value) ** 2, 0));
+    const half = Math.max(1.5, 1.5 * sd);
+    const byVariant = new Map<string, PeerDonor>();
+    for (const g of guesses) { const prev = byVariant.get(g.variantId); byVariant.set(g.variantId, { variantId: g.variantId, value: g.pred, weight: (prev?.weight ?? 0) + g.weight }); }
+    return { range: [clamp(value - half, 0, 100), clamp(value + half, 0, 100)] as [number, number], donors: [...byVariant.values()].sort((x, y) => y.weight - x.weight) };
+  };
+
+  // eligibility: explicit required gates first, then the measured-coverage floor —
+  // a variant is ranked only when observed or effort-substituted values cover at
+  // least strictness% of the index's weight. Peer-estimated values do not count.
+  const ranked: RankedVariant[] = [];
+  const floor = minMeasuredShare(config);
+  const speedBench = c.benchIndex.get(SPEED_BENCHMARK);
+  for (let pp = 0; pp < P; pp++) {
+    const pos = pooled[pp], v = variants[pos], t0 = pp * S, vi = vIndex[pos];
+    let measured = 0, missingRequired = false;
+    for (let s = 0; s < S; s++) {
+      const f = cell[t0 + s];
+      if (f && (!(f & CELL_SUBSTITUTED) || f & CELL_EFFORT)) measured += shareOf[s];
+      if (!f && shares[s].required) missingRequired = true;
+    }
+    const measuredShare = measured / 100;
+    if (missingRequired) { detail?.excluded.push({ variant: v, model: models[vModel[pos]], missing: shares.filter((x, s) => x.required && !cell[t0 + s]).map((x) => x.benchmark.id), reason: "required", measuredShare }); continue; }
+    if (measuredShare < floor - 1e-9) {
+      detail?.excluded.push({ variant: v, model: models[vModel[pos]], missing: shares.filter((_, s) => { const f = cell[t0 + s]; return !(f && (!(f & CELL_SUBSTITUTED) || f & CELL_EFFORT)); }).map((x) => x.benchmark.id), reason: "coverage", measuredShare });
+      continue;
+    }
+
+    const values: BenchValue[] = [];
+    let num = 0, den = 0, covered = 0, prepared = false;
+    for (let s = 0; s < S; s++) {
+      const k = t0 + s, f = cell[k], share = shareOf[s];
+      if (f) {
+        const substituted = (f & CELL_SUBSTITUTED) !== 0;
+        if (detail) values.push(benchValue(c, shares[s].benchmark.id, f, norm[k], raw[k], cellRow![k], cellBench![k], cellVariant![k] !== vi, cellFactor![k], cellRoute!.size ? cellRoute!.get(k) : undefined, cellEvidence!.size ? cellEvidence!.get(k) : undefined, v.id));
+        num += norm[k] * share; den += share; if (!substituted) covered += share; continue;
+      }
+      if (!config.estimateMissing || strictness === 100) continue; // renormalize: just skip
+      if (!prepared) { preparePeers(pp); prepared = true; }
+      if (estimate(pp, s)) {
+        if (detail) { const { range, donors } = peerDetail(estimateValue); values.push({ benchmarkId: shares[s].benchmark.id, value: estimateValue, estimated: true, estimateKind: "peer", estimateRange: range, donors }); }
+        num += estimateValue * share; den += share;
+      }
+    }
+    if (den <= 0) continue;
+    const model = models[vModel[pos]];
+    const coverage = Math.min(1, Math.round(covered * 1e4) / 1e6);
+    if (!detail) { ranked.push({ variant: v, model, score: num / den, coverage, measuredShare, values, onFrontier: false, rank: 0 }); continue; }
+    const measuredCost = detail.costData.get(v.id);
+    // Preserve AA's mix-weighted cost when every selected benchmark publishes it.
+    let weightedAaCost: number | undefined;
+    if (!view.costBenchmark && (config.costSource ?? "aa") === "aa") {
+      weightedAaCost = 0;
+      for (let s = 0; s < S; s++) {
+        const r = at[vi * nb + shareBench[s]], o = r >= 0 ? c.rows[r] : undefined;
+        if (!(o?.sourceModelId && o.costUsd != null && Number.isFinite(o.costUsd) && o.costUsd >= 0)) { weightedAaCost = undefined; break; }
+        weightedAaCost += o.costUsd * shareOf[s] / 100;
+      }
+    }
+    const viewCost = view.costBenchmark ? c.bench[c.benchIndex.get(view.costBenchmark) ?? -1] : undefined;
+    const cost = weightedAaCost != null ? { usd: weightedAaCost, source: "AA measured task costs, weighted by this mix" } : measuredCost ? { usd: measuredCost.value, source: (view.costBenchmark ? `${viewCost?.name ?? view.costBenchmark} · measured cost per task` : taskMetricDescription(config.costSource ?? "aa", "cost")) + (measuredCost.observation.harness ? ` · ${measuredCost.observation.harness}` : "") } : undefined;
+    // Subscription basis: the measured API cost scaled by the share of API price the plan works out to.
+    // Models without a first-party plan keep their API cost — that is what they cost to use.
+    // Limit resets (src/data/plan-resets.ts) give the plan's subscribers extra usage, so its share of API price falls by that factor.
+    const listed = cost && detail.plans?.get(model.id), reset = listed && listed.ratio > 0 ? detail.resetBoosts?.get(model.labId) : undefined;
+    const plan = listed && reset && reset.boost > 1 ? { ...listed, ratio: listed.ratio / reset.boost } : listed;
+    if (cost && plan) { cost.usd *= plan.ratio; cost.source += plan.ratio === 0 ? ` · free on ${plan.plan}` : ` · ${plan.plan}, ${subscriptionShare(plan.ratio)} of API price at full use${reset && reset.boost > 1 ? `, with ${reset.resets} limit resets in 30 days` : ""}`; }
+    const speedRow = speedBench === undefined ? -1 : at[vi * nb + speedBench];
+    ranked.push({ variant: v, model, score: num / den, coverage, measuredShare, values, mixedEfforts: values.some((value) => value.estimateKind === "effort"), costUsd: cost?.usd, costSource: cost?.source, costPlan: plan || undefined, speed: speedRow >= 0 && value[speedRow] > 0 ? value[speedRow] : undefined, onFrontier: false, rank: 0 });
+  }
+  return ranked;
 }
 
-// Release dates repeat across every variant pair the estimator compares; parse each string once.
-const dateMs = new Map<string, number>();
-const msOf = (d: string) => { let t = dateMs.get(d); if (t === undefined) { t = new Date(d).getTime(); dateMs.set(d, t); } return t; };
-function daysBetween(a: string, b: string) { return (msOf(a) - msOf(b)) / 86_400_000; }
+/** A resolved cell as the charts and the model detail read it. */
+function benchValue(c: Columns, benchmarkId: string, f: number, normalized: number, raw: number, row: number, from: number, substituted: boolean, factor: number, route: EstimationRoute | undefined, evidence: number[] | undefined, variantId: string): BenchValue {
+  const o = c.rows[row], explicit = o.details?.priorsEstimate as { sourceBenchmarkId?: string; sourceVariantId?: string; evidence?: string[] } | undefined;
+  const estimated = (f & CELL_ESTIMATED) !== 0, rf = c.flags[row];
+  const kind: BenchValue["estimateKind"] = estimated ? (rf & ROW_CROSS_EFFORT ? "effort" : rf & ROW_PERFORMANCE ? "performance" : "calibrated-fallback") : substituted ? "effort" : undefined;
+  const found = route ? [route.evidenceId, ...(route.variantFactors?.[variantId] == null ? [] : ["Release-specific paired calibration"]), ...(route.pairedCount == null ? [] : [`${route.pairedCount} paired configurations`])]
+    : substituted ? undefined : explicit?.evidence ?? (rf & ROW_ASSUMED_TOP ? ["Real Index Top-effort assumption; native effort not published"] : undefined);
+  const list = found ? [...found] : [];
+  if (evidence) for (const b of evidence) list.push(c.benchIds[b]);
+  return {
+    benchmarkId, from: explicit?.sourceBenchmarkId ?? c.benchIds[from], sourceVariantId: explicit?.sourceVariantId ?? o.variantId, sourceUrl: o.sourceUrl,
+    substituted: (f & CELL_SUBSTITUTED) !== 0, estimateKind: kind, ...(factor === factor ? { effortFactor: factor } : {}), evidence: list, value: normalized,
+    ...(explicit || kind === "calibrated-fallback" ? {} : { raw }), estimated: (f & CELL_SUBSTITUTED) !== 0,
+  };
+}
 
 /** Pareto frontier over (cost asc, score): a point is on the frontier if no cheaper point scores >= it. */
 export function markFrontier(ranked: RankedVariant[]) {

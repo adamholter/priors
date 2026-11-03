@@ -120,7 +120,7 @@ describe("scheduled snapshot change gate", () => {
       const command = `
         npx() { if [[ "$*" == "tsx scripts/ops/snapshot-changed.ts" ]]; then "$GATE_NODE" --import "$GATE_LOADER" "$GATE_CLI"; fi; }
         npm() { return 0; }
-        git() { if [[ "$1" == "push" ]]; then echo push >> "$PUSH_LOG"; else command git "$@"; fi; }
+        git() { if [[ "$1" == "push" ]]; then echo push >> "$PUSH_LOG"; command git ls-files >> "$PUSHED_FILES"; else command git "$@"; fi; }
         osascript() { return 0; }
         export -f npx npm git osascript
         bash scripts/ops/daily-scrape.sh $SCRAPE_ARGS
@@ -129,7 +129,7 @@ describe("scheduled snapshot change gate", () => {
       const run = (args = "--synced") => spawnSync("bash", ["-c", command], { cwd, encoding: "utf8", env: {
         SCRAPE_ARGS: args,
         ...process.env, GATE_NODE: process.execPath, GATE_LOADER: path.resolve("node_modules/tsx/dist/loader.mjs"),
-        GATE_CLI: path.resolve("scripts/ops/snapshot-changed.ts"), PUSH_LOG: path.join(cwd, "push.log"),
+        GATE_CLI: path.resolve("scripts/ops/snapshot-changed.ts"), PUSH_LOG: path.join(cwd, "push.log"), PUSHED_FILES: path.join(cwd, "pushed.log"),
       } });
       const initial = git("rev-parse", "HEAD");
       // Outside the marked scrape checkout the job refuses before touching anything.
@@ -141,10 +141,13 @@ describe("scheduled snapshot change gate", () => {
       expect(git("rev-parse", "HEAD")).toBe(initial);
       next.observations[0].value++;
       writeFileSync(file, gzipSync(JSON.stringify(next)));
+      writeFileSync(path.join(cwd, "data/snapshots/history.bin.gz"), "archive");
       const update = run();
       expect(update.status, update.stderr).toBe(0);
       // One forced push of the live branch; main gets no commit, and the staged edit is untouched.
       expect(readFileSync(path.join(cwd, "push.log"), "utf8")).toBe("push\n");
+      // The site reads the history archive from the live branch: it goes with the snapshot.
+      expect(readFileSync(path.join(cwd, "pushed.log"), "utf8").split("\n")).toEqual(expect.arrayContaining(["data/snapshots/latest.json.gz", "data/snapshots/history.bin.gz"]));
       expect(git("rev-parse", "HEAD")).toBe(initial);
       expect(git("diff", "--cached", "--name-only")).toBe("app-edit.txt\n");
     } finally { rmSync(cwd, { recursive: true, force: true }); }

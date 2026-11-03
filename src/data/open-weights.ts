@@ -25,6 +25,13 @@ export function familyOpenWeights(modelId: string): boolean | undefined {
 
 const num = (x: unknown) => (typeof x === "number" && Number.isFinite(x) && x > 0 ? x : undefined);
 
+/** What Artificial Analysis says about each model's weights, from the variants' source metadata. */
+export function aaOpenWeights(snapshot: Snapshot): Map<string, boolean> {
+  const out = new Map<string, boolean>();
+  for (const v of snapshot.variants) { const open = v.sourceModel?.metadata?.isOpenWeights; if (typeof open === "boolean") out.set(v.modelId, open); }
+  return out;
+}
+
 /** Set `openWeights` (and parameter counts) on every model. `signals` are model ids already resolved from other sources. */
 export function applyOpenWeights(snapshot: Snapshot, signals: Map<string, boolean>): { models: Model[]; unknown: string[] } {
   const fromAa = new Map<string, { open?: boolean; paramsB?: number; activeB?: number }>();

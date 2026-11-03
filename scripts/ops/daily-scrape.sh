@@ -67,7 +67,7 @@ fi
 # Scrape from what is live now: the build merges a source outage with the previous latest, and the library reuses its fits.
 [ -n "$HAVE_LIVE" ] && git checkout -q "origin/$LIVE" -- data/snapshots public/intro
 
-# The live branch is one commit with only what the site reads: latest files, today's file, intro cards.
+# The live branch is one commit with only what the site reads: latest files, today's file, the history archive, intro cards.
 # GitHub sometimes drops a push mid-pack (HTTP 408, "remote end hung up"). Retry before calling it a failure.
 push_retry() {
   local n
@@ -85,7 +85,7 @@ publish_live() {
   [ -n "$HAVE_LIVE" ] && git archive "origin/$LIVE" | tar -x -C "$tmp"
   mkdir -p "$tmp/data/snapshots" "$tmp/public"
   cp data/snapshots/latest.json.gz "$tmp/data/snapshots/" || return 1
-  for f in latest.library.json.gz "$DATE.json.gz" "$DATE.library.json.gz"; do
+  for f in latest.library.json.gz history.bin.gz "$DATE.json.gz" "$DATE.library.json.gz"; do
     [ -e "data/snapshots/$f" ] && cp "data/snapshots/$f" "$tmp/data/snapshots/"
   done
   rm -rf "$tmp/public/intro" && cp -R public/intro "$tmp/public/intro" || return 1

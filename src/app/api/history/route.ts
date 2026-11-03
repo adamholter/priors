@@ -14,6 +14,6 @@ export async function GET(req: Request) {
   if (!latest) return Response.json({ error: "Benchmark data unavailable." }, { status: 404 });
   const config = i ? decodeIndex(i, "history") : defaultConfig(latest);
   if (!config || !Object.keys(config.weights).length) return Response.json({ error: "Invalid index." }, { status: 400 });
-  const data = await computeHistory(config, mode, `${i || "default"}|${latest.date}`);
+  const data = await computeHistory(config, mode);
   return Response.json(data, { headers: { "cache-control": "public, max-age=300, s-maxage=1800" } });
 }

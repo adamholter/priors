@@ -11,6 +11,7 @@ import type { Benchmark, Effort, Model, Observation, PlanResets, RawRow, RawSeri
 import { EFFORT_WORDS, LABS, normalizeLabel, variantId } from "../../src/data/normalize";
 import { makeContext, saveRaw } from "./harness";
 import { buildLibrary } from "./library";
+import { writeHistoryArchive } from "./history-archive";
 import { canonicalizeSnapshot } from "../../src/data/canonical-snapshot";
 import { retainCatalog } from "./retain-catalog";
 import { fetchPlanResets } from "./plan-resets";
@@ -327,6 +328,9 @@ async function main() {
 
   console.log(`\nsnapshot ${date}: ${snap.models.length} models, ${snap.variants.length} variants, ${snap.benchmarks.length} benchmarks, ${snap.observations.length} observations, ${(json.length / 1024).toFixed(0)} KB (${(gzipSync(json).length / 1024).toFixed(0)} KB gz)`);
   for (const r of runs) console.log(`  ${r.status.padEnd(7)} ${r.sourceId.padEnd(16)} rows=${r.rowCount} unknown=${r.unknownLabels.length}${r.unknownLabels.length ? " [" + r.unknownLabels.slice(0, 6).join(" | ") + (r.unknownLabels.length > 6 ? " …" : "") + "]" : ""}${r.error ? " " + r.error : ""}`);
+
+  // What /api/history reads. It only saves time: a failure here leaves the site reading the dated snapshots.
+  try { await writeHistoryArchive(); } catch (e) { console.log(`HISTORY_ARCHIVE failed: ${e instanceof Error ? e.message : String(e)}`); }
 
   // The scheduled job builds the library once, after it knows the data changed (--no-library here).
   if (!args.includes("--no-library")) await buildLibrary(date);

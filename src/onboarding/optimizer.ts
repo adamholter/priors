@@ -1,5 +1,6 @@
 import { acceptExploration, explorationTemperature } from "./annealing";
 import type { Snapshot } from "../data/types";
+import { columnsOf, observationsOf } from "../data/columns";
 import { computeIndex, type IndexConfig } from "../engine";
 import { PREFERRED, affinity, type BenchmarkQuality } from "./quality";
 import { DEFAULT_FOCUS, FOCUSES, type FocusId } from "./focus";
@@ -27,7 +28,7 @@ function normalize(raw:Record<string,number>){const e=Object.entries(raw).filter
 function config(snapshot:Snapshot,target:string[],raw:Record<string,number>,s:Settings):IndexConfig{const weights=normalize(raw);return{id:"fit",name:"My fit",weights,required:[],optional:[],cutoff:5,estimateMissing:s.estimateMissing,variants:"best",rankingVariants:"best",effortMatching:s.effortMatching,strictness:s.strictness}}
 /** The lineup exclusion is a search accelerator — the published index ranks everyone. */
 function publishable(cfg:IndexConfig):IndexConfig{return{...cfg,excludeModels:undefined,onlyModels:undefined}}
-function eligible(snapshot:Snapshot,id:string,target:Set<string>){const b=snapshot.benchmarks.find(x=>x.id===id);if(!b||b.proxy||["cost","speed","composite","reliability"].includes(b.category)||/arena|image|subjective|price|cost|speed/i.test(`${b.id} ${b.name} ${b.description}`))return false;const modelByVariant=new Map(snapshot.variants.map(v=>[v.id,v.modelId]));const seen=new Set(snapshot.observations.filter(o=>o.benchmarkId===id).map(o=>modelByVariant.get(o.variantId)));let n=0;for(const m of target)if(seen.has(m))n++;return n>=Math.min(2,target.size)&&n/target.size>=.45}
+function eligible(snapshot:Snapshot,id:string,target:Set<string>){const b=columnsOf(snapshot).bench[columnsOf(snapshot).benchIndex.get(id)??-1];if(!b||b.proxy||["cost","speed","composite","reliability"].includes(b.category)||/arena|image|subjective|price|cost|speed/i.test(`${b.id} ${b.name} ${b.description}`))return false;const modelByVariant=columnsOf(snapshot).modelOf;const seen=new Set(observationsOf(snapshot,id).map(o=>modelByVariant.get(o.variantId)));let n=0;for(const m of target)if(seen.has(m))n++;return n>=Math.min(2,target.size)&&n/target.size>=.45}
 
 function rankingLoss(p:ReturnType<typeof selectedPairAgreement>){return[p.missing,...p.priorityErrors,p.weightedErrors,p.total-p.matched]}
 const rankingLossLength=(n:number)=>n+3;

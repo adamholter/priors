@@ -29,6 +29,7 @@
 /node_modules
 /out/
 data/raw/
+data/snapshots/history.bin.gz
 next-env.d.ts
 npm-debug.log*
 yarn-debug.log*

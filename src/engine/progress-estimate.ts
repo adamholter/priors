@@ -1,3 +1,4 @@
+import { observationsOf } from "../data/columns";
 import type { Snapshot } from "../data/types";
 import type { IndexResult, RankedVariant } from "./index";
 
@@ -21,7 +22,7 @@ export function progressEstimates(snapshot: Snapshot, ranked: RankedVariant[], e
   const id = progressBenchmarkId(snapshot);
   if (!id) return [];
   const progress = new Map<string, number>();
-  for (const o of snapshot.observations) if (o.benchmarkId === id && Number.isFinite(o.value)) progress.set(o.variantId, o.value);
+  for (const o of observationsOf(snapshot, id)) if (Number.isFinite(o.value)) progress.set(o.variantId, o.value);
   const pairs = ranked.flatMap((r) => { const p = progress.get(r.variant.id); return p != null && r.score > 0 ? [[p, r.score] as const] : []; });
   if (pairs.length < MIN_PAIRS) return [];
   const n = pairs.length, mx = pairs.reduce((s, [x]) => s + x, 0) / n, my = pairs.reduce((s, [, y]) => s + Math.log(y), 0) / n;
