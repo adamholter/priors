@@ -69,7 +69,7 @@ const FAMILIES: { re: RegExp; id: (m: RegExpMatchArray) => string; name: (m: Reg
   { re: /\bgrok[\s-]*build[\s-]*(\d+(?:\.\d+)?)?\b/, id: (m) => `grok-build${m[1] ? "-" + m[1] : ""}`, name: (m) => `Grok Build${m[1] ? " " + m[1] : ""}`, lab: "xai", reasoning: true },
   { re: /\bgrok[\s-]*(\d+(?:\.\d+)?)[\s-]*(mini|fast|heavy)?\b/, id: (m) => `grok-${m[1]}${m[2] ? "-" + m[2] : ""}`, name: (m) => `Grok ${m[1]}${m[2] ? " " + m[2][0].toUpperCase() + m[2].slice(1) : ""}`, lab: "xai", reasoning: true },
   // DeepSeek
-  { re: /\bdeepseek[\s-]*v(\d+(?:\.\d+)?)[\s-]*(pro|flash|lite)[\s-]+(\d{4})\b/, id: (m) => `deepseek-v${m[1]}-${m[2]}-${m[3]}`, name: (m) => `DeepSeek V${m[1]} ${cap(m[2])} ${m[3]}`, lab: "deepseek", reasoning: true },
+  { re: /\bdeepseek[\s-]*v?(\d+(?:\.\d+)?)[\s-]*(pro|flash|lite)[\s-]+(\d{4})\b/, id: (m) => `deepseek-v${m[1]}-${m[2]}-${m[3]}`, name: (m) => `DeepSeek V${m[1]} ${cap(m[2])} ${m[3]}`, lab: "deepseek", reasoning: true },
   { re: /\bdeepseek[\s-]*(?:v)?(\d+(?:\.\d+)?)[\s-]*(pro|lite|flash|chat)?\b/, id: (m) => `deepseek-v${m[1]}${m[2] ? "-" + m[2] : ""}`, name: (m) => `DeepSeek V${m[1]}${m[2] ? " " + m[2][0].toUpperCase() + m[2].slice(1) : ""}`, lab: "deepseek", reasoning: true },
   { re: /\bdeepseek[\s-]*r(\d+(?:\.\d+)?)\b/, id: (m) => `deepseek-r${m[1]}`, name: (m) => `DeepSeek R${m[1]}`, lab: "deepseek", reasoning: true },
   // Alibaba
@@ -189,6 +189,7 @@ const VALS_PUBLISHED_MODELS: Record<string, { id: string; name: string; lab: str
   "laguna xs.2": { id: "laguna-xs-2", name: "Laguna XS.2", lab: "poolside", reasoning: true },
   "muse spark": { id: "aa-muse-spark", name: "Muse Spark", lab: "meta", reasoning: true },
   "meta-muse-spark": { id: "aa-muse-spark", name: "Muse Spark", lab: "meta", reasoning: true }, // prinzbench
+  "muse spark open": { id: "aa-muse-spark-open", name: "Muse Spark Open", lab: "meta", reasoning: true },
   "muse wonder": { id: "aa-muse-wonder", name: "Muse Wonder", lab: "meta", reasoning: true },
   "muse wonder 1.0": { id: "aa-muse-wonder", name: "Muse Wonder", lab: "meta", reasoning: true },
   "muse wonder full": { id: "aa-muse-wonder-full", name: "Muse Wonder Full", lab: "meta", reasoning: true },
