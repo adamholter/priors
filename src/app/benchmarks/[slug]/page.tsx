@@ -1,4 +1,4 @@
-import { notFound, permanentRedirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { loadSnapshot } from "@/data/load";
 import { BenchmarkPage } from "@/components/benchmark/BenchmarkPage";
@@ -63,7 +63,8 @@ export default async function Page({ params, searchParams }: { params: Promise<{
   const { snapshot, benchmark: b, canonical } = found;
   const sp = await searchParams, query = new URLSearchParams(Object.entries(sp).flatMap(([k, v]) => [v].flat().filter((x): x is string => typeof x === "string").map((x) => [k, x])));
   const qs = query.size ? `?${query.toString()}` : "";
-  if (!canonical) permanentRedirect(`${benchmarkPath(b.id)}${qs}` as "/");
+  // Temporary: this address may belong to a new benchmark by the next scrape, and browsers keep a permanent redirect.
+  if (!canonical) redirect(`${benchmarkPath(b.id)}${qs}` as "/");
   if (await isPreviewBot()) return <PreviewPage title={`${b.name} · leaderboard`} description={describe(snapshot, b)} href={`${benchmarkPath(b.id)}${qs}`} />;
   const small = benchmarkSnapshot(snapshot, b.id);
   const count = new Set(computeIndex(small, benchmarkIndex(small, b.id), benchmarkView(small, b.id)).ranked.map((r) => r.model.id)).size;
