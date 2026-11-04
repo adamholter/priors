@@ -18,6 +18,7 @@
 - Regex families plus exact `ALIASES`. Unknown labels are excluded, never guessed.
 - A variant (model + reasoning effort) is the ranked unit. When a source gives no effort, the row goes to the model's highest known effort.
 - `none`, `minimal` and `low` are distinct efforts. Explicit model sizes (Qwen 27B versus 35B-A3B), Instant variants and dated DeepSeek revisions stay distinct too.
+- `preview` is normally noise in a label, because a preview and its release are the same model. Hy4 is the exception: `hy-4-preview` and `hy-4` differ in weights, vision and scores.
 - Codenamed tiers are distinct models: GPT's Sol, Luna, Terra and Astra, and Gemini 4's Carbon (`gemini-4-carbon`). Gemini 4 Argon came first, so it keeps the bare `gemini-4` id.
 - Lab colors live in `LABS` in `normalize.ts`: same lab, same color everywhere.
 - Regression corpus: `scripts/benchmarks/` (`npm run benchmark:identity`, also run by Vitest). For a new parsing defect, add the source label and the independently reviewed identity to `fixtures/identity-cases.json`. Never edit expected groups to match the parser.
@@ -82,7 +83,7 @@ Notes on sources whose behavior is not obvious from the file:
 
 ### Launch figures for new models
 
-`scripts/scrape/launch-claims.ts` holds the scores a lab publishes in its launch table, for boards that have not run the new model yet. Each entry maps the table's rows to benchmark ids Priors already tracks (same version and harness as the board; rows that differ or that nothing tracks are left out). `build.ts` adds a score only while the board's own data has no result for that model at any effort, so the board's number replaces it the day it appears, whatever it says. These rows carry `details.launchClaim` and a note, and the benchmark page tags them "launch". The build log lists claims the boards have superseded (`LAUNCH_CLAIMS superseded`); delete an entry once all its boards have the model. AA's own announced results stay in `aa-preview.ts`.
+`scripts/scrape/launch-claims.ts` holds the scores a lab publishes in its launch table, for boards that have not run the new model yet. Before adding a row, compare the reference models in the lab's table with the board's own values: if they differ, it is a different harness or version, so leave the row out. Each entry maps the table's rows to benchmark ids Priors already tracks (same version and harness as the board; rows that differ or that nothing tracks are left out). `build.ts` adds a score only while the board's own data has no result for that model at any effort, so the board's number replaces it the day it appears, whatever it says. These rows carry `details.launchClaim` and a note, and the benchmark page tags them "launch". The build log lists claims the boards have superseded (`LAUNCH_CLAIMS superseded`); delete an entry once all its boards have the model. AA's own announced results stay in `aa-preview.ts`.
 
 ### Subscription cost
 

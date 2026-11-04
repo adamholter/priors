@@ -47,6 +47,20 @@ export const LAUNCH_CLAIMS: LaunchClaim[] = [{
     "bg-riemann-bench": 80,
     "aa-terminalbench-science": 64.8,
   },
+}, {
+  model: "Hy4",
+  effort: "high",
+  releaseDate: "2026-11-04",
+  by: "Tencent",
+  url: "https://hy.tencent.ai/research/hy4?langVersion=en",
+  published: "2026-11-04",
+  // Tencent's appendix has 34 rows, all its own runs at the highest reasoning. Only FrontierCode 2.0 is kept: its five reference
+  // scores match AA's board exactly. Rows left out: 20 internal benchmarks; ProgramBench, APEX-Agents, DeepSWE, Terminal-Bench 4.0
+  // and Science, AutomationBench, Agents' Last Exam, MMMU-Pro and ZeroBench (reference scores differ from the boards here, so not
+  // the same harness or version); SWE-Marathon, PostTrainBench v1.2, HLE-Full and OSWorld 2.1 (not tracked).
+  scores: {
+    "aa-frontiercode-2-0": 31,
+  },
 }];
 
 export interface ClaimResult { added: string[]; replaced: string[]; untracked: string[] }
@@ -71,14 +85,17 @@ export function applyLaunchClaims(snap: Snapshot, date: string, claims: LaunchCl
       if (carried.has(benchmarkId)) continue;
       snap.observations.push({
         benchmarkId, variantId: vid, value, observedAt: date, sourceUrl: c.url,
-        note: `${c.by}'s launch figure (${c.published}); the board's own result replaces it once it lists the model`,
+        note: `${c.by}'s self-reported launch figure (${c.published}); the board's own result replaces it once it lists the model`,
         details: { launchClaim: { by: c.by, published: c.published } },
       });
       out.added.push(key);
     }
     if (!out.added.some((k) => k.startsWith(`${n.modelName} `))) continue;
     if (!snap.variants.some((v) => v.id === vid)) snap.variants.push({ id: vid, modelId: n.modelId, effort: c.effort });
-    if (!snap.models.some((m) => m.id === n.modelId)) {
+    // Another source may have created the model without a date (OpenRouter's rows carry none).
+    const known = snap.models.find((m) => m.id === n.modelId);
+    if (known && !known.releaseDate) known.releaseDate = c.releaseDate;
+    if (!known) {
       const model: Model = { id: n.modelId, name: n.modelName, labId: n.labId, kind: "llm", reasoning: n.reasoningFamily, aliases: [c.model.toLowerCase()], releaseDate: c.releaseDate };
       snap.models.push(model);
       snap.models.sort((a, b) => a.id.localeCompare(b.id));

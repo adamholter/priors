@@ -13,7 +13,7 @@ import { makeContext, saveRaw } from "./harness";
 import { buildLibrary } from "./library";
 import { writeHistoryArchive } from "./history-archive";
 import { canonicalizeSnapshot } from "../../src/data/canonical-snapshot";
-import { retainCatalog } from "./retain-catalog";
+import { retainCatalog, splitHy4Preview } from "./retain-catalog";
 import { fetchPlanResets } from "./plan-resets";
 import { applyLaunchClaims } from "./launch-claims";
 import { fetchFreeTiers } from "./free-tiers";
@@ -207,7 +207,7 @@ async function main() {
 
   // merge with previous snapshot for failed sources so one outage doesn't blank a benchmark
   try {
-    const prev: Snapshot = JSON.parse(gunzipSync(await readFile(path.join(SNAP_DIR, "latest.json.gz"))).toString("utf8"));
+    const prev: Snapshot = splitHy4Preview(JSON.parse(gunzipSync(await readFile(path.join(SNAP_DIR, "latest.json.gz"))).toString("utf8")));
     const unselected = prev.sources.filter((r) => !runs.some((run) => run.sourceId === r.sourceId));
     const retained = [...runs.filter((r) => r.status === "failed"), ...(only ? unselected : [])];
     if (only) snap.sources.push(...unselected);

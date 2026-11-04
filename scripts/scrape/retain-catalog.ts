@@ -1,5 +1,19 @@
 import type { Model, Variant } from "../../src/data/types";
 
+/**
+ * Until 2026-11-04 Hy4 preview was stored as `hy-4`. Reads an older snapshot under the id it has now, so final Hy4 inherits
+ * none of its date, scores or open weights. Only a snapshot from before the split matches, so this stops doing anything by itself.
+ */
+export function splitHy4Preview<S extends { models: Model[] }>(snapshot: S): S {
+  const old = snapshot.models.find((m) => m.id === "hy-4");
+  if (!old?.releaseDate || old.releaseDate >= "2026-11-04") return snapshot;
+  const moved = JSON.parse(JSON.stringify(snapshot).replace(/"hy-4(@[^"]*)?"/g, '"hy-4-preview$1"')) as S;
+  const preview = moved.models.find((m) => m.id === "hy-4-preview")!;
+  preview.name = "Hy4 preview";
+  preview.aliases = preview.aliases.filter((a) => a.includes("preview"));
+  return moved;
+}
+
 /** A partial scrape adds measurements, but must retain catalog metadata from skipped sources. */
 export function retainCatalog(previous: { models: Model[]; variants: Variant[] }, current: { models: Model[]; variants: Variant[] }) {
   const models = new Map(previous.models.map(m => [m.id, m]));

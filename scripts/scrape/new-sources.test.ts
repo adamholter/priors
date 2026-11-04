@@ -118,6 +118,11 @@ describe("open weights", () => {
     expect(by["zz-unknown"].openWeights).toBeUndefined();
     expect(r.unknown).toEqual(["zz-unknown"]);
   });
+  it("treats final Hy4 as closed until its weights ship, and Hy4 preview and other Hy models as open", () => {
+    expect(familyOpenWeights("hy-4")).toBe(false);
+    expect(familyOpenWeights("hy-4-preview")).toBe(true);
+    expect(familyOpenWeights("hy-3")).toBe(true);
+  });
   it("treats hosted-only variants of open families as closed", () => { expect(familyOpenWeights("qwen-3.5-flash")).toBe(false); expect(familyOpenWeights("qwen-3.5-27b")).toBe(true); });
 });
 

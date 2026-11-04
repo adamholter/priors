@@ -29,6 +29,13 @@ describe("launch claims", () => {
     expect(r.replaced).toEqual(["Gemini 4 Carbon board-b"]);
     expect(s.observations.filter((o) => o.benchmarkId === "board-b").map((o) => o.value)).toEqual([66]);
   });
+  it("labels the figure self-reported, and dates a model another source created without a date", () => {
+    const s = snapshot();
+    s.models.push({ id: "gemini-4-carbon", name: "Gemini 4 Carbon", labId: "google", kind: "llm", reasoning: true, aliases: [] });
+    applyLaunchClaims(s, "2026-10-28", [claim]);
+    expect(s.models.find((m) => m.id === "gemini-4-carbon")!.releaseDate).toBe("2026-10-28");
+    expect(s.observations.at(-1)!.note).toContain("self-reported");
+  });
   it("does not double a claim carried from the last snapshot", () => {
     const s = snapshot();
     applyLaunchClaims(s, "2026-10-28", [claim]);

@@ -12,6 +12,8 @@ const OPEN = true, CLOSED = false;
 
 /** First match wins, tested against the canonical model id. Only families whose status is the same for every release. */
 export const FAMILY_RULES: [RegExp, boolean][] = [
+  // Promised but not released as of 2026-11-04 (Hy4 preview's weights are out). Delete this once tencent/Hy4 is on Hugging Face; AA's own flag overrides it.
+  [/^hy-4$/, CLOSED],
   // Hosted-only variants of otherwise open families, before the family rules.
   [/^qwen-?\d+(\.\d+)?-(max|plus|flash|turbo)/, CLOSED], [/-(max|plus)$/, CLOSED],
   [/^(gpt-oss|gemma|llama|deepseek|glm|kimi|minimax|nemotron|olmo|phi-|mimo|hy-|step-?\d|ling|ring|laguna|granite|smollm|falcon|yi-|internlm|exaone|devstral|mixtral|mistral-(small|nemo|7b)|codestral|magistral-small|qwen)/, OPEN],

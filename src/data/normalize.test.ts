@@ -91,6 +91,11 @@ describe("normalizeLabel", () => {
     expect(normalizeLabel("Gemini 3.0 Flash")).toMatchObject({ modelId: "gemini-3-flash" });
     expect(normalizeLabel("GPT 6 Astra Pro")).toMatchObject({ modelId: "gpt-6-astra-pro" });
   });
+  it("keeps Hy4 preview and final Hy4 apart, however a board writes them", () => {
+    for (const label of ["Hy4 preview", "tencent/hy4-preview", "Tencent: Hy4 preview", "Hy Hy4 preview", "hy4-preview"]) expect(normalizeLabel(label)).toMatchObject({ ok: true, modelId: "hy-4-preview", modelName: "Hy4 preview", labId: "tencent" });
+    expect(normalizeLabel("Hy4 preview (high reasoning)")).toMatchObject({ modelId: "hy-4-preview", effort: "high" });
+    for (const label of ["Hy4", "tencent/hy4", "Tencent: Hy4"]) expect(normalizeLabel(label)).toMatchObject({ ok: true, modelId: "hy-4", modelName: "Hy4" });
+  });
   it("distinct models are not merged", () => {
     const a = normalizeLabel("GPT-5.5"), b = normalizeLabel("GPT-5.5 mini"), c = normalizeLabel("GPT-5.4"), d = normalizeLabel("GPT-5.6 Sol"), e = normalizeLabel("GPT-5.6 Terra");
     expect(new Set([a, b, c, d, e].map((x) => (x.ok ? x.modelId : "?"))).size).toBe(5);

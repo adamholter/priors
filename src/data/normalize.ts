@@ -260,6 +260,8 @@ export function normalizeLabel(label: string, effortHint?: string): Normalized |
     reasoningFamily: valsModel.reasoning,
     cleaned,
   };
+  // Hy4 preview and final Hy4 are different models, with different weights and scores, so "preview" is not noise here.
+  if (/\bhy[\s-]*4[\s-]*preview\b/.test(cleaned)) return { ok: true, modelId: "hy-4-preview", modelName: "Hy4 preview", labId: "tencent", effort, reasoningFamily: true, cleaned };
   const alias = ALIASES[cleaned] ?? ALIASES[label.toLowerCase().trim()];
   const stripped = cleaned.replace(NOISE, " ").replace(/\s+/g, " ").trim();
   cleaned = stripped;
