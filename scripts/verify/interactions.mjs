@@ -717,8 +717,8 @@ try {
     } finally { await m.context().close(); }
   });
 
-  await check("rank: See the data is above the fold on desktop and phone, and opens the builder", async () => {
-    for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
+  await check("rank: the first page fits one screen, with the question first and See the data under it", async () => {
+    for (const viewport of [{ width: 1440, height: 900 }, { width: 1280, height: 720 }, { width: 390, height: 844 }, { width: 360, height: 640 }]) {
       const r = await (await browser.newContext({ viewport })).newPage();
       r.on("pageerror", (e) => errors.push(`${r.url()}: ${e.message}`));
       try {
@@ -726,13 +726,36 @@ try {
         const link = r.getByRole("link", { name: "See the data" });
         await link.waitFor({ timeout: 30000 });
         assert.equal(await link.count(), 1, `${viewport.width}px: one data entry`);
-        assert.equal(await r.getByText("Skip to the data").count(), 0, `${viewport.width}px: the old link is gone`);
         const box = await link.boundingBox(), duel = await r.locator(".duel-card").first().boundingBox();
-        assert.ok(box && box.y >= 0 && box.y + box.height <= viewport.height, `${viewport.width}px: See the data sits above the fold`);
-        assert.ok(viewport.width < 741 ? box.y < duel.y : box.x > duel.x + duel.width, `${viewport.width}px: before the matchup on a phone, beside it on desktop`);
+        assert.ok(box.y + box.height <= viewport.height, `${viewport.width}px: See the data sits above the fold`);
+        assert.ok(box.y > duel.y + duel.height, `${viewport.width}px: the matchup comes first`);
         assert.match(await link.getAttribute("href"), /^\/builder\?i=/, `${viewport.width}px: links to the builder on the default index`);
+        const size = await r.evaluate(() => ({ h: document.documentElement.scrollHeight, w: document.documentElement.scrollWidth }));
+        assert.ok(size.h <= viewport.height, `${viewport.width}px: no scrolling, page is ${size.h}px tall`);
+        assert.ok(size.w <= viewport.width, `${viewport.width}px: no sideways scroll`);
       } finally { await r.context().close(); }
     }
+  });
+
+  await check("rank: tapping a card makes the call, Undo appears only after one, and the list keeps the calls", async () => {
+    const r = await (await browser.newContext({ viewport: { width: 1280, height: 800 } })).newPage();
+    r.on("pageerror", (e) => errors.push(`${r.url()}: ${e.message}`));
+    try {
+      await r.goto(`${BASE}/rank`, { waitUntil: "domcontentloaded" });
+      const undo = r.getByRole("button", { name: "Undo", exact: true }), count = r.locator(".bracket-meta > span");
+      await count.waitFor({ timeout: 30000 });
+      assert.match(await count.innerText(), /^1 of /, "starts on the first call");
+      assert.equal(await undo.isVisible(), false, "nothing to undo yet");
+      for (let tries = 0; tries < 10 && (await count.innerText()).startsWith("1 "); tries++) { await r.locator(".duel-card.left").click(); await r.waitForTimeout(800); }
+      assert.match(await count.innerText(), /^2 of /, "the card click counted");
+      assert.equal(await undo.isVisible(), true, "Undo appears after a call");
+      await undo.click();
+      await r.waitForFunction(() => document.querySelector(".bracket-meta > span")?.textContent?.startsWith("1 "));
+      await r.locator(".duel-card.left").click(); await r.waitForTimeout(800);
+      await r.getByRole("button", { name: "Rank a list instead" }).click();
+      await r.getByRole("heading", { name: /Does this look right/ }).waitFor({ timeout: 10000 });
+      assert.match(await r.locator(".onboard-intro > p").innerText(), /your 1 call/, "the call is kept");
+    } finally { await r.context().close(); }
   });
 
   await check("3d: a ranking charted on three measures, with the best corner listed", async () => {

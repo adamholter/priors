@@ -12,7 +12,6 @@ import { PageTransition } from "@/components/PageTransition";
 import { onboardingSnapshot } from "@/data/client-snapshot";
 import { defaultLineup, defaultPriorsMix, PRIORS_MIX_COOKIE, savedMix } from "@/onboarding/defaults";
 import { benchmarkQuality } from "@/onboarding/quality";
-import { rankedCount } from "@/lib/ranked-count";
 import { defaultConfig } from "@/engine";
 import { pageMeta, RANK_DESCRIPTION } from "@/lib/site-meta";
 export const dynamic = "force-dynamic";
@@ -41,7 +40,7 @@ export default async function Rank() {
   }
   const lineup = defaultLineup(snapshot, 16, mix ?? undefined);
   const quality = benchmarkQuality(snapshot);
-  const [count, library] = await Promise.all([rankedCount(), loadMixLibrary(snapshot.date)]);
+  const library = await loadMixLibrary(snapshot.date);
   const evidence = rankingEvidence(snapshot, library, lineup);
   const variantModels = new Map(snapshot.variants.map((v) => [v.id, v.modelId]));
   // Skipping the ranking opens the builder on Artificial Analysis' composite, the first-time default.
@@ -51,5 +50,5 @@ export default async function Rank() {
   const introTotal = introWeights.reduce((sum, [, v]) => sum + v, 0);
   const introMix = introWeights.map(([id, v]) => { const b = snapshot.benchmarks.find((x) => x.id === id); return { name: b?.shortName ?? b?.name ?? id, share: v / introTotal }; });
   // The lineup dialog offers observed models; the saved order it restores is checked against the same list.
-  return <PageTransition><Onboarding introMix={introMix} snapshot={onboardingSnapshot(snapshot, [...observedModelIds, ...lineup])} lineup={lineup} quality={quality.map(({ reason: _reason, ...q }) => { void _reason; return q; })} observedModelIds={observedModelIds} hasSavedMix={!!mix} seeds={lineup} rankedCount={count} evidence={evidence} skipHref={skipHref} /></PageTransition>;
+  return <PageTransition><Onboarding introMix={introMix} snapshot={onboardingSnapshot(snapshot, [...observedModelIds, ...lineup])} lineup={lineup} quality={quality.map(({ reason: _reason, ...q }) => { void _reason; return q; })} observedModelIds={observedModelIds} hasSavedMix={!!mix} seeds={lineup} evidence={evidence} skipHref={skipHref} /></PageTransition>;
 }

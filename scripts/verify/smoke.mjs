@@ -57,7 +57,7 @@ try {
   for (let tries = 0; tries < 10 && !await rank.locator(".intro-dialog[open]").isVisible(); tries++) { await rank.getByRole("button", { name: "How it works" }).click(); await rank.waitForTimeout(800); }
   await rank.locator(".intro-dialog[open]").waitFor();
   await rank.keyboard.press("Escape");
-  const left = rank.getByRole("button", { name: "Left is better" });
+  const left = rank.locator(".duel-card.left");
   for (let calls = 0; calls < 20 && await left.isVisible(); calls++) { await left.click(); await rank.waitForTimeout(650); }
   await rank.getByRole("heading", { name: /Does this look right/ }).waitFor({ timeout: 10000 });
   const wanted = await rank.locator(".tactile-row").count();

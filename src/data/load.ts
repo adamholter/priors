@@ -108,7 +108,8 @@ export async function loadHistoryArchive(): Promise<HistoryArchive | null> {
 /** Load the precomputed mix library for a snapshot date, or null when absent. */
 export async function loadMixLibrary(date?: string): Promise<MixLibrary | null> {
   const file = date ? `${date}.library.json.gz` : "latest.library.json.gz";
-  if (!date && remoteBase()) { const live = await remoteLibrary(file); if (live) return live; }
+  // Today's dated file is rewritten all day and a build may not have it, so the live latest answers for today, as in `loadSnapshot`.
+  if (remoteBase()) { const live = await remoteLibrary("latest.library.json.gz"); if (live && (!date || live.date === date)) return live; }
   try { return JSON.parse(gunzipSync(await readRuntimeFile(`data/snapshots/${file}`)).toString("utf8")) as MixLibrary; }
   catch { return null; }
 }

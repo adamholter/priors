@@ -15,10 +15,6 @@ export function resetSavedBracket() {
   try { localStorage.removeItem(KEY); } catch { /* storage can be disabled */ }
 }
 
-function Arrow({ left = false }: { left?: boolean }) { return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true" style={left ? { transform: "rotate(180deg)" } : undefined}><path d="M4 12h15m-6-6 6 6-6 6" /></svg>; }
-const TIERS = { frontier: "Frontier tier", mid: "Mid tier", small: "Small model" } as const;
-const released = (iso?: string) => iso ? `Released ${new Date(`${iso.slice(0, 10)}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", year: "numeric", timeZone: "UTC" })}` : "Release date unknown";
-
 /** Drops the last real call from the saved bracket, so reopening the matchups resumes one step back. */
 export function undoSavedCall() {
   try {
@@ -31,7 +27,7 @@ export function undoSavedCall() {
 }
 
 /** `initial` and `extra` reopen a finished smart sprint from the review list: the earlier calls stay and `extra` more may be asked. */
-export function Bracket({ seeds, models, labs, onFinish, onList, options, adaptive, initial, extra = 0 }: { seeds: string[]; models: Map<string, Model>; labs: Map<string, Lab>; onFinish: (step: BracketStep, answers: Answer[]) => void; onList: (step: BracketStep, answers: Answer[]) => void; options?: BracketOptions; adaptive?: AdaptiveOptions; initial?: Answer[]; extra?: number }) {
+export function Bracket({ seeds, models, labs, onFinish, options, adaptive, initial, extra = 0 }: { seeds: string[]; models: Map<string, Model>; labs: Map<string, Lab>; onFinish: (step: BracketStep, answers: Answer[]) => void; options?: BracketOptions; adaptive?: AdaptiveOptions; initial?: Answer[]; extra?: number }) {
   const [answers, setAnswers] = useState<Answer[]>(initial ?? []);
   const [finishedEarly, setFinishedEarly] = useState(false);
   const cap = (adaptive?.cap ?? options?.cap ?? QUICK.cap) + extra;
@@ -149,19 +145,14 @@ export function Bracket({ seeds, models, labs, onFinish, onList, options, adapti
       <span className="duel-stripe" aria-hidden="true" />
       <span className="duel-lab"><i aria-hidden="true" />{lab?.name ?? m?.labId}</span>
       <span className="duel-name">{m?.name ?? id}</span>
-      <span className="duel-meta">{[m?.priceTier && TIERS[m.priceTier], m?.reasoning && "Reasoning"].filter(Boolean).join(" · ") || "\u00a0"}</span>
-      <span className="duel-meta">{released(m?.releaseDate)}</span>
       <span className="duel-stamp" aria-hidden="true"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5" /></svg>Better</span>
     </button>;
   };
-  const leanName = lean && lean !== "tie" && step.pair ? models.get(step.pair[lean === "left" ? 0 : 1])?.name : undefined;
-  const live = new Set(step.pair ?? []);
 
   return <div className="bracket" data-done={step.done || undefined}>
     <section className="bracket-main" aria-label="Head-to-head matchups">
       {step.done ? null : <>
-        <div className="bracket-meta"><span className="bracket-round">{step.round}</span><span>Call {String(step.asked + 1).padStart(2, "0")} · up to {cap}</span></div>
-        <div className="bracket-progress" role="progressbar" aria-label="Bracket progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(step.progress * 100)}><i style={{ transform: `scaleX(${step.progress})` }} /></div>
+        <div className="bracket-meta"><div className="bracket-progress" role="progressbar" aria-label="Bracket progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(step.progress * 100)}><i style={{ transform: `scaleX(${step.progress})` }} /></div><span>{step.asked + 1} of {cap}</span></div>
         {step.check && <p className="check-note">Quick check: this one follows from your earlier calls.</p>}
         <div className={`duel ${offset ? "dragging" : ""} ${leaving ? `leaving-${leaving}` : ""} ${answers.length === 0 && !offset && !leaving ? "first" : ""}`} onPointerDown={down}>
           <div className="duel-pair" key={pairKey(step.pair![0], step.pair![1])}>
@@ -170,25 +161,13 @@ export function Bracket({ seeds, models, labs, onFinish, onList, options, adapti
             {card(step.pair![1], "right")}
           </div>
         </div>
-        <p className={`duel-verdict ${lean ? `toward-${lean}` : ""} ${armed ? "armed" : ""}`} aria-hidden="true" style={{ "--pull": pull } as CSSProperties}>
-          {lean === "tie" ? "Not sure · the index decides" : leanName ? <>{lean === "left" && <Arrow left />}<span>{leaving ? "✓ " : ""}<strong>{leanName}</strong> is better</span>{lean === "right" && <Arrow />}</> : <><span className="hint-touch">Drag toward the better model, or tap it</span><span className="hint-keys">Click the better model, or press ← →</span></>}
-        </p>
-        <div className="duel-actions">
-          <button className={`duel-choice ${lean === "left" ? "armed" : ""}`} onClick={() => choose("left")}><Arrow left /><span>Left is better</span></button>
-          <button className={`duel-unsure ${lean === "tie" ? "armed" : ""}`} onClick={() => choose("tie")}>Not sure</button>
-          <button className={`duel-choice ${lean === "right" ? "armed" : ""}`} onClick={() => choose("right")}><span>Right is better</span><Arrow /></button>
-        </div>
         <div className="duel-foot">
           <button className="text-control" onClick={undo} disabled={!answers.some((a) => !a.auto)}>Undo</button>
-          <button className="text-control" onClick={finishRest}>{extra ? "Done, back to my ranking" : "Let the index decide the rest"}</button>
+          <button className={`duel-unsure ${lean === "tie" ? "armed" : ""}`} onClick={() => choose("tie")}>Not sure</button>
+          <button className="text-control" onClick={finishRest}>{extra ? "Done, back to my ranking" : "Rank a list instead"}</button>
         </div>
       </>}
     </section>
-    <aside className="bracket-side" aria-label="Ranking so far">
-      <div className="board-heading"><span>TAKING SHAPE</span><span>BEST FIRST</span></div>
-      <ol className="shape-list">{step.blocks.flatMap((block, bi) => block.map((id, i) => { const m = models.get(id); return <li key={id} className={`${i === 0 && bi > 0 ? "group-start" : ""} ${live.has(id) ? "live" : ""}`} style={{ "--lab": labs.get(m?.labId ?? "")?.color ?? "#8A8A80" } as CSSProperties}><i aria-hidden="true" /><span>{m?.name ?? id}</span></li>; }))}</ol>
-      <button className="text-control" onClick={() => onList(step, answers)}>Rank the list instead <Arrow /></button>
-    </aside>
     <span className="sr-only" aria-live="polite">{announcement}</span>
   </div>;
 }

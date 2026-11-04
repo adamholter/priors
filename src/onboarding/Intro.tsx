@@ -8,7 +8,7 @@ import { INTRO_CARDS } from "@/lib/share-designs";
 
 const STEP_MS = [3200, 3400, 5200];
 const STEPS = [
-  { n: "01", title: "Pick the better model", body: "Two at a time. Swipe or tap. Skip any you don’t know." },
+  { n: "01", title: "Pick the better model", body: "Two at a time. Tap, swipe or press ← →. Skip any you don’t know." },
   { n: "02", title: "We find the evidence", body: "Your calls become a ranking. Priors searches thousands of benchmark mixes for the one that reproduces it." },
   { n: "03", title: "Share your leaderboard", body: "Every model ranked by your index, live, with a card ready to post." },
 ];

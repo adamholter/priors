@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
+import { gzipSync } from "node:zlib";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const latest = readFileSync(path.resolve(process.cwd(), "data/snapshots/latest.json.gz"));
@@ -42,6 +43,16 @@ describe("live snapshot source", () => {
     const live = await loadSnapshot();
     expect(await loadSnapshot(live!.date)).toBe(live);
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("answers for today's mix library from the live latest, so the smart sprint runs in production", async () => {
+    const library = { date: "2031-01-02", settingsKey: "x", columns: {}, mixes: {} };
+    const fetchMock = vi.fn(async (_url: string) => new Response(gzipSync(JSON.stringify(library))));
+    vi.stubGlobal("fetch", fetchMock);
+    const { loadMixLibrary } = await fresh();
+    expect((await loadMixLibrary("2031-01-02"))?.date).toBe("2031-01-02");
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("https://data.example/snapshots/latest.library.json.gz");
+    expect(await loadMixLibrary("2031-01-01")).toBeNull();
   });
 
   it("falls back to the checkout when the live base is down", async () => {
