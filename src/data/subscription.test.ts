@@ -80,13 +80,12 @@ describe("subscription cost basis", () => {
     const sn = snap();
     const aa = (input: number, output: number) => ({ id: "t", slug: "t", name: "t", url: "", metadata: { price1mInputTokens: input, price1mOutputTokens: output } });
     const codex = (variantId: string, value: number) => ({ benchmarkId: CODEX_LIMITS_BENCHMARK, variantId, value, observedAt: "", sourceUrl: "" });
-    // b pays 10% of API price and gets 50 messages; Terra costs twice b per token and gets 100: twice the messages at twice
-    // the price is four times the API value from the same allowance, so a quarter of b's share.
+    // The only measured model codex lists pays 10% of API price, so an unmeasured one is estimated at the same share, whatever its API price or messages.
     const withTerra = { ...sn, variants: [...sn.variants, { id: "gpt-6.1-terra@default", modelId: "gpt-6.1-terra", effort: "default", sourceModel: aa(4, 20) }] as Snapshot["variants"],
       observations: [...sn.observations, codex("b@xhigh", 50), codex("gpt-6.1-terra@default", 100)] };
     const terra = subscriptionPrices(withTerra).get("gpt-6.1-terra")!;
-    expect(terra.ratio).toBeCloseTo(0.025, 6);
-    expect(terra).toMatchObject({ plan: "ChatGPT Plus", confidence: "estimated from Codex Plus message limits against b" });
+    expect(terra.ratio).toBeCloseTo(subscriptionPrices(withTerra).get("b")!.ratio, 9);
+    expect(terra).toMatchObject({ plan: "ChatGPT Plus", confidence: "estimated from the median share of b" });
     // Its own plan row wins.
     const own = { ...withTerra, observations: [...withTerra.observations, { benchmarkId: SUBSCRIPTION_BENCHMARK, variantId: "gpt-6.1-terra@default", value: 0.01, observedAt: "", sourceUrl: "", details: plan("ChatGPT Plus", { ratio: 0.01 }) }] };
     expect(subscriptionPrices(own).get("gpt-6.1-terra")).toMatchObject({ ratio: 0.01, confidence: "high" });

@@ -163,24 +163,18 @@ export function subscriptionPrices(snapshot: Snapshot, chosen: Record<string, st
   // A model assumed to match another's subsidy pays that model's share, whatever its own list price (a free tier is not a plan's subsidy).
   // Its label follows the plan the other model is priced at ("Google AI Pro (assumed same as Argon)").
   for (const [modelId, d] of assumed) { const from = out.get(d.sameAs!); if (positive(from?.ratio)) out.set(modelId, { ratio: from.ratio, plan: d.plan.replace(/^.*?(?= \(assumed same as )/, from.plan), feeUsd: from.feeUsd, confidence: d.confidence }); }
-  // An OpenAI model with no plan data yet, priced from Codex's published limits: a plan's five-hour allowance is the
-  // same budget whichever model spends it, so a model allowed k times the messages of a measured one at p times its
-  // API price per token pays 1/(k·p) of that model's share (same tokens per message assumed). The median over every
-  // measured model keeps one odd reference from setting the price. Real plan data replaces it once the model has some.
-  const messages = new Map<string, number>();
-  for (const o of observationsOf(snapshot, CODEX_LIMITS_BENCHMARK)) if (positive(o.value)) messages.set(variants.get(o.variantId) ?? o.variantId.split("@")[0], o.value);
-  const measured = [...messages.keys()].filter((id) => out.has(id) && aaPrices.has(id)), usage = measuredTokenMixes(snapshot);
-  for (const [modelId, n] of messages) {
-    const prices = aaPrices.get(modelId);
-    if (out.has(modelId) || !prices) continue;
-    const refs = measured.map((ref) => {
-      const assumed = mixes.get(ref) ?? STANDARD_MIX;
-      return { ref, ratio: out.get(ref)!.ratio * (messages.get(ref)! / n) * (blendedApiPrice(aaPrices.get(ref)!, usage.get(ref) ?? assumed) / blendedApiPrice(prices, usage.get(modelId) ?? assumed)) };
-    }).filter((r) => positive(r.ratio));
-    if (!refs.length) continue;
-    const ratio = median(refs.map((r) => r.ratio));
-    const nearest = refs.reduce((a, b) => (Math.abs(b.ratio - ratio) < Math.abs(a.ratio - ratio) ? b : a));
-    out.set(modelId, { ...out.get(nearest.ref)!, ratio, confidence: `estimated from Codex Plus message limits against ${refs.map((r) => r.ref).join(", ")}` });
+  // An OpenAI model Codex lists with no plan data yet pays the median share of API price of the OpenAI models measured.
+  // `scripts/verify/subsidy-backtest.ts` hides known rows to compare ways of doing this: pricing from Codex's message
+  // limits scored worst on OpenAI's rows, and on other labs a new model's error is about the same whichever sibling rule is used.
+  // Real plan data replaces it once the model has some.
+  const listed = new Set<string>();
+  for (const o of observationsOf(snapshot, CODEX_LIMITS_BENCHMARK)) if (positive(o.value)) listed.add(variants.get(o.variantId) ?? o.variantId.split("@")[0]);
+  const measured = [...listed].filter((id) => out.has(id));
+  for (const modelId of listed) {
+    if (out.has(modelId) || !aaPrices.has(modelId) || !measured.length) continue;
+    const ratio = median(measured.map((id) => out.get(id)!.ratio));
+    const nearest = measured.reduce((a, b) => (Math.abs(out.get(b)!.ratio - ratio) < Math.abs(out.get(a)!.ratio - ratio) ? b : a));
+    out.set(modelId, { ...out.get(nearest)!, ratio, confidence: `estimated from the median share of ${measured.join(", ")}` });
   }
   return out;
 }

@@ -39,8 +39,8 @@ describe("benchmark pages", async () => {
     }
   }, 120_000);
 
-  it("keeps a model priced from Codex limits subsidized on the benchmark page, and leaves out the usage series", () => {
-    const estimated = [...subscriptionPrices(snap)].filter(([, p]) => /Codex Plus message limits/.test(p.confidence ?? "")).map(([model]) => model);
+  it("keeps a model with an estimated plan price subsidized on the benchmark page, and leaves out the usage series", () => {
+    const estimated = [...subscriptionPrices(snap)].filter(([, p]) => /estimated from the median share/.test(p.confidence ?? "")).map(([model]) => model);
     const usageSize = (s: typeof snap) => JSON.stringify(s.observations.filter((o) => o.benchmarkId === "t3-usage-share")).length;
     for (const model of estimated) {
       const b = snap.observations.find((o) => o.costUsd != null && o.benchmarkId !== "aa-cost" && o.variantId.startsWith(`${model}@`))?.benchmarkId;
