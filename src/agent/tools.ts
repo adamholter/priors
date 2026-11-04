@@ -279,6 +279,8 @@ export async function runTool(ctx: ToolContext, name: string, args: Record<strin
     case "propose": {
       const { weights, unknown } = cleanWeights(snapshot, args.weights as Record<string, unknown>, args.pin as Record<string, unknown>, original.weights);
       if (!Object.keys(weights).length) return { error: "No known benchmarks in that mix.", unknown };
+      // Otherwise the reply would describe a change that never happened.
+      if (distance(toShares(weights), toShares(original.weights)) < 0.005) return { error: "Not applied: this mix is the same as the current one, so nothing would change. A weight of 0 leaves a benchmark out: give each benchmark you mean to add a weight above 0.", unknown };
       if (computeIndex(snapshot, { ...original, weights, required: original.required.filter((id) => weights[id]) }).ranked.length < 3) return { error: "That mix ranks fewer than three models. Pick benchmarks with wider coverage." };
       // After a search that found nothing meeting the request, only a mix the solver vetted, or an explicit `partial`, goes through.
       if (ctx.unmet && args.partial !== true && !ctx.vetted?.some((v) => distance(v, toShares(weights)) < 0.02)) return { error: "Not applied: the search found no mix that does what the user asked, and this one doesn't either. Tell the user plainly what can't be reached and what the closest mix achieves (ranks, not the goal). Only propose it with partial: true if you say in the summary that the goal is not met." };

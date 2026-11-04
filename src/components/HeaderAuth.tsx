@@ -14,14 +14,15 @@ import { authEnabled } from "@/app/providers";
 import { track } from "@/lib/analytics";
 import { AccountMenu } from "@/components/AccountMenu";
 
-export function HeaderAuth({ indices }: { indices: IndexConfig[] }) {
+/** `canPublish` false: the visitor is still on the untouched default, so a signed-out header offers only Sign in. */
+export function HeaderAuth({ indices, canPublish = true }: { indices: IndexConfig[]; canPublish?: boolean }) {
   if (!authEnabled) return <span className="btn-quiet opacity-60" title="Sign-in not configured yet">Sign in</span>;
-  return <Inner indices={indices} />;
+  return <Inner indices={indices} canPublish={canPublish} />;
 }
 
 const pageKey = () => { try { return sessionStorage.getItem(PAGE_KEY); } catch { return null; } };
 
-function Inner({ indices }: { indices: IndexConfig[] }) {
+function Inner({ indices, canPublish }: { indices: IndexConfig[]; canPublish: boolean }) {
   const { isSignedIn, isLoaded } = useUser();
   const { isAuthenticated } = useConvexAuth();
   const mine = useQuery(api.profiles.mine, isAuthenticated ? {} : "skip");
@@ -34,7 +35,7 @@ function Inner({ indices }: { indices: IndexConfig[] }) {
   useEffect(() => { if (mine?.handle) localStorage.setItem("priors:handle", mine.handle); }, [mine?.handle]);
   const stash = () => stashForPublish(indices);
   if (!isLoaded) return <span className="text-xs text-grey">Loading account…</span>;
-  if (!isSignedIn) return <div className="flex items-center gap-2">{knownHandle && <Link href={`/${knownHandle}`} transitionTypes={["nav-forward"]} className="btn-quiet">@{knownHandle}</Link>}<Link href="/sign-in" onClick={stash} transitionTypes={["nav-forward"]} className="btn-quiet max-sm:hidden">Sign in</Link><Link href="/sign-in" onClick={() => { track("publish_clicked", { from: "header" }); stash(); }} transitionTypes={["nav-forward"]} className="btn"><span className="sm:hidden">Publish</span><span className="hidden sm:inline">Publish to Explore</span></Link></div>;
+  if (!isSignedIn) return <div className="flex items-center gap-2">{knownHandle && <Link href={`/${knownHandle}`} transitionTypes={["nav-forward"]} className="btn-quiet">@{knownHandle}</Link>}<Link href="/sign-in" onClick={stash} transitionTypes={["nav-forward"]} className={`btn-quiet ${canPublish ? "max-sm:hidden" : ""}`}>Sign in</Link>{canPublish && <Link href="/sign-in" onClick={() => { track("publish_clicked", { from: "header" }); stash(); }} transitionTypes={["nav-forward"]} className="btn"><span className="sm:hidden">Publish</span><span className="hidden sm:inline">Publish to Explore</span></Link>}</div>;
   if (mine === undefined) return null;
   if (!mine) return <Link href="/claim" onClick={stash} transitionTypes={["nav-forward"]} className="btn">Publish to Explore</Link>;
   return (

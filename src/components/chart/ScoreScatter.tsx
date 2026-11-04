@@ -108,7 +108,7 @@ function PointCard({ point, labs, pal, onFrontier, format, unit, extra, onClose,
   </div>;
 }
 
-type ScatterProps = {
+type ScatterProps = { /** One line under the chart saying how to read it. */ legend?: string;
   pts: ScatterPoint[]; labs: Lab[]; better: "lower" | "higher"; xName: string; xShort?: string; xUnit?: string;
   scale?: "linear" | "log" | "time"; formatX: (x: number) => string; formatValue?: (x: number) => string;
   height?: number; aria: string; title?: ReactNode; actions?: ReactNode; view: ScatterView; exportName: string;
@@ -118,7 +118,7 @@ type ScatterProps = {
 
 export function ScoreScatter(props: ScatterProps) {
   const axis = useScoreAxis();
-  const { pts: chartPoints, labs, better, xName: baseXName, xShort: baseXShort, xUnit = "", scale: defaultScale = "linear", formatX, formatValue, height = 420, aria, title, actions, view, exportName, extraRows, tooltipExtra, anchor, linkParams, bare, chartRef } = props;
+  const { pts: chartPoints, labs, better, xName: baseXName, xShort: baseXShort, xUnit = "", scale: defaultScale = "linear", formatX, formatValue, height = 420, aria, title, actions, view, exportName, extraRows, tooltipExtra, anchor, linkParams, bare, chartRef, legend } = props;
   const scale = defaultScale === "time" ? "time" : view.scale ?? defaultScale;
   const xName = scale === "linear" ? baseXName.replace(/, log| \(log\)/g, "") : baseXName;
   const xShort = scale === "linear" ? baseXShort?.replace(/, log| \(log\)/g, "") : baseXShort;
@@ -342,7 +342,6 @@ export function ScoreScatter(props: ScatterProps) {
         <div className="flex items-center gap-1 ml-auto pointer-events-auto">
           <HighlightMenu label={exportName} />
           {visibility.canUndo && <button type="button" className="cap hover:text-ink" onClick={visibility.undo} aria-label="Undo chart removal">Undo</button>}
-          {trimmedModels > 0 && <span className="cap max-sm:hidden" title="Older versions and models off the frontier are hidden. Show them with All models in this chart's settings.">{trimmedModels} more in settings</span>}
           {actions}
           {anchor && <ChartLink id={anchor} name={exportName} params={{ ...effectiveLinkParams, hidden: visibility.hidden }} />}
           <ChartExport ref={exportControl} name={exportName} frame onEdit={anchor ? openEditor : undefined} getHtml={getHtml} getSvg={() => chart.current?.renderToSVGString()} getRows={() => pts.map((p) => ({ rank: p.r.rank, model: p.r.model.name, effort: p.r.variant.effort, score: +p.r.score.toFixed(2), lab: p.r.model.labId, [xName]: +(p.raw ?? p.x).toFixed(4), on_frontier: onFrontierIds.has(p.r.variant.id), ...extraRows?.(p) }))} />
@@ -355,6 +354,7 @@ export function ScoreScatter(props: ScatterProps) {
         {!pts.length && <p className="cap absolute inset-0 grid place-items-center">No model in this view has this metric.</p>}
         {focus && <PointCard point={focus} labs={labs} pal={pal} onFrontier={view.frontier && onFrontierIds.has(focus.r.variant.id)} format={formatValue ?? formatX} unit={xUnit} extra={tooltipExtra?.(focus)} xLabel={xShort ?? xName} onClose={pinned && !hover ? () => setPinned(null) : undefined} />}
       </div>
+      {!bare && (legend || trimmedModels > 0) && <p className="cap mt-1 max-sm:px-4 pr-16">{legend}{legend && trimmedModels > 0 ? " " : ""}{trimmedModels > 0 && <>{trimmedModels} more models under All models in settings.</>}</p>}
       {!bare && <ChartContextMenu exportControl={exportControl} state={context.menu} close={context.close} name={exportName} points={pts} visibility={visibility} chart={chart} wrap={wrapRef} expanded={expand.expanded} anchor={anchor} />}
       {editor && <ExportEditor name={exportName} initial={editor} viewOnly={editor.viewOnly} defaultScale={defaultScale === "log" ? "log" : "linear"} base={view} showScale={defaultScale !== "time"} onClose={closeEditor}
         link={(xe) => chartLinkUrl(window.location.href, anchor ?? exportName, { ...effectiveLinkParams, hidden: visibility.hidden, extra: { ...effectiveLinkParams.extra, xe: encodeEditor(xe) } }, hl ?? undefined).toString()}

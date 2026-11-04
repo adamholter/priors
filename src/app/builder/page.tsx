@@ -1,13 +1,15 @@
 import { preload } from "react-dom";
 import type { Metadata } from "next";
 import { framedSize, linkFrame } from "@/lib/og-chart";
-import { BuilderLoader } from "@/components/BuilderLoader";
+import { BuilderLoader, type RankingPreview } from "@/components/BuilderLoader";
+import { computeIndex, PAGE_VIEW, rankingRows } from "@/engine";
+import { aaIndexMix } from "@/onboarding/defaults";
 import { Builder } from "@/components/Builder";
 import { clientSnapshot } from "@/data/client-snapshot";
 import { PageTransition } from "@/components/PageTransition";
 import { loadSnapshot } from "@/data/load";
 import { decodeIndices, prettyQuery } from "@/lib/url";
-import { indexSummary, pageMeta, previewText } from "@/lib/site-meta";
+import { DATA_DESCRIPTION, indexSummary, pageMeta, previewText } from "@/lib/site-meta";
 import { chartTitle } from "@/lib/metrics";
 import { RADAR_PARAM_KEYS } from "@/components/chart/radar-view";
 import { formatMetric, type AnswerChart } from "@/lib/answer-chart";
@@ -36,12 +38,12 @@ async function cardFor(sp: SP) {
     const r = await chartFromLink(sp.i, sp.chart, typeof sp.date === "string" ? sp.date : undefined);
     if ("chart" in r) return { query, title: r.chart.title, desc: previewText([`${decodeIndices(query)[0]?.name ?? "Priors"} index.`, chartGist(r.chart)]) };
   }
-  // No index in the link: the builder itself, on the default mix.
-  const base = index?.name ?? "Builder";
+  // No index in the link: the data page, on AA's index.
+  const base = index?.name ?? "AI model rankings";
   const title = ct ? `${base} · ${ct}` : base;
   const snapshot = index ? await loadSnapshot() : null;
   const summary = index && snapshot ? indexSummary(snapshot, index) : undefined;
-  const desc = summary ? previewText([ct ? `${ct}: ${summary}` : summary]) : undefined;
+  const desc = summary ? previewText([ct ? `${ct}: ${summary}` : summary]) : index ? undefined : DATA_DESCRIPTION;
   return { query, title, desc };
 }
 
@@ -49,6 +51,15 @@ export async function generateMetadata({ searchParams }: PageProps<"/builder">):
   const { query, title, desc } = await cardFor(await searchParams);
   const image = { url: query.size ? `/og?${query}` : "/og", ...framedSize(linkFrame(query)), alt: `${title} model rankings` };
   return pageMeta({ title, description: desc, path: "/builder", share: query.size ? `/builder?${prettyQuery(query)}` : "/builder", image });
+}
+
+/** The top of the default ranking, in the HTML: on slow 4G the dataset takes about 8 seconds, and this is most of what a first visit came for. */
+async function rankingPreview(): Promise<RankingPreview | undefined> {
+  const snapshot = await loadSnapshot();
+  if (!snapshot) return undefined;
+  const mix = aaIndexMix(snapshot), color = new Map(snapshot.labs.map((l) => [l.id, l.color]));
+  const rows = rankingRows(computeIndex(snapshot, { ...mix, variants: "all" }, PAGE_VIEW).ranked, mix).slice(0, 20);
+  return { name: mix.name, rows: rows.map((r) => ({ rank: r.rank, name: r.model.name, score: r.score, color: color.get(r.model.labId) ?? "var(--grey)" })) };
 }
 
 export default async function Home({ searchParams }: PageProps<"/builder">) {
@@ -66,5 +77,5 @@ export default async function Home({ searchParams }: PageProps<"/builder">) {
   }
   // Starts the data with the page instead of after its scripts have run. The address has to match the loader's fetch exactly.
   preload("/api/snapshot?view=core&packed=2", { as: "fetch", crossOrigin: "anonymous" });
-  return <PageTransition><BuilderLoader initialIndices={decodeIndices(i)} /></PageTransition>;
+  return <PageTransition><BuilderLoader initialIndices={decodeIndices(i)} preview={i.length ? undefined : await rankingPreview()} /></PageTransition>;
 }

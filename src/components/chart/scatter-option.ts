@@ -172,7 +172,7 @@ export function scatterOption({ pts, labs, better, xName, xShort, xUnit = "", sc
   // Free models sit on one x left of every paid point (MetricPoint.free); a dashed line names it.
   // A two-point line: ECharts drops a lone { xAxis } mark line on a log axis.
   const free = pts.find((p) => p.free);
-  if (free) (series[series.length - 1] as { markLine?: unknown }).markLine = { silent: true, symbol: "none", z: 0, animation: false, lineStyle: { color: pal.grey, type: "dashed", width: 1, opacity: 0.7 }, label: { show: true, position: "end", formatter: "free", color: pal.grey, fontSize: 10.5 * t }, data: [[{ xAxis: free.x, yAxis: yMin }, { xAxis: free.x, yAxis: yMax }]] };
+  if (free) (series[series.length - 1] as { markLine?: unknown }).markLine = { silent: true, symbol: "none", z: 0, animation: false, lineStyle: { color: pal.grey, type: "dashed", width: 1, opacity: 0.7 }, label: { show: true, position: "insideEndBottom", rotate: 0, align: "left", padding: [0, 0, 0, 6], formatter: "free", color: pal.grey, fontSize: 10.5 * t }, data: [[{ xAxis: free.x, yAxis: yMin }, { xAxis: free.x, yAxis: yMax }]] };
   return {
     animation: true,
     grid: { ...(narrow ? { left: 38 * t, right: 12, top: hasTitle ? 24 : 48, bottom: 40 * t } : { left: 48 * t, right: 130 * t, top: hasTitle ? 24 * t : 48, bottom: 44 * t }), ...CONTAIN_AXIS_LABELS },

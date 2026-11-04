@@ -4,7 +4,6 @@ import { useImperativeHandle, useState, type Ref } from "react";
 import { useChartPalette } from "./echarts";
 import { escapeSvg, frameSvg, trimRight } from "./export-frame";
 import { embedFonts } from "./embed-fonts";
-import { ChartDownloadIcon } from "./ChartIcons";
 import { IconBrush } from "@tabler/icons-react";
 
 export { escapeSvg };
@@ -77,7 +76,6 @@ export function ChartExport({ name, title, trim = true, onEdit, getSvg, getRows,
   const formats: ChartExportFormat[] = ["png", "svg", ...(getHtml ? (["html"] as const) : []), ...(getRows ? (["csv", "json"] as const) : [])];
   useImperativeHandle(ref, () => ({ download, formats }));
   return <div className={`relative flex items-center gap-1.5 ${className}`} role="group" aria-label={`Export ${name}`} title={`Export ${name}`}>
-    <span className="text-grey"><ChartDownloadIcon /></span>
     <div className="export-split">
       <button type="button" disabled={busy} aria-label={`Download ${name} as PNG`} onClick={() => download("png")}>PNG</button>
       {onEdit && <button type="button" className="export-edit" aria-label={`Edit ${name} screenshot`} title="Edit screenshot" onClick={onEdit}><IconBrush size={13} aria-hidden="true" /></button>}

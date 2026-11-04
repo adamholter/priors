@@ -65,6 +65,9 @@ try {
       await phone.goto(`${BASE}/builder`, { waitUntil: "domcontentloaded" });
       await phone.locator(".ranking-list [data-k]").first().waitFor({ timeout: 30000 });
       const y = (sel) => phone.locator(sel).first().evaluate((el) => el.getBoundingClientRect().top + scrollY);
+      assert.equal(await phone.locator("#mix input[aria-label$=weight]").count(), 0, "the mix starts closed");
+      await phone.getByRole("button", { name: "change the mix" }).click();
+      await phone.locator("#mix input[aria-label$=weight]").first().waitFor();
       assert.ok(await y(".builder-rank") < await y("#mix"), "the ranking sits above the mix");
       assert.ok(await y("#mix") < await y(".builder-cost"), "the mix sits above the other charts");
       assert.ok(await y(".ranking-list [data-k]") < 844, "the first ranking row is on the first screen");
@@ -91,6 +94,8 @@ try {
       await p.goto(`${BASE}/builder`, { waitUntil: "domcontentloaded" });
       await p.locator(".ranking-list [data-k]").first().waitFor({ timeout: 30000 });
       assert.equal(await p.getByRole("button", { name: "Undo", exact: true }).count(), 0, "nothing to undo on arrival");
+      await p.getByRole("button", { name: "change the mix" }).click();
+      await p.locator("#mix input[aria-label$=weight]").first().waitFor();
       const sliders = await p.locator("#mix input[aria-label$=weight]").count();
       assert.ok(sliders > 0);
       await p.getByRole("button", { name: "Clear all", exact: true }).click();
@@ -685,6 +690,7 @@ try {
     } finally { await c.context().close(); }
   });
   await check("builder: every index tab has a visible delete, and the last one resets instead of vanishing", async () => {
+    await page.getByRole("button", { name: "change the mix" }).click();
     const tabs = page.locator('[aria-label="Your indices"] .index-tabs-scroll > span');
     const removes = page.locator("[data-remove-index]");
     const before = await tabs.count();
@@ -715,6 +721,51 @@ try {
       assert.equal(await m.locator(".cmp-wide").isVisible(), false, "the slope is hidden");
       assert.ok(await m.locator(".cmp-narrow .cmp-table tbody tr").count() >= 10, "one row per model");
     } finally { await m.context().close(); }
+  });
+
+  await check("home: opens straight on the data, on AA's index, with the ranking in the HTML and making your own second", async () => {
+    const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+    const h = await ctx.newPage();
+    h.on("pageerror", (e) => errors.push(`${h.url()}: ${e.message}`));
+    try {
+      const ua = { "user-agent": "Mozilla/5.0 AppleWebKit/537.36 Chrome/140 Safari/537.36" };
+      const html = await (await h.request.get(`${BASE}/`, { headers: ua })).text();
+      assert.match(html, /data-ranking-preview/, "the first rows come with the page");
+      assert.match(html, /Artificial Analysis Index v\d/, "the HTML names the index");
+      assert.ok(html.length < 450_000, `home HTML is ${Math.round(html.length / 1024)} KB`);
+      await h.goto(`${BASE}/`, { waitUntil: "domcontentloaded" });
+      const row = h.locator(".ranking-list [data-k]").first();
+      await row.waitFor({ timeout: 30000 });
+      assert.match(await h.getByRole("heading", { level: 1 }).innerText(), /^Artificial Analysis Index v\d/);
+      assert.equal(await h.locator(".duel-card").count(), 0, "no ranking game first");
+      assert.equal(await h.locator("#mix input[aria-label$=weight]").count(), 0, "the mix starts closed");
+      assert.equal(await h.getByRole("link", { name: "Publish to Explore" }).count(), 0, "nothing to publish yet");
+      assert.equal(await h.getByText("Compare with").count(), 0, "not offered the index you are on");
+      assert.ok(await h.locator(".builder-cost").first().isVisible() && (await h.locator(".builder-cost").first().boundingBox()).y < 200, "cost shares the first screen");
+      await h.waitForTimeout(400);
+      assert.equal(new URL(h.url()).search, "", "the address stays clean on the default");
+      assert.equal(await h.getByRole("link", { name: "Rank models", exact: true }).last().getAttribute("href"), "/rank");
+      // Opening the mix shows one row; hiding a model does not count as changing the mix.
+      await h.getByRole("button", { name: "change the mix" }).click();
+      assert.equal(await h.locator("#mix input[aria-label$=weight]").count(), 1, "one benchmark at 100%");
+      await h.getByRole("button", { name: "Hide", exact: true }).click();
+      assert.equal(await h.locator("#mix input[aria-label$=weight]").count(), 0, "the mix closes again");
+      // A row opens that model, on AA's ranking.
+      await row.click();
+      await h.waitForURL(/\/models\/[^/?]+\?r=aa$/, { timeout: 30000 });
+      await h.goto(`${BASE}/`, { waitUntil: "domcontentloaded" });
+      await row.waitFor({ timeout: 30000 });
+      // Someone who saved the old default gets AA's index; someone with their own mix keeps it.
+      await h.evaluate(() => localStorage.setItem("priors:indices", JSON.stringify(["General%20frontier|aa-terminalbench-science:15,aa-briefcase:15,aa-automationbench-aa:5,aa-terminalbench-v4-0:10,aa-frontiercode-2-0:15,aa-omniscience-v1-1-accuracy:10,aa-omniscience-v1-1-non-hallucination:5,aa-gdp-pdf:5,aa-hle-diamond:10,aa-critpt-v2-hard:10|strict=50|var=best"])));
+      await h.goto(`${BASE}/`, { waitUntil: "domcontentloaded" });
+      await row.waitFor({ timeout: 30000 });
+      await h.waitForTimeout(300);
+      assert.match(await h.getByRole("heading", { level: 1 }).innerText(), /^Artificial Analysis Index/, "the old default is not restored");
+      await h.evaluate(() => localStorage.setItem("priors:indices", JSON.stringify(["My%20mix|aa-briefcase:60,aa-hle-diamond:40"])));
+      await h.goto(`${BASE}/`, { waitUntil: "domcontentloaded" });
+      await h.getByRole("heading", { level: 1, name: "My mix" }).waitFor({ timeout: 30000 });
+      assert.equal(await h.locator("#mix input[aria-label$=weight]").count(), 2, "their own mix opens with its panel");
+    } finally { await ctx.close(); }
   });
 
   await check("rank: the first page fits one screen, with the question first and See the data under it", async () => {
@@ -842,13 +893,13 @@ try {
       const seen = [], bytes = new Map();
       c.on("request", (r) => seen.push(r.url()));
       c.on("response", async (r) => { if (r.request().resourceType() === "script") bytes.set(r.url(), (await r.body().catch(() => Buffer.alloc(0))).length); });
-      await c.goto(`${BASE}/`, { waitUntil: "networkidle" });
+      await c.goto(`${BASE}/rank`, { waitUntil: "networkidle" });
       await c.waitForTimeout(500);
       assert.equal(seen.filter((u) => /clerk\.browser|@clerk\/ui|\/api\/library|\/api\/snapshot/.test(u)).length, 0, `home fetched ${seen.filter((u) => /clerk|\/api\//.test(u)).join(", ")}`);
       // ECharts alone is about 650 KB of script: the home page draws no chart.
       const total = [...bytes.values()].reduce((a, b) => a + b, 0);
       assert.ok(total < 1_100_000, `home loads ${Math.round(total / 1024)} KB of script`);
-      const html = await (await c.request.get(`${BASE}/`, { headers: { "user-agent": "Mozilla/5.0 AppleWebKit/537.36 Chrome/140 Safari/537.36" } })).text();
+      const html = await (await c.request.get(`${BASE}/rank`, { headers: { "user-agent": "Mozilla/5.0 AppleWebKit/537.36 Chrome/140 Safari/537.36" } })).text();
       assert.ok(html.length < 450_000, `home HTML is ${Math.round(html.length / 1024)} KB`);
     } finally { await context.close(); }
   });
@@ -965,7 +1016,7 @@ try {
     c.on("pageerror", (e) => errors.push(`${c.url()}: ${e.message}`));
     try {
       await c.goto(`${BASE}/builder`, { waitUntil: "domcontentloaded" });
-      await c.getByRole("slider").first().waitFor({ timeout: 30000 });
+      await c.locator(".ranking-list [data-k]").first().waitFor({ timeout: 30000 });
       await c.waitForTimeout(1500);
       await c.getByRole("link", { name: "Support Priors" }).first().click();
       await c.waitForURL(/\/support$/, { timeout: 30000 });
@@ -979,6 +1030,7 @@ try {
     c.on("pageerror", (e) => errors.push(`${c.url()}: ${e.message}`));
     try {
       await c.goto(`${BASE}/builder`, { waitUntil: "domcontentloaded" });
+      await c.getByRole("button", { name: "change the mix" }).click({ timeout: 30000 });
       const plus = c.getByRole("button", { name: "Copy this index as a new index" });
       await plus.waitFor({ timeout: 30000 });
       for (let i = 0; i < 5; i++) { await plus.click(); await c.keyboard.press("Enter"); }
@@ -993,6 +1045,7 @@ try {
     c.on("pageerror", (e) => errors.push(`${c.url()}: ${e.message}`));
     try {
       await c.goto(`${BASE}/builder`, { waitUntil: "domcontentloaded" });
+      await c.getByRole("button", { name: "change the mix" }).click({ timeout: 30000 });
       await c.getByRole("button", { name: "Browse all benchmarks" }).click({ timeout: 30000 });
       const sheet = c.getByLabel("Benchmarks", { exact: true });
       await sheet.waitFor();
@@ -1007,6 +1060,7 @@ try {
     const c = await (await browser.newContext({ viewport: { width: 1360, height: 900 } })).newPage();
     try {
       await c.goto(`${BASE}/builder`, { waitUntil: "domcontentloaded" });
+      await c.getByRole("button", { name: "change the mix" }).click({ timeout: 30000 });
       await c.getByRole("searchbox", { name: "Add a benchmark" }).click({ timeout: 30000 });
       const link = c.getByLabel("Benchmarks", { exact: true }).getByRole("link", { name: "Explore benchmarks" });
       await link.waitFor();
@@ -1141,6 +1195,7 @@ try {
     const c = await browser.newPage({ viewport: { width: 1280, height: 900 } });
     try {
       await c.goto(`${BASE}/builder`, { waitUntil: "networkidle" });
+      await c.getByRole("button", { name: "change the mix" }).click({ timeout: 30000 });
       await c.getByRole("button", { name: /^About / }).first().click();
       const link = c.getByRole("dialog").getByRole("link", { name: "Open in Priors" });
       const href = await link.getAttribute("href");

@@ -4,9 +4,9 @@
 
 | Route | What it is |
 | --- | --- |
-| `/` | Onboarding for new visitors. Links that carry an index, and visitors with a saved mix, go to `/builder`. |
-| `/rank` | The onboarding, always reachable. See `docs/onboarding.md`. |
-| `/builder` | The explorer: weights, rankings, charts. State lives in the URL. |
+| `/` | The data page, same as `/builder`, on Artificial Analysis' index. Links that carry an index go to `/builder`. |
+| `/rank` | The onboarding, how a visitor makes their own index. See `docs/onboarding.md`. |
+| `/builder` | The data page: rankings and charts, with the mix panel closed until the weights are the visitor's own or they open it. The first rows come in the HTML (`rankingPreview`). State lives in the URL, except the untouched default, which needs none. |
 | `/[handle]` | A published page. |
 | `/explore` | Published pages. |
 | `/compare` | Two rankings side by side. See Compare below. |

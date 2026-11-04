@@ -1,13 +1,12 @@
 "use client";
-import { useId, useRef, useState, useEffect, useImperativeHandle, type Ref, type ReactNode } from "react";
+import { useId, useRef, useState, useEffect, type ReactNode } from "react";
 import type { Snapshot } from "@/data/types";
 import { strictnessOf, type IndexConfig, type IndexResult } from "@/engine";
 import { AA_METHODOLOGY_URL } from "@/data/aa-index";
 import { ModelDetail } from "./ModelDetail";
 
-export type CalculationSettingsHandle = { inspect: (variantId: string) => void };
 
-export function CalculationSettings({ ref, config, result, snapshot, onChange, children }: { ref?: Ref<CalculationSettingsHandle>; config: IndexConfig; result: IndexResult; snapshot: Snapshot; onChange: (config: IndexConfig) => void; children?: ReactNode }) {
+export function CalculationSettings({ trigger = true, config, result, snapshot, onChange, children }: { /** Shows the button. The rest stays mounted without it, for the check for newer data. */ trigger?: boolean; config: IndexConfig; result: IndexResult; snapshot: Snapshot; onChange: (config: IndexConfig) => void; children?: ReactNode }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const title = useId();
   const [open, setOpen] = useState(false);
@@ -23,17 +22,12 @@ export function CalculationSettings({ ref, config, result, snapshot, onChange, c
     return !!box && (x < box.left || x > box.right || y < box.top || y > box.bottom);
   };
   const [selected, setSelected] = useState("");
-  useImperativeHandle(ref, () => ({ inspect: (variantId) => {
-    setSelected(variantId);
-    dialog.current?.showModal();
-    setOpen(true);
-  } }), []);
   const row = result.ranked.find((r) => r.variant.id === selected) ?? result.ranked[0];
   const strictness = strictnessOf(config);
   const DEFAULT_STRICTNESS = 50;
   return (
     <>
-      <button type="button" className="mt-4 text-[12px] text-grey hover:text-ink" onClick={() => { dialog.current?.showModal(); setOpen(true); }}>Calculation settings</button>
+      {trigger && <button type="button" className="mt-4 text-[12px] text-grey hover:text-ink" onClick={() => { dialog.current?.showModal(); setOpen(true); }}>Calculation settings</button>}
       <dialog ref={dialog} onClose={() => setOpen(false)}
         onPointerDown={(e) => { backdropPress.current = e.target === e.currentTarget && outside(e.clientX, e.clientY); }}
         onClick={(e) => { if (backdropPress.current && e.target === e.currentTarget && outside(e.clientX, e.clientY)) dialog.current?.close(); backdropPress.current = false; }}
@@ -56,8 +50,8 @@ export function CalculationSettings({ ref, config, result, snapshot, onChange, c
             <p>Peer estimates use measured scores only, with release-date and price-tier constraints where those metadata exist. Each one averages two guesses: the models closest on this mix, and the models whose scores track the target most closely across every benchmark they share. The model detail lists the donors and a likely range. Otherwise optional missing values are left out and the remaining weights are renormalized. Cost and speed always come from measured results at the displayed effort.</p>
           </section>
           <section className="grid gap-2 border-t hairline pt-5">
-            <h3 className="text-lg text-ink">AA v4.3 baseline</h3>
-            <p>The starting mix uses AA&apos;s published weights across ten evaluations. Omniscience has two components, accuracy and non-hallucination. Briefcase and GDPval use a fixed 500 to 2500 Elo scale. The baseline requires measured results at the exact configuration; missing results are excluded. Small differences from AA&apos;s published totals can remain because AA freezes Elo when adding models.</p>
+            <h3 className="text-lg text-ink">Artificial Analysis Index</h3>
+            <p>The page opens on AA&apos;s published index score, unchanged. A mix rebuilt from its evaluations at AA&apos;s weights can land a few tenths away, because AA freezes Elo when adding models. Omniscience has two components, accuracy and non-hallucination. Briefcase and GDPval use a fixed 500 to 2500 Elo scale.</p>
             <a href={AA_METHODOLOGY_URL} target="_blank" rel="noreferrer" className="text-indigo underline">Artificial Analysis methodology</a>
           </section>
           <section className="grid gap-2 border-t hairline pt-5">

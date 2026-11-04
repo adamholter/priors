@@ -8,7 +8,7 @@ import { linkedHighlights, linkedViews } from "@/lib/highlight-link";
 import { findTab } from "@/lib/page-layout";
 import { renderShareCard } from "@/lib/og";
 import { profileCardLook } from "@/lib/og-chart";
-import { defaultConfig } from "@/engine";
+import { aaIndexMix } from "@/onboarding/defaults";
 import { resolveProfileChart } from "@/lib/profile-chart";
 import type { Profile } from "@/components/page/IndexPage";
 import { readChartHidden } from "@/components/chart/chart-visibility";
@@ -37,7 +37,7 @@ export async function GET(req: Request) {
   const profile = handle && process.env.NEXT_PUBLIC_CONVEX_URL ? await new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL).query(api.profiles.byHandle, { handle }) : null;
   const snapshot = profile ? mergeImports(snap, profile.imports).snapshot : snap;
   const list = decodeIndices(u.searchParams);
-  const indices = linkedViews(linkedHighlights(list.length ? list : profile?.indices.length ? profile.indices : [defaultConfig(snapshot)], u.searchParams), u.searchParams);
+  const indices = linkedViews(linkedHighlights(list.length ? list : profile?.indices.length ? profile.indices : [aaIndexMix(snapshot)], u.searchParams), u.searchParams);
   const index = findTab(indices, u.searchParams.get("hi")) ?? indices[0];
   const chart = profile ? resolveProfileChart(profile as Profile, u.searchParams.get("c")) : u.searchParams.get("c") ?? undefined;
   // `theme` picks a page theme for this card (the share dialog lets people try others); `scheme` its light or dark version.

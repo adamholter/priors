@@ -9,10 +9,14 @@ import { track } from "@/lib/analytics";
 import { HighlightContext } from "./chart/highlight";
 import { SettingsButton } from "./SiteSettings";
 import type { Snapshot } from "@/data/types";
-import { chartVariantMode, computeIndex, PAGE_VIEW, defaultConfig, DEFAULT_EFFORTS, EFFORT_CHOICES, filterEfforts, rankingRows as rankingRowsOf, type IndexConfig } from "@/engine";
+import { chartVariantMode, computeIndex, PAGE_VIEW, DEFAULT_EFFORTS, EFFORT_CHOICES, filterEfforts, rankingRows as rankingRowsOf, type IndexConfig } from "@/engine";
 import { ShareCards } from "./ShareCards";
 import { encodeIndex, encodeIndices, decodeIndices, prettyQuery } from "@/lib/url";
-import { PRIORS_MIX_COOKIE } from "@/onboarding/defaults";
+import { aaIndexMix, PRIORS_MIX_COOKIE } from "@/onboarding/defaults";
+import { compositeParts, latestAAIndex } from "@/data/aa-index";
+import { benchmarkPath } from "@/lib/benchmark-slug";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { hiddenIds, toggleVisibility, SHOW_ALL, type Vis } from "@/lib/model-visibility";
 import { WeightsPanel } from "./WeightsPanel";
 import { Rankings } from "./Rankings";
@@ -25,8 +29,8 @@ import { Wordmark } from "./Wordmark";
 import { SiteFooter } from "./SiteFooter";
 import { SiteNav } from "./SiteNav";
 import { IndexTabs } from "./IndexTabs";
-import { DEFAULT_LABEL, REFERENCE_ID, indexNote, isPristineDefault, tabLabel, withoutPristineDefault } from "@/lib/default-index";
-import { CalculationSettings, type CalculationSettingsHandle } from "./CalculationSettings";
+import { REFERENCE_ID, REFERENCE_LABEL, indexNote, isAAWeights, isPristineDefault, restorable, withoutPristineDefault } from "@/lib/default-index";
+import { CalculationSettings } from "./CalculationSettings";
 import { ChartSettings } from "./chart/ChartSettings";
 import { HeaderAuth } from "./HeaderAuth";
 import { mergeImports } from "@/lib/import-merge";
@@ -45,7 +49,7 @@ import { leaving } from "./nav-progress";
 
 export function Builder({ snapshot: base, initialIndices }: { snapshot: Snapshot; initialIndices: IndexConfig[] }) {
   // Benchmarks imported in this browser (via /import without an account) are merged client-side.
-  const calculations = useRef<CalculationSettingsHandle>(null);
+  const router = useRouter();
   const [local, setLocal] = useState<ImportPayload[]>([]);
   useEffect(() => { const id = requestAnimationFrame(() => { try { setLocal(JSON.parse(localStorage.getItem("priors:imports") ?? "[]")); } catch { /* ignore */ } }); return () => cancelAnimationFrame(id); }, []);
   const [live, setLive] = useState({ base, snapshot: base });
@@ -53,13 +57,13 @@ export function Builder({ snapshot: base, initialIndices }: { snapshot: Snapshot
   const receiveSnapshot = useCallback((s: Snapshot) => setLive({ base, snapshot: s }), [base]);
   const snapshot = useMemo(() => mergeImports(sourceSnapshot, local).snapshot, [sourceSnapshot, local]);
   // URL is the source of truth for anonymous builds; multiple `i` params = multiple indices.
-  const { value: indices, set: setIndices, load: loadIndices, undo, canUndo } = useUndoable<IndexConfig[]>(() => (initialIndices.length ? withoutPristineDefault(initialIndices) : [defaultConfig(base)]));
+  const { value: indices, set: setIndices, load: loadIndices, undo, canUndo } = useUndoable<IndexConfig[]>(() => (initialIndices.length ? withoutPristineDefault(initialIndices) : [aaIndexMix(base)]));
   // Restore the last edited indices when the URL carries none, and persist
   // edits so returning to /builder picks up where you left off.
   useEffect(() => {
     if (initialIndices.length) return;
     const id = requestAnimationFrame(() => {
-      try { const saved = localStorage.getItem("priors:indices"); if (saved) { const list = decodeIndices(JSON.parse(saved) as string[]); if (list.length) loadIndices(withoutPristineDefault(list)); } } catch { /* ignore */ }
+      try { const saved = localStorage.getItem("priors:indices"); if (saved) { const list = restorable(decodeIndices(JSON.parse(saved) as string[])); if (list.length) loadIndices(list); } } catch { /* ignore */ }
     });
     return () => cancelAnimationFrame(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -71,6 +75,18 @@ export function Builder({ snapshot: base, initialIndices }: { snapshot: Snapshot
   const result = useMemo(() => computeIndex(snapshot, { ...withPlansPref(withResetsPref(active, resetsOn), plansPref), variants: "all" }, PAGE_VIEW), [snapshot, active, resetsOn, plansPref]);
   const rankingMode = chartVariantMode(active, "ranking"), paretoMode = chartVariantMode(active, "pareto");
   const rankingRows = useMemo(() => rankingRowsOf(result.ranked, active), [result, active]);
+  // The mix is the secondary thing: closed on AA's index, open once the weights are the visitor's own or they ask for it.
+  const [mixChoice, setMixChoice] = useState<boolean | null>(null);
+  const mixOpen = mixChoice ?? !isAAWeights(active);
+  const pristine = indices.length === 1 && isPristineDefault(active);
+  const openMix = () => { setMixChoice(true); if (window.matchMedia("(max-width: 1023.98px)").matches) requestAnimationFrame(() => document.getElementById("mix")?.scrollIntoView({ behavior: "smooth" })); };
+  // AA's composite is one number, so Strengths draws the evaluations behind it.
+  const strengths = useMemo(() => {
+    const parts = compositeParts(snapshot, active.weights);
+    if (!parts) return undefined;
+    const config = { ...active, weights: parts, strictness: 100 }, r = computeIndex(snapshot, { ...withPlansPref(withResetsPref(config, resetsOn), plansPref), variants: "all" }, PAGE_VIEW);
+    return { ranked: filterEfforts(r.ranked, active.efforts), benchmarks: r.benchmarks, config };
+  }, [snapshot, active, resetsOn, plansPref]);
   // Settings-gear model picker: ranked models first (rank order), then the rest
   // of the candidate pool, then any excluded ids resolved from the catalog so
   // they can be re-checked.
@@ -132,12 +148,15 @@ export function Builder({ snapshot: base, initialIndices }: { snapshot: Snapshot
     if (t.current) window.clearTimeout(t.current);
     t.current = window.setTimeout(() => {
       const p = encodeIndices([active, ...indices.filter((i) => i.id !== active.id)], true); const url = new URL(window.location.href);
+      // The untouched default needs no state: the address stays mypriors.com, and a later visit gets whatever index is newest then.
+      const plain = indices.length === 1 && isPristineDefault(active);
       url.searchParams.delete("i");
-      p.getAll("i").forEach((value) => url.searchParams.append("i", value));
+      if (!plain) p.getAll("i").forEach((value) => url.searchParams.append("i", value));
       url.searchParams.delete("date");
       url.search = prettyQuery(url.searchParams);
       if (!leaving()) window.history.replaceState(null, "", url.toString());
       try {
+        if (plain) { localStorage.removeItem("priors:indices"); return; }
         localStorage.setItem("priors:indices", JSON.stringify(p.getAll("i")));
         const encoded = encodeIndex({ ...active, onlyModels: undefined, excludeModels: undefined });
         if (encoded.length <= 2048) document.cookie = `${PRIORS_MIX_COOKIE}=${encodeURIComponent(encoded)}; Path=/; Max-Age=31536000; SameSite=Lax${location.protocol === "https:" ? "; Secure" : ""}`;
@@ -160,9 +179,9 @@ export function Builder({ snapshot: base, initialIndices }: { snapshot: Snapshot
     setActiveId(id);
     return { id, name };
   };
-  // The default mix is one click away, as a reference to compare against, but not a tab nobody asked for.
-  const addReference = () => { setIndices((l) => (l.some((i) => i.id === REFERENCE_ID) ? l : [...l, { ...defaultConfig(snapshot), id: REFERENCE_ID, name: DEFAULT_LABEL }])); setActiveId(REFERENCE_ID); };
-  const remove = (id: string) => { setIndices((l) => { const n = l.filter((i) => i.id !== id); if (!n.length) n.push(defaultConfig(snapshot)); if (activeId === id) setActiveId(n[0].id); return n; }); };
+  // AA's index is one click away, as a reference to compare against, but not a tab nobody asked for.
+  const addReference = () => { setIndices((l) => (l.some((i) => i.id === REFERENCE_ID) ? l : [...l, { ...aaIndexMix(snapshot), id: REFERENCE_ID }])); setActiveId(REFERENCE_ID); };
+  const remove = (id: string) => { setIndices((l) => { const n = l.filter((i) => i.id !== id); if (!n.length) n.push(aaIndexMix(snapshot)); if (activeId === id) setActiveId(n[0].id); return n; }); };
 
   return (
     <ChartPaletteContext.Provider value={palette}>
@@ -170,27 +189,29 @@ export function Builder({ snapshot: base, initialIndices }: { snapshot: Snapshot
       <header className="builder-header grid grid-cols-[auto_minmax(0,1fr)_auto] lg:flex items-center gap-x-4 gap-y-2 px-4 sm:px-8 py-2 lg:py-0 lg:h-14 border-b hairline lg:sticky top-0 bg-bone z-40">
         <div className="shrink-0 flex items-center gap-5"><Wordmark transitionTypes={["nav-back"]} /><span className="max-sm:hidden"><SiteNav current="builder" /></span></div>
         <div className="min-w-0 flex-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          <IndexTabs indices={indices} activeId={active.id} onSelect={setActiveId} onRename={(id, name) => update({ ...indices.find((i) => i.id === id)!, name })} onAdd={add} onRemove={remove} labels={Object.fromEntries(indices.map((i) => [i.id, tabLabel(i)]))} reference={indices.length === 1 && !isPristineDefault(active) ? { label: `Compare with the ${DEFAULT_LABEL.toLowerCase()}`, onAdd: addReference } : undefined} />
+          {(mixOpen || indices.length > 1) && <IndexTabs indices={indices} activeId={active.id} onSelect={setActiveId} onRename={(id, name) => update({ ...indices.find((i) => i.id === id)!, name })} onAdd={add} onRemove={remove} />}
         </div>
         <div className="col-span-3 row-start-2 lg:w-auto lg:ml-auto flex flex-wrap items-center gap-2 shrink-0">
           <span className="sm:hidden mr-auto"><SiteNav current="builder" /></span>
-          <span className="cap max-sm:hidden">Data as of {snapshot.date}</span>
-          <span className="ml-auto flex items-center gap-2"><ShareCards indices={indices} active={active} top={topNames} hint={shareHint} onOpen={() => setShareHint(false)} /><HeaderAuth indices={indices} /></span>
+          <span className="ml-auto flex items-center gap-2"><ShareCards indices={indices} active={active} top={topNames} hint={shareHint} onOpen={() => setShareHint(false)} /><HeaderAuth indices={indices} canPublish={!pristine} /></span>
         </div>
         <div className="col-start-3 row-start-1 shrink-0"><SettingsButton /></div>
       </header>
 
       <HighlightContext.Provider value={highlightState}>
-      <main className="builder-main grid grid-cols-1 lg:grid-cols-[360px_minmax(0,1fr)] gap-10 px-4 sm:px-8 pt-5 lg:pt-8 pb-8 max-w-[1500px] items-start">
-        <aside id="mix" aria-label="Index controls" className="builder-aside scroll-mt-4 relative z-30 flex flex-col gap-5 min-h-0 lg:sticky lg:top-[88px] lg:h-[calc(100dvh-120px)]">
-          <section aria-label="Benchmarks and eligibility" className="min-h-0 min-w-0 lg:flex-1 lg:overflow-y-auto lg:overflow-x-hidden lg:overscroll-contain pr-2 pb-2">
-            <div className="flex items-baseline justify-between gap-3 mb-1"><h2 className="text-[22px]">Your mix</h2><span className="flex items-baseline gap-3 text-[12px]">{canUndo && <button type="button" className="hit text-indigo hover:underline" onClick={undo}>Undo</button>}{!mixEmpty && <button type="button" className="hit text-ink-2 hover:text-ink" onClick={() => update({ ...active, weights: {}, required: [], optional: undefined })}>Clear all</button>}</span></div>
-            <p className="cap mb-1">{result.benchmarks.length} benchmarks · {new Set(result.ranked.map((r) => r.model.id)).size} models<span className="sm:hidden"> · data as of {snapshot.date}</span></p>
-            {indices.length === 1 && !isPristineDefault(active) && <button type="button" onClick={addReference} className="cap sm:hidden underline underline-offset-2 mb-1">Compare with the {DEFAULT_LABEL.toLowerCase()}</button>}
-            {indexNote(active, "yours") && <p className="cap mb-4 text-ink-2">{indexNote(active, "yours")}</p>}
-            {!indexNote(active, "yours") && <div className="mb-4" />}
+      <main className={`builder-main grid grid-cols-1 ${mixOpen ? "lg:grid-cols-[360px_minmax(0,1fr)]" : "mix-closed"} gap-10 px-4 sm:px-8 pt-5 lg:pt-8 pb-8 max-w-[1500px] items-start`}>
+        {/* Stays mounted while closed: the calculation settings hold the check for newer data. */}
+        <aside id="mix" aria-label="Index controls" className={mixOpen ? "builder-aside scroll-mt-4 relative z-30 flex flex-col gap-5 min-h-0 lg:sticky lg:top-[88px] lg:h-[calc(100dvh-120px)]" : "contents"}>
+          <section aria-label="Benchmarks and eligibility" className={mixOpen ? "min-h-0 min-w-0 lg:flex-1 lg:overflow-y-auto lg:overflow-x-hidden lg:overscroll-contain pr-2 pb-2" : "contents"}>
+            {mixOpen && <>
+            <div className="flex items-baseline justify-between gap-3 mb-1"><h2 className="text-[22px]">Your mix</h2><span className="flex items-baseline gap-3 text-[12px]"><button type="button" className="hit text-ink-2 hover:text-ink" onClick={() => setMixChoice(false)}>Hide</button>{canUndo && <button type="button" className="hit text-indigo hover:underline" onClick={undo}>Undo</button>}{!mixEmpty && <button type="button" className="hit text-ink-2 hover:text-ink" onClick={() => update({ ...active, weights: {}, required: [], optional: undefined })}>Clear all</button>}</span></div>
+            <p className="cap mb-1">{result.benchmarks.length} benchmark{result.benchmarks.length === 1 ? "" : "s"} · {new Set(result.ranked.map((r) => r.model.id)).size} models<span className="sm:hidden"> · data as of {snapshot.date}</span></p>
+            {indices.length === 1 && !isAAWeights(active) && <button type="button" onClick={addReference} className="cap block underline underline-offset-2 mb-1">{REFERENCE_LABEL}</button>}
+            {!isAAWeights(active) && indexNote(active, "yours") ? <p className="cap mb-4 text-ink-2">{indexNote(active, "yours")}</p> : <div className="mb-4" />}
             <WeightsPanel snapshot={snapshot} config={active} result={result} onChange={update} />
-            <CalculationSettings ref={calculations} config={active} result={result} snapshot={snapshot} onChange={update}>
+            <p className="cap mt-3">Or <Link href="/rank" className="underline underline-offset-2 hover:text-ink" transitionTypes={["nav-forward"]}>rank a few models</Link> and let Priors fit the weights.</p>
+            </>}
+            <CalculationSettings trigger={mixOpen} config={active} result={result} snapshot={snapshot} onChange={update}>
               <SourceStatus snapshot={sourceSnapshot} onSnapshot={receiveSnapshot} />
             </CalculationSettings>
           </section>
@@ -199,15 +220,17 @@ export function Builder({ snapshot: base, initialIndices }: { snapshot: Snapshot
         {/* Keep the assistant clearance inside this column so the sidebar stays below the header at the page bottom. */}
         <section className="builder-charts grid gap-10 min-w-0 content-start pb-20 [&>div]:min-w-0">
           <div className="builder-rank">
-            <Rankings anchor="rankings" fresh={fresh} empty={mixEmpty ? "Your mix is empty. Add a benchmark to rank models." : undefined} limit={phone ? 10 : undefined} title={<><h2 className="text-[26px]">{active.name}</h2><p className="cap mt-1 lg:hidden">Ranked by your mix of benchmarks. <button type="button" className="underline underline-offset-2 hover:text-ink" onClick={() => document.getElementById("mix")?.scrollIntoView({ behavior: "smooth" })}>Change the mix</button></p></>} actions={<ChartSettings label="Ranking" efforts={{ value: active.rankingEfforts ?? [...EFFORT_CHOICES], onChange: (rankingEfforts) => update({ ...active, rankingEfforts }), withMode: true }} mode={rankingMode} onChange={(rankingVariants) => update({ ...active, rankingVariants })} {...releaseProps} {...modelPicker} />} onSelect={(r) => { if (r) calculations.current?.inspect(r.variant.id); }} ranked={rankingRows} labs={snapshot.labs} showEffort={rankingMode === "all"} />
+            <Rankings anchor="rankings" fresh={fresh} empty={mixEmpty ? "Your mix is empty. Add a benchmark to rank models." : undefined} limit={phone ? 10 : 20} title={<h1 className="text-[26px] leading-tight">{active.name}</h1>} subtitle={<>
+              <p className="cap">{isAAWeights(active) ? <>Scores as published by <Link href={benchmarkPath(latestAAIndex(snapshot)?.id ?? "") as "/"} className="underline underline-offset-2 hover:text-ink" transitionTypes={["nav-forward"]}>Artificial Analysis</Link></> : "Ranked by your mix"} · <span className="whitespace-nowrap">data as of {snapshot.date}</span></p>
+              {!mixOpen && <p className="cap mt-1">Want your own ranking? <Link href="/rank" className="underline underline-offset-2 hover:text-ink" transitionTypes={["nav-forward"]}>Rank models</Link> or <button type="button" className="underline underline-offset-2 hover:text-ink" onClick={openMix}>change the mix</button>.</p>}</>} actions={<ChartSettings label="Ranking" efforts={{ value: active.rankingEfforts ?? [...EFFORT_CHOICES], onChange: (rankingEfforts) => update({ ...active, rankingEfforts }), withMode: true }} mode={rankingMode} onChange={(rankingVariants) => update({ ...active, rankingVariants })} {...releaseProps} {...modelPicker} />} onSelect={(r) => { if (r) router.push(`/models/${r.model.id}${isAAWeights(active) ? "?r=aa" : ""}` as "/", { transitionTypes: ["nav-forward"] }); }} ranked={rankingRows} labs={snapshot.labs} showEffort={rankingMode === "all"} />
           </div>
           <div className="builder-cost">
-            <ParetoChart formulaInputs={formulaInputs(snapshot, result.ranked, active.timeSource)} basis={effectiveBasis(active.costBasis, hasSubscriptionPrices(snapshot))} description={costDescription(active.costSource ?? "aa", effectiveBasis(active.costBasis, hasSubscriptionPrices(snapshot)))} anchor="cost" ranked={metricRanked} mode={paretoMode} labs={snapshot.labs} view={paretoView} onView={setParetoView} title={<h2 className="text-[22px]">{effectiveBasis(active.costBasis, hasSubscriptionPrices(snapshot)) === "subscription" ? "Score vs subscription cost per task" : "Score vs cost per task"}</h2>}
+            <ParetoChart formulaInputs={formulaInputs(snapshot, result.ranked, active.timeSource)} basis={effectiveBasis(active.costBasis, hasSubscriptionPrices(snapshot))} description={costDescription(active.costSource ?? "aa", effectiveBasis(active.costBasis, hasSubscriptionPrices(snapshot)))} anchor="cost" ranked={metricRanked} mode={paretoMode} labs={snapshot.labs} view={paretoView} onView={setParetoView} height={phone ? undefined : 620} title={<h2 className="text-[22px]">{effectiveBasis(active.costBasis, hasSubscriptionPrices(snapshot)) === "subscription" ? "Score vs subscription cost per task" : "Score vs cost per task"}</h2>}
               actions={(barModels) => <ChartSettings anchor="cost" defaultScale="log" dataSource={{ value: active.costSource ?? "aa", options: taskMetricOptions(snapshot, "cost"), onChange: (costSource) => update({ ...active, costSource }) }} costBasis={hasSubscriptionPrices(snapshot) ? { value: effectiveBasis(active.costBasis), onChange: (basis) => update({ ...active, costBasis: basis === "subscription" ? undefined : basis }) } : undefined} subscriptionPlans={planPicker(snapshot, active, plansPref, (subscriptionPlans) => update({ ...active, subscriptionPlans }))} planResets={{ value: withResetsPref(active, resetsOn).planResets === true, onChange: (on) => { setPlanResetsPref(on); update({ ...active, planResets: on ? true : undefined }); }, note: planResetNote(snapshot), rows: planResetRows(snapshot) }} label="Pareto" mode={paretoMode} onChange={(paretoVariants) => update({ ...active, paretoVariants })} view={paretoView} onView={setParetoView} {...releaseProps} {...effortProps} {...modelPicker} {...(barModels ?? {})} />} />
           </div>
           <div className="builder-more">
             <h2 className="text-[22px] mb-1">More metrics</h2>
-            <MetricGallery timeSource={active.timeSource} onTimeSourceChange={(timeSource) => update({ ...active, timeSource })} ranked={metricRanked} estimated={metricEstimated} mode={paretoMode} snapshot={snapshot} labs={snapshot.labs} benchmarks={result.benchmarks} config={active} settings={{ ...releaseProps, ...effortProps, ...modelPicker }} />
+            <MetricGallery timeSource={active.timeSource} onTimeSourceChange={(timeSource) => update({ ...active, timeSource })} ranked={metricRanked} estimated={metricEstimated} mode={paretoMode} snapshot={snapshot} labs={snapshot.labs} benchmarks={result.benchmarks} config={active} strengths={strengths} settings={{ ...releaseProps, ...effortProps, ...modelPicker }} />
           </div>
         </section>
       </main>

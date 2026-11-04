@@ -47,7 +47,7 @@ The picker also has "Explore themes", a library of extra looks (see `docs/pages-
 
 ## Phones
 
-Below 1024px the builder is one column in this order: ranking (top 10, then Show all), the mix, the other charts (`builder.css`). `.builder-charts` becomes `display: contents` so the mix can sit between its children. The header is two short rows: the date moves into the mix's caption, and "Compare with the default mix" moves under it. Long benchmark names wrap there. Any small control takes `.hit`, which gives it a 40px tap area on touch screens without changing how it looks. The assistant button steps aside while the mix's sliders pass under it.
+Below 1024px the builder is one column in this order: ranking (top 10, then Show all), the mix when open, the other charts (`builder.css`). The mix panel starts closed on AA's index. With it closed, from 1280px the ranking and the cost chart share the first screen. `.builder-charts` becomes `display: contents` so the mix can sit between its children. The header is two short rows: the date moves into the mix's caption, and "Compare with the default mix" moves under it. Long benchmark names wrap there. Any small control takes `.hit`, which gives it a 40px tap area on touch screens without changing how it looks. The assistant button steps aside while the mix's sliders pass under it.
 
 ## Motion
 

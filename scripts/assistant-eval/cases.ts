@@ -5,7 +5,7 @@
  */
 import type { Snapshot } from "../../src/data/types";
 import { computeIndex, defaultConfig, type IndexConfig } from "../../src/engine";
-import { defaultPriorsMix } from "../../src/onboarding/defaults";
+import { aaIndexMix, defaultPriorsMix } from "../../src/onboarding/defaults";
 import { runTool, type ToolContext, type ViewState } from "../../src/agent/tools";
 import { toShares } from "../../src/agent/solver";
 import type { ChatMessage } from "../../src/agent/agent";
@@ -21,7 +21,7 @@ export interface Case {
   kind: "question" | "change" | "view" | "edge";
   prompt: string;
   history?: ChatMessage[];
-  index?: "general" | "aa";
+  index?: "general" | "aa" | "aa-index";
   highlight?: string[];
   /** Models already hidden in the view when the request arrives. */
   exclude?: string[];
@@ -42,7 +42,7 @@ export interface Case {
  * the numbers below.
  */
 export function configFor(c: Case, snapshot: Snapshot): IndexConfig {
-  const raw = c.index === "aa" ? defaultPriorsMix(snapshot) : defaultConfig(snapshot), have = new Set(snapshot.benchmarks.map((b) => b.id));
+  const raw = c.index === "aa-index" ? aaIndexMix(snapshot) : c.index === "aa" ? defaultPriorsMix(snapshot) : defaultConfig(snapshot), have = new Set(snapshot.benchmarks.map((b) => b.id));
   const base = { ...raw, weights: Object.fromEntries(Object.entries(raw.weights).filter(([id]) => have.has(id))) };
   return { ...base, ...(c.highlight ? { highlight: c.highlight } : {}), ...(c.exclude ? { excludeModels: c.exclude } : {}) };
 }
@@ -129,6 +129,23 @@ export const CASES: Case[] = [
     expect: "A chart of Opus 5.5's index score by effort: about 33 at low, 49 at medium, 53 at high, 58.6 at xhigh and 58.8 at max. Takeaway: the big jump is low to medium, another real gain from high to xhigh, and almost nothing from xhigh to max. Changes nothing.",
     facts: (env) => tool(env, "make_chart", { type: "effort_lines", metric: "index", models: ["Opus 5.5"] }),
     checks: [ok, noMixChange, noViewChange, charts(1)],
+  },
+  {
+    id: "aa-index-whats-in", kind: "question", index: "aa-index", prompt: "What's in this mix?",
+    expect: "Says the mix is one benchmark, Artificial Analysis' Intelligence Index at 100%, and may name what that index covers. Doesn't change anything.",
+    facts: (env) => tool(env, "get_mix", {}),
+    checks: [ok, noMixChange, noViewChange],
+  },
+  {
+    id: "aa-index-vague-down", kind: "change", index: "aa-index", prompt: "Gemini 4 feels too high",
+    expect: "Starting from AA's composite alone, applies a change that moves Gemini 4 down, says in a sentence or two which benchmarks it added or changed, and asks how far down the user wants it.",
+    facts: (env) => tool(env, "get_mix", {}),
+    checks: [ok, mixChanged, (r) => { const b = rank(r, "gemini-4", "before"), a = rank(r, "gemini-4", "after"); return b && (a == null || a > b) ? undefined : `Gemini 4 didn't move down (was ${b}, now ${a})`; }],
+  },
+  {
+    id: "aa-index-add-coding", kind: "change", index: "aa-index", prompt: "Coding matters more to me.",
+    expect: "Starting from AA's composite alone, adds or raises coding benchmarks so they carry real weight, reports what moved in the ranking, and keeps the AA index as a real share of the mix.",
+    checks: [ok, mixChanged, (r, env) => { const id = Object.keys(env.config.weights)[0]; return (r.after.weights[id] ?? 0) > 0 ? undefined : "removed the AA index for a request to weight coding more"; }],
   },
   {
     id: "vague-down", kind: "change", index: "aa", prompt: "Gemini 4 feels too high",

@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { Snapshot } from "../data/types";
-import { DEFAULT_PRIORS_MIX, defaultPriorsMix, LEGACY_DEFAULTS, defaultLineup, savedLineup, savedMix } from "./defaults";
+import { aaIndexMix, DEFAULT_PRIORS_MIX, defaultPriorsMix, LEGACY_DEFAULTS, defaultLineup, savedLineup, savedMix } from "./defaults";
 import { encodeIndex } from "../lib/url";
+import { computeIndex, PAGE_VIEW, rankingRows } from "../engine";
+import { loadSnapshot } from "../data/load";
+import { latestAAIndex } from "../data/aa-index";
 
 const benchmarkIds = Object.keys(DEFAULT_PRIORS_MIX.weights);
 
@@ -17,6 +20,16 @@ function snapshot(n: number): Snapshot {
     series: [], sources: [],
   };
 }
+
+describe("aaIndexMix", () => {
+  it("shows AA's published score for every model it ranks, to the decimal", async () => {
+    const snapshot = (await loadSnapshot())!, mix = aaIndexMix(snapshot), latest = latestAAIndex(snapshot)!;
+    const published = new Map(snapshot.observations.filter((o) => o.benchmarkId === latest.id).map((o) => [o.variantId, o.value]));
+    const rows = rankingRows(computeIndex(snapshot, { ...mix, variants: "all" }, PAGE_VIEW).ranked, mix);
+    expect(rows.length).toBeGreaterThan(20);
+    for (const r of rows) expect(r.score).toBeCloseTo(published.get(r.variant.id)!, 6);
+  });
+});
 
 describe("defaultLineup", () => {
   it("returns n unique model ids in the mix's rank order", () => {

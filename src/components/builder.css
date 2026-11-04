@@ -12,7 +12,7 @@
     & .builder-aside { zoom: var(--t); top: calc((var(--head) + 28px) / var(--t)); height: calc((100dvh - var(--head) - 60px) / var(--t)); }
     & .builder-charts { row-gap: calc(56px * var(--t)); }
     & .builder-charts h2 { font-size: calc(24px * var(--t)); }
-    & .builder-rank h2 { font-size: calc(30px * var(--t)); }
+    & .builder-rank :is(h1, h2) { font-size: calc(30px * var(--t)); }
     & .builder-charts .cap { font-size: calc(11px * var(--t)); }
     & .builder-charts .gallery-title { font-size: calc(15px * var(--t)); }
     & .ranking-list .row-move { font-size: calc(12.5px * var(--t)); grid-template-columns: calc(28px * var(--t)) minmax(120px, calc(220px * var(--t))) minmax(0, 1fr) calc(52px * var(--t)); gap: calc(12px * var(--t)); }
@@ -26,6 +26,12 @@
 }
 
 /* One column: the ranking first, since it is what people came for, then the mix that drives it, then the other charts. */
+/* With the mix panel closed, the data has the page: the ranking and what it costs share the first screen from 1280px up. */
+@media (min-width: 1024px) { .builder .builder-main.mix-closed { grid-template-columns: minmax(0, 1fr); } }
+@media (min-width: 1280px) {
+  .builder-main.mix-closed .builder-charts { grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); column-gap: 48px; }
+  .builder-main.mix-closed .builder-more { grid-column: 1 / -1; }
+}
 @media (max-width: 1023.98px) {
   .builder-charts { display: contents; }
   .builder-main > *, .builder-rank, .builder-cost, .builder-more { min-width: 0; }

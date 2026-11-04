@@ -10,14 +10,14 @@ import { rankingEvidence } from "@/onboarding/evidence";
 import { Onboarding } from "@/onboarding/Onboarding";
 import { PageTransition } from "@/components/PageTransition";
 import { onboardingSnapshot } from "@/data/client-snapshot";
-import { defaultLineup, defaultPriorsMix, PRIORS_MIX_COOKIE, savedMix } from "@/onboarding/defaults";
+import { aaIndexMix, defaultLineup, PRIORS_MIX_COOKIE, savedMix } from "@/onboarding/defaults";
 import { benchmarkQuality } from "@/onboarding/quality";
 import { defaultConfig } from "@/engine";
 import { pageMeta, RANK_DESCRIPTION } from "@/lib/site-meta";
 export const dynamic = "force-dynamic";
 export const metadata = pageMeta({ title: "What are your priors?", description: RANK_DESCRIPTION, path: "/rank" });
 
-/** The ranking onboarding. Always reachable here; `/` sends returning visitors to the builder instead. */
+/** The ranking onboarding: how a visitor makes their own index. `/` is the data. */
 export default async function Rank() {
   let snapshot = await loadSnapshot();
   if (!snapshot) return <main className="p-10">No benchmark snapshot available.</main>;
@@ -43,8 +43,8 @@ export default async function Rank() {
   const library = await loadMixLibrary(snapshot.date);
   const evidence = rankingEvidence(snapshot, library, lineup);
   const variantModels = new Map(snapshot.variants.map((v) => [v.id, v.modelId]));
-  // Skipping the ranking opens the builder on Artificial Analysis' composite, the first-time default.
-  const skipHref = `/builder?${prettyQuery(encodeIndices([defaultPriorsMix(snapshot)]))}`;
+  // Skipping the ranking opens the data on Artificial Analysis' index, the default.
+  const skipHref = `/builder?${prettyQuery(encodeIndices([aaIndexMix(snapshot)]))}`;
   const observedModelIds = [...new Set(snapshot.observations.map((o) => variantModels.get(o.variantId)).filter((id): id is string => !!id))];
   const introWeights = Object.entries(defaultConfig(snapshot).weights).sort((a, b) => b[1] - a[1]).slice(0, 4);
   const introTotal = introWeights.reduce((sum, [, v]) => sum + v, 0);

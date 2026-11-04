@@ -28,15 +28,16 @@ type SharedSettings = Omit<React.ComponentProps<typeof ChartSettings>, "label" |
 /** `ranked` is the full variant set; each panel picks best-effort or all efforts on its own. */
 
 /** `benchmarks` + `config` (the index's weighted benchmarks and its config) enable the Strengths radar, placed after Time per task by default. */
-export function MetricGallery({ ranked, estimated, mode = "all", snapshot, labs, settings, anchorPrefix = "", timeSource = "aa", onTimeSourceChange, benchmarks, config, layout, editing, onLayout }: { ranked: RankedVariant[]; /** Unranked models with an estimated score, for the release-date chart (IndexResult.estimated). */ estimated?: RankedVariant[]; mode?: "all" | "best"; snapshot: Snapshot; labs: Lab[]; settings?: SharedSettings; anchorPrefix?: string; timeSource?: TaskMetricSource; onTimeSourceChange?: (source: TaskMetricSource) => void; benchmarks?: IndexResult["benchmarks"]; config?: IndexConfig; /** Owner's saved order/visibility/defaults. */ layout?: GalleryMetric[]; /** Owner edit mode: every metric listed with controls; changes go to `onLayout`. */ editing?: boolean; onLayout?: (layout: GalleryMetric[]) => void }) {
+export function MetricGallery({ ranked, estimated, mode = "all", snapshot, labs, settings, anchorPrefix = "", timeSource = "aa", onTimeSourceChange, benchmarks, config, strengths, layout, editing, onLayout }: { /** What Strengths draws when the index itself has too few axes: AA's composite, drawn as its evaluations. */ strengths?: { ranked: RankedVariant[]; benchmarks: NonNullable<typeof benchmarks>; config: NonNullable<typeof config> }; ranked: RankedVariant[]; /** Unranked models with an estimated score, for the release-date chart (IndexResult.estimated). */ estimated?: RankedVariant[]; mode?: "all" | "best"; snapshot: Snapshot; labs: Lab[]; settings?: SharedSettings; anchorPrefix?: string; timeSource?: TaskMetricSource; onTimeSourceChange?: (source: TaskMetricSource) => void; benchmarks?: IndexResult["benchmarks"]; config?: IndexConfig; /** Owner's saved order/visibility/defaults. */ layout?: GalleryMetric[]; /** Owner edit mode: every metric listed with controls; changes go to `onLayout`. */ editing?: boolean; onLayout?: (layout: GalleryMetric[]) => void }) {
   const metricList = useMemo(() => metricPanels(snapshot, ranked, timeSource, estimated), [snapshot, ranked, timeSource, estimated]);
   const inputs = formulaInputs(snapshot, ranked, timeSource, metricList);
-  const hasStrengths = !!(benchmarks && config && radarReady(benchmarks));
+  const radar = strengths ?? (benchmarks && config ? { ranked, benchmarks, config } : undefined), radarBenchmarks = radar?.benchmarks;
+  const hasStrengths = !!(radarBenchmarks && radarReady(radarBenchmarks));
   const all = useMemo(() => {
     const list: { id: string; title: string; desc: string; open?: boolean }[] = metricList.map((p) => ({ id: p.id, title: p.title, desc: p.desc, open: p.open }));
-    if (hasStrengths) { const at = list.findIndex((p) => p.id === "tpt") + 1; list.splice(at, 0, { id: "strengths", title: "Strengths", desc: `each model's shape across the ${benchmarks!.length} benchmarks in this index` }); }
+    if (hasStrengths) { const at = list.findIndex((p) => p.id === "tpt") + 1; list.splice(at, 0, { id: "strengths", title: "Strengths", desc: `each model's shape across the ${radarBenchmarks!.length} benchmarks in this index` }); }
     return list;
-  }, [metricList, hasStrengths, benchmarks]);
+  }, [metricList, hasStrengths, radarBenchmarks]);
   const arranged = arrangeMetrics(all, layout);
   if (!arranged.length) return null;
   const current = (): GalleryMetric[] => arranged.map((p) => ({ id: p.id, ...(p.hidden ? { hidden: true } : {}), ...(p.entry?.open !== undefined || p.open !== !!all.find((x) => x.id === p.id)?.open ? { open: p.open } : {}), ...(p.entry?.view ? { view: p.entry.view } : {}) }));
@@ -56,7 +57,7 @@ export function MetricGallery({ ranked, estimated, mode = "all", snapshot, labs,
           <button type="button" className="edit-icon" aria-label={`Move ${p.title} down`} title="Move down" disabled={i === shown.length - 1} onClick={() => move(p.id, 1)}><IconArrowDown size={16} /></button>
         </span>;
         const scatterBody = p.id === "strengths"
-          ? <div id={anchor} className="scroll-mt-20"><StrengthsRadar ranked={ranked} benchmarks={benchmarks!} labs={labs} snapshot={snapshot} config={config!} /></div>
+          ? <div id={anchor} className="scroll-mt-20"><StrengthsRadar ranked={radar!.ranked} benchmarks={radar!.benchmarks} labs={labs} snapshot={snapshot} config={radar!.config} /></div>
           : chart && <GalleryChart inputs={inputs} id={p.id} anchor={anchor} title={p.title} chart={chart.chart} speed={chart.speed} ranked={ranked} defaultMode={mode} labs={labs} settings={settings} owner={p.entry?.view} onOwner={editing ? (view) => patch(p.id, { view }) : undefined} dataSource={p.id === "tpt" && onTimeSourceChange ? { value: timeSource, options: taskMetricOptions(snapshot, "time"), onChange: onTimeSourceChange } : undefined} />;
         // Usage opens as daily share over time (the Slopalytics view); the score-against-usage chart stays one click away.
         const body = p.id === "usage" && usageData(snapshot) ? <UsageGallery snapshot={snapshot} labs={labs} scatter={scatterBody} /> : scatterBody;

@@ -16,6 +16,12 @@ export function latestAAIndex(snapshot: Pick<Snapshot, "benchmarks">): Benchmark
     .sort((a, b) => b.id.localeCompare(a.id, undefined, { numeric: true }))[0];
 }
 
+/** "Artificial Analysis Index v5.0.1": follows whatever version the snapshot's newest index is. */
+export function aaIndexName(snapshot: Pick<Snapshot, "benchmarks">): string {
+  const version = latestAAIndex(snapshot)?.id.match(/v\d+(?:\.\d+)*$/)?.[0];
+  return version ? `Artificial Analysis Index ${version}` : "Artificial Analysis Index";
+}
+
 /**
  * AA's index as a mix of its own evaluations at AA's weights, so a ranking on it shows each model's strengths
  * evaluation by evaluation. Undefined unless every component is in the snapshot: a partial copy would not be AA's index.
@@ -25,4 +31,10 @@ export function aaComponentWeights(snapshot: Pick<Snapshot, "benchmarks">): Reco
   if (!parts || !Object.keys(parts).length) return undefined;
   const have = new Set(snapshot.benchmarks.map((b) => b.id));
   return Object.keys(parts).every((id) => have.has(id)) ? { ...parts } : undefined;
+}
+
+/** The evaluations behind a mix that is only AA's composite, so Strengths can still draw them. Undefined for any other mix. */
+export function compositeParts(snapshot: Pick<Snapshot, "benchmarks">, weights: Record<string, number>): Record<string, number> | undefined {
+  const on = Object.entries(weights).filter(([, w]) => w > 0).map(([id]) => id);
+  return on.length === 1 && on[0] === latestAAIndex(snapshot)?.id ? aaComponentWeights(snapshot) : undefined;
 }

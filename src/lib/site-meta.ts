@@ -5,6 +5,7 @@ import { computeIndex, PAGE_VIEW, rankingRows, type IndexConfig } from "@/engine
 export const SITE_NAME = "Priors";
 export const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://mypriors.com";
 export const SITE_DESCRIPTION = "Build your own index of AI models. Pick the benchmarks that matter to you, weight them, and share the ranking.";
+export const DATA_DESCRIPTION = "AI models ranked by the Artificial Analysis Intelligence Index, with what each one costs per task on a subscription and how long it takes.";
 export const RANK_DESCRIPTION = "Rank a few AI models head to head and Priors finds the benchmark mix that agrees with you. About a minute, no sign-in.";
 /** The default leaderboard on today's data: the picture for any link that has no card of its own. */
 export const SITE_IMAGE = { url: "/og", width: 1200, height: 630, alt: "Today's AI model leaderboard on Priors" };

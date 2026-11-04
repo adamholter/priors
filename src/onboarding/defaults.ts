@@ -1,7 +1,7 @@
 import type { Snapshot } from "../data/types";
 import { computeIndex, selectVariants, type IndexConfig } from "../engine";
 import { decodeIndex } from "../lib/url";
-import { aaComponentWeights, latestAAIndex } from "../data/aa-index";
+import { aaComponentWeights, aaIndexName, latestAAIndex } from "../data/aa-index";
 
 export const PRIORS_MIX_COOKIE = "priors:mix";
 
@@ -30,6 +30,20 @@ export function defaultPriorsMix(snapshot: Snapshot): IndexConfig {
   if (parts) return { ...DEFAULT_PRIORS_MIX, weights: parts, strictness: 100 };
   const latest = latestAAIndex(snapshot);
   return { ...DEFAULT_PRIORS_MIX, weights: latest ? { [latest.id]: 100 } : {} };
+}
+
+/** Everything about the opening mix except its name and weights, which follow the snapshot's newest index. */
+const { focus: _focus, ...AA_INDEX_SETTINGS } = { ...DEFAULT_PRIORS_MIX, id: "aa-index" };
+void _focus;
+export { AA_INDEX_SETTINGS };
+
+/**
+ * What the data page opens on: AA's published composite, at 100%. Its scores match AA's site exactly. A mix rebuilt
+ * from the evaluations at AA's weights does not: on Nov 4 2026 it was up to 0.27 off and swapped ranks 4 and 5.
+ */
+export function aaIndexMix(snapshot: Pick<Snapshot, "benchmarks">): IndexConfig {
+  const latest = latestAAIndex(snapshot);
+  return { ...AA_INDEX_SETTINGS, name: aaIndexName(snapshot), weights: latest ? { [latest.id]: 100 } : {} };
 }
 
 const lineupCache = new WeakMap<Snapshot, string[]>();
