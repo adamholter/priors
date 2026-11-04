@@ -7,7 +7,8 @@ set -uo pipefail
 cd "$(dirname "$0")/../.."
 export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
 DATE=${PRIORS_DATE:-$(date +%F)}
-notify() { osascript -e "display notification \"$1\" with title \"Priors\"" 2>/dev/null || true; }
+# The text goes in as an argument, never into the AppleScript source: a message can quote a commit title.
+notify() { osascript -e 'on run argv' -e 'display notification (item 1 of argv) with title "Priors"' -e 'end run' -- "$1" 2>/dev/null || true; }
 if [ "${1:-}" != "--synced" ]; then
   echo "== $(date -Iseconds) scrape $DATE"
   # The reset below throws away local changes, so it only ever runs in the marked checkout.
@@ -35,6 +36,16 @@ if [ "${1:-}" != "--synced" ]; then
   # This file may just have changed underneath the running shell: start over on the new copy.
   exec /bin/bash "$0" --synced
 fi
+# Red CI on main goes unseen otherwise: one alert per failing commit, and never a reason to stop the scrape.
+alert_red_ci() {
+  local latest seen="${TMPDIR:-/tmp}/priors-ci-alerted"
+  latest=$(PATH="$HOME/.local/bin:$PATH" gh run list --repo adamholter/priors --branch main --event push --status completed --limit 1 --json conclusion,headSha,displayTitle --jq '.[0] | select(.conclusion == "failure") | .headSha[0:8] + " " + .displayTitle[0:60]' 2>/dev/null) || return 0
+  [ -n "$latest" ] && [ "$latest" != "$(cat "$seen" 2>/dev/null)" ] || return 0
+  echo "$latest" > "$seen"
+  echo "CI failed on main: $latest"
+  notify "Priors CI failed on main: $latest"
+}
+alert_red_ci
 LIVE=${PRIORS_LIVE_BRANCH:-data-live}
 HAVE_LIVE=
 git fetch -q origin "$LIVE" 2>/dev/null && git rev-parse -q --verify "origin/$LIVE" >/dev/null && HAVE_LIVE=1

@@ -1,29 +1,40 @@
 #!/bin/sh
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_PREFIX
-# Runs what GitHub CI runs before a push to main, so CI passes first try:
+# Runs what GitHub CI runs before a push to main, under CI's conditions, so CI passes first try: the exact commit being
+# pushed, in a clean checkout, with no .env.local and no app keys in the environment (a working tree with keys hides
+# failures: a header that only wraps with sign-in off stayed red on CI for days).
 #   check job: npm run ci (also the first step of every Vercel build, so a red ci is a failed, billed deploy)
 #   e2e job:   npm run build, then npm run e2e (smoke + interactions against the production build)
 # Data-only pushes (scrape, snapshots) skip it, like Vercel's ignoreCommand does.
 # PRIORS_PUSH_SKIP_E2E=1 skips the build and browser checks (ci still runs); CI will still run them.
+# Wired by `git config core.hooksPath .githooks`, relative so it resolves in every worktree.
 log="${TMPDIR:-/tmp}/priors-prepush.log"
+root="${PRIORS_PREPUSH_DIR:-$HOME/.cache/priors-prepush}"
+fail() { echo "pre-push: $1 FAILED (log: $log). Not pushing." >&2; tail -30 "$log" >&2; exit 1; }
+clean() { env -i HOME="$HOME" USER="${USER:-}" PATH="$PATH" TMPDIR="${TMPDIR:-/tmp}" CI=true E2E_PORT="${E2E_PORT:-48797}" "$@"; }
 while read -r _ local_sha remote_ref remote_sha; do
   [ "$remote_ref" = "refs/heads/main" ] || continue
   [ "$local_sha" = "0000000000000000000000000000000000000000" ] && continue
   range="$local_sha"; git cat-file -e "$remote_sha^{commit}" 2>/dev/null && range="$remote_sha..$local_sha"
   git diff --name-only $range | grep -qvE '^(data/|public/intro/)' || continue
-  # The checks run on the working tree; say so when it is not the commit being pushed.
-  if ! git diff --quiet "$local_sha" -- . ':(exclude)AGENTS.md' ':(exclude)data' 2>/dev/null; then
-    echo "pre-push: note: working tree differs from the pushed commit ($(git diff --name-only "$local_sha" -- . ':(exclude)AGENTS.md' ':(exclude)data' | tr '\n' ' ')); checks run on the working tree" >&2
-  fi
   : >"$log"
+  if [ ! -e "$root/.git" ]; then mkdir -p "$(dirname "$root")"; git worktree prune; git worktree add -q --detach "$root" "$local_sha" >>"$log" 2>&1 || fail "preparing the clean checkout"; fi
+  git -C "$root" checkout -q -f --detach "$local_sha" >>"$log" 2>&1 || fail "checking out the commit"
+  git -C "$root" clean -qfdx -e node_modules >>"$log" 2>&1 || fail "cleaning the checkout"
+  cd "$root" || fail "entering the clean checkout"
+  lock=$(shasum package-lock.json | cut -d' ' -f1)
+  if [ "$lock" != "$(cat node_modules/.prepush-lock 2>/dev/null)" ]; then
+    echo "pre-push: installing dependencies..." >&2
+    clean npm ci --no-audit --no-fund >>"$log" 2>&1 || fail "npm ci"
+    echo "$lock" > node_modules/.prepush-lock
+  fi
   echo "pre-push: 1/3 npm run ci (GitHub check job, Vercel's first step)..." >&2
-  npm run ci >>"$log" 2>&1 || { echo "pre-push: npm run ci FAILED (log: $log). Not pushing." >&2; tail -30 "$log" >&2; exit 1; }
-  [ -n "$PRIORS_PUSH_SKIP_E2E" ] && { echo "pre-push: skipping build and e2e (PRIORS_PUSH_SKIP_E2E)" >&2; continue; }
+  clean npm run ci >>"$log" 2>&1 || fail "npm run ci"
+  [ -n "${PRIORS_PUSH_SKIP_E2E:-}" ] && { echo "pre-push: skipping build and e2e (PRIORS_PUSH_SKIP_E2E)" >&2; continue; }
   echo "pre-push: 2/3 npm run build (GitHub e2e job, Vercel build)..." >&2
-  npm run build >>"$log" 2>&1 || { echo "pre-push: npm run build FAILED (log: $log). Not pushing." >&2; tail -30 "$log" >&2; exit 1; }
+  clean npm run build >>"$log" 2>&1 || fail "npm run build"
   echo "pre-push: 3/3 npm run e2e (smoke + interactions on the production build)..." >&2
-  # Its own port: 48740 is the main checkout's dev server.
-  E2E_PORT="${E2E_PORT:-48797}" npm run e2e >>"$log" 2>&1 || { echo "pre-push: npm run e2e FAILED (log: $log). Not pushing." >&2; grep -E "FAIL|Error|×" "$log" | tail -20 >&2; exit 1; }
-  echo "pre-push: all CI checks passed locally" >&2
+  clean npm run e2e >>"$log" 2>&1 || fail "npm run e2e"
+  echo "pre-push: all CI checks passed under CI's conditions" >&2
 done
 exit 0

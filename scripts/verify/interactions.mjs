@@ -12,7 +12,9 @@ const BASE = process.env.BASE ?? "http://localhost:48740";
 const browser = await chromium.launch();
 const errors = [];
 const checks = [];
-const check = async (name, fn) => { try { await fn(); } catch (e) { e.message = `${name}: ${e.message}`; throw e; } checks.push(name); };
+// One run reports every failure: stopping at the first let each red check hide the next for days.
+const failures = [];
+const check = async (name, fn) => { try { await fn(); checks.push(name); } catch (e) { failures.push(`${name}: ${e.message}`); console.error(`FAIL ${name}: ${e.message}`); } };
 
 try {
   const page = await (await browser.newContext({ viewport: { width: 1440, height: 1000 } })).newPage();
@@ -73,10 +75,12 @@ try {
       assert.equal(await phone.getByText(/^Data as of/).isVisible(), false, "the date moved out of the header");
       const widths = await phone.evaluate(() => [innerWidth, document.documentElement.scrollWidth]);
       assert.ok(widths[1] <= widths[0], `no sideways scroll, ${widths}`);
-      const fab = phone.locator(".assistant-fab");
-      await fab.waitFor();
-      await phone.evaluate(() => window.scrollTo(0, scrollY + document.querySelector("#mix").getBoundingClientRect().bottom - innerHeight + 10));
-      await phone.waitForFunction(() => document.querySelector(".assistant-fab")?.classList.contains("is-clear"), null, { timeout: 5000 });
+      // The assistant needs sign-in, which CI's build has no keys for.
+      if (!await phone.locator('[title="Sign-in not configured yet"]').count()) {
+        await phone.locator(".assistant-fab").waitFor();
+        await phone.evaluate(() => window.scrollTo(0, scrollY + document.querySelector("#mix").getBoundingClientRect().bottom - innerHeight + 10));
+        await phone.waitForFunction(() => document.querySelector(".assistant-fab")?.classList.contains("is-clear"), null, { timeout: 5000 });
+      }
     } finally { await context.close(); }
   });
 
@@ -1171,6 +1175,7 @@ try {
     } finally { await c.close(); }
   });
 
+  assert.deepEqual(failures, [], `${failures.length} of ${failures.length + checks.length} checks failed`);
   assert.deepEqual(errors, [], "no page errors");
   console.log(`PASS interactions: ${checks.length} checks\n  ${checks.join("\n  ")}`);
 } finally {

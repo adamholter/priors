@@ -15,7 +15,7 @@ import { track } from "@/lib/analytics";
 import { AccountMenu } from "@/components/AccountMenu";
 
 export function HeaderAuth({ indices }: { indices: IndexConfig[] }) {
-  if (!authEnabled) return <span className="btn-quiet opacity-60" title="Sign-in not configured yet">Claim your page</span>;
+  if (!authEnabled) return <span className="btn-quiet opacity-60" title="Sign-in not configured yet">Sign in</span>;
   return <Inner indices={indices} />;
 }
 
