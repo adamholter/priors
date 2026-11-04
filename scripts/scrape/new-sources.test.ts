@@ -141,6 +141,12 @@ describe("Arena from the Hugging Face dataset", () => {
 });
 
 describe("Arena categories and agent signals", () => {
+  it("reads every agent signal as higher is better, tool hallucination included: Arena ranks its highest score first and the overall score adds it", () => {
+    const signals = parseArenaDataset({ "arena-agent-tool-hallucination": Array.from({ length: 8 }, (_, i) => ({ model_name: i ? `Model ${i}` : "Careful", score: i < 7 ? 0.008 - i * 0.001 : -0.188, rank: i + 1, category: "overall" })) });
+    expect(signals.benchmarks.find((b) => b.id === "arena-agent-tool-hallucination")).toMatchObject({ higherIsBetter: true });
+    expect(signals.benchmarks.find((b) => b.id === "arena-agent-tool-hallucination")!.description).not.toContain("lower is better");
+    expect(signals.rows.find((x) => x.value === Math.max(...signals.rows.map((y) => y.value)))).toMatchObject({ modelLabel: "Careful", rank: 1 });
+  });
   const many = (n: number, category: string, base = 1500) => Array.from({ length: n }, (_, i) => ({ model_name: `Model ${i}`, organization: "x", rating: base - i, rank: i + 1, category }));
   const r = parseArenaDataset({
     "arena-text": [...many(10, "overall"), ...many(9, "coding", 1600), ...many(3, "math")],

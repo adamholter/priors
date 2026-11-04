@@ -5,7 +5,7 @@ import { computeIndex, type IndexConfig } from "../engine";
 import { decodeIndex, encodeIndex } from "../lib/url";
 import { clientSnapshot } from "./client-snapshot";
 import { countedResets, extraWeeks, planResetBoosts, planResetNote, planResetRows } from "./plan-resets";
-import { blendedApiPrice, CODEX_LIMITS_BENCHMARK, measuredTokenMixes, subscriptionPlanOptions, subscriptionPrices, SUBSCRIPTION_BENCHMARK, tokenPrice, type SubscriptionDetails } from "./subscription";
+import { blendedApiPrice, currentPlanName, CODEX_LIMITS_BENCHMARK, measuredTokenMixes, subscriptionPlanOptions, subscriptionPrices, SUBSCRIPTION_BENCHMARK, tokenPrice, type SubscriptionDetails } from "./subscription";
 
 const standard = { cache: 0.97, input: 0.025, output: 0.005 };
 const plan = (name: string, extra: Partial<SubscriptionDetails> = {}): Record<string, unknown> => ({ plan: name, feeUsd: 20, confidence: "high", mix: standard, plans: [], ...extra });
@@ -137,6 +137,17 @@ describe("subscription cost basis", () => {
     const c = computeIndex(snapshot, { ...base, variants: "all" }).ranked.find((r) => r.variant.id === "c@default")!;
     expect(c.costUsd).toBe(0);
     expect(c.costSource).toContain("free on OpenCode Zen free tier");
+  });
+  it("keeps a plan chosen under its former name, on new and old snapshots", () => {
+    const snapshot = snap();
+    const b = snapshot.observations.find((o) => o.benchmarkId === SUBSCRIPTION_BENCHMARK && o.variantId === "b@xhigh")!;
+    const priced = (name: string, want: string) => {
+      b.details = plan("Claude Pro", { feeUsd: 20, plans: [{ plan: name, feeUsd: 200, usdPerMtok: 0.02, confidence: "medium" }, { plan: "Claude Pro", feeUsd: 20, usdPerMtok: 0.0147, confidence: "high" }] });
+      return subscriptionPrices(snapshot, { openai: want }).get("b");
+    };
+    expect(priced("Claude Ultra", "Claude Max 20x")).toMatchObject({ plan: "Claude Ultra", feeUsd: 200 });
+    expect(priced("Claude Max 20x", "Claude Ultra")).toMatchObject({ plan: "Claude Max 20x", feeUsd: 200 });
+    expect(currentPlanName("Claude Max 20x")).toBe("Claude Ultra");
   });
   it("survives the client snapshot, which drops other scraper details", () => {
     expect(subscriptionPrices(clientSnapshot(snap())).get("a")!.ratio).toBeCloseTo(0.01, 6);

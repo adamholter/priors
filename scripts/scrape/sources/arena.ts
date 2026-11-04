@@ -81,7 +81,7 @@ const AGENT_SIGNALS: { id: string; config: string; label: string; desc: string; 
   { id: "arena-agent-steerability", config: "agent_steerability", label: "Steerability", desc: "how well it lands user corrections", higherIsBetter: true },
   { id: "arena-agent-bash-reliability", config: "agent_bash_reliability", label: "Shell reliability", desc: "running shell commands with the fewest failures", higherIsBetter: true },
   { id: "arena-agent-bash-recovery", config: "agent_bash_recovery_steps", label: "Shell recovery", desc: "recovering in few steps after a failed shell command", higherIsBetter: true },
-  { id: "arena-agent-tool-hallucination", config: "agent_tool_hallucination", label: "Tool hallucination", desc: "calling tools that do not exist (lower is better)", higherIsBetter: false },
+  { id: "arena-agent-tool-hallucination", config: "agent_tool_hallucination", label: "Tool hallucination", desc: "avoiding calls to tools that do not exist; a negative score means the model makes them up more", higherIsBetter: true },
 ];
 
 /** Parquet integers come back as BigInt. */

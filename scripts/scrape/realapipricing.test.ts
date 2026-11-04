@@ -35,6 +35,10 @@ describe("Real API Pricing subscriptions", () => {
   const rows = parseSubscriptions(payload, conventions, channels);
   const row = (label: string) => rows.find((r) => r.modelLabel === label)!;
   const VIBE = "https://mistral.ai/pricing";
+  it("labels Max 20x as Ultra, the name it sells under now, at the price Real API Pricing measured", () => {
+    expect(row("Claude Fable 5").details).toMatchObject({ plans: expect.arrayContaining([expect.objectContaining({ plan: "Claude Ultra", usdPerMtok: 0.16 })]) });
+    expect(JSON.stringify(row("Claude Fable 5").details)).not.toContain("Max 20x");
+  });
   const computed = rows.filter((r) => !(r.details as { source?: string; sameAs?: string }).source && !(r.details as { sameAs?: string }).sameAs && r.sourceUrl !== VIBE);
   it("keeps one row per model on its lab's own plans: no resellers, metered APIs or unmetered promos", () => {
     expect(computed.map((r) => r.modelLabel)).toEqual(["GPT 5.6 Sol", "Claude Opus 5.5", "Claude Fable 5", "GLM 5.3", "Gemini 4 Argon", "Qwen3.8 Max"]);
@@ -97,11 +101,11 @@ describe("Real API Pricing subscriptions", () => {
   });
   it("prices Mistral Vibe Pro's dollar budget at Mistral's API rates: first-party on Mistral's models, a pickable plan beside Z.ai's own for GLM 5.3", () => {
     const vibe = BUDGET_PLANS.find((b) => b.planId === "mistral_vibe_pro")!;
-    const at = (model: string) => { const m = vibe.models.find((m) => m.model === model)!; return 14.99 * blendedApiPrice(m, conventions.standardTokenMix) / 325.5; };
+    const at = (model: string) => { const m = vibe.models.find((m) => m.model === model)!; return 14.99 * blendedApiPrice(m, conventions.standardTokenMix) / 315; };
     expect(row("Mistral Medium 3.5")).toMatchObject({ value: at("mistral-medium-3.5"), sourceUrl: VIBE, details: { plan: "Mistral Vibe Pro", feeUsd: 14.99, confidence: "medium", mix: conventions.standardTokenMix } });
     expect(row("Mistral Medium 3.5").note).toContain("median of 1 first-party plan");
     // At Mistral's own list price, the share of API price a subscriber pays is fee ÷ budget.
-    expect(row("Mistral Medium 3.5").value / blendedApiPrice({ input: 1.5, output: 7.5 }, conventions.standardTokenMix)).toBeCloseTo(14.99 / 325.5, 10);
+    expect(row("Mistral Medium 3.5").value / blendedApiPrice({ input: 1.5, output: 7.5 }, conventions.standardTokenMix)).toBeCloseTo(14.99 / 315, 10);
     expect(row("GLM 5.3")).toMatchObject({ value: 0.03, details: { plan: "GLM Coding Pro" } });
     expect((row("GLM 5.3").details as { plans: { plan: string; usdPerMtok: number }[] }).plans).toContainEqual({ plan: "Mistral Vibe Pro", feeUsd: 14.99, usdPerMtok: at("glm-5.3"), confidence: "medium" });
   });

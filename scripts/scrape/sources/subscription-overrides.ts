@@ -56,14 +56,15 @@ export const SUBSIDY_ASSUMPTIONS: SubsidyAssumption[] = [
 /**
  * Plan allowances changed after Real API Pricing measured them. A measurement taken before `until` saw the
  * old allowance, so its token price is multiplied by `factor` (old allowance ÷ new: 2 when halved, 0.5 when
- * doubled; same fee) and the plan is renamed to what it sells as now.
+ * doubled; same fee) and the plan is renamed to what it sells as now. A rename alone has factor 1 and no `until`: every
+ * measurement takes the new name, whatever Real API Pricing still calls it.
  */
 export interface PlanChange {
   /** Real API Pricing point id prefix (`<plan>::<model>`). */
   planId: string;
   plan: string;
   factor: number;
-  until: string;
+  until?: string;
   source: string;
   note: string;
 }
@@ -72,6 +73,10 @@ export const PLAN_CHANGES: PlanChange[] = [
   {
     planId: "chatgpt_pro_5x", plan: "ChatGPT Pro 10x", factor: 0.5, until: "2026-10-29", source: "https://help.openai.com/en/articles/9793128-what-is-chatgpt-pro",
     note: "OpenAI doubled Pro 100's Work and Codex allowance on 29 October 2026: 5× to 10× Plus. The Pro 200 cut announced on 29 September was canceled the same day, so Pro 200 keeps the 20× allowance Real API Pricing measured.",
+  },
+  {
+    planId: "claude_max_20x", plan: "Claude Ultra", factor: 1, source: "https://support.claude.com/en/articles/17728952-what-is-the-ultra-plan",
+    note: "Anthropic renamed Max 20x to Ultra at the same $200, moving subscribers over with no price change. Its weekly allowance is 10 times Pro's, in line with the 10.33 times Real API Pricing measured under the old name, so the measurements stand.",
   },
 ];
 
@@ -123,8 +128,8 @@ export interface BudgetPlan {
 
 export const BUDGET_PLANS: BudgetPlan[] = [
   {
-    planId: "mistral_vibe_pro", plan: "Mistral Vibe Pro", channel: "Mistral", feeUsd: 14.99, budgetUsd: 300 + 25.5, confidence: "medium", source: "https://mistral.ai/pricing", checked: "2026-10-29",
-    note: "$300 a month of Vibe usage at Mistral's API rates, the budget a Pro account shows (Mistral does not publish it; reported by SSHCodes on X, 29 October 2026), plus the $25.50 of API credits the pricing page lists, spendable on the same models. Rates from docs.mistral.ai/models.",
+    planId: "mistral_vibe_pro", plan: "Mistral Vibe Pro", channel: "Mistral", feeUsd: 14.99, budgetUsd: 300 + 15, confidence: "medium", source: "https://mistral.ai/pricing", checked: "2026-11-04",
+    note: "$300 a month of Vibe usage at Mistral's API rates, the budget a Pro account shows (Mistral does not publish it; reported by SSHCodes on X, 29 October 2026), plus the $15 of API credits the pricing page lists for Pro ($25.50 is the student plan), spendable on the same models. Rates from docs.mistral.ai/models.",
     models: [
       { model: "mistral-medium-3.5", display: "Mistral Medium 3.5", vendor: "Mistral", input: 1.5, output: 7.5 },
       { model: "mistral-large-4", display: "Mistral Large 4", vendor: "Mistral", input: 0.7, cached: 0.07, output: 2.1 },

@@ -1,6 +1,6 @@
 "use client";
 import { useSyncExternalStore } from "react";
-import { subscriptionPlanOptions } from "@/data/subscription";
+import { currentPlanName, subscriptionPlanOptions } from "@/data/subscription";
 import type { Snapshot } from "@/data/types";
 
 /**
@@ -57,7 +57,7 @@ const optionsCache = new WeakMap<Snapshot, (ReturnType<typeof subscriptionPlanOp
 export function planPicker(snapshot: Snapshot, config: { subscriptionPlans?: Record<string, string> }, pref: Record<string, string>, update: (plans: Record<string, string> | undefined) => void) {
   let labs = optionsCache.get(snapshot);
   if (!labs) { labs = subscriptionPlanOptions(snapshot).map((l) => ({ ...l, name: snapshot.labs.find((x) => x.id === l.labId)?.name ?? l.labId })); optionsCache.set(snapshot, labs); }
-  const value = withPlansPref(config, pref).subscriptionPlans ?? {};
+  const value = Object.fromEntries(Object.entries(withPlansPref(config, pref).subscriptionPlans ?? {}).map(([lab, plan]) => [lab, currentPlanName(plan)]));
   return {
     labs, value,
     onChange: (labId: string, plan?: string) => {

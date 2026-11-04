@@ -99,6 +99,10 @@ export function tokenPrice(snapshot: Snapshot, modelId: string, chosen: Record<s
 }
 
 /** The plans a viewer can price each lab at (Advanced → Plan): every plan a model of that lab was measured on, by monthly fee. Labs with one plan are left out. `median`: the plans its models fall on with nothing picked, most models first. */
+/** Plans a lab has renamed. Links, saved pages and browsers keep the name they were saved with, and older snapshots keep the old label. */
+const FORMER_PLAN_NAMES: Record<string, string> = { "Claude Max 20x": "Claude Ultra" };
+export const currentPlanName = (plan: string) => FORMER_PLAN_NAMES[plan] ?? plan;
+
 export function subscriptionPlanOptions(snapshot: Snapshot): { labId: string; plans: { plan: string; feeUsd?: number; models: number }[]; median: { plan: string; models: number }[] }[] {
   const lab = new Map(snapshot.models.map((m) => [m.id, m.labId])), variants = new Map(snapshot.variants.map((v) => [v.id, v.modelId]));
   const byLab = new Map<string, Map<string, { plan: string; feeUsd?: number; models: Set<string> }>>();
@@ -148,7 +152,7 @@ export function subscriptionPrices(snapshot: Snapshot, chosen: Record<string, st
     if (d?.sameAs) assumed.push([modelId, d]);
     // A curated ratio is taken as is; 0 is a free tier.
     if (typeof d?.ratio === "number" && Number.isFinite(d.ratio) && d.ratio >= 0) { out.set(modelId, { ratio: d.ratio, plan: d.plan, feeUsd: d.feeUsd, confidence: d.confidence }); continue; }
-    const want = labOf && chosen[labOf.get(modelId) ?? ""], pick = want !== undefined ? d?.plans?.find((p) => p.plan === want && positive(p.usdPerMtok)) : undefined;
+    const want = labOf && chosen[labOf.get(modelId) ?? ""], pick = want !== undefined ? d?.plans?.find((p) => currentPlanName(p.plan) === currentPlanName(want) && positive(p.usdPerMtok)) : undefined;
     const value = pick?.usdPerMtok ?? o.value;
     if (!positive(value)) continue;
     const prices = d?.listPrice ?? aaPrices.get(modelId);

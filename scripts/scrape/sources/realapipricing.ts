@@ -120,7 +120,7 @@ export function parseSubscriptions(json: Points, conventions: Conventions, chann
 export function changed(p: Point): Point {
   const c = PLAN_CHANGES.find((c) => p.id.startsWith(`${c.planId}::`));
   const measured = p.data_date?.split("~").pop();
-  if (!c || (measured && measured >= c.until)) return p;
+  if (!c || (c.until && measured && measured >= c.until)) return p;
   return { ...p, plan: c.plan, plan_en: c.plan, real_usd_per_mtok: p.real_usd_per_mtok * c.factor };
 }
 

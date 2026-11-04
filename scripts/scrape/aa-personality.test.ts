@@ -16,6 +16,11 @@ describe("AA-PersonalityBench", () => {
     expect(slop.details).toMatchObject({ traitElo: { slop: 1069.39 }, characteristics: { wordCount: 570 } });
     expect(r.benchmarks.find((b) => b.id === "aa-personality-slop")!.higherIsBetter).toBe(false);
   });
+  it("describes sycophancy under Transparency, where AA scores it inverted, and not under Warmth", () => {
+    const description = (id: string) => parsePersonality(rsc).benchmarks.find((b) => b.id === id)!.description;
+    expect(description("aa-personality-warmth")).not.toMatch(/sycophan/i);
+    expect(description("aa-personality-transparency")).toContain("non-sycophantic");
+  });
   it("fails loudly when the payload carries no model records", () => {
     expect(() => parsePersonality("nothing here")).toThrow(/no model records/);
   });
