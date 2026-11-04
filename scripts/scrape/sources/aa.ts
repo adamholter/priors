@@ -169,6 +169,11 @@ const bid = (slug: string) => `aa-${slug.replace(/^aa-/, "")}`;
 // ---------------------------------------------------------------------------------------------
 // payload plumbing
 
+/** The /models table payload: the one whose models carry speed data, under either of AA's names for it, or say where it was measured. */
+export const isModelTable = (models: Json[]) => models.some((m) => "headline" in m || "timescaleData" in m || "performanceDataSource" in m);
+/** Model-level output speed and time to first token. AA moved these from `timescaleData` to `headline` on 2026-11-04. */
+export const performanceOf = (tbl?: Json) => ({ speed: tbl?.headline?.outputSpeed ?? tbl?.timescaleData?.medianOutputSpeed, ttft: tbl?.headline?.timeToFirstToken ?? tbl?.timescaleData?.medianTimeToFirstChunk });
+
 function findManifests(html: string): Manifest[] {
   const out = new Map<string, Manifest>();
   // RSC payload is JSON inside a JS string, so quotes are escaped: \"manifest\":{\"path\":\"/data/x.txt\",\"key\":\"abc\"}
@@ -286,7 +291,7 @@ const source: Source = {
       const j = json as { models?: Json[] };
       if (Array.isArray(json) && json[0]?.hostId) { hosts = json; raw[`hosts-${name}.json`] = text; }
       else if (Array.isArray(j.models) && j.models.some((m) => "canonicalEvalTokenCounts" in m)) { evalModels = [...new Map([...(evalModels ?? []), ...j.models].map((m) => [m.id, m])).values()]; raw[`evaluations-${name}.json`] = text; }
-      else if (Array.isArray(j.models) && j.models.some((m) => "timescaleData" in m)) { tableModels = [...new Map([...(tableModels ?? []), ...j.models].map((m) => [m.id, m])).values()]; raw[`models-${name}.json`] = text; }
+      else if (Array.isArray(j.models) && isModelTable(j.models)) { tableModels = [...new Map([...(tableModels ?? []), ...j.models].map((m) => [m.id, m])).values()]; raw[`models-${name}.json`] = text; }
       else if (Array.isArray(j.models) && j.models.some((m) => isNum(m.score))) { for (const m of j.models) if (m?.id && isNum(m.score)) progress.set(m.id, m.score); raw[`progress-${name}.json`] = text; }
       else raw[`unknown-${name}.json`] = text;
     }
@@ -448,8 +453,7 @@ const source: Source = {
       }
 
       // Speed / latency (model-level median across providers, or first-party)
-      const speed = tbl?.timescaleData?.medianOutputSpeed;
-      const ttft = tbl?.timescaleData?.medianTimeToFirstChunk;
+      const { speed, ttft } = performanceOf(tbl);
       const perfNote = tbl?.performanceDataSource?.type ? `performance source: ${tbl.performanceDataSource.type}` : undefined;
       if (isNum(speed) && speed > 0) { rows.push({ ...common, benchmarkId: "aa-output-speed", value: speed, sourceUrl: modelUrl, note: perfNote }); bump("aa-output-speed"); }
       if (isNum(ttft) && ttft > 0) { rows.push({ ...common, benchmarkId: "aa-ttft", value: ttft, sourceUrl: modelUrl, note: perfNote }); bump("aa-ttft"); }

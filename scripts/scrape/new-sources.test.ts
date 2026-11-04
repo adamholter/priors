@@ -118,10 +118,14 @@ describe("open weights", () => {
     expect(by["zz-unknown"].openWeights).toBeUndefined();
     expect(r.unknown).toEqual(["zz-unknown"]);
   });
-  it("treats final Hy4 as closed until its weights ship, and Hy4 preview and other Hy models as open", () => {
-    expect(familyOpenWeights("hy-4")).toBe(false);
-    expect(familyOpenWeights("hy-4-preview")).toBe(true);
-    expect(familyOpenWeights("hy-3")).toBe(true);
+  it("trusts weights checked by hand over the sources' flags, which lag them", () => {
+    const flagged = (id: string) => ({ models: [{ id, name: id, labId: "x", kind: "llm", reasoning: true, aliases: [] }], variants: [{ id: `${id}@max`, modelId: id, effort: "max", sourceModel: { id, slug: id, name: id, url: "", metadata: { isOpenWeights: false } } }], observations: [] }) as unknown as Snapshot;
+    expect(applyOpenWeights(flagged("kimi-k3.1"), new Map()).models[0].openWeights).toBe(true);
+    expect(applyOpenWeights(flagged("kimi-k3"), new Map()).models[0].openWeights).toBe(false);
+    // Benchmark Heaven flags the Hy4 family open by name; only the preview's weights are out.
+    const plain = (id: string) => ({ models: [{ id, name: id, labId: "x", kind: "llm", reasoning: true, aliases: [] }], variants: [], observations: [] }) as unknown as Snapshot;
+    expect(applyOpenWeights(plain("hy-4"), new Map([["hy-4", true]])).models[0].openWeights).toBe(false);
+    expect(applyOpenWeights(plain("hy-4-preview"), new Map([["hy-4-preview", true]])).models[0].openWeights).toBe(true);
   });
   it("treats hosted-only variants of open families as closed", () => { expect(familyOpenWeights("qwen-3.5-flash")).toBe(false); expect(familyOpenWeights("qwen-3.5-27b")).toBe(true); });
 });

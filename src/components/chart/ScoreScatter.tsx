@@ -131,7 +131,7 @@ export function ScoreScatter(props: ScatterProps) {
   const allPoints = useMemo(() => trimmed ? focusPoints(chartPoints, better, keepKey ? keepKey.split(",") : []) : chartPoints, [trimmed, chartPoints, better, keepKey]);
   const trimmedModels = trimmed ? new Set(chartPoints.map((p) => p.r.model.id)).size - new Set(allPoints.map((p) => p.r.model.id)).size : 0;
   const grid = useChartGrid(useChartPalette());
-  const effectiveLinkParams = { ...linkParams, ls: Math.round(labelScale(view.labelScale) * 100), extra: { ...linkParams?.extra, cf: view.allModels ? "all" : undefined, xs: plotW > 0 ? `${plotW}x${Math.round(plotH)}` : undefined, xv: viewParam({ ...view, grid }) } };
+  const effectiveLinkParams = { ...linkParams, ls: Math.round(labelScale(view.labelScale) * 100), extra: { ...linkParams?.extra, cf: view.allModels ? "all" : undefined, xs: undefined, xv: viewParam({ ...view, grid }) } };
   const visibility = useChartVisibility(allPoints, anchor ?? exportName, effectiveLinkParams), pts = visibility.points;
   const context = useChartContextMenu();
   const exportControl = useRef<ChartExportHandle>(null);

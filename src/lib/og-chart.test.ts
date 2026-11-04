@@ -3,7 +3,7 @@ import type { Lab, Snapshot } from "../data/types";
 import type { IndexConfig, RankedVariant } from "../engine";
 import { LIGHT_PALETTE } from "../components/chart/theme";
 import { costChart } from "./metrics";
-import { cardPalette, cardPreset, profileCardLook, renderChartPng, scatterSpec } from "./og-chart";
+import { cardPalette, cardPreset, framedSize, linkFrame, profileCardLook, renderChartPng, scatterSpec } from "./og-chart";
 
 const labs: Lab[] = [
   { id: "anthropic", name: "Anthropic", color: "#C76B55" },
@@ -142,5 +142,18 @@ describe("share-card chart follows the page's reasoning efforts", () => {
     expect(ids(["low"])).toEqual(["alpha@low", "beta@low"]);
     expect(ids(["high"])).toEqual(["alpha@high", "beta@high"]);
     expect(ids([])).toEqual([]);
+  });
+});
+
+describe("linkFrame", () => {
+  const frame = (q: Record<string, string>) => linkFrame(new URLSearchParams({ c: "cost", ...q }));
+  it("draws a plain link at the standard card, whatever screen it was copied on", () => {
+    const plain = frame({ xv: "111-45-1" })!;
+    expect(framedSize(plain)).toEqual({ width: 1200, height: 630 });
+    expect(plain.w / plain.h).toBeGreaterThan(2);
+  });
+  it("keeps the plot size in links copied before that, and has no frame with nothing to draw", () => {
+    expect(frame({ xs: "352x440" })).toMatchObject({ w: 352, h: 440 });
+    expect(frame({})).toBeUndefined();
   });
 });

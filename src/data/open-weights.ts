@@ -2,6 +2,7 @@ import type { Model, Snapshot } from "./types";
 
 /**
  * Whether a model's weights are downloadable, from the most to the least trustworthy evidence:
+ *   0. `CHECKED_WEIGHTS` below: repos checked by hand, for the days when the sources below have not caught up.
  *   1. Artificial Analysis's per-model flag (`isOpenWeights`), stored with each variant's source metadata.
  *   2. Flags other sources record (Epoch ECI's accessibility group, Benchmark Heaven), passed in by label.
  *   3. `FAMILY_RULES` below, for families whose status never varies.
@@ -10,10 +11,14 @@ import type { Model, Snapshot } from "./types";
  */
 const OPEN = true, CLOSED = false;
 
+/** Model id → whether its weights are public, checked by hand on Hugging Face. Beats every source. Delete an entry once the sources agree. */
+export const CHECKED_WEIGHTS: Record<string, boolean> = {
+  "kimi-k3.1": OPEN, // moonshotai/Kimi-K3.1-Pro public and ungated, 2026-11-04. AA still flags it closed.
+  "hy-4": CLOSED, // tencent/Hy4 not on Hugging Face yet, 2026-11-04 (Hy4 preview's weights are). Benchmark Heaven flags the family open.
+};
+
 /** First match wins, tested against the canonical model id. Only families whose status is the same for every release. */
 export const FAMILY_RULES: [RegExp, boolean][] = [
-  // Promised but not released as of 2026-11-04 (Hy4 preview's weights are out). Delete this once tencent/Hy4 is on Hugging Face; AA's own flag overrides it.
-  [/^hy-4$/, CLOSED],
   // Hosted-only variants of otherwise open families, before the family rules.
   [/^qwen-?\d+(\.\d+)?-(max|plus|flash|turbo)/, CLOSED], [/-(max|plus)$/, CLOSED],
   [/^(gpt-oss|gemma|llama|deepseek|glm|kimi|minimax|nemotron|olmo|phi-|mimo|hy-|step-?\d|ling|ring|laguna|granite|smollm|falcon|yi-|internlm|exaone|devstral|mixtral|mistral-(small|nemo|7b)|codestral|magistral-small|qwen)/, OPEN],
@@ -51,7 +56,7 @@ export function applyOpenWeights(snapshot: Snapshot, signals: Map<string, boolea
   const unknown: string[] = [];
   const models = snapshot.models.map((m): Model => {
     const aa = fromAa.get(m.id);
-    const open = aa?.open ?? signals.get(m.id) ?? familyOpenWeights(m.id);
+    const open = CHECKED_WEIGHTS[m.id] ?? aa?.open ?? signals.get(m.id) ?? familyOpenWeights(m.id);
     if (open === undefined && m.kind === "llm") unknown.push(m.id);
     return { ...m, ...(open !== undefined ? { openWeights: open } : {}), ...(aa?.paramsB ? { paramsB: aa.paramsB } : {}), ...(aa?.activeB ? { activeParamsB: aa.activeB } : {}) };
   });

@@ -35,6 +35,27 @@ try {
     }
   });
 
+  await check("a plain chart link copied on a phone leaves the preview's shape to the standard card", async () => {
+    const context = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, permissions: ["clipboard-read", "clipboard-write"], baseURL: BASE });
+    const phone = await context.newPage();
+    try {
+      await phone.goto(`${BASE}/builder`, { waitUntil: "networkidle" });
+      for (let y = 0; y < 6000; y += 800) { await phone.evaluate((v) => window.scrollTo(0, v), y); await phone.waitForTimeout(150); }
+      const links = phone.locator('button:has-text("Link"), button[aria-label*="link" i]');
+      let copied = "";
+      for (let i = 0, n = await links.count(); i < n && !copied.includes("xv="); i++) {
+        await links.nth(i).scrollIntoViewIfNeeded().catch(() => {});
+        await links.nth(i).click({ timeout: 2500 }).catch(() => {});
+        await phone.waitForTimeout(350);
+        copied = await phone.evaluate(() => navigator.clipboard.readText().catch(() => ""));
+        // Long links are copied as /s/<slug> short links.
+        if (/\/s\/[A-Za-z0-9]+$/.test(copied)) copied = (await fetch(copied, { redirect: "manual" })).headers.get("location") ?? copied;
+      }
+      assert.ok(copied.includes("xv="), `found the scatter's link (${copied.slice(0, 120)})`);
+      assert.ok(!/[?&]xs=/.test(copied), `a plain link carries no plot size (${copied.slice(0, 160)})`);
+    } finally { await phone.evaluate(() => navigator.clipboard.writeText("")).catch(() => {}); await context.close(); }
+  });
+
   await check("phones: the ranking comes first, then the mix, in one short header", async () => {
     const context = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
     const phone = await context.newPage();

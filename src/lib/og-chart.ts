@@ -96,6 +96,8 @@ export function cardPalette(theme?: { preset?: string; surface?: "bone" | "white
 
 // 1200×630 card: frameSvg wraps the chart with pad 32, a 22px title band, and a 34px footer.
 const CHART_W = 1200 - 64, CHART_H = 630 - 88;
+/** A plain chart link's plot: framed, it fills the 1200×630 canvas above the band X prints its title over (previewCanvas). */
+const LINK_W = CHART_W, LINK_H = Math.floor(630 * 0.88) - 88;
 
 /** Add the same axis guides and value badges used by ScoreScatter before server-side SVG rendering. */
 function addHighlightGuides(chart: ReturnType<typeof echarts.init>, pts: ScatterPoint[], highlight: Highlight | undefined, labs: Lab[], pal: ChartPalette, formatX: (x: number) => string, formatY: (y: number) => string = (y) => y.toFixed(1)) {
@@ -202,10 +204,11 @@ export function linkFrame(q: URLSearchParams): LinkFrame | undefined {
   if (!q.get("c")) return undefined;
   const xe = decodeEditor(q.get("xe"));
   if (xe) return { w: xe.w, h: xe.h, view: { ...xe.view, grid: readViewParam(q.get("xv"))?.grid }, heading: xe.heading ?? xe.title, theme: xe.theme };
+  // Only the screenshot editor chooses a shape. A plain link is the standard card, whatever screen it was copied on; `xs` is links copied before that.
   const m = q.get("xs")?.match(/^(\d{2,4})x(\d{2,4})$/);
-  if (!m) return undefined;
-  const { w, h } = clampSize(Number(m[1]), Number(m[2]));
   const view = readViewParam(q.get("xv"));
+  if (!m && !view) return undefined;
+  const { w, h } = m ? clampSize(Number(m[1]), Number(m[2])) : { w: LINK_W, h: LINK_H };
   return { w, h, trim: true, ...(view ? { view: { ...view, allModels: q.get("cf") === "all" || undefined } } : {}) };
 }
 

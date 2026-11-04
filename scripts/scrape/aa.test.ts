@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { isModelTable, performanceOf } from "./sources/aa";
 import { createCipheriv, createHash } from "node:crypto";
 import { gzipSync } from "node:zlib";
 import source from "./sources/aa";
@@ -150,5 +151,15 @@ describe("Artificial Analysis", () => {
     expect(r.discoveries).toContain("AA evaluation page https://artificialanalysis.ai/evaluations/future-bench");
     expect(r.discoveries?.some((d) => d.includes("decision-index") || d.includes("terminalbench-v4-0"))).toBe(false);
     expect(r.rows.find((o) => o.benchmarkId === "aa-3d")?.value).toBe(1165.2);
+  });
+});
+
+describe("AA model table", () => {
+  it("recognizes the table and reads speed from where AA keeps it now, or kept it before", () => {
+    expect(isModelTable([{ id: "a", performanceDataSource: { type: "firstParty" } }])).toBe(true);
+    expect(isModelTable([{ id: "a", canonicalEvalTokenCounts: {} }])).toBe(false);
+    expect(performanceOf({ headline: { outputSpeed: 112, timeToFirstToken: 351 } })).toEqual({ speed: 112, ttft: 351 });
+    expect(performanceOf({ timescaleData: { medianOutputSpeed: 94, medianTimeToFirstChunk: 640 } })).toEqual({ speed: 94, ttft: 640 });
+    expect(performanceOf(undefined)).toEqual({ speed: undefined, ttft: undefined });
   });
 });
