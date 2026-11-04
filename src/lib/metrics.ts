@@ -1,5 +1,6 @@
 import type { CostBasis } from "../data/subscription";
 import { taskMetricData, taskMetricDescription, type TaskMetricSource } from "../data/task-metrics";
+import { onAaPerformanceV3 } from "../data/series-breaks";
 import type { Observation, Snapshot } from "@/data/types";
 import type { RankedVariant } from "@/engine";
 import { compileFormula, type FormulaVars } from "./formula";
@@ -90,9 +91,9 @@ export function metricPanels(snapshot: Snapshot, ranked: RankedVariant[], timeSo
   const fmtDate = (x: number) => new Date(x).toISOString().slice(0, 10);
   const secs = (x: number) => x >= 1000 ? `${Math.round(x / 100) / 10}k s` : fmt("s")(x);
 
-  panels.push({ id: "tpt", title: "Time per task", desc: taskMetricDescription(timeSource, "time"), open: true, chart: { better: "lower", points: decode, xLabel: "s/task", xName: "Time per task (s)", scale: "linear", logOk: true, secs: true, formatX: secs, aria: timeSource === "aa" ? "Index score versus estimated time per task" : "Index score versus average task-run duration" } });
-  if (ranked.some((r) => r.speed)) panels.push({ id: "speed", title: "Output speed", desc: "tokens per second", open: !has(decode), speed: true });
-  if (has(ttft)) panels.push({ id: "latency", title: "Latency", desc: "seconds to first token", chart: { better: "lower", points: ttft, xLabel: "s", xName: "Time to first token (s)", scale: "log", secs: true, formatX: fmt("s"), aria: "Index score versus time to first token", defaultKind: "bars" } });
+  panels.push({ id: "tpt", title: "Time per task", desc: taskMetricDescription(timeSource, "time", snapshot.date), open: true, chart: { better: "lower", points: decode, xLabel: "s/task", xName: timeSource === "aa" ? "Computed time per task (s)" : "Time per task (s)", scale: "linear", logOk: true, secs: true, formatX: secs, aria: timeSource === "aa" ? "Index score versus estimated time per task" : "Index score versus average task-run duration" } });
+  if (ranked.some((r) => r.speed)) panels.push({ id: "speed", title: "Output speed", desc: onAaPerformanceV3(snapshot.date) ? "tokens per second over the whole request, first-token wait included. Method changed Nov 4, 2026" : "tokens per second", open: !has(decode), speed: true });
+  if (has(ttft)) panels.push({ id: "latency", title: "Latency", desc: onAaPerformanceV3(snapshot.date) ? "seconds to first token. Method changed Nov 4, 2026" : "seconds to first token", chart: { better: "lower", points: ttft, xLabel: "s", xName: "Time to first token (s)", scale: "log", secs: true, formatX: fmt("s"), aria: "Index score versus time to first token", defaultKind: "bars" } });
   if (has(tokens)) panels.push({ id: "tokens", title: "Output tokens", desc: "tokens generated per task", chart: { better: "lower", points: tokens, xLabel: "tok", xName: "Output tokens per task", scale: "log", formatX: (x) => x >= 1000 ? `${(x / 1000).toFixed(0)}k` : `${x.toFixed(0)}`, aria: "Index score versus output tokens per task", defaultKind: "bars" } });
   if (has(dates)) panels.push({ id: "date", title: "Release date", desc: "when each model shipped", chart: { better: "lower", points: dates, xLabel: "", xName: "Release date", scale: "time", formatX: fmtDate, aria: "Index score versus model release date", defaultFrontier: false } });
   if (has(uptime)) {

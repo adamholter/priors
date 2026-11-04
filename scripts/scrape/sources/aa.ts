@@ -174,6 +174,18 @@ export const isModelTable = (models: Json[]) => models.some((m) => "headline" in
 /** Model-level output speed and time to first token. AA moved these from `timescaleData` to `headline` on 2026-11-04. */
 export const performanceOf = (tbl?: Json) => ({ speed: tbl?.headline?.outputSpeed ?? tbl?.timescaleData?.medianOutputSpeed, ttft: tbl?.headline?.timeToFirstToken ?? tbl?.timescaleData?.medianTimeToFirstChunk });
 
+/** One endpoint in /leaderboards/providers. `endpointErrorRate` is a 0 to 1 share. */
+export type EndpointRow = { host?: string; model?: { slug?: string }; performance?: { outputSpeed?: number; endpointErrorRate?: number } };
+
+/** The error rate of the endpoint a model's speed is measured on, when that is its lab's own API. AA's other models report a median across providers, which has no single endpoint to read. */
+export function firstPartyErrorRate(tbl: Json | undefined, endpoints: EndpointRow[]): { percent: number; endpoint: string } | undefined {
+  const speed = tbl?.headline?.outputSpeed;
+  if (tbl?.performanceDataSource?.type !== "firstParty" || !isNum(speed)) return undefined;
+  const hit = endpoints.find((e) => e.model?.slug === tbl.slug && isNum(e.performance?.outputSpeed) && Math.abs(e.performance!.outputSpeed! - speed) < 1e-6);
+  const rate = hit?.performance?.endpointErrorRate;
+  return isNum(rate) ? { percent: rate * 100, endpoint: tbl.performanceDataSource.providerName ?? hit!.host ?? "" } : undefined;
+}
+
 function findManifests(html: string): Manifest[] {
   const out = new Map<string, Manifest>();
   // RSC payload is JSON inside a JS string, so quotes are escaped: \"manifest\":{\"path\":\"/data/x.txt\",\"key\":\"abc\"}
@@ -280,6 +292,19 @@ const source: Source = {
     raw["manifests.json"] = JSON.stringify([...manifests.values()], null, 2);
     if (!manifests.size) throw new Error("no data manifests found in AA pages (site structure changed?)");
     ctx.log(`found ${manifests.size} data manifests`);
+
+    // Two extras on pages of their own. Losing one this run loses only that column, never the scrape.
+    const extra = async <T>(path: string, pick: (json: Json) => T | undefined): Promise<T | undefined> => {
+      try {
+        for (const m of findManifests(await ctx.fetchText(`${ORIGIN}${path}`))) { const found = pick((await fetchDecrypt(m)).json); if (found !== undefined) return found; }
+        notes.push(`no data found on ${path}`);
+      } catch (e) { notes.push(`${path} unavailable: ${e instanceof Error ? e.message : e}`); }
+      return undefined;
+    };
+    const apiDefaults = new Set(await extra<string[]>("/?highlights=default-effort", (j) => Array.isArray(j?.defaultEffortHighlightedIds) ? j.defaultEffortHighlightedIds : undefined) ?? []);
+    const endpoints = await extra<EndpointRow[]>("/leaderboards/providers", (j) => Array.isArray(j) && j[0]?.hostApiId && j[0]?.performance ? j : undefined) ?? [];
+    raw["default-effort.json"] = JSON.stringify([...apiDefaults]);
+    raw["endpoint-error-rates.json"] = JSON.stringify(endpoints.map((e) => ({ slug: e.model?.slug, host: e.host, endpointErrorRate: e.performance?.endpointErrorRate })));
 
     let tableModels: Json[] | undefined; // /models table
     let hosts: Json[] | undefined; // per-provider endpoints
@@ -411,6 +436,7 @@ const source: Source = {
 
       const identity = resolveAAIdentity(base, tbl);
       const modelMetadata = Object.fromEntries(Object.entries({ ...tbl, ...base }).filter(([key]) => ["release", "creator", "releaseDate", "knowledgeCutoffDate", "isReasoning", "reasoningTokens", "effort", "deprecated", "deprecatedTo", "isOpenWeights", "openSourceCategorization", "parameters", "activeParams", "inferenceParametersActiveBillions", "sizeClass", "contextWindowTokens", "licenseName", "licenseUrl", "modelWeightsSourceUrl", "inputModalityText", "inputModalityImage", "inputModalitySpeech", "inputModalityVideo", "outputModalityText", "price1mInputTokens", "price1mOutputTokens", "cacheHitPrice", "cacheWritePrice", "performanceDataSource"].includes(key)));
+      if (apiDefaults.has(base.id)) modelMetadata.apiDefaultEffort = true;
       const common = { modelLabel: label, effort: identity.effort ?? effort, identity, modelMetadata, sourceModelId: base.id, labHint, releaseDateHint };
       modelMeta.push({ modelLabel: label, labHint, releaseDateHint, kind: "llm", identity, modelMetadata });
 
@@ -457,6 +483,8 @@ const source: Source = {
       const perfNote = tbl?.performanceDataSource?.type ? `performance source: ${tbl.performanceDataSource.type}` : undefined;
       if (isNum(speed) && speed > 0) { rows.push({ ...common, benchmarkId: "aa-output-speed", value: speed, sourceUrl: modelUrl, note: perfNote }); bump("aa-output-speed"); }
       if (isNum(ttft) && ttft > 0) { rows.push({ ...common, benchmarkId: "aa-ttft", value: ttft, sourceUrl: modelUrl, note: perfNote }); bump("aa-ttft"); }
+      const errors = firstPartyErrorRate(tbl, endpoints);
+      if (errors) { rows.push({ ...common, benchmarkId: "aa-endpoint-error-rate", value: errors.percent, sourceUrl: `${modelUrl}/providers`, note: `endpoint: ${errors.endpoint}` }); bump("aa-endpoint-error-rate"); }
 
       // Blended price (3:1 input:output), proxy
       const price = tbl?.price1mBlended0To3To1 ?? base.price1mBlended0To3To1;
@@ -504,13 +532,18 @@ const source: Source = {
     }
     if (have("aa-output-speed")) benchmarks.push({
       id: "aa-output-speed", name: "Output Speed (tokens/s)", shortName: "Output Speed", sourceId: this.id, url: `${ORIGIN}/models#speed`,
-      description: "Median output tokens per second measured by AA (median across providers, or first-party API).",
+      description: "Output tokens per second over a request's full duration, so time to first token and reasoning tokens count. AA averages its workloads (1k, 10k and 100k prompts, and multi-turn agent sessions) over the past 5 days, and a request that fails on the endpoint's side counts as 0. Read from the lab's own API where AA has one, otherwise the median across providers.",
       unit: "count", higherIsBetter: true, category: "speed", defaultWeight: 0,
     });
     if (have("aa-ttft")) benchmarks.push({
       id: "aa-ttft", name: "Latency (Time to First Token)", shortName: "Latency", sourceId: this.id, url: `${ORIGIN}/models#latency`,
-      description: "Median seconds from request to first streamed chunk as measured by AA; may be a reasoning token. This is not time to first answer.",
+      description: "Seconds from request to first token as measured by AA, averaged across its workloads over the past 5 days. It may be a reasoning token, so this is not time to first answer.",
       unit: "seconds", higherIsBetter: false, category: "speed", defaultWeight: 0,
+    });
+    if (have("aa-endpoint-error-rate")) benchmarks.push({
+      id: "aa-endpoint-error-rate", name: "Endpoint Error Rate (lab's own API)", shortName: "Error rate", sourceId: this.id, url: `${ORIGIN}/leaderboards/providers`,
+      description: "Share of requests to the lab's own API that failed with an error, a rate limit or a timeout over the past 5 days, across AA's single-request and multi-turn workloads. Failures on AA's side are left out. AA reports this per endpoint; models it measures only across other providers are not listed.",
+      unit: "percent", higherIsBetter: false, category: "reliability", defaultWeight: 0,
     });
     if (have("aa-price-blended")) benchmarks.push({
       id: "aa-price-blended", name: "Blended Price (USD per 1M tokens, 3:1)", shortName: "Price", sourceId: this.id, url: `${ORIGIN}/models#pricing`,

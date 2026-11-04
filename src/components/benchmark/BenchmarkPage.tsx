@@ -1,4 +1,5 @@
 "use client";
+import { breaksFor } from "@/data/series-breaks";
 import { planResetNote, planResetRows } from "@/data/plan-resets";
 import { setPlanResetsPref, usePlanResetsOn, withResetsPref } from "@/lib/plan-resets-pref";
 import { planPicker, useSubscriptionPlansPref, withPlansPref } from "@/lib/subscription-plans-pref";
@@ -103,6 +104,7 @@ export function BenchmarkPage({ snapshot, benchmarkId, models, relatives, initia
             <p className="cap"><Link href={"/benchmarks" as "/"} className="hover:text-ink">Benchmarks</Link> · {b.category}</p>
             <h1 className="text-[34px] sm:text-[44px] leading-[1.05]">{b.name}</h1>
             <p className="text-[15px] text-ink-2 max-w-[68ch]">{b.description}</p>
+            {breaksFor([benchmarkId]).map((x) => <p key={x.date} data-series-break={x.date} className="text-[13px] text-ink-2 max-w-[68ch]">{x.note} <a href={x.url} target="_blank" rel="noreferrer" className="underline underline-offset-2 hover:text-ink">Their method</a></p>)}
             <div className="mt-2"><Relatives current={benchmarkId} family={relatives.family} versions={relatives.versions} /></div>
             <p className="cap">{models} models · {result.ranked.length} results{b.lastUpdated ? ` · updated ${b.lastUpdated}` : ` · data as of ${snapshot.date}`}{host && <> · <a href={b.url} target="_blank" rel="noreferrer" className="hover:text-ink underline decoration-dotted">{host} ↗</a></>}</p>
           </section>

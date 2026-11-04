@@ -140,6 +140,7 @@ export function HistoryRace({ video = false }: { video?: boolean }) {
       </div>
       {chart}
       <div className="mt-5">
+        <div className="relative h-2" aria-hidden="true">{data.breaks?.map((b) => { const at = data.frames.findIndex((f) => f.date >= b.date); return at > 0 ? <span key={b.date} data-series-break={b.date} className="absolute top-0 h-2 w-px bg-grey" style={{ left: `${at / (data.frames.length - 1) * 100}%` }} /> : null; })}</div>
         <input type="range" className="w-full" min={0} max={data.frames.length - 1} step={0.01} value={pos} onChange={(e) => { setPlaying(false); place(Number(e.target.value)); }} aria-label="Date" aria-valuetext={frame ? longDate(frame.date) : undefined} />
         <div className="flex justify-between cap"><span>{shortDate(data.frames[0].date)}</span><span>{shortDate(data.frames[data.frames.length - 1].date)}</span></div>
       </div>
@@ -149,6 +150,7 @@ export function HistoryRace({ video = false }: { video?: boolean }) {
         {mode === "fixed" ? "Fixed: your index as it is today, with each day's scores. A benchmark that wasn't published yet that day has no scores, so the others carry the ranking." : "Adapting: each day leaves out benchmarks that fewer than 8 models had scores for, so the index follows what was established by then."}
         {same && mode === "adapting" ? " Every benchmark in this index was well covered on every date, so it matches the fixed view." : ""}
         {frame && frame.used < frame.of ? ` On ${shortDate(frame.date)}, ${frame.used} of ${frame.of} benchmarks had enough scores.` : ""}
+        {data.breaks?.map((b) => <span key={b.date}> The mark on the timeline: {b.note}</span>)}
         {" "}<Link className="underline underline-offset-2 hover:text-ink" href={index ? `/?i=${encodeURIComponent(index)}` : "/"}>Open this index in the builder</Link>
       </p>
     </>}

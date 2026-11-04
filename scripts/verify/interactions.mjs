@@ -758,6 +758,22 @@ try {
     } finally { await r.context().close(); }
   });
 
+  await check("a method change is marked where speed is read over time, and only there", async () => {
+    const speedMix = encodeURIComponent("Speed|aa-output-speed:50,aa-omniscience:50"), plainMix = encodeURIComponent("Plain|aa-omniscience:50");
+    assert.deepEqual((await (await fetch(`${BASE}/api/history?i=${speedMix}`)).json()).breaks?.map((b) => b.date), ["2026-11-04"], "history of a mix weighting speed carries the break");
+    assert.equal((await (await fetch(`${BASE}/api/history?i=${plainMix}`)).json()).breaks, undefined, "a mix without speed carries none");
+    const m = await (await browser.newContext({ viewport: { width: 1280, height: 900 } })).newPage();
+    m.on("pageerror", (e) => errors.push(`${m.url()}: ${e.message}`));
+    try {
+      await m.goto(`${BASE}/benchmarks/aa-output-speed`, { waitUntil: "domcontentloaded" });
+      await m.locator("[data-series-break]").first().waitFor({ timeout: 30000 });
+      assert.match(await m.locator("[data-series-break]").first().innerText(), /not comparable/);
+      await m.goto(`${BASE}/benchmarks/aa-omniscience`, { waitUntil: "domcontentloaded" });
+      await m.getByRole("heading", { level: 1 }).waitFor({ timeout: 30000 });
+      assert.equal(await m.locator("[data-series-break]").count(), 0, "other benchmarks have no note");
+    } finally { await m.context().close(); }
+  });
+
   await check("3d: a ranking charted on three measures, with the best corner listed", async () => {
     const c = await (await browser.newContext({ viewport: { width: 1280, height: 900 } })).newPage();
     c.on("pageerror", (e) => errors.push(`${c.url()}: ${e.message}`));

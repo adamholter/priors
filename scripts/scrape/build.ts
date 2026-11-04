@@ -160,7 +160,7 @@ async function main() {
       ? `vals-${createHash("sha256").update(p.row.sourceModelId).digest("hex").slice(0, 12)}` : undefined;
     const vid = p.row.identity?.variantId ?? `${variantId(p.modelId, effort)}${valsConfig ? `~${valsConfig}` : ""}`;
     const identity = p.row.identity;
-    variants.set(vid, { ...variants.get(vid), id: vid, modelId: p.modelId, effort, ...(identity ? {
+    variants.set(vid, { ...variants.get(vid), id: vid, modelId: p.modelId, effort, ...(p.row.modelMetadata?.apiDefaultEffort === true ? { apiDefaultEffort: true } : {}), ...(identity ? {
       configuration: identity.configuration,
       sourceModel: { id: identity.sourceModelId, slug: identity.sourceSlug, name: p.row.modelLabel, url: typeof p.row.modelMetadata?.sourceModelUrl === "string" ? p.row.modelMetadata.sourceModelUrl : `https://artificialanalysis.ai/models/${identity.sourceSlug}`, metadata: p.row.modelMetadata },
     } : valsConfig ? {
@@ -179,7 +179,7 @@ async function main() {
     const i = hint.identity;
     if (!i) continue;
     catalogModelIds.add(i.modelId);
-    if (!variants.has(i.variantId)) variants.set(i.variantId, { id: i.variantId, modelId: i.modelId, effort: i.effort, configuration: i.configuration,
+    if (!variants.has(i.variantId)) variants.set(i.variantId, { id: i.variantId, modelId: i.modelId, effort: i.effort, ...(hint.modelMetadata?.apiDefaultEffort === true ? { apiDefaultEffort: true } : {}), configuration: i.configuration,
       sourceModel: { id: i.sourceModelId, slug: i.sourceSlug, name: hint.modelLabel, url: typeof hint.modelMetadata?.sourceModelUrl === "string" ? hint.modelMetadata.sourceModelUrl : `https://artificialanalysis.ai/models/${i.sourceSlug}`, metadata: hint.modelMetadata } });
   }
   const series: Series[] = [];

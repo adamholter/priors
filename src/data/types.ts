@@ -39,6 +39,8 @@ export interface Variant {
   sourceModels?: NonNullable<Variant["sourceModel"]>[];
   /** Old source-scoped IDs accepted by saved highlights and links. */
   aliases?: string[];
+  /** AA lists this as the effort the lab's API uses by default. AA lists leading models only, so unset does not mean it is not the default. */
+  apiDefaultEffort?: boolean;
 }
 
 /** Onboarding lineup-fit focus preset. Stored on IndexConfig; ranking ignores it. */

@@ -2,11 +2,15 @@
  * The history of a ranking: one top-N table per snapshot date, and the in-between frames that let a
  * chart move smoothly from one date to the next. Pure and shared by the page and the video render.
  */
+import type { SeriesBreak } from "@/data/series-breaks";
+
 export interface HistoryRow { id: string; modelId: string; name: string; effort: string; labId: string; score: number; /** weights are downloadable; undefined when unknown */ open?: boolean }
 export interface HistoryFrame { date: string; rows: HistoryRow[]; /** weighted benchmarks that counted that day */ used: number; of: number; models: number; /** Best score among ALL ranked models, by weights. */ best?: { open?: number; closed?: number } }
 export interface HistoryData {
   name: string; mode: "fixed" | "adapting"; frames: HistoryFrame[];
   labs: { id: string; name: string; color: string }[];
+  /** Method changes in the index's benchmarks, so a jump there is not read as real. */
+  breaks?: SeriesBreak[];
   /** Score range of everything shown, so bars keep one scale through time. */
   domain: [number, number];
 }

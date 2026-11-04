@@ -1,3 +1,4 @@
+import { taskMetricDescription } from "@/data/task-metrics";
 import { computeIndex, defaultConfig, type IndexConfig, type IndexResult, type RankedVariant } from "@/engine";
 import { defaultPriorsMix } from "@/onboarding/defaults";
 import { tokenPrice, type TokenPrice } from "@/data/subscription";
@@ -32,7 +33,7 @@ export interface ModelView {
   /** How many other benchmarks measured this model, and their cards' data when it came along. On a page from the server the (much longer) rest loads when the visitor opens that list. */
   others: number; otherField?: ViewField;
   strengths?: { name: string; axes: RadarAxis[]; me: RadarModel; leader?: RadarModel; median: RadarPoint[]; place: ({ n: number; rank: number } | null)[]; models: number; mixName: string };
-  cost: { rows: CostRow[]; floor: number; hasFree: boolean; models: number; token?: TokenPrice };
+  cost: { rows: CostRow[]; floor: number; hasFree: boolean; models: number; token?: TokenPrice; timeNote?: string; apiDefaultEffort?: string };
 }
 export interface ViewField {
   benchmarks: ViewBenchmark[];
@@ -99,7 +100,7 @@ function costSide(snapshot: Snapshot, modelId: string, ranked: RankedVariant[], 
     metrics.forEach((of, i) => { if (of(r) != null && !taken[i].has(r.model.id)) { taken[i].add(r.model.id); keep = true; } });
     if (keep) rows.push({ id: r.variant.id, modelId: r.model.id, name: r.model.name, effort: r.variant.effort, score: r.score, costUsd: r.costUsd, speed: r.speed, tpt: tpt(r), latency: latency(r), tokens: tokens(r) });
   }
-  return { rows, floor: freeFloor(ranked.flatMap((r) => (r.costUsd ? [r.costUsd] : []))), hasFree: ranked.some((r) => r.costUsd === 0), models: new Set(ranked.map((r) => r.model.id)).size, token: tokenPrice(snapshot, modelId, mix.subscriptionPlans) };
+  return { rows, floor: freeFloor(ranked.flatMap((r) => (r.costUsd ? [r.costUsd] : []))), hasFree: ranked.some((r) => r.costUsd === 0), models: new Set(ranked.map((r) => r.model.id)).size, token: tokenPrice(snapshot, modelId, mix.subscriptionPlans), timeNote: taskMetricDescription(mix.timeSource ?? "aa", "time", snapshot.date), apiDefaultEffort: snapshot.variants.find((v) => v.modelId === modelId && v.apiDefaultEffort && v.effort !== "default")?.effort };
 }
 
 function strengths(modelId: string, mixName: string, { axes, models, median }: ReturnType<typeof radarModelsFor>): ModelView["strengths"] {

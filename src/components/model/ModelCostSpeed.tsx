@@ -21,7 +21,7 @@ const effortOf = (r: CostRow) => (r.effort === "default" ? "" : r.effort);
  * for this model are named rather than hidden.
  */
 export function ModelCostSpeed({ data, modelId, name, color }: { data: ModelView["cost"]; modelId: string; name: string; color: string }) {
-  const { rows, floor, hasFree, models, token } = data;
+  const { rows, floor, hasFree, models, token, timeNote, apiDefaultEffort } = data;
   const metrics = useMemo<Metric[]>(() => [
     // A free tier has no place on a log axis; it sits on the floor left of the cheapest paid cost.
     { id: "cost", title: "Cost per task", better: "lower", word: "cheapest", log: true, fmt: (v) => (v === floor ? "free" : money(v)), tick: money, of: (r) => (r.costUsd === 0 ? floor : r.costUsd && r.costUsd > 0 ? r.costUsd : undefined) },
@@ -38,6 +38,8 @@ export function ModelCostSpeed({ data, modelId, name, color }: { data: ModelView
       <div className="flex items-baseline justify-between border-b hairline pb-2"><h2 className="text-[26px]">Cost and speed</h2><span className="cap">{models ? `against ${models} ranked models` : ""}</span></div>
       {withCost && <ScoreCost rows={rows} floor={floor} hasFree={hasFree} modelId={modelId} color={color} />}
       {has.length > 0 && <div className="grid gap-x-8 gap-y-6 lg:grid-cols-2">{has.map((m) => <MetricCard key={m.id} m={m} ranked={rows} mine={mineAll} modelId={modelId} color={color} />)}</div>}
+      {has.some((m) => m.id === "tpt") && timeNote && <p className="cap">Time per task: {timeNote}.</p>}
+      {apiDefaultEffort && <p className="cap" data-api-default-effort>API default effort: {apiDefaultEffort}, per Artificial Analysis.</p>}
       <TokenPriceCard price={token} />
       {missing.length > 0 && <p className="cap">Not measured for {name}: {missing.map((m) => m.title.toLowerCase()).join(", ")}{missing.some((m) => m.id === "cost") ? " (no published API price yet)" : ""}.</p>}
     </section>

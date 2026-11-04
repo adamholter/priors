@@ -2,6 +2,7 @@ import { bundledSnapshotDates } from "./runtime-files";
 import { loadHistoryArchive, loadSnapshot, readSnapshot } from "@/data/load";
 import { columnsOf } from "@/data/columns";
 import { applyOpenWeights } from "@/data/open-weights";
+import { breaksFor } from "@/data/series-breaks";
 import { rankingRows, rankScores, type IndexConfig } from "@/engine";
 import type { Lab } from "@/data/types";
 import { TOP, type HistoryData, type HistoryFrame } from "./history-frames";
@@ -56,5 +57,6 @@ export async function computeHistory(config: IndexConfig, mode: "fixed" | "adapt
   }
   const shown = frames.flatMap((f) => f.rows.slice(0, TOP).map((r) => r.score));
   const lo = shown.length ? Math.min(...shown) : 0, hi = shown.length ? Math.max(...shown) : 100;
-  return { name: config.name, mode, frames, labs: [...labs.values()], domain: [Math.max(0, Math.floor((lo - 4) / 5) * 5), Math.min(100, Math.ceil((hi + 1) / 5) * 5)] };
+  const breaks = breaksFor(ids);
+  return { name: config.name, mode, frames, labs: [...labs.values()], ...(breaks.length ? { breaks } : {}), domain: [Math.max(0, Math.floor((lo - 4) / 5) * 5), Math.min(100, Math.ceil((hi + 1) / 5) * 5)] };
 }

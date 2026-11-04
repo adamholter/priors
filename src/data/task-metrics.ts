@@ -1,5 +1,6 @@
 import { SUBSCRIPTION_BENCHMARK, type CostBasis } from "./subscription";
 import { columnsOf, observationsOf } from "./columns";
+import { onAaPerformanceV3 } from "./series-breaks";
 import type { Observation, Snapshot } from "./types";
 
 export type TaskMetricSource = "aa" | "terminalbench-4" | "deepswe-1.1" | "frontierswe-v2";
@@ -15,7 +16,8 @@ export function isTaskMetricSource(value: string): value is TaskMetricSource {
   return TASK_METRIC_SOURCES.some((source) => source.id === value);
 }
 
-export function taskMetricDescription(source: TaskMetricSource, metric: TaskMetric): string {
+/** `date` is the snapshot's: older snapshots keep the description of the method they were measured with. */
+export function taskMetricDescription(source: TaskMetricSource, metric: TaskMetric, date?: string): string {
   if (source === "terminalbench-4") return metric === "cost"
     ? "Terminal-Bench 4.0 · average cost per trial, including unsuccessful trials"
     : "Terminal-Bench 4.0 · average trial duration, including unsuccessful trials";
@@ -27,7 +29,9 @@ export function taskMetricDescription(source: TaskMetricSource, metric: TaskMetr
     : "FrontierSWE v2 · average trial duration, Proximus, 20-hour budget";
   return metric === "cost"
     ? "Artificial Analysis · measured task costs, weighted by your mix when available"
-    : "Artificial Analysis · estimated decode time per Intelligence Index task, excluding first-token wait and overhead";
+    : onAaPerformanceV3(date)
+      ? "Artificial Analysis · computed, not timed: output tokens per Intelligence Index task divided by output speed, without tool time. Method changed Nov 4, 2026"
+      : "Artificial Analysis · estimated decode time per Intelligence Index task, excluding first-token wait and overhead";
 }
 
 /** Cost chart caption: the measurement, then how it is priced when not at API list prices. */

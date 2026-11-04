@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { isModelTable, performanceOf } from "./sources/aa";
+import { firstPartyErrorRate, isModelTable, performanceOf } from "./sources/aa";
 import { createCipheriv, createHash } from "node:crypto";
 import { gzipSync } from "node:zlib";
 import source from "./sources/aa";
@@ -161,5 +161,24 @@ describe("AA model table", () => {
     expect(performanceOf({ headline: { outputSpeed: 112, timeToFirstToken: 351 } })).toEqual({ speed: 112, ttft: 351 });
     expect(performanceOf({ timescaleData: { medianOutputSpeed: 94, medianTimeToFirstChunk: 640 } })).toEqual({ speed: 94, ttft: 640 });
     expect(performanceOf(undefined)).toEqual({ speed: undefined, ttft: undefined });
+  });
+});
+
+describe("endpoint error rate", () => {
+  const endpoints = [
+    { host: "Anthropic", model: { slug: "opus" }, performance: { outputSpeed: 109.4, endpointErrorRate: 0.015 } },
+    { host: "Bedrock", model: { slug: "opus" }, performance: { outputSpeed: 80, endpointErrorRate: 0.5 } },
+    { host: "Novita", model: { slug: "glm" }, performance: { outputSpeed: 50, endpointErrorRate: 1 } },
+  ];
+  it("reads the endpoint the model's speed comes from, as a percent", () => {
+    expect(firstPartyErrorRate({ slug: "opus", headline: { outputSpeed: 109.4 }, performanceDataSource: { type: "firstParty", providerName: "Anthropic" } }, endpoints)).toEqual({ percent: 1.5, endpoint: "Anthropic" });
+  });
+  it("keeps a rate of zero", () => {
+    expect(firstPartyErrorRate({ slug: "a", headline: { outputSpeed: 5 }, performanceDataSource: { type: "firstParty", providerName: "A" } }, [{ model: { slug: "a" }, performance: { outputSpeed: 5, endpointErrorRate: 0 } }])?.percent).toBe(0);
+  });
+  it("has no single endpoint for a median across providers, or when none matches", () => {
+    expect(firstPartyErrorRate({ slug: "glm", headline: { outputSpeed: 50 }, performanceDataSource: { type: "median" } }, endpoints)).toBeUndefined();
+    expect(firstPartyErrorRate({ slug: "opus", headline: { outputSpeed: 1 }, performanceDataSource: { type: "firstParty" } }, endpoints)).toBeUndefined();
+    expect(firstPartyErrorRate(undefined, endpoints)).toBeUndefined();
   });
 });
