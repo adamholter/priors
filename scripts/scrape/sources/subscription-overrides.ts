@@ -122,11 +122,34 @@ export interface BudgetPlan {
   source: string;
   checked: string;
   note: string;
-  /** Each model's Real API Pricing slug and name, its vendor, and the seller's API price per 1M tokens (cache reads at 10% of input unless published). */
-  models: { model: string; display: string; vendor: string; input: number; cached?: number; output: number }[];
+  /**
+   * Each model's Real API Pricing slug and name, its vendor, and the seller's rate per 1M tokens (cache reads at 10% of input unless published).
+   * Rates are in the unit of `budgetUsd`. A plan sold in credits gives both in credits, then `list` is the model's USD API price and `promo` the rates until a moment.
+   */
+  models: BudgetModel[];
 }
 
+export interface BudgetRates { input: number; cached?: number; output: number }
+export interface BudgetModel extends BudgetRates {
+  model: string; display: string; vendor: string;
+  list?: { input: number; cached: number; output: number };
+  promo?: BudgetRates & { until: string };
+}
+
+/** Tencent's Token Plan (intl): monthly credits with no rollover, spent at per-model credit rates. No five-hour or weekly limit is stated. */
+const HY4_LIST = { input: 0.834, cached: 0.042, output: 2.501 };
+const HY4_CREDITS = { input: 130.313, cached: 6.563, output: 390.781 };
+const tencentTokenPlan = (tier: string, feeUsd: number, credits: number): BudgetPlan => ({
+  planId: `tencent_token_plan_${tier.toLowerCase()}`, plan: `Tencent Token Plan ${tier}`, channel: "Tencent", feeUsd, budgetUsd: credits, confidence: "medium", source: "https://intl.cloud.tencent.com/document/product/1300/81315", checked: "2026-11-04",
+  note: `${credits.toLocaleString("en-US")} credits a month, no rollover, spent at Tencent's credit rates per 1M tokens (intl.cloud.tencent.com/ind/document/product/1300/81316): 130.313 input, 390.781 output, 6.563 cached, about list price. Promotional rates apply until 12:00 Beijing time on 17 November 2026 for Hy4 (33, 98, 2) and 30 November for Hy4 preview (105, 215, 5).`,
+  models: [
+    { model: "hy4", display: "Hy4", vendor: "Tencent", ...HY4_CREDITS, list: HY4_LIST, promo: { until: "2026-11-17T04:00:00Z", input: 33, cached: 2, output: 98 } },
+    { model: "hy4-preview", display: "Hy4 preview", vendor: "Tencent", ...HY4_CREDITS, list: HY4_LIST, promo: { until: "2026-11-30T04:00:00Z", input: 105, cached: 5, output: 215 } },
+  ],
+});
+
 export const BUDGET_PLANS: BudgetPlan[] = [
+  tencentTokenPlan("Lite", 7, 1000), tencentTokenPlan("Standard", 17, 2600), tencentTokenPlan("Pro", 51, 7900), tencentTokenPlan("Max", 103, 15900),
   {
     planId: "mistral_vibe_pro", plan: "Mistral Vibe Pro", channel: "Mistral", feeUsd: 14.99, budgetUsd: 300 + 15, confidence: "medium", source: "https://mistral.ai/pricing", checked: "2026-11-04",
     note: "$300 a month of Vibe usage at Mistral's API rates, the budget a Pro account shows (Mistral does not publish it; reported by SSHCodes on X, 29 October 2026), plus the $15 of API credits the pricing page lists for Pro ($25.50 is the student plan), spendable on the same models. Rates from docs.mistral.ai/models.",

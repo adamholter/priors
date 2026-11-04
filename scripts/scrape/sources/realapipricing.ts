@@ -38,14 +38,14 @@ const PRIORS_IDS: Record<string, string> = { "gemini-4-argon": "gemini-4" };
 const cheaper = (a: Point, b: Point) => a.real_usd_per_mtok - b.real_usd_per_mtok || (b.price_usd ?? 0) - (a.price_usd ?? 0);
 
 /** One row per model: the median first-party subscription, with every first-party plan in details. */
-export function parseSubscriptions(json: Points, conventions: Conventions, channels: Channels): RawRow[] {
+export function parseSubscriptions(json: Points, conventions: Conventions, channels: Channels, now = new Date()): RawRow[] {
   const budgetOf = (id: string) => BUDGET_PLANS.find((b) => id.startsWith(`${b.planId}::`));
   const channelOf = (id: string) => budgetOf(id)?.channel ?? channels.channels.find(([prefix]) => id.startsWith(prefix))?.[1];
   const mixOf = (workload?: string): TokenMix => workload === "anthropic"
     ? { cache: conventions.anthropicTokenMix.cache, input: 0, cacheWrite: conventions.anthropicTokenMix.cacheWrite, output: conventions.anthropicTokenMix.output }
     : workload === "lowCache" ? pickMix(conventions.lowCacheTokenMix) : pickMix(conventions.standardTokenMix);
   const byModel = new Map<string, Point[]>(), resold = new Map<string, Point[]>();
-  const budgets = budgetPoints(conventions).filter((b) => !json.points.some((p) => p.id === b.id));
+  const budgets = budgetPoints(conventions, now).filter((b) => !json.points.some((p) => p.id === b.id));
   for (const p of [...withMultiples(json.points.map(changed)), ...budgets]) {
     if (p.billing !== "subscription" || p.unmetered || !(p.real_usd_per_mtok > 0)) continue;
     const group = channelOf(p.id) === p.vendor ? byModel : resold;
@@ -139,12 +139,12 @@ export function withMultiples(points: Point[]): Point[] {
   return out;
 }
 
-/** BUDGET_PLANS as points: fee ÷ the tokens the budget buys at the seller's rate, on the standard workload. No list price: the model's own lab's (or Artificial Analysis') prices the API side. */
-export function budgetPoints(conventions: Conventions): Point[] {
+/** BUDGET_PLANS as points: fee ÷ the tokens the budget buys at the seller's rate (its promotional rate until that ends), on the standard workload. Without a `list` price, the model's own lab's (or Artificial Analysis') prices the API side. */
+export function budgetPoints(conventions: Conventions, now = new Date()): Point[] {
   const mix = pickMix(conventions.standardTokenMix);
   return BUDGET_PLANS.flatMap((b) => b.models.map((m): Point => ({
     id: `${b.planId}::${m.model}`, plan: b.plan, plan_en: b.plan, billing: "subscription", model: m.model, model_display: m.display, vendor: m.vendor, workload: "standard",
-    list_price: null, price_usd: b.feeUsd, confidence: b.confidence, data_date: b.checked, real_usd_per_mtok: b.feeUsd * blendedApiPrice(m, mix) / b.budgetUsd,
+    list_price: m.list ? { ...m.list, currency: "USD" } : null, price_usd: b.feeUsd, confidence: b.confidence, data_date: b.checked, real_usd_per_mtok: b.feeUsd * blendedApiPrice(m.promo && now < new Date(m.promo.until) ? m.promo : m, mix) / b.budgetUsd,
   })));
 }
 

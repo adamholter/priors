@@ -41,7 +41,7 @@ describe("Real API Pricing subscriptions", () => {
   });
   const computed = rows.filter((r) => !(r.details as { source?: string; sameAs?: string }).source && !(r.details as { sameAs?: string }).sameAs && r.sourceUrl !== VIBE);
   it("keeps one row per model on its lab's own plans: no resellers, metered APIs or unmetered promos", () => {
-    expect(computed.map((r) => r.modelLabel)).toEqual(["GPT 5.6 Sol", "Claude Opus 5.5", "Claude Fable 5", "GLM 5.3", "Gemini 4 Argon", "Qwen3.8 Max"]);
+    expect(computed.map((r) => r.modelLabel)).toEqual(["GPT 5.6 Sol", "Claude Opus 5.5", "Claude Fable 5", "GLM 5.3", "Gemini 4 Argon", "Hy4", "Hy4 preview", "Qwen3.8 Max"]);
     expect(row("GPT 5.6 Sol").details).toMatchObject({ plans: [{ plan: "ChatGPT Pro 20x" }, { plan: "ChatGPT Pro 10x" }, { plan: "ChatGPT Plus" }] });
   });
   it("prices plans measured before an allowance change at the allowance they sell with now: Pro 100 doubled to 10× Plus, Pro 200 keeps 20×", () => {
@@ -109,6 +109,17 @@ describe("Real API Pricing subscriptions", () => {
     expect(row("GLM 5.3")).toMatchObject({ value: 0.03, details: { plan: "GLM Coding Pro" } });
     expect((row("GLM 5.3").details as { plans: { plan: string; usdPerMtok: number }[] }).plans).toContainEqual({ plan: "Mistral Vibe Pro", feeUsd: 14.99, usdPerMtok: at("glm-5.3"), confidence: "medium" });
   });
+  it("prices Tencent's Token Plan in credits against Hy4's USD list price, at the promotional rate until it ends, and keeps Hy4 preview apart", () => {
+    const hy = (at: string, label: string) => parseSubscriptions(payload, conventions, channels, new Date(at)).find((r) => r.modelLabel === label)!;
+    const share = (r: ReturnType<typeof hy>) => { const d = r.details as unknown as { plans: { plan: string; usdPerMtok: number }[]; listPrice: { input: number; cached: number; output: number } }; return d.plans.find((p) => p.plan === "Tencent Token Plan Max")!.usdPerMtok / blendedApiPrice(d.listPrice, conventions.standardTokenMix); };
+    expect(hy("2026-11-10T00:00:00Z", "Hy4").details).toMatchObject({ listPrice: { input: 0.834, cached: 0.042, output: 2.501 }, plans: expect.arrayContaining([expect.objectContaining({ plan: "Tencent Token Plan Lite", feeUsd: 7 }), expect.objectContaining({ plan: "Tencent Token Plan Max", feeUsd: 103 })]) });
+    expect(1 / share(hy("2026-11-10T00:00:00Z", "Hy4"))).toBeCloseTo(3.5, 0);
+    // Noon in Beijing is 04:00 UTC.
+    expect(share(hy("2026-11-17T03:59:00Z", "Hy4"))).toBeLessThan(0.3);
+    expect(share(hy("2026-11-17T04:00:00Z", "Hy4"))).toBeCloseTo(1, 1);
+    expect(share(hy("2026-11-20T00:00:00Z", "Hy4 preview"))).toBeLessThan(0.8);
+    expect(share(hy("2026-11-30T04:00:00Z", "Hy4 preview"))).toBeCloseTo(1, 1);
+  });
   it("makes Vibe Pro the reseller fallback only when it beats the others, and gives way to a Real API Pricing measurement of it", () => {
     const glm52 = (extra: Points["points"]) => parseSubscriptions({ ...payload, points: [...payload.points, ...extra] }, conventions, channels).find((r) => r.modelLabel === "GLM 5.2")!;
     expect(glm52([point("droid_max::glm-5.2", "Droid Max", "Zhipu", 0.0277, { model_display: "GLM 5.2", price_usd: 200 })])).toMatchObject({ details: { plan: "Mistral Vibe Pro", plans: [{ plan: "Mistral Vibe Pro" }, { plan: "Droid Max" }] } });
@@ -120,7 +131,7 @@ describe("Real API Pricing subscriptions", () => {
     const ctx = { fetchText: async (url: string) => JSON.stringify(files[url.split("/").pop()!]) } as unknown as Parameters<typeof source.scrape>[0];
     const r = await source.scrape(ctx);
     expect(r.benchmarks[0]).toMatchObject({ id: SUBSCRIPTION_BENCHMARK, unit: "usd", proxy: true, defaultWeight: 0, eligibleForDefault: false, lastUpdated: "2026-10-08" });
-    expect(r.rows).toHaveLength(8 + 7); // + Mistral Vibe Pro's rows: four Mistral models, GLM 5.2, GLM 5.3 Flash, DeepSeek V4.1 Flash 1017
+    expect(r.rows).toHaveLength(8 + 7 + 2); // + Mistral Vibe Pro's rows (four Mistral models, GLM 5.2, GLM 5.3 Flash, DeepSeek V4.1 Flash 1017) and Tencent Token Plan's Hy4 and Hy4 preview
     expect(Object.keys(r.raw)).toEqual(["points.json", "conventions.json", "channel-colors.json"]);
   });
 });
