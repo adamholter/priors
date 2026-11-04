@@ -19,6 +19,7 @@ import { encodeIndices, PAGE_KEY, pageRef, prettyQuery } from "@/lib/url";
 import { ShareCards } from "../ShareCards";
 import { BuilderIcon, CompareIcon } from "../compare/icons";
 import { MixPie } from "../MixPie";
+import { benchmarkPath } from "@/lib/benchmark-slug";
 import { pageRef as refForPage, threeDUrl } from "@/lib/compare-ref";
 import { useTripleD } from "@/lib/use-triple-d";
 import { Wordmark } from "../Wordmark";
@@ -113,7 +114,7 @@ export function IndexPage({ profile, snapshot, edit, tab: linkedTab, linkedHighl
   const topIds = useMemo(() => firstIndex && firstResult ? [...new Set(rankingRows(firstResult.ranked, firstIndex).map((r) => r.model.id))].slice(0, 20) : [], [firstIndex, firstResult]);
   const viaNames = useMemo(() => firstIndex && firstResult ? [...new Set(rankingRows(firstResult.ranked, firstIndex).map((r) => r.model.name))].slice(0, 5) : [], [firstIndex, firstResult]);
   const topNames = useMemo(() => active && activeResult ? [...new Set(rankingRows(activeResult.ranked, active).map((r) => r.model.name))].slice(0, 5) : [], [active, activeResult]);
-  const footerMix = useMemo(() => activeResult ? [...activeResult.benchmarks].sort((a, b) => b.share - a.share).map((b) => ({ id: b.benchmark.id, name: b.benchmark.shortName ?? b.benchmark.name, share: b.share })) : [], [activeResult]);
+  const footerMix = useMemo(() => activeResult ? [...activeResult.benchmarks].sort((a, b) => b.share - a.share).map((b) => ({ id: b.benchmark.id, name: b.benchmark.shortName ?? b.benchmark.name, share: b.share, ...(b.benchmark.sourceId === "import" ? {} : { href: benchmarkPath(b.benchmark.id) }) })) : [], [activeResult]);
   // The editor autosaves what it shows, so a page opened through a link's overrides (hl, hv) must not turn editing on in place:
   // it reloads through the server path that ignores them (the saved page), keeping the tab.
   const toggleEditing = () => {
