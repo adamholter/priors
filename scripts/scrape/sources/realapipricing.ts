@@ -34,11 +34,43 @@ const squash = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
 /** Real API Pricing model slugs whose Priors id differs. Gemini 4 Argon was Gemini 4's first tier, so it keeps the bare id. */
 const PRIORS_IDS: Record<string, string> = { "gemini-4-argon": "gemini-4" };
 
+/** OpenCode Go's docs: three plans, each with a monthly dollar limit per model. Real API Pricing lags them and measures a different thing, so they replace its row. */
+export const OPENCODE_GO_DOCS = "https://opencode.ai/v2/docs/console/go";
+const OPENCODE_PLANS = [{ planId: "opencode_go", plan: "OpenCode Go" }, { planId: "opencode_go_plus", plan: "OpenCode Go Plus" }, { planId: "opencode_go_teams", plan: "OpenCode Go Teams" }];
+/** OpenCode's row name, then the Priors models it serves: an id with no date is the lab's latest revision, and DeepSeek serves Flash as DeepSeek-V4.1-Flash-1017. */
+const OPENCODE_DEEPSEEK: [string, { model: string; display: string }[]][] = [
+  ["DeepSeek V4.1 Flash", [{ model: "deepseek-v4.1-flash-1017", display: "DeepSeek V4.1 Flash 1017" }, { model: "deepseek-v4.1-flash", display: "DeepSeek V4.1 Flash" }]],
+  ["DeepSeek V4 Pro", [{ model: "deepseek-v4-pro", display: "DeepSeek V4 Pro" }]],
+];
+
+/**
+ * DeepSeek's rows on OpenCode Go, as points. A limit is dollars at the token prices listed beside it, and those are DeepSeek's own in both
+ * its peak and off-peak hours, so the plan's share of API price is fee ÷ limit whichever hours you use. The peak price is the list price:
+ * it is what Artificial Analysis prices DeepSeek at. Throws when the page changes shape, so the last Real API Pricing row stands.
+ */
+export function parseOpenCodeDeepSeek(html: string, mix: TokenMix, date: string): Point[] {
+  const text = html.replace(/<\/t[dh]>/g, " | ").replace(/<[^>]+>/g, " ").replace(/&#x27;|&rsquo;/g, "'").replace(/\s+/g, " ");
+  const fee = (plan: string, unit: string) => { const m = new RegExp(`\\b${plan} \\| \\$(\\d+)/${unit}`).exec(text); if (!m) throw new Error(`OpenCode Go docs: no price for ${plan}; page changed?`); return Number(m[1]); };
+  const fees = [fee("Go", "month"), fee("Go Plus", "month"), fee("Go Teams", "member")];
+  return OPENCODE_DEEPSEEK.flatMap(([row, models]) => {
+    const name = row.replace(/\./g, "\\.");
+    const rows = [...text.matchAll(new RegExp(`${name} \\(Peak\\) \\| \\$([\\d.]+) \\| \\$([\\d.]+) \\| \\$([\\d.]+) \\| - \\| \\$(\\d+)`, "g"))];
+    if (rows.length !== OPENCODE_PLANS.length) throw new Error(`OpenCode Go docs: ${rows.length} plan rows for ${row}; page changed?`);
+    return rows.flatMap((m, i) => {
+      const [input, output, cached, limit] = m.slice(1).map(Number), price = fees[i];
+      return models.map(({ model, display }): Point => ({
+        id: `${OPENCODE_PLANS[i].planId}::${model}`, plan: OPENCODE_PLANS[i].plan, plan_en: OPENCODE_PLANS[i].plan, billing: "subscription", model, model_display: display, vendor: "DeepSeek", workload: "standard",
+        list_price: { cached, input, output, currency: "USD" }, price_usd: price, confidence: "high", data_date: date, real_usd_per_mtok: price * blendedApiPrice({ cached, input, output }, mix) / limit,
+      }));
+    });
+  });
+}
+
 /** Cheapest tokens first; at the same token price the bigger plan first, so a median among equals lands on the middle plan. */
 const cheaper = (a: Point, b: Point) => a.real_usd_per_mtok - b.real_usd_per_mtok || (b.price_usd ?? 0) - (a.price_usd ?? 0);
 
 /** One row per model: the median first-party subscription, with every first-party plan in details. */
-export function parseSubscriptions(json: Points, conventions: Conventions, channels: Channels, now = new Date()): RawRow[] {
+export function parseSubscriptions(json: Points, conventions: Conventions, channels: Channels, now = new Date(), stated: Point[] = []): RawRow[] {
   const budgetOf = (id: string) => BUDGET_PLANS.find((b) => id.startsWith(`${b.planId}::`));
   const channelOf = (id: string) => budgetOf(id)?.channel ?? channels.channels.find(([prefix]) => id.startsWith(prefix))?.[1];
   const mixOf = (workload?: string): TokenMix => workload === "anthropic"
@@ -46,7 +78,8 @@ export function parseSubscriptions(json: Points, conventions: Conventions, chann
     : workload === "lowCache" ? pickMix(conventions.lowCacheTokenMix) : pickMix(conventions.standardTokenMix);
   const byModel = new Map<string, Point[]>(), resold = new Map<string, Point[]>();
   const budgets = budgetPoints(conventions, now).filter((b) => !json.points.some((p) => p.id === b.id));
-  for (const p of [...withMultiples(json.points.map(changed)), ...budgets]) {
+  const statedIds = new Set(stated.map((p) => p.id));
+  for (const p of [...withMultiples(json.points.filter((p) => !statedIds.has(p.id)).map(changed)), ...budgets, ...stated]) {
     if (p.billing !== "subscription" || p.unmetered || !(p.real_usd_per_mtok > 0)) continue;
     const group = channelOf(p.id) === p.vendor ? byModel : resold;
     (group.get(p.model) ?? group.set(p.model, []).get(p.model)!).push(p);
@@ -165,7 +198,12 @@ const source: Source = {
     ]);
     const json = JSON.parse(points) as Points;
     if (!Array.isArray(json.points) || !json.points.length) throw new Error("Real API Pricing: unexpected points payload");
-    const rows = parseSubscriptions(json, JSON.parse(conventions) as Conventions, JSON.parse(channels) as Channels);
+    const conv = JSON.parse(conventions) as Conventions, notes: string[] = [], raw: Record<string, string> = {};
+    // Losing this page costs only its rows: Real API Pricing's own OpenCode Go row stands until it is back.
+    let stated: Point[] = [];
+    try { const page = await ctx.fetchText(OPENCODE_GO_DOCS); stated = parseOpenCodeDeepSeek(page, pickMix(conv.standardTokenMix), new Date().toISOString().slice(0, 10)); raw["opencode-go.html"] = page; }
+    catch (e) { notes.push(`OpenCode Go docs: ${e instanceof Error ? e.message : e}`); }
+    const rows = parseSubscriptions(json, conv, JSON.parse(channels) as Channels, new Date(), stated);
     if (!rows.length) throw new Error("Real API Pricing: no subscription rows");
     return {
       benchmarks: [{
@@ -174,8 +212,8 @@ const source: Source = {
         unit: "usd" as const, higherIsBetter: false, category: "cost" as const, proxy: true, eligibleForDefault: false, defaultWeight: 0,
       }],
       rows,
-      raw: { "points.json": points, "conventions.json": conventions, "channel-colors.json": channels },
-      notes: [`${rows.length} models with a subscription price (first-party plans, reseller fallback, curated overrides), snapshot ${json.generatedAt}`],
+      raw: { "points.json": points, "conventions.json": conventions, "channel-colors.json": channels, ...raw },
+      notes: [...notes, `${rows.length} models with a subscription price (first-party plans, reseller fallback, curated overrides), snapshot ${json.generatedAt}`],
     };
   },
 };

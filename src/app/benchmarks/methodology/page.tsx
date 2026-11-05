@@ -59,6 +59,7 @@ export default async function Page() {
           <p>Cost is what a model actually spent on a benchmark&rsquo;s tasks, never its token price alone. By default it is then priced the way subscribers pay: measured cost times the model&rsquo;s share of API price on a subscription plan.</p>
           <p>Each model uses its median plan until you pick one for its lab in a cost chart&rsquo;s settings, and the share assumes the plan&rsquo;s full allowance is used. A new OpenAI model with no plan data yet is estimated from Codex&rsquo;s published limits. A model with no plan data at all stays at API price. Plan data comes from Real API Pricing.</p>
           <p>The Pricing setting in a cost chart switches the whole chart to API prices.</p>
+          <p>A model a provider serves free today costs nothing on subscription pricing. Turn off Count free tiers in a cost chart&rsquo;s settings to price it on its paid plans instead, or at API price if it has none.</p>
           <p>Speed tiers, under a cost chart&rsquo;s settings, run the same model faster or cheaper. Cost moves by the tier&rsquo;s price. Under subscription pricing, a tier a plan covers spends its allowance faster: Fast on OpenAI&rsquo;s plans, and Ultrafast, which only ChatGPT Pro 500 has. Flex and Claude Opus Fast are outside every plan, so they cost what the API charges, even on a chart priced by subscription.</p>
         </section>
         <section id="speed" className="grid gap-3 scroll-mt-6">

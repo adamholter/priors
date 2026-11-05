@@ -663,6 +663,22 @@ try {
     assert.ok(!(await onScreen()).some((id) => id.includes("+")), "turning the tier off restores standard");
     assert.doesNotMatch(page.url(), /tier=/, "and leaves the link clean");
   });
+  await check("not counting free tiers moves free models off the free line, and the card follows", async () => {
+    const menu = await settings();
+    await menu.locator("summary", { hasText: "Subscription plans" }).click();
+    const box = menu.getByLabel("Count free tiers");
+    if (!await box.count()) { await close(); return; } // nothing is free in this snapshot
+    assert.equal(await box.isChecked(), true, "free tiers count by default");
+    await box.uncheck();
+    await close(); await page.waitForTimeout(800);
+    assert.match(page.url(), /free=off/, "the choice is in the link");
+    await same("free tiers off");
+    const back = await settings();
+    await back.locator("summary", { hasText: "Subscription plans" }).click();
+    await back.getByLabel("Count free tiers").check();
+    await close(); await page.waitForTimeout(800);
+    assert.doesNotMatch(page.url(), /free=off/, "turning it back on leaves the link clean");
+  });
   await check("link parity: pricing basis and release window", async () => {
     const menu = await settings();
     await menu.getByRole("button", { name: "API", exact: true }).click();

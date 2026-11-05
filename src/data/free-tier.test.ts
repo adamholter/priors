@@ -74,3 +74,13 @@ describe("applyFreeTiers", () => {
     expect(carried[0].note).toContain("carried from 2026-10-16");
   });
 });
+
+describe("the paid row behind a free one", () => {
+  it("keeps it on the free row", () => {
+    const snap = { models: [{ id: "deepseek-v4.1-flash-1017", name: "DeepSeek V4.1 Flash 1017", labId: "deepseek", kind: "llm" }], variants: [{ id: "deepseek-v4.1-flash-1017@max", modelId: "deepseek-v4.1-flash-1017", effort: "max" }], observations: [{ benchmarkId: SUBSCRIPTION_BENCHMARK, variantId: "deepseek-v4.1-flash-1017@max", value: 0.002, details: { plan: "OpenCode Go", plans: [{ plan: "OpenCode Go" }] } }] } as unknown as Snapshot;
+    applyFreeTiers(snap, [{ provider: "opencode", slug: "deepseek-v4.1-flash-1017-free", name: "deepseek-v4.1-flash-1017", plan: "OpenCode Zen free tier", source: "x" }], "2026-11-05");
+    expect(snap.observations).toHaveLength(1);
+    expect(snap.observations[0].details).toMatchObject({ ratio: 0, free: true, paid: { plan: "OpenCode Go", value: 0.002 } });
+  });
+});
+

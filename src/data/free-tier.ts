@@ -102,6 +102,8 @@ export function applyFreeTiers(snapshot: Snapshot, entries: FreeTierEntry[], dat
   const ORDER = ["none", "minimal", "low", "medium", "high", "xhigh", "max"];
   const kept = snapshot.observations.filter((o) => o.benchmarkId !== SUBSCRIPTION_BENCHMARK || !free.has(variantModel.get(o.variantId) ?? o.variantId.split("@")[0]));
   const added: Observation[] = [];
+  // The paid row a model had rides along on its free one: "don't count free tiers" and a picked plan both need it.
+  const paidRows = new Map(snapshot.observations.filter((o) => o.benchmarkId === SUBSCRIPTION_BENCHMARK && !(o.details as { free?: boolean } | undefined)?.free).map((o) => [variantModel.get(o.variantId) ?? o.variantId.split("@")[0], o]));
   for (const [modelId, es] of free) {
     const variants = variantsOf(modelId);
     if (!variants.length) continue;
@@ -111,7 +113,7 @@ export function applyFreeTiers(snapshot: Snapshot, entries: FreeTierEntry[], dat
     const note = [`${pick.plan}: ${pick.slug} is listed at no charge`, ...(also.length ? [`also free on ${also.join(", ")}`] : []), pick.note].filter(Boolean).join("; ");
     added.push({
       benchmarkId: SUBSCRIPTION_BENCHMARK, variantId: variant.id, value: 0, observedAt: date, sourceUrl: pick.source, note,
-      details: { plan: pick.plan, feeUsd: 0, confidence: "high", ratio: 0, source: pick.source, dataDate: date, free: true, plans: [] },
+      details: { plan: pick.plan, feeUsd: 0, confidence: "high", ratio: 0, source: pick.source, dataDate: date, free: true, plans: [], ...(paidRows.get(modelId) ? { paid: { ...paidRows.get(modelId)!.details, value: paidRows.get(modelId)!.value } } : {}) },
     });
   }
   snapshot.observations = [...kept, ...added];
@@ -125,3 +127,10 @@ export function carriedFreeTiers(previous: Snapshot, snapshot: Snapshot): Observ
   return previous.observations.filter((o) => o.benchmarkId === SUBSCRIPTION_BENCHMARK && (o.details as { free?: boolean } | undefined)?.free
     && modelIds.has(variants.get(o.variantId) ?? "")).map((o) => ({ ...o, note: [o.note, `carried from ${previous.date}`].filter(Boolean).join("; ") }));
 }
+
+/** What ChartSettings needs for "Count free tiers". Undefined when nothing is free today, so there is no choice to offer. */
+export function freeTierSettings(snapshot: Snapshot, value: boolean | undefined, onChange: (count: boolean) => void) {
+  const count = snapshot.observations.filter((o) => o.benchmarkId === SUBSCRIPTION_BENCHMARK && (o.details as { free?: boolean } | undefined)?.free).length;
+  return count ? { value: value !== false, onChange, count } : undefined;
+}
+

@@ -37,6 +37,9 @@ export interface SubscriptionDetails {
   dataDate?: string;
   /** The API list price (USD per 1M) the source converted this plan with, when it publishes one. */
   listPrice?: { cached: number; input: number; output: number };
+  /** A free tier's row. `paid` is what the model costs without it: its paid plans, and the token price they priced it at. */
+  free?: boolean;
+  paid?: SubscriptionDetails & { value: number };
   /** `listPrice` is the lab's price only until this moment; Artificial Analysis already lists the price that follows. */
   listUntil?: string;
   plans: { plan: string; feeUsd?: number; usdPerMtok: number; confidence: string }[];
@@ -112,7 +115,7 @@ export function subscriptionPlanOptions(snapshot: Snapshot): { labId: string; pl
   const byLab = new Map<string, Map<string, { plan: string; feeUsd?: number; models: Set<string> }>>();
   for (const o of snapshot.observations) {
     if (o.benchmarkId !== SUBSCRIPTION_BENCHMARK) continue;
-    const d = o.details as unknown as SubscriptionDetails | undefined, modelId = variants.get(o.variantId) ?? o.variantId.split("@")[0], labId = lab.get(modelId);
+    const row = o.details as unknown as SubscriptionDetails | undefined, d = row?.free ? row.paid : row, modelId = variants.get(o.variantId) ?? o.variantId.split("@")[0], labId = lab.get(modelId);
     if (!labId || !d?.plans?.length || d.ratio != null || d.sameAs) continue;
     const plans = byLab.get(labId) ?? byLab.set(labId, new Map()).get(labId)!;
     for (const p of d.plans) (plans.get(p.plan) ?? plans.set(p.plan, { plan: p.plan, feeUsd: p.feeUsd, models: new Set() }).get(p.plan)!).models.add(modelId);
@@ -138,7 +141,7 @@ export function subscriptionPlanOptions(snapshot: Snapshot): { labId: string; pl
  * spent at list prices gives the same share at any mix, and mixing the two would change the share for no reason.
  * Only comparing two different models' prices depends on the mix, so that (below) uses measured mixes.
  */
-export function subscriptionPrices(snapshot: Snapshot, chosen: Record<string, string> = {}): Map<string, SubscriptionPrice> {
+export function subscriptionPrices(snapshot: Snapshot, chosen: Record<string, string> = {}, { free = true }: { /** `false`: a model free today is priced on its paid plans, or left to API price with none. */ free?: boolean } = {}): Map<string, SubscriptionPrice> {
   const labOf = Object.keys(chosen).length ? new Map(snapshot.models.map((m) => [m.id, m.labId])) : undefined;
   const out = new Map<string, SubscriptionPrice>();
   const mixes = new Map<string, TokenMix>();
@@ -151,13 +154,18 @@ export function subscriptionPrices(snapshot: Snapshot, chosen: Record<string, st
   }
   const assumed: [string, SubscriptionDetails][] = [];
   for (const o of observationsOf(snapshot, SUBSCRIPTION_BENCHMARK)) {
-    const d = o.details as unknown as SubscriptionDetails | undefined;
+    const row = o.details as unknown as SubscriptionDetails | undefined;
     const modelId = variants.get(o.variantId) ?? o.variantId.split("@")[0];
+    const picked = row?.free && labOf ? chosen[labOf.get(modelId) ?? ""] : undefined;
+    // A plan named for this model's lab beats its free tier: that is the question being asked.
+    const usePaid = !!row?.free && (!free || (picked !== undefined && !!row.paid?.plans?.some((p) => currentPlanName(p.plan) === currentPlanName(picked))));
+    if (usePaid && !row.paid) continue;
+    const d = usePaid ? row.paid : row, rowValue = usePaid ? row.paid!.value : o.value;
     if (d?.sameAs) assumed.push([modelId, d]);
     // A curated ratio is taken as is; 0 is a free tier.
     if (typeof d?.ratio === "number" && Number.isFinite(d.ratio) && d.ratio >= 0) { out.set(modelId, { ratio: d.ratio, plan: d.plan, feeUsd: d.feeUsd, confidence: d.confidence }); continue; }
     const want = labOf && chosen[labOf.get(modelId) ?? ""], pick = want !== undefined ? d?.plans?.find((p) => currentPlanName(p.plan) === currentPlanName(want) && positive(p.usdPerMtok)) : undefined;
-    const value = pick?.usdPerMtok ?? o.value;
+    const value = pick?.usdPerMtok ?? rowValue;
     if (!positive(value)) continue;
     const prices = d?.listPrice ?? aaPrices.get(modelId);
     if (!d?.mix || !prices) continue;

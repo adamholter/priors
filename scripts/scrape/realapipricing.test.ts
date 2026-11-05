@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import source, { parseSubscriptions, type Channels, type Conventions, type Points } from "./sources/realapipricing";
+import source, { parseOpenCodeDeepSeek, parseSubscriptions, type Channels, type Conventions, type Points } from "./sources/realapipricing";
 import { blendedApiPrice, SUBSCRIPTION_BENCHMARK } from "../../src/data/subscription";
 import { BUDGET_PLANS } from "./sources/subscription-overrides";
 
@@ -30,6 +30,37 @@ const payload: Points = { generatedAt: "2026-10-08", points: [
   point("google_ai_pro_us::gemini-4-argon", "Google AI Pro", "Google", 0.303, { model_display: "Gemini 4 Argon", confidence: "low", workload: "lowCache", price_usd: 19.99 }),
   point("opencode_go::gemini-4-argon-contributor", "OpenCode Go", "Google", 0.131, { model_display: "Gemini 4 Argon Contributor", price_usd: 10 }),
 ] };
+
+describe("OpenCode Go's DeepSeek rows", () => {
+  const tr = (cells: string[]) => `<tr>${cells.map((c) => `<td>${c}</td>`).join("")}</tr>`;
+  const rows = (flash: number, pro: number) => [tr(["DeepSeek V4.1 Flash (Off-Peak)", "$0.15", "$0.60", "$0.003", "-", `<strong>$${flash}</strong>`]), tr(["DeepSeek V4.1 Flash (Peak)", "$0.30", "$1.20", "$0.006", "-", `<strong>$${flash}</strong>`]), tr(["DeepSeek V4 Pro (Off-Peak)", "$0.66", "$1.98", "$0.022", "-", `<strong>$${pro}</strong>`]), tr(["DeepSeek V4 Pro (Peak)", "$1.32", "$3.96", "$0.044", "-", `<strong>$${pro}</strong>`])].join("");
+  const page = `<table>${tr(["Go", "$10/month", "Lower-cost"])}${tr(["Go Plus", "$40/month", "Higher"])}${tr(["Go Teams", "$20/member/month", "Every member"])}</table><table>${rows(100, 15)}</table><table>${rows(200, 60)}</table><table>${rows(105, 20)}</table>`;
+  const mix = conventions.standardTokenMix, points = parseOpenCodeDeepSeek(page, mix, "2026-11-05");
+  const share = (id: string) => { const p = points.find((x) => x.id === id)!; return p.real_usd_per_mtok / blendedApiPrice(p.list_price!, mix); };
+  it("gives each plan's share of API price as fee over limit", () => {
+    expect(1 / share("opencode_go::deepseek-v4.1-flash-1017")).toBeCloseTo(10, 6);
+    expect(1 / share("opencode_go_plus::deepseek-v4.1-flash-1017")).toBeCloseTo(5, 6);
+    expect(1 / share("opencode_go_teams::deepseek-v4.1-flash-1017")).toBeCloseTo(5.25, 6);
+    expect(1 / share("opencode_go::deepseek-v4-pro")).toBeCloseTo(1.5, 6);
+    expect(1 / share("opencode_go_plus::deepseek-v4-pro")).toBeCloseTo(1.5, 6);
+    expect(1 / share("opencode_go_teams::deepseek-v4-pro")).toBeCloseTo(1, 6);
+  });
+  it("prices against the peak rate, DeepSeek's list price, and covers Flash's latest revision too", () => {
+    expect(points.find((x) => x.id === "opencode_go::deepseek-v4.1-flash")!.list_price).toEqual({ cached: 0.006, input: 0.3, output: 1.2, currency: "USD" });
+    expect(points.find((x) => x.id === "opencode_go::deepseek-v4-pro")!.list_price).toEqual({ cached: 0.044, input: 1.32, output: 3.96, currency: "USD" });
+  });
+  it("replaces Real API Pricing's older row, and lists every plan to pick", () => {
+    const old = point("opencode_go::deepseek-v4-pro", "OpenCode Go", "DeepSeek", 0.031826862, { model_display: "DeepSeek V4 Pro", price_usd: 10, list_price: { cached: 0.044, input: 1.32, output: 3.96, currency: "USD" } });
+    const row = parseSubscriptions({ ...payload, points: [old] }, conventions, channels, new Date("2026-11-05T00:00:00Z"), points).find((r) => r.modelLabel === "DeepSeek V4 Pro")!;
+    const plans = (row.details as unknown as { plans: { plan: string; usdPerMtok: number }[] }).plans;
+    expect(plans.map((p) => p.plan).sort()).toEqual(["OpenCode Go", "OpenCode Go Plus", "OpenCode Go Teams"]);
+    expect(plans.every((p) => p.usdPerMtok !== 0.031826862)).toBe(true);
+  });
+  it("throws on a changed page, so the last row stands", () => {
+    expect(() => parseOpenCodeDeepSeek("<p>new page</p>", mix, "2026-11-05")).toThrow(/page changed/);
+    expect(() => parseOpenCodeDeepSeek(page.replace("<table>" + rows(200, 60) + "</table>", ""), mix, "2026-11-05")).toThrow(/page changed/);
+  });
+});
 
 describe("list prices", () => {
   const argon = (now: string) => parseSubscriptions(payload, conventions, channels, new Date(now)).find((r) => r.modelLabel === "Gemini 4 Argon")!.details;

@@ -40,6 +40,8 @@ export interface IndexConfig {
   costBasis?: CostBasis;
   /** `true`: plans are cheaper by what limit resets gave their subscribers in the last 30 days. Off by default: the plan is priced as measured. Only matters on the subscription basis. (`false` is what older saved configs carry: the same as unset.) */
   planResets?: boolean;
+  /** `false`: a model free today is priced on its paid plans, or API price with none. Unset counts free tiers. Only matters on the subscription basis. */
+  freeTiers?: boolean;
   /** Subscription basis: the plan to price each lab's models at (lab id → plan name, from the source's plan list). A lab not named, or a model without that plan, uses its median plan. */
   subscriptionPlans?: Record<string, string>;
   timeSource?: TaskMetricSource;
@@ -331,7 +333,7 @@ export function computeIndex(snapshot: Snapshot, config: IndexConfig, view: View
   const c = columnsOf(snapshot);
   const shares = sharesOf(c, config);
   if (!shares.length) return { config, benchmarks: [], ranked: [], excluded: [], candidateModelIds: [], autoHidden: [], estimated: [] };
-  const plans = effectiveBasis(config.costBasis) === "subscription" ? subscriptionPrices(snapshot, config.subscriptionPlans) : undefined;
+  const plans = effectiveBasis(config.costBasis) === "subscription" ? subscriptionPrices(snapshot, config.subscriptionPlans, { free: config.freeTiers !== false }) : undefined;
   const detail: Detail = {
     costData: taskMetricData(snapshot, view.costBenchmark ?? config.costSource ?? "aa", "cost"), plans,
     resetBoosts: plans && config.planResets === true ? planResetBoosts(snapshot) : undefined,

@@ -270,3 +270,39 @@ describe("a list price Artificial Analysis does not use", () => {
   });
 });
 
+describe("not counting free tiers", () => {
+  const mix = { cache: 0.97, input: 0.025, output: 0.005 }, listPrice = { cached: 0.006, input: 0.3, output: 1.2 }, blended = blendedApiPrice(listPrice, mix);
+  const plan = (name: string, feeUsd: number, x: number) => ({ plan: name, feeUsd, usdPerMtok: blended / x, confidence: "high" });
+  const paid = { plan: "Mistral Vibe Pro", feeUsd: 14.99, confidence: "medium", mix, listPrice, value: blended / 21, plans: [plan("Mistral Vibe Pro", 14.99, 21), plan("OpenCode Go", 10, 10), plan("OpenCode Go Plus", 40, 5)] };
+  const row = (variantId: string, details: Record<string, unknown>) => ({ benchmarkId: SUBSCRIPTION_BENCHMARK, variantId, value: 0, details });
+  const free = { plan: "OpenCode Zen free tier", feeUsd: 0, confidence: "high", ratio: 0, free: true, plans: [] };
+  const snap = {
+    models: [{ id: "flash", labId: "deepseek" }, { id: "lonely", labId: "other" }, { id: "sibling", labId: "deepseek" }], variants: [{ id: "flash@max", modelId: "flash" }, { id: "lonely@max", modelId: "lonely" }, { id: "sibling@max", modelId: "sibling" }],
+    benchmarks: [{ id: SUBSCRIPTION_BENCHMARK }],
+    observations: [row("flash@max", { ...free, paid }), row("lonely@max", free), { benchmarkId: SUBSCRIPTION_BENCHMARK, variantId: "sibling@max", value: blended / 10, details: { ...paid, plan: "OpenCode Go", plans: [plan("OpenCode Go", 10, 10), plan("OpenCode Go Plus", 40, 5)] } }],
+  } as unknown as Snapshot;
+  it("costs nothing by default", () => expect(subscriptionPrices(snap).get("flash")).toMatchObject({ ratio: 0, plan: "OpenCode Zen free tier" }));
+  it("uses the model's paid plan when free tiers are off", () => {
+    const p = subscriptionPrices(snap, {}, { free: false }).get("flash")!;
+    expect(p.plan).toBe("Mistral Vibe Pro");
+    expect(1 / p.ratio).toBeCloseTo(21, 6);
+  });
+  it("leaves a model with no paid plan to API price", () => expect(subscriptionPrices(snap, {}, { free: false }).has("lonely")).toBe(false));
+  it("lets a plan picked for the lab beat the free tier, which is the question being asked", () => {
+    const p = subscriptionPrices(snap, { deepseek: "OpenCode Go" }).get("flash")!;
+    expect(p.plan).toBe("OpenCode Go");
+    expect(1 / p.ratio).toBeCloseTo(10, 6);
+    expect(subscriptionPrices(snap, { deepseek: "Some Other Plan" }).get("flash")!.ratio).toBe(0);
+  });
+  it("lists a free model's paid plans in the picker", () => {
+    expect(subscriptionPlanOptions(snap).find((l) => l.labId === "deepseek")!.plans.map((p) => p.plan)).toEqual(expect.arrayContaining(["Mistral Vibe Pro", "OpenCode Go", "OpenCode Go Plus"]));
+  });
+  it("round-trips through a link, and an unset config counts free tiers", () => {
+    const base = decodeIndex("Test|a:100", "t")!;
+    expect(base.freeTiers).toBeUndefined();
+    expect(encodeIndex(base)).not.toContain("free=");
+    expect(decodeIndex(encodeIndex({ ...base, freeTiers: false }), "t")!.freeTiers).toBe(false);
+  });
+  it("reaches the browser", () => expect((clientSnapshot(snap).observations[0].details as { paid?: unknown }).paid).toBeTruthy());
+});
+
