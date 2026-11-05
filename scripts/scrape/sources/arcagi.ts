@@ -4,8 +4,13 @@
  * Only rows whose modelType is a plain model (CoT / Base LLM) are emitted; human baselines, Kaggle
  * ensembles and bespoke refinement systems are dropped so every row is a real model.
  * costPerTask (v1/v2) -> costUsd. v3 publishes total run cost only, which is kept in the note.
+ *
+ * ARC runs some models at several thinking budgets ("Gemini 2.5 Flash (Preview) (Thinking 24K)"). Those rows name one
+ * setting each, so they must not collapse onto one variant, which would keep the best score under whatever effort the
+ * model happens to have elsewhere (`budgetIdentity`).
  */
 import type { Source, ScrapeResult, RawRow, Benchmark } from "../../../src/data/types";
+import { normalizeLabel } from "../../../src/data/normalize";
 
 const SITE = "https://arcprize.org/leaderboard";
 const DATA = "https://arcprize.org/media/data/leaderboard";
@@ -24,6 +29,27 @@ const VERSIONS = [
 ];
 const MODEL_TYPES = new Set(["cot", "base llm"]);
 const NON_MODEL = /mturker|human|architects|stem grad|kaggle/i;
+
+/** Google's published thinking_budget for each reasoning_effort on Gemini 2.5 (ai.google.dev/gemini-api/docs/openai). Budgets with no word stay named configurations. */
+const GEMINI_25_BUDGETS: Record<string, string> = { "1": "low", "8": "medium", "24": "high" };
+const budgetOf = (label: string) => label.match(/\(Thinking,?\s*(\d+)K\)/i)?.[1];
+
+/**
+ * Keeps a model's thinking-budget rows apart. A budget with a published effort word takes it; any other is its own
+ * configuration, named as ARC names it. The same model's no-budget row is its default on Gemini 2.5 and thinking off on
+ * Claude, where thinking only runs when a budget is set. Models with no budget rows are left to the label.
+ */
+export function budgetIdentity(label: string, sourceId: string, budgeted: Set<string>): Pick<RawRow, "effort" | "identity" | "modelMetadata"> {
+  const n = normalizeLabel(label);
+  if (!n.ok || !budgeted.has(n.modelId)) return {};
+  const gemini = n.modelId.startsWith("gemini-2.5"), k = budgetOf(label);
+  const scoped = (effort: "default", configuration?: string): Pick<RawRow, "identity" | "modelMetadata"> => ({
+    identity: { modelId: n.modelId, modelName: n.modelName, labId: n.labId, effort, variantId: `${n.modelId}@${effort}${configuration ? `~${configuration}` : ""}`, configuration, sourceModelId: sourceId, sourceSlug: sourceId },
+    modelMetadata: { sourceModelUrl: SITE },
+  });
+  if (!k) return gemini ? scoped("default") : n.effort ? {} : { effort: "none" };
+  return gemini && GEMINI_25_BUDGETS[k] ? { effort: GEMINI_25_BUDGETS[k] } : scoped("default", `arc-thinking-${k}k`);
+}
 
 const source: Source = {
   id: "arcagi",
@@ -53,6 +79,7 @@ const source: Source = {
       raw[`${v.key}.json`] = JSON.stringify(file, null, 2);
       let n = 0, dropped = 0;
       const sorted = [...file.evaluations].sort((a, b) => b.score - a.score);
+      const budgeted = new Set(file.evaluations.flatMap((e) => { const n = budgetOf(e.modelDisplayName) ? normalizeLabel(e.modelDisplayName) : undefined; return n?.ok ? [n.modelId] : []; }));
       for (const e of sorted) {
         if (e.display === false) continue;
         const type = (e.modelType ?? "").toLowerCase();
@@ -62,6 +89,7 @@ const source: Source = {
         rows.push({
           benchmarkId: v.id,
           modelLabel: e.modelDisplayName,
+          ...budgetIdentity(e.modelDisplayName, e.modelId, budgeted),
           value: e.score * 100,
           costUsd: e.costPerTask ?? undefined,
           harness,

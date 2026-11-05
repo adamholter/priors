@@ -11,7 +11,14 @@ export const AA_PERFORMANCE_V3: SeriesBreak = {
   url: "https://artificialanalysis.ai/methodology/performance-benchmarking",
 };
 
-export const SERIES_BREAKS: SeriesBreak[] = [AA_PERFORMANCE_V3];
+/** Dated Nov 4 by Epoch. The Nov 3 snapshot still has the old fit, and Nov 4 is the first with the new one. */
+export const EPOCH_ECI_BAYESIAN: SeriesBreak = {
+  date: "2026-11-04", benchmarkIds: ["epoch-eci"],
+  note: "Epoch refitted the Capabilities Index with a Bayesian model. Models above 150 moved up about 0.7 on average, and the 76 models below 125 fell about 14. Values before Nov 4, 2026 are not comparable with later ones.",
+  url: "https://epoch.ai/publications/eci-bayesian-methodology",
+};
+
+export const SERIES_BREAKS: SeriesBreak[] = [AA_PERFORMANCE_V3, EPOCH_ECI_BAYESIAN];
 
 export function breaksFor(benchmarkIds: Iterable<string>): SeriesBreak[] {
   const ids = new Set(benchmarkIds);

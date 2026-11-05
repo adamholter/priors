@@ -11,7 +11,8 @@ const DATA = "https://epoch.ai/data/eci_scores.csv";
 
 export const ECI: Benchmark = {
   id: "epoch-eci", name: "Epoch Capabilities Index", shortName: "Epoch ECI", sourceId: "epoch-eci", url: PAGE,
-  description: "Epoch AI's Capabilities Index: a single score per model fitted across many benchmarks (item-response model), so scores are comparable across models tested on different sets. About 100 is GPT-4.1 and about 150 is a current frontier model. Data: Epoch AI, CC BY.",
+  description: "Epoch AI's Capabilities Index: a single score per model fitted across many benchmarks (a Bayesian item-response model since Nov 4, 2026), so scores are comparable across models tested on different sets. Claude 3.5 Sonnet is set to 130 and GPT-5 to 150. Intervals are 90% credible intervals. Epoch keeps each model's best score per benchmark across settings, so a row is the model's best measured setting, not one reasoning effort. Data: Epoch AI, CC BY.",
+  effortBasis: "best-measured",
   unit: "score", higherIsBetter: true, category: "composite", versionPolicy: { kind: "fresh" }, defaultWeight: 0,
 };
 

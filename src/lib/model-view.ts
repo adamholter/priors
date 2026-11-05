@@ -41,7 +41,7 @@ export interface ViewField {
   variants: { id: string; modelId: string; effort: string; cost?: number }[];
   names: Record<string, string>;
 }
-export interface ViewBenchmark extends Pick<Benchmark, "id" | "name" | "category" | "unit" | "higherIsBetter"> {
+export interface ViewBenchmark extends Pick<Benchmark, "id" | "name" | "category" | "unit" | "higherIsBetter" | "effortBasis"> {
   /** Results, best first: an index into `variants` and the score. */
   v: number[]; value: number[];
 }
@@ -126,9 +126,9 @@ function measuredIn(snapshot: Snapshot, modelId: string, mix: IndexConfig, perBe
 function fieldOf(snapshot: Snapshot, list: Benchmark[], perBench: Map<string, BenchRow[]>): ViewField {
   const variants: ViewField["variants"] = [], at = new Map<string, number>(), names: ViewField["names"] = {};
   const modelNames = new Map(snapshot.models.map((m) => [m.id, m.name]));
-  const benchmarks = list.map(({ id, name, category, unit, higherIsBetter }): ViewBenchmark => {
+  const benchmarks = list.map(({ id, name, category, unit, higherIsBetter, effortBasis }): ViewBenchmark => {
     const rows = perBench.get(id)!;
-    return { id, name, category, unit, higherIsBetter, value: rows.map((r) => r.value), v: rows.map((r) => {
+    return { id, name, category, unit, higherIsBetter, ...(effortBasis ? { effortBasis } : {}), value: rows.map((r) => r.value), v: rows.map((r) => {
       let i = at.get(r.variantId);
       if (i === undefined) { i = variants.length; at.set(r.variantId, i); variants.push({ id: r.variantId, modelId: r.modelId, effort: r.effort, cost: r.cost }); names[r.modelId] = modelNames.get(r.modelId) ?? r.modelId; }
       return i;

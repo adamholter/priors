@@ -69,7 +69,7 @@ export function BenchmarkInfo({ snapshot, benchmarkId, inMix, onAdd, onClose }: 
         {data.top.length ? <ol className="grid gap-[5px]">
           {data.top.map((r, i) => <li key={r.name} className="grid grid-cols-[20px_minmax(0,1.15fr)_minmax(56px,1fr)_60px] items-center gap-2.5 h-[24px] text-[12.5px]">
             <span className="cap text-right">{i + 1}</span>
-            <Link href={`/models/${r.id}` as "/"} className="truncate hover:text-indigo">{r.name}{r.effort !== "default" && <em className="not-italic cap ml-1.5">{r.effort}</em>}</Link>
+            <Link href={`/models/${r.id}` as "/"} className="truncate hover:text-indigo">{r.name}{r.effort !== "default" && !b.effortBasis && <em className="not-italic cap ml-1.5">{r.effort}</em>}</Link>
             <span className="h-[9px] bg-hair-2 rounded-[2px] overflow-hidden"><i className="block h-full rounded-[2px]" style={{ width: `${data.width(r.value)}%`, background: r.color }} /></span>
             <span className="num text-right">{format(b, r.value)}</span>
           </li>)}

@@ -1191,6 +1191,18 @@ try {
     } finally { await c.close(); }
   });
 
+  await check("a benchmark whose publisher changed method says so: Epoch ECI's Nov 4 refit", async () => {
+    const c = await (await browser.newContext({ viewport: { width: 1280, height: 900 } })).newPage();
+    c.on("pageerror", (e) => errors.push(`${c.url()}: ${e.message}`));
+    try {
+      await c.goto(`${BASE}/benchmarks/epoch-eci`, { waitUntil: "domcontentloaded" });
+      const note = c.locator('[data-series-break="2026-11-04"]');
+      await note.waitFor({ timeout: 30000 });
+      assert.match(await note.innerText(), /Bayesian/);
+      assert.equal(await note.getByRole("link").getAttribute("href"), "https://epoch.ai/publications/eci-bayesian-methodology");
+    } finally { await c.context().close(); }
+  });
+
   await check("a benchmark's info modal opens that benchmark in Priors", async () => {
     const c = await browser.newPage({ viewport: { width: 1280, height: 900 } });
     try {

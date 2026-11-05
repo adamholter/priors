@@ -12,6 +12,9 @@ describe("Ramp Accounting Bench parser", () => {
     expect(r.rows[0].durationSec).toBeCloseTo(16.7 * 60);
     expect(r.rows[0].details).toMatchObject({ passAt1: 23.36, passAt3: 26.28, judgeModel: "GPT-5.6 Luna" });
     expect(r.rows[1]).toMatchObject({ modelLabel: "Claude Opus 5.5", value: 50.53 });
+    expect(r.rows.every((x) => x.effort === "high"), "Ramp ran every model at high").toBe(true);
+    expect(r.benchmarks[0].description).toMatch(/mean share of criteria met across the three attempts/);
+    expect(r.benchmarks[0].description).not.toMatch(/best-of/);
     expect(r.benchmarks[0]).toMatchObject({ id: "ramp-accounting-bench", unit: "percent", defaultWeight: 0, lastUpdated: "2026-10-14T19:15:50.422493Z" });
   });
   it("fails visibly when the bundle shape changes", () => {

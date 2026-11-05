@@ -4,7 +4,8 @@
  * the same Mercor Archipelago ReAct harness and graded by an LLM judge against per-task criteria.
  * The site is a Vite SPA with no data endpoint: the results ship as an object literal inside the
  * benchmark page's JS chunk, which main.js names, so both hashed file names are discovered live.
- * Value is mean criteria score @3 (the site's headline number); cost is mean measured cost per attempt
+ * Ramp states "All models are run with high reasoning effort", so every row is high. Value is the mean of the three
+ * attempts' criteria scores (the site's headline number, "Reward@3"); cost is mean measured cost per attempt
  * (the site's cost axis), tokens and minutes are per-attempt means.
  */
 import type { Source, ScrapeResult, RawRow } from "../../../src/data/types";
@@ -65,7 +66,7 @@ export function parseRampAccountingBench(js: string): ScrapeResult {
     if (!e.displayName || typeof m?.meanCriteriaAt3 !== "number") continue;
     const pct = (x?: number) => (typeof x === "number" ? +(x * 100).toFixed(2) : undefined);
     rows.push({
-      benchmarkId: "ramp-accounting-bench", modelLabel: e.displayName, value: +(m.meanCriteriaAt3 * 100).toFixed(2),
+      benchmarkId: "ramp-accounting-bench", modelLabel: e.displayName, effort: "high", value: +(m.meanCriteriaAt3 * 100).toFixed(2),
       sourceUrl: SITE, labHint: e.provider, harness: harness || undefined,
       costUsd: typeof m.meanCost === "number" ? m.meanCost : undefined,
       outputTokens: m.meanOutputTokens, durationSec: typeof m.meanDurationMinutes === "number" ? m.meanDurationMinutes * 60 : undefined,
@@ -82,7 +83,7 @@ export function parseRampAccountingBench(js: string): ScrapeResult {
   return {
     benchmarks: [{
       id: "ramp-accounting-bench", name: "Ramp Accounting Bench", sourceId: "ramp-accounting-bench", url: SITE, lastUpdated: updated,
-      description: `Long-horizon accounting work across realistic financial systems: ${tasks ?? 137} tasks, ${attempts ?? 3} attempts each in one shared agent harness${harness ? ` (${harness})` : ""}, graded by ${judge ?? "an LLM judge"} against per-task criteria. Value is the mean share of criteria met, best-of-3 as Ramp publishes it. Cost is per attempt.`,
+      description: `Long-horizon accounting work across realistic financial systems: ${tasks ?? 137} tasks, ${attempts ?? 3} attempts each in one shared agent harness${harness ? ` (${harness})` : ""}, graded by ${judge ?? "an LLM judge"} against per-task criteria. All models ran at high reasoning effort. Value is the mean share of criteria met across the three attempts. Cost is per attempt.`,
       normalization: { kind: "linear", min: 0, max: 100 },
       unit: "percent", higherIsBetter: true, category: "agentic", eligibleForDefault: false, defaultWeight: 0,
     }],

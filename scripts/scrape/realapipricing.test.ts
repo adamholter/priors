@@ -44,6 +44,18 @@ describe("Real API Pricing subscriptions", () => {
     expect(computed.map((r) => r.modelLabel)).toEqual(["GPT 5.6 Sol", "Claude Opus 5.5", "Claude Fable 5", "GLM 5.3", "Gemini 4 Argon", "Hy4", "Hy4 preview", "Qwen3.8 Max"]);
     expect(row("GPT 5.6 Sol").details).toMatchObject({ plans: [{ plan: "ChatGPT Pro 20x" }, { plan: "ChatGPT Pro 10x" }, { plan: "ChatGPT Plus" }] });
   });
+  it("marks Cursor's old plans as legacy on its own model, and never prices another lab's model on them", () => {
+    const pts = { generatedAt: "x", points: [
+      point("cursor_ultra::composer-2.5", "Cursor Ultra", "Cursor", 0.01, { model: "composer-2.5", model_display: "Composer 2.5" }),
+      point("cursor_ultra::claude-opus-5.5", "Cursor Ultra", "Anthropic", 0.001, { model: "claude-opus-5.5", model_display: "Claude Opus 5.5" }),
+      point("claude_max_20x::claude-opus-5.5", "Claude Max 20x", "Anthropic", 0.0063, { model: "claude-opus-5.5", model_display: "Claude Opus 5.5" }),
+    ] };
+    const found = parseSubscriptions(pts as never, conventions, channels);
+    const named = (label: string) => found.find((r) => r.modelLabel === label)!.details as { plan: string; plans: { plan: string }[] };
+    expect(named("Composer 2.5").plan).toBe("Cursor Ultra, legacy");
+    expect(named("Claude Opus 5.5").plan).toBe("Claude Ultra");
+    expect(named("Claude Opus 5.5").plans.map((p) => p.plan)).toEqual(["Claude Ultra"]);
+  });
   it("prices plans measured before an allowance change at the allowance they sell with now: Pro 100 doubled to 10× Plus, Pro 200 keeps 20×", () => {
     const sol = (row("GPT 5.6 Sol").details as { plans: { plan: string; feeUsd: number; usdPerMtok: number }[] }).plans;
     expect(sol.find((p) => p.plan === "ChatGPT Pro 10x")).toMatchObject({ feeUsd: 100, usdPerMtok: 0.0163 });

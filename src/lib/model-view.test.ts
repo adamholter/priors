@@ -52,3 +52,16 @@ describe("model view", async () => {
     expect(clientSnapshot(full).observations.some((o) => o.ci)).toBe(true);
   });
 });
+
+describe("a benchmark scored on each model's best setting", () => {
+  it("reaches the model page, so it can't be read as one effort", async () => {
+    const { loadSnapshot } = await import("@/data/load");
+    const full = structuredClone((await loadSnapshot())!);
+    const eci = full.benchmarks.find((b) => b.id === "epoch-eci")!;
+    eci.effortBasis = "best-measured";
+    const id = full.variants.find((v) => full.observations.some((o) => o.benchmarkId === eci.id && o.variantId === v.id))!.modelId;
+    const config = defaultConfig(full);
+    const view = modelView(full, id, config, config, { inlineOthers: true });
+    expect([...view.field.benchmarks, ...(view.otherField?.benchmarks ?? [])].find((b) => b.id === eci.id)?.effortBasis).toBe("best-measured");
+  });
+});

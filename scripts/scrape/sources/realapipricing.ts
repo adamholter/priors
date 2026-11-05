@@ -15,7 +15,7 @@
 import type { Source, ScrapeResult, RawRow } from "../../../src/data/types";
 import { normalizeLabel } from "../../../src/data/normalize";
 import { blendedApiPrice, SUBSCRIPTION_BENCHMARK, type SubscriptionDetails, type TokenMix } from "../../../src/data/subscription";
-import { BUDGET_PLANS, PLAN_CHANGES, PLAN_MULTIPLES, SUBSIDY_ASSUMPTIONS, SUBSIDY_OVERRIDES } from "./subscription-overrides";
+import { BUDGET_PLANS, LEGACY_PLANS, PLAN_CHANGES, PLAN_MULTIPLES, SUBSIDY_ASSUMPTIONS, SUBSIDY_OVERRIDES } from "./subscription-overrides";
 
 const SITE = "https://realapipricing.com";
 const REPO = "https://github.com/FeiZhuLulu/real-api-pricing";
@@ -54,7 +54,7 @@ export function parseSubscriptions(json: Points, conventions: Conventions, chann
   const rows: RawRow[] = [];
   const taken = new Set<string>();
   // "(9/14+)" marks which generation of a plan's limits was measured; it is not part of the plan's name.
-  const name = (p: Point) => (p.plan_en || p.plan).replace(/\s*\(\d+\/\d+\+\)$/, "");
+  const name = (p: Point) => `${(p.plan_en || p.plan).replace(/\s*\(\d+\/\d+\+\)$/, "")}${LEGACY_PLANS.some((prefix) => p.id.startsWith(prefix)) ? ", legacy" : ""}`;
   // A budget plan on another lab's model is listed with that model's first-party plans, so it can be picked.
   const hosted = (model: string) => (resold.get(model) ?? []).filter((p) => budgetOf(p.id));
   const add = (all: Point[], pick: Point, note: string, extra: Point[] = []) => {

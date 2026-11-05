@@ -142,7 +142,7 @@ const readTools: Tool[] = [
       if (a.effort) obs = obs.filter((o) => vs.get(o.variantId)?.effort === a.effort);
       obs.sort((x, y) => (b.higherIsBetter ? y.value - x.value : x.value - y.value));
       return { benchmark: { id: b.id, name: b.name, category: b.category, unit: b.unit, higherIsBetter: b.higherIsBetter, url: b.url, priorsUrl: `https://mypriors.com/benchmarks/${b.id}`, lastUpdated: b.lastUpdated ?? null, description: b.description }, total: obs.length,
-        rows: obs.slice(0, cap(a.limit, 50, 300)).map((o, i) => { const v = vs.get(o.variantId), m = v && ms.get(v.modelId); return { rank: i + 1, model: m?.name ?? o.variantId, modelId: v?.modelId, variantId: o.variantId, effort: v?.effort, value: o.value, ci: o.ci ?? null, costUsd: o.costUsd ?? null, outputTokens: o.outputTokens ?? null, durationSec: o.durationSec ?? null, sourceUrl: o.sourceUrl }; }) };
+        rows: obs.slice(0, cap(a.limit, 50, 300)).map((o, i) => { const v = vs.get(o.variantId), m = v && ms.get(v.modelId); return { rank: i + 1, model: m?.name ?? o.variantId, modelId: v?.modelId, variantId: o.variantId, effort: b.effortBasis ? "best measured setting" : v?.effort, value: o.value, ci: o.ci ?? null, costUsd: o.costUsd ?? null, outputTokens: o.outputTokens ?? null, durationSec: o.durationSec ?? null, sourceUrl: o.sourceUrl }; }) };
     },
   },
   {

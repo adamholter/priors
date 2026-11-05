@@ -18,7 +18,7 @@ import { ModelCostSpeed } from "./ModelCostSpeed";
 import { escapeSvg as esc } from "../chart/export-frame";
 import { useNearView } from "../use-near-view";
 
-type Bench = Pick<Benchmark, "unit" | "higherIsBetter" | "name">;
+type Bench = Pick<Benchmark, "unit" | "higherIsBetter" | "name" | "effortBasis">;
 
 function fmt(b: Pick<Bench, "unit">, v: number) {
   if (b.unit === "percent") return `${v.toFixed(1)}%`;
@@ -144,7 +144,7 @@ function BenchCard({ b, view, modelId, color, onInfo }: { b: ViewBenchmark; view
       <ol className="grid gap-[4px]">
         {mine.map((r) => <li key={r.variantId} className="grid grid-cols-[52px_minmax(0,1fr)_70px] items-center gap-3 text-[12.5px] h-[24px]">
           <span className="num text-[15px]" style={{ color: "var(--indigo)" }}>#{r.rank}</span>
-          <span className="truncate">{r.effort === "default" ? "default" : r.effort} <span className="cap">of {rows.length}</span></span>
+          <span className="truncate">{b.effortBasis ? "best measured setting" : r.effort === "default" ? "default" : r.effort} <span className="cap">of {rows.length}</span></span>
           <span className="num text-right">{fmt(b, r.value)}</span>
         </li>)}
       </ol>
@@ -179,7 +179,8 @@ function BenchScatter({ b, rows, modelId, color }: { b: Bench; rows: Row[]; mode
 /** Every result on the benchmark spread along its score (best to the right); this model, the leader and the median marked. */
 function BenchStrip({ b, rows, modelId, color }: { b: Bench; rows: Row[]; modelId: string; color: { lab: string; name: (id: string) => string } }) {
   const { field, mine, lead } = useMemo(() => {
-    const point = (r: Row): StripPoint => ({ key: r.variantId, value: r.value, label: r.effort === "default" ? "" : r.effort, tip: `<b>${esc(color.name(r.modelId))} ${esc(r.effort)}</b><br/><span style="font-family:var(--font-jetbrains)">${fmt(b, r.value)} · #${r.rank} of ${rows.length}</span>` });
+    const setting = (r: Row) => b.effortBasis ? "best measured setting" : r.effort;
+    const point = (r: Row): StripPoint => ({ key: r.variantId, value: r.value, label: b.effortBasis || r.effort === "default" ? "" : r.effort, tip: `<b>${esc(color.name(r.modelId))} ${esc(setting(r))}</b><br/><span style="font-family:var(--font-jetbrains)">${fmt(b, r.value)} · #${r.rank} of ${rows.length}</span>` });
     const top = rows[0];
     return { field: rows.filter((r) => r.modelId !== modelId).map(point), mine: rows.filter((r) => r.modelId === modelId).map(point), lead: top && top.modelId !== modelId ? { ...point(top), label: color.name(top.modelId) } : undefined };
   }, [b, rows, modelId, color]);

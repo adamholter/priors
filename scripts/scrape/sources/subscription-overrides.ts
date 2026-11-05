@@ -81,6 +81,12 @@ export const PLAN_CHANGES: PlanChange[] = [
 ];
 
 /**
+ * Plans no longer sold to new customers. Real API Pricing measured these allowances, and they still hold for existing
+ * customers, so they stay priced but say so. Cursor's replacements publish no token allowance. (cursor.com/docs/models-and-pricing, read 2026-11-04.)
+ */
+export const LEGACY_PLANS = ["cursor_"];
+
+/**
  * Plans a lab sells as a multiple of a base plan's allowance. A model measured on `base` but not on this plan
  * (or only at low confidence) gets it derived: base token price × (fee ÷ base fee) ÷ `multiple`, one grade less
  * confident. Real API Pricing derives its own Pro rows the same way ("Plus × 官方 5x").

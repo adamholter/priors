@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { AA_PERFORMANCE_V3, breaksFor, onAaPerformanceV3 } from "./series-breaks";
+import { AA_PERFORMANCE_V3, breaksFor, EPOCH_ECI_BAYESIAN, onAaPerformanceV3 } from "./series-breaks";
 import { taskMetricDescription } from "./task-metrics";
 
 describe("series breaks", () => {
@@ -7,6 +7,9 @@ describe("series breaks", () => {
     expect(breaksFor(["aa-output-speed", "swe-bench"])).toEqual([AA_PERFORMANCE_V3]);
     expect(breaksFor(["aa-ttft"])).toEqual([AA_PERFORMANCE_V3]);
     expect(breaksFor(["swe-bench", "aa-intelligence-index-v5"])).toEqual([]);
+    expect(breaksFor(["epoch-eci"])).toEqual([EPOCH_ECI_BAYESIAN]);
+    expect(EPOCH_ECI_BAYESIAN.date).toBe("2026-11-04");
+    expect(breaksFor(["epoch-eci", "aa-ttft"]).length).toBe(2);
   });
   it("splits AA's speed method at the first snapshot on it", () => {
     expect(onAaPerformanceV3("2026-11-03")).toBe(false);

@@ -105,12 +105,13 @@ export function BenchmarkPage({ snapshot, benchmarkId, models, relatives, initia
             <h1 className="text-[34px] sm:text-[44px] leading-[1.05]">{b.name}</h1>
             <p className="text-[15px] text-ink-2 max-w-[68ch]">{b.description}</p>
             {breaksFor([benchmarkId]).map((x) => <p key={x.date} data-series-break={x.date} className="text-[13px] text-ink-2 max-w-[68ch]">{x.note} <a href={x.url} target="_blank" rel="noreferrer" className="underline underline-offset-2 hover:text-ink">Their method</a></p>)}
+            {b.effortBasis && <p data-effort-basis className="text-[13px] text-ink-2 max-w-[68ch]">Each row is the model&rsquo;s best measured setting, not one reasoning effort: the publisher keeps each model&rsquo;s best score across settings.</p>}
             <div className="mt-2"><Relatives current={benchmarkId} family={relatives.family} versions={relatives.versions} /></div>
             <p className="cap">{models} models · {result.ranked.length} results{b.lastUpdated ? ` · updated ${b.lastUpdated}` : ` · data as of ${snapshot.date}`}{host && <> · <a href={b.url} target="_blank" rel="noreferrer" className="hover:text-ink underline decoration-dotted">{host} ↗</a></>}</p>
           </section>
 
           <section className="chart-panel">
-            <Rankings anchor="rankings" format={(r) => { const v = published(r); return v != null ? fmt(b, v) : r.score.toFixed(1); }} title={title("Leaderboard")} ranked={rows} labs={snapshot.labs} showEffort={rankingMode === "all"} limit={25}
+            <Rankings anchor="rankings" format={(r) => { const v = published(r); return v != null ? fmt(b, v) : r.score.toFixed(1); }} title={title("Leaderboard")} ranked={rows} labs={snapshot.labs} showEffort={rankingMode === "all" && !b.effortBasis} limit={25}
               actions={<ChartSettings label="Ranking" efforts={{ value: config.rankingEfforts ?? [...EFFORT_CHOICES], onChange: (rankingEfforts) => patch({ rankingEfforts }), withMode: true }} mode={rankingMode} onChange={(rankingVariants) => patch({ rankingVariants })} {...releaseProps} {...modelPicker} />} />
           </section>
 
@@ -164,7 +165,7 @@ function Row({ r, i, b, hasCost, basis, obs, ci, standard, harness }: { r: Ranke
   return <tr className="border-t hairline">
     <td className="py-1.5 pr-3 num text-grey">{i + 1}</td>
     <td className="py-1.5 pr-3"><Link href={`/models/${r.model.id}` as "/"} className="hover:text-ink">{r.model.name}</Link></td>
-    <td className="py-1.5 pr-3 mono text-ink-2">{r.variant.effort === "default" ? "" : r.variant.effort}</td>
+    <td className="py-1.5 pr-3 mono text-ink-2">{b.effortBasis ? "best measured setting" : r.variant.effort === "default" ? "" : r.variant.effort}</td>
     <td className="py-1.5 pr-3 num text-right" title={obs?.ci ? `interval ${fmt(b, obs.ci[0])} to ${fmt(b, obs.ci[1])}` : obs?.note}>{raw != null ? fmt(b, raw) : r.score.toFixed(1)}{half != null && <span className="text-grey"> ±{fmt(b, half).replace("%", "")}</span>}{obs?.details?.launchClaim != null && <span className="text-grey text-[11px] ml-1" data-launch-claim>launch</span>}</td>
     {hasCost && <td className="py-1.5 pr-3 num text-right" title={r.costPlan ? `${r.costPlan.plan}: ${subscriptionShare(r.costPlan.ratio)} of API price` : undefined}>{r.costUsd != null ? usd(r.costUsd) : ""}</td>}
     {hasCost && basis === "subscription" && <td className="py-1.5 pr-3 num text-right text-grey">{api != null ? usd(api) : ""}</td>}

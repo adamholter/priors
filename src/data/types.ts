@@ -59,6 +59,8 @@ export interface Benchmark {
   sourceId: string; // scraper that produced it
   url: string; // canonical public page
   description: string; // one or two sentences, what it measures
+  /** The value is the model's best across settings, not one effort: the row sits on a variant so it can join others, but must not be read as that effort. */
+  effortBasis?: "best-measured";
   /** Date the publisher last updated this benchmark's results, when published. */
   lastUpdated?: string; // YYYY-MM-DD; distinct from benchmark release and scrape dates
   /** Fixed source-defined scale; independent of which models the user filters. */
