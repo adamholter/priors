@@ -31,6 +31,27 @@ const payload: Points = { generatedAt: "2026-10-08", points: [
   point("opencode_go::gemini-4-argon-contributor", "OpenCode Go", "Google", 0.131, { model_display: "Gemini 4 Argon Contributor", price_usd: 10 }),
 ] };
 
+describe("ChatGPT Pro 500", () => {
+  const rows = parseSubscriptions(payload, conventions, channels);
+  const sol = rows.find((r) => r.modelLabel === "GPT 5.6 Sol")!;
+  const details = sol.details as unknown as { plan: string; plans: { plan: string; usdPerMtok: number; feeUsd: number }[] };
+  it("is listed at 50 times Plus, the only plan with Ultrafast", () => {
+    const plan = details.plans.find((p) => p.plan === "ChatGPT Pro 500");
+    expect(plan?.feeUsd).toBe(500);
+    expect(plan?.usdPerMtok).toBeCloseTo(0.0325 * 25 / 50, 6);
+  });
+  it("does not move the median a model is priced at by default", () => {
+    // Pro 500 falls just above the middle here, so counting it would land the median on it.
+    const measured = parseSubscriptions({ ...payload, points: [
+      point("chatgpt_plus::gpt-6.1-sol", "ChatGPT Plus", "OpenAI", 0.0325, { model_display: "GPT 6.1 Sol", confidence: "high" }),
+      point("chatgpt_pro_5x::gpt-6.1-sol", "ChatGPT Pro 10x", "OpenAI", 0.015, { model_display: "GPT 6.1 Sol", price_usd: 100, data_date: "2026-10-30" }),
+      point("chatgpt_pro_20x::gpt-6.1-sol", "ChatGPT Pro 20x", "OpenAI", 0.0155, { model_display: "GPT 6.1 Sol", price_usd: 200 }),
+    ] }, conventions, channels)[0];
+    expect((measured.details as unknown as { plans: { plan: string }[] }).plans.map((p) => p.plan)).toContain("ChatGPT Pro 500");
+    expect(measured).toMatchObject({ value: 0.0155, details: { plan: "ChatGPT Pro 20x" } });
+  });
+});
+
 describe("Real API Pricing subscriptions", () => {
   const rows = parseSubscriptions(payload, conventions, channels);
   const row = (label: string) => rows.find((r) => r.modelLabel === label)!;
@@ -42,7 +63,7 @@ describe("Real API Pricing subscriptions", () => {
   const computed = rows.filter((r) => !(r.details as { source?: string; sameAs?: string }).source && !(r.details as { sameAs?: string }).sameAs && r.sourceUrl !== VIBE);
   it("keeps one row per model on its lab's own plans: no resellers, metered APIs or unmetered promos", () => {
     expect(computed.map((r) => r.modelLabel)).toEqual(["GPT 5.6 Sol", "Claude Opus 5.5", "Claude Fable 5", "GLM 5.3", "Gemini 4 Argon", "Hy4", "Hy4 preview", "Qwen3.8 Max"]);
-    expect(row("GPT 5.6 Sol").details).toMatchObject({ plans: [{ plan: "ChatGPT Pro 20x" }, { plan: "ChatGPT Pro 10x" }, { plan: "ChatGPT Plus" }] });
+    expect(row("GPT 5.6 Sol").details).toMatchObject({ plans: [{ plan: "ChatGPT Pro 20x" }, { plan: "ChatGPT Pro 500" }, { plan: "ChatGPT Pro 10x" }, { plan: "ChatGPT Plus" }] });
   });
   it("marks Cursor's old plans as legacy on its own model, and never prices another lab's model on them", () => {
     const pts = { generatedAt: "x", points: [
@@ -69,6 +90,7 @@ describe("Real API Pricing subscriptions", () => {
     const only = parseSubscriptions({ ...payload, points: [point("chatgpt_plus::gpt-6.1-sol", "ChatGPT Plus", "OpenAI", 0.023, { model_display: "GPT 6.1 Sol", confidence: "high", data_date: "2026-09-30" }), point("chatgpt_pro_5x::gpt-6-astra", "ChatGPT Pro 5x", "OpenAI", 0.11, { model_display: "GPT 6 Astra", price_usd: 100, confidence: "low" }), point("chatgpt_plus::gpt-6-astra", "ChatGPT Plus", "OpenAI", 0.126, { model_display: "GPT 6 Astra", confidence: "high" })] }, conventions, channels);
     const plans = (label: string) => (only.find((r) => r.modelLabel === label)!.details as { plans: { plan: string; feeUsd: number; usdPerMtok: number; confidence: string }[] }).plans;
     expect(plans("GPT 6.1 Sol")).toEqual([
+      { plan: "ChatGPT Pro 500", feeUsd: 500, usdPerMtok: 0.0115, confidence: "medium" },
       { plan: "ChatGPT Pro 20x", feeUsd: 200, usdPerMtok: 0.0115, confidence: "medium" },
       { plan: "ChatGPT Pro 10x", feeUsd: 100, usdPerMtok: 0.0115, confidence: "medium" },
       { plan: "ChatGPT Plus", feeUsd: 20, usdPerMtok: 0.023, confidence: "high" },

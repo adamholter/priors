@@ -196,6 +196,12 @@ export function firstPartyErrorRate(tbl: Json | undefined, endpoints: EndpointRo
   return isNum(rate) ? { percent: rate * 100, endpoint: tbl.performanceDataSource.providerName ?? hit!.host ?? "" } : undefined;
 }
 
+/** Every provider endpoint Artificial Analysis benchmarks, speed tiers included (`scripts/scrape/speed-tiers.ts`). */
+export async function fetchProviderEndpoints(ctx: Pick<ScrapeContext, "fetchText">): Promise<Json[]> {
+  for (const m of findManifests(await ctx.fetchText(`${ORIGIN}/leaderboards/providers`))) { const { json } = await fetchDecrypt(m); if (Array.isArray(json) && json[0]?.hostApiId && json[0]?.performance) return json; }
+  throw new Error("no endpoint table on /leaderboards/providers");
+}
+
 function findManifests(html: string): Manifest[] {
   const out = new Map<string, Manifest>();
   // RSC payload is JSON inside a JS string, so quotes are escaped: \"manifest\":{\"path\":\"/data/x.txt\",\"key\":\"abc\"}

@@ -8,6 +8,7 @@ import { ScoreScatter, type ScatterView } from "./ScoreScatter";
 import { costChartFor, pickPoints, type FormulaInputs } from "@/lib/metrics";
 import { linkedFormula, useFormulaChart, type FormulaSettings } from "./formula-chart";
 import type { CostBasis } from "@/data/subscription";
+import { speedTierLegend } from "@/data/speed-tiers";
 import { useBarModelVisibility, type BarModelPicker } from "./bar-model-visibility";
 
 import { linkedLabelScale } from "./label-size";
@@ -79,8 +80,9 @@ export function ParetoChart({ ranked, mode = "all", labs, height = 460, title, a
       extraRows={(p) => ({ cost_per_task_usd: p.r.costUsd ?? null, speed_toks: p.r.speed ?? null, coverage: p.r.coverage })} />;
   }
   if (bars) return <MetricBars labelScale={view.labelScale} pts={barVisibility.points} labs={labs} better={costChart.better} xName={subscription ? "Subscription cost per task ($)" : "Cost per task ($)"} formatValue={costChart.formatX} height={height} aria={subscription ? "Subscription cost per task by model" : "Cost per task by model"} title={heading} actions={controls} anchor={anchor} linkParams={linkParams} exportName={subscription ? "Subscription cost per task" : "Cost per task"} />;
-  const legend = `Heavy line: best score at each price. Thin lines join one model's effort levels.${subscription ? " Cost uses each model's median subscription plan, or API price with no plan data." : ""}`;
+  const tierLegend = speedTierLegend(pts.map((p) => p.r), "cost");
+  const legend = `Heavy line: best score at each price. Thin lines join one model's effort levels.${subscription ? " Cost uses each model's median subscription plan, or API price with no plan data." : ""}${tierLegend && subscription ? ` ${tierLegend}` : ""}`;
   return <ScoreScatter legend={legend} pts={pts} labs={labs} better={costChart.better} xName={costChart.xName} xShort={costChart.xShort} scale={costChart.scale} formatX={costChart.formatX} formatValue={costChart.formatValue} height={height} aria={costChart.aria} title={heading} actions={controls} linkParams={linkParams} view={view} anchor={anchor} exportName={subscription ? "Score vs subscription cost per task" : "Score vs cost per task"}
-    tooltipExtra={(p) => `${p.r.speed ? ` · ${Math.round(p.r.speed)} tok/s` : ""}${subscription ? ` · ${p.r.costPlan ? p.r.costPlan.ratio === 0 ? p.r.costPlan.plan : `${p.r.costPlan.plan}, ${subscriptionShare(p.r.costPlan.ratio)} of API price` : "API price, no plan data"}` : ""}`}
+    tooltipExtra={(p) => `${p.r.speed ? ` · ${Math.round(p.r.speed)} tok/s` : ""}${subscription ? ` · ${p.r.costPlan ? p.r.costPlan.ratio === 0 ? p.r.costPlan.plan : `${p.r.costPlan.plan}, ${subscriptionShare(p.r.costPlan.ratio)} of API price` : p.r.speedTier?.apiRates ? "billed at API rates, no plan covers this tier" : "API price, no plan data"}` : ""}`}
     extraRows={(p) => ({ speed_toks: p.r.speed ?? null, coverage: p.r.coverage, ...(subscription ? { subscription_plan: p.r.costPlan?.plan ?? null, share_of_api_price: p.r.costPlan?.ratio ?? null } : {}) })} />;
 }

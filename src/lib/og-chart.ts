@@ -12,6 +12,7 @@ import { FRAME_H, FRAME_W, frameSvg, previewCanvas } from "../components/chart/e
 import { answerHeight, answerOption } from "../components/chart/answer-option";
 import type { AnswerChart } from "./answer-chart";
 import { effectiveBasis } from "../data/subscription";
+import { withSpeedTiers } from "../data/speed-tiers";
 import { chartKind, chartTitle, costChart, costChartFor, pickPoints, type MetricChart } from "./metrics";
 import { presetOf, themeById, type PagePreset } from "./page-presets";
 import { EMPTY_HIDDEN, visiblePoints, type ChartHidden } from "../components/chart/chart-visibility";
@@ -41,11 +42,13 @@ export interface ChartSpec {
  */
 export function scatterSpec(snapshot: Snapshot, ranked: RankedVariant[], index: IndexConfig, c: string | undefined, cm?: string, cs?: string, hidden: ChartHidden = EMPTY_HIDDEN, labelScale?: number, allModels = false, estimated: RankedVariant[] = []): ChartSpec | null {
   // The page draws its cost, time and speed charts from the efforts the index shows; the card must start from the same set.
-  const from = (chart: MetricChart, title: string, hasTitle: boolean) => metricSpec(chart, ranked, index, title, hasTitle, { cm, cs, hidden, labelScale, allModels });
-  if (c === "cost") return from(costChartFor(effectiveBasis(index.costBasis)), effectiveBasis(index.costBasis) === "subscription" ? "Score vs subscription cost per task" : "Score vs cost per task", true);
+  const from = (chart: MetricChart, title: string, hasTitle: boolean, rows = ranked) => metricSpec(chart, rows, index, title, hasTitle, { cm, cs, hidden, labelScale, allModels });
+  if (c === "cost") return from(costChartFor(effectiveBasis(index.costBasis)), effectiveBasis(index.costBasis) === "subscription" ? "Score vs subscription cost per task" : "Score vs cost per task", true, withSpeedTiers(ranked, snapshot, index.speedTiers, index.subscriptionPlans, { chart: "cost" }));
   const ck = chartKind(snapshot, ranked, c, index.timeSource, filterEfforts(estimated, index.efforts));
   if (ck?.kind !== "metric") return null;
-  return from(ck.chart, chartTitle(c) ?? ck.chart.xName, false);
+  // The same two charts the page gives speed tiers: output speed, and Artificial Analysis' time per task.
+  const tiered = c === "output-speed" || (c === "time-per-task" && (index.timeSource ?? "aa") === "aa");
+  return from(ck.chart, chartTitle(c) ?? ck.chart.xName, false, tiered ? withSpeedTiers(ranked, snapshot, index.speedTiers, index.subscriptionPlans, { chart: "speed" }) : ranked);
 }
 
 /** One metric chart (score against `chart`'s measure) as the page draws it from these ranked rows and the link's settings. */

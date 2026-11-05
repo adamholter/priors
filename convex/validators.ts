@@ -27,6 +27,7 @@ export const indexConfig = v.object({
   timeSource: v.optional(taskMetricSource),
   paretoVariants: v.optional(v.union(v.literal("all"), v.literal("best"))),
   efforts: v.optional(v.array(v.string())),
+  speedTiers: v.optional(v.array(v.string())),
   rankingEfforts: v.optional(v.array(v.string())),
   labs: v.optional(v.array(v.string())),
   excludeModels: v.optional(v.array(v.string())),

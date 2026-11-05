@@ -15,6 +15,7 @@ import { writeHistoryArchive } from "./history-archive";
 import { canonicalizeSnapshot } from "../../src/data/canonical-snapshot";
 import { retainCatalog, splitHy4Preview } from "./retain-catalog";
 import { fetchPlanResets } from "./plan-resets";
+import { fetchSpeedTiers } from "./speed-tiers";
 import { applyLaunchClaims } from "./launch-claims";
 import { fetchFreeTiers } from "./free-tiers";
 import { applyFreeTiers, carriedFreeTiers } from "../../src/data/free-tier";
@@ -299,6 +300,23 @@ async function main() {
         snap.planResets = [...resets, ...prevResets.filter((p) => failed.includes(p.labId) || !resets.some((r) => r.labId === p.labId))];
         if (failed.length) resetCtx.log(`carried ${failed.join(", ")} from the last snapshot`);
       } catch (e) { resetCtx.log(`FAILED: ${e instanceof Error ? e.message : String(e)}; carried the last reset history`); }
+    }
+  }
+
+  // Speed tiers (Fast, Ultrafast, Flex): not a benchmark but what a tier costs and how fast it runs (src/data/speed-tiers.ts). Carried from the last snapshot when no source can be read.
+  {
+    let previous: Snapshot["speedTiers"];
+    try { previous = (JSON.parse(gunzipSync(await readFile(path.join(SNAP_DIR, "latest.json.gz"))).toString("utf8")) as Snapshot).speedTiers; } catch { /* first run */ }
+    if (previous) snap.speedTiers = previous;
+    if (!only || only.includes("speed-tiers")) {
+      const tierCtx = makeContext("speed-tiers");
+      const bySlug = new Map(snap.variants.flatMap((v) => [v.sourceModel, ...(v.sourceModels ?? [])].flatMap((s) => s?.slug ? [[s.slug, v.modelId] as const] : [])));
+      const modelIds = new Set(snap.models.map((m) => m.id));
+      try {
+        const { data, raw } = await fetchSpeedTiers(tierCtx, (slug) => bySlug.get(slug), (id) => modelIds.has(id), previous);
+        await saveRaw("speed-tiers", date, raw);
+        snap.speedTiers = data;
+      } catch (e) { tierCtx.log(`FAILED: ${e instanceof Error ? e.message : String(e)}; carried the last speed tiers`); }
     }
   }
 

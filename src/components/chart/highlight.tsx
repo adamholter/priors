@@ -4,6 +4,7 @@ import { useLightDismiss } from "@/lib/useLightDismiss";
 import { featuredPoints, type ScatterPoint } from "./scatter-option";
 import type { IndexConfig } from "@/engine";
 import { matchesVariantId } from "@/data/variant-identity";
+import { tierModelName } from "@/data/speed-tiers";
 
 /**
  * Highlighted models for every chart on a page. Items are model ids (feature the model's best effort)
@@ -26,7 +27,7 @@ export function togglePoint(items: string[], pts: ScatterPoint[], p: ScatterPoin
   return viaModel ? items.filter((it) => it !== p.r.model.id) : [...items, id];
 }
 export function itemLabel(item: string, models: HighlightState["models"]) {
-  const [m, v] = item.split("@"), name = models.find((x) => x.id === m)?.name ?? m, effort = v?.split("~")[0];
+  const [m, v] = item.split("@"), name = tierModelName(m, (id) => models.find((x) => x.id === id)?.name), effort = v?.split("~")[0];
   return effort && effort !== "default" ? `${name} ${effort}` : name;
 }
 

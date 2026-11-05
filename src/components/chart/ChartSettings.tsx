@@ -2,6 +2,7 @@
 import { startTransition, useCallback, useEffect, useId, useMemo, useOptimistic, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
 import { IconAdjustmentsHorizontal, IconStar, IconStarFilled, IconX } from "@tabler/icons-react";
 import { COST_BASES, type CostBasis } from "@/data/subscription";
+import { SPEED_TIERS } from "@/data/speed-tiers";
 import type { TaskMetricSource } from "@/data/task-metrics";
 import { useLightDismiss } from "@/lib/useLightDismiss";
 import { EFFORT_CHOICES } from "@/engine";
@@ -17,9 +18,11 @@ import styles from "./ChartSettings.module.css";
 
 const EFFORT_LABELS: Record<string, string> = { none: "none", low: "low", medium: "medium", high: "high", xhigh: "xhigh", max: "max" };
 
-export function ChartSettings({ label, mode, onChange, efforts, releasedAfter, onChangeReleased, models = [], excluded, onToggleModel, onShowAllModels, onHideAllModels, onShowOnly, view, onView, dataSource, costBasis, planResets, subscriptionPlans, defaultScale, anchor, formula }: {
+export function ChartSettings({ speedTiers, label, mode, onChange, efforts, releasedAfter, onChangeReleased, models = [], excluded, onToggleModel, onShowAllModels, onHideAllModels, onShowOnly, view, onView, dataSource, costBasis, planResets, subscriptionPlans, defaultScale, anchor, formula }: {
   /** Data tab: a custom formula for this chart's metric. Omitted where a chart has no formula support. */
   formula?: FormulaSettings;
+  /** Cost, time and speed charts: which speed tiers to draw, and one line per tier on what it costs and how it is billed. */
+  speedTiers?: { value: string[]; onChange: (tiers: string[] | undefined) => void; rows: { tier: string; name: string; text: string }[] };
   /** Cost charts: price tasks at API list prices or at each lab's subscription plan. */
   costBasis?: { value: CostBasis; onChange: (basis: CostBasis) => void };
   /** Subscription pricing: count limit resets (what each lab gave its subscribers in the last 30 days). Shown in the plans section. */
@@ -105,6 +108,13 @@ export function ChartSettings({ label, mode, onChange, efforts, releasedAfter, o
     <summary className="disclosure">Custom formula<span className={view.formula?.trim() ? styles.formulaOn : undefined}>{view.formula?.trim() || "Off"}</span></summary>
     {formulaOpen && <FormulaEditor id={id} label={label} formula={formula} view={view} onView={onView} />}
   </details>;
+  const tierOn = speedTiers && speedTiers.value.some((t) => t !== "standard");
+  const tierSection = speedTiers && <details className={styles.sub} open={tierOn || undefined}>
+    <summary className="disclosure">Speed tiers<span>{SPEED_TIERS.filter((t) => speedTiers.value.includes(t.id)).map((t) => t.name).join(", ")}</span></summary>
+    <div className={styles.effortRow} role="group" aria-label={`${label} speed tiers`}><div>{SPEED_TIERS.filter((t) => t.id === "standard" || speedTiers.rows.some((r) => r.tier === t.id)).map((t) => { const on = speedTiers.value.includes(t.id); return <button key={t.id} type="button" aria-pressed={on} onClick={() => { const next = SPEED_TIERS.map((x) => x.id).filter((x) => x === t.id ? !on : speedTiers.value.includes(x)); speedTiers.onChange(!next.length || (next.length === 1 && next[0] === "standard") ? undefined : next); }}>{t.name}</button>; })}</div></div>
+    <dl className={styles.resetRows}>{speedTiers.rows.map((r) => <div key={r.tier}><dt>{r.name}</dt><dd>{r.text}</dd></div>)}</dl>
+    <p className={styles.resetNote}>A tier replaces standard where a model has it. Keep Standard on to compare both.</p>
+  </details>;
   const dataPanel = <>
     {(dataSource || onChangeReleased) && <div className={styles.dataControls}>
       {dataSource && <div className={styles.dataField}><label htmlFor={`${id}-source`}>Data source</label><select aria-label={`${label} data source`} id={`${id}-source`} value={dataSource.value} onChange={e => dataSource.onChange(e.target.value as TaskMetricSource)}>{dataSource.options.map(s => <option key={s.id} value={s.id}>{s.name} ({s.modelCount} models)</option>)}</select></div>}
@@ -115,7 +125,7 @@ export function ChartSettings({ label, mode, onChange, efforts, releasedAfter, o
     {(!efforts || efforts.withMode) && <div className={styles.row}><label htmlFor={`${id}-effort`}>{efforts ? "Show" : "Reasoning efforts"}</label><select aria-label={`${label} reasoning efforts`} id={`${id}-effort`} value={mode} onChange={e => onChange(e.target.value as "all" | "best")}><option value="all">All efforts</option><option value="best">Best per model</option></select></div>}
     {scatter && <div className={styles.checks}>{check("Include older models", !!scatter.view.allModels, on => scatter.onView({ ...scatter.view, allModels: on }), "Off: the frontier and each lab's current models only")}</div>}
     {!plans && resetsRow}
-    {(planSection || formulaSection) && <div className={styles.sections}>{planSection}{formulaSection}</div>}
+    {(tierSection || planSection || formulaSection) && <div className={styles.sections}>{tierSection}{planSection}{formulaSection}</div>}
   </>;
   const displayPanel = view && onView && <>
     {defaultScale && scatter && <div className={styles.row}><span id={`${id}-scale-label`}>Scale</span><div className={styles.choice} role="group" aria-labelledby={`${id}-scale-label`}>{(["log", "linear"] as const).map(value => <button key={value} type="button" aria-pressed={(scatter.view.scale ?? defaultScale) === value} onClick={() => scatter.onView({ ...scatter.view, scale: value })}>{value === "log" ? "Log" : "Linear"}</button>)}</div></div>}

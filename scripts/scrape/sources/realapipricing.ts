@@ -79,8 +79,8 @@ export function parseSubscriptions(json: Points, conventions: Conventions, chann
   };
   for (const all of byModel.values()) {
     if (!claim(all)) continue;
-    const graded = all.filter((p) => p.confidence !== "low");
-    const pool = (graded.length ? graded : all).sort(cheaper);
+    const counted = all.filter((p) => !PLAN_MULTIPLES.some((m) => m.listOnly && p.id.startsWith(`${m.planId}::`))), graded = counted.filter((p) => p.confidence !== "low");
+    const pool = (graded.length ? graded : counted).sort(cheaper);
     add(all, pool[Math.floor(pool.length / 2)], `median of ${pool.length} first-party plan${pool.length === 1 ? "" : "s"}`, hosted(all[0].model));
   }
   // Models with no first-party plan: the best subsidy a reseller or harness offers (lowest token price,

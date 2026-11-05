@@ -59,11 +59,13 @@ export default async function Page() {
           <p>Cost is what a model actually spent on a benchmark&rsquo;s tasks, never its token price alone. By default it is then priced the way subscribers pay: measured cost times the model&rsquo;s share of API price on a subscription plan.</p>
           <p>Each model uses its median plan until you pick one for its lab in a cost chart&rsquo;s settings, and the share assumes the plan&rsquo;s full allowance is used. A new OpenAI model with no plan data yet is estimated from Codex&rsquo;s published limits. A model with no plan data at all stays at API price. Plan data comes from Real API Pricing.</p>
           <p>The Pricing setting in a cost chart switches the whole chart to API prices.</p>
+          <p>Speed tiers, under a cost chart&rsquo;s settings, run the same model faster or cheaper. Cost moves by the tier&rsquo;s price. Under subscription pricing, a tier a plan covers spends its allowance faster: Fast on OpenAI&rsquo;s plans, and Ultrafast, which only ChatGPT Pro 500 has. Flex and Claude Opus Fast are outside every plan, so they cost what the API charges, even on a chart priced by subscription.</p>
         </section>
         <section id="speed" className="grid gap-3 scroll-mt-6">
           <h2 className="text-[22px] text-ink">Speed and time per task</h2>
           <p>Output speed comes from Artificial Analysis. Since its Performance Benchmarking v3.0.0 it covers a request&rsquo;s full duration, time to first token included, averages its workloads over the past 5 days, and counts a request that fails on the endpoint&rsquo;s side as 0. It used to be the median of one prompt size, so values before Nov 4, 2026 are not comparable with later ones.</p>
           <p>Artificial Analysis&rsquo; time per task is computed, not timed: output tokens per Intelligence Index task divided by output speed. It leaves out the time tools take to run. Other sources&rsquo; time per task, such as DeepSWE&rsquo;s, is the measured length of a run.</p>
+          <p>A speed tier&rsquo;s speed is measured against the same model&rsquo;s standard tier, by Artificial Analysis where it benchmarks the tier and otherwise from OpenRouter&rsquo;s real traffic. It is measured on one effort and applied to every effort, since a model&rsquo;s output speed barely moves with effort. The two sources can disagree widely, and each mark says which it uses.</p>
           <p><a className="underline underline-offset-2 hover:text-ink" href="https://artificialanalysis.ai/methodology/performance-benchmarking" target="_blank" rel="noreferrer">Their method</a></p>
         </section>
         <section className="grid gap-3">

@@ -631,6 +631,38 @@ try {
     await (await settings()).getByRole("group", { name: "Reasoning" }).getByRole("button", { name: "low", exact: true }).click();
     await close(); await same("low off");
   });
+  await check("speed tiers move the cost chart, and the card follows", async () => {
+    const menu = await settings();
+    const section = menu.locator("summary", { hasText: "Speed tiers" });
+    // A snapshot from before tiers were scraped has no section, and must draw the chart as before.
+    if (!await section.count()) { await close(); return; }
+    await section.click();
+    const row = menu.getByRole("group", { name: "Pareto speed tiers" });
+    assert.deepEqual(await row.getByRole("button").allTextContents(), ["Standard", "Flex", "Fast", "Ultrafast"]);
+    assert.equal(await row.getByRole("button", { name: "Standard", exact: true }).getAttribute("aria-pressed"), "true", "standard is on by default");
+    const before = await onScreen();
+    assert.ok(!before.some((id) => id.includes("+")), "no tier rows before one is picked");
+    await row.getByRole("button", { name: "Fast", exact: true }).click();
+    await close(); await page.waitForTimeout(800);
+    const beside = await onScreen();
+    assert.ok(beside.some((id) => id.startsWith("claude-opus-5.5+fast@")), "Opus Fast is drawn");
+    assert.ok(beside.some((id) => id.startsWith("gpt-6.1-sol+fast@")), "GPT-6.1 Sol Fast is drawn");
+    assert.ok(beside.some((id) => id.startsWith("claude-opus-5.5@")), "standard stays beside it while Standard is on");
+    assert.match(page.url(), /tier=/, "the choice is in the link");
+    await same("standard and Fast");
+    const again = await settings();
+    await again.getByRole("group", { name: "Pareto speed tiers" }).getByRole("button", { name: "Standard", exact: true }).click();
+    await close(); await page.waitForTimeout(800);
+    const fastOnly = await onScreen();
+    assert.ok(fastOnly.some((id) => id.startsWith("claude-opus-5.5+fast@")) && !fastOnly.some((id) => id.startsWith("claude-opus-5.5@")), "Fast alone replaces standard");
+    assert.ok(fastOnly.some((id) => id.startsWith("gemini-4")), "a model with no Fast stays at standard");
+    await same("Fast alone");
+    const back = await settings();
+    await back.getByRole("group", { name: "Pareto speed tiers" }).getByRole("button", { name: "Fast", exact: true }).click();
+    await close(); await page.waitForTimeout(800);
+    assert.ok(!(await onScreen()).some((id) => id.includes("+")), "turning the tier off restores standard");
+    assert.doesNotMatch(page.url(), /tier=/, "and leaves the link clean");
+  });
   await check("link parity: pricing basis and release window", async () => {
     const menu = await settings();
     await menu.getByRole("button", { name: "API", exact: true }).click();

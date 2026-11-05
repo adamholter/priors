@@ -1,5 +1,6 @@
 import { isCostBasis } from "../data/subscription";
 import { isTaskMetricSource } from "../data/task-metrics";
+import { isSpeedTierChoice } from "../data/speed-tiers";
 import { DEFAULT_CUTOFF, EFFORT_CHOICES, type IndexConfig } from "../engine";
 import { FOCUS_IDS, type FocusId } from "../data/types";
 
@@ -33,6 +34,7 @@ export function encodeIndex(c: FromPage, keepPage = false): string {
   if (c.rankingVariants) parts.push(`bars=${c.rankingVariants}`);
   if (c.paretoVariants) parts.push(`pareto=${c.paretoVariants}`);
   if (c.efforts) parts.push(`eff=${c.efforts.join(",")}`);
+  if (c.speedTiers?.length) parts.push(`tier=${c.speedTiers.join(",")}`);
   if (c.rankingEfforts) parts.push(`reff=${c.rankingEfforts.join(",")}`);
   if (c.cutoff !== DEFAULT_CUTOFF) parts.push(`cut=${round(c.cutoff)}`);
   if (!c.estimateMissing) parts.push("est=0");
@@ -86,6 +88,7 @@ export function decodeIndex(s: string, id: string): IndexConfig | null {
     else if (k === "bars" && (v === "all" || v === "best")) c.rankingVariants = v;
     else if (k === "pareto" && (v === "all" || v === "best")) c.paretoVariants = v;
     else if (k === "eff") c.efforts = v.split(",").filter((e) => (EFFORT_CHOICES as readonly string[]).includes(e));
+    else if (k === "tier") { const tiers = v.split(",").filter(isSpeedTierChoice); if (tiers.length) c.speedTiers = tiers; }
     else if (k === "reff") c.rankingEfforts = v.split(",").filter((e) => (EFFORT_CHOICES as readonly string[]).includes(e));
     else if (k === "cut") { const n = parseFloat(v); if (Number.isFinite(n)) c.cutoff = n; }
     else if (k === "est") c.estimateMissing = v !== "0";

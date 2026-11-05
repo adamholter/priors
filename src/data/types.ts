@@ -125,6 +125,24 @@ export interface PlanResetEvent { at: string; kind: "reset" | "banked" | "both";
 /** A lab's reset history (`src/data/plan-resets.ts` turns it into a plan-price adjustment). Not a benchmark: it prices plans, it never ranks. */
 export interface PlanResets { labId: string; plan: string; source: string; url: string; events: PlanResetEvent[] }
 
+/** A way to run the same model faster or cheaper than standard. Same model, same scores: only cost and speed change. */
+export type SpeedTierId = "flex" | "fast" | "ultrafast";
+/** What one model's tier costs and how fast it runs, against that model's own standard tier (`scripts/scrape/speed-tiers.ts`). */
+export interface SpeedTierRate {
+  modelId: string; tier: SpeedTierId;
+  /** Tier list price ÷ standard list price, on the API. */
+  priceMultiple: number;
+  /** Tier output speed ÷ standard output speed, as measured. Absent when nobody has measured this tier. */
+  speedMultiple?: number;
+  /** Who measured `speedMultiple`, and on what. */
+  speedSource?: string;
+  /** Share of the source's requests to this tier that failed, 0 to 1, when it says. */
+  errorRate?: number;
+}
+/** A tier a lab's subscription covers, and how fast it spends the allowance against standard. A tier with no row here is billed at API rates whatever plan you hold. */
+export interface SpeedTierPlanRate { labId: string; tier: SpeedTierId; usageMultiple: number; /** The only plan that has it. Absent: whichever plan the model is priced at. */ plan?: string; source: string }
+export interface SpeedTierData { rates: SpeedTierRate[]; planRates: SpeedTierPlanRate[] }
+
 /** Time-series for benchmarks like VendingBench 2 (balance over time). */
 export interface Series {
   benchmarkId: string;
@@ -169,6 +187,8 @@ export interface Snapshot {
   series: Series[];
   /** Limit resets per lab, from the scrape job. Absent in snapshots from before it existed. */
   planResets?: PlanResets[];
+  /** Fast, Ultrafast and Flex prices and speeds, from the scrape job. Absent in snapshots from before it existed. */
+  speedTiers?: SpeedTierData;
   sources: SourceRun[];
 }
 

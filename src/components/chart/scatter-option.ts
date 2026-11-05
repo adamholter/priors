@@ -5,6 +5,7 @@ import type { RankedVariant } from "../../engine";
 import { CONTAIN_AXIS_LABELS, dimColor, markColor, markFill, markLabel, markSize, textSize, type ChartPalette } from "./theme-tokens";
 import { scatterLabelLayout } from "./scatter-label-layout";
 import { chartLabel, modelLabel } from "../../lib/metrics";
+import { baseModelId, tierModelIds } from "../../data/speed-tiers";
 import { labelScale } from "./label-size";
 
 export interface ScatterPoint { x: number; r: RankedVariant; /** untransformed value for tooltips/export when x is transformed */ raw?: number; /** Costs nothing: drawn on the "free" line left of the cheapest paid point. */ free?: boolean }
@@ -20,13 +21,14 @@ export interface Highlight { items: string[]; guides: boolean }
 export function featuredPoints(pts: ScatterPoint[], items: string[]): ScatterPoint[] {
   const out: ScatterPoint[] = [], seen = new Set<string>();
   for (const it of items) {
-    const p = it.includes("@") ? pts.find((x) => x.r.variant.id === it || x.r.variant.aliases?.includes(it)) : pts.filter((x) => x.r.model.id === it).sort((a, b) => b.r.score - a.r.score)[0];
+    // An item on the standard row still finds a model the chart shows only on a speed tier.
+    const p = it.includes("@") ? pts.find((x) => x.r.variant.id === it || x.r.variant.aliases?.includes(it)) ?? pts.find((x) => x.r.speedTier?.baseVariantId === it) : pts.filter((x) => x.r.model.id === it || baseModelId(x.r.model.id) === it).sort((a, b) => b.r.score - a.r.score)[0];
     if (p && !seen.has(p.r.variant.id)) { seen.add(p.r.variant.id); out.push(p); }
   }
   return out;
 }
 /** Models touched by a highlight (a variant item highlights its whole model). */
-export const highlightedModels = (items: string[]) => new Set(items.map((it) => it.split("@")[0]));
+export const highlightedModels = (items: string[]) => new Set(items.flatMap((it) => tierModelIds(it.split("@")[0])));
 export const DEFAULT_VIEW: ScatterView = { density: 0.45, frontier: true, links: true, kind: "scatter" };
 
 /** Preserve explicit choices while letting a changed chart default replace old implicit saves. */

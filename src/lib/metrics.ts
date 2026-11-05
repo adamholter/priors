@@ -57,12 +57,12 @@ export function chartLabel(r: RankedVariant) {
   const source = r.variant.sourceModel?.name ?? "";
   // "Default fallback" is how most Claude models simply run, so only a different setup gets named.
   const label = /no fallback|without fallback/i.test(source) ? `${name}, no fallback` : /fallback/i.test(source) && !/default fallback/i.test(source) ? `${name}, fallback` : name;
-  return r.scoreEstimate ? `${label}, est.` : label;
+  return `${r.scoreEstimate ? `${label}, est.` : label}${r.speedTier?.apiRates ? ", API rates" : ""}`;
 }
 /** A scatter mark's standing label: the model alone. Its efforts are joined by a line, and hovering a mark names its effort (`chartLabel`). */
 export function modelLabel(r: RankedVariant) {
   const name = r.model.name.replace(/\s*\((?:none|minimal|low|medium|high|xhigh|max)\)$/i, "");
-  return r.scoreEstimate ? `${name}, est.` : name;
+  return `${r.scoreEstimate ? `${name}, est.` : name}${r.speedTier?.apiRates ? ", API rates" : ""}`;
 }
 
 /** Gallery panel definitions — shared between the client gallery and share cards.
@@ -81,7 +81,13 @@ export function metricPanels(snapshot: Snapshot, ranked: RankedVariant[], timeSo
   const iiId = snapshot.benchmarks.filter((b) => b.id.startsWith("aa-intelligence-index")).sort((a, b) => b.id.localeCompare(a.id))[0]?.id;
   const ttft = at("aa-ttft");
   const timeData = taskMetricData(snapshot, timeSource, "time");
-  const decode = (rows: RankedVariant[]): MetricPoint[] => rows.flatMap((r) => { const x = timeData.get(r.variant.id)?.value; return x == null ? [] : [{ x, r }]; });
+  // A speed tier spends the same tokens at its own speed. Only Artificial Analysis' time is tokens over speed: a harness's measured run also holds tool time, which a tier does not speed up.
+  const decode = (rows: RankedVariant[]): MetricPoint[] => rows.flatMap((r) => {
+    const tier = r.speedTier;
+    if (tier && (timeSource !== "aa" || !tier.speedMultiple)) return [];
+    const x = timeData.get(tier?.baseVariantId ?? r.variant.id)?.value;
+    return x == null ? [] : [{ x: tier ? x / tier.speedMultiple! : x, r }];
+  });
   const tokens = iiId ? at(iiId, (o) => outputTokensPerTask(o.details?.outputTokensPerTask) ?? o.outputTokens ?? undefined) : () => [];
   const uptime = at("openrouter-uptime");
   const dates = (rows: RankedVariant[]) => [...rows, ...estimated.filter((e) => !rows.some((r) => r.model.id === e.model.id))].flatMap((r) => r.model.releaseDate ? [{ x: Date.parse(r.model.releaseDate), r }] : []);

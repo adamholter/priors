@@ -3,7 +3,7 @@ import { effectiveBasis, subscriptionPrices, type CostBasis, type SubscriptionPr
 import { supersededModelIds } from "./superseded";
 import { progressEstimates, type ScoreEstimate } from "./progress-estimate";
 import { taskMetricData, taskMetricDescription, type TaskMetricSource } from "../data/task-metrics";
-import type { Benchmark, FocusId, Model, Observation, Snapshot, Variant } from "../data/types";
+import type { Benchmark, FocusId, Model, Observation, Snapshot, SpeedTierId, Variant } from "../data/types";
 import { columnsOf, DEFAULT_RANK, effortLocked, ROW_FLAGS, type Columns, type EstimationRoute } from "../data/columns";
 import { AA_V5_WEIGHTS, aaComponentWeights } from "../data/aa-index";
 
@@ -33,6 +33,8 @@ export interface IndexConfig {
   efforts?: string[];
   /** Efforts the ranking list shows; unset shows them all. */
   rankingEfforts?: string[];
+  /** Speed tiers the cost, time and speed charts show (`standard`, `flex`, `fast`, `ultrafast`); unset is standard only. A model without a picked tier stays at standard. */
+  speedTiers?: string[];
   costSource?: TaskMetricSource;
   /** Price cost per task at API list prices (default) or at the lab's subscription plan. */
   costBasis?: CostBasis;
@@ -169,6 +171,19 @@ export interface RankedVariant {
   rank: number;
   /** Not ranked: the index could not score this model, so its score is estimated (see `progressEstimates`). */
   scoreEstimate?: ScoreEstimate;
+  /** A chart row for this model on a speed tier (`src/data/speed-tiers.ts`), not a row the index ranked. */
+  speedTier?: AppliedSpeedTier;
+}
+
+export interface AppliedSpeedTier {
+  id: SpeedTierId; name: string;
+  /** The row this one was made from. */
+  baseVariantId: string;
+  priceMultiple: number; speedMultiple?: number; speedSource?: string; errorRate?: number;
+  /** On subscription pricing: this tier is billed at API rates, because no plan covers it. */
+  apiRates?: boolean;
+  /** On subscription pricing: how fast it spends the plan's allowance, and the plan it is priced on. */
+  usageMultiple?: number; plan?: string;
 }
 
 export interface IndexResult {
