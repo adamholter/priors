@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { firstPartyErrorRate, isModelTable, performanceOf } from "./sources/aa";
+import { firstPartyErrorRate, isModelTable, performanceOf, underReviewNote } from "./sources/aa";
 import { createCipheriv, createHash } from "node:crypto";
 import { gzipSync } from "node:zlib";
 import source from "./sources/aa";
@@ -180,5 +180,22 @@ describe("endpoint error rate", () => {
     expect(firstPartyErrorRate({ slug: "glm", headline: { outputSpeed: 50 }, performanceDataSource: { type: "median" } }, endpoints)).toBeUndefined();
     expect(firstPartyErrorRate({ slug: "opus", headline: { outputSpeed: 1 }, performanceDataSource: { type: "firstParty" } }, endpoints)).toBeUndefined();
     expect(firstPartyErrorRate(undefined, endpoints)).toBeUndefined();
+  });
+});
+
+describe("AA's Under review badge", () => {
+  const badged = `<h1>SciCode Benchmark</h1><span class="rounded-full">Under review</span>`;
+  it("notes it on the description, with the preprint's status, for as long as AA shows it", () => {
+    const note = underReviewNote("scicode", badged);
+    expect(note).toMatch(/under review/);
+    expect(note).toMatch(/arXiv 2608\.04975/);
+    expect(note).toMatch(/unreviewed preprint/);
+  });
+  it("clears when AA clears the badge, and when the page didn't load", () => {
+    expect(underReviewNote("scicode", "<h1>SciCode Benchmark</h1><p>We were under review once.</p>")).toBe("");
+    expect(underReviewNote("scicode", undefined)).toBe("");
+  });
+  it("still says so for an evaluation we haven't looked into", () => {
+    expect(underReviewNote("something-new", badged)).toBe(" Artificial Analysis marks this evaluation under review, so its scores may change.");
   });
 });

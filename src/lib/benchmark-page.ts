@@ -78,6 +78,6 @@ export function directoryItems(snapshot: Snapshot, quality: Map<string, number>,
   return listed.map((b) => ({
     id: b.id, name: b.name, shortName: b.shortName, sourceId: b.sourceId, category: b.category, description: b.description, host: host(b.url),
     models: models.get(b.id)!.size, quality: quality.get(b.id) ?? 50, uses: uses.get(b.id) ?? 0, lastUpdated: b.lastUpdated, ...leaderOf(b.id),
-    ...(superseded.has(b.id) ? { superseded: true } : {}), ...(b.variantOf ? { variantOf: b.variantOf } : {}), ...(splits.get(b.id) ? { splits: splits.get(b.id) } : {}),
+    ...(superseded.has(b.id) || b.stoppedPublishing ? { superseded: true } : {}), ...(b.variantOf ? { variantOf: b.variantOf } : {}), ...(splits.get(b.id) ? { splits: splits.get(b.id) } : {}),
   }));
 }

@@ -63,6 +63,8 @@ export interface Benchmark {
   effortBasis?: "best-measured";
   /** Date the publisher last updated this benchmark's results, when published. */
   lastUpdated?: string; // YYYY-MM-DD; distinct from benchmark release and scrape dates
+  /** YYYY-MM-DD: the last date the publisher updated this while its sibling boards kept going. The rows are its final values, not current ones. */
+  stoppedPublishing?: string;
   /** Fixed source-defined scale; independent of which models the user filters. */
   normalization?: { kind: "linear"; min: number; max: number };
   unit: BenchmarkUnit;

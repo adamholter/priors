@@ -103,3 +103,12 @@ describe("benchmarkQuality", () => {
     expect(qNarrow.score).toBeLessThan(qBroad.score);
   });
 });
+
+describe("a benchmark its publisher stopped updating", () => {
+  it("loses the same points as a superseded one, so fits stop reaching for it", () => {
+    const values: Array<[string, string, number]> = [["a", "m1@high", 10], ["a", "m2@high", 50], ["a", "m3@high", 90], ["b", "m1@high", 10], ["b", "m2@high", 50], ["b", "m3@high", 90]];
+    const [live, ended] = benchmarkQuality(snapshot([benchmark("a"), { ...benchmark("b"), stoppedPublishing: "2026-10-08" }], values));
+    expect(ended.score).toBeLessThan(live.score);
+  });
+});
+

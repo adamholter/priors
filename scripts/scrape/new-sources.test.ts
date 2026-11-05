@@ -155,6 +155,20 @@ describe("Arena from the Hugging Face dataset", () => {
 });
 
 describe("Arena categories and agent signals", () => {
+  const board = (date: string) => Array.from({ length: 8 }, (_, i) => ({ model_name: `Model ${i}`, score: 0.1 - i * 0.01, rank: i + 1, leaderboard_publish_date: date }));
+  it("dates every board by when Arena published it, and marks a signal that stopped while the others went on", () => {
+    const r = parseArenaDataset({ "arena-agent": board("2026-11-02"), "arena-agent-praise": board("2026-11-02"), "arena-agent-bash-reliability": board("2026-11-02"), "arena-agent-bash-recovery": board("2026-10-08") });
+    const get = (id: string) => r.benchmarks.find((b) => b.id === id)!;
+    expect(get("arena-agent").lastUpdated).toBe("2026-11-02");
+    expect(get("arena-agent-praise")).toMatchObject({ lastUpdated: "2026-11-02", variantLabel: "Praise vs complaint" });
+    expect(get("arena-agent-praise").stoppedPublishing).toBeUndefined();
+    expect(get("arena-agent-bash-recovery")).toMatchObject({ lastUpdated: "2026-10-08", stoppedPublishing: "2026-10-08", defaultWeight: 0, eligibleForDefault: false, variantLabel: "Shell recovery (ended Oct 8, 2026)" });
+    expect(get("arena-agent-bash-recovery").description).toMatch(/stopped publishing this signal after Oct 8, 2026/);
+  });
+  it("doesn't call a signal stopped within the board's normal gap", () => {
+    const r = parseArenaDataset({ "arena-agent": board("2026-11-02"), "arena-agent-bash-recovery": board("2026-10-22") });
+    expect(r.benchmarks.find((b) => b.id === "arena-agent-bash-recovery")!.stoppedPublishing).toBeUndefined();
+  });
   it("reads every agent signal as higher is better, tool hallucination included: Arena ranks its highest score first and the overall score adds it", () => {
     const signals = parseArenaDataset({ "arena-agent-tool-hallucination": Array.from({ length: 8 }, (_, i) => ({ model_name: i ? `Model ${i}` : "Careful", score: i < 7 ? 0.008 - i * 0.001 : -0.188, rank: i + 1, category: "overall" })) });
     expect(signals.benchmarks.find((b) => b.id === "arena-agent-tool-hallucination")).toMatchObject({ higherIsBetter: true });

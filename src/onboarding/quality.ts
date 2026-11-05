@@ -221,7 +221,7 @@ export function benchmarkQuality(snapshot: Snapshot, cohort: string[] = defaultL
     const frontier = frontierCoverage(rows, cohort, llms);
     const frontierScore = frontier.total ? frontier.score : coverage;
     const preferred = (PREFERRED as readonly string[]).includes(benchmark.id);
-    const superseded = SUPERSEDED.has(benchmark.id);
+    const superseded = SUPERSEDED.has(benchmark.id) || !!benchmark.stoppedPublishing;
     const staleFrontier = snapshot.date >= FRONTIER_RELEASE_DATE && !!benchmark.lastUpdated && benchmark.lastUpdated < FRONTIER_RELEASE_DATE;
     const score = rounded(coverage * QUALITY_WEIGHTS.breadth + frontierScore * QUALITY_WEIGHTS.frontier + recency * QUALITY_WEIGHTS.recency + saturation * QUALITY_WEIGHTS.saturation + objectivity * QUALITY_WEIGHTS.objectivity + (preferred ? QUALITY_ADJUST.preferred : 0) + (superseded ? QUALITY_ADJUST.superseded : 0) + (staleFrontier ? QUALITY_ADJUST.staleFrontier : 0));
     const dateConfidence = release ? "verified" as const : "unknown" as const;

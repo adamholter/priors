@@ -45,7 +45,7 @@ function splitHarness(label: string): { label: string; harness?: string } {
   return m ? { label: m[1], harness: m[2] } : { label };
 }
 
-const AGENT_DESCRIPTION = "Arena.ai Agent Arena: causal 'net improvement' a model contributes to real-world agentic sessions (task success, praise vs complaint, steerability, bash recovery, tool hallucination), estimated from millions of live Agent Mode sessions. Percent with 95% CI; not an Elo.";
+const AGENT_DESCRIPTION = "Arena.ai Agent Arena: causal 'net improvement' a model contributes to real-world agentic sessions (task success, praise vs complaint, steerability, shell commands, tool hallucination), estimated from millions of live Agent Mode sessions. Percent with 95% CI; not an Elo.";
 const agentBenchmark = (url: string, advanced: { id: string; name: string }[]): Benchmark => ({
   id: "arena-agent", name: "Agent Arena", shortName: "Agent Arena", sourceId: "arena", url,
   description: AGENT_DESCRIPTION,
@@ -84,6 +84,12 @@ const AGENT_SIGNALS: { id: string; config: string; label: string; desc: string; 
   { id: "arena-agent-tool-hallucination", config: "agent_tool_hallucination", label: "Tool hallucination", desc: "avoiding calls to tools that do not exist; a negative score means the model makes them up more", higherIsBetter: true },
 ];
 
+/** The dataset publishes the agent boards together, at most 11 days apart so far. A signal this far behind the newest one has stopped. */
+const SIGNAL_STOPPED_AFTER_DAYS = 14;
+const lastPublished = (list: HfRow[] | undefined) => (list ?? []).map((r) => r.leaderboard_publish_date).filter((d): d is string => !!d).sort().at(-1);
+const daysBetween = (a: string, b: string) => (Date.parse(b) - Date.parse(a)) / 86_400_000;
+const shortDate = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
+
 /** Parquet integers come back as BigInt. */
 const plain = (row: Record<string, unknown>): HfRow => Object.fromEntries(Object.entries(row).map(([k, v]) => [k, typeof v === "bigint" ? Number(v) : v])) as unknown as HfRow;
 
@@ -120,7 +126,8 @@ export function parseArenaDataset(boards: Record<string, HfRow[]>): Pick<ScrapeR
         ci: r.score_ci_lower != null && r.score_ci_upper != null ? [r.score_ci_lower * 100, r.score_ci_upper * 100] : undefined,
         note: `${r.session_count ?? "?"} sessions; Hugging Face dataset lmarena-ai/leaderboard-dataset, published ${r.leaderboard_publish_date ?? "?"}` });
     }
-    benchmarks.push(agentBenchmark(url, []));
+    const published = lastPublished(agent);
+    benchmarks.push({ ...agentBenchmark(url, []), ...(published ? { lastUpdated: published } : {}) });
     notes.push(`agent: ${agent.length} rows (dataset)`);
   }
   for (const b of ELO_BOARDS) {
@@ -134,7 +141,8 @@ export function parseArenaDataset(boards: Record<string, HfRow[]>): Pick<ScrapeR
         ci: r.rating_lower != null && r.rating_upper != null ? [r.rating_lower, r.rating_upper] : undefined,
         note: `${r.vote_count ?? "?"} votes; Hugging Face dataset lmarena-ai/leaderboard-dataset, published ${r.leaderboard_publish_date ?? "?"}` });
     }
-    benchmarks.push({ id: b.id, name: b.name, sourceId: "arena", url, description: b.desc, unit: "elo", higherIsBetter: true, category: b.category, eligibleForDefault: b.weight > 0, defaultWeight: b.weight });
+    const published = lastPublished(data);
+    benchmarks.push({ id: b.id, name: b.name, sourceId: "arena", url, description: b.desc, ...(published ? { lastUpdated: published } : {}), unit: "elo", higherIsBetter: true, category: b.category, eligibleForDefault: b.weight > 0, defaultWeight: b.weight });
     notes.push(`${b.id}: ${data.length} rows (dataset)`);
     for (const v of CATEGORY_VARIANTS[b.id] ?? []) {
       const sub = (boards[b.id] ?? []).filter((r) => r.category === v.category && Number.isFinite(r.rating));
@@ -145,20 +153,28 @@ export function parseArenaDataset(boards: Record<string, HfRow[]>): Pick<ScrapeR
           ci: r.rating_lower != null && r.rating_upper != null ? [r.rating_lower, r.rating_upper] : undefined,
           note: `${r.vote_count ?? "?"} votes in the ${v.label} category; Hugging Face dataset lmarena-ai/leaderboard-dataset, published ${r.leaderboard_publish_date ?? "?"}` });
       }
-      benchmarks.push({ id: v.id, name: `${b.name} · ${v.label}`, sourceId: "arena", url, description: `${b.desc} Only the ${v.label} category.`, unit: "elo", higherIsBetter: true, category: b.category, eligibleForDefault: false, defaultWeight: 0, variantOf: b.id, variantLabel: v.label });
+      const subPublished = lastPublished(sub);
+      benchmarks.push({ id: v.id, name: `${b.name} · ${v.label}`, sourceId: "arena", url, description: `${b.desc} Only the ${v.label} category.`, ...(subPublished ? { lastUpdated: subPublished } : {}), unit: "elo", higherIsBetter: true, category: b.category, eligibleForDefault: false, defaultWeight: 0, variantOf: b.id, variantLabel: v.label });
       notes.push(`${v.id}: ${sub.length} rows (dataset)`);
     }
   }
+  const newestAgentBoard = lastPublished(["arena-agent", ...AGENT_SIGNALS.map((x) => x.id)].flatMap((id) => boards[id] ?? []));
   for (const sig of AGENT_SIGNALS) {
     const data = overall(boards[sig.id]).filter((r) => Number.isFinite(r.score));
     if (data.length < 8) continue;
     const url = `${SITE}/leaderboard/agent`;
+    const published = lastPublished(data);
+    const stopped = published && newestAgentBoard && daysBetween(published, newestAgentBoard) > SIGNAL_STOPPED_AFTER_DAYS ? published : undefined;
+    if (stopped) notes.push(`${sig.id}: stopped publishing after ${stopped}`);
     for (const r of data) {
       rows.push({ benchmarkId: sig.id, modelLabel: r.model_name, value: r.score! * 100, rank: r.rank, sourceUrl: url, labHint: r.organization,
         ci: r.score_ci_lower != null && r.score_ci_upper != null ? [r.score_ci_lower * 100, r.score_ci_upper * 100] : undefined,
         note: `Agent Arena signal "${sig.label}"; Hugging Face dataset lmarena-ai/leaderboard-dataset, published ${r.leaderboard_publish_date ?? "?"}` });
     }
-    benchmarks.push({ id: sig.id, name: `Agent Arena · ${sig.label}`, shortName: sig.label, sourceId: "arena", url, description: `Agent Arena signal: ${sig.desc}. A model's contribution to real agentic sessions, in percentage points.`, unit: "percent", higherIsBetter: sig.higherIsBetter, category: "agentic", eligibleForDefault: false, defaultWeight: 0, variantOf: "arena-agent", variantLabel: sig.label });
+    benchmarks.push({ id: sig.id, name: `Agent Arena · ${sig.label}`, shortName: sig.label, sourceId: "arena", url,
+      description: `Agent Arena signal: ${sig.desc}. A model's contribution to real agentic sessions, in percentage points.${stopped ? ` Arena stopped publishing this signal after ${shortDate(stopped)}, so these are its last values.` : ""}`,
+      ...(published ? { lastUpdated: published } : {}), ...(stopped ? { stoppedPublishing: stopped } : {}),
+      unit: "percent", higherIsBetter: sig.higherIsBetter, category: "agentic", eligibleForDefault: false, defaultWeight: 0, variantOf: "arena-agent", variantLabel: stopped ? `${sig.label} (ended ${shortDate(stopped)})` : sig.label });
     notes.push(`${sig.id}: ${data.length} rows (dataset)`);
   }
   if (!rows.length) throw new Error("Arena dataset returned no rows");

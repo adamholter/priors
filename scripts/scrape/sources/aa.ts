@@ -170,6 +170,16 @@ const bid = (slug: string) => `aa-${slug.replace(/^aa-/, "")}`;
 // payload plumbing
 
 /** The /models table payload: the one whose models carry speed data, under either of AA's names for it, or say where it was measured. */
+/** Why an evaluation is under review, where we have checked it. AA's badge decides whether it shows, so the note clears when AA clears the badge. */
+const REVIEW_REASONS: Record<string, string> = {
+  scicode: "The reason is SciCode-Verified (arXiv 2608.04975), an unreviewed preprint from the authors of the proposed fixes, which reports dataset defects that reject correct solutions. AA removed SciCode from its Intelligence Index in v5.0.",
+};
+/** What to add to an evaluation's description when its AA page carries the "Under review" badge. */
+export function underReviewNote(slug: string, html: string | undefined): string {
+  if (!html || !/>Under review<\//.test(html)) return "";
+  return ` Artificial Analysis marks this evaluation under review, so its scores may change.${REVIEW_REASONS[slug] ? ` ${REVIEW_REASONS[slug]}` : ""}`;
+}
+
 export const isModelTable = (models: Json[]) => models.some((m) => "headline" in m || "timescaleData" in m || "performanceDataSource" in m);
 /** Model-level output speed and time to first token. AA moved these from `timescaleData` to `headline` on 2026-11-04. */
 export const performanceOf = (tbl?: Json) => ({ speed: tbl?.headline?.outputSpeed ?? tbl?.timescaleData?.medianOutputSpeed, ttft: tbl?.headline?.timeToFirstToken ?? tbl?.timescaleData?.medianTimeToFirstChunk });
@@ -523,7 +533,7 @@ const source: Source = {
       const nav = navNames.get(d.slug);
       const name = !d.id && nav && (!d.navName || d.navName.test(nav)) && !/Hallucination|Accuracy|Rubric/.test(nav) ? nav : d.name;
       benchmarks.push({
-        id, name, sourceId: this.id, url: `${ORIGIN}/evaluations/${d.page ?? d.slug}`, description: d.description,
+        id, name, sourceId: this.id, url: `${ORIGIN}/evaluations/${d.page ?? d.slug}`, description: `${d.description}${underReviewNote(d.slug, pageHtml.get(`${ORIGIN}/evaluations/${d.page ?? d.slug}`))}`,
         normalization: d.normalization, unit: d.unit, higherIsBetter: d.higherIsBetter ?? true, category: d.category,
         defaultWeight: weights[id] ?? 0, eligibleForDefault: id in weights,
         ...(d.supersedes ? { versionPolicy: { kind: "fresh" as const, supersedes: d.supersedes } } : {}),

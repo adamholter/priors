@@ -105,6 +105,7 @@ export function BenchmarkPage({ snapshot, benchmarkId, models, relatives, initia
             <h1 className="text-[34px] sm:text-[44px] leading-[1.05]">{b.name}</h1>
             <p className="text-[15px] text-ink-2 max-w-[68ch]">{b.description}</p>
             {breaksFor([benchmarkId]).map((x) => <p key={x.date} data-series-break={x.date} className="text-[13px] text-ink-2 max-w-[68ch]">{x.note} <a href={x.url} target="_blank" rel="noreferrer" className="underline underline-offset-2 hover:text-ink">Their method</a></p>)}
+            {b.stoppedPublishing && <p data-stopped-publishing className="text-[13px] text-ink-2 max-w-[68ch]">Not current: the last update was {b.stoppedPublishing}, while the publisher&rsquo;s other boards kept updating.</p>}
             {b.effortBasis && <p data-effort-basis className="text-[13px] text-ink-2 max-w-[68ch]">Each row is the model&rsquo;s best measured setting, not one reasoning effort: the publisher keeps each model&rsquo;s best score across settings.</p>}
             <div className="mt-2"><Relatives current={benchmarkId} family={relatives.family} versions={relatives.versions} /></div>
             <p className="cap">{models} models · {result.ranked.length} results{b.lastUpdated ? ` · updated ${b.lastUpdated}` : ` · data as of ${snapshot.date}`}{host && <> · <a href={b.url} target="_blank" rel="noreferrer" className="hover:text-ink underline decoration-dotted">{host} ↗</a></>}</p>
