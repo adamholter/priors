@@ -58,3 +58,24 @@ describe("splitHy4Preview", () => {
     expect(splitHy4Preview({ models: [model] }).models).toEqual([model]);
   });
 });
+
+describe("a merge that has been undone", () => {
+  const swe2: Model = { id: "swe-2", name: "SWE 2", labId: "cognition", kind: "llm", reasoning: true, aliases: ["swe-2", "swe-2 flash"] };
+  const flash: Model = { id: "swe-2-flash", name: "SWE 2 Flash", labId: "cognition", kind: "llm", reasoning: true, aliases: ["swe-2 flash"] };
+  const bare = (id: string, modelId: string): Variant => ({ id, modelId, effort: id.split("@")[1] as Variant["effort"] });
+  const result = retainCatalog({ models: [swe2], variants: [bare("swe-2@low", "swe-2"), bare("swe-2@max", "swe-2")] }, {
+    models: [{ ...swe2, aliases: ["swe-2"] }, flash], variants: [bare("swe-2-flash@low", "swe-2-flash")], observations: [{ variantId: "swe-2@max" }, { variantId: "swe-2-flash@low" }],
+  });
+  it("does not bring the alias back through the catalog", () => {
+    expect(result.models.find((m) => m.id === "swe-2")!.aliases).toEqual(["swe-2"]);
+    expect(result.models.find((m) => m.id === "swe-2-flash")!.aliases).toEqual(["swe-2 flash"]);
+  });
+  it("drops a bare variant whose only row moved, and keeps one that still has rows or a source", () => {
+    expect(result.variants.map((v) => v.id).sort()).toEqual(["swe-2-flash@low", "swe-2@max"]);
+  });
+  it("keeps an alias whose new model is not in this scrape", () => {
+    const partial = retainCatalog({ models: [swe2], variants: [] }, { models: [{ ...swe2, aliases: [] }], variants: [] });
+    expect(partial.models[0].aliases).toContain("swe-2 flash");
+  });
+});
+

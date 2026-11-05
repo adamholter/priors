@@ -83,7 +83,7 @@ const FAMILIES: { re: RegExp; id: (m: RegExpMatchArray) => string; name: (m: Reg
   { re: /\blaguna[\s-]*(m|xs)[\s.-]*(\d+(?:\.\d+)?)\b/, id: (m) => `laguna-${m[1]}-${m[2]}`, name: (m) => `Laguna ${m[1].toUpperCase()}.${m[2]}`, lab: "poolside" },
   { re: /\b(mistral|magistral|devstral|codestral)[\s-]*(large|medium|small)?[\s-]*(\d+(?:\.\d+)?)?\b/, id: (m) => `${m[1]}${m[2] ? "-" + m[2] : ""}${m[3] ? "-" + m[3] : ""}`, name: (m) => `${m[1][0].toUpperCase()}${m[1].slice(1)}${m[2] ? " " + m[2][0].toUpperCase() + m[2].slice(1) : ""}${m[3] ? " " + m[3] : ""}`, lab: "mistral" },
   // Zhipu
-  { re: /\bglm[\s-]*(\d+(?:\.\d+)?)[\s-]*(air|flash|v)?\b/, id: (m) => `glm-${m[1]}${m[2] ? "-" + m[2] : ""}`, name: (m) => `GLM ${m[1]}${m[2] ? " " + m[2][0].toUpperCase() + m[2].slice(1) : ""}`, lab: "zhipu", reasoning: true },
+  { re: /\bglm[\s-]*(\d+(?:\.\d+)?)[\s-]*(air|flashx|flash|v)?\b/, id: (m) => `glm-${m[1]}${m[2] ? "-" + m[2] : ""}`, name: (m) => `GLM ${m[1]}${m[2] ? " " + (m[2] === "flashx" ? "FlashX" : m[2][0].toUpperCase() + m[2].slice(1)) : ""}`, lab: "zhipu", reasoning: true },
   // MiniMax
   { re: /\bminimax[\s-]*m(\d+(?:\.\d+)?)\b/, id: (m) => `minimax-m${m[1]}`, name: (m) => `MiniMax M${m[1]}`, lab: "minimax", reasoning: true },
   // Xiaomi
@@ -95,7 +95,8 @@ const FAMILIES: { re: RegExp; id: (m: RegExpMatchArray) => string; name: (m: Reg
   { re: /\bhy[\s-]*(\d+(?:\.\d+)?)\b/, id: (m) => `hy-${m[1]}`, name: (m) => `Hy${m[1]}`, lab: "tencent", reasoning: true },
   { re: /\bcomposer[\s-]*(\d+(?:\.\d+)?)\b/, id: (m) => `composer-${m[1]}`, name: (m) => `Composer ${m[1]}`, lab: "cursor" },
   // Cognition's own SWE models (FrontierCode / FrontierSWE leaderboards)
-  { re: /\bswe[\s-]*(\d+(?:\.\d+)?)\b/, id: (m) => `swe-${m[1]}`, name: (m) => `SWE ${m[1]}`, lab: "cognition", reasoning: true },
+  // A Flash is its own model on different weights (SWE-2 Flash is built on Inkling Small), never an effort or speed of the base.
+  { re: /\bswe[\s-]*(\d+(?:\.\d+)?)(?:[\s-]+(flash))?\b/, id: (m) => `swe-${m[1]}${m[2] ? "-flash" : ""}`, name: (m) => `SWE ${m[1]}${m[2] ? " Flash" : ""}`, lab: "cognition", reasoning: true },
   { re: /\bllama[\s-]*(\d+(?:\.\d+)?)[\s-]*(maverick|scout|behemoth|\d+b)?\b/, id: (m) => `llama-${m[1]}${m[2] ? "-" + m[2] : ""}`, name: (m) => `Llama ${m[1]}${m[2] ? " " + m[2][0].toUpperCase() + m[2].slice(1) : ""}`, lab: "meta" },
 ];
 

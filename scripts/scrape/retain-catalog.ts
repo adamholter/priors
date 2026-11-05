@@ -1,3 +1,4 @@
+import { normalizeLabel } from "../../src/data/normalize";
 import type { Model, Variant } from "../../src/data/types";
 
 /**
@@ -15,15 +16,17 @@ export function splitHy4Preview<S extends { models: Model[] }>(snapshot: S): S {
 }
 
 /** A partial scrape adds measurements, but must retain catalog metadata from skipped sources. */
-export function retainCatalog(previous: { models: Model[]; variants: Variant[] }, current: { models: Model[]; variants: Variant[] }) {
+export function retainCatalog(previous: { models: Model[]; variants: Variant[] }, current: { models: Model[]; variants: Variant[]; observations?: { variantId: string }[] }) {
   const models = new Map(previous.models.map(m => [m.id, m]));
+  // A label that now resolves to another model has left this one, so an old merge cannot come back through the catalog ("swe-2 flash" on `swe-2`).
+  const stillOurs = (alias: string, id: string) => { const n = normalizeLabel(alias); return !n.ok || n.modelId === id || !current.models.some((m) => m.id === n.modelId); };
   for (const m of current.models) {
     const old = models.get(m.id);
     models.set(m.id, old ? {
       ...old, ...m,
       releaseDate: m.releaseDate ?? old.releaseDate,
       priceTier: m.priceTier ?? old.priceTier,
-      aliases: [...new Set([...old.aliases, ...m.aliases])],
+      aliases: [...new Set([...old.aliases.filter((a) => stillOurs(a, m.id)), ...m.aliases])],
       reasoning: m.reasoning || old.reasoning,
     } : m);
   }
@@ -41,5 +44,8 @@ export function retainCatalog(previous: { models: Model[]; variants: Variant[] }
       sourceModels: lineage.length ? [...new Map(lineage.map(s => [`${s.id}|${s.slug}|${s.url}`, s])).values()] : undefined,
     });
   }
-  return { models: [...models.values()], variants: [...variants.values()] };
+  // A bare variant carries nothing but its id, so one with no rows left is only the trace of a row that moved (`swe-2@low`).
+  const observed = current.observations && new Set(current.observations.map((o) => o.variantId)), fresh = new Set(current.variants.map((v) => v.id));
+  const kept = [...variants.values()].filter((v) => !observed || fresh.has(v.id) || observed.has(v.id) || v.sourceModel || v.sourceModels?.length || v.configuration);
+  return { models: [...models.values()], variants: kept };
 }

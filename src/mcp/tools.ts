@@ -153,7 +153,7 @@ const readTools: Tool[] = [
       if (a.lab && !lab) throw new ToolError(`Unknown lab "${a.lab}".`, 404);
       const list = s.models.filter((m) => m.kind === "llm" && (!lab || m.labId === lab) && (a.open_weights == null || m.openWeights === a.open_weights) && (!q || norm(`${m.name} ${m.id}`).includes(q)))
         .sort((x, y) => (y.releaseDate ?? "").localeCompare(x.releaseDate ?? ""));
-      return { total: list.length, models: list.slice(0, cap(a.limit, 100, 500)).map((m) => ({ id: m.id, name: m.name, lab: labName(s, m.labId), released: m.releaseDate ?? null, openWeights: m.openWeights ?? null, paramsB: m.paramsB ?? null, efforts: [...new Set(s.variants.filter((v) => v.modelId === m.id).map((v) => v.effort))] })) };
+      return { total: list.length, models: list.slice(0, cap(a.limit, 100, 500)).map((m) => ({ id: m.id, name: m.name, lab: labName(s, m.labId), released: m.releaseDate ?? null, openWeights: m.openWeights ?? null, paramsB: m.paramsB ?? null, paramsNote: m.paramsNote ?? null, efforts: [...new Set(s.variants.filter((v) => v.modelId === m.id).map((v) => v.effort))] })) };
     },
   },
   {
@@ -174,7 +174,7 @@ const readTools: Tool[] = [
         : config.labs?.length && !config.labs.includes(m.labId) ? "Not ranked: this index only ranks some labs."
         : config.excludeModels?.includes(m.id) || (config.onlyModels && !config.onlyModels.includes(m.id)) ? "Not ranked: hidden by this index's model selection."
         : "Not ranked: no results on any benchmark in this index.";
-      return { model: { id: m.id, name: m.name, lab: labName(s, m.labId), released: m.releaseDate ?? null, openWeights: m.openWeights ?? null, paramsB: m.paramsB ?? null, activeParamsB: m.activeParamsB ?? null, aliases: m.aliases.slice(0, 12) },
+      return { model: { id: m.id, name: m.name, lab: labName(s, m.labId), released: m.releaseDate ?? null, openWeights: m.openWeights ?? null, paramsB: m.paramsB ?? null, paramsNote: m.paramsNote ?? null, activeParamsB: m.activeParamsB ?? null, aliases: m.aliases.slice(0, 12) },
         status, index: { id: config.id, name: config.name, strictness: settings.strictness },
         ranking: ranked.map((r) => ({ ...rowOut(r, s), rank: rank.get(m.id) ?? null })),
         efforts: vs.map((v) => ({ variantId: v.id, effort: v.effort, measurements: s.observations.filter((o) => o.variantId === v.id && !o.details?.priorsEstimate).map((o) => ({ benchmarkId: o.benchmarkId, benchmark: bench.get(o.benchmarkId)?.name, value: o.value, unit: bench.get(o.benchmarkId)?.unit, costUsd: o.costUsd ?? null, durationSec: o.durationSec ?? null, sourceUrl: o.sourceUrl })) })) };

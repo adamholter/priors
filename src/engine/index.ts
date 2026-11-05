@@ -705,8 +705,8 @@ function rankVariants(c: Columns, config: IndexConfig, shares: IndexResult["benc
     // Models without a first-party plan keep their API cost — that is what they cost to use.
     // Limit resets (src/data/plan-resets.ts) give the plan's subscribers extra usage, so its share of API price falls by that factor.
     const listed = cost && detail.plans?.get(model.id), reset = listed && listed.ratio > 0 ? detail.resetBoosts?.get(model.labId) : undefined;
-    const plan = listed && reset && reset.boost > 1 ? { ...listed, ratio: listed.ratio / reset.boost } : listed;
-    if (cost && plan) { cost.usd *= plan.ratio; cost.source += plan.ratio === 0 ? ` · free on ${plan.plan}` : ` · ${plan.plan}, ${subscriptionShare(plan.ratio)} of API price at full use${reset && reset.boost > 1 ? `, with ${reset.resets} limit resets in 30 days` : ""}`; }
+    const plan = listed && reset && reset.boost > 1 ? { ...listed, ratio: listed.ratio / reset.boost, ...(listed.aaCostRatio ? { aaCostRatio: listed.aaCostRatio / reset.boost } : {}) } : listed;
+    if (cost && plan) { cost.usd *= (!view.costBenchmark && (config.costSource ?? "aa") === "aa" ? plan.aaCostRatio : undefined) ?? plan.ratio; cost.source += plan.ratio === 0 ? ` · free on ${plan.plan}` : ` · ${plan.plan}, ${subscriptionShare(plan.ratio)} of API price at full use${reset && reset.boost > 1 ? `, with ${reset.resets} limit resets in 30 days` : ""}`; }
     const speedRow = speedBench === undefined ? -1 : at[vi * nb + speedBench];
     ranked.push({ variant: v, model, score: num / den, coverage, measuredShare, values, mixedEfforts: values.some((value) => value.estimateKind === "effort"), costUsd: cost?.usd, costSource: cost?.source, costPlan: plan || undefined, speed: speedRow >= 0 && value[speedRow] > 0 ? value[speedRow] : undefined, onFrontier: false, rank: 0 });
   }

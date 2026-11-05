@@ -137,6 +137,18 @@ grep -E '^NEW_BENCHMARK ' "$LOG" | sort -u | while IFS= read -r line; do
     notify "New benchmark to add: ${item//\"/}"
   fi
 done
+# A label filed under a model it may not be: a new model hiding under an old one, so check normalize.ts. The first run records what
+# already exists without notifying; after that, each line it has not seen notifies once.
+if ! grep -qxF "MERGED_LABELS_BASELINE" "$ANNOUNCED" 2>/dev/null; then
+  { grep -E '^MERGED_LABELS ' "$LOG" | sort -u; echo "MERGED_LABELS_BASELINE"; } >> "$ANNOUNCED" 2>/dev/null
+fi
+grep -E '^MERGED_LABELS ' "$LOG" | sort -u | while IFS= read -r line; do
+  if ! grep -qxF "$line" "$ANNOUNCED" 2>/dev/null; then
+    echo "$line" >> "$ANNOUNCED" 2>/dev/null
+    item=${line#MERGED_LABELS }
+    notify "Possible merged model: ${item//\"/}"
+  fi
+done
 # One notification per change in the set of failing sources, not one every 15 minutes while a source stays broken.
 FAILED_NOW=$(grep -E '^[[:space:]]*failed[[:space:]]' "$LOG" | awk '{print $2}' | sort | tr '\n' ' ')
 FAILED_FILE="${PRIORS_FAILED_FILE:-$HOME/priors/logs/failing-sources.txt}"

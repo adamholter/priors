@@ -15,7 +15,7 @@
 import type { Source, ScrapeResult, RawRow } from "../../../src/data/types";
 import { normalizeLabel } from "../../../src/data/normalize";
 import { blendedApiPrice, SUBSCRIPTION_BENCHMARK, type SubscriptionDetails, type TokenMix } from "../../../src/data/subscription";
-import { BUDGET_PLANS, LEGACY_PLANS, PLAN_CHANGES, PLAN_MULTIPLES, SUBSIDY_ASSUMPTIONS, SUBSIDY_OVERRIDES } from "./subscription-overrides";
+import { BUDGET_PLANS, LEGACY_PLANS, LIST_PRICES_UNTIL, PLAN_CHANGES, PLAN_MULTIPLES, SUBSIDY_ASSUMPTIONS, SUBSIDY_OVERRIDES } from "./subscription-overrides";
 
 const SITE = "https://realapipricing.com";
 const REPO = "https://github.com/FeiZhuLulu/real-api-pricing";
@@ -59,11 +59,12 @@ export function parseSubscriptions(json: Points, conventions: Conventions, chann
   const hosted = (model: string) => (resold.get(model) ?? []).filter((p) => budgetOf(p.id));
   const add = (all: Point[], pick: Point, note: string, extra: Point[] = []) => {
     const label = all[0].model_display.replace(/\s*\(v\d+\)$/, "");
-    const list = pick.list_price ?? all.find((p) => p.list_price)?.list_price;
+    const until = LIST_PRICES_UNTIL.find((l) => l.model === all[0].model && now < new Date(l.until));
+    const list = until ? { cached: until.cached, input: until.input, output: until.output, currency: "USD" } : pick.list_price ?? all.find((p) => p.list_price)?.list_price;
     const rate = list?.currency === "CNY" ? conventions.usdPerCny : 1;
     const details: SubscriptionDetails = {
       plan: name(pick), feeUsd: pick.price_usd ?? undefined, confidence: pick.confidence, mix: mixOf(pick.workload), dataDate: pick.data_date ?? undefined,
-      ...(list ? { listPrice: { cached: list.cached / rate, input: list.input / rate, output: list.output / rate } } : {}),
+      ...(list ? { listPrice: { cached: list.cached / rate, input: list.input / rate, output: list.output / rate } } : {}), ...(until ? { listUntil: until.until } : {}),
       plans: [...all, ...extra].sort(cheaper).map((p) => ({ plan: name(p), feeUsd: p.price_usd ?? undefined, usdPerMtok: p.real_usd_per_mtok, confidence: p.confidence })),
     };
     const budget = budgetOf(pick.id);
@@ -79,7 +80,9 @@ export function parseSubscriptions(json: Points, conventions: Conventions, chann
   };
   for (const all of byModel.values()) {
     if (!claim(all)) continue;
-    const counted = all.filter((p) => !PLAN_MULTIPLES.some((m) => m.listOnly && p.id.startsWith(`${m.planId}::`))), graded = counted.filter((p) => p.confidence !== "low");
+    // The median is what you could buy today: a legacy plan counts only when the lab sells nothing else.
+    const listed = all.filter((p) => !PLAN_MULTIPLES.some((m) => m.listOnly && p.id.startsWith(`${m.planId}::`))), sold = listed.filter((p) => !LEGACY_PLANS.some((prefix) => p.id.startsWith(prefix)));
+    const counted = sold.length ? sold : listed, graded = counted.filter((p) => p.confidence !== "low");
     const pool = (graded.length ? graded : counted).sort(cheaper);
     add(all, pool[Math.floor(pool.length / 2)], `median of ${pool.length} first-party plan${pool.length === 1 ? "" : "s"}`, hosted(all[0].model));
   }
@@ -110,7 +113,8 @@ export function parseSubscriptions(json: Points, conventions: Conventions, chann
     const plan = `${d.plan} (assumed same as ${a.sameAsName})`;
     rows.push({
       benchmarkId: SUBSCRIPTION_BENCHMARK, modelLabel: a.label, value: from.value, sourceUrl: from.sourceUrl, note: `${plan}${d.feeUsd ? `, $${d.feeUsd}/month` : ""}; assumed; ${a.note}`,
-      details: { ...d, plan, sameAs: a.sameAs, confidence: "assumed", dataDate: a.checked, plans: [] } as unknown as Record<string, unknown>,
+      // A list price held for a stated period is the other model's own, so it stays behind.
+      details: { ...d, ...(d.listUntil ? { listPrice: undefined, listUntil: undefined } : {}), plan, sameAs: a.sameAs, confidence: "assumed", dataDate: a.checked, plans: [] } as unknown as Record<string, unknown>,
     });
   }
   return rows;
@@ -144,7 +148,8 @@ export function budgetPoints(conventions: Conventions, now = new Date()): Point[
   const mix = pickMix(conventions.standardTokenMix);
   return BUDGET_PLANS.flatMap((b) => b.models.map((m): Point => ({
     id: `${b.planId}::${m.model}`, plan: b.plan, plan_en: b.plan, billing: "subscription", model: m.model, model_display: m.display, vendor: m.vendor, workload: "standard",
-    list_price: m.list ? { ...m.list, currency: "USD" } : null, price_usd: b.feeUsd, confidence: b.confidence, data_date: b.checked, real_usd_per_mtok: b.feeUsd * blendedApiPrice(m.promo && now < new Date(m.promo.until) ? m.promo : m, mix) / b.budgetUsd,
+    // On the seller's own model its rates are the list price. Another lab's model keeps that lab's.
+    list_price: m.list ? { ...m.list, currency: "USD" } : m.vendor === b.channel ? { cached: m.cached ?? m.input * 0.1, input: m.input, output: m.output, currency: "USD" } : null, price_usd: b.feeUsd, confidence: b.confidence, data_date: b.checked, real_usd_per_mtok: b.feeUsd * blendedApiPrice(m.promo && now < new Date(m.promo.until) ? m.promo : m, mix) / b.budgetUsd,
   })));
 }
 

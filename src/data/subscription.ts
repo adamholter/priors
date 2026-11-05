@@ -37,12 +37,16 @@ export interface SubscriptionDetails {
   dataDate?: string;
   /** The API list price (USD per 1M) the source converted this plan with, when it publishes one. */
   listPrice?: { cached: number; input: number; output: number };
+  /** `listPrice` is the lab's price only until this moment; Artificial Analysis already lists the price that follows. */
+  listUntil?: string;
   plans: { plan: string; feeUsd?: number; usdPerMtok: number; confidence: string }[];
 }
 
 export interface SubscriptionPrice {
   /** Subscription cost as a fraction of the API cost of the same tokens; 0 for a free tier. */
   ratio: number;
+  /** The share to scale an Artificial Analysis cost by, when it priced that cost at another list price than the lab charges today. Either way the result is the tokens at the plan's price. */
+  aaCostRatio?: number;
   plan: string;
   feeUsd?: number;
   confidence: string;
@@ -158,11 +162,13 @@ export function subscriptionPrices(snapshot: Snapshot, chosen: Record<string, st
     const prices = d?.listPrice ?? aaPrices.get(modelId);
     if (!d?.mix || !prices) continue;
     const api = blendedApiPrice(prices, d.mix);
-    if (positive(api)) { out.set(modelId, pick ? { ratio: value / api, plan: pick.plan, feeUsd: pick.feeUsd, confidence: pick.confidence } : { ratio: value / api, plan: d.plan, feeUsd: d.feeUsd, confidence: d.confidence }); mixes.set(modelId, d.mix); }
+    const aaList = d.listUntil ? aaPrices.get(modelId) : undefined, aaCost = aaList ? { aaCostRatio: value / blendedApiPrice(aaList, d.mix) } : {};
+    if (positive(api)) { out.set(modelId, pick ? { ratio: value / api, ...aaCost, plan: pick.plan, feeUsd: pick.feeUsd, confidence: pick.confidence } : { ratio: value / api, ...aaCost, plan: d.plan, feeUsd: d.feeUsd, confidence: d.confidence }); mixes.set(modelId, d.mix); }
   }
   // A model assumed to match another's subsidy pays that model's share, whatever its own list price (a free tier is not a plan's subsidy).
   // Its label follows the plan the other model is priced at ("Google AI Pro (assumed same as Argon)").
-  for (const [modelId, d] of assumed) { const from = out.get(d.sameAs!); if (positive(from?.ratio)) out.set(modelId, { ratio: from.ratio, plan: d.plan.replace(/^.*?(?= \(assumed same as )/, from.plan), feeUsd: from.feeUsd, confidence: d.confidence }); }
+  // The share at the other model's full list price: a temporary API discount on that model is not a subsidy this one gets.
+  for (const [modelId, d] of assumed) { const from = out.get(d.sameAs!); if (positive(from?.ratio)) out.set(modelId, { ratio: from.aaCostRatio ?? from.ratio, plan: d.plan.replace(/^.*?(?= \(assumed same as )/, from.plan), feeUsd: from.feeUsd, confidence: d.confidence }); }
   // An OpenAI model Codex lists with no plan data yet pays the median share of API price of the OpenAI models measured.
   // `scripts/verify/subsidy-backtest.ts` hides known rows to compare ways of doing this: pricing from Codex's message
   // limits scored worst on OpenAI's rows, and on other labs a new model's error is about the same whichever sibling rule is used.

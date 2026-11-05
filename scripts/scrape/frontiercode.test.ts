@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import type { ScrapeContext } from "../../src/data/types";
 import source from "./sources/frontiercode";
+import { normalizeLabel } from "../../src/data/normalize";
 
 const fixture = (name: string) => readFileSync(fileURLToPath(new URL("./fixtures/" + name, import.meta.url)), "utf8");
 
@@ -27,5 +28,17 @@ describe("FrontierCode source", () => {
     expect(xhigh.value).toBeCloseTo(32.44, 6);
     expect(xhigh.costUsd).toBe(8.68);
     expect(r.rows.some((x) => x.benchmarkId === "frontiercode-1.1-main" && x.modelLabel === "Claude Opus 5.5")).toBe(true);
+  });
+});
+
+describe("a launch on the board", () => {
+  it("keeps every row of SWE-2 Flash on its own model, beside SWE-2", async () => {
+    const cell = (score: number, cost: number) => ({ main: { correct: null, new_score: score, tokens: null, cost, duration_min: null, tool_calls: null, ote: null, flagged_rate: null } });
+    const v2 = { models: ["SWE-2", "SWE-2 Flash"], harness: { "SWE-2": "devin", "SWE-2 Flash": "devin" }, efforts: { "SWE-2": ["max"], "SWE-2 Flash": ["low", "max"] }, subsets: { main: 132 }, data: { "SWE-2": { max: cell(0.2378, 1.261) }, "SWE-2 Flash": { low: cell(0.2317, 0.203), max: cell(0.24, 0.2024) } } };
+    const launch = { ...ctx, fetchText: async (url: string) => url.endsWith("/frontier-code-2.0/data.json") ? JSON.stringify(v2) : ctx.fetchText(url) } as unknown as ScrapeContext;
+    const rows = (await source.scrape(launch)).rows.filter((r) => r.benchmarkId === "frontiercode-2.0-main");
+    const onto = (id: string) => rows.filter((r) => { const n = normalizeLabel(r.modelLabel, r.effort); return n.ok && n.modelId === id; }).map((r) => [r.effort, +r.value.toFixed(2), r.costUsd]);
+    expect(onto("swe-2")).toEqual([["max", 23.78, 1.261]]);
+    expect(onto("swe-2-flash")).toEqual([["low", 23.17, 0.203], ["max", 24, 0.2024]]);
   });
 });

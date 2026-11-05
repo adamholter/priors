@@ -39,6 +39,17 @@ export function aaOpenWeights(snapshot: Snapshot): Map<string, boolean> {
   return out;
 }
 
+/**
+ * Parameter counts as the lab states them on its model card or launch post, the figure the lab compares its own models by. They beat
+ * Artificial Analysis, which reads Hugging Face's safetensors count: that is what the files hold, and it can sit either side of the lab's
+ * figure. A model the lab states nothing for keeps the source's count. Checked by hand against the card named here.
+ */
+export const STATED_PARAMS: Record<string, { paramsB: number; activeB?: number; source: string; note?: string }> = {
+  "inkling-small": { paramsB: 276, activeB: 12, source: "https://huggingface.co/thinkingmachines/inkling-small", note: "As Thinking Machines states it. Hugging Face's safetensors count reads 266B." },
+  "swe-2-flash": { paramsB: 276, activeB: 12, source: "https://cognition.com/blog/swe-2-flash", note: "As Cognition states it. Based on Inkling Small; the weights are not public." },
+  "deepseek-v4.1-flash-1017": { paramsB: 552, activeB: 16, source: "https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash-1017", note: "Backbone parameters, as DeepSeek states them. The files hold 763B: they add 196B of Engram conditional memory and other weights outside the backbone." },
+};
+
 /** Set `openWeights` (and parameter counts) on every model. `signals` are model ids already resolved from other sources. */
 export function applyOpenWeights(snapshot: Snapshot, signals: Map<string, boolean>): { models: Model[]; unknown: string[] } {
   const fromAa = new Map<string, { open?: boolean; paramsB?: number; activeB?: number }>();
@@ -58,7 +69,8 @@ export function applyOpenWeights(snapshot: Snapshot, signals: Map<string, boolea
     const aa = fromAa.get(m.id);
     const open = CHECKED_WEIGHTS[m.id] ?? aa?.open ?? signals.get(m.id) ?? familyOpenWeights(m.id);
     if (open === undefined && m.kind === "llm") unknown.push(m.id);
-    return { ...m, ...(open !== undefined ? { openWeights: open } : {}), ...(aa?.paramsB ? { paramsB: aa.paramsB } : {}), ...(aa?.activeB ? { activeParamsB: aa.activeB } : {}) };
+    const stated = STATED_PARAMS[m.id], total = stated?.paramsB ?? aa?.paramsB, active = stated?.activeB ?? aa?.activeB;
+    return { ...m, ...(open !== undefined ? { openWeights: open } : {}), ...(total ? { paramsB: total } : {}), ...(active ? { activeParamsB: active } : {}), ...(stated?.note ? { paramsNote: stated.note } : {}) };
   });
   return { models, unknown };
 }

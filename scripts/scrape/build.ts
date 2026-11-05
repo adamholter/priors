@@ -16,6 +16,7 @@ import { canonicalizeSnapshot } from "../../src/data/canonical-snapshot";
 import { retainCatalog, splitHy4Preview } from "./retain-catalog";
 import { fetchPlanResets } from "./plan-resets";
 import { fetchSpeedTiers } from "./speed-tiers";
+import { labelCollisions, swallowedTiers } from "./label-collisions";
 import { applyLaunchClaims } from "./launch-claims";
 import { fetchFreeTiers } from "./free-tiers";
 import { applyFreeTiers, carriedFreeTiers } from "../../src/data/free-tier";
@@ -153,6 +154,7 @@ async function main() {
   };
   const variants = new Map<string, Variant>();
   const observations: Observation[] = [];
+  const labeled: Parameters<typeof labelCollisions>[0] = [];
   for (const p of pending) {
     const effort = resolveEffort(p.modelId, p.effort);
     // Retain VALS keys until the final canonicalization pass can check all records
@@ -171,6 +173,7 @@ async function main() {
     } : {}) });
     const { modelLabel, identity: _identity, modelMetadata: _metadata, effort: _e, labHint: _l, releaseDateHint: _r, sourceId: _s, ...rest } = p.row;
     void _identity; void _metadata; void modelLabel; void _e; void _l; void _r; void _s;
+    labeled.push({ benchmarkId: p.row.benchmarkId, variantId: vid, harness: rest.harness, label: p.row.modelLabel, value: p.row.value });
     observations.push({ ...rest, variantId: vid, observedAt: date, note: rest.note ?? (p.effort ? undefined : effort !== "default" ? "effort unspecified; attributed to max" : undefined) });
   }
   // Keep authoritative AA catalog entries even when no evaluation is measured yet.
@@ -193,6 +196,9 @@ async function main() {
     series.push({ benchmarkId: s.benchmarkId, variantId: vid, x: s.x, y: s.y, xLabel: s.xLabel, yLabel: s.yLabel, sourceUrl: s.sourceUrl });
   }
 
+  // A new model filed under an old one. The job notifies once per new line, so a line carries no values that change between runs.
+  for (const c of labelCollisions(labeled)) console.log(`MERGED_LABELS ${c.benchmarkId} ${c.variantId}: "${c.dropped}" lost its row to "${c.kept}"`);
+  for (const s of swallowedTiers([...models.values()])) console.log(`MERGED_LABELS ${s.modelId}: "${s.label}" says ${s.word}, its model does not`);
   // dedupe observations: same benchmark+variant(+harness) -> keep first
   const seen = new Set<string>();
   const deduped = observations.filter((o) => { const k = `${o.benchmarkId}|${o.variantId}|${o.harness ?? ""}`; if (seen.has(k)) return false; seen.add(k); return true; });

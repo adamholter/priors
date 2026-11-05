@@ -135,3 +135,21 @@ describe("normalizeLabel", () => {
     expect(normalizeLabel("Nova Micro 2").ok).toBe(false);
   });
 });
+
+describe("a tier named in the label is its own model", () => {
+  const id = (label: string, effort?: string) => { const n = normalizeLabel(label, effort); return n.ok ? n.modelId : undefined; };
+  it("keeps SWE-2 Flash apart from SWE-2, at every effort", () => {
+    expect(id("SWE-2")).toBe("swe-2");
+    for (const label of ["SWE-2 Flash", "swe-2-flash", "swe 2 flash"]) expect(id(label, "max")).toBe("swe-2-flash");
+    expect(normalizeLabel("SWE-2 Flash", "low")).toMatchObject({ modelName: "SWE 2 Flash", labId: "cognition", effort: "low" });
+  });
+  it("still reads SWE-2's own labels as SWE-2", () => {
+    expect(id("SWE-2 (*using devin)")).toBe("swe-2");
+    expect(id("SWE-1.6")).toBe("swe-1.6");
+  });
+  it("keeps GLM-5.3 FlashX apart from GLM-5.3 and its Flash", () => {
+    expect(id("GLM-5.3 FlashX")).toBe("glm-5.3-flashx");
+    expect(id("GLM-5.3 Flash")).toBe("glm-5.3-flash");
+    expect(id("GLM-5.3")).toBe("glm-5.3");
+  });
+});

@@ -31,6 +31,41 @@ const payload: Points = { generatedAt: "2026-10-08", points: [
   point("opencode_go::gemini-4-argon-contributor", "OpenCode Go", "Google", 0.131, { model_display: "Gemini 4 Argon Contributor", price_usd: 10 }),
 ] };
 
+describe("list prices", () => {
+  const argon = (now: string) => parseSubscriptions(payload, conventions, channels, new Date(now)).find((r) => r.modelLabel === "Gemini 4 Argon")!.details;
+  it("uses Google's price through November 30, and leaves it to Artificial Analysis after", () => {
+    expect(argon("2026-11-05T00:00:00Z")).toMatchObject({ listPrice: { input: 2, cached: 0.1, output: 10 }, listUntil: "2026-12-01T00:00:00Z" });
+    const after = argon("2026-12-01T00:00:00Z") as unknown as { listPrice?: unknown; listUntil?: unknown };
+    expect(after.listPrice).toBeUndefined();
+    expect(after.listUntil).toBeUndefined();
+  });
+  it("leaves that price with Argon when Carbon borrows its subsidy", () => {
+    const carbon = parseSubscriptions(payload, conventions, channels, new Date("2026-11-05T00:00:00Z")).find((r) => r.modelLabel === "Gemini 4 Carbon (max)")!.details as unknown as { sameAs: string; listPrice?: unknown; listUntil?: unknown };
+    expect(carbon.sameAs).toBe("gemini-4");
+    expect(carbon.listPrice).toBeUndefined();
+    expect(carbon.listUntil).toBeUndefined();
+  });
+  it("takes a budget plan's rates as the list price on the seller's own model, so its share is fee over budget", () => {
+    const rows = parseSubscriptions({ ...payload, points: [] }, conventions, channels);
+    const large = rows.find((r) => r.modelLabel === "Mistral Large 4")!, d = large.details as unknown as { listPrice: { input: number; cached: number; output: number }; mix: { cache: number; input: number; output: number } };
+    expect(d.listPrice).toEqual({ input: 0.7, cached: 0.07, output: 2.1 });
+    expect(large.value / blendedApiPrice(d.listPrice, d.mix)).toBeCloseTo(14.99 / 315, 6);
+  });
+});
+
+describe("Kimi's legacy plans", () => {
+  const kimi = (id: string, plan: string, real: number, price = 19) => point(`${id}::kimi-k3`, plan, "Moonshot", real, { model_display: "Kimi K3", price_usd: price });
+  const rows = parseSubscriptions({ ...payload, points: [kimi("kimi_moderato_cn", "Kimi Moderato", 0.0488), kimi("kimi_allegro_cn", "Kimi Allegro", 0.017, 99), kimi("kimi_allegretto_cn", "Kimi Allegretto", 0.02, 39), kimi("kimi_plus_cn", "Kimi Plus", 0.0974), kimi("kimi_pro_cn", "Kimi Pro", 0.0401, 39), kimi("kimi_max_cn", "Kimi Max", 0.0339, 99)] }, conventions, { channels: [...channels.channels, ["kimi", "Moonshot"]] });
+  const d = rows.find((r) => r.modelLabel === "Kimi K3")!;
+  it("names them legacy and keeps them to pick", () => {
+    const names = (d.details as unknown as { plans: { plan: string }[] }).plans.map((p) => p.plan);
+    expect(names).toEqual(expect.arrayContaining(["Kimi Moderato, legacy", "Kimi Allegro, legacy", "Kimi Allegretto, legacy", "Kimi Plus"]));
+  });
+  it("prices the model on a plan you can still buy", () => {
+    expect(d).toMatchObject({ value: 0.0401, details: { plan: "Kimi Pro" } });
+  });
+});
+
 describe("ChatGPT Pro 500", () => {
   const rows = parseSubscriptions(payload, conventions, channels);
   const sol = rows.find((r) => r.modelLabel === "GPT 5.6 Sol")!;
@@ -62,7 +97,7 @@ describe("Real API Pricing subscriptions", () => {
   });
   const computed = rows.filter((r) => !(r.details as { source?: string; sameAs?: string }).source && !(r.details as { sameAs?: string }).sameAs && r.sourceUrl !== VIBE);
   it("keeps one row per model on its lab's own plans: no resellers, metered APIs or unmetered promos", () => {
-    expect(computed.map((r) => r.modelLabel)).toEqual(["GPT 5.6 Sol", "Claude Opus 5.5", "Claude Fable 5", "GLM 5.3", "Gemini 4 Argon", "Hy4", "Hy4 preview", "Qwen3.8 Max"]);
+    expect(computed.map((r) => r.modelLabel)).toEqual(["GPT 5.6 Sol", "Claude Opus 5.5", "Claude Fable 5", "GLM 5.3", "GLM 5.3 FlashX", "Gemini 4 Argon", "Hy4", "Hy4 preview", "Qwen3.8 Max"]);
     expect(row("GPT 5.6 Sol").details).toMatchObject({ plans: [{ plan: "ChatGPT Pro 20x" }, { plan: "ChatGPT Pro 500" }, { plan: "ChatGPT Pro 10x" }, { plan: "ChatGPT Plus" }] });
   });
   it("marks Cursor's old plans as legacy on its own model, and never prices another lab's model on them", () => {
@@ -165,7 +200,7 @@ describe("Real API Pricing subscriptions", () => {
     const ctx = { fetchText: async (url: string) => JSON.stringify(files[url.split("/").pop()!]) } as unknown as Parameters<typeof source.scrape>[0];
     const r = await source.scrape(ctx);
     expect(r.benchmarks[0]).toMatchObject({ id: SUBSCRIPTION_BENCHMARK, unit: "usd", proxy: true, defaultWeight: 0, eligibleForDefault: false, lastUpdated: "2026-10-08" });
-    expect(r.rows).toHaveLength(8 + 7 + 2); // + Mistral Vibe Pro's rows (four Mistral models, GLM 5.2, GLM 5.3 Flash, DeepSeek V4.1 Flash 1017) and Tencent Token Plan's Hy4 and Hy4 preview
+    expect(r.rows).toHaveLength(9 + 7 + 2); // + Mistral Vibe Pro's rows (four Mistral models, GLM 5.2, GLM 5.3 Flash, DeepSeek V4.1 Flash 1017) and Tencent Token Plan's Hy4 and Hy4 preview
     expect(Object.keys(r.raw)).toEqual(["points.json", "conventions.json", "channel-colors.json"]);
   });
 });

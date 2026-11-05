@@ -19,7 +19,7 @@ export const RELEASE_DATE_OVERRIDES: Record<string, string> = {
   "mistral-3.5": "2026-04-30", "qwen-3.6": "2026-04-02", "qwen-3.7": "2026-06-03", "qwen-3.5-397b": "2026-02-16",
   "deepseek-v4": "2026-04-23", "kimi-k2.7": "2026-06-12", "qwen-2.5-plus": "2024-11-27", "gpt-5.3-codex-codex": "2026-02-24",
   // Vendor launch coverage (vals.ai, release write-ups).
-  "composer-2.5": "2026-05-18", "swe-1.6": "2026-04-07", "swe-2": "2026-09-10",
+  "composer-2.5": "2026-05-18", "swe-1.6": "2026-04-07", "swe-2": "2026-09-10", "swe-2-flash": "2026-11-04",
 };
 
 const isoDay = (unixSeconds: number) => new Date(unixSeconds * 1000).toISOString().slice(0, 10);

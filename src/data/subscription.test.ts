@@ -254,3 +254,19 @@ describe("plan limit resets", () => {
     expect(decodeIndex(`${encodeIndex(base)}|resets=off`, "t")!.planResets).toBeUndefined();
   });
 });
+
+describe("a list price Artificial Analysis does not use", () => {
+  const mix = { cache: 0.85, input: 0.145, output: 0.005 };
+  const argon = { benchmarkId: SUBSCRIPTION_BENCHMARK, variantId: "gemini-4@max", value: 0.303, details: { plan: "Google AI Pro", feeUsd: 19.99, confidence: "low", mix, listPrice: { cached: 0.1, input: 2, output: 10 }, listUntil: "2026-12-01T00:00:00Z", plans: [] } };
+  const carbon = { benchmarkId: SUBSCRIPTION_BENCHMARK, variantId: "gemini-4-carbon@max", value: 0.303, details: { plan: "Google AI Pro (assumed same as Argon)", sameAs: "gemini-4", confidence: "assumed", mix, plans: [] } };
+  const aa = { price1mInputTokens: 4, price1mOutputTokens: 20, cacheHitPrice: 0.2 };
+  const snap = { models: [{ id: "gemini-4", labId: "google" }, { id: "gemini-4-carbon", labId: "google" }], variants: [{ id: "gemini-4@max", modelId: "gemini-4", sourceModel: { metadata: aa } }, { id: "gemini-4-carbon@max", modelId: "gemini-4-carbon", sourceModel: { metadata: aa } }], benchmarks: [{ id: SUBSCRIPTION_BENCHMARK }], observations: [argon, carbon] } as unknown as Snapshot;
+  const prices = subscriptionPrices(snap);
+  it("quotes the share of what the lab charges today", () => expect(1 / prices.get("gemini-4")!.ratio).toBeCloseTo(1.403, 2));
+  it("scales a cost Artificial Analysis priced at its own list to the same tokens at the plan's price", () => expect(1 / prices.get("gemini-4")!.aaCostRatio!).toBeCloseTo(2.805, 2));
+  it("gives a model borrowing the subsidy the share at full list price, not the other model's discount", () => {
+    expect(1 / prices.get("gemini-4-carbon")!.ratio).toBeCloseTo(2.805, 2);
+    expect(prices.get("gemini-4-carbon")!.aaCostRatio).toBeUndefined();
+  });
+});
+

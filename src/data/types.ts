@@ -27,6 +27,8 @@ export interface Model {
   /** Total and active parameters in billions, when a source publishes them. */
   paramsB?: number;
   activeParamsB?: number;
+  /** Set when the count needs saying what it is, such as a lab's backbone figure that the published files exceed. */
+  paramsNote?: string;
 }
 
 export interface Variant {

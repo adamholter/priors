@@ -82,9 +82,21 @@ export const PLAN_CHANGES: PlanChange[] = [
 
 /**
  * Plans no longer sold to new customers. Real API Pricing measured these allowances, and they still hold for existing
- * customers, so they stay priced but say so. Cursor's replacements publish no token allowance. (cursor.com/docs/models-and-pricing, read 2026-11-04.)
+ * customers, so they stay priced but say so, and they leave the median while the lab sells something else. Cursor's replacements publish no token allowance
+ * (cursor.com/docs/models-and-pricing, read 2026-11-04). Moonshot: "Andante, Moderato, Allegretto, and Allegro are legacy plans" (kimi.com/en/help/membership/membership-pricing, read 2026-11-05).
  */
-export const LEGACY_PLANS = ["cursor_"];
+export const LEGACY_PLANS = ["cursor_", "kimi_andante", "kimi_moderato", "kimi_allegretto", "kimi_allegro"];
+
+/**
+ * A lab's API price for a stated period, when Artificial Analysis lists the price that follows it and Real API Pricing publishes none.
+ * A plan's share of API price uses this until `until`; then the row falls back on its own. Artificial Analysis' measured costs stay priced
+ * at its own list, so the engine prices those at the plan's token price either way (`aaCostRatio` in `src/data/subscription.ts`).
+ */
+export interface ListPriceUntil { model: string; until: string; cached: number; input: number; output: number; source: string; checked: string }
+export const LIST_PRICES_UNTIL: ListPriceUntil[] = [
+  // "$2.00 through November 30, 2026", "$4.00 starting December 1, 2026"; output $10 then $20; caching $0.10 then $0.20.
+  { model: "gemini-4-argon", until: "2026-12-01T00:00:00Z", cached: 0.1, input: 2, output: 10, source: "https://aistudio.google.com/docs/pricing", checked: "2026-11-05" },
+];
 
 /**
  * Plans a lab sells as a multiple of a base plan's allowance. A model measured on `base` but not on this plan
