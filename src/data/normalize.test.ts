@@ -36,6 +36,10 @@ const cases: [string, string, string | undefined][] = [
   ["claude-opus-4-6-high", "claude-opus-4.6", "high"],
   ["Muse Spark 1.2", "muse-spark-1.2", undefined],
   ["Inkling Small", "inkling-small", undefined],
+  ["Muse Wonder (High)", "aa-muse-wonder", "high"],
+  ["Muse Wonder (Max)", "aa-muse-wonder", "max"],
+  ["Muse Wonder Full (Max)", "aa-muse-wonder-full", "max"],
+  ["Muse-Wonder", "aa-muse-wonder", undefined],
   // o1-preview's rows once sat on o1 and moved o1's release date to Sept 2024.
   ["o1-preview", "o1-preview", undefined],
   ["openai/o1-preview-2024-09-12", "o1-preview", undefined],
