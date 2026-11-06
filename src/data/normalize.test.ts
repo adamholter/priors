@@ -36,6 +36,10 @@ const cases: [string, string, string | undefined][] = [
   ["claude-opus-4-6-high", "claude-opus-4.6", "high"],
   ["Muse Spark 1.2", "muse-spark-1.2", undefined],
   ["Inkling Small", "inkling-small", undefined],
+  // Deep Think once fell on plain Gemini 3 and made a false ARC-AGI-2 frontier step.
+  ["Gemini 3 Deep Think (2/26)", "gemini-3-deep-think", undefined],
+  ["Gemini 3 Deep Think (Preview)", "gemini-3-deep-think-preview", undefined],
+  ["gemini-3-deep-think-preview", "gemini-3-deep-think-preview", undefined],
   ["Muse Wonder (High)", "aa-muse-wonder", "high"],
   ["Muse Wonder (Max)", "aa-muse-wonder", "max"],
   ["Muse Wonder Full (Max)", "aa-muse-wonder-full", "max"],

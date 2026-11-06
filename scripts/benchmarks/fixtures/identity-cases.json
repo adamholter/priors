@@ -2250,6 +2250,20 @@
         "canonical": true
       },
       "legacyVariantId": "deepseek-v4.1-flash@high"
+    },
+    {
+      "id": "label/Gemini 3 Deep Think (2/26)",
+      "kind": "label",
+      "record": {
+        "modelLabel": "Gemini 3 Deep Think (2/26)",
+        "effort": "high"
+      },
+      "expected": {
+        "modelId": "gemini-3-deep-think",
+        "effort": "high",
+        "canonical": true
+      },
+      "legacyVariantId": "gemini-3-deep-think@high"
     }
   ]
 }
