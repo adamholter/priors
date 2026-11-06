@@ -36,6 +36,14 @@ const cases: [string, string, string | undefined][] = [
   ["claude-opus-4-6-high", "claude-opus-4.6", "high"],
   ["Muse Spark 1.2", "muse-spark-1.2", undefined],
   ["Inkling Small", "inkling-small", undefined],
+  // Inkling 2 Small is a new 594B model, not the original 975B Inkling: it was filed under "inkling" until the rule read the generation.
+  ["Inkling 2 Small", "inkling-2-small", undefined],
+  ["thinkingmachines/inkling-2-small", "inkling-2-small", undefined],
+  ["Inkling 2 Small (xhigh)", "inkling-2-small", "xhigh"],
+  ["Inkling (high reasoning)", "inkling", "high"],
+  // Vals drops Meta's brand: its "Wonder Full" landed on an orphan model instead of Muse Wonder Full.
+  ["Wonder Full", "aa-muse-wonder-full", undefined],
+  ["Wonder", "aa-muse-wonder", undefined],
   ["gpt-oss-120b", "gpt-oss-120b", undefined],
   ["gpt-5.6-luna", "gpt-5.6-luna", undefined],
   ["GPT-4o mini", "gpt-4o-mini", undefined],

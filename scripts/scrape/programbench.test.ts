@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import type { ScrapeContext } from "../../src/data/types";
-import source from "./sources/programbench";
+import source, { zeroTaskNote } from "./sources/programbench";
 
 const fixture = (name: string) => readFileSync(fileURLToPath(new URL("./fixtures/" + name, import.meta.url)));
 const page = gunzipSync(fixture("programbench-page.html.gz")).toString("utf8");
@@ -80,5 +80,15 @@ describe("VALS AI ProgramBench source", () => {
     const mismatched = { ...bad, fetchText: async (url: string) =>
       url.endsWith("results_analysis.D_JihatQ.json") ? "{\"models\":[],\"heatmap\":{\"taskOrder\":[],\"models\":[]}}" : bad.fetchText(url) };
     await expect(source.scrape(mismatched)).rejects.toThrow(/task-analysis counts do not match table/);
+  });
+});
+
+describe("ProgramBench zero-task note", () => {
+  it("states the count when most tasks score 0, and stays quiet otherwise", () => {
+    const wonderFull = [...Array(124).fill(0), ...Array(60).fill(40), ...Array(16).fill(97)];
+    expect(zeroTaskNote(wonderFull, 21822)).toBe("124 of 200 tasks scored 0; average run 364 minutes");
+    expect(zeroTaskNote([0, 0, 50, null], undefined)).toBe("2 of 3 tasks scored 0");
+    expect(zeroTaskNote([0, 50, 90, 99], 600)).toBeUndefined();
+    expect(zeroTaskNote([], 600)).toBeUndefined();
   });
 });

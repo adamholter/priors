@@ -91,7 +91,8 @@ const FAMILIES: { re: RegExp; id: (m: RegExpMatchArray) => string; name: (m: Reg
   // Meta
   { re: /\bnemotron[\s-]*(\d+(?:\.\d+)?)[\s-]*(ultra|lightning)\b/, id: (m) => `nemotron-${m[1]}-${m[2]}`, name: (m) => `Nemotron ${m[1]} ${cap(m[2])}`, lab: "nvidia" },
   { re: /\bmuse[\s-]*spark[\s-]*(\d+(?:\.\d+)?)\b/, id: (m) => `muse-spark-${m[1]}`, name: (m) => `Muse Spark ${m[1]}`, lab: "meta", reasoning: true },
-  { re: /\binkling(?:[\s-]*(small))?\b/, id: (m) => `inkling${m[1] ? "-small" : ""}`, name: (m) => `Inkling${m[1] ? " Small" : ""}`, lab: "thinking-machines", reasoning: true },
+  // A generation number is a new model, never noise: "Inkling 2 Small" (594B) is not the original 975B Inkling.
+  { re: /\binkling(?:[\s-]*(\d+(?:\.\d+)?))?(?:[\s-]*(small))?\b/, id: (m) => `inkling${m[1] ? "-" + m[1] : ""}${m[2] ? "-small" : ""}`, name: (m) => `Inkling${m[1] ? " " + m[1] : ""}${m[2] ? " Small" : ""}`, lab: "thinking-machines", reasoning: true },
   { re: /\bhy[\s-]*(\d+(?:\.\d+)?)\b/, id: (m) => `hy-${m[1]}`, name: (m) => `Hy${m[1]}`, lab: "tencent", reasoning: true },
   { re: /\bcomposer[\s-]*(\d+(?:\.\d+)?)\b/, id: (m) => `composer-${m[1]}`, name: (m) => `Composer ${m[1]}`, lab: "cursor" },
   // Cognition's own SWE models (FrontierCode / FrontierSWE leaderboards)
@@ -194,6 +195,9 @@ const VALS_PUBLISHED_MODELS: Record<string, { id: string; name: string; lab: str
   "muse wonder": { id: "aa-muse-wonder", name: "Muse Wonder", lab: "meta", reasoning: true },
   "muse wonder 1.0": { id: "aa-muse-wonder", name: "Muse Wonder", lab: "meta", reasoning: true },
   "muse wonder full": { id: "aa-muse-wonder-full", name: "Muse Wonder Full", lab: "meta", reasoning: true },
+  // Vals lists Meta's models without the brand ("meta/muse-wonder-full" shows as "Wonder Full").
+  "wonder": { id: "aa-muse-wonder", name: "Muse Wonder", lab: "meta", reasoning: true },
+  "wonder full": { id: "aa-muse-wonder-full", name: "Muse Wonder Full", lab: "meta", reasoning: true },
   "claude 3.7 sonnet nonthinking": { id: "claude-sonnet-3.7", name: "Sonnet 3.7", lab: "anthropic", reasoning: true },
   "claude 3.5 haiku latest": { id: "claude-haiku-3.5", name: "Haiku 3.5", lab: "anthropic", reasoning: true },
   "command a": { id: "aa-command-a", name: "Command A", lab: "other", reasoning: true },

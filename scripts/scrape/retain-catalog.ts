@@ -46,6 +46,13 @@ export function retainCatalog(previous: { models: Model[]; variants: Variant[] }
   }
   // A bare variant carries nothing but its id, so one with no rows left is only the trace of a row that moved (`swe-2@low`).
   const observed = current.observations && new Set(current.observations.map((o) => o.variantId)), fresh = new Set(current.variants.map((v) => v.id));
-  const kept = [...variants.values()].filter((v) => !observed || fresh.has(v.id) || observed.has(v.id) || v.sourceModel || v.sourceModels?.length || v.configuration);
-  return { models: [...models.values()], variants: kept };
+  // A label that now resolves to another current model has moved there (`inkling 2 small` left `inkling`), so a trace
+  // that carries nothing but moved labels and no rows goes too, or the old model keeps a stale configuration or a twin.
+  const movedTo = (label: string | undefined, id: string) => { if (!label) return false; const n = normalizeLabel(label); return n.ok && n.modelId !== id && current.models.some((m) => m.id === n.modelId); };
+  const live = new Set(current.models.map((m) => m.id));
+  const gone = new Set([...models.values()].filter((m) => observed && !live.has(m.id) && m.aliases.length > 0 && m.aliases.every((a) => movedTo(a, m.id))
+    && ![...variants.values()].some((v) => v.modelId === m.id && observed.has(v.id))).map((m) => m.id));
+  const kept = [...variants.values()].filter((v) => !gone.has(v.modelId) && (!observed || fresh.has(v.id) || observed.has(v.id)
+    || (v.sourceModel || v.sourceModels?.length || v.configuration) && !(v.sourceModel && movedTo(v.sourceModel.name, v.modelId) && movedTo(v.sourceModel.slug, v.modelId))));
+  return { models: [...models.values()].filter((m) => !gone.has(m.id)), variants: kept };
 }

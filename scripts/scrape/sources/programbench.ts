@@ -299,6 +299,19 @@ function makeBenchmarks(date: string, overallIsDistinct: boolean): Benchmark[] {
   return out;
 }
 
+/**
+ * A run where most tasks score exactly 0 says more about the run than the model (Wonder Full: 124 of 200 at 0 with
+ * 6-hour average runs, while its own lab reports 59 at the 95% bar). The row stays as Vals published it; the note
+ * states the count so a reader, the assistant or a chart caption can see why the average is low.
+ */
+export function zeroTaskNote(scores: (number | null)[], latencySec?: unknown): string | undefined {
+  const scored = scores.filter((x): x is number => typeof x === "number");
+  const zeros = scored.filter((x) => x === 0).length;
+  if (!scored.length || zeros * 2 < scored.length) return undefined;
+  const minutes = isNum(latencySec) ? `; average run ${Math.round(latencySec / 60)} minutes` : "";
+  return `${zeros} of ${scored.length} tasks scored 0${minutes}`;
+}
+
 const source: Source = {
   id: "programbench",
   name: "VALS AI ProgramBench",
@@ -338,6 +351,7 @@ const source: Source = {
       const taskMetrics = Object.fromEntries(TASK_KEYS.map((key) => [key, view.tasks[key][modelId]]));
       const summary = models.get(modelId)!;
       const heat = analysis.heatmap.models.find((m) => m.model === modelId)!;
+      const note = zeroTaskNote(heat.scores, view.tasks.overall?.[modelId]?.latency);
       for (const metric of metricRows) {
         const score = view.tasks[metric.key]?.[modelId];
         if (!score || !isNum(score.accuracy)) continue;
@@ -345,7 +359,7 @@ const source: Source = {
           benchmarkId: metric.id, modelLabel: modelLabels.get(modelId)!, sourceModelId: modelId, effort: effort(score),
           value: score.accuracy,
           costUsd: isNum(score.cost_per_test) ? score.cost_per_test : undefined,
-          harness: "mini-SWE-agent", sourceUrl: PAGE,
+          harness: "mini-SWE-agent", sourceUrl: PAGE, note,
           details: {
             sourceModelId: modelId, catalogLabel: modelLabels.get(modelId), provider: score.provider, taskMetricKey: metric.key,
             taskMetricLabel: metric.label, taskMetrics, sourceScore: score,

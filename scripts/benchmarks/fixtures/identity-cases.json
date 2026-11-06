@@ -2166,6 +2166,48 @@
         "canonical": false
       },
       "legacyVariantId": "unresolved"
+    },
+    {
+      "id": "label/Inkling 2 Small",
+      "kind": "label",
+      "record": {
+        "modelLabel": "Inkling 2 Small",
+        "effort": "high"
+      },
+      "expected": {
+        "modelId": "inkling-2-small",
+        "effort": "high",
+        "canonical": true
+      },
+      "legacyVariantId": "inkling-2-small@high"
+    },
+    {
+      "id": "label/Inkling 2 Small (xhigh)",
+      "kind": "label",
+      "record": {
+        "modelLabel": "Inkling 2 Small (xhigh)",
+        "effort": "xhigh"
+      },
+      "expected": {
+        "modelId": "inkling-2-small",
+        "effort": "xhigh",
+        "canonical": true
+      },
+      "legacyVariantId": "inkling-2-small@xhigh"
+    },
+    {
+      "id": "label/Wonder Full",
+      "kind": "label",
+      "record": {
+        "modelLabel": "Wonder Full",
+        "effort": "max"
+      },
+      "expected": {
+        "modelId": "aa-muse-wonder-full",
+        "effort": "max",
+        "canonical": true
+      },
+      "legacyVariantId": "aa-muse-wonder-full@max"
     }
   ]
 }

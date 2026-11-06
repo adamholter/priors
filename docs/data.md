@@ -19,6 +19,9 @@
 - A variant (model + reasoning effort) is the ranked unit. When a source gives no effort, the row goes to the model's highest known effort.
 - `none`, `minimal` and `low` are distinct efforts. Explicit model sizes (Qwen 27B versus 35B-A3B), Instant variants and dated DeepSeek revisions stay distinct too.
 - `preview` is normally noise in a label, because a preview and its release are the same model. Hy4 is the exception: `hy-4-preview` and `hy-4` differ in weights, vision and scores.
+- A generation number is a new model: `Inkling 2 Small` (594B) is `inkling-2-small`, never the original 975B `inkling`.
+- Vals lists Meta's models without the brand: `Wonder` and `Wonder Full` are `aa-muse-wonder` and `aa-muse-wonder-full` (exact labels in `VALS_PUBLISHED_MODELS`).
+- The catalog keeps models and variants a source stops listing (`retain-catalog.ts`). A retained model or configuration with no rows whose labels all resolve to another current model is a trace of a moved label and is dropped, so a split (Inkling 2 Small off Inkling, Carbon off Argon) leaves no stale configuration or orphan twin behind.
 - Codenamed tiers are distinct models: GPT's Sol, Luna, Terra and Astra, and Gemini 4's Carbon (`gemini-4-carbon`). Gemini 4 Argon came first, so it keeps the bare `gemini-4` id.
 - Lab colors live in `LABS` in `normalize.ts`: same lab, same color everywhere.
 - Regression corpus: `scripts/benchmarks/` (`npm run benchmark:identity`, also run by Vitest). For a new parsing defect, add the source label and the independently reviewed identity to `fixtures/identity-cases.json`. Never edit expected groups to match the parser.
@@ -83,7 +86,7 @@ Notes on sources whose behavior is not obvious from the file:
 | `arcagi` | ARC Prize's per-version files. A model run at several thinking budgets keeps one row per budget (`budgetIdentity`): Gemini 2.5 budgets take Google's published effort word (1K low, 8K medium, 24K high), others stay named configurations (`~arc-thinking-16k`), and the no-budget row is the default on Gemini 2.5 and `none` on Claude. |
 | `arena` | Arena's Hugging Face dataset. `lastUpdated` is Arena's publish date, not the scrape's. An agent signal more than 14 days behind the newest agent board gets `stoppedPublishing`: it stays readable, says so, and loses quality points like a superseded benchmark. |
 | `realapipricing` | Feeds the subscription cost view, see below. Cursor's old plans read "legacy": new customers get no third-party allowance, and Cursor is never used to price another lab's model that has its own plan. |
-| `vals*` | Vals benchmarks. Shared parsing in `_vals.ts` and `vals.ts`. |
+| `vals*` | Vals benchmarks. Shared parsing in `_vals.ts` and `vals.ts`. ProgramBench (`programbench.ts`) rows where at least half the tasks score exactly 0 carry a note with the count and the average run time (Wonder Full: 124 of 200, 364 minutes, against Meta's own 59). The row stays as Vals published it. |
 
 ### Launch figures for new models
 

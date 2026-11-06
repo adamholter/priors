@@ -40,6 +40,30 @@ describe("partial scrape catalog retention", () => {
   });
 });
 
+describe("labels that moved to another model", () => {
+  const lab = { labId: "thinking-machines", kind: "llm", reasoning: true } as const;
+  const inkling: Model = { id: "inkling", name: "Inkling", ...lab, aliases: ["inkling", "inkling 2 small"] };
+  const inkling2: Model = { id: "inkling-2-small", name: "Inkling 2 Small", ...lab, aliases: ["inkling 2 small"] };
+  const stale: Variant = { id: "inkling@default~aa-inkling-2-small", modelId: "inkling", effort: "default", configuration: "aa-inkling-2-small", sourceModel: { id: "e2ed", slug: "inkling-2-small", name: "Inkling 2 Small", url: "" } };
+  const orphan: Model = { id: "vals-model-21b3", name: "Wonder Full", labId: "meta", kind: "llm", reasoning: true, aliases: ["wonder full"] };
+  const orphanVariant: Variant = { id: "vals-model-21b3@max~vals-21b3", modelId: orphan.id, effort: "max", configuration: "VALS model key: meta/muse-wonder-full" };
+  const wonderFull: Model = { id: "aa-muse-wonder-full", name: "Muse Wonder Full", labId: "meta", kind: "llm", reasoning: true, aliases: ["muse wonder full"] };
+  it("drops the old model's empty configuration and the orphan twin once their labels resolve elsewhere", () => {
+    const r = retainCatalog({ models: [inkling, orphan], variants: [stale, orphanVariant, { id: "inkling@max", modelId: "inkling", effort: "max" }] }, {
+      models: [{ ...inkling, aliases: ["inkling"] }, inkling2, wonderFull], variants: [{ id: "inkling-2-small@default", modelId: "inkling-2-small", effort: "default" }],
+      observations: [{ variantId: "inkling@max" }, { variantId: "inkling-2-small@default" }],
+    });
+    expect(r.models.map((m) => m.id)).toEqual(["inkling", "inkling-2-small", "aa-muse-wonder-full"]);
+    expect(r.models[0].aliases).toEqual(["inkling"]);
+    expect(r.variants.map((v) => v.id)).toEqual(["inkling@max", "inkling-2-small@default"]);
+  });
+  it("keeps a retained model that still has rows, or whose labels are still its own", () => {
+    const old: Model = { id: "claude-opus-4.1", name: "Opus 4.1", labId: "anthropic", kind: "llm", reasoning: true, aliases: ["claude opus 4.1"] };
+    const r = retainCatalog({ models: [old, orphan], variants: [orphanVariant] }, { models: [wonderFull], variants: [], observations: [{ variantId: orphanVariant.id }] });
+    expect(r.models.map((m) => m.id).sort()).toEqual(["aa-muse-wonder-full", "claude-opus-4.1", "vals-model-21b3"]);
+  });
+});
+
 describe("splitHy4Preview", () => {
   const hy = (releaseDate?: string) => ({
     models: [{ id: "hy-4", name: "Hy4", labId: "tencent", kind: "llm", reasoning: true, aliases: ["hy4 preview", "tencent: hy4"], releaseDate, openWeights: true }, model] as Model[],

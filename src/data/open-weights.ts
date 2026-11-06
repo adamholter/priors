@@ -46,6 +46,7 @@ export function aaOpenWeights(snapshot: Snapshot): Map<string, boolean> {
  */
 export const STATED_PARAMS: Record<string, { paramsB: number; activeB?: number; source: string; note?: string }> = {
   "inkling-small": { paramsB: 276, activeB: 12, source: "https://huggingface.co/thinkingmachines/inkling-small", note: "As Thinking Machines states it. Hugging Face's safetensors count reads 266B." },
+  "inkling-2-small": { paramsB: 594, activeB: 17, source: "https://thinkingmachines.ai/news/inkling-2-small/", note: "As Thinking Machines states it. Weights are closed at launch; the lab says Apache 2.0 weights follow after external safety testing." },
   "swe-2-flash": { paramsB: 276, activeB: 12, source: "https://cognition.com/blog/swe-2-flash", note: "As Cognition states it. Based on Inkling Small; the weights are not public." },
   "deepseek-v4.1-flash-1017": { paramsB: 552, activeB: 16, source: "https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash-1017", note: "Backbone parameters, as DeepSeek states them. The files hold 763B: they add 196B of Engram conditional memory and other weights outside the backbone." },
 };
