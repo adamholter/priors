@@ -13,7 +13,7 @@ import { makeContext, saveRaw } from "./harness";
 import { buildLibrary } from "./library";
 import { writeHistoryArchive } from "./history-archive";
 import { canonicalizeSnapshot } from "../../src/data/canonical-snapshot";
-import { retainCatalog, splitHy4Preview } from "./retain-catalog";
+import { firstCarry, remapMovedRows, retainCatalog, splitHy4Preview } from "./retain-catalog";
 import { fetchPlanResets } from "./plan-resets";
 import { fetchSpeedTiers } from "./speed-tiers";
 import { labelCollisions, swallowedTiers } from "./label-collisions";
@@ -22,7 +22,7 @@ import { fetchFreeTiers } from "./free-tiers";
 import { applyFreeTiers, carriedFreeTiers } from "../../src/data/free-tier";
 import { SUBSCRIPTION_BENCHMARK } from "../../src/data/subscription";
 import { applyOpenWeights } from "../../src/data/open-weights";
-import { fillReleaseDates, openRouterDates, type OpenRouterCreated } from "../../src/data/release-dates";
+import { applyDateHint, fillReleaseDates, openRouterDates, type OpenRouterCreated } from "../../src/data/release-dates";
 
 const args = process.argv.slice(2);
 const opt = (k: string) => { const i = args.indexOf(`--${k}`); return i >= 0 ? args[i + 1] : undefined; };
@@ -98,12 +98,14 @@ async function main() {
   const models = new Map<string, Model>();
   const pending: { row: RawRow & { sourceId: string }; modelId: string; effort?: Effort }[] = [];
   const unknownBySource = new Map<string, Set<string>>();
-  const touch = (n: ReturnType<typeof normalizeLabel>, label: string, hint?: { labHint?: string; releaseDateHint?: string; kind?: Model["kind"] }) => {
+  // Models whose date came from a source's own record for them (see applyDateHint).
+  const recordDated = new Set<string>();
+  const touch = (n: ReturnType<typeof normalizeLabel>, label: string, hint?: { labHint?: string; releaseDateHint?: string; kind?: Model["kind"] }, fromRecord = false) => {
     if (!n.ok) return;
     const m = models.get(n.modelId) ?? { id: n.modelId, name: n.modelName, labId: n.labId, kind: "llm", reasoning: n.reasoningFamily, aliases: [] };
     if (m.labId === "other" && n.labId !== "other") m.labId = n.labId;
     if (!m.aliases.includes(label.toLowerCase())) m.aliases.push(label.toLowerCase());
-    if (hint?.releaseDateHint && !m.releaseDate) m.releaseDate = hint.releaseDateHint;
+    applyDateHint(m, hint?.releaseDateHint, fromRecord, recordDated);
     if (hint?.kind && hint.kind !== "llm") m.kind = hint.kind;
     if (n.effort) m.reasoning = true;
     models.set(m.id, m);
@@ -122,15 +124,16 @@ async function main() {
           reasoningFamily: false, cleaned: row.modelLabel };
       } else continue;
     }
-    touch(n, row.modelLabel, meta.get(row.modelLabel.toLowerCase()) ?? {
+    const record = meta.get(row.modelLabel.toLowerCase());
+    touch(n, row.modelLabel, record ?? {
       releaseDateHint: row.releaseDateHint,
       ...(row.sourceId === "vals-voice-code-bench" ? { kind: "audio" as const } : {}),
-    });
+    }, !!record && !record.identity?.configuration);
     pending.push({ row, modelId: n.modelId, effort: n.effort });
   }
   for (const [label, hint] of meta) {
     const n = hint.identity ? { ok: true as const, ...hint.identity, reasoningFamily: hint.identity.effort !== "none", cleaned: label } : normalizeLabel(label);
-    touch(n, label, hint);
+    touch(n, label, hint, !!hint.identity && !hint.identity.configuration);
   }
   runs.forEach((r) => (r.unknownLabels = [...(unknownBySource.get(r.sourceId) ?? [])]));
 
@@ -224,7 +227,8 @@ async function main() {
       const prevBench = prev.benchmarks.filter((b) => b.sourceId === r.sourceId);
       prevBench.forEach((b) => snap.benchmarks.push(b));
       const ids = new Set(prevBench.map((b) => b.id));
-      prev.observations.filter((o) => ids.has(o.benchmarkId)).forEach((o) => snap.observations.push({ ...o, note: only && unselected.includes(r) ? o.note : [o.note, `carried from ${prev.date}`].filter(Boolean).join("; ") }));
+      // The first carry date stays: appending one per run grew a note to 60 repeats and hid when the scores were last fresh.
+      prev.observations.filter((o) => ids.has(o.benchmarkId)).forEach((o) => snap.observations.push({ ...o, note: (only && unselected.includes(r)) || o.note?.includes("carried from") ? firstCarry(o.note) : [o.note, `carried from ${prev.date}`].filter(Boolean).join("; ") }));
       prev.series.filter((s) => ids.has(s.benchmarkId)).forEach((s) => snap.series.push(s));
       r.note = `carried forward from ${prev.date}`;
     }
@@ -239,12 +243,15 @@ async function main() {
       const since = obs.map((o) => o.note?.match(/carried from (\d{4}-\d{2}-\d{2})/)?.[1]).find(Boolean) ?? prev.date;
       if ((Date.parse(date) - Date.parse(since)) / 86_400_000 > 21) { console.log(`DROPPED ${bm.id}: not returned by ${bm.sourceId} for over 21 days`); continue; }
       snap.benchmarks.push(bm);
-      obs.forEach((o) => snap.observations.push({ ...o, note: o.note?.includes("carried from") ? o.note : [o.note, `carried from ${prev.date}`].filter(Boolean).join("; ") }));
+      obs.forEach((o) => snap.observations.push({ ...o, note: o.note?.includes("carried from") ? firstCarry(o.note) : [o.note, `carried from ${prev.date}`].filter(Boolean).join("; ") }));
       prev.series.filter((s) => s.benchmarkId === bm.id).forEach((s) => snap.series.push(s));
       console.log(`CARRIED ${bm.id}: no longer returned by ${bm.sourceId}; keeping the scores from ${since}`);
       dropped++;
     }
-    if (retained.length || dropped) Object.assign(snap, retainCatalog(prev, snap));
+    if (retained.length || dropped) {
+      snap.observations = remapMovedRows(prev.variants, snap.variants, snap.observations);
+      Object.assign(snap, retainCatalog(prev, snap));
+    }
   } catch { /* first run */ }
 
   // Launch-day scores a lab published, for boards that have not listed its new model yet (launch-claims.ts).

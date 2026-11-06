@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Model, Variant } from "../../src/data/types";
-import { retainCatalog, splitHy4Preview } from "./retain-catalog";
+import { firstCarry, remapMovedRows, retainCatalog, splitHy4Preview } from "./retain-catalog";
 
 const model: Model = {
   id: "gpt-6-astra", name: "GPT-6 Astra", labId: "openai", kind: "llm", reasoning: true,
@@ -61,6 +61,28 @@ describe("labels that moved to another model", () => {
     const old: Model = { id: "claude-opus-4.1", name: "Opus 4.1", labId: "anthropic", kind: "llm", reasoning: true, aliases: ["claude opus 4.1"] };
     const r = retainCatalog({ models: [old, orphan], variants: [orphanVariant] }, { models: [wonderFull], variants: [], observations: [{ variantId: orphanVariant.id }] });
     expect(r.models.map((m) => m.id).sort()).toEqual(["aa-muse-wonder-full", "claude-opus-4.1", "vals-model-21b3"]);
+  });
+});
+
+describe("rows and dates a moved label leaves behind", () => {
+  const o1: Model = { id: "o1", name: "o1", labId: "openai", kind: "llm", reasoning: true, releaseDate: "2024-09-12", aliases: ["o1", "o1-preview"] };
+  const preview: Model = { id: "o1-preview", name: "o1-preview", labId: "openai", kind: "llm", reasoning: true, releaseDate: "2024-09-12", aliases: ["o1-preview"] };
+  const src = { id: "078f", slug: "o1-preview", name: "o1-preview", url: "" };
+  const oldVariant: Variant = { id: "o1@default~aa-o1-preview", modelId: "o1", effort: "default", configuration: "aa-o1-preview", sourceModel: src };
+  const newVariant: Variant = { id: "o1-preview@default", modelId: "o1-preview", effort: "default", sourceModel: src };
+  it("moves a carried row to the variant its source record now belongs to", () => {
+    const rows = remapMovedRows([oldVariant], [newVariant], [{ variantId: oldVariant.id, value: 11 }, { variantId: "o1@high", value: 50 }]);
+    expect(rows.map((r) => r.variantId)).toEqual(["o1-preview@default", "o1@high"]);
+  });
+  it("does not keep the old date when one of the model's labels moved away", () => {
+    // o1-preview's rows once sat on o1 and gave it Sept 2024; o1 then kept that date through every later run.
+    const r = retainCatalog({ models: [o1], variants: [oldVariant] }, { models: [{ ...o1, releaseDate: undefined, aliases: ["o1"] }, preview], variants: [newVariant], observations: [{ variantId: newVariant.id }] });
+    expect(r.models.find((m) => m.id === "o1")!.releaseDate).toBeUndefined();
+    expect(r.variants.map((v) => v.id)).toEqual(["o1-preview@default"]);
+  });
+  it("keeps one carry date, the first", () => {
+    expect(firstCarry("deprecated on AA; carried from 2026-10-27; carried from 2026-10-27; carried from 2026-11-04")).toBe("deprecated on AA; carried from 2026-10-27");
+    expect(firstCarry("no carry")).toBe("no carry");
   });
 });
 

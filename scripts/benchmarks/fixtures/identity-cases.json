@@ -2208,6 +2208,48 @@
         "canonical": true
       },
       "legacyVariantId": "aa-muse-wonder-full@max"
+    },
+    {
+      "id": "label/o1-preview (high)",
+      "kind": "label",
+      "record": {
+        "modelLabel": "o1-preview (high)",
+        "effort": "high"
+      },
+      "expected": {
+        "modelId": "o1-preview",
+        "effort": "high",
+        "canonical": true
+      },
+      "legacyVariantId": "o1-preview@high"
+    },
+    {
+      "id": "label/DeepSeek-V4.1-Flash-20261017 (Max)",
+      "kind": "label",
+      "record": {
+        "modelLabel": "DeepSeek-V4.1-Flash-20261017 (Max)",
+        "effort": "max"
+      },
+      "expected": {
+        "modelId": "deepseek-v4.1-flash-1017",
+        "effort": "max",
+        "canonical": true
+      },
+      "legacyVariantId": "deepseek-v4.1-flash-1017@max"
+    },
+    {
+      "id": "label/deepseek-v4.1-flash-2026-09-10-high",
+      "kind": "label",
+      "record": {
+        "modelLabel": "deepseek-v4.1-flash-2026-09-10-high",
+        "effort": "high"
+      },
+      "expected": {
+        "modelId": "deepseek-v4.1-flash",
+        "effort": "high",
+        "canonical": true
+      },
+      "legacyVariantId": "deepseek-v4.1-flash@high"
     }
   ]
 }

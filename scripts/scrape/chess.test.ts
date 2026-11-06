@@ -66,6 +66,15 @@ describe("LLM Chess", () => {
     expect(rows[0].ci![0]).toBeCloseTo(1504.112);
     expect(lastUpdated).toBe("2026-09-24");
   });
+  it("keeps Sonnet 3.7's thinking budgets apart instead of reading the budget as a version", () => {
+    // The budgets once became models "claude-sonnet-1024" to "claude-sonnet-10000", with no release date.
+    const js = "const data = `\nPlayer,min_game_date,total_games,elo,elo_moe_95\nclaude-3-7-sonnet,2025-03-01,40,-90,80\nclaude-3-7-sonnet_thinking_1024,2025-03-01,40,-36,80\nclaude-3-7-sonnet_thinking_10000,2025-03-01,40,10,80\ngpt-6-astra-high,2026-09-09,67,1613,100\n`;\n";
+    const rows = parseLlmChess(js).rows, by = (l: string) => rows.find((r) => r.modelLabel === l)!;
+    expect(by("claude-3-7-sonnet").effort, "no budget is thinking off").toBe("none");
+    expect(by("claude-3-7-sonnet_thinking_1024").identity).toMatchObject({ modelId: "claude-sonnet-3.7", effort: "default", variantId: "claude-sonnet-3.7@default~llm-chess-thinking-1024" });
+    expect(by("claude-3-7-sonnet_thinking_10000").identity?.variantId).toBe("claude-sonnet-3.7@default~llm-chess-thinking-10000");
+    expect(by("gpt-6-astra-high").identity).toBeUndefined();
+  });
 });
 
 describe("Chess LLM Benchmark", () => {

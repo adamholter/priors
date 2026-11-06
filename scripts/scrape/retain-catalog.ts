@@ -22,9 +22,11 @@ export function retainCatalog(previous: { models: Model[]; variants: Variant[] }
   const stillOurs = (alias: string, id: string) => { const n = normalizeLabel(alias); return !n.ok || n.modelId === id || !current.models.some((m) => m.id === n.modelId); };
   for (const m of current.models) {
     const old = models.get(m.id);
+    // A label that moved away may have brought the old date with it (o1-preview's Sept 2024 on o1), so then the date is left to this run's sources.
+    const lostLabel = !!old && old.aliases.some((a) => !stillOurs(a, m.id));
     models.set(m.id, old ? {
       ...old, ...m,
-      releaseDate: m.releaseDate ?? old.releaseDate,
+      releaseDate: m.releaseDate ?? (lostLabel ? undefined : old.releaseDate),
       priceTier: m.priceTier ?? old.priceTier,
       aliases: [...new Set([...old.aliases.filter((a) => stillOurs(a, m.id)), ...m.aliases])],
       reasoning: m.reasoning || old.reasoning,
@@ -55,4 +57,26 @@ export function retainCatalog(previous: { models: Model[]; variants: Variant[] }
   const kept = [...variants.values()].filter((v) => !gone.has(v.modelId) && (!observed || fresh.has(v.id) || observed.has(v.id)
     || (v.sourceModel || v.sourceModels?.length || v.configuration) && !(v.sourceModel && movedTo(v.sourceModel.name, v.modelId) && movedTo(v.sourceModel.slug, v.modelId))));
   return { models: [...models.values()].filter((m) => !gone.has(m.id)), variants: kept };
+}
+
+/**
+ * A carried row keeps the variant it was stored under. When that variant's source model now resolves elsewhere (AA's
+ * o1-preview record, once a configuration of o1), the row follows it to the current variant for the same source record.
+ */
+export function remapMovedRows<O extends { variantId: string }>(previous: Variant[], current: Variant[], observations: O[]): O[] {
+  const live = new Set(current.map((v) => v.id)), bySource = new Map<string, Variant>();
+  for (const v of current) if (v.sourceModel?.id) bySource.set(`${v.sourceModel.id}|${v.effort}`, v);
+  const prev = new Map(previous.map((v) => [v.id, v]));
+  return observations.map((o) => {
+    if (live.has(o.variantId)) return o;
+    const old = prev.get(o.variantId), next = old?.sourceModel?.id ? bySource.get(`${old.sourceModel.id}|${old.effort}`) : undefined;
+    return next && next.modelId !== old!.modelId ? { ...o, variantId: next.id } : o;
+  });
+}
+
+/** Keeps only the first "carried from" in a note, which is when the scores were last fresh. */
+export function firstCarry(note: string | undefined): string | undefined {
+  if (!note) return note;
+  let seen = false;
+  return note.split("; ").filter((part) => !/^carried from \d{4}-\d{2}-\d{2}$/.test(part) || (!seen && (seen = true))).join("; ");
 }

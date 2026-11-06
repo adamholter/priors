@@ -51,15 +51,32 @@ export function openRouterDates(listing: OpenRouterCreated[]): Map<string, strin
   return out;
 }
 
-/** Fills missing releaseDate: source hint (already set) > overrides > OpenRouter listing > Mistral YYMM suffix. */
+/** Dates that beat every source, each with its reason: first public availability where a source dates a later step. */
+export const RELEASE_DATE_PINNED: Record<string, { date: string; why: string }> = {
+  "mistral-large-4": { date: "2026-10-06", why: "Public preview on Mistral's API; Artificial Analysis dates the Oct 29 open-weights release." },
+};
+
+/** Fills missing releaseDate: pinned > source hint (already set) > overrides > OpenRouter listing > Mistral YYMM suffix. */
 export function fillReleaseDates(models: Model[], orDates: Map<string, string>): { filled: Record<"override" | "openrouter" | "suffix", string[]>; stillMissing: string[] } {
   const filled = { override: [] as string[], openrouter: [] as string[], suffix: [] as string[] };
   const stillMissing: string[] = [];
   for (const m of models) {
+    if (RELEASE_DATE_PINNED[m.id]) { m.releaseDate = RELEASE_DATE_PINNED[m.id].date; continue; }
     if (m.releaseDate || m.kind !== "llm") continue;
     const via: [keyof typeof filled, string | undefined][] = [["override", RELEASE_DATE_OVERRIDES[m.id]], ["openrouter", orDates.get(m.id)], ["suffix", mistralSuffixDate(m)]];
     const hit = via.find(([, d]) => d);
     if (hit) { m.releaseDate = hit[1]; filled[hit[0]].push(m.id); } else stillMissing.push(m.id);
   }
   return { filled, stillMissing };
+}
+
+/**
+ * One source's date hint for a model. A source's own record for exactly this model (AA's canonical record, not a dated
+ * configuration of it) outranks a leaderboard row's date; otherwise the first date seen stays. Boggs dates "o1 (medium)" to
+ * o1-preview's Sept 2024, and as the first source read it used to beat AA's Dec 2024.
+ */
+export function applyDateHint(m: { id: string; releaseDate?: string }, date: string | undefined, fromRecord: boolean, recordDated: Set<string>): void {
+  if (!date || (fromRecord ? recordDated.has(m.id) : !!m.releaseDate)) return;
+  m.releaseDate = date;
+  if (fromRecord) recordDated.add(m.id);
 }

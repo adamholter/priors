@@ -252,6 +252,20 @@ export function extractEffort(label: string): Effort | undefined {
   return undefined;
 }
 
+/** The checkpoint a DeepSeek model launched as keeps the bare id; later checkpoints carry their MMDD (`deepseek-v4.1-flash-1017`). */
+const FIRST_CHECKPOINT: Record<string, string> = { "deepseek-v4.1-flash": "0910" };
+
+/**
+ * A DeepSeek label dated in full ("deepseek-v4.1-flash-20261017", "deepseek-v4-pro (high, 20260813)", "deepseek-v4.1-flash-2026-09-10-high")
+ * names a checkpoint. Without this the date goes as noise and every checkpoint lands on the bare model, or "2026" reads as a revision.
+ */
+function deepseekCheckpoint(cleaned: string): { modelId: string; modelName: string } | undefined {
+  const m = cleaned.match(/\bdeepseek[\s-]*v?(\d+(?:\.\d+)?)[\s-]*(pro|flash|lite)\b(?:[\s-]+(?:none|minimal|low|medium|high|xhigh|max))?[\s,.-]+20\d{2}[.-]?(\d{2})[.-]?(\d{2})\b/);
+  if (!m) return undefined;
+  const base = `deepseek-v${m[1]}-${m[2]}`, mmdd = m[3] + m[4], name = `DeepSeek V${m[1]} ${cap(m[2])}`;
+  return FIRST_CHECKPOINT[base] === mmdd ? { modelId: base, modelName: name } : { modelId: `${base}-${mmdd}`, modelName: `${name} ${mmdd}` };
+}
+
 export function normalizeLabel(label: string, effortHint?: string): Normalized | Unknown {
   const effort = (effortHint && EFFORT_WORDS[effortHint.toLowerCase().trim()]) || extractEffort(label);
   let cleaned = cleanLabel(label);
@@ -267,6 +281,12 @@ export function normalizeLabel(label: string, effortHint?: string): Normalized |
   };
   // Hy4 preview and final Hy4 are different models, with different weights and scores, so "preview" is not noise here.
   if (/\bhy[\s-]*4[\s-]*preview\b/.test(cleaned)) return { ok: true, modelId: "hy-4-preview", modelName: "Hy4 preview", labId: "tencent", effort, reasoningFamily: true, cleaned };
+  // o1-preview (Sept 2024) and o1 (Dec 2024) are different models with different scores, so "preview" is not noise here either.
+  if (/\bo1[\s-]*preview\b/.test(cleaned)) return { ok: true, modelId: "o1-preview", modelName: "o1-preview", labId: "openai", effort, reasoningFamily: true, cleaned };
+  const checkpoint = deepseekCheckpoint(cleaned);
+  if (checkpoint) return { ok: true, ...checkpoint, labId: "deepseek", effort, reasoningFamily: true, cleaned };
+  // A thinking budget in tokens ("claude-3-7-sonnet_thinking_1024") is a setting, never a version: once "thinking" goes as noise, "sonnet 1024" would read as Sonnet 1024.
+  cleaned = cleaned.replace(/\bthinking[\s-]+\d+k?\b/g, "thinking");
   const alias = ALIASES[cleaned] ?? ALIASES[label.toLowerCase().trim()];
   const stripped = cleaned.replace(NOISE, " ").replace(/\s+/g, " ").trim();
   cleaned = stripped;

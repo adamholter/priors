@@ -36,6 +36,18 @@ const cases: [string, string, string | undefined][] = [
   ["claude-opus-4-6-high", "claude-opus-4.6", "high"],
   ["Muse Spark 1.2", "muse-spark-1.2", undefined],
   ["Inkling Small", "inkling-small", undefined],
+  // o1-preview's rows once sat on o1 and moved o1's release date to Sept 2024.
+  ["o1-preview", "o1-preview", undefined],
+  ["openai/o1-preview-2024-09-12", "o1-preview", undefined],
+  ["o1-2024-12-17 (high)", "o1", "high"],
+  // A full DeepSeek date names a checkpoint; the launch checkpoint keeps the bare id. These once all fell on the bare model, or read "2026" as a revision.
+  ["DeepSeek-V4.1-Flash-20261017 (Max)", "deepseek-v4.1-flash-1017", "max"],
+  ["DeepSeek-V4.1-Flash-20260910 (Max)", "deepseek-v4.1-flash", "max"],
+  ["deepseek-v4.1-flash-2026-09-10-high", "deepseek-v4.1-flash", "high"],
+  ["deepseek-v4-pro (high, 20260813)", "deepseek-v4-pro-0813", undefined],
+  ["DeepSeek V4.1 Flash 1017 (Max)", "deepseek-v4.1-flash-1017", "max"],
+  // A thinking budget is a setting, not a version ("claude-sonnet-1024").
+  ["claude-3-7-sonnet_thinking_1024", "claude-sonnet-3.7", undefined],
   // Inkling 2 Small is a new 594B model, not the original 975B Inkling: it was filed under "inkling" until the rule read the generation.
   ["Inkling 2 Small", "inkling-2-small", undefined],
   ["thinkingmachines/inkling-2-small", "inkling-2-small", undefined],
