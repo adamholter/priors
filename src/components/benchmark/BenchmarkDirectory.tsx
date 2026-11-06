@@ -52,15 +52,12 @@ const compare: Record<Sort, (a: DirectoryItem, b: DirectoryItem) => number> = {
 };
 const title = (c: string) => c.charAt(0).toUpperCase() + c.slice(1).replace(/-/g, " ");
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
-/** The whole directory is long, so "All" stops here until a category or a search narrows it. */
-const ALL_LIMIT = 40;
 
 export function BenchmarkDirectory({ items }: { items: DirectoryItem[] }) {
   const [q, setQ] = useState("");
   const [category, setCategory] = useState("all");
   const [sort, setSort] = useState<Sort>("recommended");
   const [everything, setEverything] = useState(false);
-  const [full, setFull] = useState(false);
   const input = useRef<HTMLInputElement>(null);
   // "/" jumps to search from anywhere on the page.
   useEffect(() => {
@@ -83,9 +80,9 @@ export function BenchmarkDirectory({ items }: { items: DirectoryItem[] }) {
     return searching ? searchBenchmarks(ranked.filter(inCategory), q, title, { loose: true }) : base.filter(inCategory).sort(compare[sort]);
   }, [base, ranked, category, sort, q, searching]);
   const totals = useMemo(() => ({ models: Math.max(0, ...base.map((x) => x.models)), publishers: new Set(base.map((x) => x.host).filter(Boolean)).size }), [base]);
-  const capped = category === "all" && !full;
-  const shown = found.slice(0, searching ? 60 : capped ? ALL_LIMIT : undefined);
-  const choose = (c: string) => { setCategory(c); setFull(false); };
+  // Every benchmark is listed, so a new one is never hidden below a cut-off. Only search results stop at 60.
+  const shown = searching ? found.slice(0, 60) : found;
+  const choose = (c: string) => setCategory(c);
 
   return (
     <div className="bench-dir grid gap-8">
@@ -122,7 +119,6 @@ export function BenchmarkDirectory({ items }: { items: DirectoryItem[] }) {
               <Tip text={TIP.quality} end>Quality</Tip>
             </div>
             <ul className="grid">{shown.map((x) => <Row key={x.id} x={x} showCategory={category === "all"} />)}</ul>
-            {!searching && capped && found.length > shown.length && <button type="button" className="btn-quiet mt-3" onClick={() => setFull(true)}>Show all {found.length}</button>}
           </div> : <p className="cap py-6">Nothing matches &ldquo;{q}&rdquo;. Try a word for what you want measured, such as coding, math or agents.</p>}
         </div>
       </div>

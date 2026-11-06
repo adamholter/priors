@@ -1123,6 +1123,11 @@ try {
       const rail = c.getByRole("navigation", { name: "Categories" }), rows = c.locator(".bench-row");
       await rows.first().waitFor({ timeout: 30000 });
       const before = await c.getByRole("status").innerText();
+      // "All" lists every benchmark: a new one with no mixes yet once sat below a 40-row cut-off and looked missing.
+      const total = Number(/(\d+) benchmarks?/.exec(before)?.[1]);
+      assert.ok(total > 40, `directory counts ${total}`);
+      assert.equal(await rows.count(), total, "All shows every benchmark it counts");
+      assert.equal(await c.getByRole("button", { name: /^Show all/ }).count(), 0);
       await rail.getByRole("button", { name: /^Math/ }).click();
       await c.waitForFunction((t) => document.querySelector("[role=status]")?.textContent !== t, before);
       assert.equal(await rail.getByRole("button", { name: /^Math/ }).getAttribute("aria-pressed"), "true");
