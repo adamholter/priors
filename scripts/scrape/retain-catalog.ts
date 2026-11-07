@@ -74,6 +74,21 @@ export function remapMovedRows<O extends { variantId: string }>(previous: Varian
   });
 }
 
+/**
+ * A carried row keeps the variant it was filed under when it was fresh. If its own source id now resolves to another model
+ * (Vals' `tencent/hy4` once sat on Hy4 preview), it moves to that model at the same effort, when that variant exists.
+ */
+export function remapCarriedBySource<O extends { variantId: string; sourceModelId?: string; note?: string }>(variants: Variant[], observations: O[]): O[] {
+  const byId = new Map(variants.map((v) => [v.id, v]));
+  return observations.map((o) => {
+    if (!o.sourceModelId || !o.note?.includes("carried from")) return o;
+    const v = byId.get(o.variantId), n = normalizeLabel(o.sourceModelId);
+    if (!v || !n.ok || n.modelId === v.modelId) return o;
+    const target = byId.get(`${n.modelId}@${v.effort}`);
+    return target ? { ...o, variantId: target.id } : o;
+  });
+}
+
 /** Keeps only the first "carried from" in a note, which is when the scores were last fresh. */
 export function firstCarry(note: string | undefined): string | undefined {
   if (!note) return note;

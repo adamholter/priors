@@ -81,6 +81,14 @@ describe("normalizeLabel", () => {
     expect(normalizeLabel("GPT-5 (minimal)")).toMatchObject({ effort: "minimal" });
     expect(normalizeLabel("Qwen3.6 35B-A3B")).toMatchObject({ modelId: "qwen-3.6-35b-a3b" });
     expect(normalizeLabel("Qwen3.6 27B")).toMatchObject({ modelId: "qwen-3.6-27b" });
+    expect(normalizeLabel("Qwen3 VL 235B A22B (Reasoning)")).toMatchObject({ modelId: "qwen-3-vl-235b-a22b", modelName: "Qwen 3 VL 235B-A22B" });
+    expect(normalizeLabel("Qwen3 Omni 30B A3B Instruct")).toMatchObject({ modelId: "qwen-3-omni-30b-a3b" });
+    expect(normalizeLabel("Qwen3 Next 80B A3B (Reasoning)")).toMatchObject({ modelId: "qwen-3-next-80b-a3b", modelName: "Qwen 3 Next 80B-A3B" });
+    expect(normalizeLabel("Qwen3 Coder Next")).toMatchObject({ modelId: "qwen-3-coder-next", modelName: "Qwen 3 Coder Next" });
+    expect(normalizeLabel("Qwen3 Coder 480B A35B Instruct")).toMatchObject({ modelId: "qwen-3-coder" });
+    expect(normalizeLabel("DeepSeek R1 Distill Llama 70B")).toMatchObject({ modelId: "deepseek-r1-distill-llama-70b", modelName: "DeepSeek R1 Distill Llama 70B" });
+    expect(normalizeLabel("DeepSeek R1 0528 Qwen3 8B")).toMatchObject({ modelId: "deepseek-r1-0528-distill-qwen-3-8b" });
+    expect(normalizeLabel("DeepSeek R1 0528 (May '25)")).toMatchObject({ modelId: "deepseek-r1" });
     expect(normalizeLabel("GPT-5.5 Instant")).toMatchObject({ modelId: "gpt-5.5-instant" });
     expect(normalizeLabel("DeepSeek V4 Pro 0813")).toMatchObject({ modelId: "deepseek-v4-pro-0813" });
     expect(normalizeLabel("DeepSeek V4 Pro")).toMatchObject({ modelId: "deepseek-v4-pro" });

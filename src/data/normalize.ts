@@ -71,9 +71,13 @@ const FAMILIES: { re: RegExp; id: (m: RegExpMatchArray) => string; name: (m: Reg
   // DeepSeek
   { re: /\bdeepseek[\s-]*v?(\d+(?:\.\d+)?)[\s-]*(pro|flash|lite)[\s-]+(\d{4})\b/, id: (m) => `deepseek-v${m[1]}-${m[2]}-${m[3]}`, name: (m) => `DeepSeek V${m[1]} ${cap(m[2])} ${m[3]}`, lab: "deepseek", reasoning: true },
   { re: /\bdeepseek[\s-]*(?:v)?(\d+(?:\.\d+)?)[\s-]*(pro|lite|flash|chat)?\b/, id: (m) => `deepseek-v${m[1]}${m[2] ? "-" + m[2] : ""}`, name: (m) => `DeepSeek V${m[1]}${m[2] ? " " + m[2][0].toUpperCase() + m[2].slice(1) : ""}`, lab: "deepseek", reasoning: true },
+  // R1's distills are Llama and Qwen models fine-tuned on R1's outputs, not R1 at another effort.
+  { re: /\bdeepseek[\s-]*r1(?:[\s-]+(\d{4}))?[\s-]+(?:distill[\s-]+)?(qwen|llama)[\s-]*(\d+(?:\.\d+)?)?[\s-]+(\d+(?:\.\d+)?)b\b/, id: (m) => `deepseek-r1${m[1] ? "-" + m[1] : ""}-distill-${m[2]}${m[3] ? "-" + m[3] : ""}-${m[4]}b`, name: (m) => `DeepSeek R1${m[1] ? " " + m[1] : ""} Distill ${cap(m[2])}${m[3] ? " " + m[3] : ""} ${m[4]}B`, lab: "deepseek", reasoning: true },
   { re: /\bdeepseek[\s-]*r(\d+(?:\.\d+)?)\b/, id: (m) => `deepseek-r${m[1]}`, name: (m) => `DeepSeek R${m[1]}`, lab: "deepseek", reasoning: true },
   // Alibaba
   { re: /\bling[\s-]*(\d+(?:\.\d+)?)[\s-]*flash(?:[\s-]+(fin))?\b/, id: (m) => `ling-${m[1]}-flash${m[2] ? "-fin" : ""}`, name: (m) => `Ling ${m[1]} Flash${m[2] ? " Fin" : ""}`, lab: "ant-group" },
+  // VL, Omni, Next and Coder Next are separate Qwen models, each with its own sizes, never sizes or efforts of the base.
+  { re: /\bqwen[\s-]*(\d+(?:\.\d+)?)[\s-]+(coder[\s-]+next|vl|omni|next)(?:[\s-]+(\d+(?:\.\d+)?)([bt])(?:[\s-]*a(\d+)([bt]))?)?\b/, id: (m) => `qwen-${m[1]}-${m[2].replace(/[\s-]+/, "-")}${m[3] ? `-${m[3]}${m[4]}` : ""}${m[5] ? `-a${m[5]}${m[6]}` : ""}`, name: (m) => `Qwen ${m[1]} ${m[2] === "vl" ? "VL" : m[2].split(/[\s-]+/).map(cap).join(" ")}${m[3] ? ` ${m[3]}${m[4].toUpperCase()}` : ""}${m[5] ? `-A${m[5]}${m[6].toUpperCase()}` : ""}`, lab: "alibaba" },
   { re: /\bqwen[\s-]*(\d+(?:\.\d+)?)[\s-]+(\d+(?:\.\d+)?)([bt])(?:[\s-]*a(\d+)([bt]))?\b/, id: (m) => `qwen-${m[1]}-${m[2]}${m[3]}${m[4] ? `-a${m[4]}${m[5]}` : ""}`, name: (m) => `Qwen ${m[1]} ${m[2]}${m[3].toUpperCase()}${m[4] ? `-A${m[4]}${m[5].toUpperCase()}` : ""}`, lab: "alibaba" },
   { re: /\bqwen[\s-]*(\d+(?:\.\d+)?)[\s-]*(max|plus|turbo|coder|flash)?\b/, id: (m) => `qwen-${m[1]}${m[2] ? "-" + m[2] : ""}`, name: (m) => `Qwen ${m[1]}${m[2] ? " " + m[2][0].toUpperCase() + m[2].slice(1) : ""}`, lab: "alibaba" },
   // Moonshot

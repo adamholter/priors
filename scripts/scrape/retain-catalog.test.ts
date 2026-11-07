@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Model, Variant } from "../../src/data/types";
-import { firstCarry, remapMovedRows, retainCatalog, splitHy4Preview } from "./retain-catalog";
+import { firstCarry, remapCarriedBySource, remapMovedRows, retainCatalog, splitHy4Preview } from "./retain-catalog";
 
 const model: Model = {
   id: "gpt-6-astra", name: "GPT-6 Astra", labId: "openai", kind: "llm", reasoning: true,
@@ -123,5 +123,13 @@ describe("a merge that has been undone", () => {
     const partial = retainCatalog({ models: [swe2], variants: [] }, { models: [{ ...swe2, aliases: [] }], variants: [] });
     expect(partial.models[0].aliases).toContain("swe-2 flash");
   });
+  it("moves a carried row whose source id now names another model", () => {
+    const variants = [{ id: "hy-4-preview@high", modelId: "hy-4-preview", effort: "high" }, { id: "hy-4@high", modelId: "hy-4", effort: "high" }] as Variant[];
+    const rows = remapCarriedBySource(variants, [
+      { variantId: "hy-4-preview@high", sourceModelId: "tencent/hy4", note: "carried from 2026-11-06", value: 39 },
+      { variantId: "hy-4-preview@high", sourceModelId: "tencent/hy4-preview", note: "carried from 2026-11-06", value: 8 },
+      { variantId: "hy-4-preview@high", sourceModelId: "tencent/hy4", value: 40 },
+    ]);
+    expect(rows.map((r) => r.variantId)).toEqual(["hy-4@high", "hy-4-preview@high", "hy-4-preview@high"]);
+  });
 });
-

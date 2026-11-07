@@ -13,7 +13,7 @@ import { makeContext, saveRaw } from "./harness";
 import { buildLibrary } from "./library";
 import { writeHistoryArchive } from "./history-archive";
 import { canonicalizeSnapshot } from "../../src/data/canonical-snapshot";
-import { firstCarry, remapMovedRows, retainCatalog, splitHy4Preview } from "./retain-catalog";
+import { firstCarry, remapCarriedBySource, remapMovedRows, retainCatalog, splitHy4Preview } from "./retain-catalog";
 import { fetchPlanResets } from "./plan-resets";
 import { fetchSpeedTiers } from "./speed-tiers";
 import { labelCollisions, swallowedTiers } from "./label-collisions";
@@ -251,6 +251,7 @@ async function main() {
     if (retained.length || dropped) {
       snap.observations = remapMovedRows(prev.variants, snap.variants, snap.observations);
       Object.assign(snap, retainCatalog(prev, snap));
+      snap.observations = remapCarriedBySource(snap.variants, snap.observations);
     }
   } catch { /* first run */ }
 

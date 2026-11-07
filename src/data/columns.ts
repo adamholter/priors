@@ -120,7 +120,8 @@ export function setBenchmarks(c: Columns, benchmarks: Benchmark[]) {
   for (let b = 0; b < c.nb; b++) { if (was[b] && !bench[b]) measured[b] = undefined; family[b] = root(b); }
   const pairable: number[] = [], panel: number[] = [];
   for (const b of c.sortedBench) if (bench[b] && !unpaired(bench[b]!)) pairable.push(b);
-  for (const b of seen) { const x = bench[b]!; if (x.unit === "percent" && x.higherIsBetter && !unpaired(x)) panel.push(b); }
+  // The panel ratio-matches capability scores; uptime and other reliability shares are percent but say nothing about skill.
+  for (const b of seen) { const x = bench[b]!; if (x.unit === "percent" && x.higherIsBetter && !unpaired(x) && x.category !== "reliability") panel.push(b); }
   c.pairable = Int32Array.from(pairable); c.panel = Int32Array.from(panel);
 }
 
@@ -188,9 +189,20 @@ function build(snapshot: Snapshot): Columns {
     if (o.harness !== undefined) { let h = harnesses.get(o.harness); if (h === undefined) harnesses.set(o.harness, h = harnesses.size + 1); harness[r] = h; }
     if (f & ROW_COUNTED) counted[b]++;
   };
+  const higher = new Map(benchmarks.map((b) => [b.id, b.higherIsBetter !== false]));
+  const plain = (f: number) => !(f & (ROW_ESTIMATE | ROW_NOTE_ESTIMATED | ROW_CROSS_EFFORT | ROW_PERFORMANCE));
   for (let i = 0; i < observations.length; i++) {
     const b = obsBench[i], slot = obsVariant[i] * nb + b, r = at[slot], o = observations[i];
     if (r < 0) { add(slot, o, rowFlags(o), b); continue; }
+    // One model measured under several harnesses (ARC's Provider Adapter, Terminal-Bench agents): the best harness
+    // stands, as docs/data.md says, whatever order the source listed them in.
+    const f = rowFlags(o), old = rows[r];
+    if ((o.harness ?? "") !== (old.harness ?? "") && plain(f) && plain(flags[r]) && (higher.get(o.benchmarkId) ? o.value > old.value : o.value < old.value)) {
+      rows[r] = o; value[r] = o.value; flags[r] = f | (flags[r] & ROW_COUNTED);
+      if (o.harness === undefined) harness[r] = 0;
+      else { let h = harnesses.get(o.harness); if (h === undefined) harnesses.set(o.harness, h = harnesses.size + 1); harness[r] = h; }
+      continue;
+    }
     if (!(flags[r] & ROW_COUNTED) && !o.details?.priorsEstimate) { flags[r] |= ROW_COUNTED; counted[b]++; }
   }
   estimates.forEach((e, i) => {

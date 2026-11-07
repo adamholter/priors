@@ -143,7 +143,7 @@ describe("Arena from the Hugging Face dataset", () => {
   });
   it("rebuilds the same benchmarks the site pages gave", () => {
     expect(r.benchmarks.map((b) => b.id).sort()).toEqual(["arena-agent", "arena-text", "arena-webdev"]);
-    expect(r.benchmarks.find((b) => b.id === "arena-agent")).toMatchObject({ unit: "percent", category: "agentic" });
+    expect(r.benchmarks.find((b) => b.id === "arena-agent")).toMatchObject({ unit: "score", category: "agentic" });
     expect(r.benchmarks.find((b) => b.id === "arena-text")).toMatchObject({ unit: "elo", url: "https://arena.ai/leaderboard/text" });
   });
   it("scales the agent score to percent, keeps intervals and splits a harness suffix", () => {
@@ -188,7 +188,7 @@ describe("Arena categories and agent signals", () => {
   });
   it("skips a category too thin to rank", () => { expect(r.benchmarks.some((b) => b.id === "arena-text-math")).toBe(false); });
   it("reads an agent signal as percentage points, a variant of Agent Arena", () => {
-    expect(r.benchmarks.find((b) => b.id === "arena-agent-success")).toMatchObject({ variantOf: "arena-agent", unit: "percent", higherIsBetter: true });
+    expect(r.benchmarks.find((b) => b.id === "arena-agent-success")).toMatchObject({ variantOf: "arena-agent", unit: "score", higherIsBetter: true });
     expect(r.rows.find((x) => x.benchmarkId === "arena-agent-success")!.value).toBeCloseTo(20);
   });
 });

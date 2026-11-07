@@ -1,6 +1,8 @@
 /**
  * Arena.ai (formerly LMArena). LLM leaderboards only (no image/video/media generation):
- *   agent   — Agent Arena "net improvement" (causal-tracing metric, %, ± CI). Not an Elo.
+ *   agent   — Agent Arena "net improvement" (causal-tracing metric in signed percentage points, ± CI). Not an Elo.
+ *             Unit "score", not "percent": the values run negative and are not a 0-100 share, so they must not be
+ *             clamped to 0-100 or ratio-matched with percent benchmarks.
  *   text, webdev, search, vision, document, image-to-webdev — Bradley-Terry/Elo-style ratings.
  * Each leaderboard page is Next.js; the full row set is embedded in the RSC flight payload
  * (`"snapshot":{...rows}` for agent, `"leaderboard":{...entries}` for the others).
@@ -49,7 +51,7 @@ const AGENT_DESCRIPTION = "Arena.ai Agent Arena: causal 'net improvement' a mode
 const agentBenchmark = (url: string, advanced: { id: string; name: string }[]): Benchmark => ({
   id: "arena-agent", name: "Agent Arena", shortName: "Agent Arena", sourceId: "arena", url,
   description: AGENT_DESCRIPTION,
-  unit: "percent", higherIsBetter: true, category: "agentic", eligibleForDefault: true, defaultWeight: 10, advanced,
+  unit: "score", higherIsBetter: true, category: "agentic", eligibleForDefault: true, defaultWeight: 10, advanced,
 });
 
 /**
@@ -174,7 +176,7 @@ export function parseArenaDataset(boards: Record<string, HfRow[]>): Pick<ScrapeR
     benchmarks.push({ id: sig.id, name: `Agent Arena · ${sig.label}`, shortName: sig.label, sourceId: "arena", url,
       description: `Agent Arena signal: ${sig.desc}. A model's contribution to real agentic sessions, in percentage points.${stopped ? ` Arena stopped publishing this signal after ${shortDate(stopped)}, so these are its last values.` : ""}`,
       ...(published ? { lastUpdated: published } : {}), ...(stopped ? { stoppedPublishing: stopped } : {}),
-      unit: "percent", higherIsBetter: sig.higherIsBetter, category: "agentic", eligibleForDefault: false, defaultWeight: 0, variantOf: "arena-agent", variantLabel: stopped ? `${sig.label} (ended ${shortDate(stopped)})` : sig.label });
+      unit: "score", higherIsBetter: sig.higherIsBetter, category: "agentic", eligibleForDefault: false, defaultWeight: 0, variantOf: "arena-agent", variantLabel: stopped ? `${sig.label} (ended ${shortDate(stopped)})` : sig.label });
     notes.push(`${sig.id}: ${data.length} rows (dataset)`);
   }
   if (!rows.length) throw new Error("Arena dataset returned no rows");
