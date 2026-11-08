@@ -1486,9 +1486,9 @@
         "effort": "default"
       },
       "expected": {
-        "modelId": "vals-model-f89262339661",
+        "modelId": "aa-step-5",
         "effort": "default",
-        "canonical": false
+        "canonical": true
       },
       "legacyVariantId": "vals-model-f89262339661@default~vals-f89262339661"
     },

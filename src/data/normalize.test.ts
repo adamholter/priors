@@ -81,6 +81,7 @@ describe("normalizeLabel", () => {
     expect(normalizeLabel("GPT-5 (minimal)")).toMatchObject({ effort: "minimal" });
     expect(normalizeLabel("Qwen3.6 35B-A3B")).toMatchObject({ modelId: "qwen-3.6-35b-a3b" });
     expect(normalizeLabel("Qwen3.6 27B")).toMatchObject({ modelId: "qwen-3.6-27b" });
+    expect(normalizeLabel("Step 5 Preview")).toMatchObject({ modelId: "aa-step-5", modelName: "Step 5 Preview", labId: "other" });
     expect(normalizeLabel("Qwen3 VL 235B A22B (Reasoning)")).toMatchObject({ modelId: "qwen-3-vl-235b-a22b", modelName: "Qwen 3 VL 235B-A22B" });
     expect(normalizeLabel("Qwen3 Omni 30B A3B Instruct")).toMatchObject({ modelId: "qwen-3-omni-30b-a3b" });
     expect(normalizeLabel("Qwen3 Next 80B A3B (Reasoning)")).toMatchObject({ modelId: "qwen-3-next-80b-a3b", modelName: "Qwen 3 Next 80B-A3B" });
