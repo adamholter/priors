@@ -291,6 +291,9 @@ export function normalizeLabel(label: string, effortHint?: string): Normalized |
   if (/\bo1[\s-]*preview\b/.test(cleaned)) return { ok: true, modelId: "o1-preview", modelName: "o1-preview", labId: "openai", effort, reasoningFamily: true, cleaned };
   // StepFun's Step 5 Preview keeps the id Artificial Analysis gave it (no StepFun lab entry yet), so other boards join AA's rows.
   if (/\bstep[\s-]*5[\s-]*preview\b/.test(cleaned)) return { ok: true, modelId: "aa-step-5", modelName: "Step 5 Preview", labId: "other", effort, reasoningFamily: true, cleaned };
+  // Not one released model, so never filed under one. A router ("gpt-6-auto (astra+luna)") sends each task to Astra or Luna: without this it read as a
+  // bare GPT-6. An "Early" build ("Qwen-4-27B-Early") is an unreleased checkpoint: without this it took the id the release will get, and its scores with it.
+  if (/\bgpt[\s-]*\d+(?:\.\d+)?[\s-]*auto\b(?![\s-]*(?:reasoning|thinking|effort))/.test(cleaned) || /\bearly\b/.test(cleaned)) return { ok: false, cleaned };
   // Deep Think is its own mode with its own scores and price; "think" is noise everywhere else, so without this ARC's
   // "Gemini 3 Deep Think (2/26)" (84.6% on ARC-AGI-2) landed on plain Gemini 3. Its preview is a separate run.
   const deep = cleaned.match(/\bgemini[\s-]*(\d+(?:\.\d+)?)(?:[\s-]*pro)?[\s-]*deep[\s-]*think(?:[\s-]*(preview))?\b/);

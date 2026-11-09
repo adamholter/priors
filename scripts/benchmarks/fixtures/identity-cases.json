@@ -2264,6 +2264,62 @@
         "canonical": true
       },
       "legacyVariantId": "gemini-3-deep-think@high"
+    },
+    {
+      "id": "label/gpt-6-auto (astra+luna)",
+      "kind": "label",
+      "record": {
+        "modelLabel": "gpt-6-auto (astra+luna)",
+        "effort": "high"
+      },
+      "expected": {
+        "modelId": "unresolved",
+        "effort": "high",
+        "canonical": false
+      },
+      "legacyVariantId": "unresolved"
+    },
+    {
+      "id": "label/Space Bunny",
+      "kind": "label",
+      "record": {
+        "modelLabel": "Space Bunny",
+        "effort": "max"
+      },
+      "expected": {
+        "modelId": "unresolved",
+        "effort": "max",
+        "canonical": false
+      },
+      "legacyVariantId": "unresolved"
+    },
+    {
+      "id": "label/Qwen-4-27B-Early",
+      "kind": "label",
+      "record": {
+        "modelLabel": "Qwen-4-27B-Early",
+        "effort": "xhigh"
+      },
+      "expected": {
+        "modelId": "unresolved",
+        "effort": "xhigh",
+        "canonical": false
+      },
+      "legacyVariantId": "unresolved"
+    },
+    {
+      "id": "label/Qwen-4-Flash-Early",
+      "kind": "label",
+      "record": {
+        "modelLabel": "Qwen-4-Flash-Early",
+        "effort": "max"
+      },
+      "expected": {
+        "modelId": "unresolved",
+        "effort": "max",
+        "canonical": false
+      },
+      "legacyVariantId": "unresolved"
     }
   ]
 }

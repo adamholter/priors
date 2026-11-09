@@ -171,6 +171,16 @@ describe("normalizeLabel", () => {
   it("unknown label is flagged not guessed", () => {
     expect(normalizeLabel("Nova Micro 2").ok).toBe(false);
   });
+  it("never files a router, a stealth model or an unreleased early build under a released model", () => {
+    // GameFeel's board: the router read as a bare GPT-6, and each Early build took the id its release will get.
+    for (const label of ["gpt-6-auto (astra+luna)", "GPT-6 Auto", "Space Bunny", "Qwen-4-27B-Early", "Qwen-4-Flash-Early", "Qwen 4 27B Early (xhigh)"]) expect(normalizeLabel(label, "max").ok, label).toBe(false);
+    // Their neighbors still resolve, and "auto" as a reasoning setting is not a router.
+    expect(normalizeLabel("gpt-6-luna", "Max")).toMatchObject({ modelId: "gpt-6-luna", effort: "max" });
+    expect(normalizeLabel("GPT-6 Astra (high)")).toMatchObject({ modelId: "gpt-6-astra", effort: "high" });
+    expect(normalizeLabel("GPT-6 (auto reasoning)")).toMatchObject({ modelId: "gpt-6" });
+    expect(normalizeLabel("Muse Spark 1.3 (auto reasoning)")).toMatchObject({ modelId: "muse-spark-1.3" });
+    expect(normalizeLabel("Qwen-3.8-Flash-Next", "XHigh")).toMatchObject({ modelId: "qwen-3.8-flash", effort: "xhigh" });
+  });
 });
 
 describe("a tier named in the label is its own model", () => {
