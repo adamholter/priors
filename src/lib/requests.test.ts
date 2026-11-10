@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cleanRequest, cleanUrl, clientKey, COOLDOWN_MS, DAILY_CAP, LIMIT_MESSAGE, limitOf, MAX_CONTACT, MAX_TEXT, MAX_URL, tokenMatches } from "../../convex/requestRules";
+import { anonCapOf, cleanRequest, cleanUrl, clientKey, COOLDOWN_MS, DAILY_CAP, isAccountKey, LIMIT_MESSAGE, limitOf, MAX_CONTACT, MAX_TEXT, MAX_URL, tokenMatches } from "../../convex/requestRules";
 
 describe("cleanRequest", () => {
   it("keeps a plain request and drops empty optional fields", () => {
@@ -53,7 +53,21 @@ describe("limits", () => {
   const now = 1_800_000_000_000;
   it("lets a first request through under the cap", () => {
     expect(limitOf({ now, dayCount: 0 })).toBeNull();
-    expect(limitOf({ now, dayCount: DAILY_CAP - 1 })).toBeNull();
+    expect(limitOf({ now, dayCount: anonCapOf(DAILY_CAP) - 1 })).toBeNull();
+    expect(limitOf({ now, dayCount: DAILY_CAP - 1, anonCount: 0, signedIn: true })).toBeNull();
+  });
+  it("stops senders without an account before the cap, leaving room for signed-in people", () => {
+    const anon = anonCapOf(DAILY_CAP);
+    expect(anon).toBeLessThan(DAILY_CAP);
+    // A script minting a new browser id per request never meets the cooldown; it meets this.
+    expect(limitOf({ now, dayCount: anon, anonCount: anon })).toBe("full");
+    expect(limitOf({ now, dayCount: anon, anonCount: anon, signedIn: true })).toBeNull();
+    // Signed-in requests do not use up the room of people without an account.
+    expect(limitOf({ now, dayCount: anon, anonCount: anon - 1 })).toBeNull();
+    expect(limitOf({ now, dayCount: 3, anonCount: 3, cap: 4 })).toBe("full");
+    expect(limitOf({ now, dayCount: 3, anonCount: 3, cap: 4, signedIn: true })).toBeNull();
+    expect(isAccountKey(clientKey("user_1", "x"))).toBe(true);
+    for (const key of [clientKey(undefined, "0b1c2d3e-aaaa"), clientKey(undefined, undefined), undefined]) expect(isAccountKey(key)).toBe(false);
   });
   it("holds one sender to a request per cooldown", () => {
     expect(limitOf({ now, lastAt: now - 1, dayCount: 1 })).toBe("cooldown");
@@ -62,6 +76,7 @@ describe("limits", () => {
   });
   it("stops everyone at the daily cap", () => {
     expect(limitOf({ now, dayCount: DAILY_CAP })).toBe("full");
+    expect(limitOf({ now, dayCount: DAILY_CAP, anonCount: 0, signedIn: true })).toBe("full");
     expect(limitOf({ now, dayCount: 3, cap: 3 })).toBe("full");
     expect(limitOf({ now, lastAt: now - 5, dayCount: DAILY_CAP })).toBe("cooldown");
   });

@@ -2,7 +2,7 @@ import { mutation, query } from "./_generated/server";
 import { ConvexError, v } from "convex/values";
 import type { Doc } from "./_generated/dataModel";
 import { requestKind, requestStatus } from "./validators";
-import { cleanRequest, clientKey, DAILY_CAP, LIMIT_MESSAGE, limitOf, tokenMatches } from "./requestRules";
+import { cleanRequest, clientKey, DAILY_CAP, isAccountKey, LIMIT_MESSAGE, limitOf, tokenMatches } from "./requestRules";
 
 /**
  * Requests for a benchmark or a feature, sent from `/request`. Anyone can send one; nobody but the holder of
@@ -22,7 +22,8 @@ const readable = (r: Doc<"requests">) => ({ id: r._id, kind: r.kind, text: r.tex
 
 /**
  * Store one request. Expected refusals (bad input, the cooldown, the daily cap) come back as `{ ok: false }` with a
- * sentence for the form. `website` is the form's hidden trap field: a script that fills it is told it worked and
+ * sentence for the form. Senders without an account share three quarters of the daily cap, so a script that rotates
+ * its browser id cannot shut signed-in people out. `website` is the form's hidden trap field: a script that fills it is told it worked and
  * nothing is stored.
  */
 export const submit = mutation({
@@ -37,7 +38,7 @@ export const submit = mutation({
     const key = clientKey(identity?.subject, client), now = Date.now();
     const last = await ctx.db.query("requests").withIndex("by_client", (q) => q.eq("client", key)).order("desc").first();
     const day = await ctx.db.query("requests").withIndex("by_created", (q) => q.gt("createdAt", now - DAY_MS)).take(cap());
-    const limit = limitOf({ now, lastAt: last?.createdAt, dayCount: day.length, cap: cap() });
+    const limit = limitOf({ now, lastAt: last?.createdAt, dayCount: day.length, anonCount: day.filter((r) => !isAccountKey(r.client)).length, signedIn: !!identity, cap: cap() });
     if (limit) return { ok: false as const, reason: limit, error: LIMIT_MESSAGE[limit] };
     await ctx.db.insert("requests", { ...cleaned.value, handle: profile?.handle, client: key, createdAt: now, status: "new" });
     return { ok: true as const };

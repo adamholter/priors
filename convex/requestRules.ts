@@ -2,6 +2,12 @@
 export const MAX_TEXT = 2000, MAX_URL = 500, MAX_CONTACT = 120;
 /** Stored requests per rolling 24 hours, all visitors together, and the wait between two from one sender. */
 export const DAILY_CAP = 200, COOLDOWN_MS = 30_000;
+/**
+ * The share of the daily cap that senders without an account may use. A browser's id is its own word, so a script can
+ * mint a new one per request and walk past the cooldown; this keeps the rest of the day's room for signed-in people.
+ */
+export const ANON_SHARE = 0.75;
+export const anonCapOf = (cap: number) => Math.floor(cap * ANON_SHARE);
 
 export type RequestKind = "benchmark" | "feature";
 export interface CleanRequest { kind: RequestKind; text: string; url?: string; contact?: string }
@@ -50,10 +56,17 @@ export const LIMIT_MESSAGE: Record<LimitReason, string> = {
   cooldown: "You just sent one. Wait half a minute, then send the next.",
   full: "Too many requests came in today. Try again tomorrow.",
 };
-/** Why a request cannot be stored right now, or null. `lastAt` is this sender's last request, `dayCount` everyone's in the last 24 hours. */
-export function limitOf({ now, lastAt, dayCount, cap = DAILY_CAP, cooldown = COOLDOWN_MS }: { now: number; lastAt?: number; dayCount: number; cap?: number; cooldown?: number }): LimitReason | null {
+/** Whether a cooldown key belongs to a signed-in account (`clientKey`). */
+export const isAccountKey = (key: string | undefined) => !!key && key.startsWith("u:");
+/**
+ * Why a request cannot be stored right now, or null. `lastAt` is this sender's last request; `dayCount` is everyone's
+ * in the last 24 hours and `anonCount` the part of it sent without an account. A sender without an account stops at
+ * `anonCapOf(cap)`, a signed-in one at `cap`.
+ */
+export function limitOf({ now, lastAt, dayCount, anonCount = dayCount, signedIn = false, cap = DAILY_CAP, cooldown = COOLDOWN_MS }: { now: number; lastAt?: number; dayCount: number; anonCount?: number; signedIn?: boolean; cap?: number; cooldown?: number }): LimitReason | null {
   if (lastAt !== undefined && now - lastAt < cooldown) return "cooldown";
-  return dayCount >= cap ? "full" : null;
+  if (dayCount >= cap) return "full";
+  return !signedIn && anonCount >= anonCapOf(cap) ? "full" : null;
 }
 
 /** Whether `given` is the reader's token. False while none is configured. The loop never stops early, so timing says nothing about where they differ. */
