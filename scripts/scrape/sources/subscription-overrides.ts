@@ -4,7 +4,7 @@ import type { RawRow } from "../../../src/data/types";
  * Subsidy figures read straight from a published plan allowance, for models Real API Pricing does not
  * cover. `ratio` is what a subscriber pays as a share of API list price at full use (fee ÷ usage value),
  * so 6× subsidized is 1/6. Free tiers are not listed here: `scripts/scrape/free-tiers.ts` reads them live from OpenCode Zen and OpenRouter. Only figures at roughly 80% confidence or better belong here: a plan page that
- * states the allowance in dollars of usage, checked on `checked`. Each replaces any computed row for the model.
+ * states the allowance in dollars of usage, or a published measurement of a whole allowance for a model Real API Pricing has no usable row for, checked on `checked`. Each replaces any computed row for the model.
  */
 export interface SubsidyOverride {
   /** Canonical model id the figure applies to (checked against computed rows). */
@@ -26,6 +26,14 @@ export const SUBSIDY_OVERRIDES: SubsidyOverride[] = [
     modelId: "aa-muse-wonder", label: "Muse Wonder (Max)", plan: "Command Code Max 10×", feeUsd: 100, ratio: 100 / 150, confidence: "medium", source: "https://commandcode.ai/pricing", checked: "2026-10-14",
     note: "Max includes $150 of credits, charged at the model's API rate with no markup: 1.5× the fee. Meta's own Muse Code plans publish prompts per 5 hours, not tokens or dollars, so they cannot be priced.",
     identity: { modelId: "aa-muse-wonder", modelName: "Muse Wonder (Max)", labId: "meta", effort: "max", variantId: "aa-muse-wonder@max", sourceModelId: "aa-muse-wonder", sourceSlug: "muse-wonder" },
+  },
+  // Fable 5.2 (released November 2026) has no adopted Real API Pricing row. The share is Opus 5.5's here (1.5135% on Claude Ultra) times how much
+  // less Fable 5.2 one plan dollar bought on the same account: $3,421 a week of Opus 5.5 against $705 of Fable 5.2. Real API Pricing's first sample
+  // (pull request 228, Claude Pro, 7 points of the week) prices Fable 5.2 as if it could use the whole week, which would read 4.0% here. Fable is
+  // capped at half the week, so that row stays replaced until Real API Pricing applies the cap. Remove this entry when it does.
+  {
+    modelId: "claude-fable-5.2", label: "Claude Fable 5.2", plan: "Claude Ultra", feeUsd: 200, ratio: 0.015135 * (3421 / 705), confidence: "medium", source: "https://x.com/theo/status/2119960608816988596", checked: "2026-11-10",
+    note: "Measured on one Max 20x (now Ultra) account, 1.1M requests through November 9, 2026: Fable 5.2 can use half the weekly limit, and that half bought $705 of API usage a week, against $3,421 for a full week of Opus 5.5. A plan dollar buys 4.85 times less Fable 5.2 than Opus 5.5, so this is 4.85 times Opus 5.5's share of API price. A second Ultra account gives 3.6 times. Real API Pricing's first sample (Claude Pro, November 9) gives 5.1 times once the half-week cap is applied.",
   },
 ];
 

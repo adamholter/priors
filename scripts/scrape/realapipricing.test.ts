@@ -186,6 +186,14 @@ describe("Real API Pricing subscriptions", () => {
   it("lets a curated published allowance replace a computed row, as a direct share of API price", () => {
     expect(row("Muse Wonder (Max)")).toMatchObject({ identity: { modelId: "aa-muse-wonder" }, details: { ratio: 100 / 150 } });
   });
+  it("prices Fable 5.2 at 4.85 times Opus 5.5's share on Claude Ultra, over a Real API Pricing row that leaves out the half-week cap", () => {
+    expect(row("Claude Fable 5.2")).toMatchObject({ details: { plan: "Claude Ultra", feeUsd: 200, confidence: "medium", dataDate: "2026-11-10" } });
+    expect(row("Claude Fable 5.2").value).toBeCloseTo(0.0734, 4);
+    const uncapped = parseSubscriptions({ ...payload, points: [...payload.points, point("claude_pro::claude-fable-5.2", "Claude Pro", "Anthropic", 0.025575, { model_display: "Claude Fable 5.2", price_usd: 20, workload: "anthropic" })] }, conventions, channels);
+    const fable = uncapped.filter((r) => r.modelLabel === "Claude Fable 5.2");
+    expect(fable).toHaveLength(1);
+    expect((fable[0].details as { ratio?: number }).ratio).toBeCloseTo(0.0734, 4);
+  });
   it("takes the median plan rather than the cheapest, and low-confidence rows only as a last resort", () => {
     expect(row("GPT 5.6 Sol")).toMatchObject({ value: 0.0163, details: { plan: "ChatGPT Pro 10x", feeUsd: 100, confidence: "medium" } });
     expect(row("Claude Opus 5.5")).toMatchObject({ value: 0.0055, details: { plan: "Claude Max 5x", confidence: "high" } });
@@ -231,7 +239,7 @@ describe("Real API Pricing subscriptions", () => {
     const ctx = { fetchText: async (url: string) => JSON.stringify(files[url.split("/").pop()!]) } as unknown as Parameters<typeof source.scrape>[0];
     const r = await source.scrape(ctx);
     expect(r.benchmarks[0]).toMatchObject({ id: SUBSCRIPTION_BENCHMARK, unit: "usd", proxy: true, defaultWeight: 0, eligibleForDefault: false, lastUpdated: "2026-10-08" });
-    expect(r.rows).toHaveLength(9 + 7 + 2); // + Mistral Vibe Pro's rows (four Mistral models, GLM 5.2, GLM 5.3 Flash, DeepSeek V4.1 Flash 1017) and Tencent Token Plan's Hy4 and Hy4 preview
+    expect(r.rows).toHaveLength(9 + 7 + 2 + 1); // + Mistral Vibe Pro's rows (four Mistral models, GLM 5.2, GLM 5.3 Flash, DeepSeek V4.1 Flash 1017), Tencent Token Plan's Hy4 and Hy4 preview, and Fable 5.2's measured share
     expect(Object.keys(r.raw)).toEqual(["points.json", "conventions.json", "channel-colors.json"]);
   });
 });
