@@ -106,10 +106,21 @@ describe("custom themes", () => {
     for (const n of THEME_FONT_NAMES) expect(prompt).toContain(n);
   });
 
-  it("the published skill teaches the same format as the validator", () => {
-    const skill = readFileSync(path.join(process.cwd(), "public/skill/SKILL.md"), "utf8");
-    for (const n of THEME_FONT_NAMES) expect(skill, n).toContain(n);
-    expect(skill).toContain("priorsTheme");
-    expect(skill).toContain("/api/theme");
+  it("the published skill sends the agent to the validator's own copy of the format, so the two cannot drift", () => {
+    const read = (f: string) => readFileSync(path.join(process.cwd(), "public/skill", f), "utf8");
+    expect(read("SKILL.md")).toContain("https://mypriors.com/skill/page.md");
+    const page = read("page.md");
+    expect(page).toContain("priorsTheme");
+    expect(page).toContain("curl -s https://mypriors.com/api/theme");
+    // The font list lives in one place: what GET /api/theme returns.
+    for (const n of THEME_FONT_NAMES) expect(themePrompt(), n).toContain(n);
+  });
+  it("every skill file the main one points at exists, and its description stays short", () => {
+    const dir = path.join(process.cwd(), "public/skill"), main = readFileSync(path.join(dir, "SKILL.md"), "utf8");
+    const linked = [...main.matchAll(/https:\/\/mypriors\.com\/skill\/([a-z-]+\.md)/g)].map((m) => m[1]);
+    expect(new Set(linked)).toEqual(new Set(["data.md", "benchmark.md", "page.md"]));
+    for (const f of linked) expect(existsSync(path.join(dir, f)), f).toBe(true);
+    // The description is loaded into an agent's context on every turn, whether or not the skill runs.
+    expect(main.match(/^description: (.+)$/m)![1].split(/\s+/).length).toBeLessThanOrEqual(30);
   });
 });

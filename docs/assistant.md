@@ -49,7 +49,7 @@ Results on 2026-10-16 (snapshot 2026-10-16, 36 cases, two runs each): GPT-6 Luna
 A user's own agent edits their page through `POST /api/agent` with `Authorization: Bearer pri_...` and `{ action, payload }`. Actions: `whoami`, `import`, `indices`, `page`. The route validates imports with `importSchema` and hands everything to `profiles.agentApply` in Convex, which checks the token hash.
 
 - The token is minted on the owner's page under Page settings, Agent access. Only its hash is stored.
-- `public/skill/SKILL.md` is the skill users give their agent, served at `/skill`. It is user-facing: keep it in step with the API.
+- `public/skill/SKILL.md` is the skill users give their agent, served at `/skill`. It is user-facing: keep it in step with the API. Its description is one line of triggers, because an agent loads that line on every turn; a test caps it at 30 words. The body is short and sends the agent to the tool API (`GET /api/tools` is the source of truth for arguments) and to three reference files it fetches only when needed, served from `public/skill/`: `data.md` (reading and exporting data, the snapshot files and their shape), `benchmark.md` (researching and importing a benchmark) and `page.md` (index fields, sections, theme, CSS, custom theme files). It also names the public repo and the request form. The theme format itself lives only in `GET /api/theme`.
 - `GET /api/benchmarks` lists benchmark ids and model coverage for agents.
 
 ## MCP server, CLI and tool API
