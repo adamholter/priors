@@ -16,15 +16,19 @@ const THEMES = [{ id: "site", name: "Current page" }, ...[...THEME_CHOICES, PAGE
  * The screenshot editor: the chart at the size of the image, resizable by dragging its corner or by ratio, with its own
  * theme, title and chart settings. Everything it holds goes into the link (`xe`), so the link opens this modal over the same page.
  */
-export default function ExportEditor({ name, initial, base, showScale, onClose, link, plot, viewOnly = false, defaultScale = "linear" }: {
+export default function ExportEditor({ name, initial, base, showScale, onClose, link, plot, viewOnly = false, defaultScale = "linear", controls = "scatter" }: {
   name: string; initial: EditorState; base: ScatterView; showScale: boolean; onClose: () => void;
+  /** Which chart settings the editor offers: a scatter's, or only the label size for the leaderboard's rows. */ controls?: "scatter" | "rows";
   /** The chart's own scale when the view sets none. */ defaultScale?: "log" | "linear";
   /** Opened from a shared link: show the image as it was made, full screen, with Edit to change it. */
   viewOnly?: boolean;
-  link: (state: EditorState) => string;
-  plot: (view: ScatterView, height: number, chartRef: { current: ECharts | null }) => ReactNode;
+  /** The link that reopens this image. Left out for a chart that has no link of its own yet: Copy link is then not offered. */
+  link?: (state: EditorState) => string;
+  /** Draws the chart at the image's size. An ECharts chart fills `chartRef`; anything else puts a function that returns its own SVG in `shot.svg`. */
+  plot: (view: ScatterView, height: number, chartRef: { current: ECharts | null }, shot: { width: number; svg: { current: (() => string | undefined) | null } }) => ReactNode;
 }) {
-  const dialog = useRef<HTMLDialogElement>(null), chartRef = useRef<ECharts | null>(null);
+  const dialog = useRef<HTMLDialogElement>(null), chartRef = useRef<ECharts | null>(null), provided = useRef<(() => string | undefined) | null>(null);
+  const getSvg = () => provided.current?.() ?? chartRef.current?.renderToSVGString();
   const [size, setSize] = useState(() => clampSize(initial.w, initial.h));
   const [ratio, setRatio] = useState(initial.ratio ?? "free");
   const [theme, setTheme] = useState(initial.theme ?? "site");
@@ -65,6 +69,7 @@ export default function ExportEditor({ name, initial, base, showScale, onClose, 
     addEventListener("pointermove", move); addEventListener("pointerup", up);
   };
   const copy = async () => {
+    if (!link) return;
     const url = link(state());
     try { await copyLink(url); setCopied(true); setTimeout(() => setCopied(false), 1600); } catch { window.history.replaceState(null, "", url); }
   };
@@ -74,7 +79,7 @@ export default function ExportEditor({ name, initial, base, showScale, onClose, 
     <div ref={card} className="xe-card" style={{ background: pal.bg, color: pal.ink, ...(viewing ? { transform: `scale(${fit})`, transformOrigin: "top center" } : {}) }}>
       <div className="xe-title" style={{ fontFamily: "Newsreader, Georgia, serif", color: pal.ink }}>{heading}</div>
       <div className="xe-box" style={{ width: size.w, height: size.h }} data-testid="xe-box">
-        {plot(view, size.h, chartRef)}
+        {plot(view, size.h, chartRef, { width: size.w, svg: provided })}
         {!viewing && <button type="button" className="xe-grip" aria-label="Drag to resize" title="Drag to resize" onPointerDown={drag} style={{ color: pal.grey }} />}
       </div>
       <div className="xe-foot" style={{ color: pal.grey }}>mypriors.com</div>
@@ -84,7 +89,7 @@ export default function ExportEditor({ name, initial, base, showScale, onClose, 
     <div className="xe-viewer-bar">
       <span className="cap">{heading}</span>
       <span className="flex items-center gap-2">
-        <ChartPaletteContext.Provider value={pal}><ChartExport name={name} title={heading} frame trim={false} getSvg={() => chartRef.current?.renderToSVGString()} /></ChartPaletteContext.Provider>
+        <ChartPaletteContext.Provider value={pal}><ChartExport name={name} title={heading} frame trim={false} getSvg={getSvg} /></ChartPaletteContext.Provider>
         <button type="button" className="xe-copy" onClick={() => setViewing(false)}>Edit</button>
         <button type="button" className="xe-copy" onClick={onClose} aria-label="Close">Close</button>
       </span>
@@ -112,16 +117,18 @@ export default function ExportEditor({ name, initial, base, showScale, onClose, 
       </section>
       <section>
         <h3>Chart</h3>
+        {controls === "scatter" && <>
         {showScale && <label className="xe-field">Scale<select value={view.scale ?? defaultScale} onChange={(e) => set({ scale: e.target.value as "log" | "linear" })}><option value="log">Log</option><option value="linear">Linear</option></select></label>}
         <label className="xe-check"><input type="checkbox" checked={!!view.frontier} onChange={(e) => set({ frontier: e.target.checked })} />Pareto frontier</label>
         <label className="xe-check"><input type="checkbox" checked={!!view.links} onChange={(e) => set({ links: e.target.checked })} />Effort lines</label>
         <label className="xe-check"><input type="checkbox" checked={view.guides !== false} onChange={(e) => set({ guides: e.target.checked })} />Guide lines</label>
         <label className="xe-field">Labels <span>{view.density === 0 ? "Frontier only" : view.density === 1 ? "All" : `${Math.round(view.density * 100)}%`}</span><input type="range" min={0} max={1} step={0.05} value={view.density} onChange={(e) => set({ density: Number(e.target.value) })} /></label>
+        </>}
         <label className="xe-field">Label size <span>{Math.round(labelScale(view.labelScale) * 100)}%</span><input type="range" min={75} max={175} step={5} value={Math.round(labelScale(view.labelScale) * 100)} onChange={(e) => set({ labelScale: Number(e.target.value) / 100 })} /></label>
       </section>
       <footer>
-        <ChartPaletteContext.Provider value={pal}><ChartExport name={name} title={heading} frame trim={false} getSvg={() => chartRef.current?.renderToSVGString()} /></ChartPaletteContext.Provider>
-        <button type="button" className="xe-copy" onClick={copy}>{copied ? <IconCheck size={14} aria-hidden="true" /> : <IconLink size={14} aria-hidden="true" />}{copied ? "Link copied" : "Copy link"}</button>
+        <ChartPaletteContext.Provider value={pal}><ChartExport name={name} title={heading} frame trim={false} getSvg={getSvg} /></ChartPaletteContext.Provider>
+        {link && <button type="button" className="xe-copy" onClick={copy}>{copied ? <IconCheck size={14} aria-hidden="true" /> : <IconLink size={14} aria-hidden="true" />}{copied ? "Link copied" : "Copy link"}</button>}
       </footer>
     </aside>
   </dialog>;

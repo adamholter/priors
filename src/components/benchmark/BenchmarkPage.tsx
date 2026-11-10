@@ -113,7 +113,7 @@ export function BenchmarkPage({ snapshot, benchmarkId, models, relatives, initia
           </section>
 
           <section className="chart-panel">
-            <Rankings anchor="rankings" format={(r) => { const v = published(r); return v != null ? fmt(b, v) : r.score.toFixed(1); }} title={title("Leaderboard")} ranked={rows} labs={snapshot.labs} showEffort={rankingMode === "all" && !b.effortBasis} limit={25}
+            <Rankings anchor="rankings" imageTitle={b.name} format={(r) => { const v = published(r); return v != null ? fmt(b, v) : r.score.toFixed(1); }} title={title("Leaderboard")} ranked={rows} labs={snapshot.labs} showEffort={rankingMode === "all" && !b.effortBasis} limit={25}
               actions={<ChartSettings label="Ranking" efforts={{ value: config.rankingEfforts ?? [...EFFORT_CHOICES], onChange: (rankingEfforts) => patch({ rankingEfforts }), withMode: true }} mode={rankingMode} onChange={(rankingVariants) => patch({ rankingVariants })} {...releaseProps} {...modelPicker} />} />
           </section>
 

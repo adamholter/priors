@@ -571,6 +571,33 @@ try {
     await page.keyboard.press("Escape");
   });
 
+  await check("screenshot editor on the leaderboard: the brush opens it with a short animation, and a taller image holds more models", async () => {
+    const group = page.locator('[role="group"][aria-label="Export Rankings"]').first();
+    await group.scrollIntoViewIfNeeded();
+    await group.hover();
+    await group.getByRole("button", { name: "Edit Rankings screenshot" }).click();
+    const shot = page.getByTestId("rankings-shot");
+    await shot.waitFor({ timeout: 10000 });
+    assert.equal(await page.locator("dialog.xe").evaluate((d) => getComputedStyle(d).animationName), "chart-pop", "the editor rises into place instead of popping up");
+    const rows = () => shot.locator('svg rect[rx="2"]').count().then((n) => n / 2);
+    const height = page.locator("dialog.xe input[type=number]").nth(1);
+    await height.fill("236");
+    await page.waitForTimeout(300);
+    const few = await rows();
+    await height.fill("596");
+    await page.waitForTimeout(300);
+    const many = await rows();
+    assert.ok(few >= 1 && many > few, `a taller image shows more models (${few} then ${many})`);
+    const size = await shot.locator("svg").evaluate((el) => [el.getAttribute("width"), el.getAttribute("height")]);
+    assert.equal(size[1], "596", "the image is exactly the height asked for");
+    assert.ok((await page.locator("dialog.xe .xe-title").innerText()).length > 0, "the image carries the leaderboard's name");
+    const [dl] = await Promise.all([page.waitForEvent("download"), page.locator("dialog.xe footer").getByRole("button", { name: /Download .* as PNG/ }).click()]);
+    const png = await (await import("node:fs/promises")).readFile(await dl.path());
+    assert.equal(png.readUInt32BE(16), (Number(size[0]) + 64) * 3, "the PNG is the image plus its frame, at 3x");
+    await page.keyboard.press("Escape");
+    await page.locator("dialog.xe").waitFor({ state: "detached", timeout: 5000 });
+  });
+
   await check("PNG export crops blank space off the right", async () => {
     const group = page.locator('[role="group"][aria-label="Export Time per task"]').first();
     await group.scrollIntoViewIfNeeded();

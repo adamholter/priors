@@ -377,6 +377,10 @@ p.share-change { display: grid; grid-template-columns: minmax(0, 1fr) 40% 38px; 
 .xe { width: min(1280px, calc(100vw - 24px)); height: min(860px, calc(100dvh - 24px)); max-width: none; margin: auto; padding: 0; border: 1px solid var(--hair); border-radius: 8px; background: var(--white); color: var(--ink); overflow: hidden; }
 .xe[open] { display: grid; grid-template-columns: minmax(0, 1fr) 280px; }
 .xe::backdrop { background: rgb(20 20 19 / 0.38); }
+/* It opens over the chart it came from: a short rise and fade, the same as an expanded chart. */
+.xe[open] { animation: chart-pop .18s cubic-bezier(.2,.7,.2,1); }
+.xe[open]::backdrop { animation: chart-fade .18s ease-out; }
+@media (prefers-reduced-motion: reduce) { .xe[open], .xe[open]::backdrop { animation: none; } }
 .xe-stage { overflow: auto; background: var(--hair-2); padding: 20px; display: grid; align-content: start; justify-content: start; }
 .xe-card { padding: 32px 32px 34px; width: max-content; box-shadow: 0 1px 8px var(--shadow); }
 .xe-title { font-size: 24px; line-height: 1; height: 22px; margin-bottom: 0; }

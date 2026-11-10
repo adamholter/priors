@@ -144,12 +144,13 @@ function droppedParams(link, image) {
 async function waitCharts(page) {
   await retry(async (i) => {
     if (i) await page.reload({ waitUntil: "domcontentloaded" });
-    await page.locator(".export-edit").first().waitFor({ state: "attached", timeout: 45000 });
+    await page.locator(".chart-toolbar .export-edit").first().waitFor({ state: "attached", timeout: 45000 });
   }, 4, 3000);
   await page.waitForTimeout(1500);
 }
 async function scatterAnchors(page) {
-  return page.evaluate(() => [...document.querySelectorAll(".export-edit")].map((b) => b.closest("[id]")?.id).filter(Boolean));
+  // The leaderboard has a screenshot editor too, but it is not a scatter: only chart toolbars count here.
+  return page.evaluate(() => [...document.querySelectorAll(".chart-toolbar .export-edit")].map((b) => b.closest("[id]")?.id).filter(Boolean));
 }
 /** Open a random collapsed gallery panel so its chart joins the pool. */
 async function openRandomPanel(page, prefer) {
