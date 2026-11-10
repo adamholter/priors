@@ -21,7 +21,7 @@ const cases = [
   ["/intro/podium-dark.png", "png"], ["/sitemap.xml", "xml"], ["/skill"],
   ["/api/snapshot?view=meta", "json"], ["/api/snapshot?view=core", "json"],
   ["/api/library", "json"], ["/api/history", "json"], ["/api/history?mode=adapting", "json"],
-  ["/api/benchmarks", "json"], ["/api/plan-prices", "json"], ["/api/lineup?handle=adamholter", "json"],
+  ["/api/benchmarks", "json"], ["/api/plan-prices", "json"], ["/api/aa-strengths", "json"], ["/api/lineup?handle=adamholter", "json"],
   [`/api/chart?${chart}`, "json"], ["/api/agent", "json"],
   ["/api/chart?i=invalid&c=invalid", "json", "GET", 400],
   ["/api/snapshot?date=invalid", "json", "GET", 400],

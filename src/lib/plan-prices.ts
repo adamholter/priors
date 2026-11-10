@@ -15,6 +15,8 @@ export interface PlanPriceModel extends PlanPrice {
 }
 export interface PlanPrices {
   date: string;
+  /** When the snapshot these figures come from was built: the scrape job rebuilds it every 15 minutes. */
+  generatedAt: string;
   /** Labs that sell more than one plan, with the plans a viewer can pick between. */
   labs: { id: string; name: string; plans: { plan: string; feeUsd?: number }[] }[];
   models: PlanPriceModel[];
@@ -55,7 +57,7 @@ export function planPrices(snapshot: Snapshot): PlanPrices {
     return [{ id: m.id, name: m.name, lab: m.labId, aa: [...(slugs.get(m.id) ?? [])].sort(), ...share(now ?? paying!), ...(free ? { free: true as const, ...(paying && paying.ratio > 0 ? { paid: share(paying) } : {}) } : {}), ...(plans && Object.keys(plans).length > 1 ? { plans } : {}) }];
   });
   return {
-    date: snapshot.date,
+    date: snapshot.date, generatedAt: snapshot.generatedAt,
     labs: options.map((l) => ({ id: l.labId, name: labName.get(l.labId) ?? l.labId, plans: l.plans.map((p) => ({ plan: currentPlanName(p.plan), ...(p.feeUsd != null ? { feeUsd: p.feeUsd } : {}) })) })),
     models,
   };
