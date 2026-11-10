@@ -12,7 +12,7 @@ export default async function SkillPage() {
   const md = (await readRuntimeFile("public/skill/SKILL.md")).toString("utf8");
   return (
     <PageTransition><main className="min-h-screen">
-      <header className="flex items-center gap-6 px-8 h-14 border-b hairline"><Wordmark transitionTypes={["nav-back"]} /><Link href="/builder" transitionTypes={["nav-back"]} className="text-grey text-[13px] hover:text-ink">Builder</Link><span className="ml-auto"><SettingsButton /></span></header>
+      <header className="flex items-center gap-6 px-8 h-14 border-b hairline"><Wordmark transitionTypes={["nav-back"]} /><Link href="/builder" transitionTypes={["nav-back"]} className="text-grey text-[13px] hover:text-ink">Builder</Link><Link href="/tools" transitionTypes={["nav-back"]} className="text-grey text-[13px] hover:text-ink">Tools</Link><span className="ml-auto"><SettingsButton /></span></header>
       <div className="max-w-[820px] mx-auto px-8 py-12 grid gap-8">
         <div>
           <h1 className="text-[36px] mb-3">One skill for your agent</h1>

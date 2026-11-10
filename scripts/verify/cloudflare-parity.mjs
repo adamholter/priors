@@ -12,7 +12,7 @@ const framed = new URLSearchParams({ i: index, c: "cost", xs: "900x500" });
 const cases = [
   ["/"], ["/builder"], ["/explore"], ["/model-finder"], ["/models/gpt-6-sol"], ["/adamholter"],
   ["/benchmarks"], ["/benchmarks/methodology"], [`/benchmarks/${benchmark}`], ["/compare"], ["/cli"], ["/history"], ["/rank"],
-  ["/privacy"], ["/support"], ["/claim"], ["/import"], ["/3d"], ["/sign-in"],
+  ["/privacy"], ["/support"], ["/claim"], ["/import"], ["/tools"], ["/request"], ["/3d"], ["/sign-in"],
   [`/benchmarks/${benchmark}/opengraph-image`, "png"], [`/og?${framed}`, "png"],
   ["/og/compare?a=gpt-6-sol&b=claude-sonnet-5-5", "png"], ["/robots.txt", "text/plain"],
   ["/api/tools", "json"], ["/mcp", "json", "POST"],

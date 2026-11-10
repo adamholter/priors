@@ -14,7 +14,7 @@ Environment variables:
 
 - `.env.local`: `NEXT_PUBLIC_CONVEX_URL`, `CONVEX_DEPLOYMENT`, `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`, `AGENT_SERVER_SECRET`, `OPENROUTER_API_KEY`.
 - Vercel production also has `NEXT_PUBLIC_SITE_URL=https://mypriors.com` (absolute link-preview URLs).
-- Convex has `CLERK_JWT_ISSUER_DOMAIN` (prod: `clerk.mypriors.com`), `AGENT_SERVER_SECRET`, and optionally `AGENT_DAILY_USD_CAP` and `AGENT_USER_DAILY_REQUESTS`.
+- Convex has `CLERK_JWT_ISSUER_DOMAIN` (prod: `clerk.mypriors.com`), `AGENT_SERVER_SECRET`, `REQUESTS_TOKEN` (see Requests below), and optionally `AGENT_DAILY_USD_CAP`, `AGENT_USER_DAILY_REQUESTS` and `REQUESTS_DAILY_CAP`.
 - When adding a Vercel variable from a shell, use `printf`, not `echo`: a trailing newline breaks it.
 
 ## Checks and deploys
@@ -59,6 +59,16 @@ launchd job `com.adam.priors-scrape` runs `scripts/ops/daily-scrape.sh` every 15
 
 The job pushes to `main` all day, so do feature work in a worktree and expect `main` to move.
 
+## Requests
+
+Visitors ask for a benchmark or a feature on `/request`. Each one is a row in the Convex table `requests` (shape in `convex/validators.ts`): `kind` (`benchmark` or `feature`), `text`, optional `url`, `contact` and `handle` (set by the server when the sender is signed in and has a page), `createdAt`, `status` (`new`, `seen` or `done`; starts `new`), and `client`, the sender's cooldown key, which no function returns.
+
+- **Functions** (`convex/requests.ts`). `requests:submit` is public: `{ kind, text, url?, contact?, client?, website? }`, answers `{ ok: true }` or `{ ok: false, reason: "invalid" | "cooldown" | "full", error }`. `requests:list` takes `{ token, since?, before?, limit? }` and returns `{ id, kind, text, url?, contact?, handle?, createdAt, status }` newest first, at most 1,000 a call (`since` and `before` bound `createdAt`, both exclusive). `requests:setStatus` takes `{ token, id, status }`. The last two throw `forbidden` unless `token` equals the deployment's `REQUESTS_TOKEN`, and always while that variable is unset, so requests are unreadable until a token is set.
+- **Setting the token.** `npx convex env set REQUESTS_TOKEN <long random value>` for dev, the same with `--prod` for production. Keep the value out of the repo and out of logs.
+- **Limits.** One request per sender per 30 seconds (the account when signed in, else a random id the browser keeps in `priors:request-client`, else one shared bucket) and 200 stored per rolling 24 hours across everyone (`REQUESTS_DAILY_CAP` on the deployment overrides). A script that fills the hidden `website` field is told it worked and nothing is stored.
+- **Pulling them.** `PRIORS_REQUESTS_TOKEN=... PRIORS_CONVEX_URL=https://small-eel-326.convex.cloud node scripts/ops/pull-requests.mjs <out.json>` writes every request, newest first, as a JSON array (creating the directory, replacing the file whole) and prints one line, such as `12 requests, 3 new since the previous file`. New means an id the previous file did not hold. `PRIORS_CONVEX_URL` falls back to `NEXT_PUBLIC_CONVEX_URL`. Any failure exits 1 with a message and leaves the previous file alone; the token is never printed. It is not scheduled from this repo. Tested in `scripts/ops/pull-requests.test.ts`.
+- **Marking one handled.** `curl -s https://small-eel-326.convex.cloud/api/mutation -H 'content-type: application/json' -d '{"path":"requests:setStatus","args":{"token":"...","id":"<id>","status":"done"},"format":"json"}'`.
+
 ## Sign-in
 
 - Clerk handles sign-in (Google, or email and password). Convex verifies Clerk's JWT.
@@ -86,6 +96,7 @@ All keys are prefixed `priors:`.
 | `theme` | Pinned light or dark |
 | `seen-models` | Every model this visitor has been shown, for the New label |
 | `imports` | Benchmarks imported without an account |
+| `request-client` | A random id, made on the first request sent from `/request`, that spaces out requests from one browser |
 | `via` | The profile a visitor arrived from, for the similarity line |
 | `share-hint`, `assistant-mode`, `assistant-hint`, `assistant-size` | Small UI state |
 | `assistant-chat:<userId>` | The assistant conversation (last 40 turns, no Undo), so it survives reloads; Clear removes it |

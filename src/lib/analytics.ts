@@ -6,7 +6,7 @@ export type AnalyticsEvent =
   | "chart_exported" | "custom_theme_added" | "share_card_opened" | "share_card_shared"
   | "onboarding_started" | "onboarding_bracket_done" | "onboarding_compare_more" | "onboarding_skipped" | "onboarding_fit_started" | "publish_clicked"
   | "share_menu_opened" | "remix_clicked" | "explore_x_clicked"
-  | "support_clicked" | "compare_opened" | "compare_link_copied" | "compare_changed";
+  | "support_clicked" | "compare_opened" | "compare_link_copied" | "compare_changed" | "request_sent";
 
 const key = process.env.NEXT_PUBLIC_POSTHOG_KEY?.trim();
 let loading: Promise<PostHog> | null = null;

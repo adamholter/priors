@@ -1,7 +1,7 @@
 const SHARED_MAX_AGE = /(?:^|[,\s])s-maxage=(\d+)/i, STALE = /stale-while-revalidate=(\d+)/i;
 
 /** Pages rendered the same for every anonymous visitor. Their HTML goes through the edge too; the rest answers to its own cache headers. */
-const PAGES = /^\/(?:builder|explore|model-finder|benchmarks(?:\/[^/]+)?|models\/[^/]+|compare|cli|history|privacy|support|skill|3d)?$/;
+const PAGES = /^\/(?:builder|explore|model-finder|benchmarks(?:\/[^/]+)?|models\/[^/]+|compare|cli|history|privacy|support|skill|tools|request|3d)?$/;
 const PAGE_FRESH = 60, PAGE_STALE = 3600;
 /** Who needs their own render: a saved mix or a session changes the page, and bots get a different body (link-preview.tsx). */
 const PERSONAL_COOKIE = /(?:^|;\s*)(?:priors(?:%3A|:)mix|__session|__client_uat=(?!0(?:;|$)))/i;

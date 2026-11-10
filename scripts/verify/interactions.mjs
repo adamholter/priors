@@ -26,7 +26,7 @@ try {
     const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
     const mobile = await context.newPage();
     try {
-      for (const route of ["/explore", "/compare?a=preset:aa&b=preset:general", "/models/claude-opus-5.5", "/model-finder", "/builder", "/privacy", "/skill", "/import", "/history"]) {
+      for (const route of ["/explore", "/compare?a=preset:aa&b=preset:general", "/models/claude-opus-5.5", "/model-finder", "/builder", "/privacy", "/skill", "/import", "/cli", "/tools", "/request", "/history"]) {
         await mobile.goto(`${BASE}${route}`, { waitUntil: "domcontentloaded" });
         await mobile.waitForTimeout(800);
         const widths = await mobile.evaluate(() => ({ inner: innerWidth, scroll: document.documentElement.scrollWidth }));
@@ -35,6 +35,77 @@ try {
     } finally {
       await context.close();
     }
+  });
+
+  await check("footer: five links, and Tools is the one door to the skill, the CLI and MCP server, import and export", async () => {
+    const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+    const p = await context.newPage();
+    try {
+      await p.goto(`${BASE}/tools`, { waitUntil: "domcontentloaded" });
+      const foot = p.getByRole("navigation", { name: "Footer" });
+      assert.deepEqual(await foot.getByRole("link").evaluateAll((links) => links.map((a) => a.getAttribute("href"))), ["/support", "/privacy", "/benchmarks", "/tools", "/request"]);
+      assert.deepEqual(await foot.getByRole("link").evaluateAll((links) => links.slice(1).map((a) => a.textContent)), ["Privacy", "Benchmarks", "Tools", "Request"]);
+      const main = p.locator("main");
+      for (const id of ["skill", "mcp", "cli", "import", "export"]) assert.equal(await main.locator(`section#${id} h2`).count(), 1, `/tools has a ${id} section`);
+      for (const href of ["/skill", "/cli#mcp", "/cli#cli", "/import", "/request"]) assert.ok(await main.locator(`section a[href="${href}"]`).count(), `/tools links to ${href}`);
+      // The pages the old footer linked to still load and lead back here.
+      for (const route of ["/skill", "/cli", "/import"]) {
+        const res = await p.goto(`${BASE}${route}`, { waitUntil: "domcontentloaded" });
+        assert.equal(res.status(), 200, `${route} status`);
+        assert.ok(await p.locator('header a[href="/tools"]').count(), `${route} links back to /tools`);
+      }
+      await p.goto(`${BASE}/benchmarks`, { waitUntil: "domcontentloaded" });
+      await p.getByRole("navigation", { name: "Footer" }).getByRole("link", { name: "Request" }).click();
+      await p.waitForURL(/\/request$/);
+    } finally { await context.close(); }
+  });
+
+  await check("request form: it checks what you typed, hides its trap field, and sends", async () => {
+    const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    const p = await context.newPage();
+    p.on("pageerror", (e) => errors.push(`${p.url()}: ${e.message}`));
+    try {
+      await p.goto(`${BASE}/request`, { waitUntil: "domcontentloaded" });
+      const form = p.locator("form[data-backend]"), send = p.getByRole("button", { name: "Send request" }), alert = form.getByRole("alert");
+      // Send is off until the page is live, so a press can never post the form the browser's way.
+      await p.locator('form[data-backend] button[type="submit"]:not([disabled])').waitFor({ timeout: 30000 });
+      await send.click();
+      assert.match(await alert.textContent(), /Write what you are asking for/);
+      assert.equal(new URL(p.url()).search, "", "nothing typed ends up in the address");
+      // A benchmark request points at importing it yourself; a feature request does not.
+      assert.equal(await form.locator('a[href="/tools#import"]').count(), 1);
+      await p.getByLabel("A feature").check();
+      assert.equal(await form.locator('a[href="/tools#import"]').count(), 0);
+      assert.ok(await p.getByLabel(/What should Priors do/).isVisible());
+      await p.getByLabel("A benchmark").check();
+      const text = p.getByLabel(/The benchmark and its publisher/);
+      await text.fill("x".repeat(2100));
+      assert.equal((await text.inputValue()).length, 2000, "the text stops at 2000 characters");
+      assert.match(await form.textContent(), /2000 \/ 2000/);
+      await text.fill("Browser check: a benchmark that does not exist");
+      await p.getByLabel(/Link to its leaderboard/).fill("javascript:alert(1)");
+      await send.click();
+      assert.match(await alert.textContent(), /must be a web address/);
+      await p.getByLabel(/Link to its leaderboard/).fill("example.com/leaderboard");
+      // The trap field is off screen and out of the tab order. Filling it, as a script would, makes the server
+      // answer "sent" and store nothing, so this check never leaves a request behind, whatever backend it runs against.
+      const trap = form.locator('input[name="website"]');
+      assert.ok((await trap.boundingBox()).x < 0, "the trap field is off screen");
+      assert.equal(await trap.getAttribute("tabindex"), "-1");
+      await trap.evaluate((el) => { el.value = "https://bot.example"; });
+      await send.click();
+      if (await form.getAttribute("data-backend") === "off") {
+        // A build with no backend (CI) says so.
+        assert.match(await alert.textContent(), /not set up on this server/);
+      } else {
+        await p.getByRole("heading", { name: "Request sent" }).waitFor({ timeout: 20000 });
+        assert.equal(await p.locator("form[data-backend]").count(), 0, "the form gives way to the confirmation");
+        await p.getByRole("button", { name: "Send another" }).click();
+        assert.equal(await p.getByLabel(/The benchmark and its publisher/).inputValue(), "", "Send another starts an empty request");
+      }
+      const widths = await p.evaluate(() => ({ inner: innerWidth, scroll: document.documentElement.scrollWidth }));
+      assert.ok(widths.scroll <= widths.inner, `the form fits a phone (${widths.scroll} > ${widths.inner})`);
+    } finally { await context.close(); }
   });
 
   await check("a plain chart link copied on a phone leaves the preview's shape to the standard card", async () => {

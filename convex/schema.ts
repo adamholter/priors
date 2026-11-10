@@ -1,6 +1,6 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
-import { indexConfig, profileTheme, section } from "./validators";
+import { indexConfig, profileTheme, request, section } from "./validators";
 
 
 
@@ -62,4 +62,7 @@ export default defineSchema({
     hash: v.string(),
     createdAt: v.number(),
   }).index("by_slug", ["slug"]).index("by_hash", ["hash"]).index("by_created", ["createdAt"]),
+
+  /** Requests for a benchmark or a feature, sent from `/request` and read only with `REQUESTS_TOKEN` (requests.ts). */
+  requests: defineTable(request).index("by_created", ["createdAt"]).index("by_client", ["client", "createdAt"]),
 });

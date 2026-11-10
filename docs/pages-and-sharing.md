@@ -13,7 +13,9 @@
 | `/3d` | One ranking as a 3D chart. See 3D below. |
 | `/models/[id]`, `/model-finder` | One model's results (Strengths: a radar against the index leader and field median, and where it sits on each benchmark; Cost and speed: index score against cost per task by effort, and field strips for cost, time per task, output speed, time to first token and output tokens, naming any it lacks; per-benchmark cards plot score against cost, or the field's spread when cost is unknown); a guided model picker. |
 | `/claim`, `/sign-in` | Pick a handle; Clerk sign-in. |
-| `/import`, `/skill` | Benchmark import; the agent skill. |
+| `/tools` | Every way to use Priors from outside its pages, in one place: agent skill, MCP server, CLI, import, export. See Footer, tools and requests below. |
+| `/skill`, `/cli`, `/import` | The detail pages `/tools` links to: the agent skill, the CLI and MCP reference, benchmark import. `/mcp` is the MCP endpoint itself. |
+| `/request` | Ask Adam for a benchmark or a feature. See Footer, tools and requests below. |
 | `/og`, `/[handle]/opengraph-image`, `/models/[id]/opengraph-image` | Share card and link-preview images. |
 | `/sitemap.xml`, `/robots.txt` | The fixed routes, every model page and every published page, rebuilt hourly. |
 | anything else | `src/app/not-found.tsx`, for a mistyped handle, a model that left the data, or a broken link. |
@@ -22,6 +24,15 @@
 | `/api/agent`, `/api/assistant` | See `docs/assistant.md`. |
 | `/api/benchmarks`, `/api/snapshot`, `/api/library`, `/api/lineup` | Data for agents, the onboarding search, and returning visitors. |
 | `/ingest/*` | PostHog proxy. |
+
+## Footer, tools and requests
+
+- **The footer has five links** (`src/components/SiteFooter.tsx`): Support, Privacy, Benchmarks, Tools, Request. Agent skill, CLI and MCP, and Import used to be three of their own; they are now reached through Tools. `scripts/verify/interactions.mjs` checks the five.
+- **`/tools` is a hub, not a replacement** (`src/app/tools/page.tsx`). One section each for the agent skill, the MCP server, the CLI, importing a benchmark and exporting data, with the one command that starts each and a link to the page that holds the detail. `/skill`, `/cli` and `/import` are unchanged, since links to them exist in the wild, and each has a Tools link in its header. A new way in or out of Priors gets a section here. The Export section lists only what exists: the chart export button (PNG, SVG, CSV, JSON), `GET /api/benchmarks`, `GET /api/snapshot` (whole dataset, `?date=` back to 2026-09-05) and `--json` on any CLI command.
+- **`/request` is a form for Adam** (`src/app/request/RequestForm.tsx`): kind (benchmark or feature), the request (required, 2,000 characters), an optional link and an optional contact. A benchmark request points at `/tools#import` for people who want it now. It calls `requests.submit` (`convex/requests.ts`) and shows a plain confirmation, or the reason it was refused. Signed in, the server attaches the sender's handle from the sign-in (never from the form) and the form says so.
+- **A request is never shown to another visitor.** There is no public read: `requests.list` needs `REQUESTS_TOKEN`. Limits, the token and the script that pulls requests are in `docs/operations.md`.
+- **Abuse limits.** The rules live in `convex/requestRules.ts`, shared by the form and the mutation and tested in `src/lib/requests.test.ts`: length caps, an http(s)-only link, one request per sender per 30 seconds, 200 stored per 24 hours across everyone. The form has a hidden trap field (`website`); a submission that fills it is answered as sent and stored nowhere, which is also how the browser check submits without leaving a request behind. Send stays disabled until the page has hydrated, so a press can never post the form the browser's way and put the text in the address.
+- "Missing one?" under the builder's benchmark list offers the skill, import and request.
 
 ## Profile pages
 
