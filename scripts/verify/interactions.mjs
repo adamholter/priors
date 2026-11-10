@@ -1,6 +1,7 @@
 /**
  * Interaction regression checks against a running server.
  *   BASE=http://localhost:48740 node scripts/verify/interactions.mjs
+ *   ONLY="Strengths" BASE=... node scripts/verify/interactions.mjs   (only the checks whose name contains it)
  * Covers what unit tests cannot: that the builder's controls respond when a person uses them.
  * Each check is a bug that shipped once or could: a model checkbox that does nothing, an effort row that
  * does not filter, a default view that leaves nothing out, a point card that never appears.
@@ -14,7 +15,8 @@ const errors = [];
 const checks = [];
 // One run reports every failure: stopping at the first let each red check hide the next for days.
 const failures = [];
-const check = async (name, fn) => { try { await fn(); checks.push(name); } catch (e) { failures.push(`${name}: ${e.message}`); console.error(`FAIL ${name}: ${e.message}`); } };
+// ONLY="part of a check's name" runs just the matching checks while working on one.
+const check = async (name, fn) => { if (process.env.ONLY && !name.includes(process.env.ONLY)) return; try { await fn(); checks.push(name); } catch (e) { failures.push(`${name}: ${e.message}`); console.error(`FAIL ${name}: ${e.message}`); } };
 
 try {
   const page = await (await browser.newContext({ viewport: { width: 1440, height: 1000 } })).newPage();
@@ -174,6 +176,45 @@ try {
         await phone.evaluate(() => window.scrollTo(0, scrollY + document.querySelector("#mix").getBoundingClientRect().bottom - innerHeight + 10));
         await phone.waitForFunction(() => document.querySelector(".assistant-fab")?.classList.contains("is-clear"), null, { timeout: 5000 });
       }
+    } finally { await context.close(); }
+  });
+
+  await check("Strengths: benchmark names are whole, and say what they measure on hover and in the key", async () => {
+    const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+    const p = await context.newPage();
+    try {
+      // The longest-named benchmarks with a real field: the names a fixed margin used to cut short.
+      const { benchmarks } = await (await context.request.get(`${BASE}/api/benchmarks`)).json();
+      const picked = benchmarks.filter((b) => b.rows >= 15 && b.name.length <= 44).sort((x, y) => y.name.length - x.name.length).slice(0, 7);
+      assert.ok(picked.length >= 5, "enough benchmarks to draw a radar");
+      await p.goto(`${BASE}/builder?i=${encodeURIComponent(`Long names|${picked.map((b) => `${b.id}:10`).join(",")}|strict=0`)}&c=strengths#strengths`, { waitUntil: "domcontentloaded" });
+      await p.locator(".rl-main .rl-radar svg").waitFor({ timeout: 30000 });
+      const radar = await p.$eval(".rl-main .rl-radar svg", (svg) => {
+        const s = svg.getBoundingClientRect(), labels = [...svg.querySelectorAll(".rl-label")], rs = labels.map((e) => e.getBoundingClientRect());
+        let overlaps = 0;
+        for (let i = 0; i < rs.length; i++) for (let j = i + 1; j < rs.length; j++) if (rs[i].left < rs[j].right && rs[j].left < rs[i].right && rs[i].top < rs[j].bottom && rs[j].top < rs[i].bottom) overlaps++;
+        return { names: labels.map((e) => [...e.querySelectorAll("tspan")].map((t) => t.textContent).join(" ").replace(/- /g, "-")), outside: rs.filter((r) => r.left < s.left - 0.5 || r.right > s.right + 0.5 || r.top < s.top - 0.5 || r.bottom > s.bottom + 0.5).length, overlaps };
+      });
+      assert.equal(radar.names.length, picked.length, "one name per benchmark");
+      // A label is the benchmark's name or its short name, never a cut one: 18 characters was the old limit.
+      for (const name of radar.names) assert.ok(name && !name.includes("…"), `"${name}" is written in full`);
+      assert.ok(radar.names.some((name) => name.length > 18 && picked.some((b) => b.name === name)), "a long name is drawn whole");
+      assert.equal(radar.outside, 0, "no name leaves the chart");
+      assert.equal(radar.overlaps, 0, "no two names overlap");
+      // Hover: a card with the description, held inside the chart.
+      for (const i of [0, Math.floor(picked.length / 2), picked.length - 1]) {
+        await p.locator(".rl-main .rl-axis-link").nth(i).hover();
+        const tip = await p.locator(".rl-main .rl-tip-axis").evaluate((e) => { const r = e.getBoundingClientRect(), c = e.closest(".rl-radar").getBoundingClientRect(); return { what: e.querySelector(".rl-tip-what")?.textContent ?? "", inside: r.left >= c.left - 1 && r.right <= c.right + 1 }; });
+        assert.ok(tip.what.length > 20, `the card for ${radar.names[i]} says what it measures`);
+        assert.ok(tip.inside, `the card for ${radar.names[i]} stays inside the chart`);
+      }
+      await p.mouse.move(4, 4);
+      // The key, for a phone: every benchmark with its description, and a name opens its details.
+      await p.locator(".rl-key summary").click();
+      assert.equal(await p.locator(".rl-key dt").count(), picked.length);
+      for (const text of await p.locator(".rl-key dd").allTextContents()) assert.ok(text.trim().length > 20, "each benchmark in the key has a description");
+      await p.locator(".rl-key dt button").first().click();
+      await p.getByRole("dialog").first().waitFor({ timeout: 5000 });
     } finally { await context.close(); }
   });
 

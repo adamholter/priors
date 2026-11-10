@@ -5,6 +5,7 @@ import { BenchBars, benchSheetSvg } from "./BenchBars";
 import { IconAdjustmentsHorizontal, IconX } from "@tabler/icons-react";
 import type { Lab, Snapshot } from "@/data/types";
 import type { IndexConfig, IndexResult, RankedVariant } from "@/engine";
+import { benchmarkBlurb } from "@/lib/benchmark-blurb";
 import { useLightDismiss } from "@/lib/useLightDismiss";
 import { BenchmarkInfo } from "../BenchmarkInfo";
 import { DARK_PALETTE, LIGHT_PALETTE, markColor, useChartPalette, useLabColor } from "./echarts";
@@ -145,6 +146,14 @@ export function StrengthsRadar({ ranked, benchmarks, labs, snapshot, config, anc
         <p className="cap rl-rail-hint">Click a model to expand it.</p>
       </div>
     </div>}
+    {/* What each benchmark measures: on the radar a name's hover card says it too, but a phone has no hover. */}
+    {series.length > 0 && <details className="rl-key">
+      <summary>What each benchmark measures</summary>
+      <dl>{axes.map((a) => <div key={a.id}>
+        <dt><button type="button" onClick={() => setInfo(a.id)} title={`About ${a.name}`}>{a.name}</button><span className="cap num">{a.share.toFixed(0)}% of index</span></dt>
+        <dd>{benchmarkBlurb(a.name, a.description)}</dd>
+      </div>)}</dl>
+    </details>}
     </div>
     {open && <RadarModal key={open.id} onClose={() => setExpanded(null)} onStep={step} series={open} all={series} axes={axes} norm={norm} model={byId.get(open.id)!} leader={leader} median={median} onAxisClick={setInfo} />}
     <BenchmarkInfo snapshot={snapshot} benchmarkId={info} inMix onClose={() => setInfo(null)} />

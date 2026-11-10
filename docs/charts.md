@@ -83,6 +83,9 @@ Embeds inline the same rules.
 
 `StrengthsRadar.tsx`, `Radar.tsx`, `RadarModal.tsx`, with data in `radar-data.ts` and the SVG renderer in `radar-view.ts` (also used for the radar share card).
 
+- **Names are never cut.** `radar-labels.ts` wraps each benchmark name onto lines (at spaces, then after hyphens) and returns the box the labels need. `Radar.tsx` and the static SVG both size their canvas from that box, and the static SVG places its legend after the widest right-hand label, so a long name can neither clip nor run under the legend. Do not go back to a fixed margin with an ellipsis: two "AA-Omniscience v1.1…" spokes could not be told apart, and the share card clipped them.
+- **What a benchmark measures.** Hovering a name opens a card under it with the description (`benchmarkBlurb` in `src/lib/benchmark-blurb.ts`: the "Name: " opening dropped, whole sentences up to about 220 characters) above each model's value. The card has a set width and is clamped inside the radar's box. A click still opens the full benchmark dialog. Under the panel, a collapsed "What each benchmark measures" key lists every benchmark with its full description, which is the route on a phone. In the HTML embed the name's native tooltip carries the description.
+
 The toolbar toggle switches the panel to `BenchBars.tsx`: one bar chart per benchmark (Artificial Analysis style), the selected models best first on each, top 8 until the user picks models (the radar follows the top 4). Link param `rv=bars`. Export is a sheet of the on-screen charts (PNG/SVG, CSV/JSON); no HTML embed in this view.
 
 ## Loading the library

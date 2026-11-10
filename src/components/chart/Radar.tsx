@@ -1,7 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import { benchmarkBlurb } from "@/lib/benchmark-blurb";
 import { formatValue, ringLabels, type RadarAxis, type RadarNorm, type RadarPoint } from "./radar-data";
+import { radarLabels } from "./radar-labels";
 
 import type { RadarSeries } from "./radar-view";
 
@@ -10,7 +12,8 @@ type Hover = { kind: "axis"; axis: number } | { kind: "dot"; axis: number; serie
 
 const TAU = Math.PI * 2;
 const r1 = (n: number) => +n.toFixed(1);
-const trim = (s: string, n: number) => s.length > n ? `${s.slice(0, n - 1)}…` : s;
+/** Label size, and the width a side label wraps at: wide enough for most names on one line, narrow enough that the margins do not shrink the chart. */
+const LABEL_PX = 11.5, LABEL_W = 118;
 export const spokeAngles = (n: number) => Array.from({ length: n }, (_, i) => (i / n) * TAU - Math.PI / 2);
 
 /** Outline through the spokes that have data. A missing benchmark is skipped (no vertex), never pulled to the center. */
@@ -20,9 +23,9 @@ function shape(points: RadarPoint[], angles: number[], cx: number, cy: number, R
 }
 
 /**
- * Evenly spaced radar. Hover targets are deliberately small: a benchmark name opens a compact
- * benchmark card placed outward from the label; a model's dot opens a one-line value. The plot
- * area itself never triggers a tooltip, so it stays readable.
+ * Evenly spaced radar. Hover targets are deliberately small: a benchmark name opens a card saying
+ * what the benchmark measures, with each model's value; a model's dot opens a one-line value. The
+ * plot area itself never triggers a tooltip, so it stays readable. Names wrap, they are never cut.
  */
 export function Radar({ axes, series, ghost, norm, size = 340, labels = true, compact = false, hoverAxis, onHoverAxis, focus, ariaLabel, ghostLabel = "Field median", ghostStyle = "median", onAxisClick }: {
   axes: RadarAxis[]; series: RadarSeries[]; ghost?: RadarPoint[]; norm: RadarNorm; size?: number; labels?: boolean; compact?: boolean;
@@ -31,29 +34,28 @@ export function Radar({ axes, series, ghost, norm, size = 340, labels = true, co
   const [hover, setHover] = useState<Hover>(null);
   const activeAxis = hover?.axis ?? hoverAxis ?? null;
   const set = (h: Hover) => { setHover(h); onHoverAxis?.(h?.kind === "axis" ? h.axis : null); };
-  const padX = labels ? 112 : 4, padY = labels ? 30 : 4;
-  const W = size + padX * 2, H = size + padY * 2, cx = W / 2, cy = H / 2, R = size / 2;
-  const angles = spokeAngles(axes.length);
+  const R = size / 2, angles = spokeAngles(axes.length);
+  const lay = labels ? radarLabels(axes.map((a) => a.label), { R, px: LABEL_PX, maxW: LABEL_W }) : null;
+  // The circle stays centered; the canvas grows to hold the widest and tallest label.
+  const padX = lay ? Math.ceil(Math.max(-lay.minX, lay.maxX) - R) + 4 : 4, padT = lay ? Math.ceil(-lay.minY - R) + 4 : 4, padB = lay ? Math.ceil(lay.maxY - R) + 4 : 4;
+  const W = size + padX * 2, H = size + padT + padB, cx = W / 2, cy = padT + R;
   const rings = [0.25, 0.5, 0.75, 1], caps = ringLabels(norm);
   const single = series.length === 1;
   const at = (i: number, r: number) => ({ x: cx + Math.cos(angles[i]) * R * r, y: cy + Math.sin(angles[i]) * R * r });
-  const label = (i: number) => {
-    const a = angles[i], c = Math.cos(a), s = Math.sin(a);
-    const x = r1(cx + c * (R + 12)), y = r1(cy + s * (R + 12));
-    const anchor: "middle" | "start" | "end" = Math.abs(c) < 0.2 ? "middle" : c > 0 ? "start" : "end";
-    const dy = s < -0.6 ? -4 : s > 0.6 ? 12 : 4;
-    return { x, y: y + dy, anchor, top: s < -0.2, text: trim(axes[i].label, compact ? 12 : 18) };
-  };
+  const label = (i: number) => { const l = lay!.labels[i]; return { ...l, x: r1(cx + l.x), y: r1(cy + l.y), left: r1(cx + l.left) }; };
   const pct = (x: number, y: number) => ({ left: `${(x / W) * 100}%`, top: `${(y / H) * 100}%` });
 
   let tip = null;
   if (hover?.kind === "axis" && labels) {
-    const l = label(hover.axis), a = axes[hover.axis];
-    const tx = l.anchor === "start" ? "0" : l.anchor === "end" ? "-100%" : "-50%";
-    const ty = l.top ? "calc(-100% - 18px)" : "10px";
-    tip = <div className="rl-tip rl-tip-axis" role="status" style={{ ...pct(l.x, l.y), transform: `translate(${tx}, ${ty})` }}>
+    const l = label(hover.axis), a = axes[hover.axis], what = benchmarkBlurb(a.name, a.description, 220);
+    // The card has a set width, so it can be held inside the chart: it starts under the label's left edge (centered for a label above or below) and slides in from the sides.
+    const at = l.anchor === "middle" ? `${(l.x / W) * 100}% - var(--rl-tip-w) / 2` : `${(l.left / W) * 100}%`;
+    // Always under the name, never above it: the card is tall now, and above the top labels it could leave the screen.
+    const below = (l.y + (l.lines.length - 1) * lay!.lineHeight) / H;
+    tip = <div className="rl-tip rl-tip-axis" role="status" style={{ left: `clamp(0px, ${at}, 100% - var(--rl-tip-w))`, top: `${below * 100}%`, transform: "translateY(10px)" }}>
       <strong>{a.name}</strong>
       <span className="rl-tip-sub">{a.share.toFixed(0)}% of index</span>
+      {what && <span className="rl-tip-what">{what}</span>}
       {series.map((s) => <span key={s.id} className="rl-tip-row"><i style={{ background: s.color }} />{s.name}<b>{formatValue(s.points[hover.axis], a)}</b></span>)}
     </div>;
   } else if (hover?.kind === "dot") {
@@ -84,12 +86,11 @@ export function Radar({ axes, series, ghost, norm, size = 340, labels = true, co
       {!compact && series.map((s) => (!focus || focus === s.id) && s.points.map((p, i) => { if (p.r == null) return null; const { x, y } = at(i, p.r);
         return <circle key={`${s.id}-${i}`} cx={r1(x)} cy={r1(y)} r={7} className="rl-hit" onMouseEnter={() => set({ kind: "dot", axis: i, series: s.id })} onMouseLeave={() => set(null)} />; }))}
       {labels && angles.map((_, i) => { const l = label(i);
-        const w = l.text.length * 6.4 + 8, x0 = l.anchor === "start" ? l.x - 4 : l.anchor === "end" ? l.x - w + 4 : l.x - w / 2;
         const open = onAxisClick && (() => { set(null); onAxisClick(axes[i].id); });
         return <g key={axes[i].id} className={open ? "rl-axis-link" : undefined} onMouseEnter={() => set({ kind: "axis", axis: i })} onMouseLeave={() => set(null)}
           {...(open ? { role: "button", tabIndex: 0, "aria-label": `About ${axes[i].name}`, onClick: open, onFocus: () => set({ kind: "axis", axis: i }), onBlur: () => set(null), onKeyDown: (e: React.KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(); } } } : {})}>
-          <rect x={r1(x0)} y={l.y - 13} width={r1(w)} height={18} className="rl-hit" />
-          <text x={l.x} y={l.y} textAnchor={l.anchor} className={activeAxis === i ? "rl-label rl-label-on" : "rl-label"}>{l.text}</text>
+          <rect x={r1(l.left - 4)} y={r1(l.y - 13)} width={r1(l.w + 8)} height={r1(l.h + 4)} className="rl-hit" />
+          <text x={l.x} y={l.y} textAnchor={l.anchor} className={activeAxis === i ? "rl-label rl-label-on" : "rl-label"}>{l.lines.map((line, k) => <tspan key={k} x={l.x} dy={k ? lay!.lineHeight : 0}>{line}</tspan>)}</text>
         </g>; })}
     </svg>
     {tip}

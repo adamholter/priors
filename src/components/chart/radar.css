@@ -34,7 +34,10 @@
 .rl-label-on { fill: var(--ink); font-weight: 600; }
 .rl-hit { fill: transparent; cursor: default; }
 .rl-tip { position: absolute; z-index: 5; pointer-events: none; border: 1px solid var(--hair); border-radius: 4px; background: var(--white); box-shadow: 0 4px 14px rgb(0 0 0 / 0.08); color: var(--ink); white-space: nowrap; }
-.rl-tip-axis { display: grid; gap: 2px; padding: 7px 9px; font-size: 11.5px; }
+.rl-radar { --rl-tip-w: min(270px, 100%); }
+.rl-tip-axis { display: grid; gap: 2px; width: var(--rl-tip-w); padding: 8px 10px; font-size: 11.5px; white-space: normal; }
+.rl-tip-what { margin-bottom: 5px; padding-bottom: 6px; border-bottom: 1px solid var(--hair-2); color: var(--ink-2); line-height: 1.45; }
+.rl-tip-row { white-space: nowrap; }
 .rl-tip-axis strong { font-weight: 600; }
 .rl-tip-sub { font: 10px var(--font-mono); color: var(--grey); margin-bottom: 2px; }
 .rl-tip-row { display: grid; grid-template-columns: 8px 1fr auto; align-items: center; gap: 6px; }
@@ -43,6 +46,17 @@
 .rl-tip-dot { padding: 3px 7px; font-size: 11px; }
 .rl-tip-dot b { font: 600 11px var(--font-mono); }
 .rl-tip-dot em, .rl-tip-dot span { font-style: normal; color: var(--grey); }
+
+/* Key: what each benchmark measures */
+.rl-key { margin-top: 14px; border-top: 1px solid var(--hair-2); padding-top: 10px; }
+.rl-key summary { width: fit-content; font-size: 12.5px; color: var(--ink-2); cursor: pointer; }
+.rl-key summary:hover { color: var(--ink); }
+.rl-key dl { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 14px 28px; margin: 12px 0 2px; }
+.rl-key dt { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; font-size: 13px; }
+.rl-key dt button { padding: 0; border: 0; background: none; color: var(--ink); font-weight: 600; text-align: left; cursor: pointer; }
+.rl-key dt button:hover { text-decoration: underline; text-underline-offset: 2px; }
+.rl-key dt .cap { flex: none; }
+.rl-key dd { margin: 3px 0 0; font-size: 12.5px; line-height: 1.5; color: var(--ink-2); }
 
 /* Settings menu extras */
 .rl-menu-hint { margin: 10px 0 8px; font-size: 11.5px; color: var(--grey); }

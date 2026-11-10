@@ -5,6 +5,8 @@
  */
 import type { Lab, Snapshot } from "../../data/types";
 import { computeIndex, selectVariants, type IndexConfig, type IndexResult, type RankedVariant } from "../../engine";
+import { benchmarkBlurb } from "../../lib/benchmark-blurb";
+import { radarLabels, textWidth } from "./radar-labels";
 import { fillFromSiblings, formatValue, medianPoints, radarAxes, radarModels, ringLabels, type RadarAxis, type RadarModel, type RadarNorm, type RadarPoint } from "./radar-data";
 
 export interface RadarSeries { id: string; name: string; color: string; dash?: string; points: RadarPoint[] }
@@ -100,15 +102,21 @@ const spokeAngle = (i: number, n: number) => (i / n) * Math.PI * 2 - Math.PI / 2
 
 /**
  * Overlaid radar with a legend on the right. `meta` adds rank/score under each legend name.
- * Every value point carries a <title> so the HTML embed gets native hover tooltips.
+ * Every value point carries a <title> so the HTML embed gets native hover tooltips; a benchmark
+ * name's title also says what it measures. Names wrap in full, and the canvas and the legend are
+ * placed from the labels' measured extent, so a long name can neither clip nor run under the legend.
  */
 export function radarSvg({ axes, series, ghost, norm, pal, size = 400, meta, legend = true }: {
   axes: RadarAxis[]; series: RadarSeries[]; ghost?: RadarPoint[]; norm: RadarNorm; pal: RadarSvgPalette; size?: number;
   meta?: Map<string, { rank: number; score: number }>; legend?: boolean;
 }): string {
-  const padX = 116, padY = 32, legendW = legend ? 230 : 0;
-  const R = size / 2, cx = padX + R, cy = padY + R, W = padX * 2 + size + legendW, H = Math.max(size + padY * 2, legend ? 60 + (series.length + 1) * 44 : 0);
-  const n = axes.length;
+  const R = size / 2, n = axes.length, edge = 12;
+  const lay = radarLabels(axes.map((a) => a.label), { R, px: 12, maxW: 132 });
+  const legendRows = legend ? series.length + (ghost ? 1 : 0) : 0;
+  const legendW = legendRows ? Math.ceil(32 + Math.max(ghost ? textWidth("Field median", 13) : 0, ...series.map((s) => Math.max(textWidth(trim(s.name, 22), 14), meta?.has(s.id) ? 90 : 0)))) : 0;
+  const cx = Math.ceil(-lay.minX) + edge, lx = Math.ceil(cx + lay.maxX) + 28;
+  const top = Math.ceil(-lay.minY) + edge, bodyH = top + Math.ceil(lay.maxY) + edge, H = Math.max(bodyH, legendRows ? legendRows * 44 + 24 : 0);
+  const cy = top + (H - bodyH) / 2, W = legendRows ? lx + legendW + edge : Math.ceil(cx + lay.maxX) + edge;
   const at = (i: number, r: number) => [cx + Math.cos(spokeAngle(i, n)) * R * r, cy + Math.sin(spokeAngle(i, n)) * R * r];
   const shape = (pts: RadarPoint[]) => {
     const xy = pts.flatMap((p, i) => p.r == null ? [] : [at(i, p.r).map(r1).join(",")]);
@@ -130,15 +138,12 @@ export function radarSvg({ axes, series, ghost, norm, pal, size = 400, meta, leg
     const [x, y] = at(i, p.r);
     out.push(`<circle cx="${r1(x)}" cy="${r1(y)}" r="3.4" fill="${p.estimated ? pal.bg : s.color}" stroke="${p.estimated ? s.color : pal.bg}" stroke-width="1.5"><title>${esc(`${s.name} · ${axes[i].name}: ${formatValue(p, axes[i])}${p.estimated ? " (estimated)" : ""}`)}</title></circle>`);
   });
-  for (let i = 0; i < n; i++) {
-    const a = spokeAngle(i, n), c = Math.cos(a), sn = Math.sin(a);
-    const x = r1(cx + c * (R + 12)), y = r1(cy + sn * (R + 12) + (sn < -0.6 ? -4 : sn > 0.6 ? 12 : 4));
-    const anchor = Math.abs(c) < 0.2 ? "middle" : c > 0 ? "start" : "end";
-    out.push(`<text x="${x}" y="${y}" text-anchor="${anchor}" font-size="12" fill="${pal.ink2}"><title>${esc(axes[i].name)} · ${axes[i].share.toFixed(0)}% of index</title>${esc(trim(axes[i].label, 20))}</text>`);
-  }
-  if (legend) {
-    const lx = padX * 2 + size - 40;
-    let ly = Math.max(padY + 20, cy - ((series.length + (ghost ? 1 : 0)) * 44) / 2 + 14);
+  lay.labels.forEach((l, i) => {
+    const x = r1(cx + l.x), what = benchmarkBlurb(axes[i].name, axes[i].description);
+    out.push(`<text x="${x}" y="${r1(cy + l.y)}" text-anchor="${l.anchor}" font-size="12" fill="${pal.ink2}"><title>${esc(`${axes[i].name} · ${axes[i].share.toFixed(0)}% of index${what ? `\n${what}` : ""}`)}</title>${l.lines.map((line, k) => `<tspan x="${x}" dy="${k ? lay.lineHeight : 0}">${esc(line)}</tspan>`).join("")}</text>`);
+  });
+  if (legendRows) {
+    let ly = cy - (legendRows * 44) / 2 + 22;
     for (const s of series) {
       const m = meta?.get(s.id);
       out.push(`<line x1="${lx}" y1="${ly - 4}" x2="${lx + 22}" y2="${ly - 4}" stroke="${s.color}" stroke-width="2.5" stroke-linecap="round"${s.dash ? ` stroke-dasharray="${s.dash}"` : ""}/>`);

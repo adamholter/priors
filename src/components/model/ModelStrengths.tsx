@@ -32,7 +32,7 @@ export function ModelStrengths({ data, labColors, onInfo }: { data: NonNullable<
         </ul>
       </div>
       <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] items-center">
-        <div className="flex justify-center min-w-0 overflow-hidden">
+        <div className="flex justify-center min-w-0 overflow-x-clip">
           <Radar axes={axes} series={series} ghost={median} norm="field" size={300} hoverAxis={axis} onHoverAxis={setAxis} onAxisClick={onInfo} ariaLabel={`${me.name} across the ${axes.length} benchmarks in ${mixName}, against ${leader?.name ?? "the leader"} and the field median`} />
         </div>
         <ol className="grid gap-3 min-w-0" onMouseLeave={() => setAxis(null)}>
