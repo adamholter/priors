@@ -1,7 +1,7 @@
 /** Pure rules for the `requests` table, shared by `requests.ts`, the form on `/request` and the tests. No Convex imports. */
 export const MAX_TEXT = 5000, MAX_URL = 500, MAX_CONTACT = 120, MAX_CONTEXT = 600;
 /** Attachments: how many a report may carry, how big each may be, and how many one sender and everyone together may upload. */
-export const MAX_FILES = 5, MAX_FILE_BYTES = 15 * 1024 * 1024, MAX_FILE_NAME = 120, FILES_PER_HOUR = 20, FILES_DAILY_CAP = 500;
+export const MAX_FILES = 5, MAX_FILE_BYTES = 15 * 1024 * 1024, MAX_FILE_NAME = 120, FILES_PER_HOUR = 20, FILES_DAILY_CAP = 200, FILES_DAILY_BYTES = 1024 * 1024 * 1024;
 /** Stored requests per rolling 24 hours, all visitors together, and the wait between two from one sender. */
 export const DAILY_CAP = 200, COOLDOWN_MS = 30_000;
 /**
@@ -92,10 +92,22 @@ export function isText(bytes: Uint8Array): boolean {
   try { new TextDecoder("utf-8", { fatal: true }).decode(bytes); return true; } catch { return false; }
 }
 export const FILE_KINDS = "an image, a PDF, a video, or a text file such as a log";
-/** Why a sender cannot upload another file right now, or null. `hourCount` is theirs in the last hour, `dayCount` everyone's in the last day. */
-export function fileLimitOf({ hourCount, dayCount, perHour = FILES_PER_HOUR, cap = FILES_DAILY_CAP }: { hourCount: number; dayCount: number; perHour?: number; cap?: number }): string | null {
+/**
+ * Why a sender cannot upload another file right now, or null. `hourCount` is theirs in the last hour; `dayCount` and
+ * `dayBytes` are everyone's in the last day, uploads still arriving included, and `size` is the one being asked for.
+ */
+export function fileLimitOf({ hourCount, dayCount, dayBytes = 0, size = 0, perHour = FILES_PER_HOUR, cap = FILES_DAILY_CAP, bytes = FILES_DAILY_BYTES }: { hourCount: number; dayCount: number; dayBytes?: number; size?: number; perHour?: number; cap?: number; bytes?: number }): string | null {
   if (hourCount >= perHour) return "Too many files from you in the last hour. Try again later.";
-  return dayCount >= cap ? "Too many files came in today. Send it without the file, or try again tomorrow." : null;
+  return dayCount >= cap || dayBytes + size > bytes ? "Too many files came in today. Send it without the file, or try again tomorrow." : null;
+}
+/**
+ * Whose hourly limit an upload counts against: the address it came from when the server can see one, else the id the
+ * browser made for itself (which is the sender's own word, so the daily caps are the real stop).
+ */
+export function uploaderKey(forwardedFor: string | null | undefined, client: string | null | undefined): string {
+  const ip = (forwardedFor ?? "").split(",")[0].trim();
+  if (/^[0-9a-fA-F:.]{3,45}$/.test(ip)) return `ip:${ip}`;
+  return client && /^[A-Za-z0-9_-]{8,64}$/.test(client) ? `c:${client}` : "anon";
 }
 
 /** Whose cooldown a request counts against: the account when signed in, else the id the browser made for itself. */

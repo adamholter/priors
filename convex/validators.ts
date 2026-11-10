@@ -93,9 +93,10 @@ export const requestStatus = v.union(v.literal("new"), v.literal("seen"), v.lite
 export const request = v.object({ kind: requestKind, text: v.string(), url: v.optional(v.string()), contact: v.optional(v.string()), context: v.optional(v.string()), handle: v.optional(v.string()), client: v.optional(v.string()), createdAt: v.number(), status: requestStatus });
 /**
  * A file sent with a report (a screenshot, a log). The server stores it and writes this row itself (http.ts), so a file id
- * never comes from a browser. `requestId` is set when its report is sent; a file still without one after a day is deleted.
+ * never comes from a browser. A row is written before the body is read, with no `storageId` yet, so uploads still arriving count against the limits.
+ * `requestId` is set when its report is sent; a file still without one after a day is deleted.
  */
-export const requestFile = v.object({ storageId: v.id("_storage"), name: v.string(), type: v.string(), size: v.number(), client: v.optional(v.string()), createdAt: v.number(), requestId: v.optional(v.id("requests")) });
+export const requestFile = v.object({ storageId: v.optional(v.id("_storage")), name: v.string(), type: v.string(), size: v.number(), client: v.optional(v.string()), createdAt: v.number(), requestId: v.optional(v.id("requests")) });
 export type StoredRequest = Infer<typeof request>;
 export type StoredRequestFile = Infer<typeof requestFile>;
 

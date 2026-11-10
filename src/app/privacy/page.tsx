@@ -28,7 +28,7 @@ export default function PrivacyPage() {
         </section>
         <section className="grid gap-2">
           <h2 className="text-[22px] text-ink">Requests</h2>
-          <p>When you send a bug report or a request, we store what you wrote, the files you attached, the link and contact if you gave them, and your handle if you are signed in. A bug report also records your browser, your screen size and the Priors page you came from. Only Adam reads requests. They are never shown to other visitors.</p>
+          <p>When you send a bug report or a request, we store what you wrote, the files you attached, the link and contact if you gave them, and your handle if you are signed in. A bug report also records your browser, your screen size and the Priors page you came from. To limit abuse, an uploaded file is counted against a scrambled form of the network address it came from; the address itself is not kept. Only Adam reads requests. They are never shown to other visitors.</p>
         </section>
         <section className="grid gap-2">
           <h2 className="text-[22px] text-ink">Service providers</h2>

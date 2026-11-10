@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { anonCapOf, cleanFileName, cleanRequest, cleanUrl, clientKey, COOLDOWN_MS, DAILY_CAP, fileLimitOf, FILES_DAILY_CAP, FILES_PER_HOUR, isAccountKey, isText, LIMIT_MESSAGE, limitOf, MAX_CONTACT, MAX_CONTEXT, MAX_FILE_NAME, MAX_TEXT, MAX_URL, sniffFile, tokenMatches } from "../../convex/requestRules";
+import { anonCapOf, cleanFileName, cleanRequest, cleanUrl, clientKey, COOLDOWN_MS, DAILY_CAP, fileLimitOf, FILES_DAILY_BYTES, FILES_DAILY_CAP, FILES_PER_HOUR, isAccountKey, isText, LIMIT_MESSAGE, limitOf, MAX_CONTACT, MAX_CONTEXT, MAX_FILE_NAME, MAX_TEXT, MAX_URL, sniffFile, tokenMatches, uploaderKey } from "../../convex/requestRules";
 
 describe("cleanRequest", () => {
   it("keeps a plain request and drops empty optional fields", () => {
@@ -74,6 +74,16 @@ describe("attachments", () => {
     expect(fileLimitOf({ hourCount: FILES_PER_HOUR, dayCount: 0 })).toMatch(/last hour/);
     expect(fileLimitOf({ hourCount: 0, dayCount: FILES_DAILY_CAP })).toMatch(/today/);
     expect(fileLimitOf({ hourCount: 0, dayCount: 3, cap: 3 })).toMatch(/today/);
+  });
+  it("stops the day's uploads at a total size too, counting the one being asked for", () => {
+    expect(fileLimitOf({ hourCount: 0, dayCount: 1, dayBytes: FILES_DAILY_BYTES - 10, size: 10 })).toBeNull();
+    expect(fileLimitOf({ hourCount: 0, dayCount: 1, dayBytes: FILES_DAILY_BYTES - 10, size: 11 })).toMatch(/today/);
+  });
+  it("counts an upload against the address it came from, and against the browser's own id only when there is none", () => {
+    expect(uploaderKey("203.0.113.9, 10.0.0.1", "abcdefgh12345678")).toBe("ip:203.0.113.9");
+    expect(uploaderKey("2001:db8::1", undefined)).toBe("ip:2001:db8::1");
+    expect(uploaderKey(null, "abcdefgh12345678")).toBe("c:abcdefgh12345678");
+    expect(uploaderKey("not an address", "short")).toBe("anon");
   });
 });
 

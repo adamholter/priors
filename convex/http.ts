@@ -2,7 +2,8 @@ import { httpRouter } from "convex/server";
 import { ConvexError } from "convex/values";
 import { internal } from "./_generated/api";
 import { httpAction } from "./_generated/server";
-import { cleanFileName, FILE_KINDS, isText, MAX_FILE_BYTES, sniffFile } from "./requestRules";
+import type { Id } from "./_generated/dataModel";
+import { cleanFileName, FILE_KINDS, isText, MAX_FILE_BYTES, sniffFile, uploaderKey } from "./requestRules";
 
 /**
  * POST /upload?field=avatar|banner, with the signed-in user's Convex token as a bearer token and the
@@ -89,19 +90,27 @@ const upload = httpAction(async (ctx, request) => {
 /**
  * POST /request-file?name=<file name>&client=<the browser's request id>, with the file as the body: a file to go with a
  * report from `/request`. Anyone may call it, as anyone may send a report, so everything is checked here: how many files
- * this sender and everyone have uploaded lately, the size as the body arrives, and what the file is from its own bytes
+ * this sender (by address when there is one) and everyone have uploaded lately and how many bytes, the size as the body arrives, and what the file is from its own bytes
  * (a picture, a PDF, a video, or readable text). The answer is the id the form then sends with the report. A file whose
  * report never comes is deleted a day later (crons.ts).
  */
 const FILE_TOO_BIG = `That file is over ${MAX_FILE_BYTES / 1024 / 1024} MB`;
 const fileReply = (status: number, body: { ok: true; id: string } | { error: string }) => new Response(JSON.stringify(body), { status, headers: { ...CORS, "content-type": "application/json", "cache-control": "no-store" } });
+/** An address is only needed to tell one uploader from another, so it is stored scrambled, never as it came. */
+async function scrambled(key: string): Promise<string> {
+  if (!key.startsWith("ip:")) return key;
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`${process.env.REQUESTS_TOKEN ?? "priors"}:${key}`));
+  return `ip:${[...new Uint8Array(digest)].slice(0, 10).map((b) => b.toString(16).padStart(2, "0")).join("")}`;
+}
 const requestFile = httpAction(async (ctx, request) => {
   const q = new URL(request.url).searchParams;
-  const name = cleanFileName(q.get("name") ?? ""), given = q.get("client") ?? "";
-  const client = /^[A-Za-z0-9_-]{8,64}$/.test(given) ? `c:${given}` : "anon";
-  if (Number(request.headers.get("content-length")) > MAX_FILE_BYTES) return fileReply(413, { error: FILE_TOO_BIG });
+  const name = cleanFileName(q.get("name") ?? ""), client = await scrambled(uploaderKey(request.headers.get("x-forwarded-for"), q.get("client")));
+  const stated = Number(request.headers.get("content-length"));
+  if (stated > MAX_FILE_BYTES) return fileReply(413, { error: FILE_TOO_BIG });
+  let id: Id<"requestFiles"> | undefined, kept = false;
   try {
-    await ctx.runMutation(internal.requests.reserveFile, { client });
+    // The place is taken before a byte is read, so uploads arriving together are all counted.
+    id = await ctx.runMutation(internal.requests.reserveFile, { client, size: stated > 0 ? stated : MAX_FILE_BYTES });
     const reader = request.body?.getReader();
     if (!reader) return fileReply(400, { error: "No file came with that" });
     const chunks: Uint8Array[] = [];
@@ -119,12 +128,17 @@ const requestFile = httpAction(async (ctx, request) => {
     const type = sniffFile(bytes.subarray(0, 16)) ?? (isText(bytes) ? "text/plain" : undefined);
     if (!type) return fileReply(415, { error: `Attach ${FILE_KINDS}` });
     const storageId = await ctx.storage.store(new Blob([bytes], { type }));
-    try { return fileReply(200, { ok: true, id: await ctx.runMutation(internal.requests.recordFile, { storageId, name, type, size, client }) }); }
+    try { await ctx.runMutation(internal.requests.fillFile, { id, storageId, name, type, size }); }
     catch (e) { await ctx.storage.delete(storageId); throw e; }
+    kept = true;
+    return fileReply(200, { ok: true, id });
   } catch (e) {
     if (e instanceof ConvexError && typeof e.data === "string") return fileReply(429, { error: e.data });
     console.error("request file failed", e);
     return fileReply(500, { error: "Could not upload that file. Try again." });
+  } finally {
+    // Whatever stopped it, a place that holds no file is given back.
+    if (id && !kept) await ctx.runMutation(internal.requests.dropFile, { id }).catch(() => {});
   }
 });
 
