@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { anonCapOf, cleanRequest, cleanUrl, clientKey, COOLDOWN_MS, DAILY_CAP, isAccountKey, LIMIT_MESSAGE, limitOf, MAX_CONTACT, MAX_TEXT, MAX_URL, tokenMatches } from "../../convex/requestRules";
+import { anonCapOf, cleanFileName, cleanRequest, cleanUrl, clientKey, COOLDOWN_MS, DAILY_CAP, fileLimitOf, FILES_DAILY_CAP, FILES_PER_HOUR, isAccountKey, isText, LIMIT_MESSAGE, limitOf, MAX_CONTACT, MAX_CONTEXT, MAX_FILE_NAME, MAX_TEXT, MAX_URL, sniffFile, tokenMatches } from "../../convex/requestRules";
 
 describe("cleanRequest", () => {
   it("keeps a plain request and drops empty optional fields", () => {
@@ -10,10 +10,16 @@ describe("cleanRequest", () => {
     expect(cleanRequest({ kind: "spam", text: "x" }).ok).toBe(false);
     for (const text of ["", "   ", "\n\t\n", "\u0000\u0007"]) expect(cleanRequest({ kind: "feature", text }).ok).toBe(false);
   });
-  it("caps the text at 2000 characters, counted after trimming", () => {
+  it("takes a bug report or anything else, and keeps what the form says about the sender's browser", () => {
+    expect(cleanRequest({ kind: "bug", text: "The line runs through the text", context: " Safari\u0000 17 ·  390x844 " })).toEqual({ ok: true, value: { kind: "bug", text: "The line runs through the text", context: "Safari 17 · 390x844" } });
+    expect(cleanRequest({ kind: "other", text: "A question" }).ok).toBe(true);
+    expect(cleanRequest({ kind: "bug", text: "  " })).toEqual({ ok: false, error: "Write what went wrong." });
+    expect((cleanRequest({ kind: "bug", text: "x", context: "a".repeat(MAX_CONTEXT + 50) }) as { value: { context: string } }).value.context).toHaveLength(MAX_CONTEXT);
+  });
+  it("caps the text at 5000 characters, counted after trimming", () => {
     expect(cleanRequest({ kind: "feature", text: "a".repeat(MAX_TEXT) }).ok).toBe(true);
     expect(cleanRequest({ kind: "feature", text: ` ${"a".repeat(MAX_TEXT)} ` }).ok).toBe(true);
-    expect(cleanRequest({ kind: "feature", text: "a".repeat(MAX_TEXT + 1) })).toEqual({ ok: false, error: "Keep it under 2000 characters." });
+    expect(cleanRequest({ kind: "feature", text: "a".repeat(MAX_TEXT + 1) })).toEqual({ ok: false, error: "Keep it under 5000 characters." });
   });
   it("keeps line breaks and strips control characters", () => {
     const r = cleanRequest({ kind: "feature", text: "one\r\ntwo\u0000\u001b[31m\tthree" });
@@ -30,6 +36,44 @@ describe("cleanRequest", () => {
   it("gives back the same request when run on its own output, as the server does to what the form sends", () => {
     const once = cleanRequest({ kind: "benchmark", text: " a\r\nb ", url: "Example.com/x?y=1#z", contact: "  @a   b " });
     expect(once.ok && cleanRequest(once.value)).toEqual(once);
+  });
+});
+
+describe("attachments", () => {
+  const bytes = (...v: (number | string)[]) => new Uint8Array(v.flatMap((x) => (typeof x === "string" ? [...x].map((c) => c.charCodeAt(0)) : [x])));
+  it("knows a picture, a PDF and a video from their first bytes, whatever they are called", () => {
+    expect(sniffFile(bytes(0x89, "PNG", 0x0d, 0x0a, 0x1a, 0x0a))).toBe("image/png");
+    expect(sniffFile(bytes(0xff, 0xd8, 0xff, 0xe0))).toBe("image/jpeg");
+    expect(sniffFile(bytes("RIFF", 0, 0, 0, 0, "WEBP"))).toBe("image/webp");
+    expect(sniffFile(bytes("%PDF-1.7"))).toBe("application/pdf");
+    expect(sniffFile(bytes(0, 0, 0, 0x18, "ftypheic"))).toBe("image/heic");
+    expect(sniffFile(bytes(0, 0, 0, 0x18, "ftypisom"))).toBe("video/mp4");
+    expect(sniffFile(bytes(0, 0, 0, 0x14, "ftypqt  "))).toBe("video/quicktime");
+    expect(sniffFile(bytes(0x1a, 0x45, 0xdf, 0xa3))).toBe("video/webm");
+  });
+  it("lets through readable text and nothing else: a program or an archive is refused", () => {
+    expect(sniffFile(bytes("MZ", 0x90, 0))).toBeUndefined();
+    expect(sniffFile(bytes("PK", 3, 4))).toBeUndefined();
+    expect(isText(new TextEncoder().encode("TypeError: x is undefined\n  at page.tsx:12\té\u001b[31m"))).toBe(true);
+    expect(isText(new TextEncoder().encode('{"log":{"entries":[]}}'))).toBe(true);
+    expect(isText(bytes("MZ", 0x90, 0, 3, 0, 0, 0))).toBe(false);
+    expect(isText(bytes(0xff, 0xfe, 0xfd))).toBe(false);
+    expect(isText(new Uint8Array())).toBe(false);
+  });
+  it("stores a file under a plain name: no folders, no dot file, not too long, extension kept", () => {
+    expect(cleanFileName("C:\\Users\\me\\Desktop\\shot 1.png")).toBe("shot 1.png");
+    expect(cleanFileName("../../etc/passwd")).toBe("passwd");
+    expect(cleanFileName(".env")).toBe("env");
+    expect(cleanFileName(" \u0000 ")).toBe("file");
+    const long = cleanFileName(`${"a".repeat(300)}.jpeg`);
+    expect(long).toHaveLength(MAX_FILE_NAME);
+    expect(long.endsWith(".jpeg")).toBe(true);
+  });
+  it("stops one sender at the hourly limit and everyone at the daily one", () => {
+    expect(fileLimitOf({ hourCount: 0, dayCount: 0 })).toBeNull();
+    expect(fileLimitOf({ hourCount: FILES_PER_HOUR, dayCount: 0 })).toMatch(/last hour/);
+    expect(fileLimitOf({ hourCount: 0, dayCount: FILES_DAILY_CAP })).toMatch(/today/);
+    expect(fileLimitOf({ hourCount: 0, dayCount: 3, cap: 3 })).toMatch(/today/);
   });
 });
 

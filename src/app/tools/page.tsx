@@ -46,7 +46,7 @@ export default function ToolsPage() {
           <CopyBlock label="Try it" text={`priors rank --top 10\npriors model "opus 5.5"`} />
         </Part>
 
-        <Part id="import" title="Import a benchmark" more={<><Link href="/import" className="text-indigo hover:underline">Import a benchmark</Link><Link href="/request" className="text-ink-2 hover:text-ink underline underline-offset-2">Ask for it to be added for everyone</Link></>}>
+        <Part id="import" title="Import a benchmark" more={<><Link href="/import" className="text-indigo hover:underline">Import a benchmark</Link><Link href="/request?kind=benchmark" className="text-ink-2 hover:text-ink underline underline-offset-2">Ask for it to be added for everyone</Link></>}>
           <p>Add a benchmark Priors does not have and weight it like any other. Signed in, it joins your page; without an account it stays in this browser. Paste the results as JSON on the import page, have your agent produce the file with the skill, or run <code className="mono text-ink">priors import mybench.json</code>.</p>
         </Part>
 

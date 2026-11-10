@@ -44,10 +44,10 @@ try {
       await p.goto(`${BASE}/tools`, { waitUntil: "domcontentloaded" });
       const foot = p.getByRole("navigation", { name: "Footer" });
       assert.deepEqual(await foot.getByRole("link").evaluateAll((links) => links.map((a) => a.getAttribute("href"))), ["/support", "/privacy", "/benchmarks", "/tools", "/request"]);
-      assert.deepEqual(await foot.getByRole("link").evaluateAll((links) => links.slice(1).map((a) => a.textContent)), ["Privacy", "Benchmarks", "Tools", "Request"]);
+      assert.deepEqual(await foot.getByRole("link").evaluateAll((links) => links.slice(1).map((a) => a.textContent)), ["Privacy", "Benchmarks", "Tools", "Report or request"]);
       const main = p.locator("main");
       for (const id of ["skill", "mcp", "cli", "import", "export"]) assert.equal(await main.locator(`section#${id} h2`).count(), 1, `/tools has a ${id} section`);
-      for (const href of ["/skill", "/cli#mcp", "/cli#cli", "/import", "/request"]) assert.ok(await main.locator(`section a[href="${href}"]`).count(), `/tools links to ${href}`);
+      for (const href of ["/skill", "/cli#mcp", "/cli#cli", "/import", "/request?kind=benchmark"]) assert.ok(await main.locator(`section a[href="${href}"]`).count(), `/tools links to ${href}`);
       // The pages the old footer linked to still load and lead back here.
       for (const route of ["/skill", "/cli", "/import"]) {
         const res = await p.goto(`${BASE}${route}`, { waitUntil: "domcontentloaded" });
@@ -55,7 +55,7 @@ try {
         assert.ok(await p.locator('header a[href="/tools"]').count(), `${route} links back to /tools`);
       }
       await p.goto(`${BASE}/benchmarks`, { waitUntil: "domcontentloaded" });
-      await p.getByRole("navigation", { name: "Footer" }).getByRole("link", { name: "Request" }).click();
+      await p.getByRole("navigation", { name: "Footer" }).getByRole("link", { name: "Report or request" }).click();
       await p.waitForURL(/\/request$/);
     } finally { await context.close(); }
   });
@@ -66,22 +66,37 @@ try {
     p.on("pageerror", (e) => errors.push(`${p.url()}: ${e.message}`));
     try {
       await p.goto(`${BASE}/request`, { waitUntil: "domcontentloaded" });
-      const form = p.locator("form[data-backend]"), send = p.getByRole("button", { name: "Send request" }), alert = form.getByRole("alert");
+      const form = p.locator("form[data-backend]"), send = p.getByRole("button", { name: "Send", exact: true }), alert = form.getByRole("alert");
       // Send is off until the page is live, so a press can never post the form the browser's way.
       await p.locator('form[data-backend] button[type="submit"]:not([disabled])').waitFor({ timeout: 30000 });
+      // It opens on a bug report, and its four kinds are there.
+      assert.deepEqual(await form.locator('input[name="kind"]').evaluateAll((els) => els.map((e) => [e.value, e.checked])), [["bug", true], ["feature", false], ["benchmark", false], ["other", false]]);
       await send.click();
-      assert.match(await alert.textContent(), /Write what you are asking for/);
+      assert.match(await alert.textContent(), /Write what went wrong/);
       assert.equal(new URL(p.url()).search, "", "nothing typed ends up in the address");
+      // Files: picked, listed with their size, removable; one too many or too big is refused before anything is sent.
+      const picker = form.locator('input[type="file"]'), listed = form.locator('[data-request-files] li');
+      await picker.setInputFiles([{ name: "console.log", mimeType: "text/plain", buffer: Buffer.from("TypeError: x is undefined\n") }, { name: "screen.png", mimeType: "image/png", buffer: Buffer.alloc(2048) }]);
+      assert.deepEqual(await listed.locator("span").first().evaluateAll((els) => els.map((e) => e.textContent)), ["console.log"]);
+      assert.equal(await listed.count(), 2, "both files are listed");
+      assert.match(await listed.nth(1).textContent(), /screen\.png\s*2 KB/);
+      await picker.setInputFiles(Array.from({ length: 4 }, (_, i) => ({ name: `more-${i}.txt`, mimeType: "text/plain", buffer: Buffer.from(String(i)) })));
+      assert.match(await alert.textContent(), /Attach at most 5 files/);
+      assert.equal(await listed.count(), 2, "a refused batch adds nothing");
+      await form.getByRole("button", { name: "Remove console.log" }).click();
+      await form.getByRole("button", { name: "Remove screen.png" }).click();
+      assert.equal(await listed.count(), 0, "Remove takes a file off");
       // A benchmark request points at importing it yourself; a feature request does not.
+      await p.getByLabel("A benchmark").check();
       assert.equal(await form.locator('a[href="/tools#import"]').count(), 1);
       await p.getByLabel("A feature").check();
       assert.equal(await form.locator('a[href="/tools#import"]').count(), 0);
       assert.ok(await p.getByLabel(/What should Priors do/).isVisible());
       await p.getByLabel("A benchmark").check();
       const text = p.getByLabel(/The benchmark and its publisher/);
-      await text.fill("x".repeat(2100));
-      assert.equal((await text.inputValue()).length, 2000, "the text stops at 2000 characters");
-      assert.match(await form.textContent(), /2000 \/ 2000/);
+      await text.fill("x".repeat(5100));
+      assert.equal((await text.inputValue()).length, 5000, "the text stops at 5000 characters");
+      assert.match(await form.textContent(), /5000 \/ 5000/);
       await text.fill("Browser check: a benchmark that does not exist");
       await p.getByLabel(/Link to its leaderboard/).fill("javascript:alert(1)");
       await send.click();
@@ -98,11 +113,15 @@ try {
         // A build with no backend (CI) says so.
         assert.match(await alert.textContent(), /not set up on this server/);
       } else {
-        await p.getByRole("heading", { name: "Request sent" }).waitFor({ timeout: 20000 });
+        await p.getByRole("heading", { name: "Sent", exact: true }).waitFor({ timeout: 20000 });
         assert.equal(await p.locator("form[data-backend]").count(), 0, "the form gives way to the confirmation");
         await p.getByRole("button", { name: "Send another" }).click();
         assert.equal(await p.getByLabel(/The benchmark and its publisher/).inputValue(), "", "Send another starts an empty request");
       }
+      // A link can open the form on one kind.
+      await p.goto(`${BASE}/request?kind=benchmark`, { waitUntil: "domcontentloaded" });
+      await p.locator('form[data-backend] button[type="submit"]:not([disabled])').waitFor({ timeout: 30000 });
+      assert.equal(await p.getByLabel("A benchmark").isChecked(), true, "?kind=benchmark opens on a benchmark request");
       const widths = await p.evaluate(() => ({ inner: innerWidth, scroll: document.documentElement.scrollWidth }));
       assert.ok(widths.scroll <= widths.inner, `the form fits a phone (${widths.scroll} > ${widths.inner})`);
     } finally { await context.close(); }

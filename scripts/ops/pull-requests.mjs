@@ -3,12 +3,13 @@
  * Pulls the requests visitors sent from /request (convex/requests.ts) into a JSON file.
  *   PRIORS_REQUESTS_TOKEN=... PRIORS_CONVEX_URL=https://<deployment>.convex.cloud node scripts/ops/pull-requests.mjs <out.json>
  * The token is the deployment's REQUESTS_TOKEN. The URL falls back to NEXT_PUBLIC_CONVEX_URL.
- * Writes every request, newest first, as a JSON array of { id, kind, text, url?, contact?, handle?, createdAt, status },
- * and prints one line: the total and how many were not in the file before this run. Any failure exits 1 with a
+ * Writes every request, newest first, as a JSON array of { id, kind, text, url?, contact?, context?, handle?, createdAt, status, files },
+ * and prints one line: the total and how many were not in the file before this run. Files attached to a request (screenshots,
+ * logs) are downloaded once into `files/<request id>/` beside the JSON, and each request lists them as { name, type, size, path }. Any failure exits 1 with a
  * message on stderr and leaves the previous file as it was. The token is never printed.
  */
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
 const PAGE = 1000;
@@ -23,6 +24,47 @@ export function newSince(previous, current) {
 export function summary(previous, current) {
   const fresh = newSince(previous, current).length;
   return `${current.length} request${current.length === 1 ? "" : "s"}, ${fresh} new ${previous ? "since the previous file" : "(no previous file)"}`;
+}
+
+/** A name that is safe to write inside one folder, whatever the server sent: no path, no control characters, never empty or a dot file. */
+export const safeName = (name) => (String(name ?? "").split(/[\\/]/).pop().replace(/[\u0000-\u001f\u007f<>:"|?*]/g, "").trim().replace(/^\.+/, "") || "file").slice(0, 140);
+
+/**
+ * Where each of a request's files goes, relative to the JSON: `files/<request id>/<name>`. Two files with one name get
+ * a number, so neither overwrites the other.
+ */
+export function filePlan(request) {
+  const used = new Set();
+  return (request.files ?? []).map((f) => {
+    let name = safeName(f.name);
+    for (let n = 2; used.has(name.toLowerCase()); n++) { const base = safeName(f.name), dot = base.lastIndexOf("."); name = dot > 0 ? `${base.slice(0, dot)}-${n}${base.slice(dot)}` : `${base}-${n}`; }
+    used.add(name.toLowerCase());
+    return { name: f.name, type: f.type, size: f.size, url: f.url, path: join("files", safeName(request.id), name) };
+  });
+}
+
+/**
+ * Downloads the files not on disk yet and returns the request as it is written: its files without their links. A file
+ * that cannot be fetched is listed with `missing: true` and tried again next run; it never fails the pull.
+ */
+export async function withFiles(request, dir, get = (url) => fetch(url, { signal: AbortSignal.timeout(120_000) })) {
+  const files = [];
+  for (const f of filePlan(request)) {
+    const to = join(dir, f.path), entry = { name: f.name, type: f.type, size: f.size, path: f.path };
+    if (!(existsSync(to) && statSync(to).size === f.size)) {
+      try {
+        if (!f.url) throw new Error("no link");
+        const res = await get(f.url);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        mkdirSync(dirname(to), { recursive: true });
+        const tmp = `${to}.${process.pid}.tmp`;
+        writeFileSync(tmp, Buffer.from(await res.arrayBuffer()));
+        renameSync(tmp, to);
+      } catch { entry.missing = true; }
+    }
+    files.push(entry);
+  }
+  return { ...request, files };
 }
 
 /** An error message with the token cut out, whatever put it there. */
@@ -64,13 +106,15 @@ export async function main(argv = process.argv.slice(2), env = process.env) {
     if (!base) throw new Error("PRIORS_CONVEX_URL is not set (NEXT_PUBLIC_CONVEX_URL works too)");
     const file = resolve(out);
     const previous = readPrevious(file);
-    const current = await pullAll(async (before) => {
+    const pulled = await pullAll(async (before) => {
       const res = await fetch(`${base}/api/query`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ path: "requests:list", args: { token, limit: PAGE, ...(before === undefined ? {} : { before }) }, format: "json" }), signal: AbortSignal.timeout(30_000) });
       const body = await res.json().catch(() => null);
       if (!body || body.status !== "success") throw new Error(body?.errorData === "forbidden" ? "the token was refused (wrong token, or REQUESTS_TOKEN is not set on that deployment)" : `requests:list failed: ${body?.errorMessage ?? `HTTP ${res.status}`}`);
       return body.value;
     });
     mkdirSync(dirname(file), { recursive: true });
+    const current = [];
+    for (const r of pulled) current.push(await withFiles(r, dirname(file)));
     // Written whole or not at all: a reader never sees half a file.
     const tmp = `${file}.${process.pid}.tmp`;
     writeFileSync(tmp, `${JSON.stringify(current, null, 2)}\n`);

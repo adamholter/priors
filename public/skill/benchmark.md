@@ -38,4 +38,4 @@ Goal: a complete, honest dataset for one benchmark, imported with `import_benchm
 
 Done when the reply reports the row count, every source row is accounted for as accepted or unrecognized, and `whoami` shows the id in the index's weights if the user asked for that.
 
-If the benchmark would be useful to everyone on Priors, tell the user they can also ask for it at https://mypriors.com/request.
+If the benchmark would be useful to everyone on Priors, tell the user they can also ask for it at https://mypriors.com/request?kind=benchmark.

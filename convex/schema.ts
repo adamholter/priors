@@ -1,6 +1,6 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
-import { indexConfig, profileTheme, request, section } from "./validators";
+import { indexConfig, profileTheme, request, requestFile, section } from "./validators";
 
 
 
@@ -65,4 +65,6 @@ export default defineSchema({
 
   /** Requests for a benchmark or a feature, sent from `/request` and read only with `REQUESTS_TOKEN` (requests.ts). */
   requests: defineTable(request).index("by_created", ["createdAt"]).index("by_client", ["client", "createdAt"]),
+  /** Files attached to requests, uploaded through `POST /request-file` (http.ts). */
+  requestFiles: defineTable(requestFile).index("by_request", ["requestId"]).index("by_created", ["createdAt"]).index("by_client", ["client", "createdAt"]),
 });

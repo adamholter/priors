@@ -5,9 +5,40 @@ import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { newSince, pullAll, readPrevious, scrub, summary } from "./pull-requests.mjs";
+import { filePlan, newSince, pullAll, readPrevious, safeName, scrub, summary, withFiles } from "./pull-requests.mjs";
 
 const row = (id: string, createdAt: number, status = "new") => ({ id, kind: "benchmark", text: `request ${id}`, createdAt, status });
+
+describe("attached files", () => {
+  const request = { id: "req1", kind: "bug", text: "broken", createdAt: 5, status: "new", files: [
+    { id: "f1", name: "screen.png", type: "image/png", size: 4, url: "https://files.example/1" },
+    { id: "f2", name: "screen.png", type: "image/png", size: 5, url: "https://files.example/2" },
+    { id: "f3", name: "../../etc/passwd", type: "text/plain", size: 3, url: "https://files.example/3" },
+  ] };
+  it("keeps every file inside its request's folder, whatever it is called", () => {
+    expect(filePlan(request).map((f: { path: string }) => f.path)).toEqual(["files/req1/screen.png", "files/req1/screen-2.png", "files/req1/passwd"]);
+    expect(safeName(".env")).toBe("env");
+    expect(safeName("a/b\\c\u0000.log")).toBe("c.log");
+    expect(safeName("")).toBe("file");
+    expect(filePlan({ id: "../x", files: [{ name: "a.txt" }] })[0].path).toBe("files/x/a.txt");
+  });
+  it("downloads each file once and writes the request without the links", async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "priors-request-files-")), asked: string[] = [];
+    const get = async (url: string) => { asked.push(url); return url.endsWith("/3") ? new Response("no", { status: 404 }) : new Response(url.endsWith("/1") ? "abcd" : "abcde"); };
+    const first = await withFiles(request, dir, get);
+    expect(first.files).toEqual([
+      { name: "screen.png", type: "image/png", size: 4, path: "files/req1/screen.png" },
+      { name: "screen.png", type: "image/png", size: 5, path: "files/req1/screen-2.png" },
+      { name: "../../etc/passwd", type: "text/plain", size: 3, path: "files/req1/passwd", missing: true },
+    ]);
+    expect(JSON.stringify(first)).not.toContain("files.example");
+    expect(readFileSync(path.join(dir, "files/req1/screen-2.png"), "utf8")).toBe("abcde");
+    asked.length = 0;
+    await withFiles(request, dir, get);
+    expect(asked).toEqual(["https://files.example/3"]);
+    expect((await withFiles({ id: "plain", kind: "feature", text: "x", createdAt: 1, status: "new" }, dir, get)).files).toEqual([]);
+  });
+});
 
 describe("diffing against the previous file", () => {
   it("counts requests the previous file did not hold, by id", () => {
@@ -82,7 +113,7 @@ describe("the script, against a stand-in for Convex's HTTP API", () => {
     const out = path.join(mkdtempSync(path.join(tmpdir(), "priors-requests-")), "nested", "dir", "requests.json");
     const first = await run([out], { PRIORS_REQUESTS_TOKEN: TOKEN, PRIORS_CONVEX_URL: `${base}/` });
     expect(first).toMatchObject({ code: 0, stdout: "2 requests, 2 new (no previous file)\n", stderr: "" });
-    expect(JSON.parse(readFileSync(out, "utf8"))).toEqual(stored);
+    expect(JSON.parse(readFileSync(out, "utf8"))).toEqual(stored.map((r) => ({ ...r, files: [] })));
     expect(bodies.at(-1)).toMatchObject({ path: "requests:list", format: "json", args: { token: TOKEN } });
     stored = [row("c", 3), ...stored];
     // The fallback variable works, and the first one wins when both are set.

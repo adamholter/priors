@@ -26,7 +26,7 @@ try {
     ["/import", () => page.getByRole("heading").first()],
     ["/cli", () => page.getByRole("heading", { name: "CLI and MCP" })],
     ["/tools", () => page.getByRole("heading", { name: "Tools", exact: true })],
-    ["/request", () => page.getByRole("button", { name: "Send request" })],
+    ["/request", () => page.getByRole("button", { name: "Send", exact: true })],
     ["/benchmarks", () => page.getByRole("heading", { name: "Benchmarks" })],
     ["/benchmarks/methodology", () => page.getByRole("heading", { name: "How benchmark scores work" })],
     ["/privacy", () => page.getByRole("heading").first()],

@@ -2,6 +2,7 @@ import { httpRouter } from "convex/server";
 import { ConvexError } from "convex/values";
 import { internal } from "./_generated/api";
 import { httpAction } from "./_generated/server";
+import { cleanFileName, FILE_KINDS, isText, MAX_FILE_BYTES, sniffFile } from "./requestRules";
 
 /**
  * POST /upload?field=avatar|banner, with the signed-in user's Convex token as a bearer token and the
@@ -85,7 +86,51 @@ const upload = httpAction(async (ctx, request) => {
   }
 });
 
+/**
+ * POST /request-file?name=<file name>&client=<the browser's request id>, with the file as the body: a file to go with a
+ * report from `/request`. Anyone may call it, as anyone may send a report, so everything is checked here: how many files
+ * this sender and everyone have uploaded lately, the size as the body arrives, and what the file is from its own bytes
+ * (a picture, a PDF, a video, or readable text). The answer is the id the form then sends with the report. A file whose
+ * report never comes is deleted a day later (crons.ts).
+ */
+const FILE_TOO_BIG = `That file is over ${MAX_FILE_BYTES / 1024 / 1024} MB`;
+const fileReply = (status: number, body: { ok: true; id: string } | { error: string }) => new Response(JSON.stringify(body), { status, headers: { ...CORS, "content-type": "application/json", "cache-control": "no-store" } });
+const requestFile = httpAction(async (ctx, request) => {
+  const q = new URL(request.url).searchParams;
+  const name = cleanFileName(q.get("name") ?? ""), given = q.get("client") ?? "";
+  const client = /^[A-Za-z0-9_-]{8,64}$/.test(given) ? `c:${given}` : "anon";
+  if (Number(request.headers.get("content-length")) > MAX_FILE_BYTES) return fileReply(413, { error: FILE_TOO_BIG });
+  try {
+    await ctx.runMutation(internal.requests.reserveFile, { client });
+    const reader = request.body?.getReader();
+    if (!reader) return fileReply(400, { error: "No file came with that" });
+    const chunks: Uint8Array[] = [];
+    let size = 0;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.length;
+      if (size > MAX_FILE_BYTES) { await reader.cancel().catch(() => {}); return fileReply(413, { error: FILE_TOO_BIG }); }
+      chunks.push(value);
+    }
+    const bytes = new Uint8Array(size);
+    let at = 0;
+    for (const chunk of chunks) { bytes.set(chunk, at); at += chunk.length; }
+    const type = sniffFile(bytes.subarray(0, 16)) ?? (isText(bytes) ? "text/plain" : undefined);
+    if (!type) return fileReply(415, { error: `Attach ${FILE_KINDS}` });
+    const storageId = await ctx.storage.store(new Blob([bytes], { type }));
+    try { return fileReply(200, { ok: true, id: await ctx.runMutation(internal.requests.recordFile, { storageId, name, type, size, client }) }); }
+    catch (e) { await ctx.storage.delete(storageId); throw e; }
+  } catch (e) {
+    if (e instanceof ConvexError && typeof e.data === "string") return fileReply(429, { error: e.data });
+    console.error("request file failed", e);
+    return fileReply(500, { error: "Could not upload that file. Try again." });
+  }
+});
+
 const http = httpRouter();
 http.route({ path: "/upload", method: "POST", handler: upload });
 http.route({ path: "/upload", method: "OPTIONS", handler: httpAction(async () => new Response(null, { status: 204, headers: CORS })) });
+http.route({ path: "/request-file", method: "POST", handler: requestFile });
+http.route({ path: "/request-file", method: "OPTIONS", handler: httpAction(async () => new Response(null, { status: 204, headers: CORS })) });
 export default http;

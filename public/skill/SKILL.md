@@ -28,7 +28,7 @@ curl -s https://mypriors.com/api/tools/<name> -H 'Content-Type: application/json
 | A benchmark Priors lacks, added to their page | Read https://mypriors.com/skill/benchmark.md |
 | Different weights, ranking rules or tabs | `upsert_index`, `delete_index`. Field meanings: https://mypriors.com/skill/page.md |
 | Page text, layout, theme or CSS, or a custom theme file | `update_page`, `upsert_section`, `set_theme`. Read https://mypriors.com/skill/page.md first |
-| A benchmark or feature for everyone, not just their page | They ask Adam at https://mypriors.com/request |
+| To report a bug, or ask for a benchmark or feature for everyone | They tell Adam at https://mypriors.com/request, which takes screenshots and logs |
 | To change or run Priors itself | The code is public: https://github.com/adamholter/priors. Its `AGENTS.md` is the map, `docs/` explains each area, and each data source is one scraper in `scripts/scrape/sources/` |
 
 ## Report

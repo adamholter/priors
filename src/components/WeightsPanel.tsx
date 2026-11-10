@@ -156,7 +156,7 @@ export function WeightsPanel({ snapshot, config, onChange }: { snapshot: Snapsho
                     <div className="grid">{oldList.map(row)}</div>
                   </details>}
                 </>}
-              <p className="text-[12px] text-ink-2 border-t hairline pt-3">Missing one? <Link className="text-indigo hover:underline" href="/skill" transitionTypes={["nav-forward"]}>Have your agent add it</Link>, <Link className="text-indigo hover:underline" href="/import" transitionTypes={["nav-forward"]}>import JSON</Link> or <Link className="text-indigo hover:underline" href="/request" transitionTypes={["nav-forward"]}>request it</Link>.</p>
+              <p className="text-[12px] text-ink-2 border-t hairline pt-3">Missing one? <Link className="text-indigo hover:underline" href="/skill" transitionTypes={["nav-forward"]}>Have your agent add it</Link>, <Link className="text-indigo hover:underline" href="/import" transitionTypes={["nav-forward"]}>import JSON</Link> or <Link className="text-indigo hover:underline" href="/request?kind=benchmark" transitionTypes={["nav-forward"]}>request it</Link>.</p>
             </div>
           </div>
         )}
