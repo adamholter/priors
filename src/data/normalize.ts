@@ -95,8 +95,8 @@ const FAMILIES: { re: RegExp; id: (m: RegExpMatchArray) => string; name: (m: Reg
   // Meta
   { re: /\bnemotron[\s-]*(\d+(?:\.\d+)?)[\s-]*(ultra|lightning)\b/, id: (m) => `nemotron-${m[1]}-${m[2]}`, name: (m) => `Nemotron ${m[1]} ${cap(m[2])}`, lab: "nvidia" },
   { re: /\bmuse[\s-]*spark[\s-]*(\d+(?:\.\d+)?)\b/, id: (m) => `muse-spark-${m[1]}`, name: (m) => `Muse Spark ${m[1]}`, lab: "meta", reasoning: true },
-  // Muse Wonder's efforts are efforts: AA's "Muse Wonder (High)" was its own model, so the cost chart labeled "Muse Wonder" twice. The ids stay as AA first made them.
-  { re: /\bmuse[\s-]*wonder(?:[\s-]*\d+(?:\.\d+)?)?(?:[\s-]*(full))?\b/, id: (m) => `aa-muse-wonder${m[1] ? "-full" : ""}`, name: (m) => `Muse Wonder${m[1] ? " Full" : ""}`, lab: "meta", reasoning: true },
+  // Muse Wonder's and Muse Ember's efforts are efforts: AA's "Muse Wonder (High)" and "Muse Ember (Xhigh)" were their own models, so the cost chart labeled each name twice. The ids stay as AA first made them.
+  { re: /\bmuse[\s-]*(wonder|ember)(?:[\s-]*\d+(?:\.\d+)?)?(?:[\s-]*(full))?\b/, id: (m) => `aa-muse-${m[1]}${m[2] ? "-full" : ""}`, name: (m) => `Muse ${cap(m[1])}${m[2] ? " Full" : ""}`, lab: "meta", reasoning: true },
   // A generation number is a new model, never noise: "Inkling 2 Small" (594B) is not the original 975B Inkling.
   { re: /\binkling(?:[\s-]*(\d+(?:\.\d+)?))?(?:[\s-]*(small))?\b/, id: (m) => `inkling${m[1] ? "-" + m[1] : ""}${m[2] ? "-small" : ""}`, name: (m) => `Inkling${m[1] ? " " + m[1] : ""}${m[2] ? " Small" : ""}`, lab: "thinking-machines", reasoning: true },
   { re: /\bhy[\s-]*(\d+(?:\.\d+)?)\b/, id: (m) => `hy-${m[1]}`, name: (m) => `Hy${m[1]}`, lab: "tencent", reasoning: true },

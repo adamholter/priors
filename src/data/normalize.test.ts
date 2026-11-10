@@ -44,6 +44,10 @@ const cases: [string, string, string | undefined][] = [
   ["Muse Wonder (Max)", "aa-muse-wonder", "max"],
   ["Muse Wonder Full (Max)", "aa-muse-wonder-full", "max"],
   ["Muse-Wonder", "aa-muse-wonder", undefined],
+  // AA's "Muse Ember (Xhigh)" was its own model beside "Muse Ember (Max)", so the cost chart labeled Muse Ember twice.
+  ["Muse Ember (Max)", "aa-muse-ember", "max"],
+  ["Muse Ember (Xhigh)", "aa-muse-ember", "xhigh"],
+  ["muse-ember-1.0", "aa-muse-ember", undefined],
   // o1-preview's rows once sat on o1 and moved o1's release date to Sept 2024.
   ["o1-preview", "o1-preview", undefined],
   ["openai/o1-preview-2024-09-12", "o1-preview", undefined],
