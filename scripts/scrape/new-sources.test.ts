@@ -187,6 +187,21 @@ describe("Arena categories and agent signals", () => {
     expect(r.rows.filter((x) => x.benchmarkId === "arena-text-coding")).toHaveLength(9);
   });
   it("skips a category too thin to rank", () => { expect(r.benchmarks.some((b) => b.id === "arena-text-math")).toBe(false); });
+  it("takes every category the dataset publishes, named or not, so a filter Arena adds is not missed", () => {
+    const at = (n: number, category: string, date: string) => many(n, category).map((x) => ({ ...x, leaderboard_publish_date: date }));
+    const got = parseArenaDataset({
+      "arena-text": [...at(10, "overall", "2026-11-09"), ...at(9, "industry_legal_and_government", "2026-11-09"), ...at(9, "spanish", "2026-11-09"), ...at(9, "brand_new_category", "2026-11-09")],
+      "arena-webdev": [...at(10, "overall", "2026-11-09"), ...at(10, "webdev", "2026-11-09"), ...at(9, "webdev-html", "2026-11-09"), ...at(9, "image_to_webdev", "2026-11-09")],
+      // `creative_writing` stopped in January when `creative_writing_vision` replaced it; both would land on one id.
+      "arena-vision": [...at(10, "overall", "2026-11-09"), ...at(9, "creative_writing", "2026-01-09"), ...at(9, "creative_writing_vision", "2026-11-09"), ...at(9, "english", "2026-11-09")],
+    });
+    const variants = (of: string) => got.benchmarks.filter((b) => b.variantOf === of).map((b) => [b.id, b.variantLabel]);
+    expect(variants("arena-text")).toEqual([["arena-text-industry-legal-and-government", "Industry: legal and government"], ["arena-text-spanish", "Spanish"], ["arena-text-brand-new-category", "Brand new category"]]);
+    expect(variants("arena-webdev")).toEqual([["arena-webdev-html", "HTML"], ["arena-image-to-webdev", "Image to WebDev"]]);
+    expect(variants("arena-vision")).toEqual([["arena-vision-creative-writing", "Creative writing"], ["arena-vision-english", "English"]]);
+    expect(got.rows.filter((x) => x.benchmarkId === "arena-vision-creative-writing")).toHaveLength(9);
+    expect(got.rows.find((x) => x.benchmarkId === "arena-vision-creative-writing")!.note).toContain("published 2026-11-09");
+  });
   it("reads an agent signal as percentage points, a variant of Agent Arena", () => {
     expect(r.benchmarks.find((b) => b.id === "arena-agent-success")).toMatchObject({ variantOf: "arena-agent", unit: "score", higherIsBetter: true });
     expect(r.rows.find((x) => x.benchmarkId === "arena-agent-success")!.value).toBeCloseTo(20);

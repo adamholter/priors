@@ -66,15 +66,48 @@ interface HfRow { model_name: string; organization?: string; rating?: number; ra
 
 /**
  * Other categories of the same boards: each becomes its own benchmark marked as a variant of the main one, so the
- * picker lists "Arena Text" once and offers Coding, Math and the rest from its settings.
+ * picker lists "Arena Text" once and offers Coding, Math and the rest from its settings. Every category the dataset
+ * publishes for a board is taken, so one Arena adds shows up without a change here. The names below only say what a
+ * category is called (and keep the ids older snapshots used); a category not listed is named after its slug.
  */
-const CATEGORY_VARIANTS: Record<string, { category: string; id: string; label: string }[]> = {
-  "arena-text": [["coding", "Coding"], ["math", "Math"], ["creative_writing", "Creative writing"], ["hard_prompts", "Hard prompts"], ["instruction_following", "Instruction following"], ["longer_query", "Longer queries"], ["expert", "Expert"], ["english", "English"], ["chinese", "Chinese"], ["french", "French"], ["german", "German"], ["japanese", "Japanese"], ["korean", "Korean"]]
-    .map(([category, label]) => ({ category, id: `arena-text-${category.replace(/_/g, "-")}`, label })),
-  "arena-webdev": [{ category: "webdev-html", id: "arena-webdev-html", label: "HTML" }, { category: "webdev-react", id: "arena-webdev-react", label: "React" }, { category: "image_to_webdev", id: "arena-image-to-webdev", label: "Image to WebDev" }],
-  "arena-vision": [["ocr", "OCR"], ["diagram", "Diagrams"], ["captioning", "Captioning"], ["homework", "Homework"], ["humor", "Humor"], ["entity_recognition", "Entity recognition"], ["creative_writing_vision", "Creative writing"], ["chinese", "Chinese"]]
-    .map(([category, label]) => ({ category, id: `arena-vision-${category.replace(/_/g, "-").replace("-vision", "")}`, label })),
+const CATEGORY_NAMES: Record<string, Record<string, string | { id: string; label: string }>> = {
+  "arena-text": {
+    coding: "Coding", math: "Math", creative_writing: "Creative writing", hard_prompts: "Hard prompts", hard_prompts_english: "Hard prompts (English)", instruction_following: "Instruction following",
+    longer_query: "Longer queries", multi_turn: "Multi-turn", expert: "Expert", exclude_ties: "Excluding ties",
+    industry_business_and_management_and_financial_operations: "Industry: business and finance", industry_entertainment_and_sports_and_media: "Industry: entertainment, sports and media",
+    industry_legal_and_government: "Industry: legal and government", industry_life_and_physical_and_social_science: "Industry: life, physical and social science", industry_mathematical: "Industry: mathematics",
+    industry_medicine_and_healthcare: "Industry: medicine and healthcare", industry_software_and_it_services: "Industry: software and IT", industry_writing_and_literature_and_language: "Industry: writing, literature and language",
+    english: "English", non_english: "Non-English", chinese: "Chinese", french: "French", german: "German", japanese: "Japanese", korean: "Korean", polish: "Polish", russian: "Russian", spanish: "Spanish",
+  },
+  "arena-webdev": { "webdev-html": { id: "arena-webdev-html", label: "HTML" }, "webdev-react": { id: "arena-webdev-react", label: "React" }, image_to_webdev: { id: "arena-image-to-webdev", label: "Image to WebDev" } },
+  "arena-vision": { ocr: "OCR", diagram: "Diagrams", captioning: "Captioning", homework: "Homework", humor: "Humor", entity_recognition: "Entity recognition", creative_writing_vision: { id: "arena-vision-creative-writing", label: "Creative writing" }, english: "English", chinese: "Chinese" },
 };
+/** A board's whole leaderboard under another name: the dataset's `webdev` category repeats WebDev's overall rows. */
+const SAME_AS_OVERALL: Record<string, string[]> = { "arena-webdev": ["webdev"] };
+const slugWords = (category: string) => category.replace(/[_-]+/g, " ").trim();
+
+/**
+ * The categories of one board that are still published, as variants. A category whose newest rows are older than the
+ * board's own (Vision's `creative_writing` stopped in January 2026 when `creative_writing_vision` replaced it) is left out,
+ * and so is one with fewer than 8 rated models.
+ */
+export function categoryVariants(boardId: string, rows: HfRow[]): { category: string; id: string; label: string }[] {
+  const newest = lastPublished(rows.filter((r) => !r.category || r.category === "overall")) ?? lastPublished(rows);
+  const names = CATEGORY_NAMES[boardId] ?? {}, taken = new Set<string>(), out: { category: string; id: string; label: string }[] = [];
+  for (const category of [...new Set(rows.map((r) => r.category).filter((c): c is string => !!c && c !== "overall"))]) {
+    if (SAME_AS_OVERALL[boardId]?.includes(category)) continue;
+    const sub = rows.filter((r) => r.category === category && Number.isFinite(r.rating)), published = lastPublished(sub);
+    if (sub.length < 8 || (newest && published && published < newest)) continue;
+    const name = names[category], words = slugWords(category);
+    const v = typeof name === "object" ? name : { id: `${boardId}-${words.replace(/ /g, "-")}`, label: name ?? words[0].toUpperCase() + words.slice(1) };
+    if (taken.has(v.id)) continue;
+    taken.add(v.id);
+    out.push({ category, ...v });
+  }
+  // Named categories first, in the order above; then anything new, by name.
+  const order = Object.keys(names);
+  return out.sort((a, b) => (order.indexOf(a.category) + 1 || 1e6) - (order.indexOf(b.category) + 1 || 1e6) || a.label.localeCompare(b.label));
+}
 
 /** Agent Arena's signals, each a ranking of its own on the dataset: what a model contributes to one thing about a session. */
 const AGENT_SIGNALS: { id: string; config: string; label: string; desc: string; higherIsBetter: boolean }[] = [
@@ -146,9 +179,8 @@ export function parseArenaDataset(boards: Record<string, HfRow[]>): Pick<ScrapeR
     const published = lastPublished(data);
     benchmarks.push({ id: b.id, name: b.name, sourceId: "arena", url, description: b.desc, ...(published ? { lastUpdated: published } : {}), unit: "elo", higherIsBetter: true, category: b.category, eligibleForDefault: b.weight > 0, defaultWeight: b.weight });
     notes.push(`${b.id}: ${data.length} rows (dataset)`);
-    for (const v of CATEGORY_VARIANTS[b.id] ?? []) {
+    for (const v of categoryVariants(b.id, boards[b.id] ?? [])) {
       const sub = (boards[b.id] ?? []).filter((r) => r.category === v.category && Number.isFinite(r.rating));
-      if (sub.length < 8) continue;
       for (const r of sub) {
         const { label, harness } = splitHarness(r.model_name);
         rows.push({ benchmarkId: v.id, modelLabel: label, value: r.rating!, rank: r.rank, harness, sourceUrl: url, labHint: r.organization,
