@@ -23,6 +23,7 @@
 | `/lab/*` | Design labs while a question is open, not indexed. See below. |
 | `/api/agent`, `/api/assistant` | See `docs/assistant.md`. |
 | `/api/benchmarks`, `/api/snapshot`, `/api/library`, `/api/lineup` | Data for agents, the onboarding search, and returning visitors. |
+| `/api/plan-prices` | Per model, the share of API price a subscriber pays (default plan, each plan its lab sells, a free tier's paid plan) and the model's Artificial Analysis slugs. Public, any origin. `src/lib/plan-prices.ts`. Read by the AA Plus browser extension, which reprices Artificial Analysis's cost charts with it. |
 | `/ingest/*` | PostHog proxy. |
 
 ## Footer, tools and requests
