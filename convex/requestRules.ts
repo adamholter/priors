@@ -102,10 +102,12 @@ export function fileLimitOf({ hourCount, dayCount, dayBytes = 0, size = 0, perHo
 }
 /**
  * Whose hourly limit an upload counts against: the address it came from when the server can see one, else the id the
- * browser made for itself (which is the sender's own word, so the daily caps are the real stop).
+ * browser made for itself (which is the sender's own word, so the daily caps are the real stop). The address is the last
+ * one in `x-forwarded-for`, the one the host's own edge wrote: anything before it is whatever the sender chose to send.
+ * (Convex replaces the header outright today, checked 2026-11-10 with a forged one; this holds if it ever appends.)
  */
 export function uploaderKey(forwardedFor: string | null | undefined, client: string | null | undefined): string {
-  const ip = (forwardedFor ?? "").split(",")[0].trim();
+  const ip = (forwardedFor ?? "").split(",").pop()!.trim();
   if (/^[0-9a-fA-F:.]{3,45}$/.test(ip)) return `ip:${ip}`;
   return client && /^[A-Za-z0-9_-]{8,64}$/.test(client) ? `c:${client}` : "anon";
 }

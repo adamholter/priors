@@ -80,7 +80,9 @@ describe("attachments", () => {
     expect(fileLimitOf({ hourCount: 0, dayCount: 1, dayBytes: FILES_DAILY_BYTES - 10, size: 11 })).toMatch(/today/);
   });
   it("counts an upload against the address it came from, and against the browser's own id only when there is none", () => {
-    expect(uploaderKey("203.0.113.9, 10.0.0.1", "abcdefgh12345678")).toBe("ip:203.0.113.9");
+    // The last address is the one the host's edge wrote. One a sender put in front of it is not believed.
+    expect(uploaderKey("1.2.3.4, 203.0.113.9", "abcdefgh12345678")).toBe("ip:203.0.113.9");
+    expect(uploaderKey("203.0.113.9", "abcdefgh12345678")).toBe("ip:203.0.113.9");
     expect(uploaderKey("2001:db8::1", undefined)).toBe("ip:2001:db8::1");
     expect(uploaderKey(null, "abcdefgh12345678")).toBe("c:abcdefgh12345678");
     expect(uploaderKey("not an address", "short")).toBe("anon");
