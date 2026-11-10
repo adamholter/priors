@@ -32,7 +32,7 @@ export default function ToolsPage() {
         </div>
 
         <Part id="skill" title="Agent skill" more={<><Link href="/skill" className="text-indigo hover:underline">Get the skill</Link><a href="/skill/SKILL.md" className="text-ink-2 hover:text-ink underline underline-offset-2">Raw file</a></>}>
-          <p>One file you give to Claude Code, Codex or any agent that reads skill files. It teaches the agent how to add a benchmark to your page and how to edit the page when you ask.</p>
+          <p>One file you give to Claude Code, Codex or any agent that reads skill files. It teaches the agent how to pull data out of Priors, how to add a benchmark to your page and how to edit the page when you ask. It is short, and fetches the detail for a task only when it needs it.</p>
         </Part>
 
         <Part id="mcp" title="MCP server" more={<Link href="/cli#mcp" className="text-indigo hover:underline">Other clients and all {TOOLS.length} tools</Link>}>
