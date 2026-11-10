@@ -156,6 +156,22 @@ if [ "$FAILED_NOW" != "$(cat "$FAILED_FILE" 2>/dev/null)" ]; then
   echo "$FAILED_NOW" > "$FAILED_FILE" 2>/dev/null
   [ -n "$FAILED_NOW" ] && notify "Priors scrape $DATE: failing sources: $FAILED_NOW— see logs/scrape.log"
 fi
+# What visitors asked for on /request, pulled into a file outside the checkout so it can be read on this machine. The token lives in the
+# login keychain (item priors-requests-token), never in the repo or the log. Without one nothing is pulled, and a failed pull never stops a scrape.
+pull_requests() {
+  local token url out line fresh
+  token=$(security find-generic-password -s priors-requests-token -w 2>/dev/null) || return 0
+  [ -n "$token" ] || return 0
+  url=${PRIORS_CONVEX_URL:-$(sed -n 's/^NEXT_PUBLIC_CONVEX_URL=//p' .env.local 2>/dev/null | head -1)}
+  out=${PRIORS_REQUESTS_FILE:-$HOME/priors/requests/requests.json}
+  line=$(PRIORS_REQUESTS_TOKEN="$token" PRIORS_CONVEX_URL="${url:-https://small-eel-326.convex.cloud}" node scripts/ops/pull-requests.mjs "$out" 2>&1) || { echo "requests: $line"; return 0; }
+  echo "requests: $line"
+  # "12 requests, 3 new since the previous file": say so once, when something new came in.
+  fresh=$(printf '%s' "$line" | sed -n 's/^[0-9]* requests\{0,1\}, \([0-9]*\) new since the previous file$/\1/p')
+  [ -n "$fresh" ] && [ "$fresh" -gt 0 ] && notify "Priors: $fresh new request$([ "$fresh" = 1 ] || echo s) in ~/priors/requests/requests.json"
+  return 0
+}
+pull_requests
 SNAPSHOT_BASELINE_REF=${HAVE_LIVE:+origin/$LIVE} npx tsx scripts/ops/snapshot-changed.ts
 CHANGE_STATUS=$?
 case "$CHANGE_STATUS" in
