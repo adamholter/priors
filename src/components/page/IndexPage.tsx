@@ -311,8 +311,7 @@ export function IndexPage({ profile, snapshot, edit, tab: linkedTab, linkedHighl
           </div>
         </section>
 
-        {p.indices.length > 1 && active && <PageTabs indices={p.indices} activeId={active.id} accent={accent} editing={editing} onSelect={openTab} onRename={(id, name) => patchIndex(id, { name })} onMove={moveIndex} onRemove={dropIndex} />}
-        {p.indices.length > 1 && active && indexNote(active, p.displayName) && <p className="cap mt-2">{indexNote(active, p.displayName)}</p>}
+        {p.indices.length > 1 && active && <PageTabs indices={p.indices} activeId={active.id} accent={accent} editing={editing} note={indexNote(active, p.displayName) || undefined} onSelect={openTab} onRename={(id, name) => patchIndex(id, { name })} onMove={moveIndex} onRemove={dropIndex} />}
 
         {shownSections.filter((s) => editing || !s.hidden).map((s, i, list) => {
           const el = renderSection(s);

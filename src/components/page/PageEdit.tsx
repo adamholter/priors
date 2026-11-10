@@ -70,8 +70,9 @@ export function SectionFrame({ section, index, count, label, onMove, onPatch, on
  * press that belongs to the Konami code. While editing, the open tab can be renamed, moved (the first
  * is the page's main index) or removed.
  */
-export function PageTabs({ indices, activeId, accent, editing, onSelect, onRename, onMove, onRemove }: {
+export function PageTabs({ indices, activeId, accent, editing, note, onSelect, onRename, onMove, onRemove }: {
   indices: { id: string; name: string }[]; activeId: string; accent: string; editing: boolean;
+  /** A line about the open index ("Fitted from Ada's comparisons."). It sits inside the tabs block, so no theme's spacing can pull it up into the tab line. */ note?: string;
   onSelect: (id: string) => void; onRename: (id: string, name: string) => void; onMove: (id: string, by: number) => void; onRemove: (id: string) => void;
 }) {
   const at = indices.findIndex((i) => i.id === activeId);
@@ -85,7 +86,7 @@ export function PageTabs({ indices, activeId, accent, editing, onSelect, onRenam
     // Focus follows the open tab once it has rendered as the selected one.
     requestAnimationFrame(() => list.current?.querySelector<HTMLElement>("[aria-selected=true]")?.focus());
   };
-  return <div className={`page-tabs ${editing ? "is-editing" : ""}`}>
+  return <div className={`page-tabs ${editing ? "is-editing" : ""} ${note ? "has-note" : ""}`}>
     <div ref={list} className="page-tabs-list" role="tablist" aria-label="Indices" onKeyDown={onKey}>
       {indices.map((i) => {
         const on = i.id === activeId;
@@ -94,6 +95,7 @@ export function PageTabs({ indices, activeId, accent, editing, onSelect, onRenam
           : <button key={i.id} type="button" role="tab" aria-selected={on} tabIndex={on || editing ? 0 : -1} className="page-tab serif" style={on ? { borderColor: accent } : undefined} onClick={() => onSelect(i.id)}>{i.name || "Untitled"}</button>;
       })}
     </div>
+    {note && <p className="cap page-tabs-note">{note}</p>}
     {editing && <div className="edit-toolbar page-tabs-tools" role="toolbar" aria-label="This index">
       <span className="edit-kind">{at === 0 ? "Main index" : "Index"}</span>
       <span className="edit-note">{at === 0 ? "Leads the page, its link preview and its Explore card" : "Rename it in the tab above"}</span>
