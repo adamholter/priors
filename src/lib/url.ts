@@ -1,5 +1,4 @@
 import { isCostBasis } from "../data/subscription";
-import { isTaskMetricSource } from "../data/task-metrics";
 import { isSpeedTierChoice } from "../data/speed-tiers";
 import { DEFAULT_CUTOFF, EFFORT_CHOICES, type IndexConfig } from "../engine";
 import { FOCUS_IDS, type FocusId } from "../data/types";
@@ -44,13 +43,11 @@ export function encodeIndex(c: FromPage, keepPage = false): string {
   if (c.excludeModels) parts.push(`ex=${c.excludeModels.join(",")}`);
   if (c.onlyModels !== undefined) parts.push(`only=${c.onlyModels.join(",")}`);
   if (c.releasedAfter !== undefined) parts.push(`after=${c.releasedAfter}`);
-  if (c.costSource && c.costSource !== "aa") parts.push(`costsrc=${c.costSource}`);
   if (c.costBasis === "api") parts.push(`costbasis=${c.costBasis}`);
   if (c.planResets === true) parts.push("resets=on");
   if (c.freeTiers === false) parts.push("free=off");
   if (c.planReading && /^[a-z0-9-]{1,24}$/.test(c.planReading)) parts.push(`reading=${c.planReading}`);
   if (c.subscriptionPlans && Object.keys(c.subscriptionPlans).length) parts.push(`plans=${Object.entries(c.subscriptionPlans).sort(([a], [b]) => a.localeCompare(b)).map(([lab, plan]) => `${lab}:${encodeURIComponent(plan)}`).join(",")}`);
-  if (c.timeSource && c.timeSource !== "aa") parts.push(`timesrc=${c.timeSource}`);
   if (c.focus) parts.push(`focus=${c.focus}`);
   if (c.highlight?.length) parts.push(`hl=${c.highlight.join(",")}`);
   if (keepPage && c.page) parts.push(`page=${c.page}`);
@@ -100,13 +97,13 @@ export function decodeIndex(s: string, id: string): IndexConfig | null {
     else if (k === "ex") c.excludeModels = v.split(",").filter(Boolean);
     else if (k === "only") c.onlyModels = v.split(",").filter(Boolean);
     else if (k === "after") c.releasedAfter = v;
-    else if (k === "costsrc" && isTaskMetricSource(v)) c.costSource = v;
+    // `costsrc` is retired: cost per task is always the mix's own blend. Old links still decode, the param is ignored.
     else if (k === "costbasis" && isCostBasis(v)) c.costBasis = v;
     else if (k === "resets" && v === "on") c.planResets = true;
     else if (k === "free" && v === "off") c.freeTiers = false;
     else if (k === "reading" && /^[a-z0-9-]{1,24}$/.test(v)) c.planReading = v;
     else if (k === "plans") { const plans = Object.fromEntries(v.split(",").flatMap((e) => { const at = e.indexOf(":"); if (at < 1) return []; try { return [[e.slice(0, at), decodeURIComponent(e.slice(at + 1))]]; } catch { return []; } }).filter(([, plan]) => plan)); if (Object.keys(plans).length) c.subscriptionPlans = plans; }
-    else if (k === "timesrc" && isTaskMetricSource(v)) c.timeSource = v;
+    // `timesrc` is retired too: time per task is the mix's own blend. Old links still decode, the param is ignored.
     else if (k === "focus" && FOCUS_IDS.includes(v as FocusId)) c.focus = v as FocusId;
     else if (k === "hl") c.highlight = v.split(",").filter(Boolean).slice(0, 12);
     else if (k === "page" && v) (c as FromPage).page = v;

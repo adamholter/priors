@@ -24,8 +24,8 @@ export function setHighlightParams(url: URL, indexId: string, items: string[]) {
  * the effort mode, release window, cost and time sources. A chart link carries the ones that differ from
  * the saved page (`hv`), written in the index codec's own keys, so it opens looking the way it did when copied.
  */
-const VIEW_KEYS = ["ex", "only", "after", "costsrc", "costbasis", "resets", "plans", "timesrc", "pareto", "bars", "eff", "reff", "tier", "free", "reading"] as const;
-const VIEW_FIELD: Record<(typeof VIEW_KEYS)[number], keyof IndexConfig> = { ex: "excludeModels", only: "onlyModels", after: "releasedAfter", costsrc: "costSource", costbasis: "costBasis", resets: "planResets", plans: "subscriptionPlans", timesrc: "timeSource", pareto: "paretoVariants", bars: "rankingVariants", eff: "efforts", reff: "rankingEfforts", tier: "speedTiers", free: "freeTiers", reading: "planReading" };
+const VIEW_KEYS = ["ex", "only", "after", "costbasis", "resets", "plans", "pareto", "bars", "eff", "reff", "tier", "free", "reading"] as const;
+const VIEW_FIELD: Record<(typeof VIEW_KEYS)[number], keyof IndexConfig> = { ex: "excludeModels", only: "onlyModels", after: "releasedAfter", costbasis: "costBasis", resets: "planResets", plans: "subscriptionPlans", pareto: "paretoVariants", bars: "rankingVariants", eff: "efforts", reff: "rankingEfforts", tier: "speedTiers", free: "freeTiers", reading: "planReading" };
 
 const viewParts = (index?: IndexConfig) => {
   const parts = new Map<string, string>();
@@ -64,7 +64,7 @@ export function linkedViews(indices: IndexConfig[], params: URLSearchParams): In
 
 /** Copy current React state, including the active mix, before the debounced address bar update. */
 /** Bump when chart previews draw differently. Platforms cache a card by its URL and the same settings shorten to the same slug, so without a new value a re-copied link keeps showing the old image. */
-export const PREVIEW_VERSION = "3";
+export const PREVIEW_VERSION = "4";
 
 export function chartLinkUrl(current: string, id: string, params?: { cv?: "bars" | "scatter"; cm?: "best" | "all"; cs?: "log" | "linear"; ls?: number; hidden?: ChartHidden; extra?: Record<string, string | undefined> }, state?: { items: string[]; indexId?: string; view?: string; linkIndices?: IndexConfig[] }) {
   const url = new URL(current);

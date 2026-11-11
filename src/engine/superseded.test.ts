@@ -51,6 +51,15 @@ describe("supersededModelIds", () => {
     const ranked = [row("GPT-6.1 Sol", 60, 1, true), row("GPT-6 Sol", 55, 2)];
     expect(supersededModelIds(ranked, [id("GPT-6 Sol")]).size).toBe(0);
   });
+  it("switches an older version from the score rule to the cost rule once it has a cost", () => {
+    // A cost is what puts a model on the frontier, and having one changes how it is judged for replacement. The blend
+    // now prices rows that carried no cost (a publisher with no `sourceModelId`), so this flip is reachable.
+    const newer = row("GPT-6.1 Sol", 60, 1, true);
+    // No cost: judged by score alone, so it goes.
+    expect([...supersededModelIds([newer, row("GPT-6 Sol", 55, undefined)])]).toEqual([id("GPT-6 Sol")]);
+    // With a cost it is on the frontier and stays.
+    expect(supersededModelIds([newer, row("GPT-6 Sol", 55, 2, true)]).size).toBe(0);
+  });
 });
 
 describe("filterEfforts", () => {

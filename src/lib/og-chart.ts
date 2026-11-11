@@ -13,6 +13,7 @@ import { answerHeight, answerOption } from "../components/chart/answer-option";
 import type { AnswerChart } from "./answer-chart";
 import { effectiveBasis } from "../data/subscription";
 import { withSpeedTiers } from "../data/speed-tiers";
+import { hasComputedTime } from "../data/task-metrics";
 import { chartKind, chartTitle, costChart, costChartFor, pickPoints, type MetricChart } from "./metrics";
 import { presetOf, themeById, type PagePreset } from "./page-presets";
 import { EMPTY_HIDDEN, visiblePoints, type ChartHidden } from "../components/chart/chart-visibility";
@@ -44,10 +45,11 @@ export function scatterSpec(snapshot: Snapshot, ranked: RankedVariant[], index: 
   // The page draws its cost, time and speed charts from the efforts the index shows; the card must start from the same set.
   const from = (chart: MetricChart, title: string, hasTitle: boolean, rows = ranked) => metricSpec(chart, rows, index, title, hasTitle, { cm, cs, hidden, labelScale, allModels });
   if (c === "cost") return from(costChartFor(effectiveBasis(index.costBasis)), effectiveBasis(index.costBasis) === "subscription" ? "Score vs subscription cost per task" : "Score vs cost per task", true, withSpeedTiers(ranked, snapshot, index.speedTiers, index.subscriptionPlans, { chart: "cost" }));
-  const ck = chartKind(snapshot, ranked, c, index.timeSource, filterEfforts(estimated, index.efforts));
+  const ck = chartKind(snapshot, ranked, c, filterEfforts(estimated, index.efforts));
   if (ck?.kind !== "metric") return null;
-  // The same two charts the page gives speed tiers: output speed, and Artificial Analysis' time per task.
-  const tiered = c === "output-speed" || (c === "time-per-task" && (index.timeSource ?? "aa") === "aa");
+  // The same two charts the page gives speed tiers: output speed, and Artificial Analysis' computed time per task.
+  // A speed tier scales tokens over speed: it applies to AA's computed time, not to a measured run that also holds tool time.
+  const tiered = c === "output-speed" || (c === "time-per-task" && hasComputedTime(ranked));
   return from(ck.chart, chartTitle(c) ?? ck.chart.xName, false, tiered ? withSpeedTiers(ranked, snapshot, index.speedTiers, index.subscriptionPlans, { chart: "speed" }) : ranked);
 }
 

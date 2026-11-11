@@ -1,42 +1,51 @@
 import { SUBSCRIPTION_BENCHMARK, type CostBasis } from "./subscription";
 import { columnsOf, observationsOf } from "./columns";
 import { onAaPerformanceV3 } from "./series-breaks";
-import type { Observation, Snapshot } from "./types";
+import type { Benchmark, Observation, Snapshot } from "./types";
 
-export type TaskMetricSource = "aa" | "terminalbench-4" | "deepswe-1.1" | "frontierswe-v2";
 export type TaskMetric = "cost" | "time";
-export const TASK_METRIC_SOURCES: { id: TaskMetricSource; name: string }[] = [
-  { id: "aa", name: "Artificial Analysis" },
-  { id: "terminalbench-4", name: "Terminal-Bench 4" },
-  { id: "deepswe-1.1", name: "DeepSWE 1.1" },
-  { id: "frontierswe-v2", name: "FrontierSWE v2" },
-];
+/** Artificial Analysis' own figures (its index cost per task, its computed decode time): what stands in where a mix publishes neither. */
+export const AA_SOURCE = "aa";
 
-export function isTaskMetricSource(value: string): value is TaskMetricSource {
-  return TASK_METRIC_SOURCES.some((source) => source.id === value);
+/** Cost per task is the mix's own blend: each benchmark at its measured cost, weighted by its share. */
+export const MIX_COST_DESCRIPTION = "Each benchmark in the mix at its own measured cost per task, weighted by its share. Where a mix publishes no costs, Artificial Analysis' Intelligence Index cost per task stands in";
+
+/** The same measurement, short, for a row's `costSource`. */
+export const MIX_COST_CAPTION = "Weighted by this mix, from each benchmark's own measured cost";
+
+/** The same blend over measured run durations, with AA's computed figure standing in where a mix has none. */
+export const MIX_TIME_DESCRIPTION = "Each benchmark in the mix at its own measured run duration, weighted by its share. Where a mix publishes no durations, Artificial Analysis' computed time per task stands in";
+
+/** The same measurement, short, for a row's `timeSource`. */
+export const MIX_TIME_CAPTION = "Weighted by this mix, from each benchmark's own measured run duration";
+
+/** Artificial Analysis' time per task, which is computed rather than timed. `date` is the snapshot's: older snapshots keep the method they were measured with. */
+export function aaTimeDescription(date?: string): string {
+  return onAaPerformanceV3(date)
+    ? "Artificial Analysis · computed, not timed: output tokens per Intelligence Index task divided by output speed, without tool time. Method changed Nov 4, 2026"
+    : "Artificial Analysis · estimated decode time per Intelligence Index task, excluding first-token wait and overhead";
 }
 
-/** `date` is the snapshot's: older snapshots keep the description of the method they were measured with. */
-export function taskMetricDescription(source: TaskMetricSource, metric: TaskMetric, date?: string): string {
-  if (source === "terminalbench-4") return metric === "cost"
-    ? "Terminal-Bench 4 · average cost per trial, including unsuccessful trials (4.1 re-grades 4.0's trials, so both share them)"
-    : "Terminal-Bench 4 · average trial duration, including unsuccessful trials (4.1 re-grades 4.0's trials, so both share them)";
-  if (source === "deepswe-1.1") return metric === "cost"
-    ? "DeepSWE 1.1 · average cost per task run, mini-swe-agent"
-    : "DeepSWE 1.1 · average task-run duration, mini-swe-agent";
-  if (source === "frontierswe-v2") return metric === "cost"
-    ? "FrontierSWE v2 · average cost per trial, Proximus, five trials per task"
-    : "FrontierSWE v2 · average trial duration, Proximus, 20-hour budget";
-  return metric === "cost"
-    ? "Artificial Analysis · measured task costs, weighted by your mix when available"
-    : onAaPerformanceV3(date)
-      ? "Artificial Analysis · computed, not timed: output tokens per Intelligence Index task divided by output speed, without tool time. Method changed Nov 4, 2026"
-      : "Artificial Analysis · estimated decode time per Intelligence Index task, excluding first-token wait and overhead";
-}
+/** `computed` owns the fallback a mixed chart used: one benchmark published durations, another did not. */
+export const timeDescription = (date?: string, measured = false, computed = false) => !measured ? aaTimeDescription(date)
+  : computed ? `${MIX_TIME_DESCRIPTION}. A model with no measured duration shows Artificial Analysis' computed figure`
+  : MIX_TIME_DESCRIPTION;
+
+/** A measured run, which a speed tier cannot scale: it also holds the time tools take. */
+export const hasMeasuredTime = (rows: { timeSec?: number; timeComputed?: boolean }[]) => rows.some((r) => r.timeSec != null && !r.timeComputed);
+
+/** AA's computed decode time, the only time a speed tier can scale. Tiers are offered only then. */
+export const hasComputedTime = (rows: { timeSec?: number; timeComputed?: boolean }[]) => rows.some((r) => r.timeSec != null && r.timeComputed === true);
+
+/** Cost chart caption for one benchmark's own measured cost per task. */
+export const benchmarkCostDescription = (benchmark: Pick<Benchmark, "name">) => `${benchmark.name} · measured cost per task`;
+
+/** A row's `costSource`: the blend, a benchmark page's own benchmark, or AA's index figure standing in. */
+export const costCaption = (benchmark?: string) => benchmark ? `${benchmark} · measured cost per task` : MIX_COST_DESCRIPTION;
 
 /** Cost chart caption: the measurement, then how it is priced when not at API list prices. */
-export function costDescription(source: TaskMetricSource, basis: CostBasis = "api"): string {
-  const measured = taskMetricDescription(source, "cost");
+export function costDescription(basis: CostBasis = "api", benchmark?: Pick<Benchmark, "name">): string {
+  const measured = benchmark ? benchmarkCostDescription(benchmark) : MIX_COST_DESCRIPTION;
   return basis === "subscription" ? `${measured}, then priced by subscription where plan data exists (Real API Pricing, full allowance used)` : measured;
 }
 
@@ -44,7 +53,7 @@ export function costDescription(source: TaskMetricSource, basis: CostBasis = "ap
 export const hasSubscriptionPrices = (snapshot: Snapshot) => snapshot.benchmarks.some((b) => b.id === SUBSCRIPTION_BENCHMARK);
 
 /** Measurements only. Match the same model, effort and configuration, including legacy aliases. */
-/** `source` is a task-metric source, or any benchmark id whose observations carry their own `costUsd` / `durationSec`. */
+/** `source` is `aa` for Artificial Analysis' index figures, or any benchmark id whose observations carry their own `costUsd` / `durationSec`. */
 /**
  * The task-metric source "terminalbench-4" (the id saved links and Convex carry) reads tbench.ai's current 4.x board: 4.1
  * re-grades 4.0's trials, so cost and duration per trial are the same. Snapshots from before 4.1 read 4.0.
@@ -68,8 +77,4 @@ export function taskMetricData(snapshot: Snapshot, source: string, metric: TaskM
     get modelCount() { return new Set([...rows.keys()].map((id) => modelOf.get(id)).filter(Boolean)).size; },
     get: (variantId: string) => rows.get(aliases.get(variantId) ?? variantId),
   };
-}
-
-export function taskMetricOptions(snapshot: Snapshot, metric: TaskMetric) {
-  return TASK_METRIC_SOURCES.map((source) => ({ ...source, modelCount: taskMetricData(snapshot, source.id, metric).modelCount }));
 }

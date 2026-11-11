@@ -19,7 +19,7 @@ An index is one ranking: benchmark weights plus rules. A page with several shows
 | `excludeModels` | Model ids hidden from this index. Hide models this way, never by storing a list of the ones to show, so new models still appear |
 | `variants`, `cutoff`, `optional` | Legacy. Keep them as they are |
 
-Other fields (`efforts`, `releasedAfter`, `costSource`, `costBasis`, `timeSource`, `highlight`, `labs`) are described in the `upsert_index` tool and in `docs/data.md` of https://github.com/adamholter/priors.
+Other fields (`efforts`, `releasedAfter`, `costBasis`, `highlight`, `labs`) are described in the `upsert_index` tool and in `docs/data.md` of https://github.com/adamholter/priors.
 
 ## Text and links
 

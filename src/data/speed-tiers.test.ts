@@ -5,6 +5,7 @@ import { metricPanels, chartLabel, modelLabel } from "@/lib/metrics";
 import { clientSnapshot } from "./client-snapshot";
 import { SUBSCRIPTION_BENCHMARK } from "./subscription";
 import { baseModelId, speedTierLegend, speedTierNote, speedTierRows, tierModelIds, withSpeedTiers } from "./speed-tiers";
+import { hasComputedTime, hasMeasuredTime } from "./task-metrics";
 import type { Snapshot } from "./types";
 
 const STANDARD_MIX = { cache: 0.97, input: 0.025, output: 0.005 };
@@ -135,14 +136,31 @@ describe("which rows a pick draws", () => {
 });
 
 describe("time per task", () => {
-  const rows = [row("gpt-6.1-sol", "openai"), row("claude-opus-5.5", "anthropic"), row("gemini-4", "google")];
-  const time = (source: "aa" | "terminalbench-4", r: RankedVariant[]) => metricPanels(snapshot, r, source).find((p) => p.id === "tpt")?.chart?.points(r) ?? [];
-  it("divides by the tier's speed: same tokens, faster", () => {
-    const pts = time("aa", withSpeedTiers(rows, snapshot, ["fast"], {}, { chart: "speed" }));
-    expect(pts.map((p) => [p.r.model.id, p.x])).toEqual([["gpt-6.1-sol+fast", 200], ["claude-opus-5.5+fast", 200 / 2.4], ["gemini-4", 100]]);
+  /** AA's computed decode time, which a tier scales: same tokens, faster. */
+  const computed = [row("gpt-6.1-sol", "openai", { timeSec: 300, timeComputed: true }), row("claude-opus-5.5", "anthropic", { timeSec: 200, timeComputed: true }), row("gemini-4", "google", { timeSec: 100, timeComputed: true })];
+  /** The mix's blend of measured runs, which a tier does not scale: it also holds the time tools take. */
+  const measured = computed.map((r) => ({ ...r, timeComputed: false }));
+  const time = (r: RankedVariant[]) => metricPanels(snapshot, r).find((p) => p.id === "tpt")?.chart?.points(r) ?? [];
+  it("divides AA's computed time by the tier's speed: same tokens, faster", () => {
+    const pts = time(withSpeedTiers(computed, snapshot, ["fast"], {}, { chart: "speed" }));
+    expect(pts.map((p) => [p.r.model.id, p.x])).toEqual([["gpt-6.1-sol+fast", 300 / 1.5], ["claude-opus-5.5+fast", 200 / 2.4], ["gemini-4", 100]]);
   });
-  it("does not scale a harness's measured run, which also holds tool time", () => {
-    expect(time("terminalbench-4", withSpeedTiers(rows, snapshot, ["fast"], {}, { chart: "speed" }))).toEqual([]);
+  it("does not scale a measured run, which also holds tool time", () => {
+    // Gemini has no tier, so it stays standard and is the only row drawn.
+    const pts = time(withSpeedTiers(measured, snapshot, ["fast"], {}, { chart: "speed" }));
+    expect(pts.map((p) => [p.r.model.id, p.x])).toEqual([["gemini-4", 100]]);
+  });
+  it("offers tiers on a computed chart and withholds them on a measured one", () => {
+    // The gallery and the share card both gate on this: `hasMeasuredTime` is the opposite test, and gating on it inverted both cases.
+    expect(hasComputedTime(computed)).toBe(true);
+    expect(hasComputedTime(measured)).toBe(false);
+    expect(hasMeasuredTime(computed)).toBe(false);
+    expect(hasMeasuredTime(measured)).toBe(true);
+    // Mixed: the tier scales the computed row and replaces the measured one, which it cannot scale.
+    const mixed = [{ ...computed[0] }, { ...measured[1] }];
+    expect(hasComputedTime(mixed) && hasMeasuredTime(mixed)).toBe(true);
+    const pts = time(withSpeedTiers(mixed, snapshot, ["fast"], {}, { chart: "speed" }));
+    expect(pts.map((p) => [p.r.model.id, p.x])).toEqual([["gpt-6.1-sol+fast", 300 / 1.5]]);
   });
 });
 

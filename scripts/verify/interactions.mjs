@@ -639,12 +639,20 @@ try {
     assert.match(page.url(), /eff=/, "the choice is in the link");
   });
 
-  await check("cost data source options show model counts", async () => {
-    const menu = await openSettings("Pareto settings");
-    await menu.getByRole("tab", { name: "Data" }).click();
-    const source = menu.getByLabel("Pareto data source");
-    assert.ok((await source.locator("option").allTextContents()).every((text) => /\(\d+ models\)$/.test(text)));
-    await close();
+  await check("neither cost nor time has a source control: both are the mix's own blend", async () => {
+    for (const label of ["Pareto settings", "Time per task settings"]) {
+      const menu = await openSettings(label);
+      await menu.getByRole("tab", { name: "Data" }).click();
+      assert.equal(await menu.locator("select[aria-label$='source']").count(), 0, `${label} offers no source picker`);
+      await close();
+    }
+    // The explanation lives behind the chart's info icon.
+    await page.getByRole("button", { name: "How this cost is worked out" }).first().click();
+    assert.match(await page.locator(".chart-method-pop").first().innerText(), /Each benchmark in the mix at its own measured cost per task/);
+    await page.keyboard.press("Escape");
+    // Time per task says which measurement it drew.
+    const caption = await page.locator(".gallery-panel > summary .cap", { hasText: /^(Each benchmark in the mix|Artificial Analysis)/ }).first().innerText();
+    assert.match(caption, /measured run duration|computed, not timed|estimated decode time/);
   });
 
   await check("the ranking list has its own effort row", async () => {
@@ -850,6 +858,20 @@ try {
     await close(); await page.waitForTimeout(800);
     assert.ok(!(await onScreen()).some((id) => id.includes("+")), "turning the tier off restores standard");
     assert.doesNotMatch(page.url(), /tier=/, "and leaves the link clean");
+  });
+  await check("a speed tier reaches the time per task chart, which is AA's computed time", async () => {
+    // The gallery hands the time panel tier rows only where the figures are tokens over speed. Gating that on a measured
+    // run inverted both cases: the default mix, all computed, drew no tier rows at all.
+    const menu = await settings();
+    const section = menu.locator("summary", { hasText: "Speed tiers" });
+    if (!await section.count()) { await close(); return; }
+    await section.click();
+    await menu.getByRole("group", { name: "Pareto speed tiers" }).getByRole("button", { name: "Fast", exact: true }).click();
+    await close(); await page.waitForTimeout(900);
+    // The time panel's scatter carries the ids it drew, and it sits open by default.
+    const panel = page.locator("details.gallery-panel").filter({ has: page.locator('summary[aria-label="Time per task settings"]') }).first();
+    const ids = (await panel.locator("[data-points]").first().getAttribute("data-points") ?? "").split(",").filter(Boolean);
+    assert.ok(ids.some((id) => id.includes("+fast")), `Fast is drawn on the time chart: ${ids.slice(0, 6).join(", ")}`);
   });
   await check("not counting free tiers moves free models off the free line, and the card follows", async () => {
     const menu = await settings();
@@ -1465,20 +1487,32 @@ try {
   await check("no dropdown's text runs under its arrow, and every one has the same chevron", async () => {
     const c = await browser.newPage({ viewport: { width: 1280, height: 900 } });
     try {
-      await c.goto(`${BASE}/benchmarks/frontiercode-2.0-main`, { waitUntil: "networkidle" });
-      await c.getByLabel("Pareto settings", { exact: true }).click();
-      await c.getByRole("tab", { name: "Data" }).last().click();
-      await c.locator(".chart-settings-menu summary", { hasText: "Subscription plans" }).last().click();
-      const bad = await c.evaluate(() => {
-        const ctx = document.createElement("canvas").getContext("2d");
-        return [...document.querySelectorAll("select")].filter((s) => s.offsetParent && !s.closest(".rl-m-compare")).flatMap((s) => {
-          const st = getComputedStyle(s); ctx.font = `${st.fontSize} ${st.fontFamily}`;
-          const room = s.clientWidth - parseFloat(st.paddingLeft) - parseFloat(st.paddingRight);
-          const text = s.options[s.selectedIndex]?.text ?? "", w = ctx.measureText(text).width;
-          return st.appearance !== "none" || !st.backgroundImage.includes("svg") ? [`${s.getAttribute("aria-label")}: native arrow`] : w > room + 1 ? [`${s.getAttribute("aria-label")}: "${text}" ${Math.round(w)} > ${Math.round(room)}`] : [];
+      // Both pages: the builder's menu is narrower, so a label that clips there fits on a benchmark page.
+      for (const path of ["/benchmarks/frontiercode-2.0-main", "/builder"]) {
+        await c.goto(`${BASE}${path}`, { waitUntil: "networkidle" });
+        const summary = c.locator('summary[aria-label="Pareto settings"]').first();
+        await summary.scrollIntoViewIfNeeded();
+        for (let tries = 0; tries < 10; tries++) { await summary.click(); if (await c.locator("details[open] [class*=modelCount]").first().isVisible().catch(() => false)) break; await c.waitForTimeout(400); }
+        await c.locator("details[open]").first().getByRole("tab", { name: "Data" }).click();
+        await c.locator(".chart-settings-menu summary", { hasText: "Subscription plans" }).last().click();
+        const bad = await c.evaluate(() => {
+          const ctx = document.createElement("canvas").getContext("2d");
+          return [...document.querySelectorAll("select")].filter((s) => s.offsetParent && !s.closest(".rl-m-compare")).flatMap((s) => {
+            const st = getComputedStyle(s); ctx.font = `${st.fontSize} ${st.fontFamily}`;
+            const room = s.clientWidth - parseFloat(st.paddingLeft) - parseFloat(st.paddingRight);
+            const text = s.options[s.selectedIndex]?.text ?? "", w = ctx.measureText(text).width;
+            return st.appearance !== "none" || !st.backgroundImage.includes("svg") ? [`${s.getAttribute("aria-label")}: native arrow`] : w > room + 1 ? [`${s.getAttribute("aria-label")}: "${text}" ${Math.round(w)} > ${Math.round(room)}`] : [];
+          });
         });
-      });
-      assert.deepEqual(bad, []);
+        assert.deepEqual(bad, [], `at ${path}`);
+        await c.keyboard.press("Escape");
+        await c.waitForTimeout(300);
+      }
+      await c.goto(`${BASE}/builder`, { waitUntil: "networkidle" });
+      const last = c.locator('summary[aria-label="Pareto settings"]').first();
+      await last.scrollIntoViewIfNeeded();
+      for (let tries = 0; tries < 10; tries++) { await last.click(); if (await c.locator("details[open] [class*=modelCount]").first().isVisible().catch(() => false)) break; await c.waitForTimeout(400); }
+      await c.locator("details[open]").first().getByRole("tab", { name: "Data" }).click();
       // The collapsed sections are one row each: title on the left, value and chevron on the right.
       await c.locator(".chart-settings-menu summary", { hasText: "Subscription plans" }).last().click();
       for (const name of ["Subscription plans", "Custom formula"]) {
@@ -1487,7 +1521,7 @@ try {
         assert.ok(box.height < 50, `${name} is one row (${box.height}px)`);
         assert.ok(value.x > box.x + box.width / 2 && value.y >= box.y && value.y + value.height <= box.y + box.height, `${name}'s value sits on the right of its row`);
       }
-      const widths = await c.locator(".chart-settings-menu select[aria-label$='data source'], .chart-settings-menu select[aria-label$='release window']").evaluateAll((els) => els.filter((e) => e.offsetParent).map((e) => e.clientWidth));
+      const widths = await c.locator(".chart-settings-menu select[aria-label$='release window']").evaluateAll((els) => els.filter((e) => e.offsetParent).map((e) => e.clientWidth));
       assert.equal(new Set(widths).size, 1, `data selects line up: ${widths}`);
     } finally { await c.close(); }
   });

@@ -1,5 +1,5 @@
 import type { CostBasis } from "../data/subscription";
-import { taskMetricData, taskMetricDescription, type TaskMetricSource } from "../data/task-metrics";
+import { hasComputedTime, hasMeasuredTime, timeDescription } from "../data/task-metrics";
 import { onAaPerformanceV3 } from "../data/series-breaks";
 import type { Observation, Snapshot } from "@/data/types";
 import type { RankedVariant } from "@/engine";
@@ -67,7 +67,7 @@ export function modelLabel(r: RankedVariant) {
 
 /** Gallery panel definitions — shared between the client gallery and share cards.
  *  `estimated` (IndexResult.estimated, effort-filtered like `ranked`) joins the release-date chart only: models the index cannot score, placed in time on an estimated score. */
-export function metricPanels(snapshot: Snapshot, ranked: RankedVariant[], timeSource: TaskMetricSource = "aa", estimated: RankedVariant[] = []): MetricPanel[] {
+export function metricPanels(snapshot: Snapshot, ranked: RankedVariant[], estimated: RankedVariant[] = []): MetricPanel[] {
   const obs = new Map<string, Map<string, Observation>>();
   for (const o of snapshot.observations) {
     const b = obs.get(o.benchmarkId) ?? obs.set(o.benchmarkId, new Map()).get(o.benchmarkId)!;
@@ -80,12 +80,11 @@ export function metricPanels(snapshot: Snapshot, ranked: RankedVariant[], timeSo
   const panels: MetricPanel[] = [];
   const iiId = snapshot.benchmarks.filter((b) => b.id.startsWith("aa-intelligence-index")).sort((a, b) => b.id.localeCompare(a.id))[0]?.id;
   const ttft = at("aa-ttft");
-  const timeData = taskMetricData(snapshot, timeSource, "time");
   // A speed tier spends the same tokens at its own speed. Only Artificial Analysis' time is tokens over speed: a harness's measured run also holds tool time, which a tier does not speed up.
   const decode = (rows: RankedVariant[]): MetricPoint[] => rows.flatMap((r) => {
     const tier = r.speedTier;
-    if (tier && (timeSource !== "aa" || !tier.speedMultiple)) return [];
-    const x = timeData.get(tier?.baseVariantId ?? r.variant.id)?.value;
+    if (tier && (r.timeComputed === false || !tier.speedMultiple)) return [];
+    const x = r.timeSec;
     return x == null ? [] : [{ x: tier ? x / tier.speedMultiple! : x, r }];
   });
   const tokens = iiId ? at(iiId, (o) => outputTokensPerTask(o.details?.outputTokensPerTask) ?? o.outputTokens ?? undefined) : () => [];
@@ -97,7 +96,10 @@ export function metricPanels(snapshot: Snapshot, ranked: RankedVariant[], timeSo
   const fmtDate = (x: number) => new Date(x).toISOString().slice(0, 10);
   const secs = (x: number) => x >= 1000 ? `${Math.round(x / 100) / 10}k s` : fmt("s")(x);
 
-  panels.push({ id: "tpt", title: "Time per task", desc: taskMetricDescription(timeSource, "time", snapshot.date), open: true, chart: { better: "lower", points: decode, xLabel: "s/task", xName: timeSource === "aa" ? "Computed time per task (s)" : "Time per task (s)", scale: "linear", logOk: true, secs: true, formatX: secs, aria: timeSource === "aa" ? "Index score versus estimated time per task" : "Index score versus average task-run duration" } });
+  // The caption follows what the rows actually carry: the mix's blend of measured runs, AA's computed figure, or both
+  // where some benchmarks publish a duration and others do not.
+  const measuredTime = hasMeasuredTime(ranked), computedTime = hasComputedTime(ranked);
+  panels.push({ id: "tpt", title: "Time per task", desc: timeDescription(snapshot.date, measuredTime, computedTime), open: true, chart: { better: "lower", points: decode, xLabel: "s/task", xName: measuredTime ? "Time per task (s)" : "Computed time per task (s)", scale: "linear", logOk: true, secs: true, formatX: secs, aria: measuredTime ? "Index score versus measured time per task" : "Index score versus estimated time per task" } });
   if (ranked.some((r) => r.speed)) panels.push({ id: "speed", title: "Output speed", desc: onAaPerformanceV3(snapshot.date) ? "tokens per second over the whole request, first-token wait included. Method changed Nov 4, 2026" : "tokens per second", open: !has(decode), speed: true });
   if (has(ttft)) panels.push({ id: "latency", title: "Latency", desc: onAaPerformanceV3(snapshot.date) ? "seconds to first token. Method changed Nov 4, 2026" : "seconds to first token", chart: { better: "lower", points: ttft, xLabel: "s", xName: "Time to first token (s)", scale: "log", secs: true, formatX: fmt("s"), aria: "Index score versus time to first token", defaultKind: "bars" } });
   if (has(tokens)) panels.push({ id: "tokens", title: "Output tokens", desc: "tokens generated per task", chart: { better: "lower", points: tokens, xLabel: "tok", xName: "Output tokens per task", scale: "log", formatX: (x) => x >= 1000 ? `${(x / 1000).toFixed(0)}k` : `${x.toFixed(0)}`, aria: "Index score versus output tokens per task", defaultKind: "bars" } });
@@ -198,11 +200,11 @@ export function chartTitle(c: string | undefined): string | undefined {
 }
 
 /** Resolve a chart param to its card kind: "rankings" | "cost" | a metric chart. */
-export function chartKind(snapshot: Snapshot, ranked: RankedVariant[], c: string | undefined, timeSource: TaskMetricSource = "aa", estimated: RankedVariant[] = []): { kind: "rankings" | "cost" } | { kind: "metric"; chart: MetricChart } | null {
+export function chartKind(snapshot: Snapshot, ranked: RankedVariant[], c: string | undefined, estimated: RankedVariant[] = []): { kind: "rankings" | "cost" } | { kind: "metric"; chart: MetricChart } | null {
   if (!c || c === "rankings") return { kind: "rankings" };
   if (c === "cost") return { kind: "cost" };
   if (c === "output-speed") return ranked.some((r) => r.speed) ? { kind: "metric", chart: speedChart } : null;
-  const panel = metricPanels(snapshot, ranked, timeSource, estimated).find((p) => anchorOf(p.title) === c && p.chart);
+  const panel = metricPanels(snapshot, ranked, estimated).find((p) => anchorOf(p.title) === c && p.chart);
   return panel?.chart ? { kind: "metric", chart: panel.chart } : null;
 }
 
@@ -210,19 +212,19 @@ export function chartKind(snapshot: Snapshot, ranked: RankedVariant[], c: string
 export interface FormulaInputs { get: () => { variables: { name: string; label: string }[]; of: (r: RankedVariant) => FormulaVars } }
 const PANEL_VARIABLES: [panel: string, name: string, label: string][] = [["tpt", "time", "Time per task (s)"], ["latency", "latency", "Time to first token (s)"], ["tokens", "tokens", "Output tokens per task"], ["uptime", "uptime", "Uptime (%)"], ["usage", "usage", "Share of T3 Code turns (%)"]];
 
-const inputsCache = new WeakMap<RankedVariant[], Map<string, FormulaInputs>>();
+const inputsCache = new WeakMap<RankedVariant[], FormulaInputs>();
 /**
  * Formula variables for an index. Built on first use (opening a chart's Advanced settings, or
  * drawing a chart that has a formula), so charts without one never pay for it. `panels` reuses a
  * gallery's already-computed metric panels.
  */
-export function formulaInputs(snapshot: Snapshot, ranked: RankedVariant[], timeSource: TaskMetricSource = "aa", panels?: MetricPanel[]): FormulaInputs {
-  // One per ranking and time source, so callers can ask on every render and get the same object back.
-  const cached = inputsCache.get(ranked)?.get(timeSource);
+export function formulaInputs(snapshot: Snapshot, ranked: RankedVariant[], panels?: MetricPanel[]): FormulaInputs {
+  // One per ranking, so callers can ask on every render and get the same object back.
+  const cached = inputsCache.get(ranked);
   if (cached) return cached;
   let built: ReturnType<FormulaInputs["get"]> | undefined;
   const inputs: FormulaInputs = { get: () => built ??= (() => {
-    const byPanel = new Map((panels ?? metricPanels(snapshot, ranked, timeSource)).map((p) => [p.id, p]));
+    const byPanel = new Map((panels ?? metricPanels(snapshot, ranked)).map((p) => [p.id, p]));
     const columns: { name: string; label: string; of: (r: RankedVariant) => number | undefined }[] = [
       { name: "score", label: "Index score", of: (r) => r.score },
       { name: "cost", label: "Cost per task ($)", of: (r) => (r.costUsd != null && r.costUsd > 0 ? r.costUsd : undefined) },
@@ -240,7 +242,7 @@ export function formulaInputs(snapshot: Snapshot, ranked: RankedVariant[], timeS
     const present = columns.filter((c) => ranked.some((r) => c.of(r) !== undefined));
     return { variables: present.map(({ name, label }) => ({ name, label })), of: (r) => Object.fromEntries(present.map((c) => [c.name, c.of(r)])) };
   })() };
-  (inputsCache.get(ranked) ?? inputsCache.set(ranked, new Map()).get(ranked)!).set(timeSource, inputs);
+  inputsCache.set(ranked, inputs);
   return inputs;
 }
 

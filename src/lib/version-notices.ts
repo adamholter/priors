@@ -1,6 +1,5 @@
 import type { Benchmark } from "../data/types";
 import type { IndexConfig } from "../engine";
-import { isTaskMetricSource } from "../data/task-metrics";
 import { decodeIndices, encodeIndex } from "./url";
 
 /**
@@ -70,8 +69,9 @@ export function findNotices(sources: NoticeSource[], benchmarks: Pick<Benchmark,
 
 /**
  * The index with each old id moved to its new id: the weight (added to the new id's when two old versions
- * meet there, so the family keeps its share), `required` and `optional`, and a cost or time source when the
- * new id is one. The weight keeps its place in the mix. Everything else is unchanged.
+ * meet there, so the family keeps its share), and `required` and `optional`. The weight keeps its place in the
+ * mix. Everything else is unchanged. Cost and time per task are the mix's own blend, so there is no source id
+ * to move with the weight.
  */
 export function upgradeIndex(index: IndexConfig, upgrades: Upgrade[]): IndexConfig {
   const to = new Map(upgrades.filter((u) => (index.weights[u.from] ?? 0) > 0 || index.required.includes(u.from)).map((u) => [u.from, u.to]));
@@ -80,12 +80,9 @@ export function upgradeIndex(index: IndexConfig, upgrades: Upgrade[]): IndexConf
   const weights: Record<string, number> = {};
   for (const [id, w] of Object.entries(index.weights)) { const k = rename(id); weights[k] = k in weights ? weights[k] + w : w; }
   const ids = (list: string[]) => [...new Set(list.map(rename))];
-  const source = <S extends string | undefined>(s: S): S => (s && to.has(s) && isTaskMetricSource(to.get(s)!) ? to.get(s) as S : s);
   return {
     ...index, weights, required: ids(index.required),
     ...(index.optional ? { optional: ids(index.optional) } : {}),
-    ...(index.costSource ? { costSource: source(index.costSource) } : {}),
-    ...(index.timeSource ? { timeSource: source(index.timeSource) } : {}),
   };
 }
 

@@ -56,7 +56,7 @@ export function ThreeDApp({ initial, wantMine, axes: axesParam, published }: { i
 
   const side = useMemo(() => (snapshot && choice ? rankSide(snapshot, choice) : undefined), [snapshot, choice]);
   const snap = useMemo(() => (snapshot && choice?.imports?.length ? mergeImports(snapshot, choice.imports).snapshot : snapshot), [snapshot, choice]);
-  const inputs = useMemo(() => (snap && side ? formulaInputs(snap, side.result.ranked, side.result.config.timeSource) : undefined), [snap, side]);
+  const inputs = useMemo(() => (snap && side ? formulaInputs(snap, side.result.ranked) : undefined), [snap, side]);
   const subscription = !!snapshot && effectiveBasis(side?.result.config.costBasis, hasSubscriptionPrices(snapshot)) === "subscription";
   const options = useMemo(() => {
     if (!inputs || !side) return [];

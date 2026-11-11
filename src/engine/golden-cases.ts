@@ -23,7 +23,7 @@ export function goldenConfigs(snap: Snapshot, base: IndexConfig, pageView: ViewO
     c("strict0-alltime", { weights: wide, strictness: 0, variants: "all", releasedAfter: "" }),
     c("strict85", { weights: w(pct.slice(5, 20)), strictness: 85 }), c("strict95", { weights: w(pct.slice(5, 20)), strictness: 95 }), c("strict25", { weights: w(pct.slice(5, 20)), strictness: 25, releasedAfter: "2025-01-01" }),
     c("cutoff", { weights: w(pct.slice(2, 9)), strictness: undefined, cutoff: 1 }),
-    c("api-terminalbench", { costBasis: "api", costSource: "terminalbench-4" }), c("subscription-deepswe", { costBasis: "subscription", costSource: "deepswe-1.1" }),
+    c("api", { costBasis: "api" }), c("subscription", { costBasis: "subscription" }),
     c("resets", { planResets: true }), c("plans", { planResets: true, subscriptionPlans: { openai: "ChatGPT Pro 20x", anthropic: "Claude Max 20x", google: "Google AI Pro" } }),
     c("labs", { labs: ["openai", "anthropic"] }, pageView), c("exclude", { excludeModels: llm.slice(0, 8) }, pageView), c("only", { onlyModels: llm.slice(-12) }),
     c("highlight", { highlight: llm.slice(-3) }, pageView),

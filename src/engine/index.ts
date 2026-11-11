@@ -2,10 +2,10 @@ import { planResetBoosts } from "../data/plan-resets";
 import { effectiveBasis, subscriptionPrices, type CostBasis, type SubscriptionPrice } from "../data/subscription";
 import { supersededModelIds } from "./superseded";
 import { progressEstimates, type ScoreEstimate } from "./progress-estimate";
-import { taskMetricData, taskMetricDescription, type TaskMetricSource } from "../data/task-metrics";
+import { MIX_COST_CAPTION, AA_SOURCE, MIX_TIME_CAPTION, aaTimeDescription, costCaption, taskMetricData } from "../data/task-metrics";
 import type { Benchmark, FocusId, Model, Observation, Snapshot, SpeedTierId, Variant } from "../data/types";
 import { columnsOf, DEFAULT_RANK, effortLocked, ROW_FLAGS, type Columns, type EstimationRoute } from "../data/columns";
-import { AA_V5_WEIGHTS, aaComponentWeights } from "../data/aa-index";
+import { AA_V5_WEIGHTS, aaComponentWeights, latestAAIndex } from "../data/aa-index";
 
 /* ------------------------------------------------------------------ */
 /* Config                                                              */
@@ -35,7 +35,6 @@ export interface IndexConfig {
   rankingEfforts?: string[];
   /** Speed tiers the cost, time and speed charts show (`standard`, `flex`, `fast`, `ultrafast`); unset is standard only. A model without a picked tier stays at standard. */
   speedTiers?: string[];
-  costSource?: TaskMetricSource;
   /** Price cost per task at API list prices (default) or at the lab's subscription plan. */
   costBasis?: CostBasis;
   /** `true`: plans are cheaper by what limit resets gave their subscribers in the last 30 days. Off by default: the plan is priced as measured. Only matters on the subscription basis. (`false` is what older saved configs carry: the same as unset.) */
@@ -46,7 +45,6 @@ export interface IndexConfig {
   planReading?: string;
   /** Subscription basis: the plan to price each lab's models at (lab id → plan name, from the source's plan list). A lab not named, or a model without that plan, uses its median plan. */
   subscriptionPlans?: Record<string, string>;
-  timeSource?: TaskMetricSource;
   /** Optional filters */
   labs?: string[]; // include only these labIds
   excludeModels?: string[]; // modelIds
@@ -169,6 +167,11 @@ export interface RankedVariant {
   costSource?: string;
   /** Set when `costUsd` is priced at this subscription plan instead of the API. */
   costPlan?: SubscriptionPrice;
+  /** Time per task in seconds: the mix's own blend of measured run durations, or Artificial Analysis' computed figure where the mix publishes none. */
+  timeSec?: number;
+  timeSource?: string;
+  /** Artificial Analysis' computed decode time rather than a measured run duration: a speed tier scales it, a measured run it does not. */
+  timeComputed?: boolean;
   /** output speed tok/s when known */
   speed?: number;
   onFrontier: boolean;
@@ -326,8 +329,10 @@ export interface ViewOptions {
   defaultView?: boolean;
   /** Peer estimation method. Default blends the mix match with a full-panel ratio match; "mix" is the original, kept for backtests. */
   peerMethod?: "blend" | "mix";
-  /** Price cost per task from this benchmark's own measured cost (its observations' `costUsd`) instead of the index's task-metric source. A benchmark's page sets it; it is not part of a stored index. */
+  /** Price cost per task from this benchmark's own measured cost (its observations' `costUsd`) instead of the mix's blend. A benchmark's page sets it; it is not part of a stored index. */
   costBenchmark?: string;
+  /** Take time per task from this benchmark's own measured `durationSec` instead of the mix's blend. A benchmark's page sets it; it is not part of a stored index. */
+  timeBenchmark?: string;
 }
 export const PAGE_VIEW: ViewOptions = { defaultView: true };
 
@@ -336,8 +341,14 @@ export function computeIndex(snapshot: Snapshot, config: IndexConfig, view: View
   const shares = sharesOf(c, config);
   if (!shares.length) return { config, benchmarks: [], ranked: [], excluded: [], candidateModelIds: [], autoHidden: [], estimated: [] };
   const plans = effectiveBasis(config.costBasis) === "subscription" ? subscriptionPrices(snapshot, config.subscriptionPlans, { free: config.freeTiers !== false, reading: config.planReading }) : undefined;
+  // A benchmark page prices and times its own benchmark; every other chart uses the mix's own blend.
+  const costBenchmark = view.costBenchmark, timeBenchmark = view.timeBenchmark;
   const detail: Detail = {
-    costData: taskMetricData(snapshot, view.costBenchmark ?? config.costSource ?? "aa", "cost"), plans,
+    costData: taskMetricData(snapshot, costBenchmark ?? AA_SOURCE, "cost"), timeData: taskMetricData(snapshot, timeBenchmark ?? AA_SOURCE, "time"), plans,
+    costBenchmark, costBenchmarkName: costBenchmark ? snapshot.benchmarks.find((b) => b.id === costBenchmark)?.name : undefined,
+    timeBenchmark, timeBenchmarkName: timeBenchmark ? snapshot.benchmarks.find((b) => b.id === timeBenchmark)?.name : undefined,
+    date: snapshot.date,
+    aaComponents: new Set(Object.keys(latestAAIndex(snapshot)?.components ?? {})),
     resetBoosts: plans && config.planResets === true ? planResetBoosts(snapshot) : undefined,
     excluded: [], candidateModelIds: [],
   };
@@ -383,6 +394,17 @@ function ordered(ranked: RankedVariant[], config: IndexConfig): RankedVariant[] 
 /** What a full result adds to the scores. */
 interface Detail {
   costData: ReturnType<typeof taskMetricData>;
+  timeData: ReturnType<typeof taskMetricData>;
+  /** The benchmark whose own measured cost per task prices this index, when the cost source names one. */
+  costBenchmark?: string;
+  costBenchmarkName?: string;
+  /** The benchmark whose own measured run duration times this index, when the page names one. */
+  timeBenchmark?: string;
+  timeBenchmarkName?: string;
+  /** The snapshot's date: older snapshots keep the method their time per task was measured with. */
+  date: string;
+  /** The newest AA index's component ids: a mix of only these is priced at AA's own list, so `aaCostRatio` applies. */
+  aaComponents: Set<string>;
   plans?: Map<string, SubscriptionPrice>;
   resetBoosts?: ReturnType<typeof planResetBoosts>;
   excluded: IndexResult["excluded"];
@@ -657,6 +679,10 @@ function rankVariants(c: Columns, config: IndexConfig, shares: IndexResult["benc
   const ranked: RankedVariant[] = [];
   const floor = minMeasuredShare(config);
   const speedBench = c.benchIndex.get(SPEED_BENCHMARK);
+  // `aaCostRatio` rescales a cost AA priced at its own list, which only AA's whole index is: a single component is one
+  // evaluation's own measured run, and every other mix is a benchmark's cost at today's list, so both keep the plain ratio.
+  const aaComponents = detail?.aaComponents;
+  const aaPriced = !!aaComponents && !detail!.costBenchmark && shares.length === aaComponents.size && shares.every((s) => aaComponents.has(s.benchmark.id));
   for (let pp = 0; pp < P; pp++) {
     const pos = pooled[pp], v = variants[pos], t0 = pp * S, vi = vIndex[pos];
     let measured = 0, missingRequired = false;
@@ -693,26 +719,45 @@ function rankVariants(c: Columns, config: IndexConfig, shares: IndexResult["benc
     const coverage = Math.min(1, Math.round(covered * 1e4) / 1e6);
     if (!detail) { ranked.push({ variant: v, model, score: num / den, coverage, measuredShare, values, onFrontier: false, rank: 0 }); continue; }
     const measuredCost = detail.costData.get(v.id);
-    // Preserve AA's mix-weighted cost when every selected benchmark publishes it.
-    let weightedAaCost: number | undefined;
-    if (!view.costBenchmark && (config.costSource ?? "aa") === "aa") {
-      weightedAaCost = 0;
+    // The mix's own blend: each benchmark at its measured cost, renormalized over those that publish one, so a benchmark
+    // without a cost is left out rather than dragging the figure back to AA's. On AA's index every component publishes a
+    // cost, so this equals its published figure. A benchmark page prices its own (`view.costBenchmark`); a mix where
+    // nothing publishes one falls back to AA's (`detail.costData`).
+    let blended: number | undefined;
+    if (!detail.costBenchmark) {
+      let sum = 0, paid = 0;
       for (let s = 0; s < S; s++) {
         const r = at[vi * nb + shareBench[s]], o = r >= 0 ? c.rows[r] : undefined;
-        if (!(o?.sourceModelId && o.costUsd != null && Number.isFinite(o.costUsd) && o.costUsd >= 0)) { weightedAaCost = undefined; break; }
-        weightedAaCost += o.costUsd * shareOf[s] / 100;
+        // Any publisher's cost counts: ARC Prize, FrontierCode, WeirdML, Zapier and Roboflow publish one without a `sourceModelId`.
+        if (!(o && o.costUsd != null && Number.isFinite(o.costUsd) && o.costUsd >= 0)) continue;
+        sum += o.costUsd * shareOf[s]; paid += shareOf[s];
       }
+      if (paid > 0) blended = sum / paid;
     }
-    const viewCost = view.costBenchmark ? c.bench[c.benchIndex.get(view.costBenchmark) ?? -1] : undefined;
-    const cost = weightedAaCost != null ? { usd: weightedAaCost, source: "AA measured task costs, weighted by this mix" } : measuredCost ? { usd: measuredCost.value, source: (view.costBenchmark ? `${viewCost?.name ?? view.costBenchmark} · measured cost per task` : taskMetricDescription(config.costSource ?? "aa", "cost")) + (measuredCost.observation.harness ? ` · ${measuredCost.observation.harness}` : "") } : undefined;
+    const cost = blended != null ? { usd: blended, source: MIX_COST_CAPTION } : measuredCost ? { usd: measuredCost.value, source: costCaption(detail.costBenchmarkName) + (measuredCost.observation.harness ? ` · ${measuredCost.observation.harness}` : "") } : undefined;
     // Subscription basis: the measured API cost scaled by the share of API price the plan works out to.
     // Models without a first-party plan keep their API cost — that is what they cost to use.
     // Limit resets (src/data/plan-resets.ts) give the plan's subscribers extra usage, so its share of API price falls by that factor.
     const listed = cost && detail.plans?.get(model.id), reset = listed && listed.ratio > 0 ? detail.resetBoosts?.get(model.labId) : undefined;
     const plan = listed && reset && reset.boost > 1 ? { ...listed, ratio: listed.ratio / reset.boost, ...(listed.aaCostRatio ? { aaCostRatio: listed.aaCostRatio / reset.boost } : {}) } : listed;
-    if (cost && plan) { cost.usd *= (!view.costBenchmark && (config.costSource ?? "aa") === "aa" ? plan.aaCostRatio : undefined) ?? plan.ratio; cost.source += plan.ratio === 0 ? ` · free on ${plan.plan}` : ` · ${plan.plan}, ${subscriptionShare(plan.ratio)} of API price at full use${reset && reset.boost > 1 ? `, with ${reset.resets} limit resets in 30 days` : ""}`; }
+    if (cost && plan) { cost.usd *= (aaPriced && blended != null ? plan.aaCostRatio : undefined) ?? plan.ratio; cost.source += plan.ratio === 0 ? ` · free on ${plan.plan}` : ` · ${plan.plan}, ${subscriptionShare(plan.ratio)} of API price at full use${reset && reset.boost > 1 ? `, with ${reset.resets} limit resets in 30 days` : ""}`; }
+    // The same blend over `durationSec`. A benchmark without one is left out rather than falling back to AA's, which is
+    // computed rather than timed and leaves out tool time. A benchmark page times its own (`view.timeBenchmark`).
+    let blendedTime: number | undefined;
+    if (!detail.timeBenchmark) {
+      let sum = 0, timed = 0;
+      for (let s = 0; s < S; s++) {
+        const r = at[vi * nb + shareBench[s]], o = r >= 0 ? c.rows[r] : undefined;
+        if (!(o && o.durationSec != null && Number.isFinite(o.durationSec) && o.durationSec > 0)) continue;
+        sum += o.durationSec * shareOf[s]; timed += shareOf[s];
+      }
+      if (timed > 0) blendedTime = sum / timed;
+    }
+    const measuredTime = detail.timeData.get(v.id);
+    const time = blendedTime != null ? { sec: blendedTime, source: MIX_TIME_CAPTION, computed: false }
+      : measuredTime ? { sec: measuredTime.value, source: detail.timeBenchmarkName ? `${detail.timeBenchmarkName} · measured run duration` : aaTimeDescription(detail.date), computed: !detail.timeBenchmark } : undefined;
     const speedRow = speedBench === undefined ? -1 : at[vi * nb + speedBench];
-    ranked.push({ variant: v, model, score: num / den, coverage, measuredShare, values, mixedEfforts: values.some((value) => value.estimateKind === "effort"), costUsd: cost?.usd, costSource: cost?.source, costPlan: plan || undefined, speed: speedRow >= 0 && value[speedRow] > 0 ? value[speedRow] : undefined, onFrontier: false, rank: 0 });
+    ranked.push({ variant: v, model, score: num / den, coverage, measuredShare, values, mixedEfforts: values.some((value) => value.estimateKind === "effort"), costUsd: cost?.usd, costSource: cost?.source, costPlan: plan || undefined, timeSec: time?.sec, timeSource: time?.source, timeComputed: time?.computed, speed: speedRow >= 0 && value[speedRow] > 0 ? value[speedRow] : undefined, onFrontier: false, rank: 0 });
   }
   return ranked;
 }

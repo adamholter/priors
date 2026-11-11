@@ -85,7 +85,7 @@ export function BenchmarkPage({ snapshot, benchmarkId, models, relatives, initia
   }, [metrics]);
   const pickExplore = (id: string) => { setExplore(id); const url = new URL(window.location.href); url.searchParams.set("bm", id); window.history.replaceState(window.history.state, "", url); };
   const exploring = metrics.details.find((m) => m.id === explore) ?? metrics.details[0];
-  const inputs = useMemo(() => formulaInputs(snapshot, result.ranked, config.timeSource), [snapshot, result.ranked, config.timeSource]);
+  const inputs = useMemo(() => formulaInputs(snapshot, result.ranked), [snapshot, result.ranked]);
   // Charts plot the benchmark's published value (a dollar balance, an Elo), not Priors' 0 to 100 index score, when
   // higher is better there: then the frontier and "best" still mean the same thing. Bars keep the index score for length.
   const published = (r: RankedVariant) => r.values[0]?.raw;
@@ -118,7 +118,7 @@ export function BenchmarkPage({ snapshot, benchmarkId, models, relatives, initia
           </section>
 
           {hasCost && <section className="chart-panel">
-            <ParetoChart formulaInputs={formulaInputs(snapshot, result.ranked, config.timeSource)} anchor="cost" basis={basis} description={`${b.name} · measured cost per task${basis === "subscription" ? ", then priced by subscription where plan data exists (Real API Pricing, full allowance used)" : ""}`} ranked={plotted} mode={paretoMode} labs={snapshot.labs} height={440} view={paretoView} onView={setParetoView}
+            <ParetoChart formulaInputs={formulaInputs(snapshot, result.ranked)} anchor="cost" basis={basis} description={`${b.name} · measured cost per task${basis === "subscription" ? ", then priced by subscription where plan data exists (Real API Pricing, full allowance used)" : ""}`} ranked={plotted} mode={paretoMode} labs={snapshot.labs} height={440} view={paretoView} onView={setParetoView}
               title={title(basis === "subscription" ? "Score vs subscription cost per task" : "Score vs cost per task")}
               actions={(barModels) => <ChartSettings anchor="cost" defaultScale="log" label="Pareto" mode={paretoMode} onChange={(paretoVariants) => patch({ paretoVariants })} view={paretoView} onView={setParetoView} {...releaseProps} {...effortProps} {...modelPicker} {...(barModels ?? {})}
                 freeTiers={freeTierSettings(snapshot, config.freeTiers, (count) => patch({ freeTiers: count ? undefined : false }))} planReading={planReadingSettings(snapshot, config.planReading, (planReading) => patch({ planReading }))} costBasis={plans ? { value: effectiveBasis(config.costBasis), onChange: (next: CostBasis) => patch({ costBasis: next === "subscription" ? undefined : next }) } : undefined} subscriptionPlans={planPicker(snapshot, config, plansPref, (subscriptionPlans) => patch({ subscriptionPlans }))} planResets={{ value: withResetsPref(config, resetsOn).planResets === true, onChange: (on: boolean) => { setPlanResetsPref(on); patch({ planResets: on ? true : undefined }); }, note: planResetNote(snapshot), rows: planResetRows(snapshot) }} />} />

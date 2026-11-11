@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { AA_PERFORMANCE_V3, breaksFor, EPOCH_ECI_BAYESIAN, onAaPerformanceV3 } from "./series-breaks";
-import { taskMetricDescription } from "./task-metrics";
+import { aaTimeDescription } from "./task-metrics";
 
 describe("series breaks", () => {
   it("marks a mix or page that uses a changed benchmark, and no other", () => {
@@ -17,11 +17,10 @@ describe("series breaks", () => {
     expect(onAaPerformanceV3()).toBe(true);
   });
   it("says AA's time per task is computed and leaves out tools, and an older snapshot keeps its own method", () => {
-    const now = taskMetricDescription("aa", "time", "2026-11-04");
+    const now = aaTimeDescription("2026-11-04");
     expect(now).toMatch(/computed, not timed/);
     expect(now).toMatch(/without tool time/);
     expect(now).not.toMatch(/excluding first-token wait/);
-    expect(taskMetricDescription("aa", "time", "2026-11-03")).toMatch(/excluding first-token wait/);
-    expect(taskMetricDescription("deepswe-1.1", "time", "2026-11-04")).toMatch(/average task-run duration/);
+    expect(aaTimeDescription("2026-11-03")).toMatch(/excluding first-token wait/);
   });
 });

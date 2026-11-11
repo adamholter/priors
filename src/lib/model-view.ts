@@ -1,4 +1,4 @@
-import { taskMetricDescription } from "@/data/task-metrics";
+import { hasComputedTime, hasMeasuredTime, timeDescription } from "@/data/task-metrics";
 import { computeIndex, defaultConfig, type IndexConfig, type IndexResult, type RankedVariant } from "@/engine";
 import { defaultPriorsMix } from "@/onboarding/defaults";
 import { tokenPrice, type TokenPrice } from "@/data/subscription";
@@ -84,8 +84,8 @@ function field(snapshot: Snapshot, mix: IndexConfig, costConfig: IndexConfig) {
   return out;
 }
 
-function panelValues(snapshot: Snapshot, ranked: RankedVariant[], mix: IndexConfig) {
-  const panels = new Map(metricPanels(snapshot, ranked, mix.timeSource).map((p) => [p.id, p]));
+function panelValues(snapshot: Snapshot, ranked: RankedVariant[]) {
+  const panels = new Map(metricPanels(snapshot, ranked).map((p) => [p.id, p]));
   const from = (id: string) => { const pts = panels.get(id)?.chart?.points(ranked) ?? []; const m = new Map(pts.map((p) => [p.r.variant.id, p.raw ?? p.x])); return (r: RankedVariant) => m.get(r.variant.id); };
   return { tpt: from("tpt"), latency: from("latency"), tokens: from("tokens") };
 }
@@ -100,7 +100,7 @@ function costSide(snapshot: Snapshot, modelId: string, ranked: RankedVariant[], 
     metrics.forEach((of, i) => { if (of(r) != null && !taken[i].has(r.model.id)) { taken[i].add(r.model.id); keep = true; } });
     if (keep) rows.push({ id: r.variant.id, modelId: r.model.id, name: r.model.name, effort: r.variant.effort, score: r.score, costUsd: r.costUsd, speed: r.speed, tpt: tpt(r), latency: latency(r), tokens: tokens(r) });
   }
-  return { rows, floor: freeFloor(ranked.flatMap((r) => (r.costUsd ? [r.costUsd] : []))), hasFree: ranked.some((r) => r.costUsd === 0), models: new Set(ranked.map((r) => r.model.id)).size, token: tokenPrice(snapshot, modelId, mix.subscriptionPlans), timeNote: taskMetricDescription(mix.timeSource ?? "aa", "time", snapshot.date), apiDefaultEffort: snapshot.variants.find((v) => v.modelId === modelId && v.apiDefaultEffort && v.effort !== "default")?.effort };
+  return { rows, floor: freeFloor(ranked.flatMap((r) => (r.costUsd ? [r.costUsd] : []))), hasFree: ranked.some((r) => r.costUsd === 0), models: new Set(ranked.map((r) => r.model.id)).size, token: tokenPrice(snapshot, modelId, mix.subscriptionPlans), timeNote: timeDescription(snapshot.date, hasMeasuredTime(ranked), hasComputedTime(ranked)), apiDefaultEffort: snapshot.variants.find((v) => v.modelId === modelId && v.apiDefaultEffort && v.effort !== "default")?.effort };
 }
 
 function strengths(modelId: string, mixName: string, { axes, models, median }: ReturnType<typeof radarModelsFor>): ModelView["strengths"] {
@@ -155,7 +155,7 @@ export function modelView(snapshot: Snapshot, modelId: string, mix: IndexConfig,
   const best = shown.ranked.filter((r) => !seen.has(r.model.id) && !!seen.add(r.model.id));
   const { measured, inMix, others } = measuredIn(snapshot, modelId, mix, perBench);
   const radar = () => (strict ? shared.radar ??= radarModelsFor(radarRows(snapshot, mix, shown.ranked, shown.benchmarks), shown.benchmarks, "field") : radarModelsFor(radarRows(snapshot, mix, shown.ranked, shown.benchmarks), shown.benchmarks, "field"));
-  const panels = () => (strict ? shared.panels ??= panelValues(snapshot, shown.ranked, mix) : panelValues(snapshot, shown.ranked, mix));
+  const panels = () => (strict ? shared.panels ??= panelValues(snapshot, shown.ranked) : panelValues(snapshot, shown.ranked));
   return {
     model: { id: model.id, name: model.name, releaseDate: model.releaseDate },
     lab: lab && { id: lab.id, name: lab.name, color: lab.color },

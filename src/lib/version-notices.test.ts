@@ -64,11 +64,6 @@ describe("upgradeIndex", () => {
     const after = upgradeIndex(idx("C", { "terminalbench-2.1": 1, "terminalbench-4": 2 }), [{ from: "terminalbench-2.1", to: "terminalbench-4.1" }, { from: "terminalbench-4", to: "terminalbench-4.1" }]);
     expect(after.weights).toEqual({ "terminalbench-4.1": 3 });
   });
-  it("moves a cost source only to an id that is one", () => {
-    const after = upgradeIndex(idx("C", { "terminalbench-4": 1 }, { costSource: "terminalbench-4" }), [{ from: "terminalbench-4", to: "terminalbench-4.1" }]);
-    expect(after.costSource).toBe("terminalbench-4");
-    expect(upgradeIndex(idx("C", { "frontierswe-v1": 1 }, { timeSource: "aa" }), [{ from: "frontierswe-v1", to: "frontierswe-v2" }]).timeSource).toBe("aa");
-  });
   it("returns the same object when nothing applies", () => {
     const i = idx("C", { gpqa: 1 });
     expect(upgradeIndex(i, [{ from: "terminalbench-4", to: "terminalbench-4.1" }])).toBe(i);

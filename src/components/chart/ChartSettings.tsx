@@ -3,7 +3,6 @@ import { startTransition, useCallback, useEffect, useId, useMemo, useOptimistic,
 import { IconAdjustmentsHorizontal, IconStar, IconStarFilled, IconX } from "@tabler/icons-react";
 import { COST_BASES, type CostBasis } from "@/data/subscription";
 import { SPEED_TIERS } from "@/data/speed-tiers";
-import type { TaskMetricSource } from "@/data/task-metrics";
 import { useLightDismiss } from "@/lib/useLightDismiss";
 import { EFFORT_CHOICES } from "@/engine";
 import { isHighlighted, toggleModel, useHighlight } from "./highlight";
@@ -18,7 +17,7 @@ import styles from "./ChartSettings.module.css";
 
 const EFFORT_LABELS: Record<string, string> = { none: "none", low: "low", medium: "medium", high: "high", xhigh: "xhigh", max: "max" };
 
-export function ChartSettings({ freeTiers, planReading, speedTiers, label, mode, onChange, efforts, releasedAfter, onChangeReleased, models = [], excluded, onToggleModel, onShowAllModels, onHideAllModels, onShowOnly, view, onView, dataSource, costBasis, planResets, subscriptionPlans, defaultScale, anchor, formula }: {
+export function ChartSettings({ freeTiers, planReading, speedTiers, label, mode, onChange, efforts, releasedAfter, onChangeReleased, models = [], excluded, onToggleModel, onShowAllModels, onHideAllModels, onShowOnly, view, onView, costBasis, planResets, subscriptionPlans, defaultScale, anchor, formula }: {
   /** Data tab: a custom formula for this chart's metric. Omitted where a chart has no formula support. */
   formula?: FormulaSettings;
   /** Subscription pricing: price models free today at nothing, or on their paid plans. Shown in the plans section. */
@@ -36,7 +35,6 @@ export function ChartSettings({ freeTiers, planReading, speedTiers, label, mode,
   anchor?: string;
   /** Default metric scale, when the chart supports switching to linear. */
   defaultScale?: "log" | "linear";
-  dataSource?: { value: TaskMetricSource; options: { id: TaskMetricSource; name: string; modelCount: number }[]; onChange: (source: TaskMetricSource) => void };
   label: string; mode: "all" | "best"; onChange: (mode: "all" | "best") => void;
   /** Cost, time and speed charts: pick which reasoning efforts show, one by one, instead of the all/best dropdown. */
   efforts?: { value: string[]; onChange: (efforts: string[]) => void; /** Also show the best-or-all dropdown (the ranking list, which has both). */ withMode?: boolean };
@@ -130,10 +128,7 @@ export function ChartSettings({ freeTiers, planReading, speedTiers, label, mode,
     <p className={styles.resetNote}>A tier replaces standard where a model has it. Keep Standard on to compare both.</p>
   </details>;
   const dataPanel = <>
-    {(dataSource || onChangeReleased) && <div className={styles.dataControls}>
-      {dataSource && <div className={styles.dataField}><label htmlFor={`${id}-source`}>Data source</label><select aria-label={`${label} data source`} id={`${id}-source`} value={dataSource.value} onChange={e => dataSource.onChange(e.target.value as TaskMetricSource)}>{dataSource.options.map(s => <option key={s.id} value={s.id}>{s.name} ({s.modelCount} models)</option>)}</select></div>}
-      {onChangeReleased && <div className={styles.dataField}><label htmlFor={`${id}-release`}>Released</label><select aria-label={`${label} release window`} id={`${id}-release`} value={releaseValue} onChange={e => onChangeReleased?.(e.target.value === "all" ? "" : releaseDate(+e.target.value))}><option value="6">Last 6 months</option><option value="12">Last year</option><option value="24">Last 2 years</option><option value="all">All time</option>{releaseValue === "custom" && <option value="custom" disabled>Custom</option>}</select></div>}
-    </div>}
+    {onChangeReleased && <div className={styles.dataField}><label htmlFor={`${id}-release`}>Released</label><select aria-label={`${label} release window`} id={`${id}-release`} value={releaseValue} onChange={e => onChangeReleased?.(e.target.value === "all" ? "" : releaseDate(+e.target.value))}><option value="6">Last 6 months</option><option value="12">Last year</option><option value="24">Last 2 years</option><option value="all">All time</option>{releaseValue === "custom" && <option value="custom" disabled>Custom</option>}</select></div>}
     {costBasis && <div className={styles.row}><span id={`${id}-basis-label`}>Pricing</span><div className={styles.choice} role="group" aria-labelledby={`${id}-basis-label`}>{COST_BASES.map(b => <button key={b.id} type="button" aria-pressed={costBasis.value === b.id} onClick={() => costBasis.onChange(b.id)}>{b.name}</button>)}</div></div>}
     {efforts && <div className={styles.effortRow}><span id={`${id}-efforts-label`}>Reasoning effort</span><div role="group" aria-labelledby={`${id}-efforts-label`}>{EFFORT_CHOICES.map(e => { const on = efforts.value.includes(e); return <button key={e} type="button" aria-pressed={on} data-effort={e} title={e === "none" ? "Models run with no reasoning" : undefined} onClick={() => efforts.onChange(EFFORT_CHOICES.filter(x => x === e ? !on : efforts.value.includes(x)))}>{EFFORT_LABELS[e]}</button>; })}</div></div>}
     {(!efforts || efforts.withMode) && <div className={styles.row}><label htmlFor={`${id}-effort`}>{efforts ? "Show" : "Reasoning efforts"}</label><select aria-label={`${label} reasoning efforts`} id={`${id}-effort`} value={mode} onChange={e => onChange(e.target.value as "all" | "best")}><option value="all">All efforts</option><option value="best">Best per model</option></select></div>}

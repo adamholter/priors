@@ -8,7 +8,6 @@ import type { Observation, Snapshot } from "../data/types";
 import { EFFORT_ORDER } from "../data/types";
 import { computeIndex, type IndexConfig, type RankedVariant } from "../engine";
 import { supersededModelIds } from "../engine/superseded";
-import { taskMetricData } from "../data/task-metrics";
 import { outputTokensPerTask } from "../lib/metrics";
 import { resolveBenchmark, resolveLab, resolveModel, resolveVariant } from "./resolve";
 
@@ -53,7 +52,7 @@ export class DataView {
   /** Most models a top-N or lab pick returns. */
   readonly maxRows: number;
   private obs = new Map<string, Map<string, Observation>>();
-  private time; private iiId?: string;
+  private iiId?: string;
   /**
    * `pageView`: rank as the site's ranking list does, where an index nobody curated leaves out superseded versions (engine PAGE_VIEW);
    * the MCP tools use it so their tables agree with rank_models. The in-app assistant keeps every version, which effort comparisons want.
@@ -73,7 +72,6 @@ export class DataView {
       const m = this.obs.get(o.benchmarkId) ?? this.obs.set(o.benchmarkId, new Map()).get(o.benchmarkId)!;
       if (!m.has(o.variantId) && !o.details?.priorsEstimate) m.set(o.variantId, o);
     }
-    this.time = taskMetricData(snapshot, config.timeSource ?? "aa", "time");
     this.iiId = snapshot.benchmarks.filter((b) => b.id.startsWith("aa-intelligence-index")).sort((a, b) => b.id.localeCompare(a.id))[0]?.id;
   }
 
@@ -84,7 +82,7 @@ export class DataView {
     switch (metric.key) {
       case "index": return Number.isFinite(r.score) ? +r.score.toFixed(2) : null;
       case "cost": return num(r.costUsd);
-      case "time": return num(this.time.get(id)?.value);
+      case "time": return num(r.timeSec);
       case "speed": return num(r.speed);
       case "latency": return num(o("aa-ttft")?.value);
       case "tokens": { const x = this.iiId ? o(this.iiId) : undefined; return outputTokensPerTask(x?.details?.outputTokensPerTask) ?? num(x?.outputTokens); }

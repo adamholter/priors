@@ -1,8 +1,6 @@
 import { v, type Infer } from "convex/values";
 import type { IndexConfig } from "../src/engine";
 
-const taskMetricSource = v.union(v.literal("aa"), v.literal("terminalbench-4"), v.literal("deepswe-1.1"), v.literal("frontierswe-v2"));
-
 /**
  * The stored shape of an index. It must describe exactly the engine's `IndexConfig`: the assertion
  * below fails `npm run typecheck` (and therefore the Vercel build) the moment either side gains,
@@ -20,13 +18,11 @@ export const indexConfig = v.object({
   strictness: v.optional(v.number()),
   optional: v.optional(v.array(v.string())),
   rankingVariants: v.optional(v.union(v.literal("all"), v.literal("best"))),
-  costSource: v.optional(taskMetricSource),
   costBasis: v.optional(v.union(v.literal("api"), v.literal("subscription"))),
   planResets: v.optional(v.boolean()),
   freeTiers: v.optional(v.boolean()),
   planReading: v.optional(v.string()),
   subscriptionPlans: v.optional(v.record(v.string(), v.string())),
-  timeSource: v.optional(taskMetricSource),
   paretoVariants: v.optional(v.union(v.literal("all"), v.literal("best"))),
   efforts: v.optional(v.array(v.string())),
   speedTiers: v.optional(v.array(v.string())),

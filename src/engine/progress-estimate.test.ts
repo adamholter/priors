@@ -54,7 +54,7 @@ describe("release-date chart on the checked-in snapshot", () => {
 
   it("draws every model the highlight menu offers once it is highlighted, estimated when the index cannot score it", () => {
     const r = computeIndex(snap, { ...config, highlight: offered }, PAGE_VIEW);
-    const chart = metricPanels(snap, filterEfforts(r.ranked, config.efforts), "aa", filterEfforts(r.estimated, config.efforts)).find((p) => p.id === "date")!.chart!;
+    const chart = metricPanels(snap, filterEfforts(r.ranked, config.efforts), filterEfforts(r.estimated, config.efforts)).find((p) => p.id === "date")!.chart!;
     const drawn = pickPoints(chart, filterEfforts(r.ranked, config.efforts), "best");
     expect(offered.filter((id) => !drawn.some((p) => p.r.model.id === id))).toEqual([]);
     expect(drawn.filter((p) => p.r.scoreEstimate).length).toBeGreaterThan(0);

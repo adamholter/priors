@@ -264,6 +264,28 @@ describe("a list price Artificial Analysis does not use", () => {
   const prices = subscriptionPrices(snap);
   it("quotes the share of what the lab charges today", () => expect(1 / prices.get("gemini-4")!.ratio).toBeCloseTo(1.403, 2));
   it("scales a cost Artificial Analysis priced at its own list to the same tokens at the plan's price", () => expect(1 / prices.get("gemini-4")!.aaCostRatio!).toBeCloseTo(2.805, 2));
+  it("applies AA's list-price ratio to AA's own index only, and the plain ratio to any other mix", async () => {
+    // aaCostRatio rescales a cost AA priced at its own list. Only AA's whole index is priced that way: a single component,
+    // or any other publisher's mix, is a measured cost at today's list and must use the plain ratio.
+    const { loadSnapshot } = await import("./load");
+    const { computeIndex, defaultConfig } = await import("../engine");
+    const snapshot = (await loadSnapshot())!;
+    const config = { ...defaultConfig(snapshot), variants: "all" as const, costBasis: "subscription" as const };
+    const ratioOf = (weights: Record<string, number>) => {
+      const api = computeIndex(snapshot, { ...config, weights, costBasis: "api" }).ranked.find((r) => r.model.id === "gemini-4" && r.variant.effort !== "default");
+      const sub = computeIndex(snapshot, { ...config, weights }).ranked.find((r) => r.model.id === "gemini-4" && r.variant.effort !== "default");
+      return { implied: sub!.costUsd! / api!.costUsd!, plan: sub!.costPlan!, caption: sub!.costSource! };
+    };
+    // AA's whole index: the AA ratio, which differs from the plain one for this model.
+    const aa = ratioOf(config.weights);
+    expect(aa.plan.aaCostRatio).toBeDefined();
+    expect(aa.implied).toBeCloseTo(aa.plan.aaCostRatio!, 9);
+    // One evaluation of it is its own measured run, so the plain ratio applies and the caption agrees with the value.
+    const one = ratioOf({ "aa-frontiercode-2-0": 100 });
+    expect(one.implied).toBeCloseTo(one.plan.ratio, 9);
+    expect(one.implied).not.toBeCloseTo(aa.implied, 3);
+    expect(one.caption).toContain(`${Math.round(one.plan.ratio * 100)}% of API price`);
+  });
   it("gives a model borrowing the subsidy the share at full list price, not the other model's discount", () => {
     expect(1 / prices.get("gemini-4-carbon")!.ratio).toBeCloseTo(2.805, 2);
     expect(prices.get("gemini-4-carbon")!.aaCostRatio).toBeUndefined();

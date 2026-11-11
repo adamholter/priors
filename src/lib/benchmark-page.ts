@@ -38,9 +38,12 @@ export function benchmarkSnapshot(snapshot: Snapshot, benchmarkId: string): Snap
   return slim;
 }
 
+/** Whether the benchmark publishes this measured field on its own rows: what gives it a cost or time chart. */
+const publishes = (snapshot: Snapshot, benchmarkId: string, field: "costUsd" | "durationSec") =>
+  snapshot.observations.some((o) => o.benchmarkId === benchmarkId && typeof o[field] === "number" && (o[field] as number) > 0);
+
 /** Whether the benchmark publishes its own cost per task, which gives it a cost chart. */
-export const hasOwnCost = (snapshot: Snapshot, benchmarkId: string) =>
-  snapshot.observations.some((o) => o.benchmarkId === benchmarkId && typeof o.costUsd === "number" && o.costUsd > 0);
+export const hasOwnCost = (snapshot: Snapshot, benchmarkId: string) => publishes(snapshot, benchmarkId, "costUsd");
 
 /** The ranking behind a benchmark's page: only this benchmark, every model that has a result, cost from the benchmark itself. */
 export function benchmarkIndex(snapshot: Snapshot, benchmarkId: string): IndexConfig {
@@ -51,8 +54,14 @@ export function benchmarkIndex(snapshot: Snapshot, benchmarkId: string): IndexCo
   };
 }
 
-/** How to compute it: every model measured stays in (no superseded-version filter), and costs come from the benchmark itself when it publishes them. */
-export const benchmarkView = (snapshot: Snapshot, benchmarkId: string): ViewOptions => ({ ...(hasOwnCost(snapshot, benchmarkId) ? { costBenchmark: benchmarkId } : {}) });
+/** Whether the benchmark publishes its own measured run duration, which gives its time per task chart that benchmark's own figure. */
+export const hasOwnDuration = (snapshot: Snapshot, benchmarkId: string) => publishes(snapshot, benchmarkId, "durationSec");
+
+/** How to compute it: every model measured stays in (no superseded-version filter), and cost and time come from the benchmark itself when it publishes them. */
+export const benchmarkView = (snapshot: Snapshot, benchmarkId: string): ViewOptions => ({
+  ...(hasOwnCost(snapshot, benchmarkId) ? { costBenchmark: benchmarkId } : {}),
+  ...(hasOwnDuration(snapshot, benchmarkId) ? { timeBenchmark: benchmarkId } : {}),
+});
 
 /**
  * The /benchmarks directory: every measured benchmark with its model count, quality (the onboarding's score: recency,
