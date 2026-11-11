@@ -13,18 +13,21 @@ describe("kernelbench.com boards", () => {
     expect([...liveSlugs(home)].sort()).toEqual(["claude-opus-5", "claude-sonnet-5-5", "gemini-4-argon-high", "gpt-5.6-sol", "kinetic-0715", "qwen3.8-max"]);
   });
 
-  it("scores the full deck with only valid cells, as the site's chart formula does", () => {
+  it("scores each problem as a share of the best listed result, over the full deck, as the site's board ranks", () => {
     const rows = parseKernelbenchCom(index(), liveSlugs(home));
     const by = new Map(rows.map((r) => [`${r.benchmarkId}|${r.modelLabel}`, r]));
-    // CUDA: four problems; Sonnet 5.5's sparse-attention cell is 1.36 (scored against a reference latency).
+    // CUDA: four problems; Sonnet 5.5 is best on three (sparse attention 1.36 against a reference latency) and has half the best grid scan.
     expect(by.get(`${KERNELBENCH_COM.cuda.id}|Claude Sonnet 5.5`)).toMatchObject({ effort: "max", harness: "claude", labHint: "Anthropic", details: { passed: 4, total: 4 } });
-    expect(by.get(`${KERNELBENCH_COM.cuda.id}|Claude Sonnet 5.5`)!.value).toBeCloseTo(62.48, 2);
-    // Two of four passed: the failures count 0, the deck stays 4.
-    expect(by.get(`${KERNELBENCH_COM.cuda.id}|Claude Opus 5`)!.value).toBeCloseTo(50.66, 2);
-    // A reward-hack cell and an audit "bug" cell carry scores but are not valid.
-    expect(by.get(`${KERNELBENCH_COM.hard.id}|Qwen 3.8 Max`)!.value).toBeCloseTo(19.43, 2);
+    expect(by.get(`${KERNELBENCH_COM.cuda.id}|Claude Sonnet 5.5`)!.value).toBeCloseTo(87.04, 2);
+    expect(by.get(`${KERNELBENCH_COM.cuda.id}|Claude Sonnet 5.5`)!.details).toMatchObject({ rawMean: expect.closeTo(62.48, 2), best: { "04_grid_mingru_sps": 1.961 } });
+    // Opus 5 passed two of four, one of them the best grid scan (1.96): on a plain mean that one large-scale cell put it
+    // ahead of Argon (50.66 vs 27.32); scaled per problem, Argon's four passes win (53.71 vs 45.47).
+    expect(by.get(`${KERNELBENCH_COM.cuda.id}|Claude Opus 5`)!.value).toBeCloseTo(45.47, 2);
+    expect(by.get(`${KERNELBENCH_COM.cuda.id}|Gemini 4 Argon (High)`)!.value).toBeCloseTo(53.71, 2);
+    // A reward-hack cell and an audit "bug" cell carry scores but are not valid, and set no best.
+    expect(by.get(`${KERNELBENCH_COM.hard.id}|Qwen 3.8 Max`)!.value).toBeCloseTo(54.40, 2);
     expect(by.get(`${KERNELBENCH_COM.hard.id}|Qwen 3.8 Max`)!.details).toMatchObject({ passed: 4, total: 6 });
-    expect(by.get(`${KERNELBENCH_COM.cuda.id}|Kimi K3 (256k)`)!.value).toBeCloseTo(7.01, 2);
+    expect(by.get(`${KERNELBENCH_COM.cuda.id}|Kimi K3 (256k)`)!.value).toBeCloseTo(30.07, 2);
     // No effort on the board: the display name's "(High)" is kept for the normalizer.
     expect(by.get(`${KERNELBENCH_COM.cuda.id}|Gemini 4 Argon (High)`)!.effort).toBeUndefined();
   });

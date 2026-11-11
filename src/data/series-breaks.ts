@@ -18,7 +18,14 @@ export const EPOCH_ECI_BAYESIAN: SeriesBreak = {
   url: "https://epoch.ai/publications/eci-bayesian-methodology",
 };
 
-export const SERIES_BREAKS: SeriesBreak[] = [AA_PERFORMANCE_V3, EPOCH_ECI_BAYESIAN];
+/** Priors' own fix, not the publisher's: Nov 11 is the first snapshot scored the way kernelbench.com ranks its boards. */
+export const KERNELBENCH_COM_SHARE_OF_BEST: SeriesBreak = {
+  date: "2026-11-11", benchmarkIds: ["kernelbench-com-cuda", "kernelbench-com-hard"],
+  note: "From Nov 11, 2026 Priors scores each kernelbench.com problem as a share of the best model's result before averaging, as kernelbench.com ranks its boards. Earlier values are a plain mean of raw scores, where CUDA's sparse-attention problem (scored on a larger scale) decided the order. They are not comparable with later ones.",
+  url: "https://kernelbench.com/#cuda",
+};
+
+export const SERIES_BREAKS: SeriesBreak[] = [AA_PERFORMANCE_V3, EPOCH_ECI_BAYESIAN, KERNELBENCH_COM_SHARE_OF_BEST];
 
 export function breaksFor(benchmarkIds: Iterable<string>): SeriesBreak[] {
   const ids = new Set(benchmarkIds);

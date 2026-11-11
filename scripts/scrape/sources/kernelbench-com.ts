@@ -14,11 +14,14 @@
  *    can exceed 1.
  * Mega (one megakernel problem, scored as a speedup) is not read.
  *
- * The boards rank by audited passes and print each passed cell's score. One number per model is the
- * site's own chart formula (`columnsForBench` in app/_lib/models.ts): mean cell score over the full deck
- * (every problem any listed model has a cell for), counting only `valid` cells (correct and audited
- * clean); failed, flagged, unaudited or missing cells count 0. That is pass rate times the board's
- * "when ok" mean. A model whose cells on a board are all still unaudited is skipped there (pending, not 0).
+ * One number per model is the homepage deck's ranking (`DeckPanel` in app/_components/home-decks.tsx):
+ * each problem's score as a share of the best listed model's score on that problem, averaged over the full
+ * deck (every problem any listed model has a cell for). Only `valid` cells count (correct and audited
+ * clean); failed, flagged, unaudited or missing cells count 0. Scaling per problem matters on CUDA: DeepSeek
+ * NSA is scored against a reference latency (around 1.0) while the others are shares of roofline (around
+ * 0.1), so a plain mean of raw scores (the site's column charts) is decided by that one problem. The raw
+ * full-deck mean stays in `details.rawMean`, each problem's raw score and best in `details`. A model whose
+ * cells on a board are all still unaudited is skipped there (pending, not 0).
  *
  * Only the live roster counts: the homepage links each listed model at `/models/<slug>`. Retired
  * (superseded or historical) models keep their pages but are off the boards, so they are left out too.
@@ -31,9 +34,9 @@ const DATA = "https://kernelbench.com/data/models.json";
 
 export const KERNELBENCH_COM = {
   hard: { id: "kernelbench-com-hard", name: "KernelBench Hard (kernelbench.com)", shortName: "kernelbench.com Hard", page: "https://kernelbench.com/#hard",
-    description: "Coding agents write six GPU kernels (FP8 and W4A16 GEMMs, KDA, paged attention, top-k, MoE) in CUDA or Triton, one unlimited session per problem on an RTX PRO 6000, each run audited for reward hacking. Mean peak fraction of roofline over the full deck; failed, flagged or unaudited problems count 0. Independent of Stanford's KernelBench." },
+    description: "Coding agents write six GPU kernels (FP8 and W4A16 GEMMs, KDA, paged attention, top-k, MoE) in CUDA or Triton, one unlimited session per problem on an RTX PRO 6000, each run audited for reward hacking. Each problem scored as a share of the best model's result on it (peak fraction of roofline), averaged over the full deck, as kernelbench.com ranks its board; failed, flagged or unaudited problems count 0. Independent of Stanford's KernelBench." },
   cuda: { id: "kernelbench-com-cuda", name: "KernelBench CUDA (kernelbench.com)", shortName: "kernelbench.com CUDA", page: "https://kernelbench.com/#cuda",
-    description: "Coding agents write four CUDA-only GPU kernels (GLM-5.2 fused MoE, DeepSeek sparse attention, MegaQwen decode, grid MinGRU scan) where Triton and other DSLs fail, one unlimited session per problem on an RTX PRO 6000, each run audited for reward hacking. Mean per-problem score over the full deck (peak fraction of roofline; sparse attention against a reference latency, so it can exceed 100%); failed, flagged or unaudited problems count 0. Independent of Stanford's KernelBench." },
+    description: "Coding agents write four CUDA-only GPU kernels (GLM-5.2 fused MoE, DeepSeek sparse attention, MegaQwen decode, grid MinGRU scan) where Triton and other DSLs fail, one unlimited session per problem on an RTX PRO 6000, each run audited for reward hacking. Each problem scored as a share of the best model's result on it (peak fraction of roofline; sparse attention against a reference latency), averaged over the full deck, as kernelbench.com ranks its board, so no one problem's scale decides the mean; failed, flagged or unaudited problems count 0. Independent of Stanford's KernelBench." },
 } as const;
 type Deck = keyof typeof KERNELBENCH_COM;
 
@@ -56,17 +59,20 @@ export function parseKernelbenchCom(index: KernelbenchIndex, roster: Set<string>
     if (!index.benches[deck]) throw new Error(`kernelbench.com models.json has no ${deck} bench`);
     const live = index.models.filter((m) => roster.has(m.slug) && Object.keys(m.benches[deck]?.cells ?? {}).length);
     const problems = [...new Set(live.flatMap((m) => Object.keys(m.benches[deck]!.cells)))].sort();
+    const validScore = (m: ModelEntry, p: string) => { const c = m.benches[deck]!.cells[p]; return c?.valid && c.score != null ? c.score : null; };
+    const best = Object.fromEntries(problems.map((p) => [p, Math.max(0, ...live.map((m) => validScore(m, p) ?? 0))]));
     for (const m of live) {
       const blk = m.benches[deck]!, cells = Object.entries(blk.cells);
       if (cells.every(([, c]) => (c.verdict || "unaudited") === "unaudited")) continue;
-      const scores = Object.fromEntries(problems.map((p) => { const c = blk.cells[p]; return [p, c?.valid && c.score != null ? c.score : null]; }));
-      const value = (100 * Object.values(scores).reduce<number>((s, v) => s + (v ?? 0), 0)) / problems.length;
+      const scores = Object.fromEntries(problems.map((p) => [p, validScore(m, p)]));
+      const value = (100 * problems.reduce((s, p) => s + (scores[p] != null && best[p] > 0 ? scores[p]! / best[p] : 0), 0)) / problems.length;
+      const rawMean = (100 * Object.values(scores).reduce<number>((s, v) => s + (v ?? 0), 0)) / problems.length;
       const passed = Object.values(scores).filter((v) => v != null).length;
       rows.push({
         benchmarkId: b.id, modelLabel: m.name, effort: blk.effort || undefined, value, sourceUrl: b.page,
         labHint: m.lab || undefined, harness: blk.harness || undefined, sourceModelId: m.slug,
         note: `${m.name}${blk.effort ? ` (${blk.effort})` : ""} · ${passed}/${problems.length} valid passes · harness ${blk.harness ?? "?"} · RTX PRO 6000`,
-        details: { passed, total: problems.length, scores, harness: blk.harness, sourceLabel: blk.label, audited: m.totals?.audited, flagged: m.totals?.flagged },
+        details: { passed, total: problems.length, scores, best, rawMean, harness: blk.harness, sourceLabel: blk.label, audited: m.totals?.audited, flagged: m.totals?.flagged },
       });
     }
     if (!rows.some((r) => r.benchmarkId === b.id)) throw new Error(`kernelbench.com ${deck} board had no rows`);
