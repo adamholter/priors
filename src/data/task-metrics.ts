@@ -7,7 +7,7 @@ export type TaskMetricSource = "aa" | "terminalbench-4" | "deepswe-1.1" | "front
 export type TaskMetric = "cost" | "time";
 export const TASK_METRIC_SOURCES: { id: TaskMetricSource; name: string }[] = [
   { id: "aa", name: "Artificial Analysis" },
-  { id: "terminalbench-4", name: "Terminal-Bench 4.0" },
+  { id: "terminalbench-4", name: "Terminal-Bench 4" },
   { id: "deepswe-1.1", name: "DeepSWE 1.1" },
   { id: "frontierswe-v2", name: "FrontierSWE v2" },
 ];
@@ -19,8 +19,8 @@ export function isTaskMetricSource(value: string): value is TaskMetricSource {
 /** `date` is the snapshot's: older snapshots keep the description of the method they were measured with. */
 export function taskMetricDescription(source: TaskMetricSource, metric: TaskMetric, date?: string): string {
   if (source === "terminalbench-4") return metric === "cost"
-    ? "Terminal-Bench 4.0 · average cost per trial, including unsuccessful trials"
-    : "Terminal-Bench 4.0 · average trial duration, including unsuccessful trials";
+    ? "Terminal-Bench 4 · average cost per trial, including unsuccessful trials (4.1 re-grades 4.0's trials, so both share them)"
+    : "Terminal-Bench 4 · average trial duration, including unsuccessful trials (4.1 re-grades 4.0's trials, so both share them)";
   if (source === "deepswe-1.1") return metric === "cost"
     ? "DeepSWE 1.1 · average cost per task run, mini-swe-agent"
     : "DeepSWE 1.1 · average task-run duration, mini-swe-agent";
@@ -45,8 +45,15 @@ export const hasSubscriptionPrices = (snapshot: Snapshot) => snapshot.benchmarks
 
 /** Measurements only. Match the same model, effort and configuration, including legacy aliases. */
 /** `source` is a task-metric source, or any benchmark id whose observations carry their own `costUsd` / `durationSec`. */
+/**
+ * The task-metric source "terminalbench-4" (the id saved links and Convex carry) reads tbench.ai's current 4.x board: 4.1
+ * re-grades 4.0's trials, so cost and duration per trial are the same, and only tbench.ai publishes them per trial
+ * (Harbor Hub's 4.0 table has totals). Snapshots from before 4.1 read 4.0.
+ */
+const tbBoard = (snapshot: Snapshot) => snapshot.benchmarks.some((b) => b.id === "terminalbench-4.1") ? "terminalbench-4.1" : "terminalbench-4";
+
 export function taskMetricData(snapshot: Snapshot, source: string, metric: TaskMetric) {
-  const benchmarkId = source !== "aa" ? source : metric === "cost" ? "aa-cost-per-task-index"
+  const benchmarkId = source === "terminalbench-4" ? tbBoard(snapshot) : source !== "aa" ? source : metric === "cost" ? "aa-cost-per-task-index"
     : snapshot.benchmarks.filter((b) => b.id.startsWith("aa-intelligence-index")).sort((a, b) => b.id.localeCompare(a.id))[0]?.id;
   const rows = new Map<string, { value: number; observation: Observation }>();
   for (const o of benchmarkId === undefined ? [] : observationsOf(snapshot, benchmarkId)) {

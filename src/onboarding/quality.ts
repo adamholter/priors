@@ -12,7 +12,7 @@ export const QUALITY_WEIGHTS = { breadth: 0.15, frontier: 0.15, recency: 0.2, sa
 export const QUALITY_ADJUST = { preferred: 15, superseded: -25, staleFrontier: -20 } as const;
 export const BREADTH_FULL_AT = 40;
 
-export const SUPERSEDED = new Set(["aa-terminalbench-v2-1", "arc-agi-1", "arc-agi-2", "deepswe-1", "aa-math-500", "aa-humanitys-last-exam"]);
+export const SUPERSEDED = new Set(["aa-terminalbench-v2-1", "terminalbench-4", "arc-agi-1", "arc-agi-2", "deepswe-1", "aa-math-500", "aa-humanitys-last-exam"]);
 
 export interface BenchmarkQuality {
   id: string;
@@ -57,6 +57,7 @@ const RELEASES: Record<string, { date: string; url: string }> = {
   "terminalbench-2": { date: "2025-11-07", url: "https://github.com/laude-institute/terminal-bench-2" },
   "terminalbench-2.1": { date: "2026-01-26", url: "https://github.com/harbor-framework/terminal-bench-2-1" },
   "terminalbench-4": { date: "2026-08-01", url: "https://www.tbench.ai/" },
+  "terminalbench-4.1": { date: "2026-11-09", url: "https://x.com/ryan_marten/status/2119845012032876605" },
   "weirdml-v2": { date: "2025-05-01", url: "https://htihle.github.io/weirdml_v2.html" },
   "vendingbench-2": { date: "2025-11-18", url: "https://andonlabs.com/evals/vending-bench-2" },
   "vendingbench-arena": { date: "2025-11-18", url: "https://andonlabs.com/evals/vending-bench-arena" },
@@ -95,6 +96,7 @@ const RELEASES: Record<string, { date: string; url: string }> = {
 const SOURCE_URLS: Record<string, string> = {
   "deepswe-1.1": "https://deepswe.datacurve.ai/",
   "terminalbench-4": "https://www.tbench.ai/",
+  "terminalbench-4.1": "https://www.tbench.ai/",
   "arc-agi-3": "https://arcprize.org/blog/arc-agi-3-launch",
   simplebench: "https://simple-bench.com/",
   "bsbench-v2": "https://petergpt.github.io/bullshit-benchmark/viewer/index.v2.html",
@@ -106,6 +108,7 @@ const SOURCE_URLS: Record<string, string> = {
 const OBJECTIVITY: Record<string, number> = {
   "deepswe-1.1": 96,
   "terminalbench-4": 92,
+  "terminalbench-4.1": 93,
   "arc-agi-3": 90,
   simplebench: 86,
   "bsbench-v2": 65,

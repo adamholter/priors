@@ -47,6 +47,13 @@ describe("task metric sources", () => {
     expect(taskMetricData(s, "terminalbench-4", "time").modelCount).toBe(1);
     expect(taskMetricData(s, "terminalbench-4", "time").get("a@low")).toBeUndefined();
   });
+  it("reads Terminal-Bench 4.1's trials once the snapshot has them, and 4.0's before", () => {
+    const tb41 = { ...snapshot.benchmarks[0], id: "terminalbench-4.1" };
+    const s = { ...snapshot, benchmarks: [...snapshot.benchmarks, tb41], observations: [...snapshot.observations, obs("terminalbench-4.1", "b@high", 61, { costUsd: 5, durationSec: 700 })] };
+    expect(taskMetricData(s, "terminalbench-4", "cost").get("b@high")?.value).toBe(5);
+    expect(taskMetricData(s, "terminalbench-4", "cost").get("a@high")).toBeUndefined();
+    expect(taskMetricData(snapshot, "terminalbench-4", "cost").get("a@high")?.value).toBe(8);
+  });
   it("preserves the selected harness and exact effort without source fallback", () => {
     const data = taskMetricData(snapshot, "terminalbench-4", "cost");
     expect(data.get("a@high")?.value).toBe(8);
