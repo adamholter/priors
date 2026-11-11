@@ -47,8 +47,7 @@ export const hasSubscriptionPrices = (snapshot: Snapshot) => snapshot.benchmarks
 /** `source` is a task-metric source, or any benchmark id whose observations carry their own `costUsd` / `durationSec`. */
 /**
  * The task-metric source "terminalbench-4" (the id saved links and Convex carry) reads tbench.ai's current 4.x board: 4.1
- * re-grades 4.0's trials, so cost and duration per trial are the same, and only tbench.ai publishes them per trial
- * (Harbor Hub's 4.0 table has totals). Snapshots from before 4.1 read 4.0.
+ * re-grades 4.0's trials, so cost and duration per trial are the same. Snapshots from before 4.1 read 4.0.
  */
 const tbBoard = (snapshot: Snapshot) => snapshot.benchmarks.some((b) => b.id === "terminalbench-4.1") ? "terminalbench-4.1" : "terminalbench-4";
 

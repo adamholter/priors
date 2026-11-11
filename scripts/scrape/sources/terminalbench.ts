@@ -2,13 +2,15 @@
  * Terminal-Bench (Laude Institute / Stanford). tbench.ai publishes only the current version (4.1 since
  * 2026-11-09); the page embeds a react-query dehydrated state (leaderboard + rows) in its RSC payload.
  * The benchmark id follows the leaderboard's title, so a new version gets its own id instead of
- * overwriting the last one. Older leaderboards (4.0, 2.1, 2.0) remain published on Harbor Hub,
- * rendered client-side, so we read their tables with Playwright (best effort; failures there do not
- * fail the source).
+ * overwriting the last one. 4.0, which tbench.ai no longer shows, is read from a frozen copy of its
+ * last published board (`frozen/terminalbench-4.0.json`, per-trial cost and duration included). Older
+ * leaderboards (2.1, 2.0) remain published on Harbor Hub, rendered client-side, so we read their tables
+ * with Playwright (best effort; failures there do not fail the source).
  */
 import type { Source, ScrapeResult, RawRow, Benchmark } from "../../../src/data/types";
 import { num, ci as parseCi } from "../harness";
 import { rscText, extractKeyed } from "./_rsc";
+import frozen40 from "./frozen/terminalbench-4.0.json";
 
 const SITE = "https://www.tbench.ai/";
 const HUB = "https://hub.harborframework.com";
@@ -35,8 +37,37 @@ const MAIN: Record<string, { id: string; supersedes: string; desc: string }> = {
   "4.1": { id: "terminalbench-4.1", supersedes: "terminalbench-4", desc: `Resolution rate of agent+model systems on ${TASKS_4} 4.1 re-grades 4.0's trials with updated verifiers that resist reward hacking and cut false negatives (about 1% of rewards flipped).` },
 };
 
-const OLDER: { slug: string; hubPath: string; name: string; desc: string; supersedes?: string }[] = [
-  { slug: "terminalbench-4", hubPath: "terminal-bench/terminal-bench/4.0.0", name: "Terminal-Bench 4.0", desc: `Terminal-Bench 4.0: resolution rate of agent+model systems on ${TASKS_4} Kept for time travel; 4.1 re-grades the same trials.`, supersedes: "terminalbench-2.1" },
+/** A tbench.ai board's rows: displayed rows only, best first, cost and tokens as per-trial averages. */
+function boardRows(state: TbState, benchmarkId: string, sourceUrl: string): RawRow[] {
+  const sorted = [...state.rows].filter((r) => (r.status ?? "display") === "display").sort((a, b) => b.metrics.accuracy - a.metrics.accuracy);
+  return sorted.map((r) => {
+    const acc = r.metrics.accuracy, half = r.metrics.accuracy_ci95_half_width;
+    const trials = r.metrics.n_trials;
+    return {
+      benchmarkId,
+      modelLabel: r.metadata.model_display?.label ?? "",
+      effort: r.metadata.reasoning_effort || undefined,
+      value: acc,
+      ci: half != null ? [acc - half, acc + half] : undefined,
+      costUsd: r.metrics.total_cost_usd != null && trials ? r.metrics.total_cost_usd / trials : undefined,
+      outputTokens: r.metrics.output_tokens != null && trials ? Math.round(r.metrics.output_tokens / trials) : undefined,
+      durationSec: r.metrics.avg_trial_duration_sec ?? undefined,
+      harness: r.metadata.agent_display?.label,
+      rank: r.rank,
+      sourceUrl,
+      labHint: r.metadata.model_org?.label,
+      releaseDateHint: r.metadata.date,
+      note: trials ? `${trials} trials; cost/tokens are per-trial averages of published totals` : undefined,
+    };
+  });
+}
+
+/** Boards tbench.ai has replaced, kept from their last published state. */
+const FROZEN: { version: string; state: TbState; url: string }[] = [
+  { version: "4.0", state: frozen40 as unknown as TbState, url: "https://web.archive.org/web/20261104231714/https://www.tbench.ai/" },
+];
+
+const OLDER: { slug: string; hubPath: string; name: string; desc: string }[] = [
   { slug: "terminalbench-2.1", hubPath: "terminal-bench/terminal-bench-2-1/latest", name: "Terminal-Bench 2.1", desc: "Terminal-Bench 2.1 (verified revision of 2.0): task resolution rate for agent+model pairs on terminal tasks. Kept for time travel." },
   { slug: "terminalbench-2", hubPath: "terminal-bench/terminal-bench-2/latest", name: "Terminal-Bench 2.0", desc: "Terminal-Bench 2.0: task resolution rate for agent+model pairs on 89 terminal tasks. Kept for time travel." },
 ];
@@ -63,28 +94,9 @@ const source: Source = {
     // An unknown version must not land under the last one's id: fail the source (its previous rows are kept) until it is added to MAIN.
     const main = MAIN[version];
     if (!main) throw new Error(`Terminal-Bench: main leaderboard is "${title}"; add version ${version || "?"} to MAIN in terminalbench.ts`);
-    const sorted = [...state.rows].filter((r) => (r.status ?? "display") === "display").sort((a, b) => b.metrics.accuracy - a.metrics.accuracy);
-    for (const r of sorted) {
-      const acc = r.metrics.accuracy, half = r.metrics.accuracy_ci95_half_width;
-      const trials = r.metrics.n_trials;
-      rows.push({
-        benchmarkId: main.id,
-        modelLabel: r.metadata.model_display?.label ?? "",
-        effort: r.metadata.reasoning_effort || undefined,
-        value: acc,
-        ci: half != null ? [acc - half, acc + half] : undefined,
-        costUsd: r.metrics.total_cost_usd != null && trials ? r.metrics.total_cost_usd / trials : undefined,
-        outputTokens: r.metrics.output_tokens != null && trials ? Math.round(r.metrics.output_tokens / trials) : undefined,
-        durationSec: r.metrics.avg_trial_duration_sec ?? undefined,
-        harness: r.metadata.agent_display?.label,
-        rank: r.rank,
-        sourceUrl: SITE,
-        labHint: r.metadata.model_org?.label,
-        releaseDateHint: r.metadata.date,
-        note: trials ? `${trials} trials; cost/tokens are per-trial averages of published totals` : undefined,
-      });
-    }
-    notes.push(`${version}: ${sorted.length} rows`);
+    const current = boardRows(state, main.id, SITE);
+    rows.push(...current);
+    notes.push(`${version}: ${current.length} rows`);
     benchmarks.push({
       id: main.id, name: `Terminal-Bench ${version}`, shortName: `TB ${version}`, sourceId: this.id, url: SITE,
       description: main.desc,
@@ -92,9 +104,23 @@ const source: Source = {
       versionPolicy: { kind: "fresh", supersedes: main.supersedes }, eligibleForDefault: true, defaultWeight: 25,
     });
 
+    // ---- replaced versions, from their frozen last board
+    for (const f of FROZEN) {
+      const m = MAIN[f.version];
+      if (m.id === main.id) continue;
+      const frozenRows = boardRows(f.state, m.id, f.url);
+      rows.push(...frozenRows);
+      benchmarks.push({
+        id: m.id, name: `Terminal-Bench ${f.version}`, shortName: `TB ${f.version}`, sourceId: this.id, url: f.url,
+        description: `${m.desc} tbench.ai's last published ${f.version} board, kept for time travel.`,
+        unit: "percent", higherIsBetter: true, category: "agentic",
+        versionPolicy: { kind: "fresh", supersedes: m.supersedes }, eligibleForDefault: false, defaultWeight: 0,
+      });
+      notes.push(`${f.version} (frozen): ${frozenRows.length} rows`);
+    }
+
     // ---- older versions on Harbor Hub (client rendered)
     for (const old of OLDER) {
-      if (old.slug === main.id) continue;
       const url = `${HUB}/datasets/${old.hubPath}?tab=leaderboard`;
       try {
         const table = await ctx.withPage(url, async (page) => {
@@ -130,7 +156,7 @@ const source: Source = {
         }
         benchmarks.push({
           id: old.slug, name: old.name, sourceId: this.id, url, description: old.desc,
-          unit: "percent", higherIsBetter: true, category: "agentic", versionPolicy: { kind: "fresh", supersedes: old.supersedes }, eligibleForDefault: false, defaultWeight: 0,
+          unit: "percent", higherIsBetter: true, category: "agentic", versionPolicy: { kind: "fresh" }, eligibleForDefault: false, defaultWeight: 0,
         });
         notes.push(`${old.name}: ${n} rows`);
       } catch (e) {
