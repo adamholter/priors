@@ -15,8 +15,14 @@ const errors = [];
 const checks = [];
 // One run reports every failure: stopping at the first let each red check hide the next for days.
 const failures = [];
+// SHARD="i/n" (e2e.mjs runs n of these at once against one server): the checks that drive the shared builder `page`,
+// between `sharedPage = true` and `sharedPage = false` below, stay together and in order in shard 0; every other check
+// opens its own context and is dealt round-robin to shards 1..n-1. A new check that uses `page` goes inside that block.
+const [SHARD_I, SHARD_N] = (process.env.SHARD ?? "0/1").split("/").map(Number);
+let sharedPage = false, dealt = 0;
+const inShard = () => SHARD_N <= 1 || (sharedPage ? SHARD_I === 0 : (dealt++ % (SHARD_N - 1)) + 1 === SHARD_I);
 // ONLY="part of a check's name" runs just the matching checks while working on one.
-const check = async (name, fn) => { if (process.env.ONLY && !name.includes(process.env.ONLY)) return; try { await fn(); checks.push(name); } catch (e) { failures.push(`${name}: ${e.message}`); console.error(`FAIL ${name}: ${e.message}`); } };
+const check = async (name, fn) => { if (!inShard()) return; if (process.env.ONLY && !name.includes(process.env.ONLY)) return; try { await fn(); checks.push(name); } catch (e) { failures.push(`${name}: ${e.message}`); console.error(`FAIL ${name}: ${e.message}`); } };
 
 try {
   const page = await (await browser.newContext({ viewport: { width: 1440, height: 1000 } })).newPage();
@@ -353,6 +359,7 @@ try {
     } finally { await context.close(); }
   });
 
+  sharedPage = true; // from here to `sharedPage = false`, checks share the builder `page` and run in order in shard 0
   await check("site settings opens as a named modal and Escape restores focus", async () => {
     const trigger = page.getByRole("button", { name: "Settings", exact: true });
     await trigger.focus();
@@ -941,6 +948,8 @@ try {
     await page.locator(".ranking-list [data-k]").first().waitFor({ timeout: 30000 });
   });
 
+  sharedPage = false;
+
   await check("compare: a phone gets the matched table, not the slope", async () => {
     const m = await (await browser.newContext({ viewport: { width: 390, height: 844 } })).newPage();
     m.on("pageerror", (e) => errors.push(`${m.url()}: ${e.message}`));
@@ -1517,7 +1526,7 @@ try {
 
   assert.deepEqual(failures, [], `${failures.length} of ${failures.length + checks.length} checks failed`);
   assert.deepEqual(errors, [], "no page errors");
-  console.log(`PASS interactions: ${checks.length} checks\n  ${checks.join("\n  ")}`);
+  console.log(`PASS interactions${SHARD_N > 1 ? ` shard ${SHARD_I}/${SHARD_N}` : ""}: ${checks.length} checks\n  ${checks.join("\n  ")}`);
 } finally {
   await browser.close();
 }

@@ -124,7 +124,8 @@ LOCKDIR=${TMPDIR:-/tmp}/priors-scrape.lock
 trap '[ "$(cat "$LOCKDIR/pid" 2>/dev/null)" = "$$" ] && rm -rf "$LOCKDIR"' EXIT
 LOG=$(mktemp "${TMPDIR:-/tmp}/priors-scrape.XXXXXX") || exit 1
 # --no-library: the library (the slow part) is built below, once, and only if the data changed.
-if ! npx tsx scripts/scrape/build.ts --date "$DATE" --no-library 2>&1 | tee "$LOG"; then
+# PRIORS_SCRAPE_ONLY (scrape-now.sh with source ids) scrapes just those sources; the build carries the rest from the live snapshot.
+if ! npx tsx scripts/scrape/build.ts --date "$DATE" --no-library ${PRIORS_SCRAPE_ONLY:+--only "$PRIORS_SCRAPE_ONLY"} 2>&1 | tee "$LOG"; then
   notify "Priors scrape failed for $DATE — see logs/scrape.log"
   exit 1
 fi

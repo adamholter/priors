@@ -3,6 +3,8 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   allowedDevOrigins: ["127.0.0.1", "localhost"],
   typedRoutes: true,
+  // tsc already runs in `npm run ci` and beside the build in `build:checked` (Vercel, pre-push); next build repeating it cost ~15s a deploy.
+  typescript: { ignoreBuildErrors: true },
   serverExternalPackages: ["@resvg/resvg-js"],
   ...(process.env.PRIORS_CLOUDFLARE === "1" ? {
     turbopack: { resolveAlias: { "@/lib/rasterize": "./src/lib/rasterize-cloudflare.ts" } },

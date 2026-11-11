@@ -3,8 +3,12 @@ unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_PREFIX
 # Runs what GitHub CI runs before a push to main, under CI's conditions, so CI passes first try: the exact commit being
 # pushed, in a clean checkout, with no .env.local and no app keys in the environment (a working tree with keys hides
 # failures: a header that only wraps with sign-in off stayed red on CI for days).
-#   check job: npm run ci (also the first step of every Vercel build, so a red ci is a failed, billed deploy)
+#   check job: npm run ci (also part of every Vercel build, so a red ci is a failed, billed deploy)
 #   e2e job:   npm run build, then npm run e2e (smoke + interactions against the production build)
+# Here both run as Vercel runs them: `npm run build:checked` (tests, tsc, eslint and the history archive side by side,
+# then next build), then `npm run e2e` (smoke and the interaction shards side by side).
+# Once the push lands, the scrape job is started at once (scripts/ops/scrape-now.sh --after-push), so a new or fixed
+# source is live in about a minute instead of at the next 15-minute run.
 # Data-only pushes (scrape, snapshots) skip it, like Vercel's ignoreCommand does.
 # PRIORS_PUSH_SKIP_E2E=1 skips the build and browser checks (ci still runs); CI will still run them.
 # Wired by `git config core.hooksPath .githooks`, relative so it resolves in every worktree.
@@ -28,13 +32,18 @@ while read -r _ local_sha remote_ref remote_sha; do
     clean npm ci --no-audit --no-fund >>"$log" 2>&1 || fail "npm ci"
     echo "$lock" > node_modules/.prepush-lock
   fi
-  echo "pre-push: 1/3 npm run ci (GitHub check job, Vercel's first step)..." >&2
-  clean npm run ci >>"$log" 2>&1 || fail "npm run ci"
-  [ -n "${PRIORS_PUSH_SKIP_E2E:-}" ] && { echo "pre-push: skipping build and e2e (PRIORS_PUSH_SKIP_E2E)" >&2; continue; }
-  echo "pre-push: 2/3 npm run build (GitHub e2e job, Vercel build)..." >&2
-  clean npm run build >>"$log" 2>&1 || fail "npm run build"
-  echo "pre-push: 3/3 npm run e2e (smoke + interactions on the production build)..." >&2
-  clean npm run e2e >>"$log" 2>&1 || fail "npm run e2e"
-  echo "pre-push: all CI checks passed under CI's conditions" >&2
+  start=$(date +%s)
+  if [ -n "${PRIORS_PUSH_SKIP_E2E:-}" ]; then
+    echo "pre-push: npm run ci (skipping build and e2e: PRIORS_PUSH_SKIP_E2E)..." >&2
+    clean npm run ci >>"$log" 2>&1 || fail "npm run ci"
+  else
+    echo "pre-push: 1/2 npm run build:checked (tests, tsc, eslint, history beside each other, then next build: Vercel's build)..." >&2
+    clean npm run build:checked >>"$log" 2>&1 || fail "npm run build:checked"
+    echo "pre-push: 2/2 npm run e2e (smoke + interaction shards on the production build)..." >&2
+    clean npm run e2e >>"$log" 2>&1 || fail "npm run e2e"
+  fi
+  echo "pre-push: all CI checks passed under CI's conditions in $(( $(date +%s) - start ))s" >&2
+  # Start the scrape as soon as origin/main has this commit (detached: the push is still running when this hook ends).
+  [ -x scripts/ops/scrape-now.sh ] && nohup "$root/scripts/ops/scrape-now.sh" --after-push "$local_sha" </dev/null >/dev/null 2>&1 &
 done
 exit 0
