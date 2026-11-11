@@ -423,6 +423,29 @@ try {
     } finally { await c.context().close(); }
   });
 
+  await check("Subscription plans > Fable 5.2's plan rate defaults to the shared limit and switches to Fable only in the link", async () => {
+    const c = await (await browser.newContext({ viewport: { width: 1440, height: 1000 } })).newPage();
+    try {
+      await c.goto(`${BASE}/builder`, { waitUntil: "domcontentloaded" });
+      await c.locator(".ranking-list [data-k]").first().waitFor({ timeout: 30000 });
+      const picker = c.locator("details", { has: c.locator("summary[aria-label='Pareto settings']") }).first();
+      await picker.scrollIntoViewIfNeeded();
+      await picker.locator("summary[aria-label='Pareto settings']").click();
+      const menu = picker.locator(".chart-settings-menu");
+      await menu.getByRole("tab", { name: "Data" }).click();
+      await menu.locator("summary", { hasText: "Subscription plans" }).click();
+      const group = menu.getByRole("group", { name: /plan rate$/ });
+      if (!(await group.count())) return; // a snapshot with no second reading shows no switch
+      assert.equal(await group.getByRole("button", { name: "Shared limit" }).getAttribute("aria-pressed"), "true", "shared limit is the default");
+      assert.ok(/Fable stops at half/.test(await menu.locator("dl").filter({ hasText: "Fable only" }).innerText()), "each reading has its line, with the half-week note");
+      await group.getByRole("button", { name: "Fable only" }).click();
+      await c.waitForFunction(() => decodeURIComponent(location.href).includes("reading=own"));
+      if (process.env.SHOT_DIR) await menu.screenshot({ path: `${process.env.SHOT_DIR}/plan-reading.png` });
+      await group.getByRole("button", { name: "Shared limit" }).click();
+      await c.waitForFunction(() => !decodeURIComponent(location.href).includes("reading="));
+    } finally { await c.context().close(); }
+  });
+
   await check("Subscription plans > Count limit resets is off by default, switches on in the link and remembers it", async () => {
     const c = await (await browser.newContext({ viewport: { width: 1440, height: 1000 } })).newPage();
     try {
