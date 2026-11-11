@@ -266,6 +266,20 @@ header:has(.account-menu > [aria-expanded="true"]) { z-index: 60; }
 .assistant-edge.is-left:hover, .assistant-edge.is-left:active { background: linear-gradient(var(--indigo), var(--indigo)) left / 2px 100% no-repeat; opacity: .7; }
 .assistant-edge.is-corner:hover, .assistant-edge.is-corner:active, .assistant-edge.is-corner:focus-visible { border-top: 2px solid var(--indigo); border-left: 2px solid var(--indigo); opacity: .7; outline: none; }
 .assistant-toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 60; padding: 8px 14px; border: 1px solid var(--hair); border-radius: 8px; background: var(--white); color: var(--ink); font-size: 13px; box-shadow: 0 12px 32px -14px var(--shadow); }
+/* Benchmark version notices (VersionNotices.tsx): bottom left, clear of the assistant button. */
+.version-notice { position: fixed; left: 20px; bottom: 20px; z-index: 44; width: min(380px, calc(100vw - 40px)); padding: 12px 36px 11px 14px; border: 1px solid var(--hair); border-radius: 8px; background: var(--white); color: var(--ink-2); font-size: 13px; line-height: 1.45; box-shadow: 0 12px 32px -14px var(--shadow); animation: version-notice-in .2s cubic-bezier(.16,1,.3,1) both; }
+.version-notice-close { position: absolute; top: 7px; right: 7px; display: grid; place-items: center; width: 24px; height: 24px; border: 0; border-radius: 4px; background: transparent; color: var(--grey); }
+.version-notice-close:hover { color: var(--ink); background: var(--bone); }
+.version-notice-actions { display: flex; align-items: center; gap: 12px; margin-top: 10px; }
+.version-notice-actions .btn { padding: 4px 12px; }
+.version-notice-actions .btn:disabled { opacity: .6; cursor: default; }
+.version-notice-off { margin-left: auto; padding: 2px 0; border: 0; background: none; color: var(--grey); font-size: 11px; }
+.version-notice-off:hover { color: var(--ink-2); text-decoration: underline; }
+.version-notice-error { margin-top: 6px; color: var(--ink); font-size: 12px; }
+.version-notice :focus-visible { outline: 2px solid var(--indigo); outline-offset: 2px; }
+@keyframes version-notice-in { from { opacity: 0; transform: translateY(6px); } }
+@media (max-width: 640px) { .version-notice { left: 12px; right: 74px; bottom: 14px; width: auto; } }
+@media (prefers-reduced-motion: reduce) { .version-notice { animation: none; } }
 .assistant-icon:disabled { opacity: .4; }
 .assistant-chart figcaption .assistant-chart-expand { width: 22px; height: 22px; margin: -3px -4px -3px 0; }
 @media (max-width: 640px) { .assistant-fab { right: 14px; bottom: 14px; } .assistant-panel, .assistant-panel.is-sized { right: 8px; left: 8px; bottom: 8px; width: auto; height: auto; max-height: min(78dvh, 620px); } .assistant-edge { display: none; } }

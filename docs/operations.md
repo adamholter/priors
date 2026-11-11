@@ -104,5 +104,6 @@ All keys are prefixed `priors:`.
 | `assistant-chat:<userId>` | The assistant conversation (last 40 turns, no Undo), so it survives reloads; Clear removes it |
 | `resume` | Google account id for silent re-sign-in |
 | `chart-grid` | The viewer's Background grid choice, for every chart. Unset, charts follow the theme. |
+| `version-notices`, `version-notices-dismissed` | Benchmark version notices turned off (`off`), and the notices dismissed or acted on. See `docs/pages-and-sharing.md` |
 
 `localStorage`, not `sessionStorage`, for anything that must survive sign-in: the OAuth round trip leaves the origin.

@@ -6,6 +6,8 @@ import Link from "next/link";
 import { HeaderAccount } from "@/components/AccountMenu";
 import type { ProfileTheme, Section } from "../../../convex/validators";
 import { MixAssistant } from "../MixAssistant";
+import { VersionNotices, type PageNotices } from "../VersionNotices";
+import { upgradeIndex } from "@/lib/version-notices";
 import { SettingsButton } from "../SiteSettings";
 import { Fragment, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { Snapshot } from "@/data/types";
@@ -129,6 +131,7 @@ export function IndexPage({ profile, snapshot, edit, tab: linkedTab, linkedHighl
   };
   const [isOwner, setIsOwner] = useState(false);
   const onOwner = useCallback((o: boolean) => setIsOwner(o), []);
+  const ownerNotices = useMemo<PageNotices>(() => ({ handle: p.handle, onApplied: (upgrades) => setP((prev) => ({ ...prev, indices: prev.indices.map((i) => upgrades.has(i.id) ? upgradeIndex(i, upgrades.get(i.id)!) : i) })) }), [p.handle, setP]);
   // For the owner, each index remembers the page index it came from, so saving from the builder updates that one
   // even after a rename. The key makes the reference good for this tab only (see FromPage); visitors get a plain link.
   const [pageKey] = useState(() => crypto.randomUUID().replace(/-/g, ""));
@@ -348,6 +351,8 @@ export function IndexPage({ profile, snapshot, edit, tab: linkedTab, linkedHighl
         </footer>
       </main>
       {active && <MixAssistant config={active} date={snapshot.date} handle={p.handle} onApply={(next) => setP({ ...p, indices: p.indices.map((x) => x.id === next.id ? next : x) })} />}
+      {/* The owner's own page: benchmark version notices, saved through profiles.update and mirrored here. Kept out of the way while editing. */}
+      {isOwner && <VersionNotices benchmarks={snapshot.benchmarks} page={ownerNotices} hidden={editing} />}
     </div>
     </ChartPaletteContext.Provider>
   );
