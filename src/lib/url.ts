@@ -48,6 +48,7 @@ export function encodeIndex(c: FromPage, keepPage = false): string {
   if (c.costBasis === "api") parts.push(`costbasis=${c.costBasis}`);
   if (c.planResets === true) parts.push("resets=on");
   if (c.freeTiers === false) parts.push("free=off");
+  if (c.planReading && /^[a-z0-9-]{1,24}$/.test(c.planReading)) parts.push(`reading=${c.planReading}`);
   if (c.subscriptionPlans && Object.keys(c.subscriptionPlans).length) parts.push(`plans=${Object.entries(c.subscriptionPlans).sort(([a], [b]) => a.localeCompare(b)).map(([lab, plan]) => `${lab}:${encodeURIComponent(plan)}`).join(",")}`);
   if (c.timeSource && c.timeSource !== "aa") parts.push(`timesrc=${c.timeSource}`);
   if (c.focus) parts.push(`focus=${c.focus}`);
@@ -103,6 +104,7 @@ export function decodeIndex(s: string, id: string): IndexConfig | null {
     else if (k === "costbasis" && isCostBasis(v)) c.costBasis = v;
     else if (k === "resets" && v === "on") c.planResets = true;
     else if (k === "free" && v === "off") c.freeTiers = false;
+    else if (k === "reading" && /^[a-z0-9-]{1,24}$/.test(v)) c.planReading = v;
     else if (k === "plans") { const plans = Object.fromEntries(v.split(",").flatMap((e) => { const at = e.indexOf(":"); if (at < 1) return []; try { return [[e.slice(0, at), decodeURIComponent(e.slice(at + 1))]]; } catch { return []; } }).filter(([, plan]) => plan)); if (Object.keys(plans).length) c.subscriptionPlans = plans; }
     else if (k === "timesrc" && isTaskMetricSource(v)) c.timeSource = v;
     else if (k === "focus" && FOCUS_IDS.includes(v as FocusId)) c.focus = v as FocusId;

@@ -186,13 +186,17 @@ describe("Real API Pricing subscriptions", () => {
   it("lets a curated published allowance replace a computed row, as a direct share of API price", () => {
     expect(row("Muse Wonder (Max)")).toMatchObject({ identity: { modelId: "aa-muse-wonder" }, details: { ratio: 100 / 150 } });
   });
-  it("prices Fable 5.2 at 4.85 times Opus 5.5's share on Claude Ultra, over a Real API Pricing row that leaves out the half-week cap", () => {
-    expect(row("Claude Fable 5.2")).toMatchObject({ details: { plan: "Claude Ultra", feeUsd: 200, confidence: "medium", dataDate: "2026-11-10" } });
-    expect(row("Claude Fable 5.2").value).toBeCloseTo(0.0734, 4);
+  it("prices Fable 5.2 at 2.4 times Opus 5.5's share on Claude Ultra (shared limit) with 4.85 times as the other reading, over a Real API Pricing row that leaves out the half-week cap", () => {
+    expect(row("Claude Fable 5.2")).toMatchObject({ details: { plan: "Claude Ultra", feeUsd: 200, confidence: "medium", dataDate: "2026-11-11" } });
+    expect(row("Claude Fable 5.2").value).toBeCloseTo(0.03673, 5);
     const uncapped = parseSubscriptions({ ...payload, points: [...payload.points, point("claude_pro::claude-fable-5.2", "Claude Pro", "Anthropic", 0.025575, { model_display: "Claude Fable 5.2", price_usd: 20, workload: "anthropic" })] }, conventions, channels);
     const fable = uncapped.filter((r) => r.modelLabel === "Claude Fable 5.2");
     expect(fable).toHaveLength(1);
-    expect((fable[0].details as { ratio?: number }).ratio).toBeCloseTo(0.0734, 4);
+    const details = fable[0].details as { ratio?: number; readings?: { id: string; ratio: number }[] };
+    // Default: the shared-limit reading, 2.4267 times Opus 5.5's 1.5135%. The Fable-only reading (4.85 times) is the alternative.
+    expect(details.ratio).toBeCloseTo(0.03673, 5);
+    expect(details.readings?.map((r) => r.id)).toEqual(["shared", "own"]);
+    expect(details.readings?.[1].ratio).toBeCloseTo(0.0734, 4);
   });
   it("takes the median plan rather than the cheapest, and low-confidence rows only as a last resort", () => {
     expect(row("GPT 5.6 Sol")).toMatchObject({ value: 0.0163, details: { plan: "ChatGPT Pro 10x", feeUsd: 100, confidence: "medium" } });

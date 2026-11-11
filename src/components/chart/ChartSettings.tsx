@@ -18,11 +18,13 @@ import styles from "./ChartSettings.module.css";
 
 const EFFORT_LABELS: Record<string, string> = { none: "none", low: "low", medium: "medium", high: "high", xhigh: "xhigh", max: "max" };
 
-export function ChartSettings({ freeTiers, speedTiers, label, mode, onChange, efforts, releasedAfter, onChangeReleased, models = [], excluded, onToggleModel, onShowAllModels, onHideAllModels, onShowOnly, view, onView, dataSource, costBasis, planResets, subscriptionPlans, defaultScale, anchor, formula }: {
+export function ChartSettings({ freeTiers, planReading, speedTiers, label, mode, onChange, efforts, releasedAfter, onChangeReleased, models = [], excluded, onToggleModel, onShowAllModels, onHideAllModels, onShowOnly, view, onView, dataSource, costBasis, planResets, subscriptionPlans, defaultScale, anchor, formula }: {
   /** Data tab: a custom formula for this chart's metric. Omitted where a chart has no formula support. */
   formula?: FormulaSettings;
   /** Subscription pricing: price models free today at nothing, or on their paid plans. Shown in the plans section. */
   freeTiers?: { value: boolean; onChange: (count: boolean) => void; count: number };
+  /** Two readings of a model's plan rate (Fable 5.2), from `planReadingSettings`. */
+  planReading?: { models: { name: string }[]; options: { id: string; name: string; note: string }[]; value: string; onChange: (id: string) => void };
   /** Cost, time and speed charts: which speed tiers to draw, and one line per tier on what it costs and how it is billed. */
   speedTiers?: { value: string[]; onChange: (tiers: string[] | undefined) => void; rows: { tier: string; name: string; text: string }[] };
   /** Cost charts: price tasks at API list prices or at each lab's subscription plan. */
@@ -110,7 +112,12 @@ export function ChartSettings({ freeTiers, speedTiers, label, mode, onChange, ef
     {check("Count free tiers", free.value, free.onChange)}
     <p className={styles.resetNote}>{free.value ? `${free.count} models are free today and cost nothing here.` : `Those ${free.count} models use their paid plans, or API price with none.`}</p>
   </div>;
-  const planSection = plans && costBasis && <PlanSection id={id} plans={plans} basis={costBasis} extra={[resets?.value && "resets on", free && !free.value && "no free tiers"].filter(Boolean).join(", ") || undefined}>{freeRow}{resetsRow}</PlanSection>;
+  const reading = costBasis?.value === "subscription" ? planReading : undefined, readingDefault = reading && reading.value === reading.options[0].id;
+  const readingRow = reading && <div className={styles.checks}>
+    <div className={styles.row}><span id={`${id}-reading-label`}>{reading.models.map((m) => m.name).join(", ")} plan rate</span><div className={styles.choice} role="group" aria-labelledby={`${id}-reading-label`}>{reading.options.map((r) => <button key={r.id} type="button" aria-pressed={reading.value === r.id} onClick={() => reading.onChange(r.id)}>{r.name}</button>)}</div></div>
+    <dl className={styles.resetRows}>{reading.options.map((r) => <div key={r.id}><dt>{r.name}{r.id === reading.options[0].id ? " (default)" : ""}</dt><dd>{r.note}</dd></div>)}</dl>
+  </div>;
+  const planSection = plans && costBasis && <PlanSection id={id} plans={plans} basis={costBasis} extra={[resets?.value && "resets on", free && !free.value && "no free tiers", reading && !readingDefault && reading.options.find((r) => r.id === reading.value)?.name.toLowerCase()].filter(Boolean).join(", ") || undefined}>{readingRow}{freeRow}{resetsRow}</PlanSection>;
   const formulaSection = formula && view && onView && <details className={styles.sub} open={formulaOpen} onToggle={e => setFormulaOpen(e.currentTarget.open)}>
     <summary className="disclosure">Custom formula<span className={view.formula?.trim() ? styles.formulaOn : undefined}>{view.formula?.trim() || "Off"}</span></summary>
     {formulaOpen && <FormulaEditor id={id} label={label} formula={formula} view={view} onView={onView} />}
@@ -131,6 +138,7 @@ export function ChartSettings({ freeTiers, speedTiers, label, mode, onChange, ef
     {efforts && <div className={styles.effortRow}><span id={`${id}-efforts-label`}>Reasoning effort</span><div role="group" aria-labelledby={`${id}-efforts-label`}>{EFFORT_CHOICES.map(e => { const on = efforts.value.includes(e); return <button key={e} type="button" aria-pressed={on} data-effort={e} title={e === "none" ? "Models run with no reasoning" : undefined} onClick={() => efforts.onChange(EFFORT_CHOICES.filter(x => x === e ? !on : efforts.value.includes(x)))}>{EFFORT_LABELS[e]}</button>; })}</div></div>}
     {(!efforts || efforts.withMode) && <div className={styles.row}><label htmlFor={`${id}-effort`}>{efforts ? "Show" : "Reasoning efforts"}</label><select aria-label={`${label} reasoning efforts`} id={`${id}-effort`} value={mode} onChange={e => onChange(e.target.value as "all" | "best")}><option value="all">All efforts</option><option value="best">Best per model</option></select></div>}
     {scatter && <div className={styles.checks}>{check("Include older models", !!scatter.view.allModels, on => scatter.onView({ ...scatter.view, allModels: on }), "Off: the frontier and each lab's current models only")}</div>}
+    {!plans && readingRow}
     {!plans && freeRow}
     {!plans && resetsRow}
     {(tierSection || planSection || formulaSection) && <div className={styles.sections}>{tierSection}{planSection}{formulaSection}</div>}

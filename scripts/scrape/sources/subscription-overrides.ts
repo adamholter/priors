@@ -19,7 +19,25 @@ export interface SubsidyOverride {
   source: string;
   checked: string;
   note: string;
+  /** Two honest ways to read the same measurement. The first is the default and is `ratio`; a viewer can switch (Advanced → Subscription plans → plan rate, `planReading` on an index). */
+  readings?: SubsidyReading[];
 }
+
+/** One reading of a curated share of API price. `id` is what an index stores to pick it (`planReading`). */
+export interface SubsidyReading { id: string; name: string; ratio: number; note: string }
+
+/** Opus 5.5's share of API price on Claude Ultra, from Real API Pricing's measured row. The Fable 5.2 readings are multiples of it. */
+const OPUS_ULTRA_SHARE = 0.015135;
+const FABLE_READINGS: SubsidyReading[] = [
+  {
+    id: "shared", name: "Shared limit", ratio: OPUS_ULTRA_SHARE * 2.4267,
+    note: "A Fable dollar priced at what it burns of the weekly limit it shares with Opus ($34.2 of Fable vs $14.1 of Opus per 1% of the week): 2.4x Opus' rate. Fable stops at half the limit.",
+  },
+  {
+    id: "own", name: "Fable only", ratio: OPUS_ULTRA_SHARE * (3421 / 705),
+    note: "Only the Fable a plan can buy: Fable stops at half the weekly limit, priced as if the other half went unused ($705 of Fable vs $3,421 of Opus a week): 4.9x Opus' rate.",
+  },
+];
 
 export const SUBSIDY_OVERRIDES: SubsidyOverride[] = [
   {
@@ -27,13 +45,14 @@ export const SUBSIDY_OVERRIDES: SubsidyOverride[] = [
     note: "Max includes $150 of credits, charged at the model's API rate with no markup: 1.5× the fee. Meta's own Muse Code plans publish prompts per 5 hours, not tokens or dollars, so they cannot be priced.",
     identity: { modelId: "aa-muse-wonder", modelName: "Muse Wonder (Max)", labId: "meta", effort: "max", variantId: "aa-muse-wonder@max", sourceModelId: "aa-muse-wonder", sourceSlug: "muse-wonder" },
   },
-  // Fable 5.2 (released November 2026) has no adopted Real API Pricing row. The share is Opus 5.5's here (1.5135% on Claude Ultra) times how much
-  // less Fable 5.2 one plan dollar bought on the same account: $3,421 a week of Opus 5.5 against $705 of Fable 5.2. Real API Pricing's first sample
-  // (pull request 228, Claude Pro, 7 points of the week) prices Fable 5.2 as if it could use the whole week, which would read 4.0% here. Fable is
-  // capped at half the week, so that row stays replaced until Real API Pricing applies the cap. Remove this entry when it does.
+  // Fable 5.2 (released November 2026) has no adopted Real API Pricing row. Its share is a multiple of Opus 5.5's (1.5135% on Claude Ultra), read two
+  // ways from the same account (FABLE_READINGS). The default, set by Adam on November 11, is the shared-limit reading: people don't spend a $200 plan
+  // only on Fable, so a Fable dollar is priced at what it burns of the weekly limit. Real API Pricing's first sample (pull request 228, Claude Pro,
+  // 7 points of the week) prices Fable 5.2 as if it could use the whole week; Fable is capped at half the week, so that row stays replaced until Real
+  // API Pricing applies the cap. Revisit this entry when it does.
   {
-    modelId: "claude-fable-5.2", label: "Claude Fable 5.2", plan: "Claude Ultra", feeUsd: 200, ratio: 0.015135 * (3421 / 705), confidence: "medium", source: "https://x.com/theo/status/2119960608816988596", checked: "2026-11-10",
-    note: "Measured on one Max 20x (now Ultra) account, 1.1M requests through November 9, 2026: Fable 5.2 can use half the weekly limit, and that half bought $705 of API usage a week, against $3,421 for a full week of Opus 5.5. A plan dollar buys 4.85 times less Fable 5.2 than Opus 5.5, so this is 4.85 times Opus 5.5's share of API price. A second Ultra account gives 3.6 times. Real API Pricing's first sample (Claude Pro, November 9) gives 5.1 times once the half-week cap is applied.",
+    modelId: "claude-fable-5.2", label: "Claude Fable 5.2", plan: "Claude Ultra", feeUsd: 200, ratio: FABLE_READINGS[0].ratio, readings: FABLE_READINGS, confidence: "medium", source: "https://x.com/theo/status/2119960608816988596", checked: "2026-11-11",
+    note: "Measured on one Max 20x (now Ultra) account, 1.1M requests through November 9, 2026. Fable 5.2 stops at half the weekly limit. Per 1% of the week, Fable burned $34.2 of API value and Opus 5.5 $14.1, so a Fable dollar uses 2.4 times as much of the shared limit: 2.4 times Opus 5.5's share of API price, the default. Counting only the Fable a plan can buy ($705 a week in its half, against $3,421 for a full week of Opus 5.5) gives 4.9 times, the other reading. A second Ultra account gives 1.8 and 3.6 times; Real API Pricing's first sample (Claude Pro, November 9) gives 2.5 and 5.1 times.",
   },
 ];
 

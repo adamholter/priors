@@ -1,4 +1,4 @@
-import { currentPlanName, subscriptionPlanOptions, subscriptionPrices, type SubscriptionPrice } from "@/data/subscription";
+import { currentPlanName, planReadings, subscriptionPlanOptions, subscriptionPrices, type PlanReading, type SubscriptionPrice } from "@/data/subscription";
 import type { Snapshot } from "@/data/types";
 
 /** One plan's price for a model: `ratio` is the share of API cost a subscriber pays (0.07 = 7% of API price). */
@@ -12,6 +12,8 @@ export interface PlanPriceModel extends PlanPrice {
   paid?: PlanPrice;
   /** The model's share on each plan its lab sells, for labs with more than one. */
   plans?: Record<string, { ratio: number; feeUsd?: number }>;
+  /** The share read more than one way (Fable 5.2: the shared weekly limit, or only the Fable a plan can buy). The first is `ratio`. */
+  readings?: PlanReading[];
 }
 export interface PlanPrices {
   date: string;
@@ -42,6 +44,7 @@ export function planPrices(snapshot: Snapshot): PlanPrices {
   }
   const labName = new Map(snapshot.labs.map((l) => [l.id, l.name])), labOf = new Map(snapshot.models.map((m) => [m.id, m.labId]));
   const options = subscriptionPlanOptions(snapshot);
+  const readings = new Map(planReadings(snapshot).map((m) => [m.modelId, m.readings.map((r) => ({ ...r, ratio: round(r.ratio) }))]));
   // One pass per plan a lab sells: what each of that lab's models costs on it.
   const byPlan = new Map<string, Record<string, { ratio: number; feeUsd?: number }>>();
   for (const lab of options) for (const { plan } of lab.plans) {
@@ -54,7 +57,7 @@ export function planPrices(snapshot: Snapshot): PlanPrices {
     const now = withFree.get(m.id), paying = paid.get(m.id);
     if (!now && !paying) return [];
     const free = !!now && now.ratio === 0, plans = byPlan.get(m.id);
-    return [{ id: m.id, name: m.name, lab: m.labId, aa: [...(slugs.get(m.id) ?? [])].sort(), ...share(now ?? paying!), ...(free ? { free: true as const, ...(paying && paying.ratio > 0 ? { paid: share(paying) } : {}) } : {}), ...(plans && Object.keys(plans).length > 1 ? { plans } : {}) }];
+    return [{ id: m.id, name: m.name, lab: m.labId, aa: [...(slugs.get(m.id) ?? [])].sort(), ...share(now ?? paying!), ...(free ? { free: true as const, ...(paying && paying.ratio > 0 ? { paid: share(paying) } : {}) } : {}), ...(plans && Object.keys(plans).length > 1 ? { plans } : {}), ...(readings.has(m.id) ? { readings: readings.get(m.id) } : {}) }];
   });
   return {
     date: snapshot.date, generatedAt: snapshot.generatedAt,

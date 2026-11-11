@@ -134,7 +134,7 @@ export function parseSubscriptions(json: Points, conventions: Conventions, chann
     rows.push({
       benchmarkId: SUBSCRIPTION_BENCHMARK, modelLabel: o.label, value: o.ratio, sourceUrl: o.source, note: `${o.plan}, $${o.feeUsd}/month: ${o.note}`,
       ...(o.identity ? { identity: o.identity } : {}),
-      details: { plan: o.plan, feeUsd: o.feeUsd, confidence: o.confidence, ratio: o.ratio, source: o.source, dataDate: o.checked, plans: [] } as unknown as Record<string, unknown>,
+      details: { plan: o.plan, feeUsd: o.feeUsd, confidence: o.confidence, ratio: o.ratio, ...(o.readings ? { readings: o.readings } : {}), source: o.source, dataDate: o.checked, plans: [] } as unknown as Record<string, unknown>,
     });
   }
   // Models no plan sells yet, assumed to match another model's subsidy. `sameAs` makes the engine use that model's share of API

@@ -42,6 +42,8 @@ export interface IndexConfig {
   planResets?: boolean;
   /** `false`: a model free today is priced on its paid plans, or API price with none. Unset counts free tiers. Only matters on the subscription basis. */
   freeTiers?: boolean;
+  /** Which reading of a model's plan rate to use where there are two (Fable 5.2: unset is the shared weekly limit, "own" counts only the Fable a plan can buy). Only matters on the subscription basis. */
+  planReading?: string;
   /** Subscription basis: the plan to price each lab's models at (lab id → plan name, from the source's plan list). A lab not named, or a model without that plan, uses its median plan. */
   subscriptionPlans?: Record<string, string>;
   timeSource?: TaskMetricSource;
@@ -333,7 +335,7 @@ export function computeIndex(snapshot: Snapshot, config: IndexConfig, view: View
   const c = columnsOf(snapshot);
   const shares = sharesOf(c, config);
   if (!shares.length) return { config, benchmarks: [], ranked: [], excluded: [], candidateModelIds: [], autoHidden: [], estimated: [] };
-  const plans = effectiveBasis(config.costBasis) === "subscription" ? subscriptionPrices(snapshot, config.subscriptionPlans, { free: config.freeTiers !== false }) : undefined;
+  const plans = effectiveBasis(config.costBasis) === "subscription" ? subscriptionPrices(snapshot, config.subscriptionPlans, { free: config.freeTiers !== false, reading: config.planReading }) : undefined;
   const detail: Detail = {
     costData: taskMetricData(snapshot, view.costBenchmark ?? config.costSource ?? "aa", "cost"), plans,
     resetBoosts: plans && config.planResets === true ? planResetBoosts(snapshot) : undefined,

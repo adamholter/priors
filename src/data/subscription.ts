@@ -43,7 +43,12 @@ export interface SubscriptionDetails {
   /** `listPrice` is the lab's price only until this moment; Artificial Analysis already lists the price that follows. */
   listUntil?: string;
   plans: { plan: string; feeUsd?: number; usdPerMtok: number; confidence: string }[];
+  /** A curated share read two ways; the first is `ratio`. An index picks another with `planReading`. */
+  readings?: PlanReading[];
 }
+
+/** One reading of a curated share of API price (Fable 5.2: the shared weekly limit, or only the Fable a plan can buy). */
+export interface PlanReading { id: string; name: string; ratio: number; note: string }
 
 export interface SubscriptionPrice {
   /** Subscription cost as a fraction of the API cost of the same tokens; 0 for a free tier. */
@@ -53,6 +58,8 @@ export interface SubscriptionPrice {
   plan: string;
   feeUsd?: number;
   confidence: string;
+  /** The reading this share is, when the row has more than one. */
+  reading?: string;
 }
 
 type Prices = { input: number; output: number; cached?: number; cacheWrite?: number };
@@ -141,7 +148,10 @@ export function subscriptionPlanOptions(snapshot: Snapshot): { labId: string; pl
  * spent at list prices gives the same share at any mix, and mixing the two would change the share for no reason.
  * Only comparing two different models' prices depends on the mix, so that (below) uses measured mixes.
  */
-export function subscriptionPrices(snapshot: Snapshot, chosen: Record<string, string> = {}, { free = true }: { /** `false`: a model free today is priced on its paid plans, or left to API price with none. */ free?: boolean } = {}): Map<string, SubscriptionPrice> {
+export function subscriptionPrices(snapshot: Snapshot, chosen: Record<string, string> = {}, { free = true, reading }: {
+  /** `false`: a model free today is priced on its paid plans, or left to API price with none. */ free?: boolean;
+  /** The reading to use where a row has several (`PlanReading.id`); unset or unknown is each row's first. */ reading?: string;
+} = {}): Map<string, SubscriptionPrice> {
   const labOf = Object.keys(chosen).length ? new Map(snapshot.models.map((m) => [m.id, m.labId])) : undefined;
   const out = new Map<string, SubscriptionPrice>();
   const mixes = new Map<string, TokenMix>();
@@ -163,7 +173,11 @@ export function subscriptionPrices(snapshot: Snapshot, chosen: Record<string, st
     const d = usePaid ? row.paid : row, rowValue = usePaid ? row.paid!.value : o.value;
     if (d?.sameAs) assumed.push([modelId, d]);
     // A curated ratio is taken as is; 0 is a free tier.
-    if (typeof d?.ratio === "number" && Number.isFinite(d.ratio) && d.ratio >= 0) { out.set(modelId, { ratio: d.ratio, plan: d.plan, feeUsd: d.feeUsd, confidence: d.confidence }); continue; }
+    if (typeof d?.ratio === "number" && Number.isFinite(d.ratio) && d.ratio >= 0) {
+      const r = d.readings?.length ? d.readings.find((x) => x.id === reading) ?? d.readings[0] : undefined;
+      out.set(modelId, { ratio: r && positive(r.ratio) ? r.ratio : d.ratio, plan: d.plan, feeUsd: d.feeUsd, confidence: d.confidence, ...(r ? { reading: r.id } : {}) });
+      continue;
+    }
     const want = labOf && chosen[labOf.get(modelId) ?? ""], pick = want !== undefined ? d?.plans?.find((p) => currentPlanName(p.plan) === currentPlanName(want) && positive(p.usdPerMtok)) : undefined;
     const value = pick?.usdPerMtok ?? rowValue;
     if (!positive(value)) continue;
@@ -191,4 +205,22 @@ export function subscriptionPrices(snapshot: Snapshot, chosen: Record<string, st
     out.set(modelId, { ...out.get(nearest)!, ratio, confidence: `estimated from the median share of ${measured.join(", ")}` });
   }
   return out;
+}
+
+/** Models whose plan rate has more than one reading, with the readings (the first is the default). Empty while the snapshot has none. */
+export function planReadings(snapshot: Snapshot): { modelId: string; name: string; readings: PlanReading[] }[] {
+  const variants = columnsOf(snapshot).modelOf, names = new Map(snapshot.models.map((m) => [m.id, m.name])), out = new Map<string, PlanReading[]>();
+  for (const o of observationsOf(snapshot, SUBSCRIPTION_BENCHMARK)) {
+    const readings = (o.details as unknown as SubscriptionDetails | undefined)?.readings;
+    if (readings && readings.length > 1) out.set(variants.get(o.variantId) ?? o.variantId.split("@")[0], readings);
+  }
+  return [...out].map(([modelId, readings]) => ({ modelId, name: names.get(modelId) ?? modelId, readings }));
+}
+
+/** The plan-rate toggle's props, or undefined when no model has a second reading. Readings share ids across models, so one choice covers them all. */
+export function planReadingSettings(snapshot: Snapshot, value: string | undefined, onChange: (reading: string | undefined) => void) {
+  const models = planReadings(snapshot);
+  if (!models.length) return undefined;
+  const options = models[0].readings, current = options.find((r) => r.id === value) ?? options[0];
+  return { models, options, value: current.id, onChange: (id: string) => onChange(id === options[0].id ? undefined : id) };
 }

@@ -4,7 +4,7 @@ import { resolveBenchmark, resolveModel, resolveLab, norm } from "@/agent/resolv
 import { computeIndex, defaultConfig, defaultReleasedAfter, PAGE_VIEW, rankingRows, strictnessOf, chartVariantMode, type IndexConfig, type IndexResult, type RankedVariant } from "@/engine";
 import { DataView } from "@/agent/data";
 import { chartLink } from "@/lib/answer-chart";
-import { effectiveBasis } from "@/data/subscription";
+import { effectiveBasis, planReadings } from "@/data/subscription";
 import { scatterSpec } from "@/lib/og-chart";
 import { frontierOf } from "@/components/chart/scatter-option";
 import { computeHistory } from "@/lib/history";
@@ -58,6 +58,7 @@ function settingsOut(s: Snapshot, config: IndexConfig, res?: IndexResult) {
     olderVersionsNote: res?.autoHidden.length ? "Older versions of a newer model are left out of an index nobody has curated, as the site does. Pass excludeModels: [] to show them." : undefined,
     costBasis: effectiveBasis(config.costBasis),
     planResets: config.planResets === true ? "counted" : "not counted",
+    ...(planReadings(s).length ? { planReading: config.planReading ?? planReadings(s)[0].readings[0].id, planReadingNote: planReadings(s).map((m) => `${m.name}: ${m.readings.map((r) => `"${r.id}" (${r.name}) ${r.note}`).join(" ")}`).join(" ") } : {}),
   };
 }
 
