@@ -155,7 +155,7 @@ FAILED_NOW=$(grep -E '^[[:space:]]*failed[[:space:]]' "$LOG" | awk '{print $2}' 
 FAILED_FILE="${PRIORS_FAILED_FILE:-$HOME/priors/logs/failing-sources.txt}"
 if [ "$FAILED_NOW" != "$(cat "$FAILED_FILE" 2>/dev/null)" ]; then
   echo "$FAILED_NOW" > "$FAILED_FILE" 2>/dev/null
-  [ -n "$FAILED_NOW" ] && notify "Priors scrape $DATE: failing sources: $FAILED_NOW— see logs/scrape.log"
+  [ -n "$FAILED_NOW" ] && notify "Priors scrape $DATE: failing sources: ${FAILED_NOW}— see logs/scrape.log"
 fi
 # What visitors asked for on /request, pulled into a file outside the checkout so it can be read on this machine. The token lives in the
 # login keychain (item priors-requests-token), never in the repo or the log. Without one nothing is pulled, and a failed pull never stops a scrape.
