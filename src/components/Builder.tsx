@@ -48,6 +48,12 @@ import { useUndoable } from "@/lib/undoable";
 import { useNewModels } from "@/lib/seen-models";
 import { usePhone } from "./builder-size";
 import { leaving } from "./nav-progress";
+import { VersionNotices, type BuilderNotices } from "./VersionNotices";
+import { ownSavedIndices, upgradeIndex } from "@/lib/version-notices";
+
+/** In the builder, version notices also cover the signed-in user's own page. */
+const OWN_PAGE = {};
+const restorableOwn = (list: IndexConfig[] | null) => list && restorable(list);
 
 export function Builder({ snapshot: base, initialIndices }: { snapshot: Snapshot; initialIndices: IndexConfig[] }) {
   // Benchmarks imported in this browser (via /import without an account) are merged client-side.
@@ -70,6 +76,16 @@ export function Builder({ snapshot: base, initialIndices }: { snapshot: Snapshot
     return () => cancelAnimationFrame(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  // Version notices are about the visitor's own saved indices, read before this visit's first save replaces them.
+  // A link that carries other indices (someone else's, or a fit fresh from the onboarding) gets none; neither does a first visit.
+  const [own, setOwn] = useState<IndexConfig[] | null>(null);
+  useEffect(() => {
+    const id = requestAnimationFrame(() => {
+      try { setOwn(restorableOwn(ownSavedIndices(JSON.parse(localStorage.getItem("priors:indices") ?? "[]") as string[], new URL(window.location.href).searchParams.getAll("i")))); } catch { /* storage blocked: no notices */ }
+    });
+    return () => cancelAnimationFrame(id);
+  }, []);
+  const notices = useMemo<BuilderNotices | null>(() => own && { indices: own, apply: (upgrades) => setIndices((list) => list.map((i) => upgrades.has(i.name) ? upgradeIndex(i, upgrades.get(i.name)!) : i)) }, [own, setIndices]);
   const [activeId, setActiveId] = useState(indices[0].id);
   const active = indices.find((i) => i.id === activeId) ?? indices[0];
   useTripleD(active ? threeDUrl({ kind: "index", config: active }) : null);
@@ -244,6 +260,7 @@ export function Builder({ snapshot: base, initialIndices }: { snapshot: Snapshot
       </HighlightContext.Provider>
       <SharedChart highlight={active.highlight} onHighlight={(items) => update({ ...active, highlight: items.length ? items : undefined })} />
       <MixAssistant config={active} onApply={update} date={snapshot.date} />
+      {notices && <VersionNotices benchmarks={snapshot.benchmarks} builder={notices} page={OWN_PAGE} />}
     </div>
     </ChartPaletteContext.Provider>
   );

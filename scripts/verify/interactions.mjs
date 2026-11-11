@@ -1515,6 +1515,63 @@ try {
     } finally { await c.close(); }
   });
 
+  await check("version notices: a saved index on an old benchmark version gets one toast, Upgrade moves the weight, turning off sticks", async () => {
+    const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+    const v = await ctx.newPage();
+    v.on("pageerror", (e) => errors.push(`${v.url()}: ${e.message}`));
+    const notice = v.getByTestId("version-notice");
+    const seed = () => v.evaluate(() => { localStorage.setItem("priors:indices", JSON.stringify(["Coding|frontierswe-v1:3,aa-hle-diamond:2|req=frontierswe-v1"])); localStorage.removeItem("priors:version-notices-dismissed"); localStorage.removeItem("priors:version-notices"); });
+    try {
+      // A first visit gets nothing, and neither does a link with someone else's index.
+      await v.goto(`${BASE}/builder`, { waitUntil: "domcontentloaded" });
+      await v.locator(".ranking-list [data-k]").first().waitFor({ timeout: 30000 });
+      await v.waitForTimeout(500);
+      assert.equal(await notice.count(), 0, "no notice on a first visit");
+      await seed();
+      await v.goto(`${BASE}/builder?i=Theirs|frontierswe-v1:1`, { waitUntil: "domcontentloaded" });
+      await v.locator(".ranking-list [data-k]").first().waitFor({ timeout: 30000 });
+      await v.waitForTimeout(500);
+      assert.equal(await notice.count(), 0, "no notice on someone else's link");
+      // A returning visitor with their own saved index.
+      await seed();
+      await v.goto(`${BASE}/builder`, { waitUntil: "domcontentloaded" });
+      await notice.waitFor({ timeout: 30000 });
+      const text = await notice.innerText();
+      assert.match(text, /FrontierSWE v2 is out\. Your index “Coding” uses v1\./, `copy: ${text}`);
+      assert.ok(!/—/.test(text), "no em dash");
+      assert.equal(await v.locator('[role="status"]').filter({ has: notice }).count(), 1, "inside a live region");
+      await notice.getByRole("button", { name: "Upgrade" }).click();
+      await v.waitForFunction(() => /frontierswe-v2:3/.test(localStorage.getItem("priors:indices") ?? "") && /req=frontierswe-v2/.test(localStorage.getItem("priors:indices") ?? ""));
+      assert.ok(!/frontierswe-v1/.test(await v.evaluate(() => localStorage.getItem("priors:indices"))), "the old id is gone");
+      await v.reload({ waitUntil: "domcontentloaded" });
+      await v.locator(".ranking-list [data-k]").first().waitFor({ timeout: 30000 });
+      await v.waitForTimeout(500);
+      assert.equal(await notice.count(), 0, "no notice once upgraded");
+      // Escape dismisses, and the dismissal sticks.
+      await seed();
+      await v.goto(`${BASE}/builder`, { waitUntil: "domcontentloaded" });
+      await notice.waitFor({ timeout: 30000 });
+      await notice.getByRole("button", { name: "Upgrade" }).focus();
+      await v.keyboard.press("Escape");
+      await notice.waitFor({ state: "detached" });
+      await v.reload({ waitUntil: "domcontentloaded" });
+      await v.waitForTimeout(800);
+      assert.equal(await notice.count(), 0, "a dismissed notice stays dismissed");
+      // Turning notices off sticks; Settings turns them back on.
+      await seed();
+      await v.goto(`${BASE}/builder`, { waitUntil: "domcontentloaded" });
+      await notice.getByRole("button", { name: "Turn off update notices" }).click();
+      assert.equal(await v.evaluate(() => localStorage.getItem("priors:version-notices")), "off");
+      await v.reload({ waitUntil: "domcontentloaded" });
+      await v.waitForTimeout(800);
+      assert.equal(await notice.count(), 0, "off survives a reload");
+      await v.getByRole("button", { name: "Settings" }).first().click();
+      await v.getByRole("group", { name: "Update notices" }).getByRole("button", { name: "On" }).click();
+      assert.equal(await v.evaluate(() => localStorage.getItem("priors:version-notices")), null);
+      await notice.waitFor({ timeout: 10000 });
+    } finally { await ctx.close(); }
+  });
+
   assert.deepEqual(failures, [], `${failures.length} of ${failures.length + checks.length} checks failed`);
   assert.deepEqual(errors, [], "no page errors");
   console.log(`PASS interactions: ${checks.length} checks\n  ${checks.join("\n  ")}`);

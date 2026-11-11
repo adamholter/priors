@@ -57,6 +57,17 @@
 - **Model lists are never stored by the editor.** Hiding models writes `excludeModels` only, so new models appear automatically.
 - Ownership on the client is a hint (`localStorage["priors:handle"]`) confirmed by `OwnerProbe`; Convex mutations enforce it.
 
+## Benchmark version notices
+
+When a benchmark one of a visitor's own indices weights has a newer version in the snapshot, a small toast says so and offers a one-click upgrade ("Terminal-Bench 4.1 is out. Your index “Coding” uses 4.0."). Logic in `src/lib/version-notices.ts` (tested), toast in `src/components/VersionNotices.tsx`, preference in `src/lib/version-notices-pref.ts`. Nothing is listed per benchmark: it reads `versionPolicy` from the snapshot.
+
+- **What counts as newer.** Only `fresh` versions with `supersedes` (see `docs/data.md`). The chain is followed to its end, so 4.0 -> 4.1 -> 4.2 suggests 4.2, and a notice dismissed for 4.0 -> 4.1 comes back for 4.0 -> 4.2. `fallback` versions (DeepSWE 1.1 reading 1) are not upgrades. An id two benchmarks both claim to supersede is skipped. An index that already weights the newest version gets no notice for it.
+- **Whose indices.** The builder's saved indices (`priors:indices`, read before the visit's first save) when the address carries none or the same ones, plus the signed-in user's page indices (`profiles.mine`). The owner's published page shows its own indices only. Nothing on a link that carries other indices (someone else's, or a fit just made in the onboarding), on a first visit, on `/rank`, on someone else's page, or while editing a page. What a source needs is fixed when it loads, so adding an old version mid-visit pops nothing up.
+- **One toast.** All indices and benchmarks share one notice, bottom left, clear of the assistant button: the lead sentence, an Upgrade button, a close button, and a small "Turn off update notices". It is a `role="status"` live region; Escape inside it dismisses.
+- **Upgrade** moves each old id to the new one in that index: its weight (in the same place in the mix, added to the new id's when two old versions meet), `required`, `optional`, and a cost or time source when the new id is one (`terminalbench-4` as a source already reads 4.1, so it stays). Everything else is unchanged. Builder indices go through the builder's own state (so Undo works and the address and `priors:indices` follow); page indices are saved with `profiles.update` through `storableIndex()`, and an owner's page on screen is patched to match. Builder indices are matched by name, page indices by id.
+- **Dismiss and Upgrade** both record each `scope:index:old>new` key in `priors:version-notices-dismissed` (last 300), so the same notice never returns.
+- **Turning them off.** "Turn off update notices" sets `priors:version-notices` = `off` in this browser; Settings (the gear) has Update notices On/Off to turn them back on. There is no per-user settings record in Convex, so the choice is per browser.
+
 ## Themes
 
 `src/lib/page-presets.ts` defines every theme: colors, fonts, lab colors, card radius and chart style. `family` (`priors`, `aa`, `slop`, `classic`) switches the scoped stylesheet `src/components/page/page-themes.css`.
