@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { parseOsworld2, parseOsworldVerified } from "./sources/osworld";
-import { parseScaleEntries } from "./sources/scale";
+import { parseProV2, parseScaleEntries, PRO_V2_BOARDS } from "./sources/scale";
 import { parseAutomationBench } from "./sources/zapier";
 import { parseRoboflow } from "./sources/roboflow";
 
@@ -33,6 +33,19 @@ describe("Scale SWE Atlas-QnA", () => {
     expect(rows[0]).toMatchObject({ modelLabel: "Opus 5", effort: "xhigh", harness: "Claude Code", value: 63.17 });
     expect(rows[0].ci).toEqual([63.17 - 5.01, 63.17 + 5.01]);
     expect(rows[1].modelLabel).toBe("Fable-5.1");
+  });
+
+  it("reads SWE-Bench Pro V2's Full and HARD tabs, with the harness kept out of the model name", () => {
+    const e = (model: string, score: number) => ({ model, score, confidenceInterval_upper: 1, company: "x" });
+    const payload = JSON.stringify(`1e:["$","div",null,{"children":["$","$L20",null,{"variants":[{"key":"full","label":"SWE-Bench Pro V2 Full","entries":[${[e("Haiku 5.5 (mini-swe-agent) high", 87.23), e("GPT-6.1-Sol (mini-swe-agent) xhigh", 96.11), e("Inkling 2 Small", 97.66)].map((x) => JSON.stringify(x)).join(",")}]},{"key":"hard","label":"SWE-Bench Pro V2 HARD","entries":[${[e("Haiku 5.5 (mini-swe-agent) high", 52.94), e("Minimax M3p1 Flash (mini-swe-agent) xhigh", 84.31)].map((x) => JSON.stringify(x)).join(",")}]}]}]}]`);
+    const v2 = parseProV2(`<script>self.__next_f.push([1,${payload}])</script>`);
+    expect(v2.full.map((r) => [r.benchmarkId, r.modelLabel, r.effort, r.harness, r.value])).toEqual([
+      [PRO_V2_BOARDS.full.id, "Haiku 5.5", "high", "mini-swe-agent", 87.23],
+      [PRO_V2_BOARDS.full.id, "GPT-6.1-Sol", "xhigh", "mini-swe-agent", 96.11],
+      [PRO_V2_BOARDS.full.id, "Inkling 2 Small", undefined, undefined, 97.66],
+    ]);
+    expect(v2.hard.map((r) => [r.modelLabel, r.value])).toEqual([["Haiku 5.5", 52.94], ["Minimax M3.1 Flash", 84.31]]);
+    expect(() => parseProV2(`<script>self.__next_f.push([1,${JSON.stringify(`1e:{"variants":[{"key":"full","label":"x","entries":[${JSON.stringify(e("A", 1))}]}]}`)}])</script>`)).toThrow(/hard/);
   });
 });
 
