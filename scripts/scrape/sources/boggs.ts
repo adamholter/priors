@@ -1,4 +1,5 @@
 import type { Benchmark, BenchmarkCategory, RawRow, ScrapeResult, Source } from "../../../src/data/types";
+import { EFFORT_WORDS } from "../../../src/data/normalize";
 
 /**
  * Jake Boggs' benchmark dashboard (https://boggs.tech/posts/benchmarks/) publishes the ~100 leaderboards
@@ -26,7 +27,23 @@ const CATEGORY: Record<string, BenchmarkCategory> = {
 };
 
 interface DashBenchmark { id: string; name: string; category?: string; url?: string; notes?: string }
-interface DashResult { benchmark_id: string; model: string; model_id?: string; lab?: string; raw_score: number; reported_score?: number; score_direction?: string; metric?: string; source_url?: string; release_date?: string; open_weights?: boolean | null; source_rank?: number }
+interface DashResult {
+  benchmark_id: string; model: string; model_id?: string; lab?: string; raw_score: number; reported_score?: number; score_direction?: string; metric?: string; source_url?: string;
+  release_date?: string; open_weights?: boolean | null; source_rank?: number;
+  /** The publisher's own label, e.g. "Claude Fable 5.1 (high)", where `model` is the bare "Claude Fable 5.1". */
+  source_model?: string; reasoning_effort?: string | null; reasoning_setting?: string | null;
+}
+
+/**
+ * The effort the dashboard states for a row. `model` is often the bare name with every effort of the model under it
+ * (CritPt v2 lists Fable 5.1 five times as "Claude Fable 5.1"); the effort is in `source_model`'s trailing
+ * parenthesis or in a reasoning field. Undefined when none is stated.
+ */
+export function statedEffort(r: DashResult): string | undefined {
+  const word = (s: unknown) => typeof s === "string" && EFFORT_WORDS[s.toLowerCase().trim()] ? s.toLowerCase().trim() : undefined;
+  const paren = r.source_model?.match(/\(([^()]+)\)\s*$/)?.[1];
+  return word(paren) ?? word(r.reasoning_effort) ?? word(r.reasoning_setting);
+}
 interface Dashboard { benchmarks: DashBenchmark[]; results: DashResult[] }
 
 export function buildBoggs(data: Dashboard): Pick<ScrapeResult, "benchmarks" | "rows" | "modelFlags" | "notes"> {
@@ -52,10 +69,13 @@ export function buildBoggs(data: Dashboard): Pick<ScrapeResult, "benchmarks" | "
       unit: share ? "percent" : elo ? "elo" : "score", higherIsBetter: !lower, category, versionPolicy: { kind: "fresh" }, defaultWeight: 0,
     };
     benchmarks.push(bench);
-    for (const r of used) rows.push({
-      benchmarkId: bench.id, modelLabel: r.model, value: share ? r.reported_score! * 100 : r.raw_score, rank: r.source_rank, sourceUrl: r.source_url || url,
-      labHint: r.lab, releaseDateHint: r.release_date,
-    });
+    for (const r of used) {
+      const effort = statedEffort(r);
+      rows.push({
+        benchmarkId: bench.id, modelLabel: r.model, effort, effortUnstated: !effort, value: share ? r.reported_score! * 100 : r.raw_score, rank: r.source_rank, sourceUrl: r.source_url || url,
+        labHint: r.lab, releaseDateHint: r.release_date,
+      });
+    }
   }
   const seen = new Set<string>();
   const modelFlags = data.results.filter((r) => typeof r.open_weights === "boolean" && r.model && !seen.has(r.model) && seen.add(r.model)).map((r) => ({ modelLabel: r.model, labHint: r.lab, openWeights: r.open_weights as boolean }));

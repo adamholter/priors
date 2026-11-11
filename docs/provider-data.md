@@ -22,7 +22,7 @@ Which companies serve a model, at what price, in which region, and what they do 
 
 Upstream sources behind it, in case we go direct: OpenRouter's public model and endpoint APIs (`/api/v1/models`, per-model `/endpoints`, and its data-policy pages), AWS Bedrock, Azure AI Foundry, Google Vertex, Nebius, Scaleway, IONOS, Mistral, OVHcloud, STACKIT, T-Systems LLM Hub, Chutes and TrustedTokens price pages, GitHub Copilot and Claude Code plan pages.
 
-**boggs.tech** (https://boggs.tech/data/benchmark-dashboard.json, 16 MB) has per-model `open_weights`, `total_parameters`, `active_parameters`, `release_date` and a derived cost index (`cost_index[]`, one number per model, GPT-4.1 = 100).
+**boggs.tech** (https://boggs.tech/data/benchmark-dashboard.json, 16 MB) has per-model `open_weights`, `total_parameters`, `active_parameters`, `release_date` and a derived cost index (`cost_index[]`, one number per model, GPT-4.1 = 100). Row effort: `model` is often the bare name with several of a model's efforts under it (CritPt v2 lists Fable 5.1 five times), so `boggs.ts` reads the effort from `source_model`'s trailing parenthesis ("Claude Fable 5.1 (high)") or a reasoning field (`statedEffort`); a row that states none is marked `effortUnstated` and filed under `default`, not under the model's highest effort (the build's guess for other sources), which until 2026-11-11 put 19 of 82 CritPt v2 rows on the wrong effort (Fable 5.1's high score showed as max).
 
 ## What it could drive
 

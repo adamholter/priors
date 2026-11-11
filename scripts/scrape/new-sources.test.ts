@@ -4,7 +4,7 @@ import { metrLabel, parseMetr } from "./sources/metr";
 import { parseEpochTasks } from "./sources/epoch-tasks";
 import { buildBenchmarkHeaven } from "./sources/benchmarkheaven";
 import { parseArenaDataset } from "./sources/arena";
-import { buildBoggs } from "./sources/boggs";
+import { buildBoggs, statedEffort } from "./sources/boggs";
 import { applyOpenWeights, familyOpenWeights } from "../../src/data/open-weights";
 import type { Snapshot } from "../../src/data/types";
 
@@ -226,4 +226,19 @@ describe("boggs.tech dashboard", () => {
     expect(r.benchmarks.find((b) => b.id === "bg-cheat")!.higherIsBetter).toBe(false);
   });
   it("passes on open-weights flags", () => { expect(r.modelFlags![0]).toMatchObject({ openWeights: false }); });
+  it("takes each row's effort from the publisher's label, and marks rows that state none instead of guessing max", () => {
+    // CritPt v2 lists every Fable 5.1 effort under the bare name; the effort is only in source_model.
+    const efforts = ["high", "xhigh", "medium", "max", "low"];
+    const crit = buildBoggs({ benchmarks: [{ id: "critpt-v2", name: "CritPt v2" }], results: [
+      ...efforts.map((e, i) => ({ benchmark_id: "critpt-v2", model: "Claude Fable 5.1", source_model: `Claude Fable 5.1 (${e})`, raw_score: 0.7 - i / 100, reported_score: 0.7 - i / 100 })),
+      ...res("critpt-v2", 5),
+    ] } as never);
+    const fable = crit.rows.filter((x) => x.modelLabel === "Claude Fable 5.1");
+    expect(fable.map((x) => x.effort)).toEqual(efforts);
+    expect(fable.every((x) => !x.effortUnstated)).toBe(true);
+    expect(crit.rows.find((x) => x.modelLabel === "m0")).toMatchObject({ effort: undefined, effortUnstated: true });
+    // Only effort words count: a release suffix in the parenthesis is not an effort; a reasoning field is.
+    expect(statedEffort({ model: "DeepSeek V4.1 Flash", source_model: "DeepSeek V4.1 Flash (1017)" } as never)).toBeUndefined();
+    expect(statedEffort({ model: "GPT-6 Sol", reasoning_effort: "XHigh" } as never)).toBe("xhigh");
+  });
 });

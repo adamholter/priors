@@ -129,7 +129,7 @@ async function main() {
       releaseDateHint: row.releaseDateHint,
       ...(row.sourceId === "vals-voice-code-bench" ? { kind: "audio" as const } : {}),
     }, !!record && !record.identity?.configuration);
-    pending.push({ row, modelId: n.modelId, effort: n.effort });
+    pending.push({ row, modelId: n.modelId, effort: n.effort ?? (row.effortUnstated ? "default" : undefined) });
   }
   for (const [label, hint] of meta) {
     const n = hint.identity ? { ok: true as const, ...hint.identity, reasoningFamily: hint.identity.effort !== "none", cleaned: label } : normalizeLabel(label);

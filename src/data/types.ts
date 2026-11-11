@@ -210,6 +210,13 @@ export interface RawRow {
   modelLabel: string;
   /** Effort if the source shows it separately (e.g. DeepSWE's "[xhigh]"). Leave undefined if unknown. */
   effort?: string;
+  /**
+   * The source states no effort for this row and its label carries none either: file it under "default" instead of
+   * the model's highest effort seen elsewhere (the build's guess for sources that list one row per model). For
+   * sources that can hold several of a model's efforts under one bare name (Boggs' dashboard), where that guess
+   * put a high-effort score on max.
+   */
+  effortUnstated?: boolean;
   value: number;
   ci?: [number, number];
   costUsd?: number;
