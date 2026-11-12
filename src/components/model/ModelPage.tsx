@@ -89,13 +89,14 @@ export function ModelPage({ view, summary, othersUrl, options, current, onPick, 
 
         <section className="grid gap-4">
           <div className="flex items-baseline justify-between border-b hairline pb-2"><h2 className="text-[26px]">This ranking&rsquo;s benchmarks</h2><span className="cap">{inMix.length} of {weighted} measured</span></div>
-          {inMix.length ? <div className="grid gap-8 lg:grid-cols-2">{inMix.map((b) => <BenchCard key={b.id} b={b} view={field} modelId={modelId} color={color} onInfo={() => onInfo(b.id)} />)}</div>
+          {view.costBasis === "subscription" && <p className="cap -mt-2">Cost per task is what a subscriber pays: the model&rsquo;s plan price, a share of API price. Models no plan sells are at API price.</p>}
+          {inMix.length ? <div className="grid gap-8 lg:grid-cols-2">{inMix.map((b) => <BenchCard key={b.id} b={b} view={field} modelId={modelId} color={color} plan={view.costBasis === "subscription"} onInfo={() => onInfo(b.id)} />)}</div>
             : <p className="cap">This model has no results on this ranking&rsquo;s benchmarks.</p>}
         </section>
 
         {others > 0 && <details className="group border-t hairline pt-4" onToggle={(e) => setShowAll(e.currentTarget.open)}>
           <summary className="disclosure items-baseline"><h2 className="text-[22px]">All {measured} benchmarks</h2><span className="cap ml-auto group-open:hidden">show {others} more</span><span className="cap ml-auto hidden group-open:inline">hide</span></summary>
-          {showAll && <LazyCards data={view.otherField} url={othersUrl} modelId={modelId} lab={labC} onInfo={onInfo} />}
+          {showAll && <LazyCards data={view.otherField} url={othersUrl} modelId={modelId} lab={labC} plan={view.costBasis === "subscription"} onInfo={onInfo} />}
         </details>}
       </div>
       <BenchmarkInfo snapshot={infoSnapshot} benchmarkId={info} onClose={() => onInfo(null)} />
@@ -120,7 +121,7 @@ function NearView({ height, children }: { height: number; children: ReactNode })
 }
 
 /** The rest of the model's benchmarks, rendered only once the section is opened. A page drawn on the server fetches them then. */
-function LazyCards({ data, url, modelId, lab, onInfo }: { data?: ViewField; url: string; modelId: string; lab: string; onInfo: (id: string) => void }) {
+function LazyCards({ data, url, modelId, lab, plan, onInfo }: { data?: ViewField; url: string; modelId: string; lab: string; plan: boolean; onInfo: (id: string) => void }) {
   const [loaded, setLoaded] = useState<{ url: string; field: ViewField } | null>(null);
   const [failed, setFailed] = useState(false), [attempt, setAttempt] = useState(0);
   useEffect(() => {
@@ -132,18 +133,18 @@ function LazyCards({ data, url, modelId, lab, onInfo }: { data?: ViewField; url:
   const field = data ?? (loaded?.url === url ? loaded.field : undefined);
   const color = useMemo(() => ({ lab, name: (id: string) => field?.names[id] ?? id }), [lab, field]);
   if (!field) return <p role="status" className="cap mt-5">{failed ? <>Could not load these benchmarks. <button type="button" className="underline" onClick={() => { setFailed(false); setAttempt((n) => n + 1); }}>Retry</button></> : "Loading benchmarks…"}</p>;
-  return <div className="grid gap-8 lg:grid-cols-2 mt-5">{field.benchmarks.map((b) => <BenchCard key={b.id} b={b} view={field} modelId={modelId} color={color} onInfo={() => onInfo(b.id)} />)}</div>;
+  return <div className="grid gap-8 lg:grid-cols-2 mt-5">{field.benchmarks.map((b) => <BenchCard key={b.id} b={b} view={field} modelId={modelId} color={color} plan={plan} onInfo={() => onInfo(b.id)} />)}</div>;
 }
 
 /** One benchmark: this model's efforts highlighted on score-vs-cost (others ghosted), or on the field's spread when cost is unknown, plus placements. */
-function BenchCard({ b, view, modelId, color, onInfo }: { b: ViewBenchmark; view: Pick<ViewField, "variants">; modelId: string; color: { lab: string; name: (id: string) => string }; onInfo: () => void }) {
+function BenchCard({ b, view, modelId, color, plan = false, onInfo }: { b: ViewBenchmark; view: Pick<ViewField, "variants">; modelId: string; color: { lab: string; name: (id: string) => string }; plan?: boolean; onInfo: () => void }) {
   const rows = useMemo(() => benchRows(view, b), [view, b]);
   const mine = rows.filter((r) => r.modelId === modelId);
   const withCost = rows.filter((r) => r.cost && r.cost > 0);
   return (
     <article className="grid gap-3 content-start">
       <div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="cap">{categoryName(b.category)}</p><h3 className="text-[19px] leading-tight flex items-center gap-1.5">{b.name}<InfoIcon name={b.name} onClick={onInfo} /></h3></div><span className="cap shrink-0 pt-4">{rows.length} results</span></div>
-      {withCost.length >= 3 && mine.some((r) => r.cost) ? <NearView height={230}><BenchScatter b={b} rows={withCost} modelId={modelId} color={color} /></NearView>
+      {withCost.length >= 3 && mine.some((r) => r.cost) ? <NearView height={230}><BenchScatter b={b} rows={withCost} modelId={modelId} color={color} plan={plan} /></NearView>
         : rows.length >= 3 && <NearView height={150}><BenchStrip b={b} rows={rows} modelId={modelId} color={color} /></NearView>}
       <ol className="grid gap-[4px]">
         {mine.map((r) => <li key={r.variantId} className="grid grid-cols-[52px_minmax(0,1fr)_70px] items-center gap-3 text-[12.5px] h-[24px]">
@@ -157,7 +158,7 @@ function BenchCard({ b, view, modelId, color, onInfo }: { b: ViewBenchmark; view
   );
 }
 
-function BenchScatter({ b, rows, modelId, color }: { b: Bench; rows: Row[]; modelId: string; color: { lab: string; name: (id: string) => string } }) {
+function BenchScatter({ b, rows, modelId, color, plan }: { b: Bench; rows: Row[]; modelId: string; color: { lab: string; name: (id: string) => string }; plan: boolean }) {
   const pal = useChartPalette();
   const [plotW, setPlotW] = useState(0);
   const option = useMemo<EChartsOption>(() => {
@@ -165,16 +166,16 @@ function BenchScatter({ b, rows, modelId, color }: { b: Bench; rows: Row[]; mode
     const labColor = color.lab;
     return {
       grid: { left: 44, right: 70, top: 14, bottom: 34, ...CONTAIN_AXIS_LABELS },
-      xAxis: { type: "log", name: "$ / task", nameLocation: "end", nameGap: 6, nameTextStyle: { color: pal.grey, fontSize: 10, align: "right", verticalAlign: "top", padding: [22, 0, 0, 0] }, axisLabel: { formatter: (v: number) => `$${v >= 1 ? Math.round(v) : v.toFixed(2)}`, hideOverlap: true, showMinLabel: false, showMaxLabel: false }, min: (e: { min: number }) => e.min / 1.5, max: (e: { max: number }) => e.max * 1.5 },
+      xAxis: { type: "log", name: plan ? "plan $ / task" : "$ / task", nameLocation: "end", nameGap: 6, nameTextStyle: { color: pal.grey, fontSize: 10, align: "right", verticalAlign: "top", padding: [22, 0, 0, 0] }, axisLabel: { formatter: (v: number) => `$${v >= 1 ? Math.round(v) : v.toFixed(2)}`, hideOverlap: true, showMinLabel: false, showMaxLabel: false }, min: (e: { min: number }) => e.min / 1.5, max: (e: { max: number }) => e.max * 1.5 },
       yAxis: { type: "value", scale: true, axisLabel: { formatter: (v: number) => b.unit === "percent" ? `${v}%` : `${v}` } },
-      tooltip: { trigger: "item", confine: true, formatter: (p: unknown) => { const d = (p as { data?: { r?: Row } }).data?.r; return d ? `<b>${esc(color.name(d.modelId))} ${esc(d.effort)}</b><br/><span style="font-family:var(--font-jetbrains)">${fmt(b, d.value)} · $${d.cost!.toFixed(2)}/task · #${d.rank}</span>` : ""; } },
+      tooltip: { trigger: "item", confine: true, formatter: (p: unknown) => { const d = (p as { data?: { r?: Row } }).data?.r; return d ? `<b>${esc(color.name(d.modelId))} ${esc(d.effort)}</b><br/><span style="font-family:var(--font-jetbrains)">${fmt(b, d.value)} · $${d.cost!.toFixed(2)}/task${plan ? " on plan" : ""} · #${d.rank}</span>` : ""; } },
       series: [
         { type: "scatter", id: "ghost", symbolSize: 7, data: rest.map((r) => ({ value: [r.cost, r.value], r })), itemStyle: { color: pal.dark ? "#8C8B83" : "#A3A39B", opacity: pal.dark ? 0.32 : 0.28 }, emphasis: { itemStyle: { opacity: 0.9 } }, z: 1 },
         { type: "line", id: "mine-line", data: mine.map((r) => [r.cost, r.value]), showSymbol: false, lineStyle: { color: labColor, width: 1.2, opacity: 0.6 }, silent: true, z: 2 },
         { type: "scatter", id: "mine", symbolSize: 11, data: mine.map((r) => ({ value: [r.cost, r.value], r, name: r.effort })), itemStyle: { color: labColor, borderColor: pal.ink, borderWidth: 1.2 }, label: { show: true, position: "right", formatter: "{b}", fontSize: 11, color: pal.ink, distance: 6, textBorderColor: pal.bg, textBorderWidth: 3 }, labelLayout: insideLabels(() => plotW || undefined), z: 3 },
       ],
     };
-  }, [b, rows, modelId, color, pal, plotW]);
+  }, [b, rows, modelId, color, pal, plotW, plan]);
   const { ref } = useEChart(option, [option]);
   useEffect(() => { const el = ref.current; if (!el) return; const ro = new ResizeObserver(([e]) => setPlotW(Math.round(e.contentRect.width / 4) * 4)); ro.observe(el); return () => ro.disconnect(); }, [ref]);
   return <div ref={ref} role="img" aria-label={`${b.name} score versus cost per task`} style={{ width: "100%", height: 230 }} />;

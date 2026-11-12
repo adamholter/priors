@@ -1,7 +1,8 @@
 import { taskMetricDescription } from "@/data/task-metrics";
 import { computeIndex, defaultConfig, type IndexConfig, type IndexResult, type RankedVariant } from "@/engine";
 import { defaultPriorsMix } from "@/onboarding/defaults";
-import { tokenPrice, type TokenPrice } from "@/data/subscription";
+import { effectiveBasis, tokenPrice, type CostBasis, type TokenPrice } from "@/data/subscription";
+import { hasSubscriptionPrices } from "@/data/task-metrics";
 import type { Benchmark, Snapshot } from "@/data/types";
 import { freeFloor, metricPanels } from "@/lib/metrics";
 import { encodeIndices, prettyQuery } from "@/lib/url";
@@ -36,6 +37,8 @@ export interface ModelView {
   strengths?: { name: string; axes: RadarAxis[]; me: RadarModel; leader?: RadarModel; median: RadarPoint[]; place: ({ n: number; rank: number } | null)[]; models: number; mixName: string };
   /** Where the model stands in each category, over every current benchmark that measured it, not only this ranking's. */
   domains?: ModelDomains;
+  /** What the benchmark cards' cost per task is priced at: a subscriber's plan (models without one at API price), or API list price. */
+  costBasis: CostBasis;
   cost: { rows: CostRow[]; floor: number; hasFree: boolean; models: number; token?: TokenPrice; timeNote?: string; apiDefaultEffort?: string };
 }
 /** One spoke per category the model has at least two benchmarks in. `rows[i]` is its place among the ranking's models with as much in that category. */
@@ -224,6 +227,7 @@ export function modelView(snapshot: Snapshot, modelId: string, mix: IndexConfig,
     others: others.length, otherField: inlineOthers ? fieldOf(snapshot, others, perBench) : undefined,
     strengths: mine.length ? strengths(modelId, mix.name, radar()) : undefined,
     domains: domains(modelId, table, first && { id: first.id, name: first.name, labId: first.labId }, best.length),
+    costBasis: effectiveBasis(costConfig.costBasis, hasSubscriptionPrices(snapshot)),
     cost: mine.length ? costSide(snapshot, modelId, shown.ranked, mix, panels()) : { rows: [], floor: 0, hasFree: false, models: 0 },
   };
 }

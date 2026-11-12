@@ -42,7 +42,33 @@ const slimBenchmark = (b: Benchmark): Benchmark => ({
   ...(b.estimationRoutes ? { estimationRoutes: b.estimationRoutes.map((r) => ({ sourceId: r.sourceId, factor: r.factor, method: r.method, evidenceId: "", ...(r.variantFactors ? { variantFactors: r.variantFactors } : {}) })) } : {}),
 });
 
+/** One snapshot reduced to what the archive stores, in the order the encoder reads it. Cacheable: it is plain JSON. */
+export interface HistoryDigest {
+  variants: Variant[]; models: ModelRecord[]; benches: Benchmark[]; labs: Lab[];
+  /** The columns' variant and benchmark ids, in column order. */
+  variantIds: string[]; benchIds: string[];
+  /** Variant index, benchmark index, value, flags, harness: every score, variants outer and benchmarks inner. */
+  cells: [number, number, number, number, string | null][];
+}
+
+export function historyDigest(snap: Snapshot): HistoryDigest {
+  const c = columnsOf(snap), aa = aaOpenWeights(snap), cells: HistoryDigest["cells"] = [];
+  for (let v = 0; v < c.nv; v++) for (let b = 0; b < c.nb; b++) {
+    const r = c.at[v * c.nb + b];
+    if (r >= 0) cells.push([v, b, c.value[r], c.flags[r], c.rows[r].harness ?? null]);
+  }
+  return {
+    variants: snap.variants.map((v) => ({ id: v.id, modelId: v.modelId, effort: v.effort })),
+    models: snap.models.map((m) => { const open = aa.get(m.id); return { id: m.id, name: m.name, labId: m.labId, kind: m.kind, releaseDate: m.releaseDate, priceTier: m.priceTier, openWeights: m.openWeights, ...(open !== undefined ? { aaOpen: open } : {}) }; }),
+    benches: snap.benchmarks.map(slimBenchmark), labs: snap.labs.map((l) => ({ id: l.id, name: l.name, color: l.color })), variantIds: [...c.variantIds], benchIds: [...c.benchIds], cells,
+  };
+}
+
 export async function encodeHistoryArchive(dates: string[], read: (date: string) => Promise<Snapshot | null>): Promise<Buffer> {
+  return encodeHistoryDigests(dates, async (date) => { const snap = await read(date); return snap ? historyDigest(snap) : null; });
+}
+
+export async function encodeHistoryDigests(dates: string[], read: (date: string) => Promise<HistoryDigest | null>): Promise<Buffer> {
   const benchIds: string[] = [], benchAt = new Map<string, number>(), variantIds: string[] = [], variantAt = new Map<string, number>(), harnessAt = new Map<string, number>();
   const benches = new Records<Benchmark>(), models = new Records<ModelRecord>(), variants = new Records<Variant>(), labs = new Records<Lab>();
   const rowAt = new Map<string, number>(), rowValue: number[] = [], rowFlags: number[] = [], rowHarness: number[] = [];
@@ -50,27 +76,25 @@ export async function encodeHistoryArchive(dates: string[], read: (date: string)
   const lists: number[] = [], counts: number[] = [], kept: string[] = [];
   let current = new Map<number, number>();
   for (const date of dates) {
-    const snap = await read(date);
-    if (!snap) continue;
+    const d = await read(date);
+    if (!d) continue;
     kept.push(date);
-    const c = columnsOf(snap), aa = aaOpenWeights(snap);
-    const v2 = c.variantIds.map((id) => internId(variantIds, variantAt, id)), b2 = c.benchIds.map((id) => internId(benchIds, benchAt, id));
-    for (const v of snap.variants) lists.push(variants.add({ id: v.id, modelId: v.modelId, effort: v.effort }));
-    for (const m of snap.models) { const open = aa.get(m.id); lists.push(models.add({ id: m.id, name: m.name, labId: m.labId, kind: m.kind, releaseDate: m.releaseDate, priceTier: m.priceTier, openWeights: m.openWeights, ...(open !== undefined ? { aaOpen: open } : {}) })); }
-    for (const b of snap.benchmarks) lists.push(benches.add(slimBenchmark(b)));
-    for (const l of snap.labs) lists.push(labs.add({ id: l.id, name: l.name, color: l.color }));
-    counts.push(snap.variants.length, snap.models.length, snap.benchmarks.length, snap.labs.length);
+    const v2 = d.variantIds.map((id) => internId(variantIds, variantAt, id)), b2 = d.benchIds.map((id) => internId(benchIds, benchAt, id));
+    for (const v of d.variants) lists.push(variants.add(v));
+    for (const m of d.models) lists.push(models.add(m));
+    for (const b of d.benches) lists.push(benches.add(b));
+    for (const l of d.labs) lists.push(labs.add(l));
+    counts.push(d.variants.length, d.models.length, d.benches.length, d.labs.length);
     const next = new Map<number, number>();
-    for (let v = 0; v < c.nv; v++) for (let b = 0; b < c.nb; b++) {
-      const r = c.at[v * c.nb + b];
-      if (r < 0) continue;
-      const harness = c.rows[r].harness, h = harness === undefined ? 0 : (harnessAt.get(harness) ?? harnessAt.set(harness, harnessAt.size + 1).get(harness)!);
-      const key = `${v2[v]},${b2[b]},${c.value[r]},${c.flags[r]},${h}`;
+    for (const [vi, bi, value, flags, harness] of d.cells) {
+      const v = v2[vi], b = b2[bi];
+      const h = harness === null ? 0 : (harnessAt.get(harness) ?? harnessAt.set(harness, harnessAt.size + 1).get(harness)!);
+      const key = `${v},${b},${value},${flags},${h}`;
       let row = rowAt.get(key);
-      if (row === undefined) { row = rowValue.length; rowAt.set(key, row); rowValue.push(c.value[r]); rowFlags.push(c.flags[r]); rowHarness.push(h); }
-      const slot = v2[v] * 65536 + b2[b];
+      if (row === undefined) { row = rowValue.length; rowAt.set(key, row); rowValue.push(value); rowFlags.push(flags); rowHarness.push(h); }
+      const slot = v * 65536 + b;
       next.set(slot, row);
-      if (current.get(slot) !== row) { patchVariant.push(v2[v]); patchBench.push(b2[b]); patchRow.push(row); }
+      if (current.get(slot) !== row) { patchVariant.push(v); patchBench.push(b); patchRow.push(row); }
     }
     for (const slot of current.keys()) if (!next.has(slot)) { patchVariant.push(Math.floor(slot / 65536)); patchBench.push(slot % 65536); patchRow.push(-1); }
     current = next;
