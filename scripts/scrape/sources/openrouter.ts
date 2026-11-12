@@ -98,9 +98,10 @@ const source: Source = {
     const unknown: string[] = [];
     const j = <T>(u: string) => ctx.fetchJson<T>(u).catch(() => undefined);
     const entries = [...targets.values()];
-    const CONC = 6;
-    for (let i = 0; i < entries.length; i += CONC) {
-      await Promise.all(entries.slice(i, i + CONC).map(async (t) => {
+    // A pool, not lockstep batches: one slow model no longer holds up the next five.
+    const CONC = 12;
+    let nextEntry = 0;
+    const each = async (t: (typeof entries)[number]) => {
         const q = `permaslug=${encodeURIComponent(t.permaslug)}`;
         const [up, tps, lat, toolErr] = await Promise.all([
           j<{ data?: SeriesPoint[] }>(`${STATS}/uptime-comparison?${q}&timeRange=7d`),
@@ -122,9 +123,10 @@ const source: Source = {
         mk("openrouter-latency", latMs == null ? undefined : latMs / 1000);
         mk("openrouter-tool-errors", volumeWeightedMean(toolErr?.data ?? []));
         raw[`stats-${t.permaslug.replace("/", "_")}.json`] = JSON.stringify({ uptime: upData.slice(-14), throughput: (tps?.data ?? []).slice(-48), latency: (lat?.data ?? []).slice(-48), toolErrors: (toolErr?.data ?? []).slice(-48) }).slice(0, 300_000);
-      }));
-      ctx.log(`${Math.min(i + CONC, entries.length)}/${entries.length}`);
-    }
+    };
+    await Promise.all(Array.from({ length: CONC }, async () => { while (nextEntry < entries.length) await each(entries[nextEntry++]); }));
+    // Finishing order varies run to run; the snapshot should not.
+    rows.sort((a, b) => a.benchmarkId.localeCompare(b.benchmarkId) || a.modelLabel.localeCompare(b.modelLabel));
 
     return {
       benchmarks: [

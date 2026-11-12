@@ -10,7 +10,7 @@ import { createHash } from "node:crypto";
 import { gzipSync, gunzipSync } from "node:zlib";
 import type { Benchmark, Effort, Model, Observation, PlanResets, RawRow, RawSeries, Series, Snapshot, Source, SourceRun, ScrapeResult, Variant } from "../../src/data/types";
 import { EFFORT_WORDS, LABS, normalizeLabel, variantId } from "../../src/data/normalize";
-import { makeContext, saveRaw } from "./harness";
+import { closeBrowser, makeContext, saveRaw, sleep } from "./harness";
 import { buildLibrary } from "./library";
 import { writeHistoryArchive } from "./history-archive";
 import { canonicalizeSnapshot } from "../../src/data/canonical-snapshot";
@@ -56,11 +56,42 @@ async function main() {
   const meta = new Map<string, NonNullable<ScrapeResult["modelMeta"]>[number]>();
   const weightFlags: NonNullable<ScrapeResult["modelFlags"]> = [];
 
-  // Keep publisher traffic bounded when many benchmarks share one host (VALS).
-  let nextSource = 0;
-  await Promise.all(Array.from({ length: Math.min(6, sources.length) }, async () => {
-    while (nextSource < sources.length) {
-      const src = sources[nextSource++];
+  // Side fetches that need no source result start now and run beside the sources (awaited where they are used).
+  const wantFree = !only || only.includes("realapipricing") || only.includes("free-tiers");
+  const wantResets = !only || only.includes("plan-resets");
+  const settle = <T>(p: Promise<T>) => p.then((value) => ({ value }), (error: unknown) => ({ error }));
+  const orListing = settle(makeContext("release-dates", () => {}).fetchJson<{ data?: OpenRouterCreated[] }>("https://openrouter.ai/api/v1/models"));
+  const freeFetch = wantFree ? settle(fetchFreeTiers(makeContext("free-tiers"))) : undefined;
+  const resetFetch = wantResets ? settle(fetchPlanResets(makeContext("plan-resets"))) : undefined;
+
+  // Slowest sources first (last run's timings), so the run ends when the slowest one does, not after it.
+  const TIMINGS = path.resolve("data/raw/source-timings.json");
+  let lastTimings: Record<string, number> = {};
+  try { lastTimings = JSON.parse(await readFile(TIMINGS, "utf8")); } catch { /* first run */ }
+  const queue = [...sources].sort((a, b) => (lastTimings[b.id] ?? 0) - (lastTimings[a.id] ?? 0));
+  // Many sources at once, but publisher traffic stays bounded where several sources share one host (VALS: 3 at a time).
+  const laneOf = (src: Source) => (src.id.startsWith("vals") || src.id === "programbench" ? "vals" : src.id);
+  const LANE_LIMIT: Record<string, number> = { vals: 3 };
+  const active = new Map<string, number>();
+  const take = () => {
+    const i = queue.findIndex((x) => (active.get(laneOf(x)) ?? 0) < (LANE_LIMIT[laneOf(x)] ?? Infinity));
+    return i < 0 ? undefined : queue.splice(i, 1)[0];
+  };
+  await Promise.all(Array.from({ length: Math.min(16, sources.length) }, async () => {
+    while (queue.length) {
+      const src = take();
+      if (!src) { await sleep(25); continue; }
+      const lane = laneOf(src);
+      active.set(lane, (active.get(lane) ?? 0) + 1);
+      try { await runSource(src); } finally { active.set(lane, (active.get(lane) ?? 1) - 1); }
+    }
+  }));
+  await closeBrowser();
+  await mkdir(path.dirname(TIMINGS), { recursive: true });
+  await writeFile(TIMINGS, JSON.stringify(Object.fromEntries(timings))).catch(() => {});
+
+  async function runSource(src: Source) {
+    {
       const ctx = makeContext(src.id);
       const started = new Date().toISOString(), t0 = Date.now();
       let rawPath = "";
@@ -92,7 +123,7 @@ async function main() {
         ctx.log(`FAILED after ${((Date.now() - t0) / 1000).toFixed(1)}s: ${msg}`);
       }
     }
-  }));
+  }
 
   console.log(`TIMING sources ${((Date.now() - scrapeStart) / 1000).toFixed(0)}s wall: ${[...timings].sort((a, b) => b[1] - a[1]).slice(0, 10).map(([id, ms]) => `${id} ${(ms / 1000).toFixed(0)}s`).join(", ")}`);
   // ---- normalize
@@ -268,21 +299,20 @@ async function main() {
   {
     const dateCtx = makeContext("release-dates");
     let orDates = new Map<string, string>();
-    try {
-      const listing = await dateCtx.fetchJson<{ data?: OpenRouterCreated[] }>("https://openrouter.ai/api/v1/models");
-      orDates = openRouterDates(listing.data ?? []);
-    } catch (e) {
-      dateCtx.log(`OpenRouter listing failed, skipping that fallback: ${e instanceof Error ? e.message : String(e)}`);
-    }
+    const listing = await orListing;
+    if ("value" in listing) orDates = openRouterDates(listing.value.data ?? []);
+    else dateCtx.log(`OpenRouter listing failed, skipping that fallback: ${listing.error instanceof Error ? listing.error.message : String(listing.error)}`);
     const { filled, stillMissing } = fillReleaseDates(snap.models, orDates);
     dateCtx.log(`release dates filled: ${filled.override.length} override, ${filled.openrouter.length} OpenRouter, ${filled.suffix.length} id suffix; ${stillMissing.length} still undated`);
   }
 
   // Models free today on OpenCode Zen or OpenRouter are priced at 0 in the subscription view.
-  if (!only || only.includes("realapipricing") || only.includes("free-tiers")) {
+  if (freeFetch) {
     const freeCtx = makeContext("free-tiers");
     try {
-      const { entries, raw } = await fetchFreeTiers(freeCtx);
+      const got = await freeFetch;
+      if ("error" in got) throw got.error;
+      const { entries, raw } = got.value;
       await saveRaw("free-tiers", date, raw);
       const made = applyFreeTiers(snap, entries, date);
       freeCtx.log(`${made.length} ranked models are free: ${made.join(", ")}`);
@@ -307,10 +337,12 @@ async function main() {
     let prevResets: PlanResets[] = [];
     try { prevResets = (JSON.parse(gunzipSync(await readFile(path.join(SNAP_DIR, "latest.json.gz"))).toString("utf8")) as Snapshot).planResets ?? []; } catch { /* first run */ }
     snap.planResets = prevResets;
-    if (!only || only.includes("plan-resets")) {
+    if (resetFetch) {
       const resetCtx = makeContext("plan-resets");
       try {
-        const { resets, failed, raw } = await fetchPlanResets(resetCtx);
+        const got = await resetFetch;
+        if ("error" in got) throw got.error;
+        const { resets, failed, raw } = got.value;
         await saveRaw("plan-resets", date, raw);
         snap.planResets = [...resets, ...prevResets.filter((p) => failed.includes(p.labId) || !resets.some((r) => r.labId === p.labId))];
         if (failed.length) resetCtx.log(`carried ${failed.join(", ")} from the last snapshot`);

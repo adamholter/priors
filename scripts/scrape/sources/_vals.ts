@@ -17,6 +17,22 @@ export interface ValsSourceConfig {
   description: string;
   eligibleForDefault?: boolean;
   defaultWeight?: number;
+  /**
+   * Component scores an index page carries for versions no standalone page publishes (the Vals Index runs Finance Agent v2.1
+   * while /benchmarks/fabv2 still shows v2). Each becomes its own benchmark, its id from the version in `metadata.tasks`.
+   */
+  components?: ValsComponent[];
+}
+
+export interface ValsComponent {
+  task: string;
+  /** Matches the task's name in `metadata.tasks`; group 1 is the version. A renamed task is skipped with a note. */
+  label: RegExp;
+  id: (version: string) => string;
+  name: (version: string) => string;
+  shortName: string;
+  category: BenchmarkCategory;
+  description: string;
 }
 
 interface ValsRecord extends Record<string, unknown> {
@@ -122,6 +138,8 @@ export function parseValsModelCatalog(source: string): Record<string, ValsModelC
     while (i < source.length) {
       const char = source[i++];
       if (char === quote) return out;
+      // A template literal is only data while it has no substitution.
+      if (quote === "`" && char === "$" && source[i] === "{") throw new Error("Vals AI model catalog: template substitution");
       if (char !== "\\") { out += char; continue; }
       const escaped = source[i++];
       if (escaped === "n") out += "\n";
@@ -154,14 +172,15 @@ export function parseValsModelCatalog(source: string): Record<string, ValsModelC
   const parseValue = (): unknown => {
     skip();
     const char = source[i];
-    if (char === "'" || char === '"') return parseString();
+    // The bundler now writes strings as template literals (`AWS`).
+    if (char === "'" || char === '"' || char === "`") return parseString();
     if (char === "{") {
       i++;
       const object: Record<string, unknown> = {};
       skip();
       while (source[i] !== "}") {
         if (i >= source.length) throw new Error("Vals AI model catalog: unterminated object");
-        const key = source[i] === "'" || source[i] === '"' ? parseString() : (() => {
+        const key = source[i] === "'" || source[i] === '"' || source[i] === "`" ? parseString() : (() => {
           const match = source.slice(i).match(/^[A-Za-z_$][\w$]*/);
           if (!match) throw new Error(`Vals AI model catalog: invalid object key at ${i}`);
           i += match[0].length; return match[0];
@@ -282,11 +301,11 @@ export async function loadValsView(html: string, fetchText: (url: string) => Pro
 export async function valsConstantsUrl(html: string, fetchText: (url: string) => Promise<string>): Promise<{ url: string; componentUrl: string; componentSource: string }> {
   const componentUrl = new URL(astroComponentUrl(html, "BenchmarkView"), VALS_ORIGIN).toString();
   const componentSource = await fetchText(componentUrl);
-  const direct = componentSource.match(/from\s*["']\.\/(constants\.[^"']+\.js)["']/)?.[1];
+  const direct = componentSource.match(/from\s*["']\.\/(constants\.[^"'?]+\.js(?:\?[^"']*)?)["']/)?.[1];
   if (direct) return { url: new URL(`/_astro/${direct}`, VALS_ORIGIN).toString(), componentUrl, componentSource };
-  for (const dep of componentSource.matchAll(/from\s*["']\.\/(BenchmarkView\.[^"']+\.js)["']/g)) {
+  for (const dep of componentSource.matchAll(/from\s*["']\.\/(BenchmarkView\.[^"'?]+\.js(?:\?[^"']*)?)["']/g)) {
     const src = await fetchText(new URL(`/_astro/${dep[1]}`, VALS_ORIGIN).toString());
-    const found = src.match(/from\s*["']\.\/(constants\.[^"']+\.js)["']/)?.[1];
+    const found = src.match(/from\s*["']\.\/(constants\.[^"'?]+\.js(?:\?[^"']*)?)["']/)?.[1];
     if (found) return { url: new URL(`/_astro/${found}`, VALS_ORIGIN).toString(), componentUrl, componentSource: src };
   }
   throw new Error("Vals AI BenchmarkView: model catalog import missing");
@@ -430,6 +449,32 @@ export function createValsSource(config: ValsSourceConfig): Source {
         });
       }
 
+      const componentBenchmarks: BenchmarkWithLastUpdated[] = [], componentNotes: string[] = [];
+      const taskNames = isRecord(metadata.tasks) ? metadata.tasks : {};
+      for (const c of config.components ?? []) {
+        const table = view.tasks![c.task], name = taskNames[c.task], version = typeof name === "string" ? name.match(c.label)?.[1] : undefined;
+        if (!isRecord(table) || !version) { componentNotes.push(`component ${c.task} skipped (named ${String(name)})`); continue; }
+        const id = c.id(version);
+        let n = 0;
+        for (const base of rows.filter((r) => r.benchmarkId === config.benchmarkId)) {
+          const rec = table[base.sourceModelId!];
+          if (!isRecord(rec) || !isNum(rec.accuracy)) continue;
+          rows.push({
+            ...base, benchmarkId: id, value: rec.accuracy,
+            costUsd: isNum(rec.cost_per_test) ? rec.cost_per_test : undefined, durationSec: isNum(rec.latency) ? rec.latency : undefined,
+            details: isNum(rec.stderr) ? { ...base.details, stderr: rec.stderr } : base.details,
+            note: isNum(rec.stderr) ? `published standard error ±${rec.stderr}; from the ${config.name} page` : `from the ${config.name} page`,
+          });
+          n++;
+        }
+        if (!n) { componentNotes.push(`component ${c.task} had no scores`); continue; }
+        componentBenchmarks.push({
+          id, name: c.name(version), shortName: c.shortName, sourceId: config.sourceId, url, description: c.description, unit: "percent", higherIsBetter: true,
+          category: c.category, versionPolicy: { kind: "fresh" }, lastUpdated: updated, eligibleForDefault: false, defaultWeight: 0,
+        });
+        componentNotes.push(`${c.name(version)}: ${n} rows`);
+      }
+
       const benchmark: BenchmarkWithLastUpdated = {
         id: config.benchmarkId,
         name: config.name,
@@ -446,7 +491,7 @@ export function createValsSource(config: ValsSourceConfig): Source {
         defaultWeight: config.defaultWeight ?? 0,
       };
       return {
-        benchmarks: [benchmark],
+        benchmarks: [benchmark, ...componentBenchmarks],
         rows,
         raw: {
           "page.html": html,
@@ -457,7 +502,7 @@ export function createValsSource(config: ValsSourceConfig): Source {
           "model-catalog-keys.json": JSON.stringify(Object.fromEntries(Object.entries(catalog.entries).filter(([key]) => usedCatalogKeys.has(key))), null, 2),
         },
         modelMeta,
-        notes: [`${rows.length} overall rows; Vals updated ${updated}`, ...(modelListNote ? [modelListNote] : [])],
+        notes: [`${rows.length} rows; Vals updated ${updated}`, ...componentNotes, ...(modelListNote ? [modelListNote] : [])],
       };
     },
   };

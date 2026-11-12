@@ -30,6 +30,16 @@ function readLiteral(node: ts.Expression): Data {
   if (node.kind === ts.SyntaxKind.FalseKeyword) return false;
   if (node.kind === ts.SyntaxKind.NullKeyword) return null;
   if (ts.isPrefixUnaryExpression(node) && node.operator === ts.SyntaxKind.ExclamationToken) return !readLiteral(node.operand);
+  // Large tables ship as JSON.parse(`...`).
+  if (ts.isCallExpression(node) && node.arguments.length === 1 && ts.isPropertyAccessExpression(node.expression) && node.expression.getText() === "JSON.parse") {
+    const arg = node.arguments[0];
+    if (ts.isStringLiteralLike(arg) || ts.isNoSubstitutionTemplateLiteral(arg)) return JSON.parse(arg.text) as Data;
+  }
+  // Lists ship as `a,b,c`.split(`,`).
+  if (ts.isCallExpression(node) && node.arguments.length === 1 && ts.isPropertyAccessExpression(node.expression) && node.expression.name.text === "split") {
+    const text = node.expression.expression, sep = node.arguments[0];
+    if ((ts.isStringLiteralLike(text) || ts.isNoSubstitutionTemplateLiteral(text)) && (ts.isStringLiteralLike(sep) || ts.isNoSubstitutionTemplateLiteral(sep))) return text.text.split(sep.text);
+  }
   if (ts.isArrayLiteralExpression(node)) return node.elements.map((entry) => {
     if (ts.isSpreadElement(entry)) throw new Error("VALS RSI: unsupported spread in static data");
     return readLiteral(entry);
@@ -87,8 +97,10 @@ function slug(value: string): string {
 
 export function parseRsiData(dataJs: string, catalogJs: string, pageHtml: string): Pick<ScrapeResult, "benchmarks" | "rows" | "notes"> {
   const dataAst = parseJs(dataJs, "benchmark_view_rsi_index.js");
-  const metadata = object(readLiteral(binding(dataAst, "e")));
-  const tasks = object(readLiteral(binding(dataAst, "t")));
+  // The bundler renames the constants between deploys; the module's export map names them.
+  const exported = (key: string, fallback: string) => dataJs.match(new RegExp(`\\b${key}:\\(\\)=>([\\w$]+)`))?.[1] ?? fallback;
+  const metadata = object(readLiteral(binding(dataAst, exported("metadata", "e"))));
+  const tasks = object(readLiteral(binding(dataAst, exported("tasks", "t"))));
   if (!metadata || !tasks || metadata.benchmark !== "Vals RSI Index" || metadata.slug !== "rsi_index") {
     throw new Error("VALS RSI: static data module is not the RSI Index");
   }
@@ -160,13 +172,13 @@ export function parseRsiData(dataJs: string, catalogJs: string, pageHtml: string
 }
 
 function componentPath(html: string): string {
-  const match = html.match(/component-url="([^"]*RsiBenchmarkView[^"]*\.js)"/);
+  const match = html.match(/component-url="([^"]*RsiBenchmarkView[^"]*\.js(?:\?[^"]*)?)"/);
   if (!match) throw new Error("VALS RSI: client component not found in page");
   return match[1].replaceAll("&amp;", "&");
 }
 function asset(js: string, fragment: string): string {
   const imports = [...js.matchAll(/from["']([^"']+)["']/g)].map((m) => m[1]);
-  const value = imports.find((p) => p.includes(fragment) && p.endsWith(".js"));
+  const value = imports.find((p) => p.includes(fragment) && p.split("?")[0].endsWith(".js"));
   if (!value?.startsWith("./")) throw new Error(`VALS RSI: imported ${fragment} asset not found`);
   return value;
 }

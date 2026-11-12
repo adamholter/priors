@@ -7,6 +7,19 @@ const UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (
 
 export const RAW_DIR = path.resolve(process.cwd(), "data/raw");
 
+let browserPromise: Promise<import("playwright").Browser> | undefined;
+function sharedBrowser(): Promise<import("playwright").Browser> {
+  browserPromise ??= import("playwright").then(({ chromium }) => chromium.launch());
+  browserPromise.catch(() => { browserPromise = undefined; });
+  return browserPromise;
+}
+/** Close the run's shared browser, if a source opened one. */
+export async function closeBrowser(): Promise<void> {
+  const b = browserPromise;
+  browserPromise = undefined;
+  if (b) await (await b.catch(() => undefined))?.close();
+}
+
 export function makeContext(sourceId: string, log = (m: string) => console.log(`[${sourceId}] ${m}`)): ScrapeContext {
   const now = new Date().toISOString();
   async function fetchWithRetry(url: string, init?: RequestInit, tries = 3): Promise<Response> {
@@ -26,14 +39,15 @@ export function makeContext(sourceId: string, log = (m: string) => console.log(`
     log,
     fetchText: async (url, init) => (await fetchWithRetry(url, init)).text(),
     fetchJson: async (url, init) => (await fetchWithRetry(url, init)).json(),
+    // One Chromium for the whole run, a fresh context per page: launching a browser per page cost ~1-2s each.
     withPage: async (url, fn) => {
-      const { chromium } = await import("playwright");
-      const browser = await chromium.launch();
+      const browser = await sharedBrowser();
+      const context = await browser.newContext({ userAgent: UA, viewport: { width: 1440, height: 1200 } });
       try {
-        const page = await browser.newPage({ userAgent: UA, viewport: { width: 1440, height: 1200 } });
+        const page = await context.newPage();
         await page.goto(url, { waitUntil: "networkidle", timeout: 90_000 });
         return await fn(page);
-      } finally { await browser.close(); }
+      } finally { await context.close(); }
     },
   };
 }

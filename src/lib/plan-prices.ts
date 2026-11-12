@@ -42,6 +42,11 @@ export function planPrices(snapshot: Snapshot): PlanPrices {
     const slug = o.sourceUrl?.match(AA_MODEL)?.[1], modelId = slug && (modelOf.get(o.variantId) ?? o.variantId.split("@")[0]);
     if (modelId) (slugs.get(modelId) ?? slugs.set(modelId, new Set()).get(modelId)!).add(slug);
   }
+  // AA's newer rows link to evaluation pages; the variant still records the model page it came from.
+  for (const v of snapshot.variants) for (const m of [v.sourceModel, ...(v.sourceModels ?? [])]) {
+    const slug = m?.url?.match(AA_MODEL)?.[1];
+    if (slug) (slugs.get(v.modelId) ?? slugs.set(v.modelId, new Set()).get(v.modelId)!).add(slug);
+  }
   const labName = new Map(snapshot.labs.map((l) => [l.id, l.name])), labOf = new Map(snapshot.models.map((m) => [m.id, m.labId]));
   const options = subscriptionPlanOptions(snapshot);
   const readings = new Map(planReadings(snapshot).map((m) => [m.modelId, m.readings.map((r) => ({ ...r, ratio: round(r.ratio) }))]));

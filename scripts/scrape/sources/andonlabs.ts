@@ -193,7 +193,9 @@ const source: Source = {
     const series: RawSeries[] = [];
     const notes: string[] = [];
     const raw: Record<string, string> = {};
-    for (const def of EVALS) {
+    // Each eval is its own page: read them side by side, then keep EVALS order.
+    const results = await Promise.all(EVALS.map(async (def) => {
+      const rows: RawRow[] = [], series: RawSeries[] = [], notes: string[] = [], raw: Record<string, string> = {};
       const url = `${BASE}/${def.slug}`;
       try {
         let scripts: string[] = [];
@@ -225,7 +227,9 @@ const source: Source = {
       } catch (e) {
         notes.push(`${def.id}: ${e instanceof Error ? e.message : e}`);
       }
-    }
+      return { rows, series, notes, raw };
+    }));
+    for (const r of results) { rows.push(...r.rows); series.push(...r.series); notes.push(...r.notes); Object.assign(raw, r.raw); }
     return {
       benchmarks: EVALS.map((def) => ({
         id: def.id, name: def.name, shortName: def.shortName, sourceId: this.id, url: `${BASE}/${def.slug}`,

@@ -227,13 +227,13 @@ export interface ValsModelName {
 
 export function parseValsModelCatalog(bundle: string, requiredIds: readonly string[] = []): Map<string, ValsModelName> {
   const models = new Map<string, ValsModelName>();
-  const pattern = /"((?:\\.|[^"\\])+)":\{company:"((?:\\.|[^"\\])*)",country:"((?:\\.|[^"\\])*)",label:"((?:\\.|[^"\\])*)"/g;
+  // Strings come double-quoted or, since November 2026, as template literals (`AWS`).
+  const str = (n: number) => `(["\`])((?:\\\\.|(?!\\${n})[^\\\\])${n === 1 ? "+" : "*"})\\${n}`;
+  const pattern = new RegExp(`${str(1)}:\\{company:${str(3)},country:${str(5)},label:${str(7)}`, "g");
+  const text = (quote: string, body: string) => JSON.parse("\"" + (quote === "`" ? body.replace(/(^|[^\\])"/g, '$1\\"') : body) + "\"") as string;
   for (const match of bundle.matchAll(pattern)) {
     try {
-      const id = JSON.parse("\"" + match[1] + "\"") as string;
-      const company = JSON.parse("\"" + match[2] + "\"") as string;
-      const country = JSON.parse("\"" + match[3] + "\"") as string;
-      const label = JSON.parse("\"" + match[4] + "\"") as string;
+      const id = text(match[1], match[2]), company = text(match[3], match[4]), country = text(match[5], match[6]), label = text(match[7], match[8]);
       if (id && label) models.set(id, { company, country, label });
     } catch {
       // Ignore malformed catalog entries; every required id is checked below.

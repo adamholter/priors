@@ -123,6 +123,9 @@ publish_live() {
 LOCKDIR=${TMPDIR:-/tmp}/priors-scrape.lock
 trap '[ "$(cat "$LOCKDIR/pid" 2>/dev/null)" = "$$" ] && rm -rf "$LOCKDIR"' EXIT
 LOG=$(mktemp "${TMPDIR:-/tmp}/priors-scrape.XXXXXX") || exit 1
+# Library fits run in worker processes here and on this ssh host when it answers (scripts/scrape/library-fits.ts); empty = local only.
+export PRIORS_FIT_REMOTE=${PRIORS_FIT_REMOTE-adams-linux}
+SECONDS=0
 # --no-library: the library (the slow part) is built below, once, and only if the data changed.
 # PRIORS_SCRAPE_ONLY (scrape-now.sh with source ids) scrapes just those sources; the build carries the rest from the live snapshot.
 if ! npx tsx scripts/scrape/build.ts --date "$DATE" --no-library ${PRIORS_SCRAPE_ONLY:+--only "$PRIORS_SCRAPE_ONLY"} 2>&1 | tee "$LOG"; then
@@ -173,6 +176,7 @@ pull_requests() {
   return 0
 }
 pull_requests
+echo "TIMING build ${SECONDS}s"
 SNAPSHOT_BASELINE_REF=${HAVE_LIVE:+origin/$LIVE} npx tsx scripts/ops/snapshot-changed.ts
 CHANGE_STATUS=$?
 case "$CHANGE_STATUS" in
@@ -195,14 +199,17 @@ else
     LIB_BUILT=$NOW
   fi
 fi
+echo "TIMING library ${SECONDS}s"
 if grep -q "DEFAULT_FIT_MISSING" "$LOG"; then
   notify "Priors: the default lineup has no exact fit on today's data — see logs/scrape.log"
 fi
 if ! npx tsx scripts/scrape/intro-cards.ts 2>&1 | tee -a "$LOG"; then
   notify "Priors intro cards failed for $DATE — see logs/scrape.log"
 fi
+echo "TIMING intro cards ${SECONDS}s"
 if ! publish_live; then
   notify "Priors live data $DATE was not published — see logs/scrape.log"
   exit 1
 fi
+echo "TIMING published ${SECONDS}s"
 echo "== done $(date -Iseconds)"
