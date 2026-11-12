@@ -54,11 +54,13 @@ export function StrengthsRadar({ ranked, benchmarks, labs, snapshot, config, anc
   const update = (patch: Partial<RadarSettings>) => setSettings((s) => ({ ...s, ...patch }));
 
   const rows = useMemo(() => radarRows(snapshot, config, ranked, benchmarks), [snapshot, config, ranked, benchmarks]);
-  const { axes, models, median, spokes, canGroup } = useMemo(() => radarModelsFor(rows, benchmarks, norm, settings.spokes), [rows, benchmarks, norm, settings.spokes]);
+  // Until the user picks models, the radar follows the top 4 and the bar charts the top 8.
+  const selected = useMemo(() => { const order = rows.map((r) => ({ id: r.model.id })); return view === "bars" && !settings.models ? order.slice(0, BARS_TOP).map((m) => m.id) : selectedModels(order, settings.models); }, [rows, settings.models, view]);
+  const { axes, models, median, spokes, canGroup } = useMemo(() => radarModelsFor(rows, benchmarks, norm, settings.spokes, selected), [rows, benchmarks, norm, settings.spokes, selected]);
   const byCategory = spokes === "categories", noun = byCategory ? "categories" : "benchmarks";
   const byId = useMemo(() => new Map(models.map((m) => [m.id, m])), [models]);
-  // Until the user picks models, the radar follows the top 4 and the bar charts the top 8.
-  const selected = useMemo(() => view === "bars" && !settings.models ? models.slice(0, BARS_TOP).map((m) => m.id) : selectedModels(models, settings.models), [models, settings.models, view]);
+  // On the Range scale a field median below every model drawn is off the bottom of each spoke: nothing to draw or to name.
+  const medianOn = median.some((p) => (p.r ?? 0) > 0.03);
   const labOf = useMemo(() => new Map(labs.map((l) => [l.id, l])), [labs]);
   const colorOfLab = useCallback((m: RadarModel) => labColor(m.labId, labOf.get(m.labId)?.color), [labColor, labOf]);
   const slotOf = useCallback((id: string) => settings.models ? slots[id] ?? 0 : selected.indexOf(id), [settings.models, slots, selected]);
@@ -109,7 +111,7 @@ export function StrengthsRadar({ ranked, benchmarks, labs, snapshot, config, anc
     <div className="chart-toolbar rl-panel-head">
       <ul className="rl-legend" aria-label="Models on the radar">
         {series.map((s) => <li key={s.id} onMouseEnter={() => setFocus(s.id)} onMouseLeave={() => setFocus(null)}><RadarSwatch color={s.color} dash={s.dash} />{s.name}</li>)}
-        {showMedian && view === "radar" && <li className="rl-legend-median"><i aria-hidden="true" />Field median</li>}
+        {showMedian && medianOn && view === "radar" && <li className="rl-legend-median"><i aria-hidden="true" />Field median</li>}
       </ul>
       <div className="flex items-center gap-1 ml-auto">
         <div className="seg" role="group" aria-label="Strengths view">
@@ -127,7 +129,7 @@ export function StrengthsRadar({ ranked, benchmarks, labs, snapshot, config, anc
     <BenchBars axes={axes} series={series} focus={focus} onInfo={setInfo} register={register} /> :
     <div className={`rl-strengths${expand.expanded ? " rl-strengths-expanded" : ""}`}>
       <div className="rl-main">
-        <Radar axes={axes} series={series} ghost={showMedian ? median : undefined} norm={norm} size={380} focus={focus} hoverAxis={axis} onHoverAxis={setAxis} onAxisClick={setInfo}
+        <Radar axes={axes} series={series} ghost={showMedian && medianOn ? median : undefined} norm={norm} size={380} focus={focus} hoverAxis={axis} onHoverAxis={setAxis} onAxisClick={setInfo}
           ariaLabel={`Radar of ${series.map((s) => s.name).join(", ")} across ${axes.length} ${noun}`} />
       </div>
       <div>
@@ -136,11 +138,11 @@ export function StrengthsRadar({ ranked, benchmarks, labs, snapshot, config, anc
             const vsLeader = compare === "leader" && s.id !== leader.id;
             return <li key={s.id} className={focus === s.id ? "rl-rail-on" : undefined} onMouseEnter={() => setFocus(s.id)} onMouseLeave={() => setFocus(null)}>
               <button type="button" className="rl-rail-btn" aria-label={`Expand ${s.name}`} onClick={() => setExpanded(s.id)}>
-                <Radar axes={axes} series={[s]} ghost={vsLeader ? leader.points : median} ghostStyle={vsLeader ? "outline" : "median"} norm={norm} size={112} labels={false} compact hoverAxis={axis} ariaLabel={`${s.name} across ${axes.length} ${noun}`} />
+                <Radar axes={axes} series={[s]} ghost={vsLeader ? leader.points : medianOn ? median : undefined} ghostStyle={vsLeader ? "outline" : "median"} norm={norm} size={112} labels={false} compact hoverAxis={axis} ariaLabel={`${s.name} across ${axes.length} ${noun}`} />
                 <span className="rl-rail-text">
                   <span className="rl-rail-name"><RadarSwatch color={s.color} dash={s.dash} />{s.name}</span>
                   {caption(s)}
-                  <span className="cap">{vsLeader ? `vs ${leader.name}` : "vs field median"}</span>
+                  <span className="cap">{vsLeader ? `vs ${leader.name}` : medianOn ? "vs field median" : ""}</span>
                 </span>
               </button>
             </li>;

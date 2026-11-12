@@ -80,3 +80,19 @@ describe("category spokes", () => {
     expect(readRadarParams(new URLSearchParams("")).spokes).toBeUndefined();
   });
 });
+
+describe("Range scale", () => {
+  const bm = (id: string) => ({ required: false, share: 50, benchmark: { id, name: id, sourceId: "s", url: "", description: "", unit: "percent" as const, higherIsBetter: true, category: "coding" as never } });
+  const row = (id: string, a: number) => ({ model: { id, name: id, labId: "l" }, variant: { id: `${id}@x`, effort: "high" }, score: 1, rank: 1, values: [{ benchmarkId: "a", value: a, estimated: false }] }) as never;
+  const rows = [row("top", 90), row("second", 80), row("median", 40), row("worst", 0)];
+  const r = (shown?: string[]) => Object.fromEntries(radarModelsFor(rows, [bm("a")], "field", "benchmarks", shown).models.map((m) => [m.id, +m.points[0].r!.toFixed(2)]));
+  it("starts each spoke just below the lowest model drawn, so close models spread out", () => {
+    // Over the whole field the top two sit at the rim, a tenth of the spoke apart.
+    expect(r()).toMatchObject({ top: 1, second: 0.9, worst: 0.1 });
+    // Drawn alone, the spoke runs from 77 to 90: they are most of the spoke apart.
+    expect(r(["top", "second"])).toMatchObject({ top: 1, second: 0.31 });
+    // A model below the bottom sits at the center instead of leaving the chart.
+    expect(r(["top", "second"]).worst).toBe(0);
+  });
+  it("keeps the field's range when only the best model is drawn", () => { expect(r(["top"])).toMatchObject({ top: 1, worst: 0.1 }); });
+});

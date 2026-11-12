@@ -9,7 +9,8 @@ export const RADAR_MIN_AXES = 3;
 
 /**
  * How a benchmark value maps to radius.
- * - field: min-max over every ranked model on that benchmark (worst in the field sits near the center).
+ * - field: from a margin below the lowest model drawn (`zoomAxes`) to the best ranked model on that benchmark, so the
+ *   models on the chart spread across it. With no models named, from the worst ranked model.
  * - score: the engine's 0-100 value as-is (percent benchmarks are raw).
  * - rank: percentile among ranked models on that benchmark.
  */
@@ -36,9 +37,27 @@ export function radarAxes(benchmarks: IndexBenchmarks, rows: RankedVariant[]): R
     .sort((a, b) => categoryOrder(a.category) - categoryOrder(b.category) || b.share - a.share);
 }
 
+/** How far below the lowest drawn model a spoke starts, as a share of the distance from that model to the best. */
+const ZOOM_MARGIN = 0.3;
+
+/**
+ * Each spoke's bottom moved up to just below the lowest of the models drawn, so they are told apart
+ * instead of crowding the rim when the field's worst model is far below them all. The top stays the
+ * best ranked model. A spoke where the drawn models are all the best keeps the field's bottom.
+ */
+export function zoomAxes(axes: RadarAxis[], rows: RankedVariant[], shown: string[]): RadarAxis[] {
+  const drawn = rows.filter((r) => shown.includes(r.model.id));
+  return axes.map((a) => {
+    const values = drawn.map((r) => r.values.find((v) => v.benchmarkId === a.id)?.value).filter((v): v is number => v != null);
+    const low = Math.min(...values);
+    return values.length && low < a.max ? { ...a, min: Math.max(a.min, low - ZOOM_MARGIN * (a.max - low)) } : a;
+  });
+}
+
 export function normalize(value: number, axis: RadarAxis, norm: RadarNorm, pool: number[]): number {
   if (norm === "score") return Math.max(0, Math.min(1, value / 100));
-  if (norm === "field") return axis.max === axis.min ? 1 : FLOOR + (1 - FLOOR) * (value - axis.min) / (axis.max - axis.min);
+  // A model below a zoomed spoke's bottom (the field median often is) sits at the center.
+  if (norm === "field") return axis.max === axis.min ? 1 : Math.max(0, FLOOR + (1 - FLOOR) * (value - axis.min) / (axis.max - axis.min));
   const below = pool.filter((v) => v < value).length, ties = pool.filter((v) => v === value).length;
   return FLOOR + (1 - FLOOR) * (pool.length > 1 ? (below + (ties - 1) / 2) / (pool.length - 1) : 1);
 }

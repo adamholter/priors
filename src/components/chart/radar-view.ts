@@ -8,7 +8,7 @@ import { computeIndex, selectVariants, type IndexConfig, type IndexResult, type 
 import { benchmarkBlurb } from "../../lib/benchmark-blurb";
 import { categoryName, categoryOrder, normalizeCategory } from "../../data/categories";
 import { radarLabels, textWidth } from "./radar-labels";
-import { fillFromSiblings, formatValue, medianPoints, radarAxes, radarModels, ringLabels, type RadarAxis, type RadarModel, type RadarNorm, type RadarPoint } from "./radar-data";
+import { fillFromSiblings, formatValue, medianPoints, radarAxes, radarModels, ringLabels, zoomAxes, type RadarAxis, type RadarModel, type RadarNorm, type RadarPoint } from "./radar-data";
 
 export interface RadarSeries { id: string; name: string; color: string; dash?: string; points: RadarPoint[] }
 export type RadarCompare = "leader" | "median";
@@ -30,7 +30,7 @@ export const BARS_TOP = 8;
 export const RADAR_ANCHOR = "strengths";
 
 export const RADAR_NORMS: { id: RadarNorm; label: string; hint: string }[] = [
-  { id: "field", label: "Range", hint: "Each spoke runs from the worst to the best ranked model on that benchmark." },
+  { id: "field", label: "Range", hint: "Each spoke runs from just below the lowest model shown to the best ranked model, so the models shown spread out. The field median appears only when it is inside that range." },
   { id: "rank", label: "Percentile", hint: "Each spoke is the model's percentile among ranked models." },
   { id: "score", label: "Raw", hint: "The index's 0–100 score per benchmark, unstretched." },
 ];
@@ -111,10 +111,11 @@ export function radarSpokes(benchmarks: IndexResult["benchmarks"], asked?: Radar
   return { canGroup, spokes: canGroup && (asked ?? (benchmarks.length > RADAR_MAX_BENCHMARK_SPOKES ? "categories" : "benchmarks")) === "categories" ? "categories" : "benchmarks" };
 }
 
-export function radarModelsFor(rows: RankedVariant[], benchmarks: IndexResult["benchmarks"], norm: RadarNorm, asked?: RadarSpokes) {
+/** `shown`: the models the chart draws. On the Range scale each spoke then starts just below the lowest of them. */
+export function radarModelsFor(rows: RankedVariant[], benchmarks: IndexResult["benchmarks"], norm: RadarNorm, asked?: RadarSpokes, shown?: string[]) {
   const { spokes, canGroup } = radarSpokes(benchmarks, asked);
   const use = spokes === "categories" ? radarByCategory(rows, benchmarks) : { rows, benchmarks };
-  const axes = radarAxes(use.benchmarks, use.rows);
+  const field = radarAxes(use.benchmarks, use.rows), axes = norm === "field" && shown?.length ? zoomAxes(field, use.rows, shown) : field;
   return { axes, models: radarModels(use.rows, axes, norm), median: medianPoints(use.rows, axes, norm), spokes, canGroup };
 }
 
@@ -131,7 +132,7 @@ export function radarSeries(models: RadarModel[], selected: string[], colors: Ra
   });
 }
 
-export function selectedModels(models: RadarModel[], picked?: string[]) {
+export function selectedModels(models: { id: string }[], picked?: string[]) {
   const known = new Set(models.map((m) => m.id));
   return picked ? picked.filter((id) => known.has(id)) : models.slice(0, RADAR_TOP).map((m) => m.id);
 }
@@ -215,7 +216,7 @@ export const RADAR_PALETTES: Record<"light" | "dark", RadarSvgPalette> = {
 export function radarSnapshotView(snapshot: Snapshot, config: IndexConfig, settings: RadarSettings, dark: boolean, labColor: (lab: Lab) => string) {
   const r = computeIndex(snapshot, { ...config, variants: "all" });
   const rows = radarRows(snapshot, config, r.ranked, r.benchmarks);
-  const { axes, models, median } = radarModelsFor(rows, r.benchmarks, settings.norm, settings.spokes);
+  const { axes, models, median } = radarModelsFor(rows, r.benchmarks, settings.norm, settings.spokes, selectedModels(rows.map((x) => ({ id: x.model.id })), settings.models));
   const labs = new Map(snapshot.labs.map((l) => [l.id, l]));
   const series = radarSeries(models, selectedModels(models, settings.models), settings.colors, dark, (id) => { const lab = labs.get(id); return lab ? labColor(lab) : "#A3A39B"; });
   return { axes, models, median, series, ghost: settings.median ? median : undefined, meta: new Map(models.map((m) => [m.id, { rank: m.rank, score: m.score }])) };
