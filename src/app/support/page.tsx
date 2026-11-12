@@ -8,20 +8,21 @@ import { Pledge } from "./Pledge";
 import { ShareButton } from "./ShareButton";
 import "./support.css";
 
-export const metadata = pageMeta({ title: "Support Priors", description: "Priors is free and I pay for it myself. Here is what it costs and where your support goes.", path: "/support" });
+export const metadata = pageMeta({ title: "Support Priors", description: "Priors is free, and supporters now cover the whole bill. Here is what it costs and where your support goes.", path: "/support" });
 
 const COFFEE = "https://buymeacoffee.com/adamholter";
 const X_URL = "https://x.com/AdamHoltererer";
 
-/** Monthly bills, in dollars, as of October 2026. Vercel is mostly rebuilds, and it grows with traffic. */
+/** Monthly bills, in dollars, as of November 2026. Vercel is mostly rebuilds, and it grows with traffic. */
 const HOSTING = 70;
 const SMALL = 1.1;
-const BILL = Math.round(HOSTING + SMALL);
 const CLERK_PRO = 25;
+const BILL = Math.round(HOSTING + SMALL + CLERK_PRO);
 const COSTS = [
   { name: "Hosting (Vercel)", usd: HOSTING, note: "$70", detail: "Servers and the work of rebuilding the site" },
+  { name: "Sign-in (Clerk Pro)", usd: CLERK_PRO, note: "$25", detail: "Keeps you signed in for months instead of 7 days. Funded by supporters" },
   { name: "Domain and AI assistant", usd: SMALL, note: "$1", detail: "mypriors.com plus about ten cents of AI" },
-  { name: "Sign-in, database, analytics", usd: 0, note: "Free", detail: "Clerk, Convex and PostHog, on free plans for now" },
+  { name: "Database, analytics", usd: 0, note: "Free", detail: "Convex and PostHog, on free plans" },
 ];
 
 const XLogo = () => <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" /></svg>;
@@ -40,16 +41,16 @@ export default async function SupportPage() {
               <a className="sp-x" href={X_URL} target="_blank" rel="noreferrer" aria-label="Adam Holter on X"><img src="/support/adam.jpg" alt="Adam Holter" width={72} height={72} /><XLogo /></a>
               <span className="text-[15px] text-ink-2">Adam Holter, who builds Priors</span>
             </div>
-            <h1 className="text-[40px] sm:text-[52px] leading-[1.05] text-ink">Priors costs ${BILL} a month. I pay it myself.</h1>
-            <p className="text-[17px] leading-[1.65] text-ink-2">You have compared {models} models on {benchmarks} benchmarks without paying anything, and there are no ads. I want to keep it that way. If Priors is useful to you, a few dollars a month keeps it running.</p>
+            <h1 className="text-[40px] sm:text-[52px] leading-[1.05] text-ink">Priors costs ${BILL} a month. Supporters cover all of it.</h1>
+            <p className="text-[17px] leading-[1.65] text-ink-2">You have compared {models} models on {benchmarks} benchmarks without paying anything, and there are no ads. That works because people who find Priors useful chip in. Thank you to everyone who does.</p>
           </div>
           <Pledge />
         </section>
 
         <section className="grid gap-4">
           <div className="flex flex-wrap items-baseline justify-between gap-2"><h2 className="text-[28px] text-ink">This month&rsquo;s bill</h2><span className="sp-num">${BILL} a month</span></div>
-          <div className="sp-track sp-track-lg"><div className="sp-fill" style={{ width: "100%" }} /></div>
-          <div className="flex flex-wrap justify-between gap-2 text-[14px] text-ink-2"><span>Paid by me: ${BILL}</span><span>Paid by supporters: $0</span></div>
+          <div className="sp-track sp-track-lg"><div className="sp-fill is-goal" style={{ width: "100%" }} /></div>
+          <div className="flex flex-wrap justify-between gap-2 text-[14px] text-ink-2"><span>Paid by supporters: ${BILL}</span><span>Paid by me: $0</span></div>
         </section>
 
 <section className="grid gap-6">
@@ -61,10 +62,10 @@ export default async function SupportPage() {
         </section>
 
 <section className="grid gap-6">
-          <div className="grid gap-1"><h2 className="text-[28px] text-ink">The goal: ${BILL + CLERK_PRO} a month</h2><p className="text-ink-2">Today&rsquo;s ${BILL}, plus ${CLERK_PRO} to stop signing everyone out.</p></div>
+          <div className="grid gap-1"><h2 className="text-[28px] text-ink">What extra support does</h2><p className="text-ink-2">The bill is covered, and the first goal is funded.</p></div>
           <div className="sp-goal">
-            <h3 className="text-[19px] text-ink">Keep you signed in</h3>
-            <p className="text-ink-2 text-[15px] leading-[1.6]">Today, free sign-in accounts log everyone out every 7 days. Clerk Pro costs ${CLERK_PRO} a month and keeps you signed in for months. It is the first thing new support pays for.</p>
+            <h3 className="text-[19px] text-ink">Keeping you signed in: funded</h3>
+            <p className="text-ink-2 text-[15px] leading-[1.6]">Supporters fund Clerk Pro, so sign-ins last months instead of logging everyone out every 7 days. Support beyond the bill keeps Priors covered as traffic grows.</p>
           </div>
         </section>
 
