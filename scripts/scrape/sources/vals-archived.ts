@@ -61,8 +61,8 @@ function category(industry: unknown): BenchmarkCategory {
   const map: Record<string, BenchmarkCategory> = {
     coding: "coding",
     math: "math",
-    finance: "economics",
-    "social mobility": "economics",
+    finance: "professional",
+    "social mobility": "professional",
     legal: "knowledge",
     healthcare: "knowledge",
     academic: "knowledge",

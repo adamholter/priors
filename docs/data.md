@@ -31,6 +31,15 @@
 - Lab colors live in `LABS` in `normalize.ts`: same lab, same color everywhere.
 - Regression corpus: `scripts/benchmarks/` (`npm run benchmark:identity`, also run by Vitest). For a new parsing defect, add the source label and the independently reviewed identity to `fixtures/identity-cases.json`. Never edit expected groups to match the parser.
 
+## Descriptions and categories
+
+What a reader sees about a benchmark is written in one place, `src/data/catalog/` (one file per source family, keyed by benchmark id, with pattern rules for families such as Arena's slices and MathArena's dated editions). A scraper says where the numbers come from; the catalog says what they mean.
+
+- **Descriptions** open with what the model is asked to do, in plain words, then how the number is scored, then any caveat. No "Name:" opening, no em dashes, no unexplained jargon (say "share solved on the first try", not "pass@1"). State only what the publisher's page or paper states.
+- **Categories** are in `src/data/categories.ts`. A benchmark can sit in several (`categories`, main one first); `category` is the main one, which groups it in pickers and on charts. The directory's filter, search and the model page's "By category" radar count it in all of them. Read categories through `categoriesOf` and `categoryName`: snapshots saved before November 12, 2026 carry the old names (`economics`, `instruction`), which `normalizeCategory` maps.
+- The catalog is applied twice: at the end of the scrape build, so the published data carries it, and when the site loads any snapshot (`parseSnapshot`), so an archived day reads like the live one and a catalog edit is live on deploy. Applying it twice changes nothing.
+- A benchmark with no entry keeps its source's description and category, and the build log names it (`catalog: no entry for …`). A new source needs a catalog entry in the same change.
+
 ## Scrapers
 
 `scripts/scrape/build.ts` runs every file in `scripts/scrape/sources/`, normalizes the rows and writes the snapshot. Raw payloads go to `data/raw/` (gitignored).

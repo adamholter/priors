@@ -17,6 +17,8 @@ export function ModelStrengths({ data, labColors, onInfo }: { data: NonNullable<
   const pal = useChartPalette();
   const { axes, me, leader, median, place, models, mixName } = data;
   const [axis, setAxis] = useState<number | null>(null);
+  // With many benchmarks the spokes are categories, which have no benchmark card to open.
+  const grouped = axes.some((a) => a.id.startsWith("cat:")), open = grouped ? undefined : onInfo;
   const colorOf = (labId: string) => markColor(labColors[labId], pal, labId);
   const series: RadarSeries[] = [
     { id: me.id, name: me.name, color: colorOf(me.labId), points: me.points },
@@ -33,14 +35,14 @@ export function ModelStrengths({ data, labColors, onInfo }: { data: NonNullable<
       </div>
       <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] items-center">
         <div className="flex justify-center min-w-0 overflow-x-clip">
-          <Radar axes={axes} series={series} ghost={median} norm="field" size={300} hoverAxis={axis} onHoverAxis={setAxis} onAxisClick={onInfo} ariaLabel={`${me.name} across the ${axes.length} benchmarks in ${mixName}, against ${leader?.name ?? "the leader"} and the field median`} />
+          <Radar axes={axes} series={series} ghost={median} norm="field" size={300} hoverAxis={axis} onHoverAxis={setAxis} onAxisClick={open} ariaLabel={`${me.name} across the ${axes.length} ${grouped ? "categories" : "benchmarks"} in ${mixName}, against ${leader?.name ?? "the leader"} and the field median`} />
         </div>
         <ol className="grid gap-3 min-w-0" onMouseLeave={() => setAxis(null)}>
           {axes.map((a, i) => {
             const p = me.points[i], m = median[i], at = place[i];
             return <li key={a.id} className={`grid gap-1 rounded-[4px] -mx-2 px-2 py-1 ${axis === i ? "bg-hair-2" : ""}`} onMouseEnter={() => setAxis(i)}>
               <div className="flex items-baseline gap-2 text-[13px] min-w-0">
-                <span className="truncate">{a.name}</span><InfoIcon name={a.name} onClick={() => onInfo(a.id)} />
+                <span className="truncate">{a.name}</span>{open && <InfoIcon name={a.name} onClick={() => open(a.id)} />}
                 <span className="cap shrink-0">{a.share.toFixed(0)}%</span>
                 <span className="num ml-auto shrink-0">{formatValue(p, a)}{p.estimated ? " est." : ""}</span>
                 <span className="cap shrink-0 w-[78px] text-right whitespace-nowrap">{at ? `#${at.rank} of ${at.n}` : "no data"}</span>
@@ -53,7 +55,7 @@ export function ModelStrengths({ data, labColors, onInfo }: { data: NonNullable<
           })}
         </ol>
       </div>
-      <p className="cap">Bars show where {me.name} sits among the {models} ranked models on each benchmark (right is best); the tick is the field median.</p>
+      <p className="cap">Bars show where {me.name} sits among the {models} ranked models on each {grouped ? "category of this ranking's benchmarks" : "benchmark"} (right is best); the tick is the field median.</p>
     </section>
   );
 }

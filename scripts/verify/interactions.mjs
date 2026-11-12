@@ -1263,6 +1263,25 @@ try {
     } finally { await c.context().close(); }
   });
 
+  await check("categories: the radar can draw categories in place of benchmarks, the directory filters by them, and a model page has its By category radar", async () => {
+    const c = await (await browser.newContext({ viewport: { width: 1360, height: 900 } })).newPage();
+    c.on("pageerror", (e) => errors.push(`${c.url()}: ${e.message}`));
+    try {
+      await c.goto(`${BASE}/builder?c=strengths&rg=cat`, { waitUntil: "domcontentloaded" });
+      await c.getByText("What each category covers").waitFor({ timeout: 30000 });
+      await c.getByLabel("Strengths settings", { exact: true }).click();
+      await c.getByRole("tab", { name: "Settings" }).click();
+      assert.equal(await c.getByRole("button", { name: "Categories", exact: true }).getAttribute("aria-pressed"), "true");
+      await c.getByRole("button", { name: "Benchmarks", exact: true }).click();
+      await c.getByText("What each benchmark measures").waitFor({ timeout: 10000 });
+      await c.goto(`${BASE}/benchmarks`, { waitUntil: "domcontentloaded" });
+      await c.getByRole("navigation", { name: "Categories" }).getByRole("button", { name: /Science & research/ }).click();
+      await c.getByRole("link", { name: /CritPt v2/ }).first().waitFor({ timeout: 10000 });
+      await c.goto(`${BASE}/models/claude-opus-5.5`, { waitUntil: "domcontentloaded" });
+      await c.getByRole("heading", { name: "By category" }).waitFor({ timeout: 30000 });
+    } finally { await c.context().close(); }
+  });
+
   await check("builder: with many indices the + stays reachable", async () => {
     const c = await (await browser.newContext({ viewport: { width: 1100, height: 800 } })).newPage();
     c.on("pageerror", (e) => errors.push(`${c.url()}: ${e.message}`));

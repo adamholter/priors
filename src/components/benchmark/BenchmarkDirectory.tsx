@@ -2,10 +2,11 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from "react";
 import {
-  IconBolt, IconBook2, IconBrain, IconChartPie, IconCode, IconCoin, IconCube, IconDots, IconFileText, IconHistory, IconListCheck, IconMathFunction, IconPalette,
-  IconReceipt, IconRepeat, IconRobot, IconSearch, IconShieldCheck, IconStack2, IconTrophy, IconUsers, IconWorld,
+  IconBolt, IconBook2, IconBrain, IconBriefcase, IconChartPie, IconChess, IconCode, IconCube, IconDots, IconEye, IconFileText, IconFlask, IconHistory, IconLanguage, IconMathFunction, IconMoodSmile, IconPalette,
+  IconReceipt, IconRepeat, IconRobot, IconSearch, IconShieldCheck, IconStack2, IconThumbUp, IconTrophy, IconUsers, IconWorld,
 } from "@tabler/icons-react";
 import type { Benchmark } from "@/data/types";
+import { categoriesOf, categoryBlurb, categoryName, categoryOrder } from "@/data/categories";
 import { searchBenchmarks } from "@/lib/benchmark-search";
 import { recommendedScore } from "@/lib/benchmark-recommended";
 import { benchmarkPath } from "@/lib/benchmark-slug";
@@ -14,7 +15,7 @@ import "./benchmarks.css";
 
 /** One row of the directory: what the benchmark is, how much it covers, how good and how used it is. */
 export interface DirectoryItem {
-  id: string; name: string; shortName?: string; sourceId: string; category: Benchmark["category"]; description: string; host: string;
+  id: string; name: string; shortName?: string; sourceId: string; category: Benchmark["category"]; categories?: Benchmark["category"][]; description: string; host: string;
   models: number; quality: number; uses: number; lastUpdated?: string;
   /** The model with the best score the publisher reports on this board, older models included. */
   leader?: { name: string; labId: string; color: string };
@@ -26,9 +27,9 @@ export interface DirectoryItem {
 
 type Icon = ComponentType<{ size?: number; stroke?: number; className?: string; "aria-hidden"?: boolean }>;
 const CATEGORY_ICON: Record<Benchmark["category"], Icon> = {
-  coding: IconCode, agentic: IconRobot, reasoning: IconBrain, knowledge: IconBook2, math: IconMathFunction, "long-context": IconFileText,
-  instruction: IconListCheck, creative: IconPalette, safety: IconShieldCheck, economics: IconCoin, composite: IconChartPie, speed: IconBolt,
-  cost: IconReceipt, reliability: IconRepeat, other: IconDots,
+  coding: IconCode, agentic: IconRobot, professional: IconBriefcase, science: IconFlask, math: IconMathFunction, reasoning: IconBrain, games: IconChess,
+  knowledge: IconBook2, vision: IconEye, "long-context": IconFileText, creative: IconPalette, behavior: IconMoodSmile, safety: IconShieldCheck,
+  multilingual: IconLanguage, preference: IconThumbUp, composite: IconChartPie, speed: IconBolt, cost: IconReceipt, reliability: IconRepeat, other: IconDots,
 };
 const TIP = {
   leader: "The model with the best score this benchmark reports, older models included.",
@@ -50,7 +51,7 @@ const compare: Record<Sort, (a: DirectoryItem, b: DirectoryItem) => number> = {
   updated: (a, b) => (b.lastUpdated ?? "").localeCompare(a.lastUpdated ?? ""),
   name: (a, b) => a.name.localeCompare(b.name),
 };
-const title = (c: string) => c.charAt(0).toUpperCase() + c.slice(1).replace(/-/g, " ");
+const title = categoryName;
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
 export function BenchmarkDirectory({ items }: { items: DirectoryItem[] }) {
@@ -66,17 +67,17 @@ export function BenchmarkDirectory({ items }: { items: DirectoryItem[] }) {
   }, []);
   const base = useMemo(() => items.filter((x) => everything || (!x.superseded && !x.variantOf)), [items, everything]);
   const searching = q.trim().length > 0;
-  // Busiest, best categories first: by their strongest benchmark.
-  const categories = useMemo(() => {
-    const top = new Map<string, number>(), count = new Map<string, number>();
-    for (const x of base) { top.set(x.category, Math.max(top.get(x.category) ?? -Infinity, recommendedScore(x))); count.set(x.category, (count.get(x.category) ?? 0) + 1); }
-    return [...top.keys()].sort((a, b) => top.get(b)! - top.get(a)!).map((id) => ({ id, count: count.get(id)! }));
+    const categories = useMemo(() => {
+    const count = new Map<string, number>();
+    for (const x of base) for (const c of categoriesOf(x)) count.set(c, (count.get(c) ?? 0) + 1);
+    // A fixed order, so a category is always in the same place.
+    return [...count.keys()].sort((a, b) => categoryOrder(a) - categoryOrder(b)).map((id) => ({ id, count: count.get(id)! }));
   }, [base]);
   // A search over everything: an older version or a category split is often exactly what someone typed.
   // Equal matches keep input order, so feed it current boards before older versions and splits, then by recommendation.
   const ranked = useMemo(() => [...items].sort((a, b) => Number(!!a.superseded) - Number(!!b.superseded) || Number(!!a.variantOf) - Number(!!b.variantOf) || recommendedScore(b) - recommendedScore(a)), [items]);
   const found = useMemo(() => {
-    const inCategory = (x: DirectoryItem) => category === "all" || x.category === category;
+    const inCategory = (x: DirectoryItem) => category === "all" || categoriesOf(x).some((c) => c === category);
     return searching ? searchBenchmarks(ranked.filter(inCategory), q, title, { loose: true }) : base.filter(inCategory).sort(compare[sort]);
   }, [base, ranked, category, sort, q, searching]);
   const totals = useMemo(() => ({ models: Math.max(0, ...base.map((x) => x.models)), publishers: new Set(base.map((x) => x.host).filter(Boolean)).size }), [base]);
@@ -94,7 +95,7 @@ export function BenchmarkDirectory({ items }: { items: DirectoryItem[] }) {
       <div className="bench-layout">
         <nav className="bench-rail" aria-label="Categories">
           <button type="button" aria-pressed={category === "all"} onClick={() => choose("all")}><IconStack2 size={17} stroke={1.5} aria-hidden /><span>All</span><span className="cap">{base.length}</span></button>
-          {categories.map((c) => { const I = CATEGORY_ICON[c.id as Benchmark["category"]] ?? IconDots; return <button key={c.id} type="button" aria-pressed={category === c.id} onClick={() => choose(c.id)}><I size={17} stroke={1.5} aria-hidden /><span>{title(c.id)}</span><span className="cap">{c.count}</span></button>; })}
+          {categories.map((c) => { const I = CATEGORY_ICON[c.id as Benchmark["category"]] ?? IconDots; return <button key={c.id} type="button" aria-pressed={category === c.id} title={categoryBlurb(c.id)} onClick={() => choose(c.id)}><I size={17} stroke={1.5} aria-hidden /><span>{categoryName(c.id)}</span><span className="cap">{c.count}</span></button>; })}
         </nav>
         <div className="grid gap-5 content-start min-w-0">
           <div className="grid gap-3">
@@ -149,12 +150,12 @@ function Favicon({ host }: { host: string }) {
 }
 
 function Row({ x, showCategory }: { x: DirectoryItem; showCategory?: boolean }) {
-  const lab = useLabColor(), I = CATEGORY_ICON[x.category] ?? IconDots;
+  const lab = useLabColor(), main = categoriesOf(x)[0], I = CATEGORY_ICON[main] ?? IconDots;
   return (
     <li className="border-b hairline last:border-b-0">
       <Link href={benchmarkPath(x.id) as "/"} className="bench-row group">
         <span className="bench-main">
-          {showCategory && <Tip text={title(x.category)} className="bench-cat"><I size={16} stroke={1.5} aria-hidden /></Tip>}
+          {showCategory && <Tip text={categoriesOf(x).map(categoryName).join(" · ")} className="bench-cat"><I size={16} stroke={1.5} aria-hidden /></Tip>}
           <span className="min-w-0">
             <span className="flex flex-wrap items-center gap-x-2">
               <span className="text-[15px] group-hover:underline decoration-dotted underline-offset-2">{x.name}</span>

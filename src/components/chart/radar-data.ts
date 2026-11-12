@@ -1,4 +1,5 @@
 import { EFFORT_ORDER, type Benchmark, type BenchmarkCategory } from "../../data/types";
+import { categoryOrder } from "../../data/categories";
 import type { BenchValue, IndexResult, RankedVariant } from "@/engine";
 
 type IndexBenchmarks = IndexResult["benchmarks"];
@@ -15,11 +16,12 @@ export const RADAR_MIN_AXES = 3;
 export type RadarNorm = "field" | "score" | "rank";
 const FLOOR = 0.1;
 
-export interface RadarAxis { id: string; label: string; name: string; description: string; share: number; category: BenchmarkCategory; unit: Benchmark["unit"]; min: number; max: number; median: number }
+export interface RadarAxis { id: string; label: string; name: string; description: string; share: number; category: BenchmarkCategory; unit: Benchmark["unit"]; min: number; max: number; median: number;
+  /** The line under the name in the hover card, in place of the spoke's share of the index. */
+  sub?: string }
 export interface RadarPoint { r: number | null; value?: number; raw?: number; estimated: boolean; estimateRange?: [number, number] }
 export interface RadarModel { id: string; name: string; labId: string; score: number; rank: number; points: RadarPoint[] }
 
-const CATEGORY_ORDER: BenchmarkCategory[] = ["coding", "agentic", "reasoning", "math", "long-context", "knowledge", "instruction", "economics", "creative", "safety", "composite", "reliability", "speed", "cost", "other"];
 
 /** Spokes in category order so related benchmarks sit next to each other. */
 export function radarAxes(benchmarks: IndexBenchmarks, rows: RankedVariant[]): RadarAxis[] {
@@ -31,7 +33,7 @@ export function radarAxes(benchmarks: IndexBenchmarks, rows: RankedVariant[]): R
         min: values[0] ?? 0, max: values.at(-1) ?? 100, median: values.length ? values[Math.floor(values.length / 2)] : 50,
       };
     })
-    .sort((a, b) => CATEGORY_ORDER.indexOf(a.category) - CATEGORY_ORDER.indexOf(b.category) || b.share - a.share);
+    .sort((a, b) => categoryOrder(a.category) - categoryOrder(b.category) || b.share - a.share);
 }
 
 export function normalize(value: number, axis: RadarAxis, norm: RadarNorm, pool: number[]): number {

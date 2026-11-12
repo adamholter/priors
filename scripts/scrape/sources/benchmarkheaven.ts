@@ -20,8 +20,8 @@ const MIN_MODELS = 5;
 const MIN_MODELS_SELF_REPORTED = 8;
 
 const CATEGORY: Record<string, BenchmarkCategory> = {
-  Coding: "coding", Agentic: "agentic", "Tool-use": "agentic", Math: "math", Reasoning: "reasoning", Knowledge: "knowledge", Science: "reasoning",
-  Vision: "reasoning", "Long-context": "long-context", Instruction: "instruction", Writing: "creative", Roleplay: "creative",
+  Coding: "coding", Agentic: "agentic", "Tool-use": "agentic", Math: "math", Reasoning: "reasoning", Knowledge: "knowledge", Science: "science",
+  Vision: "vision", "Long-context": "long-context", Instruction: "behavior", Writing: "creative", Roleplay: "creative",
   "Safety/Alignment": "safety", Uncensored: "safety", Other: "other",
 };
 const EFFORTS = new Set(["none", "minimal", "low", "medium", "high", "xhigh", "max"]);

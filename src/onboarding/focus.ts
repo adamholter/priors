@@ -1,5 +1,6 @@
 import type { Benchmark, FocusId } from "../data/types";
 import { FOCUS_IDS } from "../data/types";
+import { CATEGORY_IDS, normalizeCategory } from "../data/categories";
 
 export type { FocusId };
 export { FOCUS_IDS };
@@ -19,28 +20,28 @@ export const FOCUSES: Focus[] = [
     id: "capabilities",
     name: "Capabilities",
     blurb: "Coding and agentic work — what the model can actually do.",
-    categories: { coding: 1, agentic: 1, reasoning: 0.5, math: 0.3, knowledge: 0.25, "long-context": 0.25 },
+    categories: { coding: 1, agentic: 1, professional: 0.8, science: 0.6, reasoning: 0.5, math: 0.3, games: 0.3, vision: 0.3, knowledge: 0.25, "long-context": 0.25 },
     starter: { "vals-programbench-v1": 25, "deepswe-1.1": 25, "aa-terminalbench-v4-0": 25, "arc-agi-3": 10, "aa-tau3-banking": 5, "aa-hle-diamond": 10 },
   },
   {
     id: "knowledge",
     name: "Knowledge",
     blurb: "Facts, recall, hallucination resistance, long documents.",
-    categories: { knowledge: 1, "long-context": 0.6, reasoning: 0.4, coding: 0.2, agentic: 0.2, math: 0.2 },
+    categories: { knowledge: 1, "long-context": 0.6, professional: 0.5, science: 0.5, reasoning: 0.4, vision: 0.3, multilingual: 0.3, coding: 0.2, agentic: 0.2, math: 0.2 },
     starter: { "aa-omniscience": 35, "aa-hle-diamond": 25, "aa-gpqa-diamond": 15, "aa-mlcr-aa": 15, simplebench: 10 },
   },
   {
     id: "problem-solving",
     name: "Problem solving",
     blurb: "Reasoning and math — hard, novel problems.",
-    categories: { reasoning: 1, math: 1, coding: 0.4, agentic: 0.3, knowledge: 0.3, "long-context": 0.2 },
+    categories: { reasoning: 1, math: 1, science: 1, games: 0.5, vision: 0.4, coding: 0.4, agentic: 0.3, knowledge: 0.3, "long-context": 0.2 },
     starter: { "arc-agi-3": 30, "frontiermath-tier-4-v2": 25, "aa-hle-diamond": 20, simplebench: 15, "deepswe-1.1": 10 },
   },
   {
     id: "general",
     name: "General",
     blurb: "No bias — any benchmark that fits your order.",
-    categories: { coding: 1, agentic: 1, reasoning: 1, knowledge: 1, math: 1, "long-context": 1, instruction: 1, creative: 1, safety: 1, economics: 1, composite: 1, speed: 1, cost: 1, reliability: 1, other: 1 },
+    categories: Object.fromEntries(CATEGORY_IDS.map((c) => [c, 1])),
     starter: { "deepswe-1.1": 20, "aa-terminalbench-v4-0": 20, "vals-programbench-v1": 15, "arc-agi-3": 10, "aa-hle-diamond": 15, "aa-omniscience": 10, "frontiermath-tier-4-v2": 10 },
   },
 ];
@@ -48,5 +49,5 @@ export const FOCUSES: Focus[] = [
 export const DEFAULT_FOCUS: FocusId = "capabilities";
 
 export function focusMultiplier(f: Focus, category: Benchmark["category"]): number {
-  return f.categories[category] ?? 0.15;
+  return f.categories[normalizeCategory(category)] ?? 0.15;
 }

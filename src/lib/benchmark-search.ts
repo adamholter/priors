@@ -1,4 +1,5 @@
 import type { Benchmark } from "@/data/types";
+import { categoriesOf } from "@/data/categories";
 
 const squash = (value: string) => value.toLowerCase().replace(/[\s._-]+/g, "");
 const words = (value: string) => value.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
@@ -9,12 +10,12 @@ const words = (value: string) => value.toLowerCase().split(/[^a-z0-9]+/).filter(
  * start a word of the description so "ui" does not match "build". A match in the name outranks any
  * number of matches in descriptions; ties keep their input order.
  */
-export function searchBenchmarks<B extends Pick<Benchmark, "id" | "name" | "shortName" | "sourceId" | "category" | "description">>(benchmarks: B[], query: string, categoryName: (category: string) => string = (c) => c, { loose = false }: { loose?: boolean } = {}): B[] {
+export function searchBenchmarks<B extends Pick<Benchmark, "id" | "name" | "shortName" | "sourceId" | "category" | "description"> & { categories?: string[] }>(benchmarks: B[], query: string, categoryName: (category: string) => string = (c) => c, { loose = false }: { loose?: boolean } = {}): B[] {
   const terms = query.trim().split(/\s+/).filter(Boolean).map((t) => ({ squashed: squash(t), word: t.toLowerCase(), stem: stem(t.toLowerCase()) }));
   if (!terms.length) return benchmarks;
   const scored: { b: B; score: number; hits: number; at: number }[] = [];
   benchmarks.forEach((b, at) => {
-    const name = squash(b.name), short = squash([b.shortName, b.id].join(" ")), meta = squash([b.sourceId, categoryName(b.category)].join(" "));
+    const name = squash(b.name), short = squash([b.shortName, b.id].join(" ")), meta = squash([b.sourceId, ...categoriesOf(b).map(categoryName)].join(" "));
     const nameWords = words(`${b.name} ${b.shortName ?? ""}`), description = words(b.description ?? "");
     let score = 0, hits = 0;
     for (const t of terms) {

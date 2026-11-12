@@ -1,11 +1,11 @@
 "use client";
+import { categoryNames } from "@/data/categories";
 import Link from "next/link";
 import { useEffect, useMemo, useRef } from "react";
 import type { Benchmark, Snapshot } from "@/data/types";
 import { benchmarkPath } from "@/lib/benchmark-slug";
 import { useLabColor } from "./chart/echarts";
 
-const CATS: Record<string, string> = { coding: "Coding", agentic: "Agentic", reasoning: "Reasoning", knowledge: "Knowledge", math: "Math", "long-context": "Long context", instruction: "Instruction following", creative: "Creative", safety: "Safety", economics: "Economics", composite: "Composite index", speed: "Speed", cost: "Cost", reliability: "Reliability", other: "Other" };
 const UNIT: Record<string, string> = { percent: "Percent", elo: "Elo rating", score: "Score", usd: "US dollars", seconds: "Seconds", count: "Count" };
 
 export function InfoIcon({ name, onClick }: { name: string; onClick: () => void }) {
@@ -54,7 +54,7 @@ export function BenchmarkInfo({ snapshot, benchmarkId, inMix, onAdd, onClose }: 
     {b && data && <div className="p-6 sm:p-7">
       <div className="flex items-start justify-between gap-6">
         <div className="min-w-0">
-          <p className="cap">{CATS[b.category] ?? b.category}{b.lastUpdated ? ` · updated ${b.lastUpdated}` : ""}</p>
+          <p className="cap">{categoryNames(b)}{b.lastUpdated ? ` · updated ${b.lastUpdated}` : ""}</p>
           <h2 id="bench-title" className="text-[30px] leading-[1.08] mt-1.5">{b.name}</h2>
         </div>
         <button type="button" aria-label="Close" onClick={() => ref.current?.close()} className="shrink-0 grid place-items-center w-8 h-8 border hairline rounded-sm text-grey hover:text-ink"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg></button>

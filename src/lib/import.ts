@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { CATEGORY_IDS, normalizeCategory } from "@/data/categories";
 
 /** Schema for user/agent-provided benchmark data. Mirrors Benchmark + RawRow from the data contract. */
 export const importSchema = z.object({
@@ -10,7 +11,8 @@ export const importSchema = z.object({
     description: z.string().min(10).max(600),
     unit: z.enum(["percent", "score", "elo", "usd", "seconds", "count"]),
     higherIsBetter: z.boolean(),
-    category: z.enum(["coding", "agentic", "reasoning", "knowledge", "math", "long-context", "instruction", "creative", "safety", "economics", "composite", "speed", "cost", "reliability", "other"]),
+    // Imports saved before the November 2026 categories still say "economics" or "instruction".
+    category: z.enum(["economics", "instruction", ...CATEGORY_IDS]).transform(normalizeCategory),
   }),
   rows: z.array(z.object({
     modelLabel: z.string().min(1),

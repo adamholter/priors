@@ -50,3 +50,33 @@ describe("radar data", () => {
     expect(filled.score).toBe(ranked.score);
   });
 });
+
+import { radarByCategory, radarModelsFor, radarSpokes, readRadarParams, radarParams, DEFAULT_RADAR, RADAR_MAX_BENCHMARK_SPOKES } from "./radar-view";
+
+describe("category spokes", () => {
+  const bm = (id: string, category: string, share: number) => ({ required: false, share, benchmark: { id, name: id.toUpperCase(), sourceId: "s", url: "", description: "", unit: "percent" as const, higherIsBetter: true, category: category as never } });
+  const benchmarks = [bm("a", "coding", 30), bm("b", "coding", 10), bm("c", "math", 40), bm("d", "science", 20)];
+  const row = (id: string, values: Record<string, number>, estimated: string[] = []) => ({ model: { id, name: id, labId: "l" }, variant: { id: `${id}@x`, effort: "high" }, score: 1, rank: 1, values: Object.entries(values).map(([benchmarkId, value]) => ({ benchmarkId, value, estimated: estimated.includes(benchmarkId) })) }) as never;
+  it("rolls an index's benchmarks up by category, weighted as the index weights them", () => {
+    const g = radarByCategory([row("m", { a: 80, b: 40, c: 50 }, ["b"])], benchmarks);
+    expect(g.benchmarks.map((x) => [x.benchmark.id, x.benchmark.name, x.share])).toEqual([["cat:coding", "Coding", 40], ["cat:science", "Science & research", 20], ["cat:math", "Math", 40]]);
+    expect(g.benchmarks[0].benchmark.description).toBe("2 benchmarks of this index, weighted as the index weights them: A and B.");
+    const values = (g.rows[0] as unknown as { values: { benchmarkId: string; value: number; estimated: boolean }[] }).values;
+    expect(values).toEqual([{ benchmarkId: "cat:coding", value: 70, estimated: true }, { benchmarkId: "cat:math", value: 50, estimated: false }]);
+  });
+  it("draws categories when asked, or by itself once benchmarks are too many, and never with fewer than three", () => {
+    expect(radarSpokes(benchmarks)).toEqual({ spokes: "benchmarks", canGroup: true });
+    expect(radarSpokes(benchmarks, "categories").spokes).toBe("categories");
+    const many = Array.from({ length: RADAR_MAX_BENCHMARK_SPOKES + 1 }, (_, i) => bm(`x${i}`, ["coding", "math", "science"][i % 3], 1));
+    expect(radarSpokes(many).spokes).toBe("categories");
+    expect(radarSpokes(many, "benchmarks").spokes).toBe("benchmarks");
+    expect(radarSpokes([bm("a", "coding", 50), bm("b", "math", 50)], "categories")).toEqual({ spokes: "benchmarks", canGroup: false });
+    expect(radarModelsFor([row("m", { a: 80, b: 40, c: 50, d: 10 })], benchmarks, "score", "categories").axes.map((a) => a.id)).toEqual(["cat:coding", "cat:science", "cat:math"]);
+  });
+  it("carries the choice in chart links", () => {
+    expect(radarParams({ ...DEFAULT_RADAR, spokes: "categories" }).rg).toBe("cat");
+    expect(radarParams(DEFAULT_RADAR).rg).toBeUndefined();
+    expect(readRadarParams(new URLSearchParams("rg=cat")).spokes).toBe("categories");
+    expect(readRadarParams(new URLSearchParams("")).spokes).toBeUndefined();
+  });
+});

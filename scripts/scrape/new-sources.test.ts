@@ -217,7 +217,7 @@ describe("boggs.tech dashboard", () => {
   const r = buildBoggs(data as never);
   it("reads uncovered boards with enough models and links each to its own site", () => {
     expect(r.benchmarks.map((b) => b.id).sort()).toEqual(["bg-cheat", "bg-clockbench", "bg-elo-thing"]);
-    expect(r.benchmarks.find((b) => b.id === "bg-clockbench")).toMatchObject({ url: "https://clockbench.ai/", unit: "percent", category: "reasoning", defaultWeight: 0 });
+    expect(r.benchmarks.find((b) => b.id === "bg-clockbench")).toMatchObject({ url: "https://clockbench.ai/", unit: "percent", category: "vision", categories: ["vision"], defaultWeight: 0 });
   });
   it("keeps shares as percent, ratings in their own scale, and direction", () => {
     expect(r.rows.find((x) => x.benchmarkId === "bg-clockbench" && x.modelLabel === "m0")!.value).toBeCloseTo(10);

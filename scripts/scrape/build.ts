@@ -3,6 +3,7 @@
  *   data/snapshots/YYYY-MM-DD.json  (+ latest.json)
  * Usage: npx tsx scripts/scrape/build.ts [--only aa,deepswe] [--date YYYY-MM-DD]
  */
+import { applyCatalog } from "../../src/data/catalog";
 import { mkdir, readdir, writeFile, readFile, rename } from "node:fs/promises";
 import path from "node:path";
 import { createHash } from "node:crypto";
@@ -339,6 +340,10 @@ async function main() {
   snap.benchmarks = snap.benchmarks.filter((x) => observed.has(x.id) || snap.series.some((s) => s.benchmarkId === x.id));
 
   snap = canonicalizeSnapshot(snap);
+  // Plain-language descriptions and categories, over whatever each source said.
+  const catalogued = applyCatalog(snap.benchmarks);
+  snap.benchmarks = catalogued.benchmarks;
+  if (catalogued.missing.length) console.log(`catalog: no entry for ${catalogued.missing.join(", ")} (source description and category kept)`);
   // Open-weights flags: AA's per-model metadata, then other sources' flags (Epoch ECI, Benchmark Heaven), then family rules.
   const signals = new Map<string, boolean>();
   for (const f of weightFlags) {

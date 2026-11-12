@@ -6,6 +6,7 @@
 import type { Lab, Snapshot } from "../../data/types";
 import { computeIndex, selectVariants, type IndexConfig, type IndexResult, type RankedVariant } from "../../engine";
 import { benchmarkBlurb } from "../../lib/benchmark-blurb";
+import { categoryName, categoryOrder, normalizeCategory } from "../../data/categories";
 import { radarLabels, textWidth } from "./radar-labels";
 import { fillFromSiblings, formatValue, medianPoints, radarAxes, radarModels, ringLabels, type RadarAxis, type RadarModel, type RadarNorm, type RadarPoint } from "./radar-data";
 
@@ -14,7 +15,14 @@ export type RadarCompare = "leader" | "median";
 export type RadarColors = "lab" | "distinct";
 /** `models` is a user pick; undefined follows the live top 4. */
 export type RadarView = "radar" | "bars";
-export interface RadarSettings { norm: RadarNorm; compare: RadarCompare; colors: RadarColors; median: boolean; view: RadarView; models?: string[] }
+/** What a spoke is: one benchmark, or every benchmark of a category rolled into one. */
+export type RadarSpokes = "benchmarks" | "categories";
+/** `spokes` undefined follows the index: benchmarks, or categories once there are too many benchmarks to read. */
+export interface RadarSettings { norm: RadarNorm; compare: RadarCompare; colors: RadarColors; median: boolean; view: RadarView; models?: string[]; spokes?: RadarSpokes }
+/** Past this many benchmarks a radar is a hairball, so it draws one spoke per category unless told otherwise. */
+export const RADAR_MAX_BENCHMARK_SPOKES = 12;
+/** Id prefix of a category spoke, which stands for several benchmarks. */
+export const CATEGORY_SPOKE = "cat:";
 export const DEFAULT_RADAR: RadarSettings = { norm: "field", compare: "leader", colors: "lab", median: true, view: "radar" };
 export const RADAR_TOP = 4;
 /** Per-benchmark bar charts have room for more models than overlaid shapes do. */
@@ -32,11 +40,11 @@ const DASHES = [undefined, "7 4", "2 3", "10 3 2 3"];
 
 /* ---------------- URL params ---------------- */
 
-/** Radar params carried by `?c=strengths` links: rm (models), rs (scale), rc (small radars vs), rk (colors), rmed=0 (no median), rv=bars (a bar chart per benchmark). */
-export const RADAR_PARAM_KEYS = ["rm", "rs", "rc", "rk", "rmed", "rv"] as const;
+/** Radar params carried by `?c=strengths` links: rm (models), rs (scale), rc (small radars vs), rk (colors), rmed=0 (no median), rv=bars (a bar chart per benchmark), rg (spokes: cat or bench). */
+export const RADAR_PARAM_KEYS = ["rm", "rs", "rc", "rk", "rmed", "rv", "rg"] as const;
 
 export function readRadarParams(params: URLSearchParams): RadarSettings {
-  const rs = params.get("rs"), rc = params.get("rc"), rk = params.get("rk"), rm = params.get("rm");
+  const rs = params.get("rs"), rc = params.get("rc"), rk = params.get("rk"), rm = params.get("rm"), rg = params.get("rg");
   return {
     norm: RADAR_NORMS.some((n) => n.id === rs) ? rs as RadarNorm : DEFAULT_RADAR.norm,
     compare: rc === "median" ? "median" : "leader",
@@ -44,6 +52,7 @@ export function readRadarParams(params: URLSearchParams): RadarSettings {
     median: params.get("rmed") !== "0",
     view: params.get("rv") === "bars" ? "bars" : "radar",
     models: rm == null ? undefined : rm.split(",").filter(Boolean).slice(0, 12),
+    ...(rg === "cat" ? { spokes: "categories" as const } : rg === "bench" ? { spokes: "benchmarks" as const } : {}),
   };
 }
 
@@ -56,6 +65,7 @@ export function radarParams(s: RadarSettings): Record<(typeof RADAR_PARAM_KEYS)[
     rk: s.colors !== DEFAULT_RADAR.colors ? s.colors : undefined,
     rmed: s.median ? undefined : "0",
     rv: s.view !== DEFAULT_RADAR.view ? s.view : undefined,
+    rg: s.spokes === "categories" ? "cat" : s.spokes === "benchmarks" ? "bench" : undefined,
   };
 }
 
@@ -68,9 +78,44 @@ export function radarRows(snapshot: Snapshot, config: IndexConfig, ranked: Ranke
   return fillFromSiblings(selectVariants(ranked, "best"), siblings, benchmarks.map((b) => b.benchmark.id));
 }
 
-export function radarModelsFor(rows: RankedVariant[], benchmarks: IndexResult["benchmarks"], norm: RadarNorm) {
-  const axes = radarAxes(benchmarks, rows);
-  return { axes, models: radarModels(rows, axes, norm), median: medianPoints(rows, axes, norm) };
+/**
+ * The index's benchmarks rolled up by main category: one spoke per category, worth the sum of its
+ * benchmarks' shares. A model's value there is the share-weighted mean of its 0-100 values on the
+ * category's benchmarks it has (estimated if any of those is); with none it has no point.
+ */
+export function radarByCategory(rows: RankedVariant[], benchmarks: IndexResult["benchmarks"]): { rows: RankedVariant[]; benchmarks: IndexResult["benchmarks"] } {
+  const groups = new Map<string, IndexResult["benchmarks"]>();
+  for (const b of benchmarks) { const c = normalizeCategory(b.benchmark.category); groups.set(c, [...(groups.get(c) ?? []), b]); }
+  const order = [...groups.keys()].sort((a, b) => categoryOrder(a) - categoryOrder(b));
+  const list = (names: string[]) => names.length < 2 ? names.join("") : `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`;
+  const spokes: IndexResult["benchmarks"] = order.map((c) => {
+    const members = groups.get(c)!, share = members.reduce((n, m) => n + m.share, 0);
+    return { share, required: false, benchmark: { ...members[0].benchmark, id: `${CATEGORY_SPOKE}${c}`, name: categoryName(c), shortName: undefined, unit: "score" as const, higherIsBetter: true,
+      description: `${members.length === 1 ? "One benchmark" : `${members.length} benchmarks`} of this index, weighted as the index weights ${members.length === 1 ? "it" : "them"}: ${list(members.map((m) => m.benchmark.shortName ?? m.benchmark.name))}.` } };
+  });
+  const grouped = rows.map((row) => {
+    const mine = new Map(row.values.map((v) => [v.benchmarkId, v]));
+    const values = order.flatMap((c) => {
+      const have = groups.get(c)!.flatMap((m) => { const v = mine.get(m.benchmark.id); return v ? [{ v, share: m.share }] : []; });
+      const weight = have.reduce((n, h) => n + h.share, 0);
+      return have.length && weight > 0 ? [{ benchmarkId: `${CATEGORY_SPOKE}${c}`, value: have.reduce((n, h) => n + h.v.value * h.share, 0) / weight, estimated: have.some((h) => h.v.estimated) }] : [];
+    });
+    return { ...row, values };
+  });
+  return { rows: grouped, benchmarks: spokes };
+}
+
+/** Which spokes a radar of these benchmarks draws: the asked-for kind, else categories once benchmarks are too many. Categories need three to enclose an area. */
+export function radarSpokes(benchmarks: IndexResult["benchmarks"], asked?: RadarSpokes): { spokes: RadarSpokes; canGroup: boolean } {
+  const canGroup = new Set(benchmarks.map((b) => normalizeCategory(b.benchmark.category))).size >= 3;
+  return { canGroup, spokes: canGroup && (asked ?? (benchmarks.length > RADAR_MAX_BENCHMARK_SPOKES ? "categories" : "benchmarks")) === "categories" ? "categories" : "benchmarks" };
+}
+
+export function radarModelsFor(rows: RankedVariant[], benchmarks: IndexResult["benchmarks"], norm: RadarNorm, asked?: RadarSpokes) {
+  const { spokes, canGroup } = radarSpokes(benchmarks, asked);
+  const use = spokes === "categories" ? radarByCategory(rows, benchmarks) : { rows, benchmarks };
+  const axes = radarAxes(use.benchmarks, use.rows);
+  return { axes, models: radarModels(use.rows, axes, norm), median: medianPoints(use.rows, axes, norm), spokes, canGroup };
 }
 
 /**
@@ -170,7 +215,7 @@ export const RADAR_PALETTES: Record<"light" | "dark", RadarSvgPalette> = {
 export function radarSnapshotView(snapshot: Snapshot, config: IndexConfig, settings: RadarSettings, dark: boolean, labColor: (lab: Lab) => string) {
   const r = computeIndex(snapshot, { ...config, variants: "all" });
   const rows = radarRows(snapshot, config, r.ranked, r.benchmarks);
-  const { axes, models, median } = radarModelsFor(rows, r.benchmarks, settings.norm);
+  const { axes, models, median } = radarModelsFor(rows, r.benchmarks, settings.norm, settings.spokes);
   const labs = new Map(snapshot.labs.map((l) => [l.id, l]));
   const series = radarSeries(models, selectedModels(models, settings.models), settings.colors, dark, (id) => { const lab = labs.get(id); return lab ? labColor(lab) : "#A3A39B"; });
   return { axes, models, median, series, ghost: settings.median ? median : undefined, meta: new Map(models.map((m) => [m.id, { rank: m.rank, score: m.score }])) };

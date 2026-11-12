@@ -23,10 +23,10 @@ export const COVERED = new Set([
 ]);
 
 const CATEGORY: Record<string, BenchmarkCategory> = {
-  agentic: "agentic", coding: "coding", context: "long-context", hallucination: "safety", math: "math", reasoning: "reasoning", science: "reasoning", vision: "reasoning",
+  agentic: "agentic", coding: "coding", context: "long-context", hallucination: "knowledge", math: "math", reasoning: "reasoning", science: "science", vision: "vision",
 };
 
-interface DashBenchmark { id: string; name: string; category?: string; url?: string; notes?: string }
+interface DashBenchmark { id: string; name: string; category?: string; categories?: string[]; url?: string; notes?: string }
 interface DashResult {
   benchmark_id: string; model: string; model_id?: string; lab?: string; raw_score: number; reported_score?: number; score_direction?: string; metric?: string; source_url?: string;
   release_date?: string; open_weights?: boolean | null; source_rank?: number;
@@ -66,7 +66,7 @@ export function buildBoggs(data: Dashboard): Pick<ScrapeResult, "benchmarks" | "
     const bench: Benchmark = {
       id: `bg-${id}`, name: b.name, shortName: b.name.replace(/\s*\([^)]*\)\s*$/, ""), sourceId: "boggs", url,
       description: `${(b.notes ?? "").replace(/\s+/g, " ").trim()}${metric ? ` Score: ${metric}.` : ""} Collected by Jake Boggs' benchmark dashboard.`.trim().slice(0, 520),
-      unit: share ? "percent" : elo ? "elo" : "score", higherIsBetter: !lower, category, versionPolicy: { kind: "fresh" }, defaultWeight: 0,
+      unit: share ? "percent" : elo ? "elo" : "score", higherIsBetter: !lower, category, categories: [category, ...(b.categories ?? []).flatMap((c) => CATEGORY[c] ?? [])].filter((c, i, all) => all.indexOf(c) === i), versionPolicy: { kind: "fresh" }, defaultWeight: 0,
     };
     benchmarks.push(bench);
     for (const r of used) {

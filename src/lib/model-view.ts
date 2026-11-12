@@ -6,6 +6,7 @@ import type { Benchmark, Snapshot } from "@/data/types";
 import { freeFloor, metricPanels } from "@/lib/metrics";
 import { encodeIndices, prettyQuery } from "@/lib/url";
 import { mergeImports } from "@/lib/import-merge";
+import { categoriesOf, categoryBlurb, categoryName, categoryOrder } from "@/data/categories";
 import { radarModelsFor, radarRows } from "@/components/chart/radar-view";
 import type { RadarAxis, RadarModel, RadarPoint } from "@/components/chart/radar-data";
 import type { RankingOption } from "@/lib/model-ranking-param";
@@ -33,8 +34,12 @@ export interface ModelView {
   /** How many other benchmarks measured this model, and their cards' data when it came along. On a page from the server the (much longer) rest loads when the visitor opens that list. */
   others: number; otherField?: ViewField;
   strengths?: { name: string; axes: RadarAxis[]; me: RadarModel; leader?: RadarModel; median: RadarPoint[]; place: ({ n: number; rank: number } | null)[]; models: number; mixName: string };
+  /** Where the model stands in each category, over every current benchmark that measured it, not only this ranking's. */
+  domains?: ModelDomains;
   cost: { rows: CostRow[]; floor: number; hasFree: boolean; models: number; token?: TokenPrice; timeNote?: string; apiDefaultEffort?: string };
 }
+/** One spoke per category the model has at least two benchmarks in. `rows[i]` is its place among the ranking's models with as much in that category. */
+export interface ModelDomains { axes: RadarAxis[]; me: RadarPoint[]; leader?: { id: string; name: string; labId: string; points: RadarPoint[] }; median: RadarPoint[]; rows: { n: number; rank: number; of: number }[]; models: number }
 export interface ViewField {
   benchmarks: ViewBenchmark[];
   /** Every variant the benchmark rows name. */
@@ -53,7 +58,7 @@ export function benchRows(view: Pick<ViewField, "variants">, b: Pick<ViewBenchma
   return b.v.map((v, i) => { const x = view.variants[v]; return { variantId: x.id, modelId: x.modelId, effort: x.effort, value: b.value[i], cost: x.cost, rank: i + 1 }; });
 }
 
-interface Shared { result: IndexResult; perBench: Map<string, BenchRow[]>; loose?: IndexResult; panels?: ReturnType<typeof panelValues>; radar?: ReturnType<typeof radarModelsFor> }
+interface Shared { result: IndexResult; perBench: Map<string, BenchRow[]>; standing?: Standing; loose?: IndexResult; panels?: ReturnType<typeof panelValues>; radar?: ReturnType<typeof radarModelsFor> }
 const shared = new WeakMap<Snapshot, Map<string, Shared>>();
 
 /** What every model page on one ranking has in common. A snapshot is immutable, so it is worked out once per snapshot and goes away with it. */
@@ -116,10 +121,56 @@ function strengths(modelId: string, mixName: string, { axes, models, median }: R
   return { name: me.name, axes, me, leader, median, place, models: models.length, mixName };
 }
 
+/** Categories that are not a skill, so a model has no standing in them. */
+const NOT_A_DOMAIN = new Set(["cost", "speed", "reliability", "composite", "other"]);
+/** A category needs this many benchmarks before one model's average in it means something. */
+const DOMAIN_MIN_BENCHMARKS = 2;
+/** A benchmark needs this many of the ranking's models before a place on it means something. */
+const DOMAIN_MIN_MODELS = 5;
+type Standing = Map<string, Map<string, { sum: number; n: number }>>;
+
+/**
+ * Each model's average standing per category. On one benchmark a model's standing is its place among
+ * the ranking's models measured there, from 1 (best) to 0 (worst), at its best setting; a category
+ * averages that over its current benchmarks (older versions and sub-boards left out). A benchmark in
+ * two categories counts in both.
+ */
+function standing(snapshot: Snapshot, perBench: Map<string, BenchRow[]>, field: Set<string>): Standing {
+  const older = new Set(snapshot.benchmarks.map((b) => b.versionPolicy?.kind === "fresh" ? b.versionPolicy.supersedes : b.versionPolicy?.kind === "fallback" ? b.versionPolicy.fallbackTo : undefined));
+  const out: Standing = new Map();
+  for (const b of snapshot.benchmarks) {
+    if (b.proxy || b.variantOf || b.stoppedPublishing || older.has(b.id)) continue;
+    const cats = categoriesOf(b).filter((c) => !NOT_A_DOMAIN.has(c));
+    if (!cats.length) continue;
+    const order: string[] = [], seen = new Set<string>();
+    for (const r of perBench.get(b.id) ?? []) if (field.has(r.modelId) && !seen.has(r.modelId)) { seen.add(r.modelId); order.push(r.modelId); }
+    if (order.length < DOMAIN_MIN_MODELS) continue;
+    order.forEach((id, i) => {
+      const at = 1 - i / (order.length - 1);
+      for (const c of cats) { const models = out.get(c) ?? out.set(c, new Map()).get(c)!; const m = models.get(id) ?? models.set(id, { sum: 0, n: 0 }).get(id)!; m.sum += at; m.n++; }
+    });
+  }
+  return out;
+}
+
+function domains(modelId: string, table: Standing, leader: { id: string; name: string; labId: string } | undefined, models: number): ModelDomains | undefined {
+  const point = (score: number | undefined): RadarPoint => score == null ? { r: null, estimated: false } : { r: 0.1 + 0.9 * score, value: score * 100, estimated: false };
+  const cats = [...table.keys()].filter((c) => (table.get(c)!.get(modelId)?.n ?? 0) >= DOMAIN_MIN_BENCHMARKS).sort((a, b) => categoryOrder(a) - categoryOrder(b));
+  if (cats.length < 3) return undefined;
+  const scoreOf = (c: string, id: string) => { const m = table.get(c)!.get(id); return m && m.n >= DOMAIN_MIN_BENCHMARKS ? m.sum / m.n : undefined; };
+  const pools = cats.map((c) => [...table.get(c)!.values()].filter((m) => m.n >= DOMAIN_MIN_BENCHMARKS).map((m) => m.sum / m.n).sort((a, b) => a - b));
+  const rows = cats.map((c, i) => { const mine = scoreOf(c, modelId)!; return { n: table.get(c)!.get(modelId)!.n, rank: 1 + pools[i].filter((x) => x > mine).length, of: pools[i].length }; });
+  const axes: RadarAxis[] = cats.map((c, i) => ({ id: `cat:${c}`, label: categoryName(c), name: categoryName(c), description: `${categoryBlurb(c)}.`, share: 0, category: c as RadarAxis["category"], unit: "percent", min: 0, max: 100, median: pools[i][Math.floor(pools[i].length / 2)] * 100, sub: `${rows[i].n} benchmarks measured it` }));
+  return {
+    axes, rows, models, me: cats.map((c) => point(scoreOf(c, modelId))), median: cats.map((_, i) => point(pools[i][Math.floor(pools[i].length / 2)])),
+    leader: leader && leader.id !== modelId ? { ...leader, points: cats.map((c) => point(scoreOf(c, leader.id))) } : undefined,
+  };
+}
+
 /** The benchmarks that measured this model, this ranking's first. */
 function measuredIn(snapshot: Snapshot, modelId: string, mix: IndexConfig, perBench: Map<string, BenchRow[]>) {
   const measured = snapshot.benchmarks.filter((b) => !b.proxy && perBench.get(b.id)?.some((r) => r.modelId === modelId));
-  const others = measured.filter((b) => !((mix.weights[b.id] ?? 0) > 0)).sort((a, b) => a.category.localeCompare(b.category) || a.name.localeCompare(b.name));
+  const others = measured.filter((b) => !((mix.weights[b.id] ?? 0) > 0)).sort((a, b) => categoryOrder(a.category) - categoryOrder(b.category) || a.name.localeCompare(b.name));
   return { measured, inMix: measured.filter((b) => (mix.weights[b.id] ?? 0) > 0), others };
 }
 
@@ -155,6 +206,9 @@ export function modelView(snapshot: Snapshot, modelId: string, mix: IndexConfig,
   const best = shown.ranked.filter((r) => !seen.has(r.model.id) && !!seen.add(r.model.id));
   const { measured, inMix, others } = measuredIn(snapshot, modelId, mix, perBench);
   const radar = () => (strict ? shared.radar ??= radarModelsFor(radarRows(snapshot, mix, shown.ranked, shown.benchmarks), shown.benchmarks, "field") : radarModelsFor(radarRows(snapshot, mix, shown.ranked, shown.benchmarks), shown.benchmarks, "field"));
+  const inField = best.some((r) => r.model.id === modelId), fieldIds = () => new Set([...best.map((r) => r.model.id), modelId]);
+  const table = strict && inField ? shared.standing ??= standing(snapshot, perBench, fieldIds()) : standing(snapshot, perBench, fieldIds());
+  const first = best[0]?.model;
   const panels = () => (strict ? shared.panels ??= panelValues(snapshot, shown.ranked, mix) : panelValues(snapshot, shown.ranked, mix));
   return {
     model: { id: model.id, name: model.name, releaseDate: model.releaseDate },
@@ -169,6 +223,7 @@ export function modelView(snapshot: Snapshot, modelId: string, mix: IndexConfig,
     field: fieldOf(snapshot, inMix, perBench),
     others: others.length, otherField: inlineOthers ? fieldOf(snapshot, others, perBench) : undefined,
     strengths: mine.length ? strengths(modelId, mix.name, radar()) : undefined,
+    domains: domains(modelId, table, first && { id: first.id, name: first.name, labId: first.labId }, best.length),
     cost: mine.length ? costSide(snapshot, modelId, shown.ranked, mix, panels()) : { rows: [], floor: 0, hasFree: false, models: 0 },
   };
 }

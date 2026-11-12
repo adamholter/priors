@@ -50,9 +50,10 @@ export type FocusId = "capabilities" | "knowledge" | "problem-solving" | "genera
 export const FOCUS_IDS: FocusId[] = ["capabilities", "knowledge", "problem-solving", "general"];
 
 export type BenchmarkUnit = "percent" | "score" | "elo" | "usd" | "seconds" | "count";
+/** What a benchmark tests; names and order are in categories.ts. */
 export type BenchmarkCategory =
-  | "coding" | "agentic" | "reasoning" | "knowledge" | "math" | "long-context"
-  | "instruction" | "creative" | "safety" | "economics" | "composite" | "speed" | "cost" | "reliability" | "other";
+  | "coding" | "agentic" | "professional" | "science" | "math" | "reasoning" | "games" | "knowledge" | "vision" | "long-context"
+  | "creative" | "behavior" | "safety" | "multilingual" | "preference" | "composite" | "speed" | "cost" | "reliability" | "other";
 
 export interface Benchmark {
   id: string; // "frontierswe-v2"
@@ -71,7 +72,10 @@ export interface Benchmark {
   normalization?: { kind: "linear"; min: number; max: number };
   unit: BenchmarkUnit;
   higherIsBetter: boolean;
+  /** The main thing it tests: where pickers and charts group it. */
   category: BenchmarkCategory;
+  /** Every category it sits in, main one first (a physics agent benchmark is science and agentic). Absent in older snapshots: read through `categoriesOf`. */
+  categories?: BenchmarkCategory[];
   /** Logical-benchmark policy. "fallback": prefer this benchmark, fall back to `fallbackTo` for
    *  models missing here (DeepSWE 1.1 -> 1). "fresh": a new version is a new benchmark; older
    *  versions stay only for time travel. */

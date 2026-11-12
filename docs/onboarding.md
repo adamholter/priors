@@ -28,9 +28,9 @@ Only the selected lineup enters the fitting objective. The initial lineup is a b
 
 | Focus | Strong categories | Starter mix |
 | --- | --- | --- |
-| Capabilities (default) | coding, agentic 1.0 | DeepSWE 1.1, Terminal-Bench 4, ARC-AGI-3, Tau3 Banking, HLE |
-| Knowledge | knowledge 1.0, long-context .6 | AA-Omniscience, HLE, GPQA Diamond, MLCR, SimpleBench |
-| Problem solving | reasoning, math 1.0 | ARC-AGI-3, FrontierMath T4, HLE, SimpleBench, DeepSWE 1.1 |
+| Capabilities (default) | coding, agentic 1.0, professional .8, science .6 | DeepSWE 1.1, Terminal-Bench 4, ARC-AGI-3, Tau3 Banking, HLE |
+| Knowledge | knowledge 1.0, long-context .6, professional and science .5 | AA-Omniscience, HLE, GPQA Diamond, MLCR, SimpleBench |
+| Problem solving | reasoning, math, science 1.0, games .5 | ARC-AGI-3, FrontierMath T4, HLE, SimpleBench, DeepSWE 1.1 |
 | General | everything 1.0 | balanced mix of the above |
 
 Unlisted categories get multiplier 0.15. `focusMultiplier(focus, category)` maps a benchmark to its weight.

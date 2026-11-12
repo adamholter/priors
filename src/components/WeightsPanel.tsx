@@ -1,4 +1,5 @@
 "use client";
+import { categoryName, categoryOrder, normalizeCategory } from "@/data/categories";
 import { useId, useMemo, useState, useRef, useCallback } from "react";
 import type { Benchmark, Snapshot } from "@/data/types";
 import type { IndexConfig, IndexResult } from "@/engine";
@@ -13,7 +14,6 @@ import { benchmarkFamilies } from "@/lib/benchmark-family";
 import { FamilyGear } from "./FamilyGear";
 import { benchmarkQuality } from "@/onboarding/quality";
 
-const CATS: Record<string, string> = { coding: "Coding", agentic: "Agentic", reasoning: "Reasoning", knowledge: "Knowledge", math: "Math", "long-context": "Long context", instruction: "Instruction following", creative: "Creative", safety: "Safety", economics: "Economics", composite: "Composite indices", speed: "Speed", cost: "Cost", other: "Other" };
 
 export function WeightsPanel({ snapshot, config, onChange }: { snapshot: Snapshot; config: IndexConfig; result: IndexResult; onChange: (c: IndexConfig) => void }) {
   const [open, setOpen] = useState(false);
@@ -46,7 +46,7 @@ export function WeightsPanel({ snapshot, config, onChange }: { snapshot: Snapsho
   const counts = useMemo(() => { const m = new Map<string, Set<string>>(); for (const o of snapshot.observations) (m.get(o.benchmarkId) ?? m.set(o.benchmarkId, new Set()).get(o.benchmarkId)!).add(o.variantId.split("@")[0]); return m; }, [snapshot]);
   const coverage = (id: string) => counts.get(id)?.size ?? 0;
   const [recent, setRecent] = useState<string | null>(null);
-  const searchable = useMemo(() => snapshot.benchmarks.filter((b) => !b.proxy && b.category !== "speed").sort((a, b) => a.category.localeCompare(b.category) || a.name.localeCompare(b.name)), [snapshot]);
+  const searchable = useMemo(() => snapshot.benchmarks.filter((b) => !b.proxy && b.category !== "speed").sort((a, b) => categoryOrder(a.category) - categoryOrder(b.category) || a.name.localeCompare(b.name)), [snapshot]);
   // A benchmark's other cuts (categories, prompts, subsets) hide behind its gear; searching still finds them.
   const listable = useMemo(() => searchable.filter((b) => !b.variantOf), [searchable]);
   const families = useMemo(() => benchmarkFamilies(snapshot.benchmarks), [snapshot]);
@@ -74,14 +74,14 @@ export function WeightsPanel({ snapshot, config, onChange }: { snapshot: Snapsho
   const terms = query.trim().split(/\s+/).filter(Boolean);
   const inactive = (terms.length ? searchable : listable).filter((b) => !pinnedIds.has(b.id));
   // Names rank first, then other fields, then descriptions (src/lib/benchmark-search.ts). A search shows one list, best match first; browsing groups by category.
-  const catName = (c: string) => CATS[c] ?? c;
+  const catName = categoryName;
   const matches = searchBenchmarks(inactive, query, catName);
   const pinned = searchBenchmarks(searchable.filter((b) => pinnedIds.has(b.id)), query, catName);
   const unpinned = (l: Benchmark[]) => l.filter((b) => !pinnedIds.has(b.id));
   const mainList = unpinned(tiers.main), popularList = unpinned(tiers.popular), oldList = unpinned(tiers.old);
-  const sections: [string, Benchmark[]][] = by === "source" ? groupBySource(mainList) : Object.entries(mainList.reduce<Record<string, Benchmark[]>>((acc, b) => ((acc[b.category] ??= []).push(b), acc), {})).map(([c, l]) => [catName(c), l]);
+  const sections: [string, Benchmark[]][] = by === "source" ? groupBySource(mainList) : Object.entries(mainList.reduce<Record<string, Benchmark[]>>((acc, b) => ((acc[normalizeCategory(b.category)] ??= []).push(b), acc), {})).map(([c, l]) => [catName(c), l]);
   const row = (b: Benchmark) => <BenchRow key={b.id} b={b} on={config.weights[b.id] > 0} models={coverage(b.id)} fresh={recent === b.id} leader={leaders.get(b.id)} labColor={labs.get(leaders.get(b.id)?.labId ?? "")} gear={gear(b, "add")} onToggle={() => toggle(b.id)} onInfo={() => setInfo(b.id)} />;
-  const groups = terms.length ? { "Best matches": matches } : matches.reduce<Record<string, Benchmark[]>>((acc, b) => ((acc[b.category] ??= []).push(b), acc), {});
+  const groups = terms.length ? { "Best matches": matches } : matches.reduce<Record<string, Benchmark[]>>((acc, b) => ((acc[normalizeCategory(b.category)] ??= []).push(b), acc), {});
   // Adding keeps the list open and the query intact: people often add several while browsing.
   const toggle = (id: string) => { const on = config.weights[id] > 0; setW(id, on ? 0 : 10); setRecent(on ? null : id); };
   const addBenchmark = (id: string) => { setW(id, 10); setRecent(id); };

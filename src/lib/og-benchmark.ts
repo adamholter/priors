@@ -1,3 +1,4 @@
+import { categoryName } from "../data/categories";
 import type { Benchmark, Lab, Snapshot } from "@/data/types";
 import { computeIndex, rankingRows, selectVariants, type IndexConfig, type RankedVariant } from "@/engine";
 import { markColor, markFillSvg, LIGHT_PALETTE, type ChartPalette } from "@/components/chart/theme-tokens";
@@ -74,7 +75,7 @@ export async function renderBenchmarkCard(full: Snapshot, benchmarkId: string): 
   const out: string[] = [`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}"><rect width="${W}" height="${H}" fill="${pal.bg}"/>`];
   const split = s.lead && s.costed.length >= 4;
   const leftW = split ? 560 : W - 128;
-  out.push(`<text x="64" y="74" font-family="JetBrains Mono" font-size="17" fill="${pal.grey}">${e([b.category.charAt(0).toUpperCase() + b.category.slice(1), s.host, `${s.models} models`].filter(Boolean).join(" · "))}</text>`);
+  out.push(`<text x="64" y="74" font-family="JetBrains Mono" font-size="17" fill="${pal.grey}">${e([categoryName(b.category), s.host, `${s.models} models`].filter(Boolean).join(" · "))}</text>`);
   const name = b.name, size = name.length > 30 ? 46 : name.length > 20 ? 56 : 66;
   out.push(`<text x="62" y="${84 + size}" font-family="Newsreader" font-size="${size}" fill="${pal.ink}">${e(fit(name, split ? 26 : 44))}</text>`);
   // Leaderboard bars: length from the page's score, the label the published value.

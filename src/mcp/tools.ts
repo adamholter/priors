@@ -1,3 +1,4 @@
+import { categoriesOf, normalizeCategory } from "@/data/categories";
 import { api } from "../../convex/_generated/api";
 import { TOOL_SPECS, runTool, type ToolContext } from "@/agent/tools";
 import { resolveBenchmark, resolveModel, resolveLab, norm } from "@/agent/resolve";
@@ -120,17 +121,17 @@ const readTools: Tool[] = [
   },
   {
     name: "list_benchmarks", description: "The benchmark catalog: id, name, category, unit, direction, how many measurements and models it has, when the publisher last updated it, and what it measures. Filter by words or category.",
-    inputSchema: obj({ query: str("Words to match against names, ids, categories and descriptions."), category: str("coding, agentic, reasoning, knowledge, math, long-context, instruction, creative, safety, economics, composite, speed, cost, reliability or other."), limit: num("Rows to return (default 80, max 400).") }),
+    inputSchema: obj({ query: str("Words to match against names, ids, categories and descriptions."), category: str("coding, agentic, professional, science, math, reasoning, games, knowledge, vision, long-context, creative, behavior, safety, multilingual, preference, composite, speed, cost, reliability or other. A benchmark can be in several."), limit: num("Rows to return (default 80, max 400).") }),
     async run(a) {
       const { snapshot: s } = await resolveIndex(null);
       const rows = new Map<string, number>(), models = new Map<string, Set<string>>();
       for (const o of s.observations) { rows.set(o.benchmarkId, (rows.get(o.benchmarkId) ?? 0) + 1); (models.get(o.benchmarkId) ?? models.set(o.benchmarkId, new Set()).get(o.benchmarkId)!).add(o.variantId.split("@")[0]); }
       const terms = norm(String(a.query ?? "")).split(" ").filter((t) => t.length > 1);
-      const hit = (b: Snapshot["benchmarks"][number]) => terms.reduce((n, t) => n + (norm(`${b.name} ${b.shortName ?? ""} ${b.id}`).includes(t) ? 3 : 0) + (b.category === t ? 2 : 0) + (norm(b.description).includes(t) ? 1 : 0), 0);
-      const list = s.benchmarks.filter((b) => rows.has(b.id) && (!a.category || b.category === a.category)).map((b) => ({ b, s: terms.length ? hit(b) : 1 })).filter((x) => x.s > 0);
+      const hit = (b: Snapshot["benchmarks"][number]) => terms.reduce((n, t) => n + (norm(`${b.name} ${b.shortName ?? ""} ${b.id}`).includes(t) ? 3 : 0) + (categoriesOf(b).some((c) => c === t) ? 2 : 0) + (norm(b.description).includes(t) ? 1 : 0), 0);
+      const list = s.benchmarks.filter((b) => rows.has(b.id) && (!a.category || categoriesOf(b).some((c) => c === normalizeCategory(String(a.category))))).map((b) => ({ b, s: terms.length ? hit(b) : 1 })).filter((x) => x.s > 0);
       if (terms.length) list.sort((x, y) => y.s - x.s);
       const limit = cap(a.limit, 80, 400);
-      return { total: list.length, benchmarks: list.slice(0, limit).map(({ b }) => ({ id: b.id, name: b.name, shortName: b.shortName, category: b.category, unit: b.unit, higherIsBetter: b.higherIsBetter, measurements: rows.get(b.id), models: models.get(b.id)!.size, lastUpdated: b.lastUpdated ?? null, url: b.url, description: b.description })) };
+      return { total: list.length, benchmarks: list.slice(0, limit).map(({ b }) => ({ id: b.id, name: b.name, shortName: b.shortName, category: b.category, categories: categoriesOf(b), unit: b.unit, higherIsBetter: b.higherIsBetter, measurements: rows.get(b.id), models: models.get(b.id)!.size, lastUpdated: b.lastUpdated ?? null, url: b.url, description: b.description })) };
     },
   },
   {
@@ -142,7 +143,7 @@ const readTools: Tool[] = [
       let obs = s.observations.filter((o) => o.benchmarkId === b.id && !o.details?.priorsEstimate);
       if (a.effort) obs = obs.filter((o) => vs.get(o.variantId)?.effort === a.effort);
       obs.sort((x, y) => (b.higherIsBetter ? y.value - x.value : x.value - y.value));
-      return { benchmark: { id: b.id, name: b.name, category: b.category, unit: b.unit, higherIsBetter: b.higherIsBetter, url: b.url, priorsUrl: `https://mypriors.com/benchmarks/${b.id}`, lastUpdated: b.lastUpdated ?? null, description: b.description }, total: obs.length,
+      return { benchmark: { id: b.id, name: b.name, category: b.category, categories: categoriesOf(b), unit: b.unit, higherIsBetter: b.higherIsBetter, url: b.url, priorsUrl: `https://mypriors.com/benchmarks/${b.id}`, lastUpdated: b.lastUpdated ?? null, description: b.description }, total: obs.length,
         rows: obs.slice(0, cap(a.limit, 50, 300)).map((o, i) => { const v = vs.get(o.variantId), m = v && ms.get(v.modelId); return { rank: i + 1, model: m?.name ?? o.variantId, modelId: v?.modelId, variantId: o.variantId, effort: b.effortBasis ? "best measured setting" : v?.effort, value: o.value, ci: o.ci ?? null, costUsd: o.costUsd ?? null, outputTokens: o.outputTokens ?? null, durationSec: o.durationSec ?? null, sourceUrl: o.sourceUrl }; }) };
     },
   },

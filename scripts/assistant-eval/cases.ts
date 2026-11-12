@@ -225,7 +225,7 @@ export const CASES: Case[] = [
     id: "mix-from-ui-work", kind: "change", prompt: "Most of what I do is adding features, editing dashboards and fixing UI bugs from loose instructions. Design quality matters to me, and so do cost and speed. Build me a mix that represents that.",
     expect: "Builds a new mix from benchmarks that measure front-end and software work (web development arenas, coding agents, real-repo tasks), each explained in terms of the work. Includes no medical, legal, trivia, math, safety or creative-writing benchmark. Says plainly that cost and speed are not benchmark shares and are read from the cost and time charts.",
     checks: [ok, mixChanged, (r, env) => {
-      const odd = Object.keys(r.after.weights).filter((id) => { const b = env.snapshot.benchmarks.find((x) => x.id === id); return !b || ["knowledge", "safety", "math", "creative", "economics", "cost", "speed", "reliability", "composite", "other"].includes(b.category); });
+      const odd = Object.keys(r.after.weights).filter((id) => { const b = env.snapshot.benchmarks.find((x) => x.id === id); return !b || ["knowledge", "safety", "math", "creative", "professional", "games", "behavior", "cost", "speed", "reliability", "composite", "other"].includes(b.category); });
       return odd.length ? `unrelated benchmarks in the mix: ${odd.join(", ")}` : undefined;
     }, (r) => Object.keys(r.after.weights).length >= 3 ? undefined : "fewer than three benchmarks", (r) => /chart/i.test(reply(r)) ? undefined : "reply doesn't point to the cost and time charts"],
   },

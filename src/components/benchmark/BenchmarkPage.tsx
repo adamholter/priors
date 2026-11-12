@@ -1,4 +1,5 @@
 "use client";
+import { categoryNames } from "@/data/categories";
 import { breaksFor } from "@/data/series-breaks";
 import { planResetNote, planResetRows } from "@/data/plan-resets";
 import { setPlanResetsPref, usePlanResetsOn, withResetsPref } from "@/lib/plan-resets-pref";
@@ -102,7 +103,7 @@ export function BenchmarkPage({ snapshot, benchmarkId, models, relatives, initia
       <HighlightContext.Provider value={highlightState}><ScoreAxisContext.Provider value={plotRaw ? axis : { ...INDEX_SCORE_AXIS, name: "Score (Priors scale)" }}>
         <div className="max-w-[1100px] mx-auto px-5 sm:px-8 py-10 grid gap-12">
           <section className="grid gap-2">
-            <p className="cap"><Link href={"/benchmarks" as "/"} className="hover:text-ink">Benchmarks</Link> · {b.category}</p>
+            <p className="cap"><Link href={"/benchmarks" as "/"} className="hover:text-ink">Benchmarks</Link> · {categoryNames(b)}</p>
             <h1 className="text-[34px] sm:text-[44px] leading-[1.05]">{b.name}</h1>
             <p className="text-[15px] text-ink-2 max-w-[68ch]">{b.description}</p>
             {breaksFor([benchmarkId]).map((x) => <p key={x.date} data-series-break={x.date} className="text-[13px] text-ink-2 max-w-[68ch]">{x.note} <a href={x.url} target="_blank" rel="noreferrer" className="underline underline-offset-2 hover:text-ink">Their method</a></p>)}

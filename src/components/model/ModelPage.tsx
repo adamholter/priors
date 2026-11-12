@@ -1,4 +1,5 @@
 "use client";
+import { categoryName } from "@/data/categories";
 import { SiteFooter } from "@/components/SiteFooter";
 import Link from "next/link";
 import { HeaderAccount } from "@/components/AccountMenu";
@@ -13,6 +14,7 @@ import { SiteNav } from "../SiteNav";
 import { CONTAIN_AXIS_LABELS, insideLabels, markColor, useChartPalette, useEChart } from "../chart/echarts";
 import { BenchmarkInfo, InfoIcon } from "../BenchmarkInfo";
 import { ModelStrengths } from "./ModelStrengths";
+import { ModelDomains } from "./ModelDomains";
 import { FieldStrip, type StripPoint } from "./FieldStrip";
 import { ModelCostSpeed } from "./ModelCostSpeed";
 import { escapeSvg as esc } from "../chart/export-frame";
@@ -81,6 +83,8 @@ export function ModelPage({ view, summary, othersUrl, options, current, onPick, 
 
         {strengths && <ModelStrengths data={strengths} labColors={view.labColors} onInfo={onInfo} />}
 
+        {view.domains && <ModelDomains data={view.domains} name={model.name} labId={lab?.id} labColors={view.labColors} />}
+
         {mine.length > 0 && <ModelCostSpeed data={cost} modelId={modelId} name={model.name} color={labC} />}
 
         <section className="grid gap-4">
@@ -138,7 +142,7 @@ function BenchCard({ b, view, modelId, color, onInfo }: { b: ViewBenchmark; view
   const withCost = rows.filter((r) => r.cost && r.cost > 0);
   return (
     <article className="grid gap-3 content-start">
-      <div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="cap">{b.category}</p><h3 className="text-[19px] leading-tight flex items-center gap-1.5">{b.name}<InfoIcon name={b.name} onClick={onInfo} /></h3></div><span className="cap shrink-0 pt-4">{rows.length} results</span></div>
+      <div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="cap">{categoryName(b.category)}</p><h3 className="text-[19px] leading-tight flex items-center gap-1.5">{b.name}<InfoIcon name={b.name} onClick={onInfo} /></h3></div><span className="cap shrink-0 pt-4">{rows.length} results</span></div>
       {withCost.length >= 3 && mine.some((r) => r.cost) ? <NearView height={230}><BenchScatter b={b} rows={withCost} modelId={modelId} color={color} /></NearView>
         : rows.length >= 3 && <NearView height={150}><BenchStrip b={b} rows={rows} modelId={modelId} color={color} /></NearView>}
       <ol className="grid gap-[4px]">

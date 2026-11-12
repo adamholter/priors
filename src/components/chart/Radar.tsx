@@ -54,7 +54,7 @@ export function Radar({ axes, series, ghost, norm, size = 340, labels = true, co
     const below = (l.y + (l.lines.length - 1) * lay!.lineHeight) / H;
     tip = <div className="rl-tip rl-tip-axis" role="status" style={{ left: `clamp(0px, ${at}, 100% - var(--rl-tip-w))`, top: `${below * 100}%`, transform: "translateY(10px)" }}>
       <strong>{a.name}</strong>
-      <span className="rl-tip-sub">{a.share.toFixed(0)}% of index</span>
+      <span className="rl-tip-sub">{a.sub ?? `${a.share.toFixed(0)}% of index`}</span>
       {what && <span className="rl-tip-what">{what}</span>}
       {series.map((s) => <span key={s.id} className="rl-tip-row"><i style={{ background: s.color }} />{s.name}<b>{formatValue(s.points[hover.axis], a)}</b></span>)}
     </div>;

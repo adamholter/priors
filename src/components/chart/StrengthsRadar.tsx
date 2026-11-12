@@ -16,7 +16,7 @@ import { radarHtml } from "./embed";
 import { Radar, RadarSwatch } from "./Radar";
 import { RadarModal } from "./RadarModal";
 import { formatValue, RADAR_MIN_AXES, type RadarModel, type RadarNorm } from "./radar-data";
-import { BARS_TOP, DEFAULT_RADAR, RADAR_ANCHOR, RADAR_NORMS, RADAR_PALETTES, RADAR_TOP, radarModelsFor, radarParams, radarRows, radarSeries, radarSvg, readRadarParams, selectedModels, type RadarColors, type RadarCompare, type RadarSeries, type RadarSettings, type RadarView } from "./radar-view";
+import { BARS_TOP, CATEGORY_SPOKE, DEFAULT_RADAR, RADAR_ANCHOR, RADAR_NORMS, RADAR_PALETTES, RADAR_TOP, radarModelsFor, radarParams, radarRows, radarSeries, radarSvg, readRadarParams, selectedModels, type RadarColors, type RadarCompare, type RadarSeries, type RadarSettings, type RadarSpokes, type RadarView } from "./radar-view";
 import styles from "./ChartSettings.module.css";
 import "./radar.css";
 
@@ -42,7 +42,9 @@ export function StrengthsRadar({ ranked, benchmarks, labs, snapshot, config, anc
   const [focus, setFocus] = useState<string | null>(null);
   const [axis, setAxis] = useState<number | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
-  const [info, setInfo] = useState<string | null>(null);
+  const [info, openInfo] = useState<string | null>(null);
+  // A category spoke stands for several benchmarks, so it has no benchmark card to open.
+  const setInfo = useCallback((id: string | null) => { if (!id?.startsWith(CATEGORY_SPOKE)) openInfo(id); }, []);
   const pal = useChartPalette();
   const labColor = useLabColor();
   const expand = useChartExpand("Strengths");
@@ -52,7 +54,8 @@ export function StrengthsRadar({ ranked, benchmarks, labs, snapshot, config, anc
   const update = (patch: Partial<RadarSettings>) => setSettings((s) => ({ ...s, ...patch }));
 
   const rows = useMemo(() => radarRows(snapshot, config, ranked, benchmarks), [snapshot, config, ranked, benchmarks]);
-  const { axes, models, median } = useMemo(() => radarModelsFor(rows, benchmarks, norm), [rows, benchmarks, norm]);
+  const { axes, models, median, spokes, canGroup } = useMemo(() => radarModelsFor(rows, benchmarks, norm, settings.spokes), [rows, benchmarks, norm, settings.spokes]);
+  const byCategory = spokes === "categories", noun = byCategory ? "categories" : "benchmarks";
   const byId = useMemo(() => new Map(models.map((m) => [m.id, m])), [models]);
   // Until the user picks models, the radar follows the top 4 and the bar charts the top 8.
   const selected = useMemo(() => view === "bars" && !settings.models ? models.slice(0, BARS_TOP).map((m) => m.id) : selectedModels(models, settings.models), [models, settings.models, view]);
@@ -111,10 +114,10 @@ export function StrengthsRadar({ ranked, benchmarks, labs, snapshot, config, anc
       <div className="flex items-center gap-1 ml-auto">
         <div className="seg" role="group" aria-label="Strengths view">
           <button type="button" aria-pressed={view === "radar"} title="Radar" onClick={() => update({ view: "radar" })}><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" aria-hidden="true"><path d="M8 1.5 14 6l-2.3 7.5H4.3L2 6z" /><path d="M8 5.5 10.6 7.4 9.6 10.5H6.4l-1-3.1z" /></svg></button>
-          <button type="button" aria-pressed={view === "bars"} title="A bar chart per benchmark" onClick={() => update({ view: "bars" })}><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><rect x="2" y="3" width="3" height="11" /><rect x="6.5" y="6" width="3" height="8" /><rect x="11" y="9" width="3" height="5" /></svg></button>
+          <button type="button" aria-pressed={view === "bars"} title={byCategory ? "A bar chart per category" : "A bar chart per benchmark"} onClick={() => update({ view: "bars" })}><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><rect x="2" y="3" width="3" height="11" /><rect x="6.5" y="6" width="3" height="8" /><rect x="11" y="9" width="3" height="5" /></svg></button>
         </div>
         <RadarSettingsMenu view={view} topN={view === "bars" ? BARS_TOP : RADAR_TOP} models={models} series={series} selected={selected} onToggle={toggle} onTop={() => setAll(undefined)} onNone={() => setAll([])} labColor={colorOfLab}
-          norm={norm} onNorm={(n) => update({ norm: n })} colorMode={colors} onColorMode={(c) => update({ colors: c })} showMedian={showMedian} onShowMedian={(v) => update({ median: v })} compare={compare} onCompare={(c) => update({ compare: c })} />
+          norm={norm} onNorm={(n) => update({ norm: n })} colorMode={colors} onColorMode={(c) => update({ colors: c })} showMedian={showMedian} onShowMedian={(v) => update({ median: v })} compare={compare} onCompare={(c) => update({ compare: c })} spokes={spokes} canGroup={canGroup} onSpokes={(s) => update({ spokes: s })} />
         <ChartLink id={anchor} name="Strengths" params={{ extra: params }} />
         <ChartExport name="Strengths" frame getSvg={() => view === "bars" ? benchSheetSvg(axes, sheets.current, RADAR_PALETTES[pal.dark ? "dark" : "light"], title) : staticSvg(pal.dark)} getRows={exportRows} getHtml={view === "radar" ? () => radarHtml({ title, date: snapshot.date, light: staticSvg(false), dark: staticSvg(true) }) : undefined} />
         {expand.button}
@@ -125,7 +128,7 @@ export function StrengthsRadar({ ranked, benchmarks, labs, snapshot, config, anc
     <div className={`rl-strengths${expand.expanded ? " rl-strengths-expanded" : ""}`}>
       <div className="rl-main">
         <Radar axes={axes} series={series} ghost={showMedian ? median : undefined} norm={norm} size={380} focus={focus} hoverAxis={axis} onHoverAxis={setAxis} onAxisClick={setInfo}
-          ariaLabel={`Radar of ${series.map((s) => s.name).join(", ")} across ${axes.length} benchmarks`} />
+          ariaLabel={`Radar of ${series.map((s) => s.name).join(", ")} across ${axes.length} ${noun}`} />
       </div>
       <div>
         <ol className="rl-rail" aria-label="Each model's shape">
@@ -133,7 +136,7 @@ export function StrengthsRadar({ ranked, benchmarks, labs, snapshot, config, anc
             const vsLeader = compare === "leader" && s.id !== leader.id;
             return <li key={s.id} className={focus === s.id ? "rl-rail-on" : undefined} onMouseEnter={() => setFocus(s.id)} onMouseLeave={() => setFocus(null)}>
               <button type="button" className="rl-rail-btn" aria-label={`Expand ${s.name}`} onClick={() => setExpanded(s.id)}>
-                <Radar axes={axes} series={[s]} ghost={vsLeader ? leader.points : median} ghostStyle={vsLeader ? "outline" : "median"} norm={norm} size={112} labels={false} compact hoverAxis={axis} ariaLabel={`${s.name} across ${axes.length} benchmarks`} />
+                <Radar axes={axes} series={[s]} ghost={vsLeader ? leader.points : median} ghostStyle={vsLeader ? "outline" : "median"} norm={norm} size={112} labels={false} compact hoverAxis={axis} ariaLabel={`${s.name} across ${axes.length} ${noun}`} />
                 <span className="rl-rail-text">
                   <span className="rl-rail-name"><RadarSwatch color={s.color} dash={s.dash} />{s.name}</span>
                   {caption(s)}
@@ -148,23 +151,24 @@ export function StrengthsRadar({ ranked, benchmarks, labs, snapshot, config, anc
     </div>}
     {/* What each benchmark measures: on the radar a name's hover card says it too, but a phone has no hover. */}
     {series.length > 0 && <details className="rl-key">
-      <summary>What each benchmark measures</summary>
+      <summary>{byCategory ? "What each category covers" : "What each benchmark measures"}</summary>
       <dl>{axes.map((a) => <div key={a.id}>
-        <dt><button type="button" onClick={() => setInfo(a.id)} title={`About ${a.name}`}>{a.name}</button><span className="cap num">{a.share.toFixed(0)}% of index</span></dt>
+        <dt>{byCategory ? <span>{a.name}</span> : <button type="button" onClick={() => setInfo(a.id)} title={`About ${a.name}`}>{a.name}</button>}<span className="cap num">{a.share.toFixed(0)}% of index</span></dt>
         <dd>{benchmarkBlurb(a.name, a.description)}</dd>
       </div>)}</dl>
     </details>}
     </div>
     {open && <RadarModal key={open.id} onClose={() => setExpanded(null)} onStep={step} series={open} all={series} axes={axes} norm={norm} model={byId.get(open.id)!} leader={leader} median={median} onAxisClick={setInfo} />}
-    <BenchmarkInfo snapshot={snapshot} benchmarkId={info} inMix onClose={() => setInfo(null)} />
+    <BenchmarkInfo snapshot={snapshot} benchmarkId={info} inMix onClose={() => openInfo(null)} />
   </div>;
 }
 
-function RadarSettingsMenu({ view, topN, models, series, selected, onToggle, onTop, onNone, labColor, norm, onNorm, colorMode, onColorMode, showMedian, onShowMedian, compare, onCompare }: {
+function RadarSettingsMenu({ view, topN, models, series, selected, onToggle, onTop, onNone, labColor, norm, onNorm, colorMode, onColorMode, showMedian, onShowMedian, compare, onCompare, spokes, canGroup, onSpokes }: {
   view: RadarView; topN: number;
   models: RadarModel[]; series: RadarSeries[]; selected: string[]; onToggle: (id: string) => void; onTop: () => void; onNone: () => void; labColor: (m: RadarModel) => string;
   norm: RadarNorm; onNorm: (n: RadarNorm) => void; colorMode: RadarColors; onColorMode: (c: RadarColors) => void;
   showMedian: boolean; onShowMedian: (v: boolean) => void; compare: RadarCompare; onCompare: (v: RadarCompare) => void;
+  spokes: RadarSpokes; canGroup: boolean; onSpokes: (s: RadarSpokes) => void;
 }) {
   const id = useId(), root = useRef<HTMLDetailsElement>(null), trigger = useRef<HTMLElement>(null);
   const [open, setOpen] = useState(false), [tab, setTab] = useState<"models" | "settings">("models"), [query, setQuery] = useState("");
@@ -192,6 +196,10 @@ function RadarSettingsMenu({ view, topN, models, series, selected, onToggle, onT
               <span>{m.name}</span><span className="cap rl-menu-rank">#{m.rank}</span></label></div>; })}
             {!list.length && <p>No matching models.</p>}</div>
         </> : <>
+          <div className={styles.row}><span id={`${id}-spokes`}>Show</span><div className={styles.choice} role="group" aria-labelledby={`${id}-spokes`}>
+            <button type="button" aria-pressed={spokes === "benchmarks"} onClick={() => onSpokes("benchmarks")}>Benchmarks</button>
+            <button type="button" aria-pressed={spokes === "categories"} disabled={!canGroup} title={canGroup ? "One spoke per category: its benchmarks, weighted as the index weights them" : "This index's benchmarks fall in fewer than three categories"} onClick={() => onSpokes("categories")}>Categories</button></div></div>
+          <p className="rl-menu-hint">{spokes === "categories" ? "Each category rolls up its benchmarks, weighted as the index weights them." : canGroup ? "One spoke per benchmark. Categories groups them, which reads better with many." : "One spoke per benchmark."}</p>
           {view === "radar" && <><div className={styles.row}><span id={`${id}-norm`}>Scale</span><div className={styles.choice} role="group" aria-labelledby={`${id}-norm`}>
             {RADAR_NORMS.map((n) => <button key={n.id} type="button" aria-pressed={norm === n.id} title={n.hint} onClick={() => onNorm(n.id)}>{n.label}</button>)}</div></div>
           <p className="rl-menu-hint">{RADAR_NORMS.find((n) => n.id === norm)!.hint}</p>
