@@ -14,6 +14,8 @@ const cases: [string, string, string | undefined][] = [
   ["Gemini 3.5 Flash (medium)", "gemini-3.5-flash", "medium"],
   ["Gemini 4 Carbon (High)", "gemini-4-carbon", "high"],
   ["google/gemini-4-carbon", "gemini-4-carbon", undefined],
+  ["Gemini 4 Hydrogen (xhigh)", "gemini-4-hydrogen", "xhigh"],
+  ["google/gemini-4-hydrogen", "gemini-4-hydrogen", undefined],
   ["Gemini 4 Argon (High)", "gemini-4", "high"],
   ["DeepSeek 4.1 Flash 1017", "deepseek-v4.1-flash-1017", undefined],
   ["DeepSeek V4.1 Flash 1017", "deepseek-v4.1-flash-1017", undefined],

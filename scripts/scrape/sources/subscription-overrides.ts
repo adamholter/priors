@@ -78,6 +78,11 @@ export const SUBSIDY_ASSUMPTIONS: SubsidyAssumption[] = [
     modelId: "gemini-4-carbon", label: "Gemini 4 Carbon (max)", sameAs: "gemini-4", sameAsName: "Argon", checked: "2026-10-29",
     note: "No plan sells Carbon yet: Google opened it to cyber defenders first, with subscribers \"coming soon\". Assumed to get Argon's subsidy on the same plan.",
   },
+  // Released November 12, 2026. Adam: assume Flash's or Argon's subsidy, Argon's when they differ. They do: Gemini 3.8 Flash's measured share of API price is a fraction of Argon's.
+  {
+    modelId: "gemini-4-hydrogen", label: "Gemini 4 Hydrogen (xhigh)", sameAs: "gemini-4", sameAsName: "Argon", checked: "2026-11-12",
+    note: "Released November 12, 2026, before Real API Pricing has measured it on a plan. Assumed to get Argon's subsidy on the same plan.",
+  },
 ];
 
 /**
