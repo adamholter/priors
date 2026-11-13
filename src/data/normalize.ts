@@ -194,6 +194,8 @@ const VALS_PUBLISHED_MODELS: Record<string, { id: string; name: string; lab: str
   "ling 3.0 flash fin": { id: "aa-ling-3-0-flash-fin", name: "Ling 3.0 Flash Fin", lab: "ant-group", reasoning: true },
   "nemotron 3 ultra": { id: "aa-nvidia-nemotron-3-ultra-550b-a55b", name: "Nemotron 3 Ultra 550B A55B", lab: "nvidia", reasoning: true },
   "nemotron 3.5 lightning": { id: "aa-nemotron-3-5-lightning", name: "Nemotron 3.5 Lightning", lab: "nvidia", reasoning: true },
+  // RWE-Bench, GameFeel and Benchmark Heaven name it this way; Artificial Analysis already lists it under this id.
+  "nemotron 3.5 super vl": { id: "aa-nemotron-3-5-super-vl", name: "Nemotron 3.5 Super VL", lab: "nvidia", reasoning: true },
   "mercury 2.5": { id: "mercury-2.5", name: "Mercury 2.5", lab: "inception", reasoning: true },
   "laguna m.1": { id: "laguna-m-1", name: "Laguna M.1", lab: "poolside", reasoning: true },
   "laguna xs.2": { id: "laguna-xs-2", name: "Laguna XS.2", lab: "poolside", reasoning: true },

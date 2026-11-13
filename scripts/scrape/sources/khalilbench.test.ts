@@ -3,6 +3,7 @@ import { normalizeLabel } from "../../../src/data/normalize";
 import { benchmarkQuality } from "../../../src/onboarding/quality";
 import type { Snapshot } from "../../../src/data/types";
 import { KHALIL_ID, parseKhalilBench } from "./khalilbench";
+import { withCatalog } from "../../../src/data/catalog";
 
 const board = [
   { model: "Claude Fable 5.2", n: 2, score: 88, mean_severity: 1.5, worst: 1.5, best: 1.5 },
@@ -20,6 +21,15 @@ describe("Khalil Bench", () => {
     expect(rows[4].note).toBe("1 verdict, from -2 to -2 on the -2 (yuck) to +2 (really cool) scale");
     expect(benchmarks[0]).toMatchObject({ id: KHALIL_ID, eligibleForDefault: false, defaultWeight: 0, lastUpdated: "2026-11-13", category: "preference" });
     expect(rows.slice(0, 4).map((r) => normalizeLabel(r.modelLabel).ok)).toEqual([true, true, true, true]);
+  });
+  it("lists products Khalil rated, like Intersects, in the description, unranked, never as model rows", () => {
+    const scale = [{ severity: 2, word: "really cool" }, { severity: 1, word: "kinda cool" }, { severity: 0, word: "meh" }];
+    const { rows, benchmarks, notes } = parseKhalilBench({ meta: { scale }, board, rows: [{ product: "Intersects", s: 1 }, { product: null, s: 1 }] });
+    expect(rows.some((r) => r.modelLabel === "Intersects")).toBe(false);
+    expect(benchmarks[0].description).toContain("Also rated, not models, so unranked as on the Khalil Bench site: Intersects (kinda cool, 75 points).");
+    expect(notes?.[0]).toContain("1 unranked product (Intersects)");
+    // The catalog's description replaces the source's, but the live note survives it.
+    expect(withCatalog(benchmarks[0]).description).toMatch(/Never in a default mix and given no quality score\. Also rated, not models, .*Intersects \(kinda cool, 75 points\)\.$/);
   });
   it("has no quality score", () => {
     const { rows, benchmarks } = parseKhalilBench({ board });

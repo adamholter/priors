@@ -28,11 +28,18 @@ export function catalogEntry(b: Benchmark): { c: BenchmarkCategory[]; d?: string
   return rule && { c: typeof rule.c === "function" ? rule.c(b) : rule.c, d: rule.d?.(b) };
 }
 
+/**
+ * Splits a source description from a live note the source adds from its data (Khalil Bench's unranked products). The note
+ * follows this mark and outlives the catalog's description, which otherwise replaces the source's.
+ */
+export const LIVE_NOTE = " \u2063";
+
 /** A benchmark as the site shows it: catalog description and categories over the source's own. */
 export function withCatalog(b: Benchmark): Benchmark {
   const entry = catalogEntry(b);
   const categories = unique((entry?.c ?? [b.category, ...(b.categories ?? [])]).map(normalizeCategory));
-  let description = entry?.d ?? b.description;
+  const at = b.description.indexOf(LIVE_NOTE), note = at >= 0 ? b.description.slice(at + LIVE_NOTE.length) : "", own = at >= 0 ? b.description.slice(0, at) : b.description;
+  let description = (entry?.d ?? own) + (note ? ` ${note}` : "");
   if (entry?.d && b.sourceId === "boggs") description += BOGGS_CREDIT;
   return { ...b, description, category: categories[0], categories };
 }
