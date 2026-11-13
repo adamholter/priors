@@ -20,6 +20,7 @@ import { fetchSpeedTiers } from "./speed-tiers";
 import { labelCollisions, swallowedTiers } from "./label-collisions";
 import { applyLaunchClaims } from "./launch-claims";
 import { applyT3Costs } from "./t3-costs";
+import { applyVersionSplits, loadFrozen, saveFrozen } from "./version-splits";
 import { fetchFreeTiers } from "./free-tiers";
 import { applyFreeTiers, carriedFreeTiers } from "../../src/data/free-tier";
 import { SUBSCRIPTION_BENCHMARK } from "../../src/data/subscription";
@@ -68,6 +69,11 @@ async function main() {
   const freeFetch = wantFree ? settle(fetchFreeTiers(makeContext("free-tiers"))) : undefined;
   const resetFetch = wantResets ? settle(fetchPlanResets(makeContext("plan-resets"))) : undefined;
 
+  // New publisher versions become new benchmarks (version-splits.ts): the last snapshot shows which version each id had.
+  const frozenVersions = await loadFrozen();
+  let lastSnap: Snapshot | undefined;
+  try { lastSnap = JSON.parse(gunzipSync(await readFile(path.join(SNAP_DIR, "latest.json.gz"))).toString("utf8")); } catch { /* first run */ }
+
   // Slowest sources first (last run's timings), so the run ends when the slowest one does, not after it.
   const TIMINGS = path.resolve("data/raw/source-timings.json");
   let lastTimings: Record<string, number> = {};
@@ -110,6 +116,12 @@ async function main() {
         for (const row of r.rows) {
           if (!ids.has(row.benchmarkId) || !Number.isFinite(row.value)) throw new Error(`invalid row for ${row.benchmarkId}`);
         }
+        const split = applyVersionSplits(src.id, r, frozenVersions, lastSnap, date);
+        for (const f of split.created) {
+          await saveFrozen(f);
+          console.log(`NEW_BENCHMARK ${src.id}: new version of ${f.benchmark.name}, v${f.version} -> v${r.benchmarks.find((b) => b.versionPolicy?.kind === "fresh" && b.versionPolicy.supersedes === f.id)?.version ?? "?"}; old scores frozen in data/frozen-versions/${f.id}.json (commit it to scripts/scrape/sources/frozen/versions)`);
+        }
+        for (const m of split.moved) ctx.log(`VERSION ${m}`);
         r.benchmarks.forEach((b) => benchmarks.set(b.id, { ...b, sourceId: src.id }));
         r.rows.forEach((row) => rows.push({ ...row, sourceId: src.id }));
         r.series?.forEach((s) => rawSeries.push({ ...s, sourceId: src.id }));

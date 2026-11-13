@@ -64,6 +64,8 @@ export interface Benchmark {
   description: string; // one or two sentences, what it measures
   /** The value is the model's best across settings, not one effort: the row sits on a variant so it can join others, but must not be read as that effort. */
   effortBasis?: "best-measured";
+  /** The publisher's version label ("1.5"), when the source can read one. A change splits the benchmark (scripts/scrape/version-splits.ts). */
+  version?: string;
   /** Date the publisher last updated this benchmark's results, when published. */
   lastUpdated?: string; // YYYY-MM-DD; distinct from benchmark release and scrape dates
   /** YYYY-MM-DD: the last date the publisher updated this while its sibling boards kept going. The rows are its final values, not current ones. */

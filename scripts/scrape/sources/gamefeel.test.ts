@@ -25,7 +25,7 @@ describe("GameFeel Benchmark", () => {
     expect(rows[0]).toMatchObject({ benchmarkId: GAMEFEEL_ID, labHint: "Anthropic", details: { create: 65, bugfix: 65, gamefeel: 50, ideas: 41, visuals: 63, audio: 25, re: 21.67, pricePerTaskUsd: 2.6, billing: "sub", minutesPerTask: 90 } });
     // The board's price is not a measured run cost, so it never reaches the cost column.
     expect(rows.every((r) => r.costUsd === undefined && r.durationSec === undefined)).toBe(true);
-    expect(benchmarks[0]).toMatchObject({ id: "gamefeel", unit: "score", category: "creative", normalization: { min: 0, max: 100 }, eligibleForDefault: false, defaultWeight: 0, lastUpdated: "2026-11-09" });
+    expect(benchmarks[0]).toMatchObject({ id: "gamefeel", unit: "score", category: "creative", normalization: { min: 0, max: 100 }, eligibleForDefault: false, defaultWeight: 0, lastUpdated: "2026-11-09", version: "1.4", name: "GameFeel Benchmark v1.4" });
     expect(notes?.[0]).toBe("7 rows, 1 without an overall score skipped, updated 2026-11-09, standard v1.4");
   });
   it("keeps a published subcategory 0 and skips a row with no overall, which is the board's not run", () => {
@@ -42,5 +42,24 @@ describe("GameFeel Benchmark", () => {
     expect(() => parseGameFeel(`${HEAD}\nOpus-5.5,XHigh,anthropic,Anthropic,2.6,sub,1M,90,0,67,65,65,50,41,63,25,21.67,47.2,no,,,\n`)).toThrow(/schema changed/);
     expect(() => parseGameFeel(CSV.replace("21.67,47.2", "21.67,147.2"))).toThrow(/out of range for Opus-5.5/);
     expect(() => parseGameFeel(CSV.replace("9.28,38.8", "9.28,n/a"))).toThrow(/out of range for Sonnet-5.5/);
+  });
+  it("reads v1.5's combined reverse evaluation as its own benchmark, Hydrogen included though it has no overall", () => {
+    const head = "model,effort,lab_key,lab,price_per_task_usd,billing,context,minutes_per_task,context_compression_per_task,tokens_per_second,create,bugfix,gamefeel,ideas,visuals,audio,re_blind,re_assisted,re_combined,avg,open_weights,size_gb,size_basis,re_test,aa_index,gci,first_seen";
+    const csv = [head,
+      "Fable-5.2,High,anthropic,Anthropic,3,sub,1M,90,0,60,70,70,60,50,60,40,22.84,88.08,44.1408,52.4,no,,,,,52.4,2026-10-17",
+      "Opus-5.5,XHigh,anthropic,Anthropic,2.6,sub,1M,90,0,67,65,65,50,41,63,25,13.36,,13.2264,46,no,,,,,46,2026-10-17",
+      "Sonnet-5.5,XHigh,anthropic,Anthropic,1,sub,1M,90,0,67,60,60,45,40,55,25,7.12,,7.0488,41.7,no,,,,,41.7,2026-10-17",
+      "Haiku-5.5,Max,anthropic,Anthropic,0.3,sub,1M,90,0,67,50,50,40,30,45,25,1.53,,1.5147,35.5,no,,,,,35.5,2026-10-17",
+      "Gemini-4-Argon,High,google,Google DeepMind,1,api,1M,90,0,67,60,60,45,40,55,25,6.69,,6.6231,40.7,no,,,,,40.7,2026-10-17",
+      "Gemini-4-Hydrogen,High,google,Google DeepMind,0.94,api,1M,,,440,,,,,,,7.55,56.63,23.6709,,no,,,,53,,2026-11-13",
+      "Qwen-4-Max-Preview (Qwen App Nov 11),High,alibaba,Alibaba Qwen,,,,,,,,,,,,,8.54,,8.4546,,no,,,,,,2026-11-12",
+    ].join("\n");
+    const { rows, benchmarks } = parseGameFeel(csv, '{"updated":"2026-11-13 14:29","standard":"v1.5"}');
+    expect(benchmarks.map((b) => [b.id, b.name, b.version])).toEqual([["gamefeel-re", "GameFeel Reverse Evaluation v1.5", "1.5"], ["gamefeel", "GameFeel Benchmark v1.5", "1.5"]]);
+    const re = rows.filter((r) => r.benchmarkId === "gamefeel-re");
+    expect(re.find((r) => r.modelLabel === "Gemini-4-Hydrogen")).toMatchObject({ value: 23.6709, details: { blind: 7.55, assisted: 56.63 } });
+    expect(rows.some((r) => r.benchmarkId === "gamefeel" && r.modelLabel === "Gemini-4-Hydrogen")).toBe(false);
+    expect(re.some((r) => r.modelLabel.startsWith("Qwen-4-Max"))).toBe(false);
+    expect(rows.find((r) => r.benchmarkId === "gamefeel" && r.modelLabel === "Fable-5.2")?.details).toMatchObject({ re: 44.1408 });
   });
 });
