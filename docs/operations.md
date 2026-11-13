@@ -61,6 +61,13 @@ launchd job `com.adam.priors-scrape` runs `scripts/ops/daily-scrape.sh` every 15
 
 The job pushes to `main` all day, so do feature work in a worktree and expect `main` to move.
 
+## Screenshot to live (adding a benchmark fast)
+
+1. `npm run bench:find -- <benchmark words> [model ...]` starts the timer and says whether the benchmark is already read (source file, config board, catalog entry), what the live snapshot holds for it (rows, version, last update, the named models) and the source's last status.
+2. Not read yet: `npm run board:try -- <url>` for a config-only board (scripts/scrape/boards/configs.ts); otherwise a source in scripts/scrape/sources with a parser test. A new version of a board it reads: set `version` on the benchmark and seed the old one in sources/frozen/versions (docs/data.md, "New benchmark versions").
+3. Add the catalog entry (src/data/catalog/direct.ts), commit, push. Scraper-only changes take the light pre-push; the push starts a scrape of the changed sources.
+4. `npm run live:wait -- <benchmarkId> [model ...]` follows ~/priors/logs/scrape.log to that run's publish, then polls the benchmark page until it names each model, and prints the time since step 1.
+
 ## Bench radar
 
 `npm run radar` (`scripts/radar/radar.ts`) makes one pass over the places a new benchmark or model shows up first, so a scraper can be drafted before anyone asks. launchd job `com.adam.priors-radar` runs it every 30 minutes from `~/priors-scrape` (template: `scripts/radar/com.adam.priors-radar.plist`); log `~/priors/logs/radar.log`.

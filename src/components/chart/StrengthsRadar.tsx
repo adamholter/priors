@@ -16,7 +16,7 @@ import { radarHtml } from "./embed";
 import { Radar, RadarSwatch } from "./Radar";
 import { RadarModal } from "./RadarModal";
 import { formatValue, RADAR_MIN_AXES, type RadarModel, type RadarNorm } from "./radar-data";
-import { BARS_TOP, CATEGORY_SPOKE, DEFAULT_RADAR, RADAR_ANCHOR, RADAR_NORMS, RADAR_PALETTES, RADAR_TOP, radarModelsFor, radarParams, radarRows, radarSeries, radarSvg, readRadarParams, selectedModels, type RadarColors, type RadarCompare, type RadarSeries, type RadarSettings, type RadarSpokes, type RadarView } from "./radar-view";
+import { BARS_TOP, CATEGORY_SPOKE, DEFAULT_RADAR, effortName, RADAR_ANCHOR, RADAR_NORMS, RADAR_PALETTES, RADAR_TOP, radarEffortRows, radarEfforts, radarModelsFor, radarParams, radarRows, radarSeries, radarSvg, readRadarParams, selectedModels, type RadarColors, type RadarCompare, type RadarEffort, type RadarSeries, type RadarSettings, type RadarSpokes, type RadarView } from "./radar-view";
 import styles from "./ChartSettings.module.css";
 import "./radar.css";
 
@@ -53,10 +53,16 @@ export function StrengthsRadar({ ranked, benchmarks, labs, snapshot, config, anc
   const register = useCallback((id: string, svg: (() => string | undefined) | null) => { if (svg) sheets.current.set(id, svg); else sheets.current.delete(id); }, []);
   const update = (patch: Partial<RadarSettings>) => setSettings((s) => ({ ...s, ...patch }));
 
-  const rows = useMemo(() => radarRows(snapshot, config, ranked, benchmarks), [snapshot, config, ranked, benchmarks]);
+  const best = useMemo(() => radarRows(snapshot, config, ranked, benchmarks), [snapshot, config, ranked, benchmarks]);
+  // Bars have no layers, so "every effort" draws the best one there.
+  const effort: RadarEffort = settings.effort === "layers" && view === "bars" ? "best" : settings.effort ?? "best";
+  // Two more index runs, so only when an effort other than the best is asked for.
+  const byEffort = useMemo(() => effort === "best" ? undefined : radarEffortRows(snapshot, config, best, benchmarks, effort), [snapshot, config, best, benchmarks, effort]);
+  const rows = byEffort && effort !== "layers" ? byEffort.rows : best;
+  const efforts = useMemo(() => radarEfforts(snapshot, best), [snapshot, best]);
   // Until the user picks models, the radar follows the top 4 and the bar charts the top 8.
   const selected = useMemo(() => { const order = rows.map((r) => ({ id: r.model.id })); return view === "bars" && !settings.models ? order.slice(0, BARS_TOP).map((m) => m.id) : selectedModels(order, settings.models); }, [rows, settings.models, view]);
-  const { axes, models, median, spokes, canGroup } = useMemo(() => radarModelsFor(rows, benchmarks, norm, settings.spokes, selected), [rows, benchmarks, norm, settings.spokes, selected]);
+  const { axes, models, median, spokes, canGroup } = useMemo(() => radarModelsFor(rows, benchmarks, norm, settings.spokes, selected, byEffort?.layers), [rows, benchmarks, norm, settings.spokes, selected, byEffort]);
   const byCategory = spokes === "categories", noun = byCategory ? "categories" : "benchmarks";
   const byId = useMemo(() => new Map(models.map((m) => [m.id, m])), [models]);
   // On the Range scale a field median below every model drawn is off the bottom of each spoke: nothing to draw or to name.
@@ -112,8 +118,14 @@ export function StrengthsRadar({ ranked, benchmarks, labs, snapshot, config, anc
       <ul className="rl-legend" aria-label="Models on the radar">
         {series.map((s) => <li key={s.id} onMouseEnter={() => setFocus(s.id)} onMouseLeave={() => setFocus(null)}><RadarSwatch color={s.color} dash={s.dash} />{s.name}</li>)}
         {showMedian && medianOn && view === "radar" && <li className="rl-legend-median"><i aria-hidden="true" />Field median</li>}
+        {effort === "layers" && <li className="cap">Outline: best effort. Darker toward the center: lower efforts.</li>}
       </ul>
       <div className="flex items-center gap-1 ml-auto">
+        <select className="rl-effort" aria-label="Reasoning effort" title="Which reasoning effort each model is drawn at" value={settings.effort ?? "best"} onChange={(e) => update({ effort: e.target.value as RadarEffort })}>
+          <option value="best">Best effort</option>
+          {view === "radar" && <option value="layers">All efforts, shaded</option>}
+          {efforts.map((e) => <option key={e} value={e}>{effortName(e)[0].toUpperCase() + effortName(e).slice(1)} only</option>)}
+        </select>
         <div className="seg" role="group" aria-label="Strengths view">
           <button type="button" aria-pressed={view === "radar"} title="Radar" onClick={() => update({ view: "radar" })}><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" aria-hidden="true"><path d="M8 1.5 14 6l-2.3 7.5H4.3L2 6z" /><path d="M8 5.5 10.6 7.4 9.6 10.5H6.4l-1-3.1z" /></svg></button>
           <button type="button" aria-pressed={view === "bars"} title={byCategory ? "A bar chart per category" : "A bar chart per benchmark"} onClick={() => update({ view: "bars" })}><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><rect x="2" y="3" width="3" height="11" /><rect x="6.5" y="6" width="3" height="8" /><rect x="11" y="9" width="3" height="5" /></svg></button>

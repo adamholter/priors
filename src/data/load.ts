@@ -25,7 +25,8 @@ const REPO_RAW = "https://raw.githubusercontent.com/adamholter/priors";
 const REMOTE_DEFAULT = `${REPO_RAW}/data-live/data/snapshots`;
 export const remoteBase = () => (process.env.SNAPSHOT_BASE_URL ?? ((process.env.VERCEL || process.env.PRIORS_CLOUDFLARE === "1") ? REMOTE_DEFAULT : "")).replace(/\/$/, "");
 const REMOTE_TTL_MS = 60_000;
-const POINTER_TTL_MS = 15_000;
+/** Short, because a publish waits one of these before it clears the CDN (daily-scrape.sh point_site). */
+const POINTER_TTL_MS = 8_000;
 /** The job confirms the pointer every run (15 minutes); one unconfirmed for this long is not trusted. */
 const POINTER_STALE_MS = 50 * 60_000;
 

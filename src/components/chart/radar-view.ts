@@ -3,14 +3,20 @@
  * string (inline colors and static fonts) shared by the PNG/SVG export, the HTML embed, `?c=strengths`
  * link previews and the "Radar" share card. The interactive chart is Radar.tsx.
  */
-import type { Lab, Snapshot } from "../../data/types";
+import { EFFORT_ORDER, type Effort, type Lab, type Snapshot } from "../../data/types";
 import { computeIndex, selectVariants, type IndexConfig, type IndexResult, type RankedVariant } from "../../engine";
 import { benchmarkBlurb } from "../../lib/benchmark-blurb";
 import { categoryName, categoryOrder, normalizeCategory } from "../../data/categories";
 import { radarLabels, textWidth } from "./radar-labels";
-import { fillFromSiblings, formatValue, medianPoints, radarAxes, radarModels, ringLabels, zoomAxes, type RadarAxis, type RadarModel, type RadarNorm, type RadarPoint } from "./radar-data";
+import { fillFromSiblings, formatValue, medianPoints, radarAxes, radarModels, ringLabels, zoomAxes, type RadarAxis, type RadarLayer, type RadarModel, type RadarNorm, type RadarPoint } from "./radar-data";
 
-export interface RadarSeries { id: string; name: string; color: string; dash?: string; points: RadarPoint[] }
+export interface RadarSeries { id: string; name: string; color: string; dash?: string; points: RadarPoint[]; layers?: RadarLayer[]; effort?: Effort }
+/**
+ * Which effort each model is drawn at. "best": its best-scoring effort (the index's pick). "layers": that best effort's outline,
+ * with each of its other efforts as an unoutlined fill of the same color, so the shape darkens toward the center where low
+ * efforts overlap. An effort: every model at that effort, models without it left out.
+ */
+export type RadarEffort = "best" | "layers" | Exclude<Effort, "default">;
 export type RadarCompare = "leader" | "median";
 export type RadarColors = "lab" | "distinct";
 /** `models` is a user pick; undefined follows the live top 4. */
@@ -18,7 +24,7 @@ export type RadarView = "radar" | "bars";
 /** What a spoke is: one benchmark, or every benchmark of a category rolled into one. */
 export type RadarSpokes = "benchmarks" | "categories";
 /** `spokes` undefined follows the index: benchmarks, or categories once there are too many benchmarks to read. */
-export interface RadarSettings { norm: RadarNorm; compare: RadarCompare; colors: RadarColors; median: boolean; view: RadarView; models?: string[]; spokes?: RadarSpokes }
+export interface RadarSettings { norm: RadarNorm; compare: RadarCompare; colors: RadarColors; median: boolean; view: RadarView; models?: string[]; spokes?: RadarSpokes; effort?: RadarEffort }
 /** Past this many benchmarks a radar is a hairball, so it draws one spoke per category unless told otherwise. */
 export const RADAR_MAX_BENCHMARK_SPOKES = 12;
 /** Id prefix of a category spoke, which stands for several benchmarks. */
@@ -37,11 +43,14 @@ export const RADAR_NORMS: { id: RadarNorm; label: string; hint: string }[] = [
 /** Validated categorical palette (dataviz reference) for the "one color per model" option. */
 const DISTINCT = { light: ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#4a3aa7", "#e34948"], dark: ["#3987e5", "#d95926", "#199e70", "#c98500", "#d55181", "#008300", "#9085e9", "#e66767"] };
 const DASHES = [undefined, "7 4", "2 3", "10 3 2 3"];
+/** Each effort layer's fill. Layers stack, so where every effort reaches (the center) is darkest. */
+export const LAYER_OPACITY = 0.09;
 
 /* ---------------- URL params ---------------- */
 
-/** Radar params carried by `?c=strengths` links: rm (models), rs (scale), rc (small radars vs), rk (colors), rmed=0 (no median), rv=bars (a bar chart per benchmark), rg (spokes: cat or bench). */
-export const RADAR_PARAM_KEYS = ["rm", "rs", "rc", "rk", "rmed", "rv", "rg"] as const;
+/** Radar params carried by `?c=strengths` links: rm (models), rs (scale), rc (small radars vs), rk (colors), rmed=0 (no median), rv=bars (a bar chart per benchmark), rg (spokes: cat or bench), re (effort: layers or an effort). */
+export const RADAR_PARAM_KEYS = ["rm", "rs", "rc", "rk", "rmed", "rv", "rg", "re"] as const;
+const isRadarEffort = (v: string | null): v is RadarEffort => v === "layers" || (EFFORT_ORDER as string[]).includes(v ?? "");
 
 export function readRadarParams(params: URLSearchParams): RadarSettings {
   const rs = params.get("rs"), rc = params.get("rc"), rk = params.get("rk"), rm = params.get("rm"), rg = params.get("rg");
@@ -53,6 +62,7 @@ export function readRadarParams(params: URLSearchParams): RadarSettings {
     view: params.get("rv") === "bars" ? "bars" : "radar",
     models: rm == null ? undefined : rm.split(",").filter(Boolean).slice(0, 12),
     ...(rg === "cat" ? { spokes: "categories" as const } : rg === "bench" ? { spokes: "benchmarks" as const } : {}),
+    ...(isRadarEffort(params.get("re")) ? { effort: params.get("re") as RadarEffort } : {}),
   };
 }
 
@@ -66,6 +76,7 @@ export function radarParams(s: RadarSettings): Record<(typeof RADAR_PARAM_KEYS)[
     rmed: s.median ? undefined : "0",
     rv: s.view !== DEFAULT_RADAR.view ? s.view : undefined,
     rg: s.spokes === "categories" ? "cat" : s.spokes === "benchmarks" ? "bench" : undefined,
+    re: s.effort && s.effort !== "best" ? s.effort : undefined,
   };
 }
 
@@ -105,6 +116,44 @@ export function radarByCategory(rows: RankedVariant[], benchmarks: IndexResult["
   return { rows: grouped, benchmarks: spokes };
 }
 
+/** The words for an effort in the radar's legend and menus. */
+export const effortName = (e: Effort) => e === "xhigh" ? "xhigh" : e === "none" ? "no reasoning" : e;
+
+/**
+ * Rows for an effort setting other than "best". `best` is radarRows' output (one row per model, index order). For one effort,
+ * each model's variant at it (the ranked one if the index ranks it, else the best-covered configuration), keeping the model's
+ * index rank; a model with no run at that effort drops out. For "layers", the best rows stay and each model's other efforts
+ * come back as layers, highest effort first. Gaps fill from the model's other configurations, as in radarRows.
+ */
+export function radarEffortRows(snapshot: Snapshot, config: IndexConfig, best: RankedVariant[], benchmarks: IndexResult["benchmarks"], effort: Exclude<RadarEffort, "best">): { rows: RankedVariant[]; layers: Map<string, RankedVariant[]>; efforts: Effort[] } {
+  const all = computeIndex(snapshot, { ...config, variants: "all" }).ranked;
+  const siblings = computeIndex(snapshot, { ...config, strictness: 0, required: [], variants: "all" }).ranked;
+  const ids = benchmarks.map((b) => b.benchmark.id);
+  const group = (list: RankedVariant[]) => { const m = new Map<string, RankedVariant[]>(); for (const r of list) m.set(r.model.id, [...(m.get(r.model.id) ?? []), r]); return m; };
+  const ranked = group(all), loose = group(siblings);
+  const at = (modelId: string, e: Effort) => ranked.get(modelId)?.filter((r) => r.variant.effort === e).sort((a, b) => b.score - a.score)[0]
+    ?? loose.get(modelId)?.filter((r) => r.variant.effort === e).sort((a, b) => b.values.length - a.values.length)[0];
+  const effortsOf = (modelId: string) => EFFORT_ORDER.filter((e) => [...(ranked.get(modelId) ?? []), ...(loose.get(modelId) ?? [])].some((r) => r.variant.effort === e));
+  const efforts = EFFORT_ORDER.filter((e) => best.some((b) => effortsOf(b.model.id).includes(e)));
+  const fill = (rows: RankedVariant[]) => fillFromSiblings(rows, siblings, ids);
+  if (effort === "layers") {
+    const layers = new Map<string, RankedVariant[]>();
+    for (const b of best) {
+      const others = effortsOf(b.model.id).filter((e) => e !== b.variant.effort).reverse().flatMap((e) => { const v = at(b.model.id, e); return v ? [v] : []; });
+      if (others.length) layers.set(b.model.id, fill(others));
+    }
+    return { rows: best, layers, efforts };
+  }
+  const rows = best.flatMap((b) => { const v = at(b.model.id, effort); return v ? [{ ...v, rank: b.rank, model: { ...v.model, name: `${v.model.name} ${effortName(effort)}` } }] : []; });
+  return { rows: fill(rows), layers: new Map(), efforts };
+}
+
+/** The efforts any of these models has a variant at, lowest first: the effort picker's choices. */
+export function radarEfforts(snapshot: Snapshot, rows: RankedVariant[]): Effort[] {
+  const models = new Set(rows.map((r) => r.model.id)), have = new Set(snapshot.variants.filter((v) => models.has(v.modelId)).map((v) => v.effort));
+  return EFFORT_ORDER.filter((e) => have.has(e));
+}
+
 /** Which spokes a radar of these benchmarks draws: the asked-for kind, else categories once benchmarks are too many. Categories need three to enclose an area. */
 export function radarSpokes(benchmarks: IndexResult["benchmarks"], asked?: RadarSpokes): { spokes: RadarSpokes; canGroup: boolean } {
   const canGroup = new Set(benchmarks.map((b) => normalizeCategory(b.benchmark.category))).size >= 3;
@@ -112,11 +161,22 @@ export function radarSpokes(benchmarks: IndexResult["benchmarks"], asked?: Radar
 }
 
 /** `shown`: the models the chart draws. On the Range scale each spoke then starts just below the lowest of them. */
-export function radarModelsFor(rows: RankedVariant[], benchmarks: IndexResult["benchmarks"], norm: RadarNorm, asked?: RadarSpokes, shown?: string[]) {
+export function radarModelsFor(rows: RankedVariant[], benchmarks: IndexResult["benchmarks"], norm: RadarNorm, asked?: RadarSpokes, shown?: string[], layers?: Map<string, RankedVariant[]>) {
   const { spokes, canGroup } = radarSpokes(benchmarks, asked);
   const use = spokes === "categories" ? radarByCategory(rows, benchmarks) : { rows, benchmarks };
-  const field = radarAxes(use.benchmarks, use.rows), axes = norm === "field" && shown?.length ? zoomAxes(field, use.rows, shown) : field;
-  return { axes, models: radarModels(use.rows, axes, norm), median: medianPoints(use.rows, axes, norm), spokes, canGroup };
+  const layerRows = new Map([...(layers ?? [])].map(([id, list]) => [id, spokes === "categories" ? radarByCategory(list, benchmarks).rows : list]));
+  // On the Range scale the spokes start below the lowest effort drawn, so the inner layers stay on the chart.
+  const layerAll = [...layerRows.values()].flat();
+  const field = radarAxes(use.benchmarks, use.rows).map((a) => {
+    const low = Math.min(a.min, ...layerAll.flatMap((r) => r.values.filter((v) => v.benchmarkId === a.id).map((v) => v.value)));
+    return low < a.min ? { ...a, min: low } : a;
+  });
+  const axes = norm === "field" && shown?.length ? zoomAxes(field, [...use.rows, ...layerAll], shown) : field;
+  const models = radarModels(use.rows, axes, norm).map((m, k) => {
+    const list = layerRows.get(m.id);
+    return list?.length ? { ...m, effort: use.rows[k].variant.effort, layers: radarModels(list, axes, norm, use.rows).map((l, i) => ({ effort: list[i].variant.effort, points: l.points })) } : m;
+  });
+  return { axes, models, median: medianPoints(use.rows, axes, norm), spokes, canGroup };
 }
 
 /**
@@ -126,9 +186,9 @@ export function radarModelsFor(rows: RankedVariant[], benchmarks: IndexResult["b
 export function radarSeries(models: RadarModel[], selected: string[], colors: RadarColors, dark: boolean, labColor: (labId: string) => string, slotOf: (id: string) => number = (id) => selected.indexOf(id)): RadarSeries[] {
   const seen = new Map<string, number>();
   return models.filter((m) => selected.includes(m.id)).map((m) => {
-    if (colors === "distinct") return { id: m.id, name: m.name, points: m.points, color: (dark ? DISTINCT.dark : DISTINCT.light)[Math.max(0, slotOf(m.id)) % 8] };
+    if (colors === "distinct") return { id: m.id, name: m.name, points: m.points, layers: m.layers, effort: m.effort, color: (dark ? DISTINCT.dark : DISTINCT.light)[Math.max(0, slotOf(m.id)) % 8] };
     const n = seen.get(m.labId) ?? 0; seen.set(m.labId, n + 1);
-    return { id: m.id, name: m.name, points: m.points, color: labColor(m.labId), dash: DASHES[n % DASHES.length] };
+    return { id: m.id, name: m.name, points: m.points, layers: m.layers, effort: m.effort, color: labColor(m.labId), dash: DASHES[n % DASHES.length] };
   });
 }
 
@@ -176,8 +236,9 @@ export function radarSvg({ axes, series, ghost, norm, pal, size = 400, meta, leg
   if (ghost) { const d = shape(ghost); if (d) out.push(`<path d="${d}" fill="${pal.ghost}" fill-opacity="0.6" stroke="${pal.grey}" stroke-width="1" stroke-dasharray="2 3"><title>Field median</title></path>`); }
   const single = series.length === 1;
   for (const s of series) {
+    for (const l of s.layers ?? []) { const ld = shape(l.points); if (ld) out.push(`<path d="${ld}" fill="${s.color}" fill-opacity="${LAYER_OPACITY}" stroke="none"><title>${esc(`${s.name} · ${effortName(l.effort)}`)}</title></path>`); }
     const d = shape(s.points);
-    if (d) out.push(`<path d="${d}" fill="${s.color}" fill-opacity="${single ? 0.16 : 0.06}" stroke="${s.color}" stroke-width="2" stroke-linejoin="round"${s.dash ? ` stroke-dasharray="${s.dash}"` : ""}/>`);
+    if (d) out.push(`<path d="${d}" fill="${s.color}" fill-opacity="${s.layers?.length ? LAYER_OPACITY : single ? 0.16 : 0.06}" stroke="${s.color}" stroke-width="2" stroke-linejoin="round"${s.dash ? ` stroke-dasharray="${s.dash}"` : ""}/>`);
   }
   for (const s of series) s.points.forEach((p, i) => {
     if (p.r == null) return;
@@ -215,8 +276,10 @@ export const RADAR_PALETTES: Record<"light" | "dark", RadarSvgPalette> = {
 /** Everything a static radar needs, resolved from an index and settings (server cards and exports). */
 export function radarSnapshotView(snapshot: Snapshot, config: IndexConfig, settings: RadarSettings, dark: boolean, labColor: (lab: Lab) => string) {
   const r = computeIndex(snapshot, { ...config, variants: "all" });
-  const rows = radarRows(snapshot, config, r.ranked, r.benchmarks);
-  const { axes, models, median } = radarModelsFor(rows, r.benchmarks, settings.norm, settings.spokes, selectedModels(rows.map((x) => ({ id: x.model.id })), settings.models));
+  const best = radarRows(snapshot, config, r.ranked, r.benchmarks);
+  const byEffort = settings.effort && settings.effort !== "best" ? radarEffortRows(snapshot, config, best, r.benchmarks, settings.effort) : undefined;
+  const rows = byEffort?.rows ?? best;
+  const { axes, models, median } = radarModelsFor(rows, r.benchmarks, settings.norm, settings.spokes, selectedModels(rows.map((x) => ({ id: x.model.id })), settings.models), byEffort?.layers);
   const labs = new Map(snapshot.labs.map((l) => [l.id, l]));
   const series = radarSeries(models, selectedModels(models, settings.models), settings.colors, dark, (id) => { const lab = labs.get(id); return lab ? labColor(lab) : "#A3A39B"; });
   return { axes, models, median, series, ghost: settings.median ? median : undefined, meta: new Map(models.map((m) => [m.id, { rank: m.rank, score: m.score }])) };

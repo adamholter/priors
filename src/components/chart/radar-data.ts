@@ -1,4 +1,4 @@
-import { EFFORT_ORDER, type Benchmark, type BenchmarkCategory } from "../../data/types";
+import { EFFORT_ORDER, type Benchmark, type BenchmarkCategory, type Effort } from "../../data/types";
 import { categoryOrder } from "../../data/categories";
 import type { BenchValue, IndexResult, RankedVariant } from "@/engine";
 
@@ -21,7 +21,11 @@ export interface RadarAxis { id: string; label: string; name: string; descriptio
   /** The line under the name in the hover card, in place of the spoke's share of the index. */
   sub?: string }
 export interface RadarPoint { r: number | null; value?: number; raw?: number; estimated: boolean; estimateRange?: [number, number] }
-export interface RadarModel { id: string; name: string; labId: string; score: number; rank: number; points: RadarPoint[] }
+/** One of a model's other efforts, drawn as a fill inside its best effort's outline. */
+export interface RadarLayer { effort: Effort; points: RadarPoint[] }
+export interface RadarModel { id: string; name: string; labId: string; score: number; rank: number; points: RadarPoint[]; layers?: RadarLayer[];
+  /** The effort `points` are at, when the model's other efforts are drawn as layers. */
+  effort?: Effort }
 
 
 /** Spokes in category order so related benchmarks sit next to each other. */
@@ -62,8 +66,9 @@ export function normalize(value: number, axis: RadarAxis, norm: RadarNorm, pool:
   return FLOOR + (1 - FLOOR) * (pool.length > 1 ? (below + (ties - 1) / 2) / (pool.length - 1) : 1);
 }
 
-export function radarModels(rows: RankedVariant[], axes: RadarAxis[], norm: RadarNorm): RadarModel[] {
-  const pools = new Map(axes.map((a) => [a.id, rows.map((r) => r.values.find((v) => v.benchmarkId === a.id)?.value).filter((v): v is number => v != null)]));
+/** `field`: the rows that set each spoke's percentile pool (the ranked models, when `rows` are another effort's layers). */
+export function radarModels(rows: RankedVariant[], axes: RadarAxis[], norm: RadarNorm, field: RankedVariant[] = rows): RadarModel[] {
+  const pools = new Map(axes.map((a) => [a.id, field.map((r) => r.values.find((v) => v.benchmarkId === a.id)?.value).filter((v): v is number => v != null)]));
   return rows.map((r) => ({
     id: r.model.id, name: r.model.name, labId: r.model.labId, score: r.score, rank: r.rank,
     points: axes.map((a) => {

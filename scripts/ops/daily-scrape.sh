@@ -123,8 +123,9 @@ publish_live() {
 # seen it, drops the CDN's copies of data answers. Never fails the run: the site falls back to reading the branch.
 point_site() {
   node scripts/ops/data-pointer.mjs "$1" "$2" 2>&1 || echo "data pointer: not updated; the site reads the branch until it is"
-  # In the run, not in the background: launchd ends a job's leftover processes when it exits. 16 s is one pointer read (15 s) later.
-  [ "$1" = set ] && { sleep 16; node scripts/ops/data-pointer.mjs purge 2>&1 || echo "CDN purge failed: tagged answers expire on their own within a minute"; }
+  # In the run, not in the background: launchd ends a job's leftover processes when it exits. 9 s is one pointer read
+  # (POINTER_TTL_MS, 8 s in src/data/load.ts) later, so no instance can refill the CDN from the old commit after the purge.
+  [ "$1" = set ] && { sleep 9; node scripts/ops/data-pointer.mjs purge 2>&1 || echo "CDN purge failed: tagged answers expire on their own within a minute"; }
   return 0
 }
 

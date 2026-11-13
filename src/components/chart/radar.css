@@ -43,6 +43,9 @@
 .rl-tip-row { display: grid; grid-template-columns: 8px 1fr auto; align-items: center; gap: 6px; }
 .rl-tip-row i { width: 7px; height: 7px; border-radius: 2px; }
 .rl-tip-row b { margin-left: 8px; font: 500 11px var(--font-mono); }
+.rl-tip-model { display: grid; }
+.rl-tip-layers { padding-left: 14px; font: 10px var(--font-mono); color: var(--grey); white-space: normal; }
+.rl-layer { pointer-events: none; transition: fill-opacity 160ms; }
 .rl-tip-dot { padding: 3px 7px; font-size: 11px; }
 .rl-tip-dot b { font: 600 11px var(--font-mono); }
 .rl-tip-dot em, .rl-tip-dot span { font-style: normal; color: var(--grey); }
@@ -124,3 +127,6 @@
 .rl-bench-head:hover .rl-bench-name { text-decoration: underline; text-underline-offset: 2px; }
 .rl-bench-chart { width: 100%; height: 250px; overflow: hidden; position: relative; isolation: isolate; }
 .rl-bench-empty { padding: 28px 0; }
+
+/* Effort picker in the Strengths toolbar. */
+.rl-effort { font-size: 12px; color: var(--ink2, var(--grey)); background-color: transparent; border: 1px solid var(--hair); border-radius: 4px; padding: 3px 6px; max-width: 150px; }
