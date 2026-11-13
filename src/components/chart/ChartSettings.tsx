@@ -30,7 +30,7 @@ export function ChartSettings({ freeTiers, planReading, speedTiers, label, mode,
   /** Cost charts: price tasks at API list prices or at each lab's subscription plan. */
   costBasis?: { value: CostBasis; onChange: (basis: CostBasis) => void };
   /** Subscription pricing: count limit resets (what each lab gave its subscribers in the last 30 days). Shown in the plans section. */
-  planResets?: { value: boolean; onChange: (on: boolean) => void; note?: string; rows?: { lab: string; text: string }[] };
+  planResets?: { value: boolean; onChange: (on: boolean) => void; note?: string; rows?: { lab: string; text: string }[]; fable?: { value: number; onChange: (n: number) => void } };
   /** Subscription pricing: the plan each lab's models are priced at (`planPicker`). Unpicked labs use each model's median plan, which `median` names. Listed on every cost chart, under API pricing too, where it says how to turn it on. */
   subscriptionPlans?: PlanOptions;
   anchor?: string;
@@ -106,6 +106,7 @@ export function ChartSettings({ freeTiers, planReading, speedTiers, label, mode,
   const resetsRow = resets && <div className={styles.checks}>
     {check("Count limit resets", resets.value, resets.onChange, resets.note)}
     {resets.value && resets.rows?.length ? <dl className={styles.resetRows}>{resets.rows.map((r) => <div key={r.lab}><dt>{r.lab}</dt><dd>{r.text}</dd></div>)}</dl> : <p className={styles.resetNote}>Credits plans for the extra usage labs gave subscribers in the last 30 days.</p>}
+    {resets.value && resets.fable && <div className={styles.row}><label htmlFor={`${id}-fable-resets`} title="Claude's Fable 5.2 reset grant: Max and Ultra accounts got 1 under 6 months of paid use, 2 at 6 to 12 months, 3 past a year; Pro and standard Team got 1. Priors assumes 1.">Fable resets you hold</label><select id={`${id}-fable-resets`} value={resets.fable.value} onChange={(e) => resets.fable!.onChange(Number(e.target.value))}>{[0, 1, 2, 3].map((n) => <option key={n} value={n}>{n === 1 ? "1 (assumed)" : n}</option>)}</select></div>}
   </div>;
   const free = costBasis?.value === "subscription" ? freeTiers : undefined;
   const FREE_CHOICES = [{ id: "generous", name: "Generous" }, { id: "limited", name: "Plus rate-limited" }, { id: "off", name: "None" }] as const;

@@ -1,8 +1,7 @@
 "use client";
 import { categoryNames } from "@/data/categories";
 import { breaksFor } from "@/data/series-breaks";
-import { planResetNote, planResetRows } from "@/data/plan-resets";
-import { setPlanResetsPref, usePlanResetsOn, withResetsPref } from "@/lib/plan-resets-pref";
+import { planResetsProps, usePlanResetsOn, withResetsPref } from "@/lib/plan-resets-pref";
 import { planPicker, useSubscriptionPlansPref, withPlansPref } from "@/lib/subscription-plans-pref";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -122,7 +121,7 @@ export function BenchmarkPage({ snapshot, benchmarkId, models, relatives, initia
             <ParetoChart formulaInputs={formulaInputs(snapshot, result.ranked, config.timeSource)} anchor="cost" basis={basis} description={`${b.name} · measured cost per task${basis === "subscription" ? ", then priced by subscription where plan data exists (Real API Pricing, full allowance used)" : ""}`} ranked={plotted} mode={paretoMode} labs={snapshot.labs} height={440} view={paretoView} onView={setParetoView}
               title={title(basis === "subscription" ? "Score vs subscription cost per task" : "Score vs cost per task")}
               actions={(barModels) => <ChartSettings anchor="cost" defaultScale="log" label="Pareto" mode={paretoMode} onChange={(paretoVariants) => patch({ paretoVariants })} view={paretoView} onView={setParetoView} {...releaseProps} {...effortProps} {...modelPicker} {...(barModels ?? {})}
-                freeTiers={freeTierSettings(snapshot, config.freeTiers, (freeTiers) => patch({ freeTiers }))} planReading={planReadingSettings(snapshot, config.planReading, (planReading) => patch({ planReading }))} costBasis={plans ? { value: effectiveBasis(config.costBasis), onChange: (next: CostBasis) => patch({ costBasis: next === "subscription" ? undefined : next }) } : undefined} subscriptionPlans={planPicker(snapshot, config, plansPref, (subscriptionPlans) => patch({ subscriptionPlans }))} planResets={{ value: withResetsPref(config, resetsOn).planResets === true, onChange: (on: boolean) => { setPlanResetsPref(on); patch({ planResets: on ? true : undefined }); }, note: planResetNote(snapshot), rows: planResetRows(snapshot) }} />} />
+                freeTiers={freeTierSettings(snapshot, config.freeTiers, (freeTiers) => patch({ freeTiers }))} planReading={planReadingSettings(snapshot, config.planReading, (planReading) => patch({ planReading }))} costBasis={plans ? { value: effectiveBasis(config.costBasis), onChange: (next: CostBasis) => patch({ costBasis: next === "subscription" ? undefined : next }) } : undefined} subscriptionPlans={planPicker(snapshot, config, plansPref, (subscriptionPlans) => patch({ subscriptionPlans }))} planResets={planResetsProps(snapshot, config, resetsOn, patch)} />} />
           </section>}
 
           {series.map((sr) => <section key={sr.id} className="chart-panel grid gap-2">

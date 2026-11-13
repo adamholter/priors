@@ -4,7 +4,7 @@ import { LABS } from "./normalize";
 import { computeIndex, type IndexConfig } from "../engine";
 import { decodeIndex, encodeIndex } from "../lib/url";
 import { clientSnapshot } from "./client-snapshot";
-import { countedResets, extraWeeks, planResetBoosts, planResetNote, planResetRows } from "./plan-resets";
+import { countedResets, extraWeeks, hasFableGrant, planResetBoosts, planResetNote, planResetRows, resetBoostFor } from "./plan-resets";
 import { blendedApiPrice, currentPlanName, CODEX_LIMITS_BENCHMARK, measuredTokenMixes, subscriptionPlanOptions, subscriptionPrices, SUBSCRIPTION_BENCHMARK, tokenPrice, type SubscriptionDetails } from "./subscription";
 
 const standard = { cache: 0.97, input: 0.025, output: 0.005 };
@@ -189,7 +189,7 @@ describe("subscription cost basis", () => {
 });
 
 describe("plan limit resets", () => {
-  const ev = (at: string, kind: "reset" | "banked" | "both" = "reset", scope = "all") => ({ at, kind, scope });
+  const ev = (at: string, kind: "reset" | "banked" | "both" = "reset", scope = "all", refills?: "fable") => ({ at, kind, scope, ...(refills ? { refills } : {}) });
   /** The snapshot as of 2026-09-05T12:00Z with OpenAI having reset three times in the last 30 days (plus a banked one, an older one and a partial one). */
   const withResets = (): Snapshot => ({
     ...snap(), generatedAt: "2026-09-05T12:00:00Z",
@@ -200,11 +200,12 @@ describe("plan limit resets", () => {
   });
   const cost = (sn: Snapshot, config: IndexConfig, id: string) => computeIndex(sn, config).ranked.find((r) => r.variant.id === id)!;
 
-  it("counts regular resets in the last 30 days: not banked ones, partial ones, older ones or future ones", () => {
+  it("counts regular and banked resets in the last 30 days, each once: not partial ones, older ones or future ones", () => {
     const boosts = planResetBoosts(withResets());
-    expect(boosts.get("openai")).toMatchObject({ resets: 3, clock: "restart" });
-    expect(boosts.get("anthropic")).toMatchObject({ resets: 1, clock: "fixed" });
-    expect(countedResets([ev("2026-09-04T00:00:00Z", "banked")], Date.parse("2026-09-05T00:00:00Z"))).toEqual([]);
+    // Three regular resets (Aug 7, Aug 10 and the regular half of Aug 20's "both"), plus the banked half of that one and Aug 25's banked reset.
+    expect(boosts.get("openai")).toMatchObject({ resets: 5, banked: 2, clock: "restart" });
+    expect(boosts.get("anthropic")).toMatchObject({ resets: 1, banked: 0, clock: "fixed" });
+    expect(countedResets([ev("2026-09-04T00:00:00Z", "banked")], Date.parse("2026-09-05T00:00:00Z"))).toHaveLength(1);
   });
 
   it("a Claude reset is a whole extra allowance, because its weekly clock does not move", () => {
@@ -216,8 +217,9 @@ describe("plan limit resets", () => {
   it("an OpenAI reset restarts the week, so it adds only the part of the week it skips", () => {
     // Aug 7 lands 37 days after the Jul 1 reset (2 days into a 7-day clock), Aug 10 lands 3 days after it, Aug 20 lands 10 days after it (3 days into the next week).
     const b = planResetBoosts(withResets()).get("openai")!;
-    expect(b.weeks).toBeCloseTo((1 - 2 / 7) + (1 - 3 / 7) + (1 - 3 / 7), 9);
-    expect(b.boost).toBeCloseTo(1 + 13 / 30, 9);
+    // Two banked resets on top, each worth the average half week: they are applied at a time Priors cannot see, and do not move the clock.
+    expect(b.weeks).toBeCloseTo((1 - 2 / 7) + (1 - 3 / 7) + (1 - 3 / 7) + 0.5 + 0.5, 9);
+    expect(b.boost).toBeCloseTo(1 + 20 / 30, 9);
     // Resets that come every day or two replace the whole weekly schedule: the extra weeks approach resets minus the weeks they replace.
     const daily = Array.from({ length: 12 }, (_, i) => ev(new Date(Date.parse("2026-08-10T00:00:00Z") + i * 2 * 86_400_000).toISOString()));
     // The first has no earlier reset on record (counted as landing mid-week); each later one lands 2 days into the week it restarted.
@@ -232,7 +234,7 @@ describe("plan limit resets", () => {
     const plain = cost(snap(), on, "b@xhigh"), counted = cost(sn, on, "b@xhigh");
     expect(counted.costUsd).toBeCloseTo(plain.costUsd! / boost, 9);
     expect(counted.costPlan!.ratio).toBeCloseTo(0.1 / boost, 9);
-    expect(counted.costSource).toContain("with 3 limit resets in 30 days");
+    expect(counted.costSource).toContain("with 5 limit resets in 30 days (2 banked)");
     // Off by default, and older saved configs' `false` means off too.
     expect(cost(sn, { ...on, planResets: undefined }, "b@xhigh").costUsd).toBeCloseTo(plain.costUsd!, 9);
     expect(cost(sn, { ...on, planResets: false }, "b@xhigh").costUsd).toBeCloseTo(plain.costUsd!, 9);
@@ -241,11 +243,32 @@ describe("plan limit resets", () => {
     expect(cost(sn, on, "a@max").costUsd).toBeCloseTo(cost(snap(), on, "a@max").costUsd! / (1 + 7 / 30), 9);
   });
 
+  it("a Claude Fable grant adds half a week for Opus and a whole Fable allowance for Fable 5.2, per grant held", () => {
+    const asOf = Date.parse("2026-11-13T12:00:00Z");
+    const events = [ev("2026-11-09T19:21:45Z", "banked", "paid plans", "fable"), ev("2026-11-10T21:59:58Z", "banked", "Pro, Max, Ultra + Team")];
+    // The full banked reset is a whole allowance for everyone; each Fable grant is half of one for Opus and a whole one for Fable.
+    expect(extraWeeks(events, asOf, "fixed")).toBe(1.5);
+    expect(extraWeeks(events, asOf, "fixed", 30, { fable: true })).toBe(2);
+    expect(extraWeeks(events, asOf, "fixed", 30, { fableResets: 3 })).toBe(2.5);
+    expect(extraWeeks(events, asOf, "fixed", 30, { fable: true, fableResets: 3 })).toBe(4);
+    const sn: Snapshot = { ...snap(), generatedAt: "2026-11-13T12:00:00Z", planResets: [{ labId: "anthropic", plan: "Claude", source: "t", url: "", events }] };
+    const b = planResetBoosts(sn).get("anthropic")!;
+    expect(b).toMatchObject({ resets: 2, banked: 2, fableResets: 1, weeks: 1.5, fable: { weeks: 2 } });
+    expect(resetBoostFor(b, "claude-fable-5.2")).toBeCloseTo(1 + 2 / (30 / 7), 9);
+    expect(resetBoostFor(b, "claude-opus-5.5")).toBeCloseTo(1 + 1.5 / (30 / 7), 9);
+    expect(planResetBoosts(sn, { fableResets: 3 }).get("anthropic")).toMatchObject({ resets: 4, banked: 4, fableResets: 3 });
+    expect(planResetRows(sn)[0].text).toBe("2 resets in 30 days (2 banked, 1 of them Fable-only), plans 1.35× cheaper, Fable 1.47×");
+    expect(hasFableGrant(sn)).toBe(true);
+    // The number held travels in links; 1, the assumption, stays out of the URL.
+    expect(encodeIndex({ ...base, fableResets: 3 })).toContain("fresets=3");
+    expect(encodeIndex({ ...base, fableResets: 1 })).not.toContain("fresets");
+  });
+
   it("does nothing for snapshots without reset data, and turning it on survives a link", () => {
     expect(planResetBoosts(snap()).size).toBe(0);
     expect(planResetNote(snap())).toBeUndefined();
-    expect(planResetNote(withResets())).toMatch(/OpenAI: 3 resets in 30 days.*Banked resets are not counted.*restarts the week/);
-    expect(planResetRows(withResets()).find((r) => r.lab === "OpenAI")?.text).toMatch(/^3 resets in 30 days, plans .*× cheaper$/);
+    expect(planResetNote(withResets())).toMatch(/OpenAI: 5 resets in 30 days \(2 banked\).*Banked resets count once, when granted.*restarts the week/);
+    expect(planResetRows(withResets()).find((r) => r.lab === "OpenAI")?.text).toMatch(/^5 resets in 30 days \(2 banked\), plans .*× cheaper$/);
     const encoded = encodeIndex({ ...base, planResets: true });
     expect(encoded).toContain("resets=on");
     expect(decodeIndex(encoded, "t")!.planResets).toBe(true);

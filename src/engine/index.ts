@@ -1,4 +1,4 @@
-import { planResetBoosts } from "../data/plan-resets";
+import { planResetBoosts, resetBoostFor } from "../data/plan-resets";
 import { effectiveBasis, subscriptionPrices, type CostBasis, type SubscriptionPrice } from "../data/subscription";
 import { supersededModelIds } from "./superseded";
 import { progressEstimates, type ScoreEstimate } from "./progress-estimate";
@@ -40,6 +40,8 @@ export interface IndexConfig {
   costBasis?: CostBasis;
   /** `true`: plans are cheaper by what limit resets gave their subscribers in the last 30 days. Off by default: the plan is priced as measured. Only matters on the subscription basis. (`false` is what older saved configs carry: the same as unset.) */
   planResets?: boolean;
+  /** Claude Fable 5.2 reset grants the visitor holds (1 to 3, by paid tenure), counted when resets are. Unset: 1, the number every eligible account got. */
+  fableResets?: number;
   /** `false`: a model free today is priced on its paid plans, or API price with none. Unset counts free tiers. Only matters on the subscription basis. */
   freeTiers?: boolean | "limited";
   /** Which reading of a model's plan rate to use where there are two (Fable 5.2: unset is the shared weekly limit, "own" counts only the Fable a plan can buy). Only matters on the subscription basis. */
@@ -338,7 +340,7 @@ export function computeIndex(snapshot: Snapshot, config: IndexConfig, view: View
   const plans = effectiveBasis(config.costBasis) === "subscription" ? subscriptionPrices(snapshot, config.subscriptionPlans, { free: config.freeTiers === false ? false : config.freeTiers === "limited" ? "limited" : true, reading: config.planReading }) : undefined;
   const detail: Detail = {
     costData: taskMetricData(snapshot, view.costBenchmark ?? config.costSource ?? "aa", "cost"), plans,
-    resetBoosts: plans && config.planResets === true ? planResetBoosts(snapshot) : undefined,
+    resetBoosts: plans && config.planResets === true ? planResetBoosts(snapshot, { fableResets: config.fableResets }) : undefined,
     excluded: [], candidateModelIds: [],
   };
   const ranked = rankVariants(c, config, shares, view, detail), excluded = detail.excluded;
@@ -708,9 +710,10 @@ function rankVariants(c: Columns, config: IndexConfig, shares: IndexResult["benc
     // Subscription basis: the measured API cost scaled by the share of API price the plan works out to.
     // Models without a first-party plan keep their API cost — that is what they cost to use.
     // Limit resets (src/data/plan-resets.ts) give the plan's subscribers extra usage, so its share of API price falls by that factor.
-    const listed = cost && detail.plans?.get(model.id), reset = listed && listed.ratio > 0 ? detail.resetBoosts?.get(model.labId) : undefined;
-    const plan = listed && reset && reset.boost > 1 ? { ...listed, ratio: listed.ratio / reset.boost, ...(listed.aaCostRatio ? { aaCostRatio: listed.aaCostRatio / reset.boost } : {}) } : listed;
-    if (cost && plan) { cost.usd *= (!view.costBenchmark && (config.costSource ?? "aa") === "aa" ? plan.aaCostRatio : undefined) ?? plan.ratio; cost.source += plan.ratio === 0 ? ` · free on ${plan.plan}` : ` · ${plan.plan}, ${subscriptionShare(plan.ratio)} of API price at full use${reset && reset.boost > 1 ? `, with ${reset.resets} limit resets in 30 days` : ""}`; }
+    // A Claude Fable grant refills Fable's own cap, so Fable 5.2 gets its own (larger) boost (resetBoostFor).
+    const listed = cost && detail.plans?.get(model.id), reset = listed && listed.ratio > 0 ? detail.resetBoosts?.get(model.labId) : undefined, boost = resetBoostFor(reset, model.id);
+    const plan = listed && boost > 1 ? { ...listed, ratio: listed.ratio / boost, ...(listed.aaCostRatio ? { aaCostRatio: listed.aaCostRatio / boost } : {}) } : listed;
+    if (cost && plan) { cost.usd *= (!view.costBenchmark && (config.costSource ?? "aa") === "aa" ? plan.aaCostRatio : undefined) ?? plan.ratio; cost.source += plan.ratio === 0 ? ` · free on ${plan.plan}` : ` · ${plan.plan}, ${subscriptionShare(plan.ratio)} of API price at full use${reset && boost > 1 ? `, with ${reset.resets} limit resets in 30 days${reset.banked ? ` (${reset.banked} banked)` : ""}` : ""}`; }
     const speedRow = speedBench === undefined ? -1 : at[vi * nb + speedBench];
     ranked.push({ variant: v, model, score: num / den, coverage, measuredShare, values, mixedEfforts: values.some((value) => value.estimateKind === "effort"), costUsd: cost?.usd, costSource: cost?.source, costPlan: plan || undefined, speed: speedRow >= 0 && value[speedRow] > 0 ? value[speedRow] : undefined, onFrontier: false, rank: 0 });
   }

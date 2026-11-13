@@ -25,6 +25,16 @@ describe("plan reset sources", () => {
     expect(events.some((e) => /affected/i.test(e.scope ?? ""))).toBe(true);
   });
 
+  it("marks Claude's Fable 5.2 grant as a Fable-only refill, and a full banked reset as a full one", () => {
+    const file = { providers: { claude: { events: [
+      ...Array.from({ length: 5 }, (_, i) => ({ date: `2026-0${i + 1}-01T00:00:00Z`, kind: "reset", scope: "all" })),
+      { date: "2026-11-09T19:21:45Z", kind: "reset", resetType: "banked", scope: "paid plans", note: "Eligible paid accounts get a Fable 5.2 reset grant: Max/Ultra ... receive 1-3 by paid tenure. Each restores only Fable usage on the weekly meter; other weekly usage stays spent." },
+      { date: "2026-11-10T21:59:58Z", kind: "reset", resetType: "banked", scope: "Pro, Max, Ultra + Team", note: "One free full reset for all Pro, Max, Ultra and Team users, across all models and limits, including Fable resets that did little." },
+    ] } } };
+    const events = parseClaudeResets(file);
+    expect(events.slice(-2).map((e) => [e.kind, e.refills])).toEqual([["banked", "fable"], ["banked", undefined]]);
+  });
+
   it("refuses a page or file that no longer has the data, instead of reading it as 'no resets'", () => {
     expect(() => parseCodexResets("<html>new design</html>")).toThrow(/page changed/);
     expect(() => parseClaudeResets({ providers: {} })).toThrow(/unexpected/);

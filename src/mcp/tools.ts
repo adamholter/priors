@@ -59,6 +59,7 @@ function settingsOut(s: Snapshot, config: IndexConfig, res?: IndexResult) {
     olderVersionsNote: res?.autoHidden.length ? "Older versions of a newer model are left out of an index nobody has curated, as the site does. Pass excludeModels: [] to show them." : undefined,
     costBasis: effectiveBasis(config.costBasis),
     planResets: config.planResets === true ? "counted" : "not counted",
+    ...(config.planResets === true ? { fableResets: config.fableResets ?? 1 } : {}),
     ...(planReadings(s).length ? { planReading: config.planReading ?? planReadings(s)[0].readings[0].id, planReadingNote: planReadings(s).map((m) => `${m.name}: ${m.readings.map((r) => `"${r.id}" (${r.name}) ${r.note}`).join(" ")}`).join(" ") } : {}),
   };
 }

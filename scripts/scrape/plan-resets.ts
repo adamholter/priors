@@ -21,13 +21,15 @@ export function parseCodexResets(html: string): PlanResetEvent[] {
   return events.sort((a, b) => a.at.localeCompare(b.at));
 }
 
-interface ClaudeResetsFile { providers?: { claude?: { events?: { date?: string; kind?: string; resetType?: string; scope?: string; url?: string }[] } } }
+interface ClaudeResetsFile { providers?: { claude?: { events?: { date?: string; kind?: string; resetType?: string; scope?: string; url?: string; note?: string }[] } } }
+/** The Nov 9, 2026 kind of grant: "Each restores only Fable usage on the weekly meter". */
+const FABLE_ONLY = /restores only Fable|Fable[\s\d.]*reset grant/i;
 /** claude-resets.com (CC BY 4.0): Anthropic's resets. `policy` entries (a limit change, no refill) are not resets. */
 export function parseClaudeResets(file: ClaudeResetsFile): PlanResetEvent[] {
   const events = file.providers?.claude?.events;
   if (!Array.isArray(events)) throw new Error("claude-resets.com: unexpected file shape");
   const out = events.filter((e) => e.kind === "reset" && e.date && Number.isFinite(Date.parse(e.date)))
-    .map((e): PlanResetEvent => ({ at: new Date(e.date!).toISOString(), kind: e.resetType === "banked" ? "banked" : "reset", scope: e.scope, url: e.url }))
+    .map((e): PlanResetEvent => ({ at: new Date(e.date!).toISOString(), kind: e.resetType === "banked" ? "banked" : "reset", scope: e.scope, url: e.url, ...(e.resetType === "banked" && FABLE_ONLY.test(e.note ?? "") ? { refills: "fable" as const } : {}) }))
     .sort((a, b) => a.at.localeCompare(b.at));
   if (out.length < 5) throw new Error(`claude-resets.com: ${out.length} resets found; file changed?`);
   return out;

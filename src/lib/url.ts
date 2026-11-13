@@ -47,6 +47,7 @@ export function encodeIndex(c: FromPage, keepPage = false): string {
   if (c.costSource && c.costSource !== "aa") parts.push(`costsrc=${c.costSource}`);
   if (c.costBasis === "api") parts.push(`costbasis=${c.costBasis}`);
   if (c.planResets === true) parts.push("resets=on");
+  if (c.fableResets !== undefined && Number.isInteger(c.fableResets) && c.fableResets >= 0 && c.fableResets <= 3 && c.fableResets !== 1) parts.push(`fresets=${c.fableResets}`);
   if (c.freeTiers === false) parts.push("free=off");
   else if (c.freeTiers === "limited") parts.push("free=limited");
   if (c.planReading && /^[a-z0-9-]{1,24}$/.test(c.planReading)) parts.push(`reading=${c.planReading}`);
@@ -104,6 +105,7 @@ export function decodeIndex(s: string, id: string): IndexConfig | null {
     else if (k === "costsrc" && isTaskMetricSource(v)) c.costSource = v;
     else if (k === "costbasis" && isCostBasis(v)) c.costBasis = v;
     else if (k === "resets" && v === "on") c.planResets = true;
+    else if (k === "fresets" && /^[0-3]$/.test(v)) c.fableResets = Number(v);
     else if (k === "free" && v === "off") c.freeTiers = false;
     else if (k === "free" && v === "limited") c.freeTiers = "limited";
     else if (k === "reading" && /^[a-z0-9-]{1,24}$/.test(v)) c.planReading = v;

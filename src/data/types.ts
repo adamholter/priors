@@ -129,7 +129,9 @@ export interface Observation {
 }
 
 /** One limit reset a lab gave its subscribers: everyone's weekly allowance refilled early. `banked` is a reset saved to use later, `both` a reset that also banked one. */
-export interface PlanResetEvent { at: string; kind: "reset" | "banked" | "both"; /** Who got it, when the source says ("all", "Max"). */ scope?: string; url?: string }
+export interface PlanResetEvent { at: string; kind: "reset" | "banked" | "both"; /** Who got it, when the source says ("all", "Max"). */ scope?: string; url?: string;
+  /** A banked reset that refills one model's limit only. "fable": Claude's Fable 5.2 grant, which restores the Fable usage on the weekly meter (at most half the week) and refills Fable's own cap; accounts hold 1 to 3 by paid tenure. */
+  refills?: "fable" }
 /** A lab's reset history (`src/data/plan-resets.ts` turns it into a plan-price adjustment). Not a benchmark: it prices plans, it never ranks. */
 export interface PlanResets { labId: string; plan: string; source: string; url: string; events: PlanResetEvent[] }
 

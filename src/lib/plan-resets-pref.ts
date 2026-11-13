@@ -1,5 +1,7 @@
 "use client";
 import { useSyncExternalStore } from "react";
+import type { Snapshot } from "@/data/types";
+import { DEFAULT_FABLE_RESETS, hasFableGrant, planResetNote, planResetRows } from "@/data/plan-resets";
 
 /**
  * The visitor's "Count limit resets" choice, kept in this browser. Resets are off by default; turning them on
@@ -24,6 +26,20 @@ function subscribe(cb: () => void) {
 /** True when the visitor turned resets on. False on the server. */
 export function usePlanResetsOn(): boolean {
   return useSyncExternalStore(subscribe, read, () => false);
+}
+
+/**
+ * The "Count limit resets" props for ChartSettings: the toggle, what is counted, and how many Claude Fable grants the visitor
+ * holds (asked only while one is in the window).
+ */
+export function planResetsProps<C extends { planResets?: boolean; fableResets?: number }>(snapshot: Snapshot, config: C, on: boolean, patch: (p: Partial<C>) => void) {
+  const fableResets = config.fableResets;
+  return {
+    value: withResetsPref(config, on).planResets === true,
+    onChange: (next: boolean) => { setPlanResetsPref(next); patch({ planResets: next ? true : undefined } as Partial<C>); },
+    note: planResetNote(snapshot, { fableResets }), rows: planResetRows(snapshot, { fableResets }),
+    fable: hasFableGrant(snapshot) ? { value: fableResets ?? DEFAULT_FABLE_RESETS, onChange: (n: number) => patch({ fableResets: n === DEFAULT_FABLE_RESETS ? undefined : n } as Partial<C>) } : undefined,
+  };
 }
 
 /** The config with the visitor's choice applied, for pricing. */
