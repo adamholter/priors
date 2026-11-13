@@ -2,6 +2,7 @@ import { computeHistory } from "@/lib/history";
 import { decodeIndex } from "@/lib/url";
 import { defaultConfig } from "@/engine";
 import { loadSnapshot } from "@/data/load";
+import { DATA_TAG_HEADER } from "@/lib/data-cache-tag";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -15,5 +16,5 @@ export async function GET(req: Request) {
   const config = i ? decodeIndex(i, "history") : defaultConfig(latest);
   if (!config || !Object.keys(config.weights).length) return Response.json({ error: "Invalid index." }, { status: 400 });
   const data = await computeHistory(config, mode);
-  return Response.json(data, { headers: { "cache-control": "public, max-age=300, s-maxage=1800" } });
+  return Response.json(data, { headers: { "cache-control": "public, max-age=300, s-maxage=1800", ...DATA_TAG_HEADER } });
 }

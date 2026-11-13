@@ -86,3 +86,42 @@ describe("live snapshot source", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("data-live pointer", () => {
+  const SHA_A = "a".repeat(40), SHA_B = "b".repeat(40);
+  beforeEach(() => { vi.stubEnv("SNAPSHOT_BASE_URL", undefined); vi.stubEnv("VERCEL", "1"); vi.stubEnv("EDGE_CONFIG", "https://edge-config.vercel.com/ecfg_test?token=t0k"); });
+  afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); vi.useRealTimers(); });
+  const fetcher = (pointer: () => unknown) => vi.fn(async (url: string, _init?: RequestInit) => (url.includes("edge-config") ? Response.json(pointer()) : new Response(latest)));
+
+  it("reads files at the commit the pointer names, and again only when it moves", async () => {
+    let sha = SHA_A;
+    const fetchMock = fetcher(() => ({ sha, checked: new Date().toISOString() }));
+    vi.stubGlobal("fetch", fetchMock);
+    const { loadSnapshot, resetLiveCommit } = await fresh();
+    const a = await loadSnapshot();
+    expect(fetchMock.mock.calls.map((c) => c[0])).toContain(`https://raw.githubusercontent.com/adamholter/priors/${SHA_A}/data/snapshots/latest.json.gz`);
+    expect((fetchMock.mock.calls.find((c) => String(c[0]).includes("edge-config"))?.[1] as RequestInit).headers).toEqual({ authorization: "Bearer t0k" });
+    resetLiveCommit();
+    expect(await loadSnapshot()).toBe(a); // same commit: no new file read
+    expect(fetchMock.mock.calls.filter((c) => String(c[0]).includes("raw.githubusercontent"))).toHaveLength(1);
+    sha = SHA_B; resetLiveCommit();
+    await loadSnapshot();
+    expect(fetchMock.mock.calls.map((c) => c[0])).toContain(`https://raw.githubusercontent.com/adamholter/priors/${SHA_B}/data/snapshots/latest.json.gz`);
+  });
+
+  it("falls back to the branch when the pointer has not been confirmed for a long time", async () => {
+    const fetchMock = fetcher(() => ({ sha: SHA_A, checked: new Date(Date.now() - 3 * 3_600_000).toISOString() }));
+    vi.stubGlobal("fetch", fetchMock);
+    const { loadSnapshot } = await fresh();
+    await loadSnapshot();
+    expect(fetchMock.mock.calls.map((c) => c[0])).toContain("https://raw.githubusercontent.com/adamholter/priors/data-live/data/snapshots/latest.json.gz");
+  });
+
+  it("falls back to the branch when the pointer cannot be read", async () => {
+    const fetchMock = vi.fn(async (url: string) => (url.includes("edge-config") ? new Response("no", { status: 401 }) : new Response(latest)));
+    vi.stubGlobal("fetch", fetchMock);
+    const { loadSnapshot } = await fresh();
+    expect((await loadSnapshot())?.models.length).toBeGreaterThan(100);
+    expect(fetchMock.mock.calls.map((c) => c[0])).toContain("https://raw.githubusercontent.com/adamholter/priors/data-live/data/snapshots/latest.json.gz");
+  });
+});

@@ -115,8 +115,17 @@ publish_live() {
       && push_retry "$(git -C "$OLDPWD" remote get-url origin)"
   )
   local status=$?
+  [ $status -eq 0 ] && LIVE_SHA=$(git -C "$tmp" rev-parse HEAD 2>/dev/null)
   rm -rf "$tmp"
   return $status
+}
+# Points the site at a data-live commit (Edge Config; src/data/load.ts reads it every 15 seconds) and, once every instance has
+# seen it, drops the CDN's copies of data answers. Never fails the run: the site falls back to reading the branch.
+POINTER_LOG="${PRIORS_POINTER_LOG:-$HOME/priors/logs/scrape.log}"
+point_site() {
+  node scripts/ops/data-pointer.mjs "$1" "$2" 2>&1 || echo "data pointer: not updated; the site reads the branch until it is"
+  [ "$1" = set ] && ( sleep 20; node scripts/ops/data-pointer.mjs purge ) >>"$POINTER_LOG" 2>&1 &
+  return 0
 }
 
 # exec kept the pid but dropped nothing else: release the lock when this run ends, however it ends.
@@ -180,7 +189,8 @@ echo "TIMING build ${SECONDS}s"
 SNAPSHOT_BASELINE_REF=${HAVE_LIVE:+origin/$LIVE} npx tsx scripts/ops/snapshot-changed.ts
 CHANGE_STATUS=$?
 case "$CHANGE_STATUS" in
-  0) echo "== done $(date -Iseconds)"; exit 0 ;;
+  0) [ -n "$HAVE_LIVE" ] && ( node scripts/ops/data-pointer.mjs touch "$(git rev-parse "origin/$LIVE")" >>"$POINTER_LOG" 2>&1 & )
+     echo "== done $(date -Iseconds)"; exit 0 ;;
   10) ;; # Meaningful data (or default ranking membership) changed.
   *) notify "Priors snapshot change check failed — see logs/scrape.log"; exit 1 ;;
 esac
@@ -211,5 +221,6 @@ if ! publish_live; then
   notify "Priors live data $DATE was not published — see logs/scrape.log"
   exit 1
 fi
+[ -n "${LIVE_SHA:-}" ] && point_site set "$LIVE_SHA"
 echo "TIMING published ${SECONDS}s"
 echo "== done $(date -Iseconds)"

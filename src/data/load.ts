@@ -11,15 +11,51 @@ import { decodeHistoryArchive, HISTORY_ARCHIVE, type HistoryArchive } from "../l
 /**
  * Where the live data comes from. The scrape job publishes each changed snapshot to the repo's `data-live`
  * branch (one commit, rewritten every time), not to `main`, so production reads the newest files from there
- * instead of from the build, and a data refresh never redeploys the site. A few minutes old at worst. Local runs and
- * tests read the checkout; `SNAPSHOT_BASE_URL` points anywhere else (empty turns it off).
+ * instead of from the build, and a data refresh never redeploys the site. Local runs and tests read the checkout;
+ * `SNAPSHOT_BASE_URL` points anywhere else (empty turns it off).
+ *
+ * Freshness: after each publish the job writes the new data-live commit to Edge Config (`dataLive`, see
+ * scripts/ops/data-pointer.mjs). Each instance reads that pointer at most every POINTER_TTL_MS and fetches files at that
+ * commit (`raw.githubusercontent.com/<owner>/<repo>/<sha>/...`): those addresses never change, so neither GitHub's
+ * 5-minute CDN cache nor ours can serve an old copy, and new data shows within seconds. Without a usable pointer
+ * (no EDGE_CONFIG, a read error, or a pointer the job has not confirmed for POINTER_STALE_MS) it reads the branch and
+ * keeps each file REMOTE_TTL_MS, as before.
  */
-const REMOTE_DEFAULT = "https://raw.githubusercontent.com/adamholter/priors/data-live/data/snapshots";
+const REPO_RAW = "https://raw.githubusercontent.com/adamholter/priors";
+const REMOTE_DEFAULT = `${REPO_RAW}/data-live/data/snapshots`;
 export const remoteBase = () => (process.env.SNAPSHOT_BASE_URL ?? ((process.env.VERCEL || process.env.PRIORS_CLOUDFLARE === "1") ? REMOTE_DEFAULT : "")).replace(/\/$/, "");
-const REMOTE_TTL_MS = 5 * 60_000;
+const REMOTE_TTL_MS = 60_000;
+const POINTER_TTL_MS = 15_000;
+/** The job confirms the pointer every run (15 minutes); one unconfirmed for this long is not trusted. */
+const POINTER_STALE_MS = 50 * 60_000;
 
-async function fetchRemote(file: string): Promise<Buffer | null> {
-  const base = remoteBase();
+interface DataPointer { sha: string; published?: string; checked?: string }
+let pointer: { at: number; sha: string | null; pending?: Promise<string | null> } = { at: 0, sha: null };
+
+/** The data-live commit to read, or null to read the branch. Never throws. */
+export function liveCommit(now = Date.now()): Promise<string | null> {
+  const conn = process.env.EDGE_CONFIG;
+  if (!conn || remoteBase() !== REMOTE_DEFAULT) return Promise.resolve(null);
+  if (now - pointer.at < POINTER_TTL_MS) return Promise.resolve(pointer.sha);
+  if (pointer.pending) return pointer.pending;
+  const pending = (async () => {
+    try {
+      const u = new URL(conn), token = u.searchParams.get("token");
+      const res = await fetch(`${u.origin}${u.pathname}/item/dataLive`, { headers: token ? { authorization: `Bearer ${token}` } : {}, cache: "no-store", signal: AbortSignal.timeout(3000) });
+      if (!res.ok) return null;
+      const p = (await res.json()) as DataPointer;
+      const checked = Date.parse(p.checked ?? p.published ?? "");
+      return /^[0-9a-f]{40}$/.test(p.sha ?? "") && Number.isFinite(checked) && Date.now() - checked < POINTER_STALE_MS ? p.sha : null;
+    } catch { return null; }
+  })().then((sha) => { pointer = { at: Date.now(), sha }; return sha; });
+  pointer = { ...pointer, pending };
+  return pending;
+}
+/** Test hook: forget the cached pointer. */
+export const resetLiveCommit = () => { pointer = { at: 0, sha: null }; };
+
+async function fetchRemote(file: string, sha: string | null): Promise<Buffer | null> {
+  const base = sha ? `${REPO_RAW}/${sha}/data/snapshots` : remoteBase();
   if (!base) return null;
   try {
     const res = await fetch(`${base}/${file}`, { cache: "no-store", signal: AbortSignal.timeout(8000) });
@@ -36,22 +72,27 @@ function withinLiveWindow(file: string, liveDate: string): boolean {
 /** Parsed snapshots are about 15 MB each, so only the few most recently used stay in memory: the live one and whichever dated links are being opened. */
 const MAX_SNAPSHOTS = 6;
 
-/** One remote file, kept for the TTL; when a refresh fails the last good copy keeps serving. */
+/**
+ * One remote file. Read at the pointer's commit it is kept until the pointer moves (that address never changes);
+ * read from the branch it is kept for the TTL. When a refresh fails the last good copy keeps serving.
+ */
 function remoteCache<T>(parse: (raw: Buffer) => T) {
-  const entries = new Map<string, { at: number; value: T | null; pending?: Promise<T | null> }>();
-  return (file: string): Promise<T | null> => {
+  const entries = new Map<string, { at: number; sha: string | null; value: T | null; pending?: Promise<T | null> }>();
+  return async (file: string): Promise<T | null> => {
+    const sha = await liveCommit();
     const hit = entries.get(file);
-    if (hit && Date.now() - hit.at < REMOTE_TTL_MS) return Promise.resolve(hit.value);
-    if (hit?.pending) return hit.pending;
-    const pending = fetchRemote(file).then((raw) => {
-      let value: T | null = hit?.value ?? null;
-      if (raw) try { value = parse(raw); } catch { /* keep the last good copy */ }
+    if (hit && !hit.pending && (sha ? hit.sha === sha : !hit.sha && Date.now() - hit.at < REMOTE_TTL_MS)) return hit.value;
+    if (hit?.pending && hit.sha === sha) return hit.pending;
+    const pending = fetchRemote(file, sha).then((raw) => {
+      let value: T | null = hit?.value ?? null, got = false;
+      if (raw) try { value = parse(raw); got = true; } catch { /* keep the last good copy */ }
       entries.delete(file); // re-inserted below as the most recently used
-      entries.set(file, { at: Date.now(), value });
+      // A failed read at a new commit keeps the old copy but not the new commit, so the next request tries again.
+      entries.set(file, { at: Date.now(), sha: got ? sha : (hit?.sha ?? null), value });
       while (entries.size > MAX_SNAPSHOTS) entries.delete(entries.keys().next().value!);
       return value;
     });
-    entries.set(file, { at: hit?.at ?? 0, value: hit?.value ?? null, pending });
+    entries.set(file, { at: hit?.at ?? 0, sha, value: hit?.value ?? null, pending });
     return pending;
   };
 }

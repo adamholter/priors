@@ -13,14 +13,16 @@ const server = spawn("npx", ["next", "start", "-p", PORT], { stdio: ["ignore", "
 const stop = () => server.kill("SIGTERM");
 process.on("exit", stop);
 
+const took = [];
 const run = (script, tag, env = {}) => new Promise((resolve) => {
+  const t = Date.now();
   const child = spawn("node", [script], { stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, BASE, ...env } });
   for (const stream of [child.stdout, child.stderr]) {
     let rest = "";
     stream.on("data", (chunk) => { const lines = (rest + chunk).split("\n"); rest = lines.pop(); for (const l of lines) process.stdout.write(`[${tag}] ${l}\n`); });
     stream.on("end", () => { if (rest) process.stdout.write(`[${tag}] ${rest}\n`); });
   }
-  child.on("close", (code) => resolve(code ?? 1));
+  child.on("close", (code) => { took.push(`${tag} ${((Date.now() - t) / 1000).toFixed(0)}s`); resolve(code ?? 1); });
 });
 const SHARDS = Math.max(1, Number(process.env.E2E_SHARDS ?? 3));
 
@@ -36,7 +38,7 @@ try {
     run("scripts/verify/smoke.mjs", "smoke"),
     ...Array.from({ length: SHARDS }, (_, i) => run("scripts/verify/interactions.mjs", SHARDS > 1 ? `interactions ${i}/${SHARDS}` : "interactions", SHARDS > 1 ? { SHARD: `${i}/${SHARDS}` } : {})),
   ]);
-  console.log(`e2e: ${codes.every((c) => c === 0) ? "all passed" : "FAILED"} in ${((Date.now() - t0) / 1000).toFixed(0)}s`);
+  console.log(`e2e: ${codes.every((c) => c === 0) ? "all passed" : "FAILED"} in ${((Date.now() - t0) / 1000).toFixed(0)}s (${took.join(", ")})`);
   code = codes.find((c) => c !== 0) ?? 0;
 } finally {
   stop();

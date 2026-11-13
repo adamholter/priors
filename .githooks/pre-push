@@ -5,14 +5,18 @@ unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_PREFIX
 # failures: a header that only wraps with sign-in off stayed red on CI for days).
 #   check job: npm run ci (also part of every Vercel build, so a red ci is a failed, billed deploy)
 #   e2e job:   npm run build, then npm run e2e (smoke + interactions against the production build)
-# Here both run as Vercel runs them: `npm run build:checked` (tests, tsc, eslint and the history archive side by side,
-# then next build), then `npm run e2e` (smoke and the interaction shards side by side).
-# Once the push lands, the scrape job is started at once (scripts/ops/scrape-now.sh --after-push), so a new or fixed
-# source is live in about a minute instead of at the next 15-minute run.
+# Full mode, `npm run prepush:full`: tests, tsc-rs and eslint side by side with the history archive, next build and then the
+# browser checks (smoke and the interaction shards), so the build never waits for the tests and e2e starts the moment it is built.
+# Light mode, `npm run prepush:light` plus eslint on the changed files: for pushes that only touch the scrapers, ops scripts,
+# docs, benchmark descriptions or label rules (LIGHT below). Those cannot change a page except through data, which the build
+# and browser checks do not see anyway; GitHub CI still runs everything on the push. PRIORS_PUSH_FULL=1 forces full mode.
+# Once the push lands, the scrape job is started at once (scripts/ops/scrape-now.sh --after-push); when only scrapers
+# changed, it scrapes just those (a few seconds) and carries the rest.
 # Data-only pushes (scrape, snapshots) skip it, like Vercel's ignoreCommand does.
 # PRIORS_PUSH_SKIP_E2E=1 skips the build and browser checks (ci still runs); CI will still run them.
 # Wired by `git config core.hooksPath .githooks`, relative so it resolves in every worktree.
 log="${TMPDIR:-/tmp}/priors-prepush.log"
+LIGHT='^(scripts/(scrape|radar|ops)/|\.githooks/|docs/|[^/]+\.md$|src/data/catalog/|src/data/normalize(\.test)?\.ts$|data/|public/intro/)'
 root="${PRIORS_PREPUSH_DIR:-$HOME/.cache/priors-prepush}"
 fail() { echo "pre-push: $1 FAILED (log: $log). Not pushing." >&2; tail -30 "$log" >&2; exit 1; }
 clean() { env -i HOME="$HOME" USER="${USER:-}" PATH="$PATH" TMPDIR="${TMPDIR:-/tmp}" CI=true E2E_PORT="${E2E_PORT:-48797}" "$@"; }
@@ -24,7 +28,8 @@ while read -r _ local_sha remote_ref remote_sha; do
   : >"$log"
   if [ ! -e "$root/.git" ]; then mkdir -p "$(dirname "$root")"; git worktree prune; git worktree add -q --detach "$root" "$local_sha" >>"$log" 2>&1 || fail "preparing the clean checkout"; fi
   git -C "$root" checkout -q -f --detach "$local_sha" >>"$log" 2>&1 || fail "checking out the commit"
-  git -C "$root" clean -qfdx -e node_modules >>"$log" 2>&1 || fail "cleaning the checkout"
+  # data/raw keeps the history archive's per-day cache (scripts/scrape/history-archive.ts): a clean parse of every day took 28s.
+  git -C "$root" clean -qfdx -e node_modules -e data/raw >>"$log" 2>&1 || fail "cleaning the checkout"
   cd "$root" || fail "entering the clean checkout"
   lock=$(shasum package-lock.json | cut -d' ' -f1)
   if [ "$lock" != "$(cat node_modules/.prepush-lock 2>/dev/null)" ]; then
@@ -33,17 +38,21 @@ while read -r _ local_sha remote_ref remote_sha; do
     echo "$lock" > node_modules/.prepush-lock
   fi
   start=$(date +%s)
-  if [ -n "${PRIORS_PUSH_SKIP_E2E:-}" ]; then
+  changed=$(git diff --name-only $range)
+  if [ -z "${PRIORS_PUSH_FULL:-}" ] && ! printf '%s\n' "$changed" | grep -qvE "$LIGHT"; then
+    echo "pre-push: light (only scrapers, ops, docs, descriptions or label rules changed): tests, tsc-rs, eslint on changed files..." >&2
+    lintable=$(printf '%s\n' "$changed" | grep -E '^(src|scripts|convex)/.*\.(ts|tsx|mjs|mts)$' | while read -r f; do [ -f "$f" ] && echo "$f"; done)
+    clean npm run prepush:light >>"$log" 2>&1 || fail "npm run prepush:light"
+    if [ -n "$lintable" ]; then clean npx eslint $lintable >>"$log" 2>&1 || fail "eslint"; fi
+  elif [ -n "${PRIORS_PUSH_SKIP_E2E:-}" ]; then
     echo "pre-push: npm run ci (skipping build and e2e: PRIORS_PUSH_SKIP_E2E)..." >&2
     clean npm run ci >>"$log" 2>&1 || fail "npm run ci"
   else
-    echo "pre-push: 1/2 npm run build:checked (tests, tsc, eslint, history beside each other, then next build: Vercel's build)..." >&2
-    clean npm run build:checked >>"$log" 2>&1 || fail "npm run build:checked"
-    echo "pre-push: 2/2 npm run e2e (smoke + interaction shards on the production build)..." >&2
-    clean npm run e2e >>"$log" 2>&1 || fail "npm run e2e"
+    echo "pre-push: full: tests, tsc-rs, eslint beside the history archive, next build (Vercel's build) and then e2e..." >&2
+    clean npm run prepush:full >>"$log" 2>&1 || fail "npm run prepush:full"
   fi
   echo "pre-push: all CI checks passed under CI's conditions in $(( $(date +%s) - start ))s" >&2
   # Start the scrape as soon as origin/main has this commit (detached: the push is still running when this hook ends).
-  [ -x scripts/ops/scrape-now.sh ] && nohup "$root/scripts/ops/scrape-now.sh" --after-push "$local_sha" </dev/null >/dev/null 2>&1 &
+  [ -x scripts/ops/scrape-now.sh ] && nohup "$root/scripts/ops/scrape-now.sh" --after-push "$local_sha" "$remote_sha" </dev/null >/dev/null 2>&1 &
 done
 exit 0

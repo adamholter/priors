@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { loadSnapshot } from "@/data/load";
 import { benchmarkQuality } from "@/onboarding/quality";
+import { DATA_TAG_HEADER } from "@/lib/data-cache-tag";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -11,5 +12,5 @@ export async function GET(req: Request) {
   if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) return NextResponse.json({ error: "Invalid snapshot date." }, { status: 400 });
   const snapshot = await loadSnapshot(date);
   if (!snapshot) return NextResponse.json({ error: "Snapshot not found." }, { status: 404 });
-  return NextResponse.json(Object.fromEntries(benchmarkQuality(snapshot).map((q) => [q.id, q.reason])), { headers: { "Cache-Control": "public, max-age=0, s-maxage=60, stale-while-revalidate=300" } });
+  return NextResponse.json(Object.fromEntries(benchmarkQuality(snapshot).map((q) => [q.id, q.reason])), { headers: { "Cache-Control": "public, max-age=0, s-maxage=60, stale-while-revalidate=300", ...DATA_TAG_HEADER } });
 }

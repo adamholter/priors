@@ -1,4 +1,5 @@
 import { chartFromLink } from "@/agent/link-chart";
+import { DATA_TAG_HEADER } from "@/lib/data-cache-tag";
 
 export const runtime = "nodejs";
 
@@ -10,5 +11,5 @@ export async function GET(req: Request) {
   const q = new URL(req.url).searchParams;
   const r = await chartFromLink(q.get("i") ?? "", q.get("c") ?? "", q.get("date") ?? undefined);
   if ("error" in r) return Response.json({ error: r.error }, { status: r.status });
-  return Response.json({ chart: r.chart, missing: r.missing }, { headers: { "cache-control": "public, max-age=300, s-maxage=3600" } });
+  return Response.json({ chart: r.chart, missing: r.missing }, { headers: { "cache-control": "public, max-age=300, s-maxage=3600", ...DATA_TAG_HEADER } });
 }

@@ -5,6 +5,7 @@ import { NextResponse } from "next/server";
 import { loadSnapshot } from "@/data/load";
 import { clientSnapshot, coreSnapshot } from "@/data/client-snapshot";
 import { packSnapshot } from "@/data/packed-snapshot";
+import { DATA_TAG_HEADER } from "@/lib/data-cache-tag";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -27,8 +28,8 @@ export async function GET(req: Request) {
     const packed = url.searchParams.get("packed") === "2", cache = "public, max-age=0, s-maxage=60, stale-while-revalidate=300";
     // The same data as last time costs a returning visitor nothing but this answer.
     const etag = `"${snapshot.generatedAt}${packed ? "-p2" : ""}"`;
-    if (req.headers.get("if-none-match") === etag) return new Response(null, { status: 304, headers: { ETag: etag, "Cache-Control": cache } });
-    return NextResponse.json({ snapshot: packed ? packSnapshot(coreSnapshot(snapshot)) : clientSnapshot(snapshot) }, { headers: { ETag: etag, "Cache-Control": cache } });
+    if (req.headers.get("if-none-match") === etag) return new Response(null, { status: 304, headers: { ETag: etag, "Cache-Control": cache, ...DATA_TAG_HEADER } });
+    return NextResponse.json({ snapshot: packed ? packSnapshot(coreSnapshot(snapshot)) : clientSnapshot(snapshot) }, { headers: { ETag: etag, "Cache-Control": cache, ...DATA_TAG_HEADER } });
   }
   return NextResponse.json({ snapshot, refreshing: !!state.priorsRefresh, canRefresh: localRefresh }, { headers: { "Cache-Control": "no-store" } });
 }

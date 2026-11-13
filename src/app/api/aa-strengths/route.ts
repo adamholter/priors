@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { loadSnapshot } from "@/data/load";
 import { aaStrengths } from "@/lib/aa-strengths";
+import { DATA_TAG_HEADER } from "@/lib/data-cache-tag";
 
-const HEADERS = { "access-control-allow-origin": "*", "cache-control": "public, max-age=0, s-maxage=300, stale-while-revalidate=3600" };
+const HEADERS = { "access-control-allow-origin": "*", "cache-control": "public, max-age=0, s-maxage=300, stale-while-revalidate=3600", ...DATA_TAG_HEADER };
 
 /** The evaluations in Artificial Analysis's Intelligence Index and each configuration's score on them. Public, read-only. */
 export async function GET() {

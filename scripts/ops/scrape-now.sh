@@ -2,7 +2,8 @@
 # Runs the scrape job now instead of at its next 15-minute slot, and publishes to data-live as a scheduled run does.
 #   npm run scrape:now                        every source
 #   npm run scrape:now -- honeybench,arcagi   only those sources (ids from scripts/scrape/sources); the rest carry over
-#   scrape-now.sh --after-push <sha>          (the pre-push hook) once origin/main is <sha>, start the scheduled job
+#   scrape-now.sh --after-push <sha> [<old>]  (the pre-push hook) once origin/main is <sha>, start the scheduled job; when
+#                                             <old>..<sha> only changed scrapers, scrape just those (changed_sources)
 # It runs the scrape checkout's own script (~/priors-scrape), which first moves to origin/main, so it scrapes with
 # whatever is pushed, never with local edits. A run already going is waited for, never interrupted.
 set -uo pipefail
@@ -14,16 +15,40 @@ LOG=$HOME/priors/logs/scrape.log
 busy() { [ -d "$LOCKDIR" ] && kill -0 "$(cat "$LOCKDIR/pid" 2>/dev/null)" 2>/dev/null; }
 wait_idle() { local n=0; while busy && [ $n -lt 120 ]; do [ $n -eq 0 ] && [ -z "${QUIET:-}" ] && echo "A scrape is running (pid $(cat "$LOCKDIR/pid")); waiting for it."; sleep 5; n=$((n + 1)); done; ! busy; }
 
+# Source ids whose files are all a push changed, besides tests, fixtures, docs and descriptions. Empty when anything else
+# changed (a shared helper, the build, the app), which needs every source.
+changed_sources() {
+  local old=$1 new=$2 files f ids=""
+  git cat-file -e "$old^{commit}" 2>/dev/null || return 0
+  files=$(git diff --name-only "$old" "$new") || return 0
+  for f in $files; do
+    case "$f" in
+      scripts/scrape/sources/_*) return 0 ;;
+      scripts/scrape/sources/*.test.ts|scripts/scrape/*.test.ts|scripts/scrape/fixtures/*|docs/*|*.md|src/data/catalog/*) ;;
+      scripts/scrape/sources/*.ts) ids="$ids,$(basename "$f" .ts)" ;;
+      *) return 0 ;;
+    esac
+  done
+  echo "${ids#,}"
+}
+
 if [ "${1:-}" = "--after-push" ]; then
   QUIET=1
   launchctl print "gui/$(id -u)/$JOB" >/dev/null 2>&1 || exit 0
-  for _ in $(seq 1 60); do
+  only=$(changed_sources "${3:-}" "${2:-}")
+  for _ in $(seq 1 120); do
     if [ "$(git ls-remote origin refs/heads/main 2>/dev/null | cut -f1)" = "${2:-}" ]; then
-      wait_idle && launchctl kickstart "gui/$(id -u)/$JOB"
-      echo "== $(date -Iseconds) scrape started after push of ${2:0:8}" >> "$LOG"
+      wait_idle || exit 0
+      if [ -n "$only" ] && [ -f "$SCRAPE_DIR/.scrape-checkout" ]; then
+        echo "== $(date -Iseconds) scrape of $only after push of ${2:0:8}" >> "$LOG"
+        PRIORS_SCRAPE_ONLY="$only" bash "$SCRAPE_DIR/scripts/ops/daily-scrape.sh" >> "$LOG" 2>&1
+      else
+        launchctl kickstart "gui/$(id -u)/$JOB"
+        echo "== $(date -Iseconds) scrape started after push of ${2:0:8}" >> "$LOG"
+      fi
       exit 0
     fi
-    sleep 5
+    sleep 2
   done
   exit 0
 fi

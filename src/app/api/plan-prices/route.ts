@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { loadSnapshot } from "@/data/load";
 import { planPrices } from "@/lib/plan-prices";
+import { DATA_TAG_HEADER } from "@/lib/data-cache-tag";
 
-const HEADERS = { "access-control-allow-origin": "*", "cache-control": "public, max-age=0, s-maxage=300, stale-while-revalidate=3600" };
+const HEADERS = { "access-control-allow-origin": "*", "cache-control": "public, max-age=0, s-maxage=300, stale-while-revalidate=3600", ...DATA_TAG_HEADER };
 
 /** What a subscriber pays as a share of API price, per model, with each model's Artificial Analysis slugs. Public, read-only. */
 export async function GET() {
