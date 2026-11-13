@@ -41,11 +41,11 @@ export function ownerBase(owner?: OwnerView | null): ScatterView | null {
 }
 /** Only the fields an owner default stores. */
 export function toOwnerView(v: ScatterView, mode?: "all" | "best"): OwnerView {
-  const out: OwnerView = { kind: v.kind, scale: v.scale, frontier: v.frontier, links: v.links, guides: v.guides, density: v.density, labelScale: v.labelScale, formula: v.formula?.trim().slice(0, FORMULA_MAX) || undefined, formulaBetter: v.formula?.trim() ? v.formulaBetter : undefined, allModels: v.allModels || undefined, ...(mode ? { mode } : {}) };
+  const out: OwnerView = { kind: v.kind, scale: v.scale, frontier: v.frontier, links: v.links, guides: v.guides, density: v.density, labelScale: v.labelScale, formula: v.formula?.trim().slice(0, FORMULA_MAX) || undefined, formulaBetter: v.formula?.trim() ? v.formulaBetter : undefined, allModels: v.allModels || undefined, paretoOnly: v.paretoOnly || undefined, ...(mode ? { mode } : {}) };
   for (const k of Object.keys(out) as (keyof OwnerView)[]) if (out[k] === undefined) delete out[k];
   return out;
 }
-export type OwnerView = { kind?: "scatter" | "bars"; mode?: "all" | "best"; scale?: "log" | "linear"; frontier?: boolean; links?: boolean; guides?: boolean; density?: number; labelScale?: number; formula?: string; formulaBetter?: "higher" | "lower"; allModels?: boolean };
+export type OwnerView = { kind?: "scatter" | "bars"; mode?: "all" | "best"; scale?: "log" | "linear"; frontier?: boolean; links?: boolean; guides?: boolean; density?: number; labelScale?: number; formula?: string; formulaBetter?: "higher" | "lower"; allModels?: boolean; paretoOnly?: boolean };
 
 /**
  * A chart's view state. Visitors start from the page owner's default (`owner`) and keep their own
@@ -133,7 +133,9 @@ export function ScoreScatter(props: ScatterProps) {
   const trimmedModels = trimmed ? new Set(chartPoints.map((p) => p.r.model.id)).size - new Set(allPoints.map((p) => p.r.model.id)).size : 0;
   const grid = useChartGrid(useChartPalette());
   const effectiveLinkParams = { ...linkParams, ls: Math.round(labelScale(view.labelScale) * 100), extra: { ...linkParams?.extra, cf: view.allModels ? "all" : undefined, xs: undefined, xv: viewParam({ ...view, grid }) } };
-  const visibility = useChartVisibility(allPoints, anchor ?? exportName, effectiveLinkParams), pts = visibility.points;
+  const visibility = useChartVisibility(allPoints, anchor ?? exportName, effectiveLinkParams);
+  // "Only Pareto-optimal models": the frontier of what the chart shows, at its current pricing, and nothing else.
+  const pts = useMemo(() => view.paretoOnly ? frontierOf(visibility.points, better) : visibility.points, [view.paretoOnly, visibility.points, better]);
   const context = useChartContextMenu();
   const exportControl = useRef<ChartExportHandle>(null);
   const contextPick = useRef(context.pointMenu);

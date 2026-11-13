@@ -1,7 +1,7 @@
 import { FRAME_H, FRAME_W } from "../components/chart/export-frame";
 
 /** What a screenshot link remembers: crop size, theme, title and the chart settings it overrides. Carried in `xe`. */
-export interface EditorView { scale?: "log" | "linear"; frontier?: boolean; links?: boolean; guides?: boolean; density?: number; labelScale?: number; allModels?: boolean; grid?: boolean }
+export interface EditorView { scale?: "log" | "linear"; frontier?: boolean; links?: boolean; guides?: boolean; density?: number; labelScale?: number; allModels?: boolean; grid?: boolean; paretoOnly?: boolean }
 /** `heading` is the title as drawn (custom title, else the chart name), so a link preview prints exactly what the image did. */
 export interface EditorState { w: number; h: number; ratio?: string; theme?: string; title?: string; heading?: string; view?: EditorView }
 
@@ -14,11 +14,11 @@ export const EDITOR_MIN = { w: 320, h: 220 }, EDITOR_MAX = 2400;
 const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, Math.round(n)));
 const num = (v: unknown, lo: number, hi: number) => typeof v === "number" && Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : undefined;
 
-/** A plain chart link's display toggles (`xv`): frontier, effort lines, guides as 0/1, then label density, then the background grid. The preview redraws with them. */
-export function viewParam(v: { frontier: boolean; links: boolean; guides?: boolean; density: number; grid?: boolean }): string { return `${+v.frontier}${+v.links}${v.guides === false ? 0 : 1}-${Math.round(v.density * 100)}${v.grid === undefined ? "" : `-${+v.grid}`}`; }
+/** A plain chart link's display toggles (`xv`): frontier, effort lines, guides as 0/1, then label density, then the background grid, then `p` for Pareto-optimal models only. The preview redraws with them. */
+export function viewParam(v: { frontier: boolean; links: boolean; guides?: boolean; density: number; grid?: boolean; paretoOnly?: boolean }): string { return `${+v.frontier}${+v.links}${v.guides === false ? 0 : 1}-${Math.round(v.density * 100)}${v.grid === undefined ? "" : `-${+v.grid}`}${v.paretoOnly ? "-p" : ""}`; }
 export function readViewParam(raw: string | null | undefined): EditorView | undefined {
-  const m = raw?.match(/^([01])([01])([01])-(\d{1,3})(?:-([01]))?$/);
-  return m ? { frontier: m[1] === "1", links: m[2] === "1", guides: m[3] === "1", density: Math.min(100, Number(m[4])) / 100, ...(m[5] ? { grid: m[5] === "1" } : {}) } : undefined;
+  const m = raw?.match(/^([01])([01])([01])-(\d{1,3})(?:-([01]))?(-p)?$/);
+  return m ? { frontier: m[1] === "1", links: m[2] === "1", guides: m[3] === "1", density: Math.min(100, Number(m[4])) / 100, ...(m[5] ? { grid: m[5] === "1" } : {}), ...(m[6] ? { paretoOnly: true } : {}) } : undefined;
 }
 
 export function clampSize(w: number, h: number) { return { w: clamp(w, EDITOR_MIN.w, EDITOR_MAX), h: clamp(h, EDITOR_MIN.h, EDITOR_MAX) }; }
@@ -31,7 +31,7 @@ export function sizeForRatio(width: number, r: number) {
 
 export function encodeEditor(s: EditorState): string {
   const v = s.view ?? {};
-  const out: Record<string, unknown> = { w: s.w, h: s.h, r: s.ratio && s.ratio !== "free" ? s.ratio : undefined, t: s.theme, ti: s.title || undefined, hd: s.heading && s.heading !== s.title ? s.heading : undefined, am: v.allModels ? 1 : undefined,
+  const out: Record<string, unknown> = { w: s.w, h: s.h, r: s.ratio && s.ratio !== "free" ? s.ratio : undefined, t: s.theme, ti: s.title || undefined, hd: s.heading && s.heading !== s.title ? s.heading : undefined, am: v.allModels ? 1 : undefined, po: v.paretoOnly ? 1 : undefined,
     sc: v.scale, fr: v.frontier == null ? undefined : +v.frontier, ln: v.links == null ? undefined : +v.links, gd: v.guides == null ? undefined : +v.guides, de: v.density, ls: v.labelScale };
   for (const k of Object.keys(out)) if (out[k] === undefined) delete out[k];
   return btoa(unescape(encodeURIComponent(JSON.stringify(out)))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
@@ -51,6 +51,7 @@ export function decodeEditor(raw: string | null | undefined): EditorState | null
     if (o.ln != null) view.links = !!o.ln;
     if (o.gd != null) view.guides = !!o.gd;
     if (o.am) view.allModels = true;
+    if (o.po) view.paretoOnly = true;
     const de = num(o.de, 0, 1), ls = num(o.ls, 0.75, 1.75);
     if (de != null) view.density = de;
     if (ls != null) view.labelScale = ls;

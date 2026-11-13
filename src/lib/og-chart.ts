@@ -5,7 +5,7 @@ import type { Lab, Snapshot } from "../data/types";
 import type { RankedVariant, IndexConfig } from "../engine";
 import { chartVariantMode, filterEfforts } from "../engine";
 import { echarts, themeFor, paletteFor, markColor, DARK_PALETTE, SANS_STATIC, MONO_STATIC, type ChartPalette } from "../components/chart/theme";
-import { scatterOption, DEFAULT_VIEW, guidePoints, type Highlight, type ScatterPoint, type ScatterView } from "../components/chart/scatter-option";
+import { scatterOption, DEFAULT_VIEW, frontierOf, guidePoints, type Highlight, type ScatterPoint, type ScatterView } from "../components/chart/scatter-option";
 import { clampSize, decodeEditor, readViewParam, type EditorView } from "./export-editor";
 import { barsOption, defaultBarModels, filterBarModels, selectBars } from "../components/chart/bars-option";
 import { FRAME_H, FRAME_W, frameSvg, previewCanvas } from "../components/chart/export-frame";
@@ -222,6 +222,8 @@ export function linkFrame(q: URLSearchParams): LinkFrame | undefined {
 export async function renderFramedPng(spec: ChartSpec, labs: Lab[], pal: ChartPalette, frame: LinkFrame): Promise<Buffer | null> {
   if (!spec.pts.length) return renderChartPng(spec, labs, pal);
   const { w, h } = frame, over = frame.view ?? {};
+  // As the page draws it with "Only Pareto-optimal models" on: the frontier of the shown points only.
+  if (over.paretoOnly) spec = { ...spec, pts: frontierOf(spec.pts, spec.chart.better) };
   const view: ScatterView = { ...DEFAULT_VIEW, labelScale: spec.labelScale, frontier: spec.chart.defaultFrontier ?? DEFAULT_VIEW.frontier };
   for (const [k, v] of Object.entries(over)) if (v !== undefined) (view as unknown as Record<string, unknown>)[k] = v;
   const chartSpec = spec.chart.scale !== "time" && over.scale ? { ...spec.chart, scale: over.scale, xName: over.scale === "linear" ? spec.chart.xName.replace(/, log| \(log\)/g, "") : spec.chart.xName } : spec.chart;

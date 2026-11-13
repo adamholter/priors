@@ -54,7 +54,7 @@ export default function ExportEditor({ name, initial, base, showScale, onClose, 
   const set = (patch: EditorView) => setOver((o) => ({ ...o, ...patch }));
   // The link records the whole view as drawn (not only what was changed here) and the heading, so its preview can redraw this exact image.
   const state = (): EditorState => ({ ...size, ratio, theme: theme === "site" ? undefined : theme, title: title.trim() || undefined, heading: title.trim() || name,
-    view: { scale: showScale ? view.scale : undefined, frontier: !!view.frontier, links: !!view.links, guides: view.guides !== false, density: view.density, labelScale: view.labelScale, allModels: view.allModels || undefined } });
+    view: { scale: showScale ? view.scale : undefined, frontier: !!view.frontier, links: !!view.links, guides: view.guides !== false, density: view.density, labelScale: view.labelScale, allModels: view.allModels || undefined, paretoOnly: view.paretoOnly || undefined } });
 
   useEffect(() => { const d = dialog.current; if (d && !d.open) d.showModal(); }, []);
 

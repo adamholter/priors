@@ -8,6 +8,10 @@ describe("plain link view", () => {
     expect(viewParam(view)).toBe("101-45");
     expect(readViewParam("101-45")).toEqual({ ...view, guides: true });
     expect(readViewParam(viewParam({ ...view, grid: false }))).toEqual({ ...view, guides: true, grid: false });
+    // "Only Pareto-optimal models" rides on the end, with or without the grid part, and older links read as off.
+    expect(readViewParam(viewParam({ ...view, grid: true, paretoOnly: true }))).toEqual({ ...view, guides: true, grid: true, paretoOnly: true });
+    expect(readViewParam(viewParam({ ...view, paretoOnly: true }))).toEqual({ ...view, guides: true, paretoOnly: true });
+    expect(decodeEditor(encodeEditor({ w: 800, h: 500, view: { paretoOnly: true } }))?.view?.paretoOnly).toBe(true);
     expect(readViewParam(viewParam({ ...view, grid: true }))?.grid).toBe(true);
   });
 });
