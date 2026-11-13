@@ -26,6 +26,12 @@ const startMs = started ?? Date.now() - 10 * 60_000;
 let head = "";
 try { head = execFileSync("git", ["rev-parse", "--short=8", "HEAD"], { encoding: "utf8" }).trim(); } catch { /* not in a checkout */ }
 if (process.argv.includes("--any-run")) head = "";
+// A rejected push (a failing pre-push check) means no scrape is coming: say so now, not after 15 minutes.
+if (head) {
+  let remote = "";
+  try { remote = execFileSync("git", ["ls-remote", "origin", "refs/heads/main"], { encoding: "utf8" }).slice(0, 8); } catch { /* offline: wait anyway */ }
+  if (remote && remote !== head) { console.log(`HEAD ${head} is not on origin/main (${remote}): the push did not land. Fix the pre-push failure and push again.`); process.exit(1); }
+}
 let published;
 while (Date.now() < deadline) {
   const lines = existsSync(LOG) ? readFileSync(LOG, "utf8").split("\n").slice(-3000) : [];
