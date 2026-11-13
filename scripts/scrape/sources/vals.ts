@@ -18,6 +18,7 @@ const PAGES: readonly PageDefinition[] = [
   { slug: "legal_bench", id: "vals-legalbench", name: "LegalBench", shortName: "LegalBench", category: "reasoning", industry: "legal" },
   { slug: "fabv2", id: "vals-finance-agent-v2", name: "Finance Agent v2", shortName: "Finance Agent", category: "professional", industry: "finance" },
   { slug: "emb", id: "vals-excel-modeling", name: "Excel Modeling Benchmark", shortName: "Excel Modeling", category: "professional", industry: "finance" },
+  { slug: "financial-coaching-bench", id: "vals-financial-coaching", name: "Financial Coaching Bench", shortName: "Financial Coaching", category: "professional", industry: "social mobility" },
   { slug: "tax_agent_bench", id: "vals-tax-agent", name: "Tax Agent Bench", shortName: "Tax Agent", category: "agentic", industry: "finance" },
   { slug: "medcode", id: "vals-medcode", name: "MedCode", shortName: "MedCode", category: "knowledge", industry: "healthcare" },
   { slug: "medscribe", id: "vals-medscribe", name: "MedScribe", shortName: "MedScribe", category: "knowledge", industry: "healthcare" },

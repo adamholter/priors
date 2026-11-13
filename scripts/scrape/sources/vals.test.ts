@@ -8,6 +8,7 @@ const slugs = [
   "legal_bench",
   "fabv2",
   "emb",
+  "financial-coaching-bench",
   "tax_agent_bench",
   "medcode",
   "medscribe",
@@ -23,6 +24,7 @@ const industries: Record<(typeof slugs)[number], string> = {
   legal_bench: "legal",
   fabv2: "finance",
   emb: "finance",
+  "financial-coaching-bench": "social mobility",
   tax_agent_bench: "finance",
   medcode: "healthcare",
   medscribe: "healthcare",
@@ -115,11 +117,11 @@ describe("VALS benchmark source", () => {
 
   it("emits every benchmark row and archives all published task maps", async () => {
     const result = await source.scrape(makeContext());
-    expect(result.benchmarks).toHaveLength(12);
-    expect(result.rows).toHaveLength(24);
+    expect(result.benchmarks).toHaveLength(slugs.length);
+    expect(result.rows).toHaveLength(slugs.length * 2);
     expect(slugs.every((slug) => result.raw[slug + ".json"] !== undefined)).toBe(true);
     expect(result.benchmarks.map((benchmark) => (benchmark as typeof benchmark & { lastUpdated?: string }).lastUpdated))
-      .toEqual(Array(12).fill("2026-09-22"));
+      .toEqual(Array(slugs.length).fill("2026-09-22"));
     const legalRaw = JSON.parse(result.raw["legal_research.json"] ?? "{}");
     expect(legalRaw.tasks).toHaveProperty("criteria");
     expect(legalRaw.tasks.criteria["openai/gpt-6-astra"].accuracy).toBe(82);

@@ -44,6 +44,7 @@ export const VALS: Record<string, Entry> = {
   "vals-skillsbench": { c: ["agentic"], d: "Practical agent tasks done with task-specific skills, packaged how-to instructions, available to the agent. Share done correctly, averaged over three trials. Run by Vals AI." },
   "vals-srebench": { c: ["safety", "coding", "agentic"], d: "Software reverse engineering: the agent gets a compiled program with no source code and must work out what it does, from network protocols to malware. Accuracy on checkable questions. From Vals AI." },
   "vals-swebench": { c: ["coding", "agentic"], d: "Fix real GitHub issues in open-source repositories, on the human-checked SWE-bench Verified tasks. Share resolved. Vals AI's run." },
+  "vals-financial-coaching": { c: ["professional", "knowledge"], d: "Coaching people through the money problems they actually bring to a chatbot, like eviction papers or missed mortgage payments. The share of what a good financial coach would cover that the answer includes. From Vals AI with NextLadder." },
   "vals-tax-agent": { c: ["professional", "agentic"], d: "An agent answers research-grade US tax questions. Share correct. From Vals AI." },
   "vals-tax-eval-v2": { c: ["professional"], d: "Tax questions with reference answers, written by Vals AI. Share correct." },
   "vals-terminal-bench-2": TB("2.0"),
