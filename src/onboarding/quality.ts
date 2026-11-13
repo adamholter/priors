@@ -12,6 +12,8 @@ export const QUALITY_WEIGHTS = { breadth: 0.15, frontier: 0.15, recency: 0.2, sa
 export const QUALITY_ADJUST = { preferred: 15, superseded: -25, staleFrontier: -20 } as const;
 export const BREADTH_FULL_AT = 40;
 
+/** Joke benchmarks: kept on the site for anyone who looks, but scored 0 so nothing recommends or auto-picks them. */
+export const NOT_SERIOUS = new Set(["khalilbench"]);
 export const SUPERSEDED = new Set(["aa-terminalbench-v2-1", "terminalbench-4", "arc-agi-1", "arc-agi-2", "deepswe-1", "aa-math-500", "aa-humanitys-last-exam"]);
 
 export interface BenchmarkQuality {
@@ -226,9 +228,10 @@ export function benchmarkQuality(snapshot: Snapshot, cohort: string[] = defaultL
     const preferred = (PREFERRED as readonly string[]).includes(benchmark.id);
     const superseded = SUPERSEDED.has(benchmark.id) || !!benchmark.stoppedPublishing;
     const staleFrontier = snapshot.date >= FRONTIER_RELEASE_DATE && !!benchmark.lastUpdated && benchmark.lastUpdated < FRONTIER_RELEASE_DATE;
-    const score = rounded(coverage * QUALITY_WEIGHTS.breadth + frontierScore * QUALITY_WEIGHTS.frontier + recency * QUALITY_WEIGHTS.recency + saturation * QUALITY_WEIGHTS.saturation + objectivity * QUALITY_WEIGHTS.objectivity + (preferred ? QUALITY_ADJUST.preferred : 0) + (superseded ? QUALITY_ADJUST.superseded : 0) + (staleFrontier ? QUALITY_ADJUST.staleFrontier : 0));
+    const serious = !NOT_SERIOUS.has(benchmark.id);
+    const score = !serious ? 0 : rounded(coverage * QUALITY_WEIGHTS.breadth + frontierScore * QUALITY_WEIGHTS.frontier + recency * QUALITY_WEIGHTS.recency + saturation * QUALITY_WEIGHTS.saturation + objectivity * QUALITY_WEIGHTS.objectivity + (preferred ? QUALITY_ADJUST.preferred : 0) + (superseded ? QUALITY_ADJUST.superseded : 0) + (staleFrontier ? QUALITY_ADJUST.staleFrontier : 0));
     const dateConfidence = release ? "verified" as const : "unknown" as const;
-    const reason = `${dateConfidence === "verified" ? `Released ${release.date}` : "Release date unverified; recency held neutral"}. Headroom and score-spread quality ${saturation}/100 after collapsing effort/config variants by model. Objectivity ${objectivity}/100 is an assigned judgment score based on grading method. Breadth ${coverage}/100 from ${measured} measured models; frontier coverage ${frontierScore}/100 from ${frontier.measured}/${frontier.total} current top-lineup models${frontier.total ? "" : " (no cohort models in this snapshot; breadth used instead)"}. ${benchmark.lastUpdated ? `Publisher results updated ${benchmark.lastUpdated}. ` : "Publisher update date unknown. "}${staleFrontier ? `Results predate the ${FRONTIER_RELEASE_DATE} frontier releases, so quality loses 20 points. ` : ""}Quality combines 15% breadth, 15% frontier coverage, 20% benchmark recency, 30% headroom and spread, and 20% objectivity${preferred ? ", plus a preferred-benchmark bonus" : ""}${superseded ? ", minus a superseded-version penalty" : ""}. It does not prove validity or freedom from training contamination.`;
+    const reason = !serious ? "Not a serious benchmark (one person's reactions to a few posts per model), so it has no quality score and is never recommended or picked automatically." : `${dateConfidence === "verified" ? `Released ${release.date}` : "Release date unverified; recency held neutral"}. Headroom and score-spread quality ${saturation}/100 after collapsing effort/config variants by model. Objectivity ${objectivity}/100 is an assigned judgment score based on grading method. Breadth ${coverage}/100 from ${measured} measured models; frontier coverage ${frontierScore}/100 from ${frontier.measured}/${frontier.total} current top-lineup models${frontier.total ? "" : " (no cohort models in this snapshot; breadth used instead)"}. ${benchmark.lastUpdated ? `Publisher results updated ${benchmark.lastUpdated}. ` : "Publisher update date unknown. "}${staleFrontier ? `Results predate the ${FRONTIER_RELEASE_DATE} frontier releases, so quality loses 20 points. ` : ""}Quality combines 15% breadth, 15% frontier coverage, 20% benchmark recency, 30% headroom and spread, and 20% objectivity${preferred ? ", plus a preferred-benchmark bonus" : ""}${superseded ? ", minus a superseded-version penalty" : ""}. It does not prove validity or freedom from training contamination.`;
     return {
       id: benchmark.id,
       name: benchmark.name,
