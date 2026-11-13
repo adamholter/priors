@@ -4,7 +4,8 @@ import type { Effort, ScrapeResult, Source } from "../../../src/data/types";
 export const CLUTTERBENCH_URL = "https://clutterbench.adamholter.chatgpt.site/";
 const EFFORTS = ["none", "minimal", "low", "medium", "high", "xhigh", "max"] as const;
 const effortSchema = z.enum(EFFORTS);
-const resultSchema = z.object({ n: z.number().int().positive(), clutter: z.number().min(0).max(100) });
+// clutter = red + half orange, the site's ranking (lowest first). red: drawn area to remove; orange: to shrink; blue: to keep.
+const resultSchema = z.object({ n: z.number().int().positive(), clutter: z.number().min(0).max(100), red: z.number().min(0).max(100).optional(), orange: z.number().min(0).max(100).optional(), blue: z.number().min(0).max(100).optional() });
 const dataSchema = z.object({
   // Newer builds stamp "+00:00" and microseconds.
   builtAt: z.iso.datetime({ offset: true }), grader: z.literal("consensus-v4"),
@@ -38,8 +39,9 @@ export function parseClutterBench(json: unknown, metadataEfforts: Record<string,
       rows.push({
         benchmarkId: `clutterbench-${variant}`, modelLabel: model.name, effort,
         value: published.clutter, sourceUrl: CLUTTERBENCH_URL,
-        details: { sourceSettingId: model.model, prompt: variant, scoredPosts: published.n, grader: d.grader, builtAt: d.builtAt },
-        note: `${published.n} scored posts; ${variant} prompt; consensus-v4; showcase post excluded`,
+        details: { sourceSettingId: model.model, prompt: variant, scoredPosts: published.n, grader: d.grader, builtAt: d.builtAt,
+          ...(published.red != null ? { removePct: published.red, shrinkPct: published.orange, keepPct: published.blue } : {}) },
+        note: `${published.red != null ? `remove ${published.red}%, shrink ${published.orange}%, keep ${published.blue}%; ` : ""}${published.n} scored posts; ${variant} prompt; consensus-v4; showcase post excluded`,
       });
     }
   }
@@ -47,7 +49,7 @@ export function parseClutterBench(json: unknown, metadataEfforts: Record<string,
     benchmarks: (["raw", "simple"] as const).map(variant => ({
       id: `clutterbench-${variant}`, name: variant === "raw" ? "ClutterBench" : "ClutterBench, simple prompt",
       shortName: variant === "raw" ? "ClutterBench" : "ClutterBench Simple", sourceId: "clutterbench", url: CLUTTERBENCH_URL,
-      description: `Clutter as a share of drawn area in generated graphics, using the ${variant} prompt. Red area plus half the orange area, averaged over ${scored.length} scored posts. Lower is better.`,
+      description: `Clutter as a share of drawn area in generated graphics, using the ${variant} prompt: the area graders would remove (red) plus half the area they would shrink (orange), averaged over ${scored.length} scored posts. Lower is better; the site ranks by it. Each row's details keep the remove, shrink and keep (blue) shares.`,
       lastUpdated: d.builtAt.slice(0, 10), unit: "percent" as const, higherIsBetter: false, category: "creative" as const,
       defaultWeight: 0, eligibleForDefault: false,
     })),

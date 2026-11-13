@@ -70,6 +70,26 @@ describe("Adam's published benchmarks", () => {
     expect(r.benchmarks.every(b => b.unit === "percent" && !b.higherIsBetter && b.defaultWeight === 0)).toBe(true);
   });
 
+  it("ranks ClutterBench by clutter, lowest first, as the site does, not by the share kept", () => {
+    // Nov 13 board: Sonnet 5.5 low has the least clutter; Grok 4.7 high keeps the most area but removes far more.
+    const d: Omit<ReturnType<typeof clutter>, "board"> & { board: unknown[] } = clutter();
+    d.board = [
+      { model: "sonnet", name: "Claude Sonnet 5.5 (low)", raw: { n: 1, clutter: 28.8, red: 17.5, orange: 22.6, blue: 59.9 }, simple: { n: 1, clutter: 0 } },
+      { model: "grok", name: "Grok 4.7 (high)", raw: { n: 1, clutter: 33.8, red: 32, orange: 3.6, blue: 64.4 }, simple: { n: 1, clutter: 0 } },
+    ];
+    d.runs = [
+      { id: "s1", task: "scored", model: "sonnet", variant: "raw", clutter: 28.8 }, { id: "s2", task: "scored", model: "sonnet", variant: "simple", clutter: 0 },
+      { id: "g1", task: "scored", model: "grok", variant: "raw", clutter: 33.8 }, { id: "g2", task: "scored", model: "grok", variant: "simple", clutter: 0 },
+    ];
+    const r = parseClutterBench(d);
+    const b = r.benchmarks.find((x) => x.id === "clutterbench-raw")!;
+    expect(b.higherIsBetter).toBe(false);
+    const raw = r.rows.filter((x) => x.benchmarkId === "clutterbench-raw").sort((x, y) => (b.higherIsBetter ? y.value - x.value : x.value - y.value));
+    expect(raw.map((x) => x.modelLabel)).toEqual(["Claude Sonnet 5.5 (low)", "Grok 4.7 (high)"]);
+    expect(raw[1].details).toMatchObject({ removePct: 32, shrinkPct: 3.6, keepPct: 64.4 });
+    expect(raw[0].note).toMatch(/^remove 17.5%, shrink 22.6%, keep 59.9%; /);
+  });
+
   it("rejects partial model coverage, duplicate tasks and inconsistent aggregate scores", () => {
     const d = clutter();
     d.runs = d.runs.filter(r => r.variant !== "simple");
