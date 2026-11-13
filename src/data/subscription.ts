@@ -39,6 +39,8 @@ export interface SubscriptionDetails {
   listPrice?: { cached: number; input: number; output: number };
   /** A free tier's row. `paid` is what the model costs without it: its paid plans, and the token price they priced it at. */
   free?: boolean;
+  /** The free tier is rate-limited: it counts only when a visitor includes rate-limited tiers. */
+  limited?: boolean;
   paid?: SubscriptionDetails & { value: number };
   /** `listPrice` is the lab's price only until this moment; Artificial Analysis already lists the price that follows. */
   listUntil?: string;
@@ -149,7 +151,7 @@ export function subscriptionPlanOptions(snapshot: Snapshot): { labId: string; pl
  * Only comparing two different models' prices depends on the mix, so that (below) uses measured mixes.
  */
 export function subscriptionPrices(snapshot: Snapshot, chosen: Record<string, string> = {}, { free = true, reading }: {
-  /** `false`: a model free today is priced on its paid plans, or left to API price with none. */ free?: boolean;
+  /** `false`: a model free today is priced on its paid plans, or left to API price with none. `true` counts generous free tiers; `"limited"` rate-limited ones too. */ free?: boolean | "limited";
   /** The reading to use where a row has several (`PlanReading.id`); unset or unknown is each row's first. */ reading?: string;
 } = {}): Map<string, SubscriptionPrice> {
   const labOf = Object.keys(chosen).length ? new Map(snapshot.models.map((m) => [m.id, m.labId])) : undefined;
@@ -168,7 +170,7 @@ export function subscriptionPrices(snapshot: Snapshot, chosen: Record<string, st
     const modelId = variants.get(o.variantId) ?? o.variantId.split("@")[0];
     const picked = row?.free && labOf ? chosen[labOf.get(modelId) ?? ""] : undefined;
     // A plan named for this model's lab beats its free tier: that is the question being asked.
-    const usePaid = !!row?.free && (!free || (picked !== undefined && !!row.paid?.plans?.some((p) => currentPlanName(p.plan) === currentPlanName(picked))));
+    const usePaid = !!row?.free && (!free || (!!row.limited && free !== "limited") || (picked !== undefined && !!row.paid?.plans?.some((p) => currentPlanName(p.plan) === currentPlanName(picked))));
     if (usePaid && !row.paid) continue;
     const d = usePaid ? row.paid : row, rowValue = usePaid ? row.paid!.value : o.value;
     if (d?.sameAs) assumed.push([modelId, d]);

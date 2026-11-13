@@ -3,12 +3,20 @@ import { SUBSCRIPTION_BENCHMARK } from "./subscription";
 
 /**
  * Models a provider currently serves at no charge. They price at ratio 0 in the subscription cost
- * view, so the index does not keep charging for a model that is free today. Two live lists feed it:
- * OpenCode Zen (`-free` model ids) and OpenRouter (`:free` variants). Both lists are noisy, so an
- * entry only counts when it names a model the index already ranks as an LLM, by exact name.
+ * view, so the index does not keep charging for a model that is free today. Three live lists feed it:
+ * OpenCode Zen (`-free` model ids), OpenRouter (`:free` variants) and the Gemini API's free tier (Google's
+ * pricing page). The lists are noisy, so an entry only counts when it names a model the index already ranks
+ * as an LLM, by exact name.
+ *
+ * Two kinds. A generous tier (OpenCode Zen) is real working volume and counts by default. A rate-limited one
+ * (OpenRouter's `:free` variants, the Gemini API free tier: a few requests a minute, a daily cap) is too little
+ * to call the model free, so it counts only when a visitor asks (Advanced → Subscription plans → Free tiers).
+ * A one-time trial credit (Cerebras: $5, 30 days, November 2026) is neither and is not read.
  */
 export interface FreeTierEntry {
-  provider: "opencode" | "openrouter";
+  provider: "opencode" | "openrouter" | "google";
+  /** Rate-limited free use: counted only when a visitor includes rate-limited tiers. */
+  limited?: true;
   /** The provider's id for the model. */
   slug: string;
   /** Name used to find the model in the index. */
@@ -20,6 +28,8 @@ export interface FreeTierEntry {
 
 export const OPENCODE_PLAN = "OpenCode Zen free tier";
 export const OPENROUTER_PLAN = "OpenRouter free tier";
+export const GOOGLE_PLAN = "Gemini API free tier";
+const GOOGLE_URL = "https://aistudio.google.com/docs/pricing";
 const ZEN_URL = "https://opencode.ai/docs/zen/";
 const OPENROUTER_URL = "https://openrouter.ai/models?max_price=0";
 
@@ -72,7 +82,28 @@ export function parseOpenRouterFree(list: OpenRouterListing[]): FreeTierEntry[] 
     if (!prices.length || !prices.every((p) => Number.isFinite(Number(p)) && Number(p) === 0)) continue;
     const slug = m.id.replace(/:free$/, "");
     if (NOT_A_CHAT_MODEL.test(slug)) continue;
-    out.push({ provider: "openrouter", slug: m.id, name: slug.split("/").pop()!, plan: OPENROUTER_PLAN, source: OPENROUTER_URL });
+    out.push({ provider: "openrouter", slug: m.id, name: slug.split("/").pop()!, plan: OPENROUTER_PLAN, source: OPENROUTER_URL, limited: true, note: "Rate-limited: 20 requests a minute and a daily cap." });
+  }
+  return out;
+}
+
+/** Google's pricing page sections that are not chat models. */
+const NOT_A_GEMINI_CHAT = /live|tts|transcribe|image|banana|embedding|robotics|lyria|decision|native-audio|veo|imagen|omni/i;
+
+/**
+ * Models whose Gemini API free tier is "Free of charge" for both input and output on the Standard tab of Google's pricing page
+ * (aistudio.google.com/docs/pricing, Markdoc: `## <Name> {% id="<model id>" %}`, then tables of `* <cell>` rows).
+ */
+export function parseGoogleFree(page: string): FreeTierEntry[] {
+  const text = page.replace(/&quot;/g, '"').replace(/&amp;/g, "&");
+  const out: FreeTierEntry[] = [];
+  for (const section of text.split(/\n## /).slice(1)) {
+    const head = section.match(/^([^{\n]+?)\s*\{% id="([^"]+)" %\}/);
+    if (!head || NOT_A_GEMINI_CHAT.test(head[2])) continue;
+    const standard = section.split(/\{% tab title="(?!Standard)/)[0];
+    const cell = (row: string) => standard.match(new RegExp(`\\* ${row}[^\\n]*\\n\\s*\\* ([^\\n]+)`))?.[1].trim();
+    if (cell("Input price") !== "Free of charge" || cell("Output price") !== "Free of charge") continue;
+    out.push({ provider: "google", slug: head[2], name: head[1].replace(/\[([^\]]+)\]\([^)]*\)/g, "$1").trim(), plan: GOOGLE_PLAN, source: GOOGLE_URL, limited: true, note: "Rate-limited, and Google may use the prompts to improve its products." });
   }
   return out;
 }
@@ -108,12 +139,13 @@ export function applyFreeTiers(snapshot: Snapshot, entries: FreeTierEntry[], dat
     const variants = variantsOf(modelId);
     if (!variants.length) continue;
     const variant = [...variants].sort((a, b) => ORDER.indexOf(b.effort) - ORDER.indexOf(a.effort))[0];
-    const pick = es.find((e) => e.provider === "opencode") ?? es[0];
+    const pick = es.find((e) => !e.limited) ?? es[0];
     const also = es.filter((e) => e !== pick).map((e) => e.plan);
+    const limited = es.every((e) => e.limited);
     const note = [`${pick.plan}: ${pick.slug} is listed at no charge`, ...(also.length ? [`also free on ${also.join(", ")}`] : []), pick.note].filter(Boolean).join("; ");
     added.push({
       benchmarkId: SUBSCRIPTION_BENCHMARK, variantId: variant.id, value: 0, observedAt: date, sourceUrl: pick.source, note,
-      details: { plan: pick.plan, feeUsd: 0, confidence: "high", ratio: 0, source: pick.source, dataDate: date, free: true, plans: [], ...(paidRows.get(modelId) ? { paid: { ...paidRows.get(modelId)!.details, value: paidRows.get(modelId)!.value } } : {}) },
+      details: { plan: pick.plan, feeUsd: 0, confidence: "high", ratio: 0, source: pick.source, dataDate: date, free: true, ...(limited ? { limited: true } : {}), plans: [], ...(paidRows.get(modelId) ? { paid: { ...paidRows.get(modelId)!.details, value: paidRows.get(modelId)!.value } } : {}) },
     });
   }
   snapshot.observations = [...kept, ...added];
@@ -128,9 +160,15 @@ export function carriedFreeTiers(previous: Snapshot, snapshot: Snapshot): Observ
     && modelIds.has(variants.get(o.variantId) ?? "")).map((o) => ({ ...o, note: [o.note, `carried from ${previous.date}`].filter(Boolean).join("; ") }));
 }
 
-/** What ChartSettings needs for "Count free tiers". Undefined when nothing is free today, so there is no choice to offer. */
-export function freeTierSettings(snapshot: Snapshot, value: boolean | undefined, onChange: (count: boolean) => void) {
-  const count = snapshot.observations.filter((o) => o.benchmarkId === SUBSCRIPTION_BENCHMARK && (o.details as { free?: boolean } | undefined)?.free).length;
-  return count ? { value: value !== false, onChange, count } : undefined;
-}
+/** Which free tiers price a model at nothing: generous ones (the default), those plus rate-limited ones, or none. */
+export type FreeTierChoice = "generous" | "limited" | "off";
+export const freeTierChoice = (value: boolean | "limited" | undefined): FreeTierChoice => (value === false ? "off" : value === "limited" ? "limited" : "generous");
+/** The IndexConfig value for a choice: unset is the default. */
+export const freeTierValue = (choice: FreeTierChoice): false | "limited" | undefined => (choice === "off" ? false : choice === "limited" ? "limited" : undefined);
 
+/** What ChartSettings needs for the free-tier choice. Undefined when nothing is free today, so there is no choice to offer. */
+export function freeTierSettings(snapshot: Snapshot, value: boolean | "limited" | undefined, onChange: (value: false | "limited" | undefined) => void) {
+  const rows = snapshot.observations.filter((o) => o.benchmarkId === SUBSCRIPTION_BENCHMARK && (o.details as { free?: boolean } | undefined)?.free);
+  const limited = rows.filter((o) => (o.details as { limited?: boolean }).limited).length;
+  return rows.length ? { value: freeTierChoice(value), onChange: (c: FreeTierChoice) => onChange(freeTierValue(c)), generous: rows.length - limited, limited } : undefined;
+}

@@ -288,6 +288,11 @@ describe("not counting free tiers", () => {
     expect(1 / p.ratio).toBeCloseTo(21, 6);
   });
   it("leaves a model with no paid plan to API price", () => expect(subscriptionPrices(snap, {}, { free: false }).has("lonely")).toBe(false));
+  it("counts a rate-limited free tier only when asked", () => {
+    const limited = { ...snap, observations: snap.observations.map((o) => (o.variantId === "flash@max" ? { ...o, details: { ...(o.details as object), plan: "OpenRouter free tier", limited: true } } : o)) } as Snapshot;
+    expect(subscriptionPrices(limited).get("flash")!.plan).toBe("Mistral Vibe Pro");
+    expect(subscriptionPrices(limited, {}, { free: "limited" }).get("flash")).toMatchObject({ ratio: 0, plan: "OpenRouter free tier" });
+  });
   it("lets a plan picked for the lab beat the free tier, which is the question being asked", () => {
     const p = subscriptionPrices(snap, { deepseek: "OpenCode Go" }).get("flash")!;
     expect(p.plan).toBe("OpenCode Go");

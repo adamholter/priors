@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyFreeTiers, carriedFreeTiers, modelsForFree, parseOpenRouterFree, parseZenFree, type OpenRouterListing } from "./free-tier";
+import { applyFreeTiers, carriedFreeTiers, freeTierChoice, freeTierValue, modelsForFree, parseGoogleFree, parseOpenRouterFree, parseZenFree, type OpenRouterListing } from "./free-tier";
 import { SUBSCRIPTION_BENCHMARK, subscriptionPrices } from "./subscription";
 import type { Model, Snapshot } from "./types";
 
@@ -52,7 +52,9 @@ describe("applyFreeTiers", () => {
   it("prices a free model at ratio 0, replacing a computed row", () => {
     const s = snap(models, { observations: [{ benchmarkId: SUBSCRIPTION_BENCHMARK, variantId: "gemma-4-31b-it@high", value: 0.2, observedAt: "", sourceUrl: "" }] });
     expect(applyFreeTiers(s, entries, "2026-10-16").sort()).toEqual(["aa-north-mini-code", "gemma-4-31b-it"]);
-    const prices = subscriptionPrices(s);
+    // OpenRouter's :free variants are rate-limited: free only when a visitor counts rate-limited tiers.
+    expect(subscriptionPrices(s).has("aa-north-mini-code")).toBe(false);
+    const prices = subscriptionPrices(s, {}, { free: "limited" });
     expect(prices.get("gemma-4-31b-it")).toMatchObject({ ratio: 0, plan: "OpenRouter free tier" });
     expect(prices.get("aa-north-mini-code")?.ratio).toBe(0);
     expect(prices.has("gemma-4-31b")).toBe(false);
@@ -84,3 +86,21 @@ describe("the paid row behind a free one", () => {
   });
 });
 
+
+describe("rate-limited free tiers", () => {
+  const section = (name: string, id: string, input: string, output: string) => `\n## ${name} {% id=&quot;${id}&quot; %}\n{% tabs %}\n {% tab title=&quot;Standard&quot; %}\n {% table %}\n * Feature\n * Free Tier\n * Paid Tier\n ---\n * Input price\n * ${input}\n * $1.50\n ---\n * Output price (including thinking tokens)\n * ${output}\n * $7.50\n {% /table %}\n {% /tab %}\n {% tab title=&quot;Batch&quot; %}\n * Input price\n * Free of charge\n {% /tab %}`;
+  it("reads models whose Gemini API free tier is free for input and output, and marks them rate-limited", () => {
+    const page = "# Pricing" + section("Gemini 4 Hydrogen", "gemini-4-hydrogen", "Free of charge", "Free of charge") + section("Gemini 4 Argon", "gemini-4-argon", "Not available", "Not available")
+      + section("Gemini 3.8 Live", "gemini-3.8-live", "Free of charge", "Free of charge");
+    const got = parseGoogleFree(page);
+    expect(got.map((e) => e.name)).toEqual(["Gemini 4 Hydrogen"]);
+    expect(got[0]).toMatchObject({ provider: "google", limited: true, plan: "Gemini API free tier" });
+  });
+  it("marks OpenRouter's :free variants rate-limited", () => {
+    expect(parseOpenRouterFree([{ id: "z-ai/glm-5.3-flash:free", pricing: { prompt: "0", completion: "0" }, architecture: { input_modalities: ["text"], output_modalities: ["text"] } }])[0].limited).toBe(true);
+  });
+  it("maps the settings choice to the stored value and back", () => {
+    for (const c of ["generous", "limited", "off"] as const) expect(freeTierChoice(freeTierValue(c))).toBe(c);
+    expect(freeTierValue("generous")).toBeUndefined();
+  });
+});
