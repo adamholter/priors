@@ -39,7 +39,10 @@ async function loadSources(): Promise<Source[]> {
     const mod = await import(path.join(dir, f));
     const src: Source = mod.default ?? mod.source;
     if (!src?.id) { console.warn(`skip ${f}: no default Source export`); continue; }
-    if (!only || only.includes(src.id)) out.push(src);
+    // A file may export `sources`, one Source per board it reads (`sources/boards.ts`): those run instead of the default,
+    // each under its own id, and `--only <default id>` selects them all.
+    const list: Source[] = Array.isArray(mod.sources) ? mod.sources : [src];
+    for (const s of list) if (!only || only.includes(s.id) || only.includes(src.id)) out.push(s);
   }
   return out;
 }

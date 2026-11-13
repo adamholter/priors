@@ -1,5 +1,6 @@
 /**
  * Source template. Copy to `<id>.ts`, export default a Source.
+ * First try `npm run board:try -- <url>`: a board a generic reader can read needs only an entry in `../boards/configs.ts`.
  * Rules:
  *  - Discover rows live; never hardcode leaderboard rows.
  *  - Prefer structured payloads (JSON/CSV/RSC/__NEXT_DATA__) over DOM scraping; fall back to ctx.withPage.

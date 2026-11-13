@@ -1,0 +1,6 @@
+{"updated":"2026-11-12","leaderboard":[
+ {"model_name":"GPT-6.1 Sol","reasoning_effort":"medium","accuracy":0.612,"ci_low":0.58,"ci_high":0.64,"cost_per_task":0.21,"rank":1},
+ {"model_name":"Claude Opus 5.5","reasoning_effort":"high","accuracy":0.598,"ci_low":0.56,"ci_high":0.63,"cost_per_task":0.44,"rank":2},
+ {"model_name":"DeepSeek V4.1 Flash","reasoning_effort":"","accuracy":0.402,"ci_low":0.37,"ci_high":0.43,"cost_per_task":0.02,"rank":3},
+ {"model_name":"Human expert","accuracy":0.9,"rank":0}
+]}

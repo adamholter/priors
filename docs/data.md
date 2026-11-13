@@ -52,6 +52,19 @@ A full run takes 2 to 3 minutes (some sources use headless Chromium). A partial 
 
 To add a source, copy `sources/_template.ts`. Its header lists the rules: discover rows live, prefer structured payloads over DOM scraping, emit the label exactly as the site shows it, put a cost in `costUsd` only when the site reports measured run cost, save every parsed payload in `raw`.
 
+### Config-only boards
+
+Most leaderboards need no scraper file. `scripts/scrape/boards/configs.ts` lists boards that one of four generic readers (`boards/readers.ts`) can read:
+
+- `ariaLabel`: chart text in an `aria-label` ("Fable 5.2: 82.2%", "Dots 75.9%", "GPT-6 Astra: low 76.7% at $0.200 per question, medium ..."). `match` picks the label, `after` drops a leading sentence (agent products, baselines). A cost is read only when the text says it is per question, task or run, never a token price.
+- `nextData`: JSON in `<script id="__NEXT_DATA__">` (or another JSON script, `script: "<id>"`). `rows` is a path to the row array; `label`, `value`, `effort`, `ciHalf` (or `ciLow`/`ciHigh`), `cost` and `details` are paths inside a row. Paths are dot-separated keys, `[n]` for an index and `[key=value]` for the element whose `key` is `value`: `props.pageProps.benchmarks[leaderboardKey=open-world-engineer-leaderboard].globalLeaderboard`, `passScores[pass=mean-8].score`. An object of rows keyed by model reads as rows with the key in `$key`.
+- `json`: the same selection over a JSON endpoint (`fetch`), with `url` the public page.
+- `table`: an HTML `<table>` by index or by text in one of its headers, columns by header name (exact, else the first header containing it). The header is the last `<thead>` row, so group headers with colspans are skipped.
+
+A config also carries the benchmark record (`id`, `name`, `unit`, `category`, `minRows`, ...), label fixes (`labelMap`, then `labelPrefix` for Claude models written without the family), `skip` for labels that are not models, `scale` for 0 to 1 fractions, and `browser: true` for a board drawn in the browser. `sources/boards.ts` exports one Source per config, under `sourceId` (default the benchmark id), and `build.ts` runs a file's `sources` export in place of its default. So each board fails, is reported, carries forward and takes `--only <id>` on its own, and `--only boards` runs them all. Company Agent Bench and OWE-Bench (source id `mercor-apex`) run this way; their rows matched the old scrapers exactly.
+
+To add one, run `npm run board:try -- <url>`. With no reader it lists candidates (aria-labels, JSON scripts, tables, and JSON files the page links), each with its options, row count, first rows, and what `normalizeLabel` makes of every label (model id and effort, UNKNOWN, or a model the current snapshot lacks), then prints a config for the best one and a catalog stub. `--reader <name>` with its options (`--rows`, `--label`, `--value`, `--table`, `--match`, `--details name=path,...`) runs just that reader; `--browser` renders the page first; `--config <id>` checks a config already in the file. Paste the config, write the catalog entry (required: the config test fails without one), and run `npx vitest run scripts/scrape src/data`. A board none of the readers can read still gets a hand-written source.
+
 Every benchmark comes from a live scraper. No frozen datasets are merged at load time. `liveBenchmarkId` in `src/lib/url.ts` maps the ids of a removed September 2026 import (`real-index:*`) in old shared links to the live benchmarks.
 
 Notes on sources whose behavior is not obvious from the file:
