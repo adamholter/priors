@@ -15,6 +15,8 @@
 .bench-head{align-items:end;padding-bottom:7px;border-bottom:1px solid var(--hair)}
 .bench-head .bench-tip{cursor:help}
 .bench-row{align-items:center;padding:11px 0}
+/* Off-screen rows skip layout and paint (and their compositor tiles) until they near the viewport. */
+.bench-dir ul > li{content-visibility:auto;contain-intrinsic-size:auto 74px}
 .bench-main{display:flex;align-items:flex-start;gap:11px;min-width:0}
 .bench-main>span:last-child{flex:1}
 .bench-cat{flex-shrink:0;width:28px;height:28px;margin-top:-2px;border-radius:6px;background:var(--hair-2);color:var(--ink-2)}

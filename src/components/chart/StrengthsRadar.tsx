@@ -194,7 +194,8 @@ function RadarSettingsMenu({ view, topN, models, series, selected, onToggle, onT
   const seriesOf = new Map(series.map((s) => [s.id, s]));
   return <details ref={root} open={open} className={styles.picker} name="chart-settings">
     <summary ref={trigger} aria-label="Strengths settings" title="Strengths settings" onClick={(e) => { e.preventDefault(); setOpen(!open); }}><IconAdjustmentsHorizontal size={16} stroke={1.5} aria-hidden="true" /></summary>
-    <div className={`${styles.menu} chart-settings-menu`}>
+    {/* Built only while open, like ChartSettings: its model list is every ranked model. */}
+    {open && <div className={`${styles.menu} chart-settings-menu`}>
       <div className={styles.heading}><span>Chart settings</span><button type="button" aria-label="Close chart settings" onClick={() => dismiss("escape")}><IconX size={16} stroke={1.5} aria-hidden="true" /></button></div>
       <div className={styles.tabs} role="tablist" aria-label="Strengths settings sections">
         {(["models", "settings"] as const).map((value) => <button key={value} id={`${id}-${value}-tab`} role="tab" type="button" aria-selected={tab === value} onClick={() => setTab(value)}>{value === "models" ? "Models" : "Settings"}</button>)}
@@ -226,6 +227,6 @@ function RadarSettingsMenu({ view, topN, models, series, selected, onToggle, onT
           </div>}
         </>}
       </div>
-    </div>
+    </div>}
   </details>;
 }

@@ -174,12 +174,13 @@ export function ChartSettings({ freeTiers, planReading, speedTiers, label, mode,
   };
   return <details ref={root} open={open} className={styles.picker} name="chart-settings">
     <summary ref={trigger} aria-label={`${label} settings`} title={`${label} settings`} onClick={e => { e.preventDefault(); if (!open) { setTab(hasModels ? "models" : "data"); setOpenOrder(models.map(m => m.id)); } setOpen(!open); }}><IconAdjustmentsHorizontal size={16} stroke={1.5} aria-hidden="true" /></summary>
-    <div className={`${styles.menu} chart-settings-menu`} data-above={placement.above} style={{ "--picker-space": `${placement.height}px` } as CSSProperties}>
+    {/* Built only while open: every chart has one of these, and a closed menu's model list was most of a page's DOM. */}
+    {open && <div className={`${styles.menu} chart-settings-menu`} data-above={placement.above} style={{ "--picker-space": `${placement.height}px` } as CSSProperties}>
       <div className={styles.heading}><span>Chart settings</span><button type="button" aria-label="Close chart settings" onClick={() => dismiss("escape")}><IconX size={16} stroke={1.5} aria-hidden="true" /></button></div>
       {tabs.length > 1 && <div className={styles.tabs} role="tablist" aria-label={`${label} settings sections`}>
         {tabs.map((t, i) => <button key={t.id} id={`${id}-${t.id}-tab`} role="tab" type="button" aria-selected={tab === t.id} aria-controls={`${id}-${t.id}-panel`} tabIndex={tab === t.id ? 0 : -1} onKeyDown={e => tabKey(e, i)} onClick={() => setTab(t.id)}>{t.name}</button>)}
       </div>}
       <div className={styles.body} role={tabs.length > 1 ? "tabpanel" : "region"} id={`${id}-${tab}-panel`} aria-labelledby={tabs.length > 1 ? `${id}-${tab}-tab` : undefined} aria-label={tabs.length > 1 ? undefined : `${label} settings`}>{tab === "models" && hasModels ? modelPanel : tab === "display" && displayPanel ? displayPanel : dataPanel}</div>
-    </div>
+    </div>}
   </details>;
 }

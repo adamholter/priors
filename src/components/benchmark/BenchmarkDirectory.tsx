@@ -54,6 +54,7 @@ const compare: Record<Sort, (a: DirectoryItem, b: DirectoryItem) => number> = {
 const title = categoryName;
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
+
 export function BenchmarkDirectory({ items }: { items: DirectoryItem[] }) {
   const [q, setQ] = useState("");
   const [category, setCategory] = useState("all");
@@ -81,12 +82,15 @@ export function BenchmarkDirectory({ items }: { items: DirectoryItem[] }) {
     return searching ? searchBenchmarks(ranked.filter(inCategory), q, title, { loose: true }) : base.filter(inCategory).sort(compare[sort]);
   }, [base, ranked, category, sort, q, searching]);
   const totals = useMemo(() => ({ models: Math.max(0, ...base.map((x) => x.models)), publishers: new Set(base.map((x) => x.host).filter(Boolean)).size }), [base]);
-  // Every benchmark is listed, so a new one is never hidden below a cut-off. Only search results stop at 60.
+  // Every benchmark is listed, so a new one is never hidden below a cut-off (and find-in-page sees it). Only search results stop at 60.
+  // What keeps ~450 rows light: rows off screen skip layout and paint (content-visibility in benchmarks.css), and their icons
+  // are references to one shared sprite rather than a full inline SVG each.
   const shown = searching ? found.slice(0, 60) : found;
   const choose = (c: string) => setCategory(c);
 
   return (
     <div className="bench-dir grid gap-8">
+      <DirSprite />
       <div className="bench-totals" aria-label="Directory totals">
         <span><IconStack2 size={16} stroke={1.5} aria-hidden />{plural(base.length, "benchmark")}</span>
         <span><IconCube size={16} stroke={1.5} aria-hidden />up to {plural(totals.models, "model")} each</span>
@@ -127,6 +131,23 @@ export function BenchmarkDirectory({ items }: { items: DirectoryItem[] }) {
   );
 }
 
+/**
+ * Row icons as references to one shared sprite. A Tabler icon inline is an <svg> with several paths, five icons a row across
+ * ~450 rows; a <use> is two nodes. The referenced paths keep stroke="currentColor", so each use takes its row's color.
+ */
+const SPRITE: Record<string, { I: Icon; stroke: number }> = {
+  trophy: { I: IconTrophy, stroke: 1.6 }, cube: { I: IconCube, stroke: 1.6 }, users: { I: IconUsers, stroke: 1.6 }, history: { I: IconHistory, stroke: 1.6 },
+  ...Object.fromEntries(Object.entries(CATEGORY_ICON).map(([c, I]) => [`cat-${c}`, { I, stroke: 1.5 }])),
+};
+function DirSprite() {
+  return <svg width="0" height="0" style={{ position: "absolute" }} aria-hidden="true" focusable="false"><defs>
+    {Object.entries(SPRITE).map(([k, { I, stroke }]) => <symbol key={k} id={`bd-${k}`} viewBox="0 0 24 24"><I size={24} stroke={stroke} /></symbol>)}
+  </defs></svg>;
+}
+function Use({ k, size, className }: { k: string; size: number; className?: string }) {
+  return <svg width={size} height={size} className={className} aria-hidden="true" focusable="false"><use href={`#bd-${k}`} /></svg>;
+}
+
 /** A word for a value, after a short hover. Screen readers get the visually hidden labels in the row instead. */
 function Tip({ text, end, children, className = "" }: { text: string; end?: boolean; children: ReactNode; className?: string }) {
   return <span className={`bench-tip ${end ? "bench-tip-end" : ""} ${className}`} data-bench-tip={text}>{children}</span>;
@@ -146,29 +167,29 @@ function Favicon({ host }: { host: string }) {
   const [ok, setOk] = useState(true);
   if (!ok) return null;
   // eslint-disable-next-line @next/next/no-img-element
-  return <img className="bench-fav" src={`https://icons.duckduckgo.com/ip3/${host}.ico`} alt="" width={14} height={14} loading="lazy" onError={() => setOk(false)} />;
+  return <img className="bench-fav" src={`https://www.google.com/s2/favicons?domain=${encodeURIComponent(host)}&sz=32`} alt="" width={14} height={14} loading="lazy" onError={() => setOk(false)} />;
 }
 
 function Row({ x, showCategory }: { x: DirectoryItem; showCategory?: boolean }) {
-  const lab = useLabColor(), main = categoriesOf(x)[0], I = CATEGORY_ICON[main] ?? IconDots;
+  const lab = useLabColor(), main = categoriesOf(x)[0], icon = CATEGORY_ICON[main] ? main : "other";
   return (
     <li className="border-b hairline last:border-b-0">
       <Link href={benchmarkPath(x.id) as "/"} className="bench-row group">
         <span className="bench-main">
-          {showCategory && <Tip text={categoriesOf(x).map(categoryName).join(" · ")} className="bench-cat"><I size={16} stroke={1.5} aria-hidden /></Tip>}
+          {showCategory && <Tip text={categoriesOf(x).map(categoryName).join(" · ")} className="bench-cat"><Use k={`cat-${icon}`} size={16} /></Tip>}
           <span className="min-w-0">
             <span className="flex flex-wrap items-center gap-x-2">
               <span className="text-[15px] group-hover:underline decoration-dotted underline-offset-2">{x.name}</span>
-              {x.superseded && <span className="cap inline-flex items-center gap-1"><IconHistory size={12} stroke={1.6} aria-hidden />older version</span>}
+              {x.superseded && <span className="cap inline-flex items-center gap-1"><Use k="history" size={12} />older version</span>}
               {x.splits ? <span className="cap">{plural(x.splits, "sub-board")}</span> : null}
             </span>
             <span className="block text-[13px] text-ink-2 truncate">{x.description}</span>
             {x.host && <span className="bench-host cap"><Favicon host={x.host} />{x.host}</span>}
           </span>
         </span>
-        <span className="bench-cell bench-leader">{x.leader && <Tip text={TIP.leader}><IconTrophy className="bench-trophy" size={13} stroke={1.6} aria-hidden /><i style={{ background: lab(x.leader.labId, x.leader.color) }} /><span className="truncate"><span className="bench-word">Top model: </span>{x.leader.name}</span></Tip>}</span>
-        <span className="bench-cell bench-num"><Tip text={TIP.models} end><IconCube className="bench-inline" size={13} stroke={1.6} aria-hidden /><span className="num">{x.models}</span><span className="bench-word"> {x.models === 1 ? "model" : "models"}</span></Tip></span>
-        <span className={`bench-cell bench-num ${x.uses ? "" : "bench-none"}`}><Tip text={TIP.uses} end><IconUsers className="bench-inline" size={13} stroke={1.6} aria-hidden /><span className="num">{x.uses || <><span aria-hidden="true">–</span><span className="bench-word">0</span></>}</span><span className="bench-word"> {x.uses === 1 ? "mix" : "mixes"}</span></Tip></span>
+        <span className="bench-cell bench-leader">{x.leader && <Tip text={TIP.leader}><Use k="trophy" className="bench-trophy" size={13} /><i style={{ background: lab(x.leader.labId, x.leader.color) }} /><span className="truncate"><span className="bench-word">Top model: </span>{x.leader.name}</span></Tip>}</span>
+        <span className="bench-cell bench-num"><Tip text={TIP.models} end><Use k="cube" className="bench-inline" size={13} /><span className="num">{x.models}</span><span className="bench-word"> {x.models === 1 ? "model" : "models"}</span></Tip></span>
+        <span className={`bench-cell bench-num ${x.uses ? "" : "bench-none"}`}><Tip text={TIP.uses} end><Use k="users" className="bench-inline" size={13} /><span className="num">{x.uses || <><span aria-hidden="true">–</span><span className="bench-word">0</span></>}</span><span className="bench-word"> {x.uses === 1 ? "mix" : "mixes"}</span></Tip></span>
         <span className="bench-cell bench-q"><Tip text={`Quality ${Math.round(x.quality)} of 100. ${TIP.quality}`} end><Quality v={x.quality} /></Tip></span>
       </Link>
     </li>
