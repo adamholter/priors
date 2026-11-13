@@ -29,7 +29,10 @@ describe("Khalil Bench", () => {
     expect(benchmarks[0].description).toContain("Also rated, not models, so unranked as on the Khalil Bench site: Intersects (kinda cool, 75 points).");
     expect(notes?.[0]).toContain("1 unranked product (Intersects)");
     // The catalog's description replaces the source's, but the live note survives it.
-    expect(withCatalog(benchmarks[0]).description).toMatch(/Never in a default mix and given no quality score\. Also rated, not models, .*Intersects \(kinda cool, 75 points\)\.$/);
+    const once = withCatalog(benchmarks[0]).description;
+    expect(once.replace("\u2063", "")).toMatch(/Never in a default mix and given no quality score\. Also rated, not models, .*Intersects \(kinda cool, 75 points\)\.$/);
+    // The site applies the catalog again to the built snapshot: the note must survive that too.
+    expect(withCatalog({ ...benchmarks[0], description: once }).description).toBe(once);
   });
   it("has no quality score", () => {
     const { rows, benchmarks } = parseKhalilBench({ board });

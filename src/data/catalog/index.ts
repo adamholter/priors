@@ -39,7 +39,8 @@ export function withCatalog(b: Benchmark): Benchmark {
   const entry = catalogEntry(b);
   const categories = unique((entry?.c ?? [b.category, ...(b.categories ?? [])]).map(normalizeCategory));
   const at = b.description.indexOf(LIVE_NOTE), note = at >= 0 ? b.description.slice(at + LIVE_NOTE.length) : "", own = at >= 0 ? b.description.slice(0, at) : b.description;
-  let description = (entry?.d ?? own) + (note ? ` ${note}` : "");
+  // The mark stays in the result, so applying the catalog again (the build does, then the site) keeps the note.
+  let description = (entry?.d ?? own) + (note ? `${LIVE_NOTE}${note}` : "");
   if (entry?.d && b.sourceId === "boggs") description += BOGGS_CREDIT;
   return { ...b, description, category: categories[0], categories };
 }
