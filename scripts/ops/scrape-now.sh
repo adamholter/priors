@@ -7,6 +7,10 @@
 # It runs the scrape checkout's own script (~/priors-scrape), which first moves to origin/main, so it scrapes with
 # whatever is pushed, never with local edits. A run already going is waited for, never interrupted.
 set -uo pipefail
+# Started from the pre-push hook, this inherits the pushing git's environment (GIT_EXEC_PATH of Apple's git 2.39), which
+# made the scrape's newer git load old helpers and fail its fetch (2026-11-13). Start clean, with the job's PATH.
+for v in $(env | grep -o '^GIT_[A-Z_]*'); do unset "$v"; done
+export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
 cd "$(dirname "$0")/../.." || exit 1
 JOB=com.adam.priors-scrape
 SCRAPE_DIR=${PRIORS_SCRAPE_DIR:-$HOME/priors-scrape}
@@ -44,7 +48,11 @@ if [ "${1:-}" = "--after-push" ]; then
       wait_idle || exit 0
       if [ -n "$only" ] && [ -f "$SCRAPE_DIR/.scrape-checkout" ]; then
         echo "== $(date -Iseconds) scrape of $only after push of ${2:0:8}" >> "$LOG"
-        PRIORS_SCRAPE_ONLY="$only" bash "$SCRAPE_DIR/scripts/ops/daily-scrape.sh" >> "$LOG" 2>&1
+        if ! PRIORS_SCRAPE_ONLY="$only" bash "$SCRAPE_DIR/scripts/ops/daily-scrape.sh" >> "$LOG" 2>&1; then
+          # Never leave the push unpublished until the next slot: the scheduled job runs everything.
+          echo "== $(date -Iseconds) scrape of $only failed; starting the full job" >> "$LOG"
+          launchctl kickstart "gui/$(id -u)/$JOB"
+        fi
       else
         launchctl kickstart "gui/$(id -u)/$JOB"
         echo "== $(date -Iseconds) scrape started after push of ${2:0:8}" >> "$LOG"

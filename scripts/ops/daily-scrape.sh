@@ -6,6 +6,8 @@
 set -uo pipefail
 cd "$(dirname "$0")/../.."
 export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
+# A caller's git environment (a hook's GIT_EXEC_PATH, GIT_DIR) must not reach this checkout's git.
+for v in $(env | grep -o '^GIT_[A-Z_]*'); do unset "$v"; done
 DATE=${PRIORS_DATE:-$(date +%F)}
 # The text goes in as an argument, never into the AppleScript source: a message can quote a commit title.
 notify() { osascript -e 'on run argv' -e 'display notification (item 1 of argv) with title "Priors"' -e 'end run' -- "$1" 2>/dev/null || true; }
