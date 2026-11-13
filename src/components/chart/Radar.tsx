@@ -5,7 +5,7 @@ import { benchmarkBlurb } from "@/lib/benchmark-blurb";
 import { formatValue, ringLabels, type RadarAxis, type RadarNorm, type RadarPoint } from "./radar-data";
 import { radarLabels } from "./radar-labels";
 
-import { effortName, LAYER_OPACITY, type RadarSeries } from "./radar-view";
+import { effortName, layerOpacity, type RadarSeries } from "./radar-view";
 
 export type { RadarSeries };
 type Hover = { kind: "axis"; axis: number } | { kind: "dot"; axis: number; series: string } | null;
@@ -81,8 +81,8 @@ export function Radar({ axes, series, ghost, norm, size = 340, labels = true, co
         const d = shape(s.points, angles, cx, cy, R), dim = !!focus && focus !== s.id;
         return <g key={s.id} className="rl-series" style={{ opacity: dim ? 0.15 : 1 }}>
           {/* Other efforts: fills with no outline, so the shape darkens toward the center where the lower efforts overlap. */}
-          {s.layers?.map((l) => { const ld = shape(l.points, angles, cx, cy, R); return ld && <path key={l.effort} d={ld} className="rl-layer" style={{ fill: s.color, fillOpacity: LAYER_OPACITY * (focus === s.id ? 1.5 : 1) }} />; })}
-          <path d={d} style={{ d: `path("${d}")`, fill: s.color, fillOpacity: s.layers?.length ? LAYER_OPACITY * (focus === s.id ? 1.5 : 1) : single ? 0.16 : focus === s.id ? 0.2 : 0.05, stroke: s.color }} strokeDasharray={s.dash} className="rl-shape" />
+          {s.layers?.map((l) => { const ld = shape(l.points, angles, cx, cy, R); return ld && <path key={l.effort} d={ld} className="rl-layer" style={{ fill: s.color, fillOpacity: layerOpacity(series.length) * (focus === s.id ? 2 : 1) }} />; })}
+          <path d={d} style={{ d: `path("${d}")`, fill: s.color, fillOpacity: s.layers?.length ? layerOpacity(series.length) * (focus === s.id ? 2 : 1) : single ? 0.16 : focus === s.id ? 0.2 : 0.05, stroke: s.color }} strokeDasharray={s.dash} className="rl-shape" />
           {!compact && s.points.map((p, i) => { if (p.r == null) return null; const { x, y } = at(i, p.r); const on = hover?.kind === "dot" && hover.series === s.id && hover.axis === i;
             return <circle key={i} cx={r1(x)} cy={r1(y)} r={on ? 5 : 3.2} className="rl-dot" style={{ fill: p.estimated ? "var(--white)" : s.color, stroke: p.estimated ? s.color : "var(--white)" }} />; })}
         </g>;

@@ -43,8 +43,9 @@ export const RADAR_NORMS: { id: RadarNorm; label: string; hint: string }[] = [
 /** Validated categorical palette (dataviz reference) for the "one color per model" option. */
 const DISTINCT = { light: ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#4a3aa7", "#e34948"], dark: ["#3987e5", "#d95926", "#199e70", "#c98500", "#d55181", "#008300", "#9085e9", "#e66767"] };
 const DASHES = [undefined, "7 4", "2 3", "10 3 2 3"];
-/** Each effort layer's fill. Layers stack, so where every effort reaches (the center) is darkest. */
+/** Each effort layer's fill. Layers stack, so where every effort reaches (the center) is darkest. Fainter when models overlap. */
 export const LAYER_OPACITY = 0.09;
+export const layerOpacity = (seriesCount: number) => seriesCount > 1 ? 0.045 : LAYER_OPACITY;
 
 /* ---------------- URL params ---------------- */
 
@@ -144,7 +145,9 @@ export function radarEffortRows(snapshot: Snapshot, config: IndexConfig, best: R
     }
     return { rows: best, layers, efforts };
   }
-  const rows = best.flatMap((b) => { const v = at(b.model.id, effort); return v ? [{ ...v, rank: b.rank, model: { ...v.model, name: `${v.model.name} ${effortName(effort)}` } }] : []; });
+  // Ranked by score at this effort, so the rank beside each name matches its score and the top models are the top at this effort.
+  const rows = best.flatMap((b) => { const v = at(b.model.id, effort); return v ? [{ ...v, model: { ...v.model, name: `${v.model.name} ${effortName(effort)}` } }] : []; })
+    .sort((a, b) => b.score - a.score).map((r, i) => ({ ...r, rank: i + 1 }));
   return { rows: fill(rows), layers: new Map(), efforts };
 }
 
@@ -236,9 +239,9 @@ export function radarSvg({ axes, series, ghost, norm, pal, size = 400, meta, leg
   if (ghost) { const d = shape(ghost); if (d) out.push(`<path d="${d}" fill="${pal.ghost}" fill-opacity="0.6" stroke="${pal.grey}" stroke-width="1" stroke-dasharray="2 3"><title>Field median</title></path>`); }
   const single = series.length === 1;
   for (const s of series) {
-    for (const l of s.layers ?? []) { const ld = shape(l.points); if (ld) out.push(`<path d="${ld}" fill="${s.color}" fill-opacity="${LAYER_OPACITY}" stroke="none"><title>${esc(`${s.name} · ${effortName(l.effort)}`)}</title></path>`); }
+    for (const l of s.layers ?? []) { const ld = shape(l.points); if (ld) out.push(`<path d="${ld}" fill="${s.color}" fill-opacity="${layerOpacity(series.length)}" stroke="none"><title>${esc(`${s.name} · ${effortName(l.effort)}`)}</title></path>`); }
     const d = shape(s.points);
-    if (d) out.push(`<path d="${d}" fill="${s.color}" fill-opacity="${s.layers?.length ? LAYER_OPACITY : single ? 0.16 : 0.06}" stroke="${s.color}" stroke-width="2" stroke-linejoin="round"${s.dash ? ` stroke-dasharray="${s.dash}"` : ""}/>`);
+    if (d) out.push(`<path d="${d}" fill="${s.color}" fill-opacity="${s.layers?.length ? layerOpacity(series.length) : single ? 0.16 : 0.06}" stroke="${s.color}" stroke-width="2" stroke-linejoin="round"${s.dash ? ` stroke-dasharray="${s.dash}"` : ""}/>`);
   }
   for (const s of series) s.points.forEach((p, i) => {
     if (p.r == null) return;
