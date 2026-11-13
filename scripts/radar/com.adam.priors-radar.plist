@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Bench radar (scripts/radar/radar.ts), every 30 minutes, from the scrape checkout so it reads current main and the latest snapshot.
+     Install: cp to ~/Library/LaunchAgents/ and `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.adam.priors-radar.plist`. -->
+<plist version="1.0"><dict>
+  <key>Label</key><string>com.adam.priors-radar</string>
+  <key>ProgramArguments</key><array><string>/usr/bin/env</string><string>npx</string><string>tsx</string><string>scripts/radar/radar.ts</string></array>
+  <key>WorkingDirectory</key><string>/Users/adam/priors-scrape</string>
+  <key>StartInterval</key><integer>1800</integer>
+  <key>RunAtLoad</key><false/>
+  <key>StandardOutPath</key><string>/Users/adam/priors/logs/radar.log</string>
+  <key>StandardErrorPath</key><string>/Users/adam/priors/logs/radar.log</string>
+  <key>EnvironmentVariables</key><dict><key>PATH</key><string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string></dict>
+</dict></plist>

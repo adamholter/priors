@@ -224,7 +224,7 @@ try {
     } finally { await context.close(); }
   });
 
-  await check("Clear all empties the mix and Undo brings it back", async () => {
+  await check("Clear all empties the mix and Undo brings it back; a removal says what left and offers it back", async () => {
     const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
     const p = await context.newPage();
     try {
@@ -238,16 +238,22 @@ try {
       await p.getByRole("button", { name: "Clear all", exact: true }).click();
       await p.getByText("Your mix is empty.").waitFor();
       assert.equal(await p.locator("#mix input[aria-label$=weight]").count(), 0);
-      await p.getByRole("button", { name: "Undo", exact: true }).click();
+      const toast = p.locator(".assistant-toast[role=status]");
+      await toast.getByText(sliders === 1 ? /^Removed .+ from your mix\.$/ : `Removed ${sliders} benchmarks from your mix.`).waitFor({ timeout: 5000 });
+      await toast.getByRole("button", { name: "Undo", exact: true }).click();
+      await toast.waitFor({ state: "detached", timeout: 5000 });
       await p.locator(".ranking-list [data-k]").first().waitFor();
       assert.equal(await p.locator("#mix input[aria-label$=weight]").count(), sliders, "every benchmark came back");
       // Removing one and pressing the keyboard shortcut does the same.
       await p.waitForTimeout(900);
+      const name = (await p.locator("#mix .bench-remove").first().getAttribute("aria-label")).replace(/^Remove /, "");
       await p.locator("#mix .bench-remove").first().click();
       assert.equal(await p.locator("#mix input[aria-label$=weight]").count(), sliders - 1);
+      assert.equal((await toast.textContent()).includes(`Removed ${name} from your mix.`), true, "the toast names the benchmark");
       await p.locator("body").click({ position: { x: 700, y: 5 } });
       await p.keyboard.press("ControlOrMeta+z");
       await p.waitForFunction((n) => document.querySelectorAll("#mix input[aria-label$=weight]").length === n, sliders, { timeout: 5000 });
+      await toast.waitFor({ state: "detached", timeout: 5000 });
     } finally { await context.close(); }
   });
 

@@ -5,7 +5,10 @@
  * plus per-turn session stats in details. Model-level only (no reasoning effort), coding-agent
  * traffic from one app; popularity reflects price, plans and harness defaults as much as quality,
  * so it never enters default indices. "Other models" / "Unreported model" / "Mixed models" count
- * toward the total but are never ranked. Each row also carries the model's measured token mix
+ * toward the total but are never ranked. From the same telemetry, for models with at least MIN_TURNS turns in the window:
+ * minutes per completed turn, output tokens per turn and estimated API cost per turn (Slopalytics' price table), each its
+ * own benchmark; the usage row also carries `durationSec` and `costUsd`, so the cost and speed charts can use T3 Code as their
+ * data source ("T3 Code", src/data/task-metrics.ts). Each row also carries the model's measured token mix
  * (`tokenMixes`), which Priors uses to blend API prices per token (`src/data/subscription.ts`).
  */
 import type { Source, ScrapeResult, RawRow } from "../../../src/data/types";
@@ -14,6 +17,8 @@ import type { MeasuredTokenMix, TokenMix } from "../../../src/data/subscription"
 const SITE = "https://slopalytics.com";
 const API = "https://slopalytics.com/data/t3-usage.json";
 const BUCKETS = new Set(["Other models", "Unreported model", "Mixed models"]);
+/** Below this many turns in the window a model's per-turn averages are too noisy to rank. */
+export const MIN_TURNS = 2000;
 
 type ModelRow = { day: string; harness: string; model: string; turns: number };
 type MetricRow = {
@@ -80,9 +85,9 @@ const source: Source = {
       turns.set(r.model, (turns.get(r.model) ?? 0) + r.turns);
       (harnesses.get(r.model) ?? harnesses.set(r.model, new Set()).get(r.model)!).add(r.harness);
     }
-    const sums = new Map<string, Required<Omit<MetricRow, "day" | "harness" | "model" | "fresh" | "written">>>();
+    const sums = new Map<string, Required<Omit<MetricRow, "day" | "harness" | "model">>>();
     for (const r of json.metrics ?? []) {
-      const s = sums.get(r.model) ?? { terminal: 0, completed: 0, failed: 0, interrupted: 0, tokenTurns: 0, input: 0, output: 0, cached: 0, timedTurns: 0, durationMs: 0, pricedTurns: 0, estimatedCost: 0, subagentTurns: 0 };
+      const s = sums.get(r.model) ?? { terminal: 0, completed: 0, failed: 0, interrupted: 0, tokenTurns: 0, input: 0, output: 0, cached: 0, fresh: 0, written: 0, timedTurns: 0, durationMs: 0, pricedTurns: 0, estimatedCost: 0, subagentTurns: 0 };
       for (const k of Object.keys(s) as (keyof typeof s)[]) s[k] += Number(r[k] ?? 0) || 0;
       sums.set(r.model, s);
     }
@@ -93,8 +98,18 @@ const source: Source = {
       if (BUCKETS.has(model)) continue;
       const s = sums.get(model);
       const ratio = (a?: number, b?: number) => (a != null && b ? a / b : undefined);
+      const enough = n >= MIN_TURNS;
+      const secondsPerTurn = s && s.timedTurns ? s.durationMs / s.timedTurns / 1000 : undefined, usdPerTurn = ratio(s?.estimatedCost, s?.pricedTurns), outPerTurn = ratio(s?.output, s?.tokenTurns);
+      const per = (benchmarkId: string, value: number | undefined, note: string) => {
+        if (enough && value != null && Number.isFinite(value) && value > 0) rows.push({ benchmarkId, modelLabel: model, value, sourceUrl: SITE, note: `${note}; ${n.toLocaleString("en-US")} T3 Code turns, ${window}` });
+      };
+      per("t3-minutes-per-turn", secondsPerTurn != null ? secondsPerTurn / 60 : undefined, `average completed turn, ${(s?.timedTurns ?? 0).toLocaleString("en-US")} timed`);
+      per("t3-output-tokens-per-turn", outPerTurn, "output tokens, thinking included, per turn");
+      per("t3-cost-per-turn", usdPerTurn, "API-equivalent cost at Slopalytics' price table, not billed spend");
       rows.push({
         benchmarkId: "t3-usage-share", modelLabel: model, value: (n / total) * 100, sourceUrl: SITE,
+        // Per-turn time and cost ride on the usage row for the charts' "T3 Code" data source, only where they are not noise.
+        ...(enough && secondsPerTurn ? { durationSec: secondsPerTurn } : {}), ...(enough && usdPerTurn ? { costUsd: usdPerTurn } : {}), ...(enough && outPerTurn ? { outputTokens: outPerTurn } : {}),
         note: `${n.toLocaleString("en-US")} of ${total.toLocaleString("en-US")} T3 Code turns, ${window}`,
         details: {
           turns: n, totalTurns: total, window, start: days[0], daily: daily.get(model), dayTotals, harnesses: [...(harnesses.get(model) ?? [])].sort(),
@@ -102,6 +117,8 @@ const source: Source = {
           minutesPerCompletedTurn: s && s.timedTurns ? s.durationMs / s.timedTurns / 60_000 : undefined,
           outputTokensPerTurn: ratio(s?.output, s?.tokenTurns), inputTokensPerTurn: ratio(s?.input, s?.tokenTurns),
           estimatedUsdPerTurn: ratio(s?.estimatedCost, s?.pricedTurns), tokenMix: mixes.get(model),
+          // Tokens by kind per turn: the build prices them at the model's current list price (scripts/scrape/t3-costs.ts).
+          ...(enough && s?.tokenTurns ? { perTurn: { fresh: s.fresh / s.tokenTurns, cached: s.cached / s.tokenTurns, written: s.written / s.tokenTurns, output: s.output / s.tokenTurns } } : {}),
         },
       });
     }
@@ -111,7 +128,14 @@ const source: Source = {
         id: "t3-usage-share", name: "T3 Code usage share", shortName: "T3 Code usage", sourceId: this.id, url: SITE, lastUpdated: json.fetchedAt.slice(0, 10),
         description: `Share of all turns sent in T3 Code (${window}), from T3's own telemetry via Slopalytics. Revealed preference among T3 Code users, not a quality measure: price, plans and harness defaults drive it too. Model-level, no reasoning effort.`,
         unit: "percent" as const, higherIsBetter: true, category: "other" as const, eligibleForDefault: false, defaultWeight: 0,
-      }],
+      }, ...([
+        { id: "t3-minutes-per-turn", name: "T3 Code minutes per turn", shortName: "T3 min/turn", unit: "score" as const, category: "speed" as const,
+          description: `Average time from sending a turn to its completion in real T3 Code sessions (${window}), tool and wait time included. Lower is faster. Models with at least ${MIN_TURNS.toLocaleString("en-US")} turns.` },
+        { id: "t3-output-tokens-per-turn", name: "T3 Code output tokens per turn", shortName: "T3 tokens/turn", unit: "count" as const, category: "cost" as const,
+          description: `Output tokens, thinking included, per turn in real T3 Code sessions (${window}). Lower is terser. Models with at least ${MIN_TURNS.toLocaleString("en-US")} turns.` },
+        { id: "t3-cost-per-turn", name: "T3 Code cost per turn", shortName: "T3 $/turn", unit: "usd" as const, category: "cost" as const,
+          description: `Estimated API-equivalent cost of one turn in real T3 Code sessions (${window}), each turn's fresh, cached, cache-write and output tokens at the model's current list price (Slopalytics' price table where Priors has none). Not what anyone was billed. Models with at least ${MIN_TURNS.toLocaleString("en-US")} turns.` },
+      ].filter((b) => rows.some((r) => r.benchmarkId === b.id)).map((b) => ({ ...b, sourceId: this.id, url: SITE, lastUpdated: json.fetchedAt.slice(0, 10), higherIsBetter: false, eligibleForDefault: false, defaultWeight: 0 })))],
       rows,
       raw: { "t3-usage.json": JSON.stringify(json) },
       notes: [`${rows.length} models, ${total.toLocaleString("en-US")} turns, ${window}; ${[...BUCKETS].map((b) => `${b} ${(((turns.get(b) ?? 0) / total) * 100).toFixed(1)}%`).join(", ")}; token mixes for ${mixes.size} models`],

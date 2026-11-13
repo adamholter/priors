@@ -11,6 +11,8 @@
     "scrape": "tsx scripts/scrape/build.ts",
     "library": "tsx scripts/scrape/library.ts",
     "board:try": "tsx scripts/scrape/try-board.ts",
+    "radar": "tsx scripts/radar/radar.ts",
+    "name-check": "tsx scripts/radar/name-check.ts",
     "test": "vitest run",
     "benchmark:identity": "tsx scripts/benchmarks/run-identity.ts",
     "typecheck": "tsc-rs --noEmit -p .",

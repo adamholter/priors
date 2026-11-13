@@ -43,9 +43,14 @@ describe("task metric sources", () => {
   });
   it("counts unique models separately by metric, ignoring invalid data", () => {
     const s = { ...snapshot, observations: [...snapshot.observations, obs("terminalbench-4", "b@high", 60, { costUsd: NaN, durationSec: -1 })] };
-    expect(taskMetricOptions(s, "cost").map((x) => x.modelCount)).toEqual([2, 1, 0, 0]);
+    expect(taskMetricOptions(s, "cost").map((x) => x.modelCount)).toEqual([2, 1, 0, 0, 0]);
     expect(taskMetricData(s, "terminalbench-4", "time").modelCount).toBe(1);
     expect(taskMetricData(s, "terminalbench-4", "time").get("a@low")).toBeUndefined();
+  });
+  it("reads T3 Code's per-turn cost and time from the usage rows", () => {
+    const s = { ...snapshot, observations: [...snapshot.observations, obs("t3-usage-share", "a@high", 12, { costUsd: 0.6, durationSec: 300 })] };
+    expect(taskMetricData(s, "t3-code", "cost").get("a@high")?.value).toBe(0.6);
+    expect(taskMetricData(s, "t3-code", "time").get("a@high")?.value).toBe(300);
   });
   it("reads Terminal-Bench 4.1's trials once the snapshot has them, and 4.0's before", () => {
     const tb41 = { ...snapshot.benchmarks[0], id: "terminalbench-4.1" };

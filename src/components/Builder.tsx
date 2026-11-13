@@ -45,6 +45,7 @@ import { freeTierSettings } from "@/data/free-tier";
 import { threeDUrl } from "@/lib/compare-ref";
 import { useTripleD } from "@/lib/use-triple-d";
 import { useUndoable } from "@/lib/undoable";
+import { useRemovalToast } from "./RemovalToast";
 import { useNewModels } from "@/lib/seen-models";
 import { usePhone } from "./builder-size";
 import { leaving } from "./nav-progress";
@@ -88,6 +89,8 @@ export function Builder({ snapshot: base, initialIndices }: { snapshot: Snapshot
   const notices = useMemo<BuilderNotices | null>(() => own && { indices: own, apply: (upgrades) => setIndices((list) => list.map((i) => upgrades.has(i.name) ? upgradeIndex(i, upgrades.get(i.name)!) : i)) }, [own, setIndices]);
   const [activeId, setActiveId] = useState(indices[0].id);
   const active = indices.find((i) => i.id === activeId) ?? indices[0];
+  const benchName = useCallback((id: string) => snapshot.benchmarks.find((b) => b.id === id)?.name ?? id, [snapshot]);
+  const { toast: removalToast, undo: undoEdit } = useRemovalToast(active, benchName, undo);
   useTripleD(active ? threeDUrl({ kind: "index", config: active }) : null);
   const resetsOn = usePlanResetsOn(), plansPref = useSubscriptionPlansPref();
   const result = useMemo(() => computeIndex(snapshot, { ...withPlansPref(withResetsPref(active, resetsOn), plansPref), variants: "all" }, PAGE_VIEW), [snapshot, active, resetsOn, plansPref]);
@@ -151,10 +154,10 @@ export function Builder({ snapshot: base, initialIndices }: { snapshot: Snapshot
     return () => clearTimeout(t);
   }, [active]);
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z" && !e.shiftKey && !(e.target as HTMLElement)?.closest("input:not([type=range]),textarea,[contenteditable=true]")) { e.preventDefault(); undo(); } };
+    const onKey = (e: KeyboardEvent) => { if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z" && !e.shiftKey && !(e.target as HTMLElement)?.closest("input:not([type=range]),textarea,[contenteditable=true]")) { e.preventDefault(); undoEdit(); } };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [undo]);
+  }, [undoEdit]);
   const effortProps = { efforts: { value: active.efforts ?? DEFAULT_EFFORTS, onChange: (efforts: string[]) => update({ ...active, efforts }) } };
   const metricRanked = useMemo(() => filterEfforts(result.ranked, active.efforts), [result.ranked, active.efforts]);
   const metricEstimated = useMemo(() => filterEfforts(result.estimated, active.efforts), [result.estimated, active.efforts]);
@@ -226,7 +229,7 @@ export function Builder({ snapshot: base, initialIndices }: { snapshot: Snapshot
         <aside id="mix" aria-label="Index controls" className={mixOpen ? "builder-aside scroll-mt-4 relative z-30 flex flex-col gap-5 min-h-0 lg:sticky lg:top-[88px] lg:h-[calc(100dvh-120px)]" : "contents"}>
           <section aria-label="Benchmarks and eligibility" className={mixOpen ? "min-h-0 min-w-0 lg:flex-1 lg:overflow-y-auto lg:overflow-x-hidden lg:overscroll-contain pr-2 pb-2" : "contents"}>
             {mixOpen && <>
-            <div className="flex items-baseline justify-between gap-3 mb-1"><h2 className="text-[22px]">Your mix</h2><span className="flex items-baseline gap-3 text-[12px]"><button type="button" className="hit text-ink-2 hover:text-ink" onClick={() => setMixChoice(false)}>Hide</button>{canUndo && <button type="button" className="hit text-indigo hover:underline" onClick={undo}>Undo</button>}{!mixEmpty && <button type="button" className="hit text-ink-2 hover:text-ink" onClick={() => update({ ...active, weights: {}, required: [], optional: undefined })}>Clear all</button>}</span></div>
+            <div className="flex items-baseline justify-between gap-3 mb-1"><h2 className="text-[22px]">Your mix</h2><span className="flex items-baseline gap-3 text-[12px]"><button type="button" className="hit text-ink-2 hover:text-ink" onClick={() => setMixChoice(false)}>Hide</button>{canUndo && <button type="button" className="hit text-indigo hover:underline" onClick={undoEdit}>Undo</button>}{!mixEmpty && <button type="button" className="hit text-ink-2 hover:text-ink" onClick={() => update({ ...active, weights: {}, required: [], optional: undefined })}>Clear all</button>}</span></div>
             <p className="cap mb-1">{result.benchmarks.length} benchmark{result.benchmarks.length === 1 ? "" : "s"} · {new Set(result.ranked.map((r) => r.model.id)).size} models<span className="sm:hidden"> · data as of {snapshot.date}</span></p>
             {indices.length === 1 && !isAAWeights(active) && <button type="button" onClick={addReference} className="cap block underline underline-offset-2 mb-1">{REFERENCE_LABEL}</button>}
             {!isAAWeights(active) && indexNote(active, "yours") ? <p className="cap mb-4 text-ink-2">{indexNote(active, "yours")}</p> : <div className="mb-4" />}
@@ -255,6 +258,7 @@ export function Builder({ snapshot: base, initialIndices }: { snapshot: Snapshot
             <MetricGallery tiers={{ ranked: speedRanked, settings: speedTiers }} timeSource={active.timeSource} onTimeSourceChange={(timeSource) => update({ ...active, timeSource })} ranked={metricRanked} estimated={metricEstimated} mode={paretoMode} snapshot={snapshot} labs={snapshot.labs} benchmarks={result.benchmarks} config={active} strengths={strengths} settings={{ ...releaseProps, ...effortProps, ...modelPicker }} />
           </div>
         </section>
+        {removalToast}
       </main>
       <SiteFooter />
       </HighlightContext.Provider>

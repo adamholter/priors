@@ -19,6 +19,7 @@ import { fetchPlanResets } from "./plan-resets";
 import { fetchSpeedTiers } from "./speed-tiers";
 import { labelCollisions, swallowedTiers } from "./label-collisions";
 import { applyLaunchClaims } from "./launch-claims";
+import { applyT3Costs } from "./t3-costs";
 import { fetchFreeTiers } from "./free-tiers";
 import { applyFreeTiers, carriedFreeTiers } from "../../src/data/free-tier";
 import { SUBSCRIPTION_BENCHMARK } from "../../src/data/subscription";
@@ -375,6 +376,8 @@ async function main() {
   snap.benchmarks = snap.benchmarks.filter((x) => observed.has(x.id) || snap.series.some((s) => s.benchmarkId === x.id));
 
   snap = canonicalizeSnapshot(snap);
+  // T3 Code turns priced at today's list prices (Slopalytics' table predates the newest models).
+  { const t3 = applyT3Costs(snap); if (t3.priced.length) console.log(`T3_COSTS priced ${t3.priced.length} models at list price`); }
   // Plain-language descriptions and categories, over whatever each source said.
   const catalogued = applyCatalog(snap.benchmarks);
   snap.benchmarks = catalogued.benchmarks;

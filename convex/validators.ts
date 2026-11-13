@@ -1,7 +1,7 @@
 import { v, type Infer } from "convex/values";
 import type { IndexConfig } from "../src/engine";
 
-const taskMetricSource = v.union(v.literal("aa"), v.literal("terminalbench-4"), v.literal("deepswe-1.1"), v.literal("frontierswe-v2"));
+const taskMetricSource = v.union(v.literal("aa"), v.literal("terminalbench-4"), v.literal("deepswe-1.1"), v.literal("frontierswe-v2"), v.literal("t3-code"));
 
 /**
  * The stored shape of an index. It must describe exactly the engine's `IndexConfig`: the assertion

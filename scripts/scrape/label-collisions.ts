@@ -28,14 +28,25 @@ export function labelCollisions(rows: LabeledRow[]): LabelCollision[] {
   return [...out.values()];
 }
 
+/**
+ * Words a label has that its model's own id and name lack, effort words aside: "flash" for "swe-2 flash" on `swe-2`. `tier` keeps only tier
+ * words, for labels already seen on a board (where settings and harness notes abound). `any` keeps every word, for a launch name the radar
+ * read in a post ("Gemini 4 Hydrogen" on `gemini-4`, Gemini 4 Argon), where an element or codename is as telling as a tier.
+ */
+export function missingWords(label: string, model: { id: string; name: string }, which: "tier" | "any" = "tier"): string[] {
+  const own = `${model.id} ${model.name}`.toLowerCase().replace(/-/g, " ");
+  // Text in brackets is usually the source's own note: a harness, a configuration, an effort.
+  const bare = label.toLowerCase().replace(/\([^)]*\)|\[[^\]]*\]/g, " ").replace(EFFORTS, " ");
+  if (which === "tier") return [...tierWords(bare)].filter((w) => !own.includes(w));
+  // "qwen4" is "qwen 4" and "k3.1" is "k 3.1" on both sides. A version counts ("Mythos 5.2" on Mythos Preview); a size ("32b") does not.
+  const words = (t: string) => t.replace(/([a-z])(\d)/g, "$1 $2").split(/[\s-]+/), mine = new Set(words(own));
+  return [...new Set(words(normalizeLabel(bare).cleaned))].filter((w) => /[a-z0-9]/.test(w) && !/^\d+(\.\d+)?[bkmt]$/.test(w) && !mine.has(w));
+}
+
 /** Labels naming a tier their model's own name and id do not have ("swe-2 flash" on `swe-2`): the same merge, before any row collides. */
 export function swallowedTiers(models: { id: string; name: string; aliases: string[] }[]): { modelId: string; label: string; word: string }[] {
-  return models.flatMap((m) => {
-    const own = `${m.id} ${m.name}`.toLowerCase().replace(/-/g, " ");
-    return m.aliases.flatMap((label) => {
-      // Text in brackets is usually the source's own note: a harness, a configuration, an effort.
-      const word = [...tierWords(label.replace(/\([^)]*\)|\[[^\]]*\]/g, " ").replace(EFFORTS, " "))].find((w) => !own.includes(w));
-      return word ? [{ modelId: m.id, label, word }] : [];
-    });
-  });
+  return models.flatMap((m) => m.aliases.flatMap((label) => {
+    const [word] = missingWords(label, m);
+    return word ? [{ modelId: m.id, label, word }] : [];
+  }));
 }

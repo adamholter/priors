@@ -51,6 +51,8 @@ const FAMILIES: { re: RegExp; id: (m: RegExpMatchArray) => string; name: (m: Reg
   { re: /\b(?:claude[\s-]*)?opus[\s-]*(\d+(?:\.\d+)?)\b/, id: (m) => `claude-opus-${m[1]}`, name: (m) => `Opus ${m[1]}`, lab: "anthropic", reasoning: true },
   { re: /\b(?:claude[\s-]*)?sonnet[\s-]*(\d+(?:\.\d+)?)\b/, id: (m) => `claude-sonnet-${m[1]}`, name: (m) => `Sonnet ${m[1]}`, lab: "anthropic", reasoning: true },
   { re: /\b(?:claude[\s-]*)?haiku[\s-]*(\d+(?:\.\d+)?)\b/, id: (m) => `claude-haiku-${m[1]}`, name: (m) => `Haiku ${m[1]}`, lab: "anthropic", reasoning: true },
+  // A numbered Mythos is its own model ("Claude Mythos 5.2", seen by the bench radar on 2026-11-13), not the preview.
+  { re: /\b(?:claude[\s-]*)?mythos[\s-]*(\d+(?:\.\d+)?)\b/, id: (m) => `claude-mythos-${m[1]}`, name: (m) => `Claude Mythos ${m[1]}`, lab: "anthropic", reasoning: true },
   { re: /\b(?:claude[\s-]*)?mythos[\s-]*(preview)?\b/, id: () => "claude-mythos-preview", name: () => "Mythos Preview", lab: "anthropic", reasoning: true },
   // OpenAI
   { re: /\bgpt[\s-]*oss[\s-]*(\d+)b?\b/, id: (m) => `gpt-oss-${m[1]}b`, name: (m) => `gpt-oss-${m[1]}b`, lab: "openai", reasoning: true },
