@@ -26,6 +26,9 @@ changed_sources() {
       scripts/scrape/sources/_*) return 0 ;;
       scripts/scrape/sources/*.test.ts|scripts/scrape/*.test.ts|scripts/scrape/fixtures/*|docs/*|*.md|src/data/catalog/*) ;;
       scripts/scrape/sources/*.ts) ids="$ids,$(basename "$f" .ts)" ;;
+      scripts/scrape/boards/*.test.ts) ;;
+      # Config-only boards (scripts/scrape/boards/): `--only boards` runs every config, a few seconds in all.
+      scripts/scrape/boards/*) ids="$ids,boards" ;;
       *) return 0 ;;
     esac
   done

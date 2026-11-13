@@ -40,10 +40,14 @@ while read -r _ local_sha remote_ref remote_sha; do
   start=$(date +%s)
   changed=$(git diff --name-only $range)
   if [ -z "${PRIORS_PUSH_FULL:-}" ] && ! printf '%s\n' "$changed" | grep -qvE "$LIGHT"; then
-    echo "pre-push: light (only scrapers, ops, docs, descriptions or label rules changed): tests, tsc-rs, eslint on changed files..." >&2
+    echo "pre-push: light (only scrapers, ops, docs, descriptions or label rules changed): tsc-rs, the tests of the changed files, eslint on them..." >&2
     lintable=$(printf '%s\n' "$changed" | grep -E '^(src|scripts|convex)/.*\.(ts|tsx|mjs|mts)$' | while read -r f; do [ -f "$f" ] && echo "$f"; done)
     clean npm run prepush:light >>"$log" 2>&1 || fail "npm run prepush:light"
-    if [ -n "$lintable" ]; then clean npx eslint $lintable >>"$log" 2>&1 || fail "eslint"; fi
+    # vitest related: every test that imports a changed file, directly or not (a changed test runs itself).
+    if [ -n "$lintable" ]; then
+      clean npx vitest related --run --passWithNoTests $lintable >>"$log" 2>&1 || fail "vitest related"
+      clean npx eslint $lintable >>"$log" 2>&1 || fail "eslint"
+    fi
   elif [ -n "${PRIORS_PUSH_SKIP_E2E:-}" ]; then
     echo "pre-push: npm run ci (skipping build and e2e: PRIORS_PUSH_SKIP_E2E)..." >&2
     clean npm run ci >>"$log" 2>&1 || fail "npm run ci"
