@@ -169,9 +169,11 @@ export function ScoreScatter(props: ScatterProps) {
   // Where each label landed after the layout ran, so draw() can join a label that was nudged off its dot back to it.
   const labelAt = useRef(new Map<string, { x: number; y: number; align: "left" | "right" }>());
   const onLabel = useCallback((id: string, at: { x: number; y: number; align: "left" | "right" } | null) => { if (at) labelAt.current.set(id, at); else labelAt.current.delete(id); }, []);
+  // Each new option lays its labels out afresh: a label that is no longer shown (or a dot that moved) must not keep its old
+  // spot, or a leader line runs from the dot to empty space.
   // `dots` only reads the chart handle later, when ECharts runs the label layout (never while this renders).
   // eslint-disable-next-line react-hooks/refs
-  const option = useMemo<EChartsOption>(() => scatterOption({ axis, pts, labs, better, xName, xShort, xUnit, scale, formatX, formatValue, view, pal, narrow, hasTitle: !!title, tooltipExtra, width: plotWidth, height: plotHeight, dots, onLabel, highlight, fallen }),
+  const option = useMemo<EChartsOption>(() => (labelAt.current.clear(), scatterOption({ axis, pts, labs, better, xName, xShort, xUnit, scale, formatX, formatValue, view, pal, narrow, hasTitle: !!title, tooltipExtra, width: plotWidth, height: plotHeight, dots, onLabel, highlight, fallen })),
     [axis, pts, labs, better, view, narrow, xName, xShort, xUnit, scale, formatX, formatValue, tooltipExtra, title, pal, plotWidth, plotHeight, dots, onLabel, highlight, fallen]);
   const [hover, setHover] = useState<ScatterPoint | null>(null), [pinned, setPinned] = useState<ScatterPoint | null>(null);
   // Clicking a mark toggles that exact effort's highlight (several efforts per model are allowed).

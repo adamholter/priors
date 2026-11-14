@@ -11,10 +11,10 @@
 .bench-rail button[aria-pressed=true] .cap{color:var(--indigo)}
 
 /* One grid for the header and every row, so each value sits under its own label. */
-.bench-head,.bench-row{display:grid;grid-template-columns:minmax(0,1fr) 148px 62px 58px 104px;column-gap:14px}
+.bench-head,.bench-dir .bench-row{display:grid;grid-template-columns:minmax(0,1fr) 148px 62px 58px 104px;column-gap:14px}
 .bench-head{align-items:end;padding-bottom:7px;border-bottom:1px solid var(--hair)}
 .bench-head .bench-tip{cursor:help}
-.bench-row{align-items:center;padding:11px 0}
+.bench-dir .bench-row{align-items:center;padding:11px 0}
 /* Off-screen rows skip layout and paint (and their compositor tiles) until they near the viewport. */
 .bench-dir ul > li{content-visibility:auto;contain-intrinsic-size:auto 74px}
 .bench-main{display:flex;align-items:flex-start;gap:11px;min-width:0}
@@ -48,7 +48,7 @@ svg.bench-inline,.bench-trophy{display:none}
 /* Narrow: no room for columns, so each value carries its own word. */
 @media (max-width:1040px){
   .bench-head{display:none}
-  .bench-row{grid-template-columns:none;display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px}
+  .bench-dir .bench-row{grid-template-columns:none;display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px}
   .bench-main{flex:0 0 100%;max-width:100%}
   .bench-num,.bench-q{justify-self:auto}
   .bench-word{position:static;width:auto;height:auto;overflow:visible;clip-path:none}
