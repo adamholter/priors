@@ -12,6 +12,8 @@ import type { OnboardingSnapshot } from "@/data/client-snapshot";
 import { Wordmark } from "@/components/Wordmark";
 import { decodeIndices, encodeIndex, encodeIndices, prettyQuery } from "@/lib/url";
 import { PREFERRED, type BenchmarkQuality } from "./quality";
+/** The quality fields the ranking page reads; the page sends only these (its HTML has a size budget). */
+export type OnboardingQuality = Pick<BenchmarkQuality, "id" | "name" | "score" | "recency" | "saturation" | "objectivity" | "preferred" | "releaseDate" | "dateConfidence" | "sourceUrl">;
 import type { FitUpdate } from "./optimizer";
 import { DEFAULT_FOCUS, FOCUSES, FOCUS_IDS, type FocusId } from "./focus";
 import type { MixLibrary } from "./library";
@@ -65,7 +67,7 @@ function LineupRecorder({ onRegister }: { onRegister: (fn: ((a: LineupArgs) => v
  * The ranking onboarding: a short pairwise sprint, a review list to confirm (the sprint cannot ask
  * every matchup), then the search for the benchmark mix that agrees with the list.
  */
-export function Onboarding({ snapshot, introMix, lineup, seeds, quality, observedModelIds, hasSavedMix, evidence, skipHref }: { snapshot: OnboardingSnapshot; introMix: { name: string; share: number }[]; /** The builder on the default mix, for visitors who want the data without ranking. */ skipHref?: string; lineup: string[]; seeds: string[]; quality: Omit<BenchmarkQuality, "reason">[]; observedModelIds: string[]; hasSavedMix: boolean; /** Rankings from today's benchmark mixes; they steer the smart sprint. */ evidence?: RankingEvidence[] }) {
+export function Onboarding({ snapshot, introMix, lineup, seeds, quality, observedModelIds, hasSavedMix, evidence, skipHref }: { snapshot: OnboardingSnapshot; introMix: { name: string; share: number }[]; /** The builder on the default mix, for visitors who want the data without ranking. */ skipHref?: string; lineup: string[]; seeds: string[]; quality: OnboardingQuality[]; observedModelIds: string[]; hasSavedMix: boolean; /** Rankings from today's benchmark mixes; they steer the smart sprint. */ evidence?: RankingEvidence[] }) {
   const adaptive = useMemo(() => evidence?.length ? { evidence, cap: SMART_CALLS } : undefined, [evidence]);
   const { dark } = useTheme();
   const models = useMemo(() => new Map(snapshot.models.map(m => [m.id, m])), [snapshot]);
