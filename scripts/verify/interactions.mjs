@@ -564,6 +564,44 @@ try {
     } finally { await c.context().close(); }
   });
 
+  await check("Subscription plans > Plan prices: Student lists official offers and changes nothing the chart draws", async () => {
+    const c = await (await browser.newContext({ viewport: { width: 1440, height: 1000 } })).newPage();
+    try {
+      await c.goto(`${BASE}/builder`, { waitUntil: "domcontentloaded" });
+      await c.locator(".ranking-list [data-k]").first().waitFor({ timeout: 30000 });
+      const chart = c.locator('[role="img"][aria-label*="cost per task"]').first();
+      await chart.locator("svg text").first().waitFor({ timeout: 30000 });
+      const drawn = () => chart.evaluate((el) => ({ points: el.getAttribute("data-points"), text: [...el.querySelectorAll("svg text")].map((n) => n.textContent).join("|") }));
+      const rank = () => c.locator(".ranking-list [data-k]").evaluateAll((els) => els.map((e) => e.getAttribute("data-k")).join(","));
+      const picker = c.locator("details", { has: c.locator("summary[aria-label='Pareto settings']") }).first();
+      await picker.scrollIntoViewIfNeeded();
+      await picker.locator("summary[aria-label='Pareto settings']").click();
+      const menu = picker.locator(".chart-settings-menu");
+      await menu.getByRole("tab", { name: "Data" }).click();
+      await menu.locator("summary", { hasText: "Subscription plans" }).click();
+      const chartBefore = await drawn(), rankBefore = await rank(), urlBefore = c.url();
+      assert.equal(await menu.getByRole("button", { name: "Regular" }).getAttribute("aria-pressed"), "true", "regular prices by default");
+      assert.equal(await menu.getByLabel("Official student offers").count(), 0, "no offers until asked");
+      await menu.getByRole("button", { name: "Student" }).click();
+      const offers = menu.getByLabel("Official student offers");
+      await offers.waitFor();
+      const text = await offers.innerText();
+      assert.match(text, /Google AI Pro[\s\S]*Free for 12 months, then \$19.99\/mo[\s\S]*College students in the US/);
+      assert.match(text, /Mistral Vibe Pro[\s\S]*\$5.99\/mo for 12 months[\s\S]*institution/);
+      const hrefs = await offers.locator("a").evaluateAll((as) => as.map((a) => a.href));
+      assert.ok(hrefs.length >= 1 && hrefs.every((h) => /^https:\/\/(gemini\.google|blog\.google|help\.mistral\.ai)\//.test(h)), `official links: ${hrefs}`);
+      await c.waitForTimeout(700);
+      assert.deepEqual(await drawn(), chartBefore, "the chart draws the same points and labels");
+      assert.equal(await rank(), rankBefore, "the ranking is unchanged");
+      assert.equal(c.url(), urlBefore, "the link does not carry the toggle");
+      assert.equal(await c.evaluate(() => localStorage.getItem("priors:subscription-plans")), null, "it picks no plan");
+      await menu.getByRole("button", { name: "Regular" }).click();
+      await menu.getByLabel("Official student offers").waitFor({ state: "detached" });
+      await c.waitForTimeout(700);
+      assert.deepEqual(await drawn(), chartBefore, "back to regular, the chart is unchanged");
+    } finally { await c.context().close(); }
+  });
+
   // Settings are opened from each chart's own summary; wait out hydration, since a click before it does nothing.
   const openSettings = async (label) => {
     const summary = page.locator(`summary[aria-label="${label}"]`).first();
