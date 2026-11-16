@@ -45,7 +45,7 @@ function PriceBasis({ on }: { on: boolean }) {
       <button type="button" aria-pressed={!on} onClick={() => setStudentPricingPref(false)}>Regular</button>
       <button type="button" aria-pressed={on} onClick={() => setStudentPricingPref(true)}>Student</button>
     </div>
-    {on && <span className={styles.planNote}>Shows official student offers beside each plan. Charts, rankings and comparisons keep using regular prices.</span>}
+    {on && <span className={styles.planNote}>Cost charts price a plan at its official student offer where one exists. Rankings, links and saved pages keep regular prices.</span>}
   </div>;
 }
 

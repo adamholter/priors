@@ -1,8 +1,11 @@
+import type { SubscriptionPrice } from "./subscription";
+
 /**
- * Official student offers, a DISPLAY overlay on the plan picker (Data → Subscription plans → Plan prices: Student).
- * Nothing here feeds prices, ranking, stats or comparisons: those always use the regular fee. Only offers a lab's own page
- * states are listed (never a reseller's, never a code); a lab with no current offer has no entry. Re-read `url` (and the terms it links) and update
- * `checked` when touching an entry. `activeStudentOffers` hides an offer once its `deadline` passes.
+ * Official student offers (Data → Subscription plans → Plan prices: Student). A view choice kept in this browser: with it on, cost
+ * charts price a plan an offer covers at the student fee (`withStudentOffers`, applied through `ViewOptions.studentOffers`).
+ * Rankings, scores, links, saved pages, share cards and the default view always use the regular fee. Only offers a lab's own page
+ * states are listed (never a reseller's, never a code); a lab with no current offer has no entry. Re-read `url` (and the terms it
+ * links) and update `checked` when touching an entry. `activeStudentOffers` hides an offer once its `deadline` passes.
  */
 export interface StudentOffer {
   labId: string;
@@ -53,3 +56,23 @@ export const studentValueMultiple = (o: StudentOffer) => o.studentFeeUsd > 0 ? +
 export const studentOptionNote = (offers: readonly StudentOffer[], labId: string, plan: string) => { const o = offers.find((x) => x.labId === labId && x.plan === plan); return o ? ` · student ${studentPriceText(o)}` : ""; };
 /** Today as `YYYY-MM-DD` in UTC. */
 export const todayIso = () => new Date().toISOString().slice(0, 10);
+
+/** The offer covering a plan as pricing names it, including an assumed price ("Google AI Pro (assumed same as Flash)"). */
+const offerFor = (offers: readonly StudentOffer[], labId: string | undefined, plan: string) =>
+  offers.find((o) => o.labId === labId && (plan === o.plan || plan.startsWith(`${o.plan} (`)));
+
+/**
+ * Plan prices with student offers applied, for cost charts only: a covered plan's share of API price scales by student fee over
+ * regular fee, so a free offer prices its models at 0 (the free column). Free tiers and plans no offer covers are unchanged.
+ */
+export function withStudentOffers(prices: Map<string, SubscriptionPrice>, labOf: (modelId: string) => string | undefined, offers: readonly StudentOffer[]): Map<string, SubscriptionPrice> {
+  if (!offers.length) return prices;
+  const out = new Map(prices);
+  for (const [id, p] of prices) {
+    const o = p.ratio > 0 ? offerFor(offers, labOf(id), p.plan) : undefined;
+    if (!o) continue;
+    const k = o.studentFeeUsd / o.regularFeeUsd;
+    out.set(id, { ...p, ratio: p.ratio * k, ...(p.aaCostRatio != null ? { aaCostRatio: p.aaCostRatio * k } : {}), plan: `${p.plan}, student offer`, feeUsd: o.studentFeeUsd });
+  }
+  return out;
+}

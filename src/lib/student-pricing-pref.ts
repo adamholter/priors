@@ -1,5 +1,6 @@
 "use client";
-import { useSyncExternalStore } from "react";
+import { useMemo, useSyncExternalStore } from "react";
+import { activeStudentOffers, todayIso, type StudentOffer } from "@/data/student-offers";
 
 /** Whether plan prices show student offers (Data → Subscription plans → Plan prices). A display choice kept in this browser: never in a link, a saved page or any price. */
 export const STUDENT_PRICING_KEY = "priors:student-pricing";
@@ -18,3 +19,10 @@ function subscribe(cb: () => void) {
 }
 /** Student prices on. Off on the server. */
 export const useStudentPricingPref = () => useSyncExternalStore(subscribe, read, () => false);
+
+/** The open offers when Plan prices: Student is on, for `ViewOptions.studentOffers`; undefined when off. Stable between renders. */
+export function useStudentOffersView(): readonly StudentOffer[] | undefined {
+  const on = useStudentPricingPref();
+  const day = todayIso();
+  return useMemo(() => (on ? activeStudentOffers(day) : undefined), [on, day]);
+}

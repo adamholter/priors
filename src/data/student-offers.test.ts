@@ -1,7 +1,9 @@
 import { readFileSync } from "node:fs";
 import { gunzipSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
-import { activeStudentOffers, STUDENT_OFFERS, studentOptionNote, studentPriceText, studentSavingUsd, studentValueMultiple } from "./student-offers";
+import { activeStudentOffers, STUDENT_OFFERS, studentOptionNote, studentPriceText, studentSavingUsd, studentValueMultiple, withStudentOffers } from "./student-offers";
+import { computeIndex, defaultConfig, PAGE_VIEW } from "@/engine/index";
+import { encodeIndex } from "@/lib/url";
 import { currentPlanName, subscriptionPlanOptions, subscriptionPrices } from "./subscription";
 import { planPrices } from "@/lib/plan-prices";
 import type { Snapshot } from "./types";
@@ -54,13 +56,36 @@ describe("student offers", () => {
     expect(studentOptionNote(STUDENT_OFFERS, "openai", "ChatGPT Plus")).toBe("");
   });
 
-  it("never changes what prices, ranks or compares: the overlay is read-only and the pricing code never reads it", () => {
+  it("prices covered plans at the student fee and leaves free tiers and uncovered plans alone", () => {
+    const regular = subscriptionPrices(snapshot), labOf = new Map(snapshot.models.map((m) => [m.id, m.labId]));
+    const student = withStudentOffers(regular, (id) => labOf.get(id), STUDENT_OFFERS);
+    const hydrogen = [...regular.keys()].find((id) => /hydrogen/.test(id) && /^Google AI Pro/.test(regular.get(id)!.plan));
+    expect(hydrogen, "Hydrogen is priced on Google AI Pro").toBeTruthy();
+    expect(student.get(hydrogen!)).toMatchObject({ ratio: 0, feeUsd: 0 });
+    const mistral = [...regular].find(([, p]) => p.plan === "Mistral Vibe Pro")!;
+    expect(student.get(mistral[0])!.ratio).toBeCloseTo(mistral[1].ratio * 5.99 / 14.99, 12);
+    for (const [id, p] of regular) if (!/^(Google AI Pro|Google AI Plus|Mistral Vibe Pro)/.test(p.plan) || p.ratio === 0) expect(student.get(id), id).toEqual(p);
+    expect(withStudentOffers(regular, (id) => labOf.get(id), [])).toBe(regular);
+  });
+
+  it("Student mode moves cost only: ranks, scores, the link and stored pricing stay the same", () => {
+    const config = { ...defaultConfig(snapshot), costBasis: "subscription" as const, variants: "all" as const };
+    const before = computeIndex(snapshot, config, PAGE_VIEW), after = computeIndex(snapshot, config, { ...PAGE_VIEW, studentOffers: STUDENT_OFFERS });
+    const ranks = (r: typeof before) => r.ranked.map((x) => `${x.variant.id}:${x.rank}:${x.score}`);
+    expect(ranks(after)).toEqual(ranks(before));
+    expect(after.benchmarks).toEqual(before.benchmarks);
+    const cost = (r: typeof before, re: RegExp) => r.ranked.find((x) => re.test(x.model.id) && x.costUsd != null);
+    expect(cost(before, /hydrogen/)!.costUsd).toBeGreaterThan(0);
+    expect(cost(after, /hydrogen/)!.costUsd).toBe(0);
+    expect(after.ranked.filter((x) => x.costUsd !== before.ranked.find((y) => y.variant.id === x.variant.id)!.costUsd).every((x) => ["google", "mistral"].includes(x.model.labId))).toBe(true);
+    expect(encodeIndex(after.config)).toBe(encodeIndex(before.config));
+    expect(JSON.stringify([...subscriptionPrices(snapshot)])).toBe(JSON.stringify([...subscriptionPrices(snapshot)]));
+  });
+
+  it("stored pricing, links and plan price shares never read student offers", () => {
     const before = JSON.stringify([[...subscriptionPrices(snapshot)], subscriptionPlanOptions(snapshot), planPrices(snapshot)]);
-    const frozen = STUDENT_OFFERS.map((o) => Object.freeze({ ...o }));
-    for (const o of frozen) { studentPriceText(o); studentSavingUsd(o); studentValueMultiple(o); }
-    studentOptionNote(frozen, "google", "Google AI Pro"); activeStudentOffers("2026-11-16", frozen);
+    withStudentOffers(subscriptionPrices(snapshot), () => "google", STUDENT_OFFERS);
     expect(JSON.stringify([[...subscriptionPrices(snapshot)], subscriptionPlanOptions(snapshot), planPrices(snapshot)])).toBe(before);
-    expect(STUDENT_OFFERS.map((o) => o.regularFeeUsd)).toEqual(frozen.map((o) => o.regularFeeUsd));
-    for (const f of ["src/data/subscription.ts", "src/lib/plan-prices.ts", "src/engine/index.ts", "src/lib/metrics.ts", "src/lib/url.ts"]) expect(readFileSync(f, "utf8"), f).not.toMatch(/student-offers|student-pricing/);
+    for (const f of ["src/data/subscription.ts", "src/lib/plan-prices.ts", "src/lib/metrics.ts", "src/lib/url.ts", "src/lib/og.tsx", "convex/validators.ts"]) expect(readFileSync(f, "utf8"), f).not.toMatch(/student-offers|student-pricing|studentOffers/);
   });
 });

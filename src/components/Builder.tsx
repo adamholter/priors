@@ -1,5 +1,6 @@
 "use client";
 import { planResetsProps, usePlanResetsOn, withResetsPref } from "@/lib/plan-resets-pref";
+import { useStudentOffersView } from "@/lib/student-pricing-pref";
 import { planPicker, useSubscriptionPlansPref, withPlansPref } from "@/lib/subscription-plans-pref";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MixAssistant } from "./MixAssistant";
@@ -91,8 +92,8 @@ export function Builder({ snapshot: base, initialIndices }: { snapshot: Snapshot
   const benchName = useCallback((id: string) => snapshot.benchmarks.find((b) => b.id === id)?.name ?? id, [snapshot]);
   const { toast: removalToast, undo: undoEdit } = useRemovalToast(active, benchName, undo);
   useTripleD(active ? threeDUrl({ kind: "index", config: active }) : null);
-  const resetsOn = usePlanResetsOn(), plansPref = useSubscriptionPlansPref();
-  const result = useMemo(() => computeIndex(snapshot, { ...withPlansPref(withResetsPref(active, resetsOn), plansPref), variants: "all" }, PAGE_VIEW), [snapshot, active, resetsOn, plansPref]);
+  const resetsOn = usePlanResetsOn(), plansPref = useSubscriptionPlansPref(), studentOffers = useStudentOffersView();
+  const result = useMemo(() => computeIndex(snapshot, { ...withPlansPref(withResetsPref(active, resetsOn), plansPref), variants: "all" }, { ...PAGE_VIEW, studentOffers }), [snapshot, active, resetsOn, plansPref, studentOffers]);
   const rankingMode = chartVariantMode(active, "ranking"), paretoMode = chartVariantMode(active, "pareto");
   const rankingRows = useMemo(() => rankingRowsOf(result.ranked, active), [result, active]);
   // The mix is the secondary thing: closed on AA's index, open once the weights are the visitor's own or they ask for it.

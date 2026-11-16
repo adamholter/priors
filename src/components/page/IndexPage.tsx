@@ -1,5 +1,6 @@
 "use client";
 import { planResetsProps, usePlanResetsOn, withResetsPref } from "@/lib/plan-resets-pref";
+import { useStudentOffersView } from "@/lib/student-pricing-pref";
 import { planPicker, useSubscriptionPlansPref, withPlansPref } from "@/lib/subscription-plans-pref";
 import Link from "next/link";
 import { HeaderAccount } from "@/components/AccountMenu";
@@ -72,8 +73,8 @@ export function IndexPage({ profile, snapshot, edit, tab: linkedTab, linkedHighl
   const [prevProfile, setPrevProfile] = useState(profile);
   if (profile !== prevProfile) { setPrevProfile(profile); setPState(tidyProfile(profile)); }
   const setP = setPState;
-  const resetsOn = usePlanResetsOn(), plansPref = useSubscriptionPlansPref(), fresh = useNewModels(snapshot.models);
-  const results = useMemo(() => new Map(p.indices.map((i) => [i.id, computeIndex(snapshot, { ...withPlansPref(withResetsPref(i, resetsOn), plansPref), variants: "all" }, PAGE_VIEW)])), [snapshot, p.indices, resetsOn, plansPref]);
+  const resetsOn = usePlanResetsOn(), plansPref = useSubscriptionPlansPref(), studentOffers = useStudentOffersView(), fresh = useNewModels(snapshot.models);
+  const results = useMemo(() => new Map(p.indices.map((i) => [i.id, computeIndex(snapshot, { ...withPlansPref(withResetsPref(i, resetsOn), plansPref), variants: "all" }, { ...PAGE_VIEW, studentOffers })])), [snapshot, p.indices, resetsOn, plansPref, studentOffers]);
   const { dark: siteDark } = useTheme();
   const preset = resolvePreset(p.theme, siteDark);
   // The visitor's light/dark toggle matters only when the theme has both versions and the owner didn't lock one.

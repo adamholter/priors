@@ -1,6 +1,7 @@
 import { planResetBoosts, resetBoostFor } from "../data/plan-resets";
 import { effectiveBasis, subscriptionPrices, type CostBasis, type SubscriptionPrice } from "../data/subscription";
 import { supersededModelIds } from "./superseded";
+import { withStudentOffers, type StudentOffer } from "../data/student-offers";
 import { progressEstimates, type ScoreEstimate } from "./progress-estimate";
 import { taskMetricData, taskMetricDescription, type TaskMetricSource } from "../data/task-metrics";
 import type { Benchmark, FocusId, Model, Observation, Snapshot, SpeedTierId, Variant } from "../data/types";
@@ -326,6 +327,8 @@ export const SPEED_BENCHMARK = "aa-output-speed";
 /** Pages that show an index pass `PAGE_VIEW` so an uncurated one leaves out superseded model versions; internal callers see every model. */
 export interface ViewOptions {
   defaultView?: boolean;
+  /** The visitor's Plan prices: Student. Prices covered plans at the student fee for cost charts; scores and ranks never read it. Not part of a stored index or a link. */
+  studentOffers?: readonly StudentOffer[];
   /** Peer estimation method. Default blends the mix match with a full-panel ratio match; "mix" is the original, kept for backtests. */
   peerMethod?: "blend" | "mix";
   /** Price cost per task from this benchmark's own measured cost (its observations' `costUsd`) instead of the index's task-metric source. A benchmark's page sets it; it is not part of a stored index. */
@@ -337,7 +340,9 @@ export function computeIndex(snapshot: Snapshot, config: IndexConfig, view: View
   const c = columnsOf(snapshot);
   const shares = sharesOf(c, config);
   if (!shares.length) return { config, benchmarks: [], ranked: [], excluded: [], candidateModelIds: [], autoHidden: [], estimated: [] };
-  const plans = effectiveBasis(config.costBasis) === "subscription" ? subscriptionPrices(snapshot, config.subscriptionPlans, { free: config.freeTiers === false ? false : config.freeTiers === "limited" ? "limited" : true, reading: config.planReading }) : undefined;
+  const regular = effectiveBasis(config.costBasis) === "subscription" ? subscriptionPrices(snapshot, config.subscriptionPlans, { free: config.freeTiers === false ? false : config.freeTiers === "limited" ? "limited" : true, reading: config.planReading }) : undefined;
+  const labOf = view.studentOffers?.length ? new Map(snapshot.models.map((m) => [m.id, m.labId])) : undefined;
+  const plans = regular && labOf ? withStudentOffers(regular, (id) => labOf.get(id), view.studentOffers!) : regular;
   const detail: Detail = {
     costData: taskMetricData(snapshot, view.costBenchmark ?? config.costSource ?? "aa", "cost"), plans,
     resetBoosts: plans && config.planResets === true ? planResetBoosts(snapshot, { fableResets: config.fableResets }) : undefined,

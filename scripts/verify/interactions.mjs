@@ -564,14 +564,16 @@ try {
     } finally { await c.context().close(); }
   });
 
-  await check("Subscription plans > Plan prices: Student lists official offers and changes nothing the chart draws", async () => {
+  await check("Subscription plans > Plan prices: Student lists official offers and reprices the cost chart, not the ranking or link", async () => {
     const c = await (await browser.newContext({ viewport: { width: 1440, height: 1000 } })).newPage();
     try {
       await c.goto(`${BASE}/builder`, { waitUntil: "domcontentloaded" });
       await c.locator(".ranking-list [data-k]").first().waitFor({ timeout: 30000 });
       const chart = c.locator('[role="img"][aria-label*="cost per task"]').first();
       await chart.locator("svg text").first().waitFor({ timeout: 30000 });
-      const drawn = () => chart.evaluate((el) => ({ points: el.getAttribute("data-points"), text: [...el.querySelectorAll("svg text")].map((n) => n.textContent).join("|") }));
+      // Where the chart draws a model's label: Student moves Gemini 4 Hydrogen (Google AI Pro, free for students) left to the free column.
+      const labelX = (name) => chart.evaluate((el, name) => { const t = [...el.querySelectorAll("svg text")].find((n) => n.textContent === name); return t ? t.getBoundingClientRect().x : null; }, name);
+      const svg = () => chart.evaluate((el) => [...el.querySelectorAll("svg text")].map((n) => `${n.textContent}@${Math.round(n.getBoundingClientRect().x)}`).sort().join("|"));
       const rank = () => c.locator(".ranking-list [data-k]").evaluateAll((els) => els.map((e) => e.getAttribute("data-k")).join(","));
       const picker = c.locator("details", { has: c.locator("summary[aria-label='Pareto settings']") }).first();
       await picker.scrollIntoViewIfNeeded();
@@ -579,7 +581,9 @@ try {
       const menu = picker.locator(".chart-settings-menu");
       await menu.getByRole("tab", { name: "Data" }).click();
       await menu.locator("summary", { hasText: "Subscription plans" }).click();
-      const chartBefore = await drawn(), rankBefore = await rank(), urlBefore = c.url();
+      await c.waitForTimeout(500);
+      const svgBefore = await svg(), xBefore = await labelX("Gemini 4 Hydrogen"), rankBefore = await rank(), urlBefore = c.url();
+      assert.ok(xBefore != null, "the cost chart labels Gemini 4 Hydrogen");
       assert.equal(await menu.getByRole("button", { name: "Regular" }).getAttribute("aria-pressed"), "true", "regular prices by default");
       assert.equal(await menu.getByLabel("Official student offers").count(), 0, "no offers until asked");
       await menu.getByRole("button", { name: "Student" }).click();
@@ -590,15 +594,17 @@ try {
       assert.match(text, /Mistral Vibe Pro[\s\S]*\$5.99\/mo for 12 months[\s\S]*institution/);
       const hrefs = await offers.locator("a").evaluateAll((as) => as.map((a) => a.href));
       assert.ok(hrefs.length >= 1 && hrefs.every((h) => /^https:\/\/(gemini\.google|blog\.google|mistral\.ai)\//.test(h)), `official links: ${hrefs}`);
-      await c.waitForTimeout(700);
-      assert.deepEqual(await drawn(), chartBefore, "the chart draws the same points and labels");
+      await c.waitForTimeout(900);
+      const xAfter = await labelX("Gemini 4 Hydrogen");
+      assert.ok(xAfter != null && xAfter < xBefore - 20, `Hydrogen moves left on student prices: ${xBefore} -> ${xAfter}`);
       assert.equal(await rank(), rankBefore, "the ranking is unchanged");
       assert.equal(c.url(), urlBefore, "the link does not carry the toggle");
       assert.equal(await c.evaluate(() => localStorage.getItem("priors:subscription-plans")), null, "it picks no plan");
       await menu.getByRole("button", { name: "Regular" }).click();
       await menu.getByLabel("Official student offers").waitFor({ state: "detached" });
-      await c.waitForTimeout(700);
-      assert.deepEqual(await drawn(), chartBefore, "back to regular, the chart is unchanged");
+      await c.waitForTimeout(900);
+      assert.equal(await labelX("Gemini 4 Hydrogen"), xBefore, "back to regular, Hydrogen returns");
+      assert.equal(await svg(), svgBefore, "back to regular, every label is where it was");
     } finally { await c.context().close(); }
   });
 
