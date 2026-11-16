@@ -165,6 +165,11 @@ describe("Real API Pricing subscriptions", () => {
     // A low-confidence Pro row gives way to the one derived from a high-confidence Plus measurement.
     expect(plans("GPT 6 Astra").find((p) => p.plan === "ChatGPT Pro 10x")).toMatchObject({ usdPerMtok: 0.063, confidence: "medium" });
   });
+  it("lists Pro 10x once when Real API Pricing already publishes it under its new id at the doubled allowance (no second halving)", () => {
+    const renamed = parseSubscriptions({ ...payload, points: [point("chatgpt_plus::gpt-6.1-sol", "ChatGPT Plus", "OpenAI", 0.02, { model_display: "GPT 6.1 Sol", confidence: "high", data_date: "2026-07-30" }), point("chatgpt_pro_10x::gpt-6.1-sol", "ChatGPT Pro 10x", "OpenAI", 0.01, { model_display: "GPT 6.1 Sol", price_usd: 100, confidence: "medium", data_date: "2026-07-30~2026-10-30" })] }, conventions, channels);
+    const plans = (renamed.find((r) => r.modelLabel === "GPT 6.1 Sol")!.details as { plans: { plan: string; usdPerMtok: number }[] }).plans;
+    expect(plans.filter((p) => p.plan === "ChatGPT Pro 10x")).toEqual([expect.objectContaining({ usdPerMtok: 0.01 })]);
+  });
   it("falls back to the best medium-confidence reseller plan when a model has no first-party plan", () => {
     expect(row("Qwen3.8 Max")).toMatchObject({ value: 0.04, details: { plan: "Droid Max", confidence: "medium" } });
     expect(row("Qwen3.8 Max").note).toContain("best of 2 reseller plans");

@@ -167,8 +167,10 @@ export function withMultiples(points: Point[]): Point[] {
   const out = [...points];
   for (const m of PLAN_MULTIPLES) for (const base of points) {
     if (!base.id.startsWith(`${m.base}::`) || base.billing !== "subscription" || base.unmetered || !(base.real_usd_per_mtok > 0) || !base.price_usd) continue;
-    const id = `${m.planId}::${base.id.slice(m.base.length + 2)}`, confidence = LESS_SURE[base.confidence] ?? "low";
-    const at = out.findIndex((p) => p.id === id);
+    const model = base.id.slice(m.base.length + 2), id = `${m.planId}::${model}`, confidence = LESS_SURE[base.confidence] ?? "low";
+    // Real API Pricing renames a plan's id when its allowance changes (chatgpt_pro_5x became chatgpt_pro_10x on 29 October 2026,
+    // already at the doubled allowance), so a measured row is found by the plan it sells as, not only by id. Otherwise the plan is listed twice.
+    const at = out.findIndex((p) => p.id === id || (p.id.endsWith(`::${model}`) && (p.plan_en ?? p.plan) === m.plan));
     if (at >= 0 && !(out[at].confidence === "low" && confidence !== "low")) continue;
     const derived: Point = { ...base, id, plan: m.plan, plan_en: m.plan, price_usd: m.feeUsd, confidence, real_usd_per_mtok: base.real_usd_per_mtok * (m.feeUsd / base.price_usd) / m.multiple };
     if (at >= 0) out[at] = derived; else out.push(derived);
