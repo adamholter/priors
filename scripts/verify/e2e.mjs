@@ -1,6 +1,6 @@
 /**
  * Serves the production build and runs the browser checks against it: smoke (every route, onboarding
- * end to end) and interactions (the builder's controls). CI runs this after `npm run build`.
+ * end to end), interactions (the builder's controls) and mobile-tooltips (touch placement and dismissal of the point card and info popover, iPhone and Android, light and dark). CI runs this after `npm run build`.
  *   npm run build && npm run e2e
  * Smoke and the interaction shards (SHARD in interactions.mjs) run side by side: one after another they took
  * about 140s of every push, side by side about a third of that. E2E_SHARDS sets the interaction shard count.
@@ -36,6 +36,7 @@ try {
   const t0 = Date.now();
   const codes = await Promise.all([
     run("scripts/verify/smoke.mjs", "smoke"),
+    run("scripts/verify/mobile-tooltips.mjs", "mobile tooltips"),
     ...Array.from({ length: SHARDS }, (_, i) => run("scripts/verify/interactions.mjs", SHARDS > 1 ? `interactions ${i}/${SHARDS}` : "interactions", SHARDS > 1 ? { SHARD: `${i}/${SHARDS}` } : {})),
   ]);
   console.log(`e2e: ${codes.every((c) => c === 0) ? "all passed" : "FAILED"} in ${((Date.now() - t0) / 1000).toFixed(0)}s (${took.join(", ")})`);

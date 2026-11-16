@@ -40,3 +40,4 @@ logs/
 .dev.vars*
 .scrape-checkout
 /scripts/assistant-eval/results/
+scripts/verify/.shots

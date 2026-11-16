@@ -5,7 +5,7 @@ import { decodeEditor, encodeEditor, type EditorState } from "@/lib/export-edito
 import { chartLinkUrl } from "@/lib/highlight-link";
 import type { ECharts, EChartsOption } from "echarts";
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import type { Lab } from "@/data/types";
 import { DARK_PALETTE, LIGHT_PALETTE, markColor, useChartPalette, useEChart } from "./echarts";
 import { useChartGrid } from "@/lib/chart-grid-pref";
@@ -84,8 +84,43 @@ function escapeHtml(s: string) { return s.replace(/[&<>"']/g, (c) => ({ "&": "&a
  * Index score vs one metric. Lab-colored marks, reasoning efforts of one model joined by a thin line,
  * Pareto frontier traced in ink, labels thinned by density. Title, settings and export share one row.
  */
+/** Browser bars (Safari's toolbar, the home indicator) cover the bottom of the screen; keep floating cards above this much of it. */
+const BROWSER_BAR = 88;
+/**
+ * On a phone a chart can be taller than the screen, so a card pinned to the chart's bottom edge lands under the browser's toolbar.
+ * Lifts the card (a transform, from its resting place `rest` px above the chart's bottom) until it sits inside the visible viewport,
+ * and keeps it there while the page scrolls. Desktop and tall viewports never move it.
+ */
+function useKeepOnScreen(ref: RefObject<HTMLElement | null>, rest: number, mark?: () => { x: number; y: number } | undefined) {
+  const markRef = useRef(mark); useEffect(() => { markRef.current = mark; });
+  useLayoutEffect(() => {
+    const el = ref.current, host = el?.parentElement;
+    if (!el || !host) return;
+    let raf = 0;
+    const place = () => {
+      raf = 0;
+      const h = el.offsetHeight, hr = host.getBoundingClientRect(), vh = window.visualViewport?.height ?? window.innerHeight;
+      const restTop = hr.bottom - rest - h;
+      let top = Math.min(restTop, vh - BROWSER_BAR - h);
+      top = Math.max(top, Math.min(restTop, Math.max(8, hr.top + 4)));
+      // Lifted over the plot, the card must not hide the mark it describes: if it would, sit at the top of the visible plot instead (when that is clear of the mark).
+      const m = top < restTop ? markRef.current?.() : undefined;
+      if (m) {
+        const left = hr.right - 12 - el.offsetWidth, hits = (t: number) => hr.left + m.x > left - 16 && hr.top + m.y > t - 16 && hr.top + m.y < t + h + 16;
+        const high = Math.max(8, hr.top + 4);
+        if (hits(top) && !hits(high) && high + h < restTop) top = high;
+      }
+      el.style.transform = top < restTop ? `translateY(${Math.round(top - restTop)}px)` : "";
+    };
+    const queue = () => { if (!raf) raf = requestAnimationFrame(place); };
+    place();
+    window.addEventListener("scroll", queue, { passive: true }); window.addEventListener("resize", queue); window.visualViewport?.addEventListener("resize", queue);
+    return () => { cancelAnimationFrame(raf); window.removeEventListener("scroll", queue); window.removeEventListener("resize", queue); window.visualViewport?.removeEventListener("resize", queue); };
+  }, [ref, rest]);
+}
+
 /** The selected point's details, pinned to the chart's lower right so it never covers the marks it describes. */
-function PointCard({ point, labs, pal, onFrontier, format, unit, extra, onClose, xLabel }: { point: ScatterPoint; labs: Lab[]; pal: ChartPalette; onFrontier: boolean; format: (v: number) => string; unit: string; extra?: string; onClose?: () => void; xLabel?: string }) {
+function PointCard({ point, labs, pal, onFrontier, format, unit, extra, onClose, xLabel, mark }: { mark?: () => { x: number; y: number } | undefined; point: ScatterPoint; labs: Lab[]; pal: ChartPalette; onFrontier: boolean; format: (v: number) => string; unit: string; extra?: string; onClose?: () => void; xLabel?: string }) {
   const axis = useScoreAxis();
   const r = point.r, lab = labs.find((l) => l.id === r.model.labId)?.name ?? r.model.labId;
   const effort = r.variant.effort !== "default" && !new RegExp(`\\b${r.variant.effort}\\b`, "i").test(r.model.name) ? r.variant.effort : undefined;
@@ -96,7 +131,9 @@ function PointCard({ point, labs, pal, onFrontier, format, unit, extra, onClose,
   const api = plan && plan.ratio > 0 && r.costUsd != null ? r.costUsd / plan.ratio : undefined;
   const apiPrice = api == null ? undefined : perTask ? format(api).replace(/\/task$/, "") : api >= 1 ? `$${api.toFixed(2)}` : `$${api.toPrecision(2)}`;
   const planName = plan?.plan ?? (extra?.includes("API price, no plan data") ? "API price, no plan data" : undefined);
-  return <div role="status" aria-label="Selected model" className="absolute right-3 bottom-12 z-10 w-[min(300px,calc(100%-24px))] rounded-[4px] border text-[12px] leading-[1.45] pointer-events-none" style={{ background: pal.tipBg, borderColor: pal.tipBorder, color: pal.ink }}>
+  const card = useRef<HTMLDivElement>(null);
+  useKeepOnScreen(card, 48, mark);
+  return <div ref={card} role="status" aria-label="Selected model" className="absolute right-3 bottom-12 z-10 w-[min(300px,calc(100%-24px))] rounded-[4px] border text-[12px] leading-[1.45] pointer-events-none" style={{ background: pal.tipBg, borderColor: pal.tipBorder, color: pal.ink }}>
     <div className="px-3 pt-2.5 pb-2">
       <div className="flex items-start justify-between gap-3"><div className="min-w-0"><span className="font-semibold">{modelLabel(r)}</span>{effort && <span style={{ color: pal.grey }}> {effort}</span>}{setup && <span style={{ color: pal.grey }}>, {setup}</span>}</div>{onClose && <button type="button" aria-label="Close selection" className="pointer-events-auto -mr-1 -mt-0.5 p-0.5" style={{ color: pal.grey }} onClick={onClose}><IconX size={13} aria-hidden="true" /></button>}</div>
       <div style={{ color: pal.grey, fontSize: 11 }}>{lab}{onFrontier ? " · on the frontier" : ""}</div>
@@ -194,6 +231,14 @@ export function ScoreScatter(props: ScatterProps) {
       if (d && event) { event.preventDefault(); event.stopPropagation(); contextPick.current(d, event.clientX, event.clientY); }
     });
   }, true);
+  // A touch has no mouseout: a tap anywhere outside the plot (page text, the title, another chart) closes the card, and a tap on the card itself or the plot is the chart's own.
+  const open = !!(pinned || hover);
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: PointerEvent) => { const el = ref.current; if (el && e.target instanceof Node && !el.contains(e.target)) { setPinned(null); setHover(null); } };
+    document.addEventListener("pointerdown", away);
+    return () => document.removeEventListener("pointerdown", away);
+  }, [open, ref]);
 
   useEffect(() => { if (chartRef) chartRef.current = chart.current; });
   // The screenshot editor opens from the toolbar, or from a link (`xe` on this chart's own `c=`), and closing it leaves the page as it was.
@@ -362,7 +407,7 @@ export function ScoreScatter(props: ScatterProps) {
         <div ref={ref} role="img" aria-label={aria} data-points={pts.map((p) => p.r.variant.id).sort().join(",")} tabIndex={0} onContextMenu={onContextMenu} onKeyDown={context.onKeyDown} style={{ width: "100%", height: expand.expanded ? "100%" : bare ? height : Math.round(height * (pal.size?.height ?? 1)), overflow: "hidden", position: "relative", isolation: "isolate" }} />
         {fall && !!fallen?.size && <GravityLayer key={fall.run} dots={fall.dots} width={fall.width} height={fall.height} floor={fall.floor} left={fall.left} right={fall.right} stroke={pal.bg} />}
         {!pts.length && <p className="cap absolute inset-0 grid place-items-center">No model in this view has this metric.</p>}
-        {focus && <PointCard point={focus} labs={labs} pal={pal} onFrontier={view.frontier && onFrontierIds.has(focus.r.variant.id)} format={formatValue ?? formatX} unit={xUnit} extra={[tooltipExtra?.(focus), focus.r.speedTier ? ` · ${speedTierNote(focus.r)}` : ""].filter(Boolean).join("") || undefined} xLabel={xShort ?? xName} onClose={pinned && !hover ? () => setPinned(null) : undefined} />}
+        {focus && <PointCard mark={() => { try { const [x, y] = chart.current?.convertToPixel({ xAxisIndex: 0, yAxisIndex: 0 }, [focus.x, focus.r.score]) as number[]; return Number.isFinite(x) && Number.isFinite(y) ? { x, y } : undefined; } catch { return undefined; } }} point={focus} labs={labs} pal={pal} onFrontier={view.frontier && onFrontierIds.has(focus.r.variant.id)} format={formatValue ?? formatX} unit={xUnit} extra={[tooltipExtra?.(focus), focus.r.speedTier ? ` · ${speedTierNote(focus.r)}` : ""].filter(Boolean).join("") || undefined} xLabel={xShort ?? xName} onClose={pinned && !hover ? () => setPinned(null) : undefined} />}
       </div>
       {!bare && (legend || trimmedModels > 0) && <p className="cap mt-1 max-sm:px-4 pr-16">{legend}{legend && trimmedModels > 0 ? " " : ""}{trimmedModels > 0 && <>{trimmedModels} more models under All models in settings.</>}</p>}
       {!bare && <ChartContextMenu exportControl={exportControl} state={context.menu} close={context.close} name={exportName} points={pts} visibility={visibility} chart={chart} wrap={wrapRef} expanded={expand.expanded} anchor={anchor} />}
