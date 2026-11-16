@@ -11,11 +11,19 @@ const snapshot = JSON.parse(gunzipSync(readFileSync("data/snapshots/latest.json.
 describe("student offers", () => {
   it("lists only offers with an official https page, eligibility and a check date", () => {
     for (const o of STUDENT_OFFERS) {
-      expect(o.url).toMatch(/^https:\/\/(gemini\.google|blog\.google|help\.mistral\.ai)\//);
+      expect(o.url).toMatch(/^https:\/\/(gemini\.google|blog\.google|mistral\.ai)\//);
       expect(o.eligibility.length).toBeGreaterThan(40);
       expect(o.checked).toMatch(/^\d{4}-\d{2}-\d{2}$/);
       expect(o.studentFeeUsd).toBeLessThan(o.regularFeeUsd);
     }
+  });
+
+  it("states each lab page's own terms: Mistral's existing-account switch and teachers, Google's one-year Pro plan and usage-limit caveat", () => {
+    const by = (plan: string) => STUDENT_OFFERS.find((o) => o.plan === plan)!;
+    expect(by("Mistral Vibe Pro").url).toBe("https://mistral.ai/pricing");
+    expect(by("Mistral Vibe Pro").eligibility).toMatch(/existing account[\s\S]*Teachers[\s\S]*only for students/);
+    expect(by("Google AI Pro")).toMatchObject({ studentFeeUsd: 0, months: 12, regularFeeUsd: 19.99, deadline: "2026-12-31" });
+    for (const p of ["Google AI Pro", "Google AI Plus"]) expect(by(p).eligibility).toMatch(/usage limits may differ/);
   });
 
   it("names plans the snapshot sells, at the fee the snapshot lists", () => {

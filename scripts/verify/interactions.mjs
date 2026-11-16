@@ -586,10 +586,10 @@ try {
       const offers = menu.getByLabel("Official student offers");
       await offers.waitFor();
       const text = await offers.innerText();
-      assert.match(text, /Google AI Pro[\s\S]*Free for 12 months, then \$19.99\/mo[\s\S]*College students in the US/);
+      assert.match(text, /Google AI Pro[\s\S]*Free for 12 months, then \$19.99\/mo[\s\S]*Students at a US college/);
       assert.match(text, /Mistral Vibe Pro[\s\S]*\$5.99\/mo for 12 months[\s\S]*institution/);
       const hrefs = await offers.locator("a").evaluateAll((as) => as.map((a) => a.href));
-      assert.ok(hrefs.length >= 1 && hrefs.every((h) => /^https:\/\/(gemini\.google|blog\.google|help\.mistral\.ai)\//.test(h)), `official links: ${hrefs}`);
+      assert.ok(hrefs.length >= 1 && hrefs.every((h) => /^https:\/\/(gemini\.google|blog\.google|mistral\.ai)\//.test(h)), `official links: ${hrefs}`);
       await c.waitForTimeout(700);
       assert.deepEqual(await drawn(), chartBefore, "the chart draws the same points and labels");
       assert.equal(await rank(), rankBefore, "the ranking is unchanged");
