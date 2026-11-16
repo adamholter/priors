@@ -78,10 +78,12 @@ export const SUBSIDY_ASSUMPTIONS: SubsidyAssumption[] = [
     modelId: "gemini-4-carbon", label: "Gemini 4 Carbon (max)", sameAs: "gemini-4", sameAsName: "Argon", checked: "2026-10-29",
     note: "No plan sells Carbon yet: Google opened it to cyber defenders first, with subscribers \"coming soon\". Assumed to get Argon's subsidy on the same plan.",
   },
-  // Released November 12, 2026. Adam: assume Flash's or Argon's subsidy, Argon's when they differ. They do: Gemini 3.8 Flash's measured share of API price is a fraction of Argon's.
+  // Pro's Argon allowance is a separate weekly-only pool. Hydrogen uses the shared Gemini pool;
+  // its paid estimate follows Flash's measured share, never Argon's. This remains an assumption until
+  // Hydrogen has its own measurement. Sources and the four-week budget estimate are in docs/data.md.
   {
-    modelId: "gemini-4-hydrogen", label: "Gemini 4 Hydrogen (xhigh)", sameAs: "gemini-4", sameAsName: "Argon", checked: "2026-11-12",
-    note: "Released November 12, 2026, before Real API Pricing has measured it on a plan. Assumed to get Argon's subsidy on the same plan.",
+    modelId: "gemini-4-hydrogen", label: "Gemini 4 Hydrogen (xhigh)", sameAs: "gemini-3.8-flash", sameAsName: "Flash", checked: "2026-11-15",
+    note: "Estimated from Flash's shared Gemini pool on Google AI Pro, not Argon's separate weekly-only Pro allowance. Published shared-pool measurements imply roughly $494 of API value per four weeks. This is a workload-based estimate, not a Google-guaranteed dollar or token allowance, and Hydrogen has not been measured independently.",
   },
 ];
 

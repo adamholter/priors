@@ -177,6 +177,17 @@ describe("Real API Pricing subscriptions", () => {
     expect(row("Gemini 4 Carbon (max)")).toMatchObject({ value: 0.303, details: { plan: "Google AI Pro (assumed same as Argon)", sameAs: "gemini-4", confidence: "assumed", mix: { cache: 0.85, input: 0.145, output: 0.005 } } });
     expect(row("Gemini 4 Carbon (max)").note).toContain("No plan sells Carbon yet");
   });
+  it("prices Hydrogen from the shared Gemini pool, keeping Argon's separate Pro quota out of its estimate", () => {
+    const flash = point("google_ai_pro_us::gemini-3.8-flash", "Google AI Pro", "Google", 0.0077450601, { model_display: "Gemini 3.8 Flash", price_usd: 19.99, workload: "lowCache", confidence: "high" });
+    const points = [...payload.points, flash];
+    const found = parseSubscriptions({ ...payload, points }, conventions, channels);
+    expect(found.find((r) => r.modelLabel.startsWith("Gemini 4 Hydrogen"))).toMatchObject({ value: flash.real_usd_per_mtok, details: { sameAs: "gemini-3.8-flash", confidence: "assumed", plan: "Google AI Pro (assumed same as Flash)" } });
+    expect(found.find((r) => r.modelLabel === "Gemini 4 Argon")!.value).toBe(0.303);
+    // Without a shared-pool measurement, do not silently substitute Argon's unrelated allowance.
+    expect(rows.some((r) => r.modelLabel.startsWith("Gemini 4 Hydrogen"))).toBe(false);
+    const measured = parseSubscriptions({ ...payload, points: [...points, point("google_ai_pro_us::gemini-4-hydrogen", "Google AI Pro", "Google", 0.009, { model_display: "Gemini 4 Hydrogen", price_usd: 19.99 })] }, conventions, channels);
+    expect(measured.filter((r) => r.modelLabel.startsWith("Gemini 4 Hydrogen"))).toMatchObject([{ value: 0.009, details: { plan: "Google AI Pro", confidence: "medium" } }]);
+  });
   it("drops the assumption once a plan's measurement for the model exists", () => {
     const measured = parseSubscriptions({ ...payload, points: [...payload.points, point("google_ai_pro_us::gemini-4-carbon", "Google AI Pro", "Google", 0.5, { model_display: "Gemini 4 Carbon", price_usd: 19.99 })] }, conventions, channels);
     const carbon = measured.filter((r) => r.modelLabel.startsWith("Gemini 4 Carbon"));
@@ -243,7 +254,7 @@ describe("Real API Pricing subscriptions", () => {
     const ctx = { fetchText: async (url: string) => JSON.stringify(files[url.split("/").pop()!]) } as unknown as Parameters<typeof source.scrape>[0];
     const r = await source.scrape(ctx);
     expect(r.benchmarks[0]).toMatchObject({ id: SUBSCRIPTION_BENCHMARK, unit: "usd", proxy: true, defaultWeight: 0, eligibleForDefault: false, lastUpdated: "2026-10-08" });
-    expect(r.rows).toHaveLength(9 + 7 + 2 + 1 + 1); // + Mistral Vibe Pro's rows (four Mistral models, GLM 5.2, GLM 5.3 Flash, DeepSeek V4.1 Flash 1017), Tencent Token Plan's Hy4 and Hy4 preview, Fable 5.2's measured share, and Hydrogen assumed same as Argon
+    expect(r.rows).toHaveLength(9 + 7 + 2 + 1); // + Mistral Vibe Pro's rows (four Mistral models, GLM 5.2, GLM 5.3 Flash, DeepSeek V4.1 Flash 1017), Tencent Token Plan's Hy4 and Hy4 preview, Fable 5.2's measured share. Hydrogen is absent without a Flash shared-pool measurement
     expect(Object.keys(r.raw)).toEqual(["points.json", "conventions.json", "channel-colors.json"]);
   });
 });
