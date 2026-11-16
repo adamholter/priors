@@ -77,6 +77,7 @@ Notes on sources whose behavior is not obvious from the file:
 - `matharena-apex` reads MathArena's `competition_tables/<comp>` JSON for Apex and the Apex shortlist, with 95% CIs. The ⚠️ contamination marker is dropped from labels and kept in the note.
 - `scale-hle-text` reads Scale's text-only Humanity's Last Exam board from the RSC payload (`hle-text-only`), effort from the parenthetical, CIs kept.
 - `clockbench` reads ClockBench's leaderboard table (human baselines skipped); effort is the model name's trailing word. Reasoning category, `defaultWeight: 0`.
+- `lisanbench` reads LisanBench's own `data/core.json` (models joined to `aggregated` by id): the site's default Path Length (`sum_chain_avg`, valid steps summed over the 50 starting words) with its interval; the difficulty-weighted score and the site's cost estimate (token counts at catalog prices, so not `costUsd`) go in `details`. "(16k)" budgets and "(thinking)" are not efforts; a model also run without thinking gets effort `none` for that run. Runs missing a starting word are skipped. Reasoning category, `defaultWeight: 0`. Boggs' copy stays in its `COVERED` list.
 - `llmlearner` reads LLMLearner's per-benchmark rankings for boards with no official live feed (today NL2Repo-Bench). Every row is a vendor or paper report, noted as self-reported.
   `BASE=https://mypriors.com npx tsx scripts/verify/sudo-l7.ts` checks source agreement, search, adding, reload, every displayed score, and desktop/mobile rendering.
 
