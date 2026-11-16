@@ -147,6 +147,8 @@ export interface PlanMultiple {
   multiple: number;
   /** Listed so it can be picked and priced, but left out of the median a model is priced at by default. */
   listOnly?: boolean;
+  /** Only models whose id matches: the plan does not include the others (or does not say how much of them). */
+  models?: RegExp;
   source: string;
   checked: string;
 }
@@ -156,6 +158,9 @@ export const PLAN_MULTIPLES: PlanMultiple[] = [
   { base: "chatgpt_plus", planId: "chatgpt_pro_20x", plan: "ChatGPT Pro 20x", feeUsd: 200, multiple: 20, source: "https://help.openai.com/en/articles/9793128-what-is-chatgpt-pro", checked: "2026-10-29" },
   // Launched 29 September 2026 at 25 times Plus; OpenAI doubled Pro 100 and Pro 500 on 29 October ("twice their previous Work and Codex allowance"), so 50 times. OpenAI states neither the launch figure nor 50 on the current page: 50 is that arithmetic.
   // The only self-serve plan with Ultrafast, which is why it is listed. Left out of the median so adding it moves no model's default price.
+  // "AI Plus: 2x higher than standard limits", "AI Pro: 4x higher": half Pro's usage for a quarter of the fee, so twice Pro's API value per dollar.
+  // Flash models only: Google does not say how much Pro-tier model use (Argon's separate weekly allowance) Plus includes.
+  { base: "google_ai_pro_us", planId: "google_ai_plus_us", plan: "Google AI Plus", feeUsd: 4.99, multiple: 0.5, models: /flash/, source: "https://gemini.google/subscriptions/", checked: "2026-11-16" },
   { base: "chatgpt_plus", planId: "chatgpt_pro_500", plan: "ChatGPT Pro 500", feeUsd: 500, multiple: 50, listOnly: true, source: "https://help.openai.com/en/articles/9793128-about-chatgpt-pro-tiers", checked: "2026-11-05" },
 ];
 

@@ -167,6 +167,7 @@ export function withMultiples(points: Point[]): Point[] {
   const out = [...points];
   for (const m of PLAN_MULTIPLES) for (const base of points) {
     if (!base.id.startsWith(`${m.base}::`) || base.billing !== "subscription" || base.unmetered || !(base.real_usd_per_mtok > 0) || !base.price_usd) continue;
+    if (m.models && !m.models.test(base.id.slice(m.base.length + 2))) continue;
     const model = base.id.slice(m.base.length + 2), id = `${m.planId}::${model}`, confidence = LESS_SURE[base.confidence] ?? "low";
     // Real API Pricing renames a plan's id when its allowance changes (chatgpt_pro_5x became chatgpt_pro_10x on 29 October 2026,
     // already at the doubled allowance), so a measured row is found by the plan it sells as, not only by id. Otherwise the plan is listed twice.

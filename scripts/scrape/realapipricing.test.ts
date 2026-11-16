@@ -170,6 +170,13 @@ describe("Real API Pricing subscriptions", () => {
     const plans = (renamed.find((r) => r.modelLabel === "GPT 6.1 Sol")!.details as { plans: { plan: string; usdPerMtok: number }[] }).plans;
     expect(plans.filter((p) => p.plan === "ChatGPT Pro 10x")).toEqual([expect.objectContaining({ usdPerMtok: 0.01 })]);
   });
+  it("derives Google AI Plus for Flash models at half Pro's token price (half the usage for a quarter of the fee), not for Argon", () => {
+    const got = parseSubscriptions({ ...payload, points: [point("google_ai_pro_us::gemini-3.8-flash", "Google AI Pro", "Google", 0.008, { model_display: "Gemini 3.8 Flash", price_usd: 19.99, confidence: "high" }), point("google_ai_pro_us::gemini-4-argon", "Google AI Pro", "Google", 0.3, { model_display: "Gemini 4 Argon", price_usd: 19.99, confidence: "low" })] }, conventions, channels);
+    const plans = (label: string) => (got.find((r) => r.modelLabel === label)!.details as { plans: { plan: string; feeUsd: number; usdPerMtok: number }[] }).plans;
+    expect(plans("Gemini 3.8 Flash").find((p) => p.plan === "Google AI Plus")).toMatchObject({ feeUsd: 4.99 });
+    expect(plans("Gemini 3.8 Flash").find((p) => p.plan === "Google AI Plus")!.usdPerMtok).toBeCloseTo(0.004, 3);
+    expect(plans("Gemini 4 Argon").some((p) => p.plan === "Google AI Plus")).toBe(false);
+  });
   it("falls back to the best medium-confidence reseller plan when a model has no first-party plan", () => {
     expect(row("Qwen3.8 Max")).toMatchObject({ value: 0.04, details: { plan: "Droid Max", confidence: "medium" } });
     expect(row("Qwen3.8 Max").note).toContain("best of 2 reseller plans");
