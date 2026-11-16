@@ -5,7 +5,7 @@ import type { Benchmark } from "./types";
  * main one is what a plain add uses; the others are reached from its settings. Arena's categories come from the
  * scraper (`variantOf` on the benchmark); these are the ones that already existed as separate benchmarks.
  */
-export const FAMILIES: Record<string, { mainLabel: string; variants: Record<string, string> }> = {
+export const FAMILIES: Record<string, { mainLabel: string; variants: Record<string, string>; /** What the page's switch between them is called; default "Category". */ switchLabel?: string }> = {
   "clutterbench-raw": { mainLabel: "Raw prompt", variants: { "clutterbench-simple": "Simple prompt" } },
   "vals-programbench-v1": { mainLabel: "Fully resolved", variants: { "vals-programbench-v1-almost-resolved": "Almost resolved", "vals-programbench-v1-raw-pass-rate": "Raw pass rate" } },
   "frontiercode-1.1-main": { mainLabel: "Main", variants: { "frontiercode-1.1-extended": "Extended" } },
@@ -16,6 +16,8 @@ export const FAMILIES: Record<string, { mainLabel: string; variants: Record<stri
   "bh-scale-swe-bench-pro-v2-full": { mainLabel: "Full set", variants: { "bh-scale-swe-bench-pro-v2-hard": "Hard subset" } },
   "arena-agent": { mainLabel: "Net improvement", variants: {} },
   "arena-text": { mainLabel: "Overall", variants: { "arena-text-multi-turn": "Multi-turn" } },
+  // The scraper marks these too; listed for the picker's and the page's labels. Without reasoning is the author's suggested main ranking.
+  lisanbench: { mainLabel: "Without reasoning", switchLabel: "Ranking", variants: { "lisanbench-all-runs": "All runs, reasoning on" } },
 };
 const BY_VARIANT = new Map(Object.entries(FAMILIES).flatMap(([main, f]) => Object.entries(f.variants).map(([id, label]) => [id, { main, label }] as const)));
 

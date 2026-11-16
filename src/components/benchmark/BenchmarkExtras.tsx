@@ -13,13 +13,13 @@ import { markColor, useChartPalette, useEChart } from "../chart/echarts";
 import { escapeSvg as esc } from "../chart/export-frame";
 
 /** Category splits (buttons, or a menu when there are many) and versions (always a menu, newest first): other boards of this benchmark. */
-export function Relatives({ current, family, versions }: { current: string; family: { id: string; label: string }[]; versions: { id: string; label: string }[] }) {
+export function Relatives({ current, family, familyLabel = "Category", versions }: { current: string; family: { id: string; label: string }[]; familyLabel?: string; versions: { id: string; label: string }[] }) {
   const router = useRouter();
   const row = (label: string, list: { id: string; label: string }[], select = false) => !list.length ? null : select || list.length > 6
     ? <label className="cap flex items-center gap-2">{label}<select className="inp !w-auto !py-1 !text-[12.5px] normal-case" value={list.some((x) => x.id === current) ? current : list[0].id} onChange={(e) => router.push(benchmarkPath(e.target.value) as "/")}>{list.map((x) => <option key={x.id} value={x.id}>{x.label}</option>)}</select></label>
     : <div className="flex flex-wrap items-center gap-2"><span className="cap">{label}</span><div className="seg" role="group" aria-label={label}>{list.map((x) => <Link key={x.id} href={benchmarkPath(x.id) as "/"} aria-current={x.id === current ? "page" : undefined} aria-pressed={x.id === current} className="!text-[12.5px] !px-2.5">{x.label}</Link>)}</div></div>;
   if (!family.length && !versions.length) return null;
-  return <div className="flex flex-wrap items-center gap-x-6 gap-y-3">{row("Category", family)}{row("Version", versions, true)}</div>;
+  return <div className="flex flex-wrap items-center gap-x-6 gap-y-3">{row(familyLabel, family)}{row("Version", versions, true)}</div>;
 }
 
 /** Models down the side, a group's columns across, each cell shaded by where it sits in its column (better is darker). Click a column to sort by it. */

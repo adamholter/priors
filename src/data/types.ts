@@ -70,6 +70,8 @@ export interface Benchmark {
   lastUpdated?: string; // YYYY-MM-DD; distinct from benchmark release and scrape dates
   /** YYYY-MM-DD: the last date the publisher updated this while its sibling boards kept going. The rows are its final values, not current ones. */
   stoppedPublishing?: string;
+  /** A line the board page shows under the description about results it does not have yet (models the publisher has not run this way). */
+  notice?: string;
   /** Fixed source-defined scale; independent of which models the user filters. */
   normalization?: { kind: "linear"; min: number; max: number };
   unit: BenchmarkUnit;

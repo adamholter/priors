@@ -1,4 +1,5 @@
 import type { Benchmark, Observation, Series, Snapshot } from "@/data/types";
+import { FAMILIES } from "@/data/benchmark-families";
 
 /**
  * What a benchmark publishes beyond its score, found from its observations rather than listed per source:
@@ -143,12 +144,12 @@ export function benchmarkSeries(snapshot: Snapshot, benchmarkId: string): BenchS
 }
 
 /** Other boards of the same benchmark: its category splits (arena categories, subsets) and its other versions. */
-export function benchmarkRelatives(snapshot: Snapshot, benchmark: Benchmark): { family: { id: string; label: string }[]; versions: { id: string; label: string }[] } {
+export function benchmarkRelatives(snapshot: Snapshot, benchmark: Benchmark): { family: { id: string; label: string }[]; familyLabel?: string; versions: { id: string; label: string }[] } {
   const measured = new Set(snapshot.observations.map((o) => o.benchmarkId));
   const main = benchmark.variantOf ?? benchmark.id;
   const mainB = snapshot.benchmarks.find((b) => b.id === main);
   const kids = snapshot.benchmarks.filter((b) => b.variantOf === main && measured.has(b.id));
-  const family = kids.length && mainB ? [{ id: main, label: mainB.variantLabel ?? "Overall" }, ...kids.map((b) => ({ id: b.id, label: b.variantLabel ?? b.name }))] : [];
+  const family = kids.length && mainB ? [{ id: main, label: mainB.variantLabel ?? FAMILIES[main]?.mainLabel ?? "Overall" }, ...kids.map((b) => ({ id: b.id, label: b.variantLabel ?? b.name }))] : [];
   // Versions: follow `supersedes` (and a fallback, DeepSWE 1.1 to 1) both ways from this board's main.
   const sup = new Map<string, string>(), by = new Map<string, string>();
   for (const b of snapshot.benchmarks) {
@@ -159,5 +160,5 @@ export function benchmarkRelatives(snapshot: Snapshot, benchmark: Benchmark): { 
   for (let x = sup.get(main); x && !chain.includes(x); x = sup.get(x)) chain.push(x);
   for (let x = by.get(main); x && !chain.includes(x); x = by.get(x)) chain.unshift(x);
   const versions = chain.length > 1 ? chain.filter((id) => measured.has(id)).map((id) => ({ id, label: snapshot.benchmarks.find((b) => b.id === id)?.name ?? id })) : [];
-  return { family, versions };
+  return { family, ...(family.length && FAMILIES[main]?.switchLabel ? { familyLabel: FAMILIES[main].switchLabel } : {}), versions };
 }
