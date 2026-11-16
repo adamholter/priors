@@ -248,6 +248,8 @@ export function ScoreScatter(props: ScatterProps) {
     const present = () => ((c.getOption().graphic as { elements?: { id?: string }[] }[] | undefined) ?? []).some((g) => g.elements?.some((e) => e.id === "guides"));
     let last = "";
     const draw = () => {
+      // A frame queued before the chart was disposed (a page change) finds no model: "e.getModel() is null".
+      if (c.isDisposed()) return;
       const grid = ((c as unknown as { getModel: () => unknown }).getModel() as { getComponent: (t: string, i: number) => { coordinateSystem?: { getRect: () => { x: number; y: number; width: number; height: number } } } | undefined }).getComponent("grid", 0)?.coordinateSystem?.getRect();
       if (!grid) return;
       const bottom = grid.y + grid.height, on = pal.dark ? "#141413" : "#FFFFFF";
@@ -302,6 +304,8 @@ export function ScoreScatter(props: ScatterProps) {
     let second = 0;
     const first = requestAnimationFrame(() => { second = requestAnimationFrame(() => {
       const c = chart.current; if (!c) return;
+      // A frame queued before the chart was disposed (a page change) finds no model: "e.getModel() is null".
+      if (c.isDisposed()) return;
       const grid = ((c as unknown as { getModel: () => unknown }).getModel() as { getComponent: (t: string, i: number) => { coordinateSystem?: { getRect: () => { x: number; y: number; width: number; height: number } } } | undefined }).getComponent("grid", 0)?.coordinateSystem?.getRect();
       if (!grid) return;
       const colorOf = new Map(labs.map((l) => [l.id, markColor(l.color, pal, l.id)]));

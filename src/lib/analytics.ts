@@ -6,9 +6,20 @@ export type AnalyticsEvent =
   | "chart_exported" | "custom_theme_added" | "share_card_opened" | "share_card_shared"
   | "onboarding_started" | "onboarding_bracket_done" | "onboarding_compare_more" | "onboarding_skipped" | "onboarding_fit_started" | "publish_clicked"
   | "share_menu_opened" | "remix_clicked" | "explore_x_clicked"
-  | "support_clicked" | "compare_opened" | "compare_link_copied" | "compare_changed" | "request_sent" | "version_notice";
+  | "dom_guarded" | "support_clicked" | "compare_opened" | "compare_link_copied" | "compare_changed" | "request_sent" | "version_notice";
 
 const key = process.env.NEXT_PUBLIC_POSTHOG_KEY?.trim();
+
+/**
+ * Exceptions that are not Priors bugs, kept out of error tracking so its inbox shows real ones: cross-origin "Script error."
+ * (extensions, other sites' scripts), the benign ResizeObserver loop note, wallet and extension messaging, Outlook's link
+ * scanner, and view transitions the browser cancels when a newer navigation starts (Nov 2-16, 2026: about 1,400 of 1,500).
+ */
+export const EXCEPTION_NOISE = /^Script error\.?$|ResizeObserver loop|window\.ethereum|runtime\.sendMessage|Object Not Found Matching Id|provider is disconnected|ViewTransition|view transition|Transition was (skipped|aborted)/i;
+export function isNoiseException(props: Record<string, unknown> | undefined): boolean {
+  const values = (props?.$exception_values as unknown[] | undefined) ?? (props?.$exception_list as { value?: unknown }[] | undefined)?.map((e) => e?.value);
+  return !!values?.length && values.every((v) => typeof v === "string" && EXCEPTION_NOISE.test(v));
+}
 let loading: Promise<PostHog> | null = null;
 
 /** PostHog is over 300 KB and nothing on screen depends on it, so it downloads after the page has settled, or at the first event. Off without a key, and never on localhost. */
@@ -25,6 +36,13 @@ export function startAnalytics(): Promise<PostHog> | null {
       session_recording: { maskAllInputs: true },
       // Uncaught errors reach error tracking; error.tsx and global-error.tsx report the ones React catches.
       capture_exceptions: true,
+      before_send: (event) => (event?.event === "$exception" && isNoiseException(event.properties) ? null : event),
+    });
+    // The page-translation guard (DOM_GUARD_SCRIPT) stepped in: count it, with the languages, once per page.
+    let guarded = false;
+    window.addEventListener("priors:dom-guard", () => {
+      if (guarded) return; guarded = true;
+      posthog.capture("dom_guarded", { page_lang: document.documentElement.lang, browser_lang: navigator.language, translated: /translated/.test(document.documentElement.className) });
     });
     return posthog;
   });
