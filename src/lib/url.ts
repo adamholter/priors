@@ -44,7 +44,7 @@ export function encodeIndex(c: FromPage, keepPage = false): string {
   if (c.excludeModels) parts.push(`ex=${c.excludeModels.join(",")}`);
   if (c.onlyModels !== undefined) parts.push(`only=${c.onlyModels.join(",")}`);
   if (c.releasedAfter !== undefined) parts.push(`after=${c.releasedAfter}`);
-  if (c.costSource && c.costSource !== "aa") parts.push(`costsrc=${c.costSource}`);
+  if (c.costSource) parts.push(`costsrc=${c.costSource}`);
   if (c.costBasis === "api") parts.push(`costbasis=${c.costBasis}`);
   if (c.planResets === true) parts.push("resets=on");
   if (c.fableResets !== undefined && Number.isInteger(c.fableResets) && c.fableResets >= 0 && c.fableResets <= 3 && c.fableResets !== 1) parts.push(`fresets=${c.fableResets}`);

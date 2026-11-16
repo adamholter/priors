@@ -3,7 +3,7 @@ import { effectiveBasis, subscriptionPrices, type CostBasis, type SubscriptionPr
 import { supersededModelIds } from "./superseded";
 import { withStudentOffers, type StudentOffer } from "../data/student-offers";
 import { progressEstimates, type ScoreEstimate } from "./progress-estimate";
-import { taskMetricData, taskMetricDescription, type TaskMetricSource } from "../data/task-metrics";
+import { costSourceOf, taskMetricData, taskMetricDescription, type TaskMetricSource } from "../data/task-metrics";
 import type { Benchmark, FocusId, Model, Observation, Snapshot, SpeedTierId, Variant } from "../data/types";
 import { columnsOf, DEFAULT_RANK, effortLocked, ROW_FLAGS, type Columns, type EstimationRoute } from "../data/columns";
 import { AA_V5_WEIGHTS, aaComponentWeights } from "../data/aa-index";
@@ -343,8 +343,9 @@ export function computeIndex(snapshot: Snapshot, config: IndexConfig, view: View
   const regular = effectiveBasis(config.costBasis) === "subscription" ? subscriptionPrices(snapshot, config.subscriptionPlans, { free: config.freeTiers === false ? false : config.freeTiers === "limited" ? "limited" : true, reading: config.planReading }) : undefined;
   const labOf = view.studentOffers?.length ? new Map(snapshot.models.map((m) => [m.id, m.labId])) : undefined;
   const plans = regular && labOf ? withStudentOffers(regular, (id) => labOf.get(id), view.studentOffers!) : regular;
+  const costSource = costSourceOf(snapshot, config.costSource);
   const detail: Detail = {
-    costData: taskMetricData(snapshot, view.costBenchmark ?? config.costSource ?? "aa", "cost"), plans,
+    costData: taskMetricData(snapshot, view.costBenchmark ?? costSource, "cost"), costSource, plans,
     resetBoosts: plans && config.planResets === true ? planResetBoosts(snapshot, { fableResets: config.fableResets }) : undefined,
     excluded: [], candidateModelIds: [],
   };
@@ -390,6 +391,8 @@ function ordered(ranked: RankedVariant[], config: IndexConfig): RankedVariant[] 
 /** What a full result adds to the scores. */
 interface Detail {
   costData: ReturnType<typeof taskMetricData>;
+  /** The index's cost source, its default resolved against the snapshot (T3 Code's real use where present, else AA). */
+  costSource: TaskMetricSource;
   plans?: Map<string, SubscriptionPrice>;
   resetBoosts?: ReturnType<typeof planResetBoosts>;
   excluded: IndexResult["excluded"];
@@ -702,7 +705,7 @@ function rankVariants(c: Columns, config: IndexConfig, shares: IndexResult["benc
     const measuredCost = detail.costData.get(v.id);
     // Preserve AA's mix-weighted cost when every selected benchmark publishes it.
     let weightedAaCost: number | undefined;
-    if (!view.costBenchmark && (config.costSource ?? "aa") === "aa") {
+    if (!view.costBenchmark && detail.costSource === "aa") {
       weightedAaCost = 0;
       for (let s = 0; s < S; s++) {
         const r = at[vi * nb + shareBench[s]], o = r >= 0 ? c.rows[r] : undefined;
@@ -711,14 +714,14 @@ function rankVariants(c: Columns, config: IndexConfig, shares: IndexResult["benc
       }
     }
     const viewCost = view.costBenchmark ? c.bench[c.benchIndex.get(view.costBenchmark) ?? -1] : undefined;
-    const cost = weightedAaCost != null ? { usd: weightedAaCost, source: "AA measured task costs, weighted by this mix" } : measuredCost ? { usd: measuredCost.value, source: (view.costBenchmark ? `${viewCost?.name ?? view.costBenchmark} · measured cost per task` : taskMetricDescription(config.costSource ?? "aa", "cost")) + (measuredCost.observation.harness ? ` · ${measuredCost.observation.harness}` : "") } : undefined;
+    const cost = weightedAaCost != null ? { usd: weightedAaCost, source: "AA measured task costs, weighted by this mix" } : measuredCost ? { usd: measuredCost.value, source: (view.costBenchmark ? `${viewCost?.name ?? view.costBenchmark} · measured cost per task` : taskMetricDescription(detail.costSource, "cost")) + (measuredCost.observation.harness ? ` · ${measuredCost.observation.harness}` : "") } : undefined;
     // Subscription basis: the measured API cost scaled by the share of API price the plan works out to.
     // Models without a first-party plan keep their API cost — that is what they cost to use.
     // Limit resets (src/data/plan-resets.ts) give the plan's subscribers extra usage, so its share of API price falls by that factor.
     // A Claude Fable grant refills Fable's own cap, so Fable 5.2 gets its own (larger) boost (resetBoostFor).
     const listed = cost && detail.plans?.get(model.id), reset = listed && listed.ratio > 0 ? detail.resetBoosts?.get(model.labId) : undefined, boost = resetBoostFor(reset, model.id);
     const plan = listed && boost > 1 ? { ...listed, ratio: listed.ratio / boost, ...(listed.aaCostRatio ? { aaCostRatio: listed.aaCostRatio / boost } : {}) } : listed;
-    if (cost && plan) { cost.usd *= (!view.costBenchmark && (config.costSource ?? "aa") === "aa" ? plan.aaCostRatio : undefined) ?? plan.ratio; cost.source += plan.ratio === 0 ? ` · free on ${plan.plan}` : ` · ${plan.plan}, ${subscriptionShare(plan.ratio)} of API price at full use${reset && boost > 1 ? `, with ${reset.resets} limit resets in 30 days${reset.banked ? ` (${reset.banked} banked)` : ""}` : ""}`; }
+    if (cost && plan) { cost.usd *= (!view.costBenchmark && detail.costSource === "aa" ? plan.aaCostRatio : undefined) ?? plan.ratio; cost.source += plan.ratio === 0 ? ` · free on ${plan.plan}` : ` · ${plan.plan}, ${subscriptionShare(plan.ratio)} of API price at full use${reset && boost > 1 ? `, with ${reset.resets} limit resets in 30 days${reset.banked ? ` (${reset.banked} banked)` : ""}` : ""}`; }
     const speedRow = speedBench === undefined ? -1 : at[vi * nb + speedBench];
     ranked.push({ variant: v, model, score: num / den, coverage, measuredShare, values, mixedEfforts: values.some((value) => value.estimateKind === "effort"), costUsd: cost?.usd, costSource: cost?.source, costPlan: plan || undefined, speed: speedRow >= 0 && value[speedRow] > 0 ? value[speedRow] : undefined, onFrontier: false, rank: 0 });
   }

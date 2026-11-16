@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { scatterSpec } from "@/lib/og-chart";
 import type { Observation, Snapshot } from "./types";
-import { taskMetricData, taskMetricOptions } from "./task-metrics";
+import { costSourceOf, defaultCostSource, taskMetricData, taskMetricOptions } from "./task-metrics";
 import { computeIndex, defaultConfig } from "../engine";
 import { decodeIndex, encodeIndex } from "../lib/url";
 import { metricPanels } from "../lib/metrics";
@@ -121,5 +121,26 @@ describe("task metric sources", () => {
     expect(restored.timeSource ?? "aa").toBe("aa");
     expect(decodeIndex(encodeIndex(config) + "|costsrc=bad|timesrc=bad", "test")?.costSource).toBeUndefined();
     expect(decodeIndex(encodeIndex({ ...config, timeSource: "terminalbench-4" }), "test")?.timeSource).toBe("terminalbench-4");
+  });
+  it("defaults cost per task to T3 Code once its per-effort costs cover 5 models, and keeps an explicit pick, AA included", () => {
+    const turnTime = { ...snapshot.benchmarks[0], id: "t3-turn-time" };
+    const rows = ["a@high", "b@high", "c@high", "d@high", "e@high"].map((v, i) => obs("t3-turn-time", v, 2, { durationSec: 120, costUsd: 0.5 + i }));
+    const variants = [...snapshot.variants, ...["c", "d", "e"].map((m) => ({ ...snapshot.variants[0], id: `${m}@high`, modelId: m }))];
+    const models = [...snapshot.models, ...["c", "d", "e"].map((id) => ({ ...snapshot.models[0], id, name: id }))];
+    const t3 = { ...snapshot, benchmarks: [...snapshot.benchmarks, turnTime], models, variants, observations: [...snapshot.observations, ...rows] };
+    expect(defaultCostSource(t3)).toBe("t3-code");
+    expect(costSourceOf(t3, "aa")).toBe("aa");
+    // Too few models, or a snapshot from before the per-effort costs: Artificial Analysis.
+    const few = { ...t3, observations: [...snapshot.observations, ...rows.slice(0, 4)] };
+    expect(defaultCostSource(few)).toBe("aa");
+    const unpriced = { ...t3, observations: [...snapshot.observations, ...rows.map((o) => ({ ...o, costUsd: undefined }))] };
+    expect(defaultCostSource(unpriced)).toBe("aa");
+    expect(defaultCostSource(snapshot)).toBe("aa");
+    // The engine prices cost per task from the default source.
+    const cfg = { ...config, costBasis: "api" as const };
+    expect(computeIndex(t3, cfg).ranked.find((r) => r.variant.id === "a@high")?.costUsd).toBe(0.5);
+    expect(computeIndex(t3, { ...cfg, costSource: "aa" }).ranked.find((r) => r.variant.id === "a@high")?.costUsd).toBe(0.1);
+    // An explicit AA pick survives a link, so it is not swapped for the new default.
+    expect(decodeIndex(encodeIndex({ ...cfg, costSource: "aa" }), "test")?.costSource).toBe("aa");
   });
 });

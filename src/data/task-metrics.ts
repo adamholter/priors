@@ -97,6 +97,19 @@ export function defaultTimeSource(snapshot: Snapshot): TaskMetricSource {
 }
 export const timeSourceOf = (snapshot: Snapshot, chosen?: TaskMetricSource): TaskMetricSource => chosen ?? defaultTimeSource(snapshot);
 
+/**
+ * Cost per task defaults to T3 Code's real use too, once its per-effort costs are in the snapshot (T3's ClickHouse rows, priced at
+ * list price); older snapshots keep Artificial Analysis. An explicit choice, including "aa", is kept in the index and its links
+ * (`costsrc=aa`).
+ */
+const defaultCost = new WeakMap<Snapshot, TaskMetricSource>();
+export function defaultCostSource(snapshot: Snapshot): TaskMetricSource {
+  let s = defaultCost.get(snapshot);
+  if (!s) defaultCost.set(snapshot, s = snapshot.observations.some((o) => o.benchmarkId === "t3-turn-time" && o.costUsd != null) && taskMetricData(snapshot, "t3-code", "cost").modelCount >= 5 ? "t3-code" : "aa");
+  return s;
+}
+export const costSourceOf = (snapshot: Snapshot, chosen?: TaskMetricSource): TaskMetricSource => chosen ?? defaultCostSource(snapshot);
+
 export function taskMetricOptions(snapshot: Snapshot, metric: TaskMetric) {
   return TASK_METRIC_SOURCES.map((source) => ({ ...source, modelCount: taskMetricData(snapshot, source.id, metric).modelCount }));
 }
