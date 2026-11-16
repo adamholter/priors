@@ -29,4 +29,13 @@ export const BOARDS: BoardConfig[] = [
     description: "26 long-horizon engineering projects built by domain experts, from GPU kernels to aircraft design. Each attempt is scored by how far it moves the project from its baseline (0%) toward the task's ceiling (100%) on held-out cases. Mean of 8 attempts per task.",
     labelPrefix: CLAUDE, labelMap: { Beam: "Beam 1.0" },
   },
+  {
+    // Andon Labs (Lukas Petersson), November 16, 2026. Each model turns the same drawing into a printable figure; visitors vote blind between
+    // two figures from the same drawing (photos of real prints where they exist, else fixed renders). Bradley-Terry rating, ties count half.
+    id: "wojak-bench-3d", name: "Wojak-Bench 3D", shortName: "Wojak-Bench 3D", url: "https://wojak-bench.dev.pion.dev/",
+    reader: "table", table: 0, label: "model", value: "rating",
+    unit: "elo", higherIsBetter: true, category: "creative", categories: ["creative", "vision"], minRows: 5,
+    description: "Each model turns the same drawing into a printable 3D figure; visitors pick the figure that matches the drawing better in blind pairs. Bradley-Terry rating on an Elo-like scale.",
+    note: "community blind votes between figures made from the same drawing",
+  },
 ];
