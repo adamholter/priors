@@ -52,6 +52,17 @@ describe("task metric sources", () => {
     expect(taskMetricData(s, "t3-code", "cost").get("a@high")?.value).toBe(0.6);
     expect(taskMetricData(s, "t3-code", "time").get("a@high")?.value).toBe(300);
   });
+  it("reads T3 Code's cost per effort from its ClickHouse rows once they are priced, and the usage rows before", () => {
+    const turnTime = { ...snapshot.benchmarks[0], id: "t3-turn-time" };
+    const usage = obs("t3-usage-share", "a@high", 12, { costUsd: 0.6, durationSec: 300 });
+    const unpriced = { ...snapshot, benchmarks: [...snapshot.benchmarks, turnTime], observations: [...snapshot.observations, usage, obs("t3-turn-time", "a@low", 2, { durationSec: 120 })] };
+    expect(taskMetricData(unpriced, "t3-code", "cost").get("a@high")?.value).toBe(0.6);
+    expect(taskMetricData(unpriced, "t3-code", "time").get("a@low")?.value).toBe(120);
+    const priced = { ...unpriced, observations: [...snapshot.observations, usage, obs("t3-turn-time", "a@low", 2, { durationSec: 120, costUsd: 0.25 }), obs("t3-turn-time", "b@high", 3, { durationSec: 200, costUsd: 0.4 })] };
+    expect(taskMetricData(priced, "t3-code", "cost").get("a@low")?.value).toBe(0.25);
+    expect(taskMetricData(priced, "t3-code", "cost").get("a@high")).toBeUndefined();
+    expect(taskMetricData(priced, "t3-code", "cost").modelCount).toBe(2);
+  });
   it("reads Terminal-Bench 4.1's trials once the snapshot has them, and 4.0's before", () => {
     const tb41 = { ...snapshot.benchmarks[0], id: "terminalbench-4.1" };
     const s = { ...snapshot, benchmarks: [...snapshot.benchmarks, tb41], observations: [...snapshot.observations, obs("terminalbench-4.1", "b@high", 61, { costUsd: 5, durationSec: 700 })] };

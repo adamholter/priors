@@ -30,3 +30,12 @@ test("slimming keeps what the engine reads", () => {
   expect(slimObservation({ ...base, note: "effort estimated from peers" }).note).toBe("effort estimated from peers");
   expect(slimObservation({ ...base, costUsd: 0.5, sourceModelId: "x" }).sourceModelId).toBe("x");
 });
+
+test("T3 Code real-use rows keep the users and turns behind them, for the hover and the minimum-users filter", () => {
+  const o = (benchmarkId: string) => ({ benchmarkId, variantId: "m@high", value: 1, observedAt: "", sourceUrl: "u", details: { users: 40, turns: 300, perTurn: { fresh: 1, cached: 2, written: 0, output: 3 }, medianSec: 9 } });
+  const snap = { observations: [o("t3-turn-time"), o("t3-cost-per-turn"), o("other")], variants: [], series: [] } as unknown as Snapshot;
+  const [time, cost, other] = clientSnapshot(snap).observations;
+  expect(time.details).toEqual({ users: 40, turns: 300 });
+  expect(cost.details).toEqual({ users: 40, turns: 300 });
+  expect(other.details).toBeUndefined();
+});

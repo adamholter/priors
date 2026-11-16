@@ -21,6 +21,17 @@ describe("T3 Code telemetry by effort", () => {
     expect(of("claude-opus-5-5").every((r) => r.effort)).toBe(true);
     expect(of("composer-2.5")).toEqual([expect.objectContaining({ effortUnstated: true })]);
   });
+  it("carries the average turn's tokens by kind where enough turns have token counts, and none from an older payload", () => {
+    const efforts = (tokens: number[] | []) => [["high", 500, 40, 200, 30, 400, 7000, ...tokens]];
+    const p: T3Payload = { ...payload, rows: [...payload.rows.slice(0, 10), ["kimi-k3", 500, efforts([480, 1200, 2_400_000, 40_000, 7100, 35])], ["glm-5.3-flash", 500, efforts([12, 1, 2, 3, 4, 9])], ["gemini-4-hydrogen", 500, efforts([42, 1, 2, 3, 4, 2])]] as T3Payload["rows"] };
+    const at = (label: string) => parseT3Telemetry(p).rows.find((r) => r.modelLabel === label)?.details as { perTurn?: unknown; tokenTurns?: number };
+    expect(at("kimi-k3")).toMatchObject({ perTurn: { fresh: 1200, cached: 2_400_000, written: 40_000, output: 7100 }, tokenTurns: 480, tokenUsers: 35 });
+    // Too few turns with token counts, or too few users behind them (most of the turns came from a harness that sends none).
+    expect(at("glm-5.3-flash").perTurn).toBeUndefined();
+    expect(at("gemini-4-hydrogen").perTurn).toBeUndefined();
+    // The fixture predates the token columns.
+    expect(rows.some((r) => (r.details as { perTurn?: unknown }).perTurn)).toBe(false);
+  });
   it("skips provider-prefixed, fast-mode and versionless ids instead of folding them into the plain model", () => {
     expect(rows.some((r) => /us\.anthropic|-fast$|^opus$/.test(r.modelLabel))).toBe(false);
     expect(of("glm-5.3").length).toBeGreaterThan(0);

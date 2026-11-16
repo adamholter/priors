@@ -39,6 +39,8 @@ export function clientSnapshot(snapshot: Snapshot): Snapshot {
         ...(details.estimatedDecodeSecondsPerTask !== undefined && { estimatedDecodeSecondsPerTask: details.estimatedDecodeSecondsPerTask }),
         ...(details.outputTokensPerTask !== undefined && { outputTokensPerTask: details.outputTokensPerTask }),
         ...(observation.benchmarkId === "t3-usage-share" && details.window !== undefined && { window: details.window }),
+        // Users and turns behind a T3 Code real-use figure: the charts' hover says how many, and Advanced can hide thin samples.
+        ...((observation.benchmarkId === "t3-turn-time" || observation.benchmarkId === "t3-cost-per-turn") && typeof details.users === "number" && { users: details.users, turns: details.turns }),
         ...(observation.benchmarkId === "t3-usage-share" && details.tokenMix !== undefined && { tokenMix: details.tokenMix }),
         // Daily turns per model and all models, for the usage-over-time chart.
         ...(observation.benchmarkId === "t3-usage-share" && details.daily !== undefined && { start: details.start, daily: details.daily, dayTotals: details.dayTotals }),

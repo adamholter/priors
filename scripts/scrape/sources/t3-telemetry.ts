@@ -12,7 +12,8 @@
  * (`us.anthropic.…`, `…-fast`, `fusion-…`) are left out rather than folded into the plain model.
  *
  * Fireworks-style versions (`glm-5p3`) read as `glm-5.3`. Value: mean seconds per completed turn, tool and wait time included (Slopalytics' "average" too); the median and 90th
- * percentile ride in details. Rows also carry `durationSec`, which the time charts read for the "T3 Code" source.
+ * percentile ride in details. Rows also carry `durationSec`, which the time charts read for the "T3 Code" source, and the average turn's
+ * tokens by kind (`details.perTurn`), which scripts/scrape/t3-costs.ts prices into `costUsd` for the cost charts' "T3 Code" source.
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
@@ -30,20 +31,31 @@ const EFFORTS = new Set(["none", "minimal", "low", "medium", "high", "xhigh", "m
 /** Ids that are not the plain model: provider or region prefixes (`openai.`, `us.anthropic.`), fast and sovereign modes, composites, an effort in a non-Gemini id, and aliases with no version (`opus`). */
 const NOT_PLAIN = /[:[\]"\s/]|^[a-z-]+\.|^fusion-|-(fast|build|turbo|sidekick|ultrafast|sovereign|latest)(-|$)|-(minimal|low|medium|high|xhigh|max)$|^[^0-9]*$/;
 
-export const T3_SQL = `SELECT base, sum(n) total, groupArray((eff, n, u, avg_s, med_s, p90_s, out_tok)) efforts FROM (
- SELECT base, eff, count() n, uniq(installId) u, round(avg(durationMs)/1000, 2) avg_s, round(quantileTDigest(0.5)(durationMs)/1000, 2) med_s, round(quantileTDigest(0.9)(durationMs)/1000, 2) p90_s, round(avg(outputTokens)) out_tok
- FROM (SELECT replaceRegexpOne(replaceRegexpOne(model, '\\\\[1m\\\\]$', ''), '^(claude-[a-z]+-[0-9]+)\\\\.([0-9]+)$', '\\\\1-\\\\2') AS m2,
+export const T3_SQL = `SELECT base, sum(n) total, groupArray((eff, n, u, avg_s, med_s, p90_s, out_tok, tok_n, fresh, cached, written, tok_out, tok_u)) efforts FROM (
+ SELECT base, eff, count() n, uniq(installId) u, round(avg(durationMs)/1000, 2) avg_s, round(quantileTDigest(0.5)(durationMs)/1000, 2) med_s, round(quantileTDigest(0.9)(durationMs)/1000, 2) p90_s, round(avg(outputTokens)) out_tok,
+  countIf(tok) tok_n, round(avgIf(greatest(inputTokens - ifNull(cachedInputTokens, 0) - ifNull(cacheCreationTokens, 0), 0), tok)) fresh,
+  round(avgIf(ifNull(cachedInputTokens, 0), tok)) cached, round(avgIf(ifNull(cacheCreationTokens, 0), tok)) written, round(avgIf(outputTokens, tok)) tok_out, uniqIf(installId, tok) tok_u
+ FROM (SELECT replaceRegexpOne(replaceRegexpOne(replaceRegexpOne(model, '\\\\[1m\\\\]$', ''), '^(claude-[a-z]+-[0-9]+)\\\\.([0-9]+)$', '\\\\1-\\\\2'), '^deepseek-v([0-9])([0-9])-', 'deepseek-v\\\\1.\\\\2-') AS m2,
    extract(m2, '^gemini-.+-(minimal|low|medium|high|xhigh)$') AS sfx,
    if(sfx != '', substring(m2, 1, length(m2) - length(sfx) - 1), m2) AS base,
-   if(sfx != '', sfx, effort) AS eff, installId, durationMs, outputTokens
+   if(sfx != '', sfx, effort) AS eff, installId, durationMs, outputTokens, inputTokens, cachedInputTokens, cacheCreationTokens,
+   inputTokens IS NOT NULL AND outputTokens IS NOT NULL AS tok
   FROM events WHERE event = 'provider.turn.completed' AND terminalStatus = 'completed' AND timestamp >= today() - {days:UInt32} AND timestamp < today()
    AND position(model, '/') = 0 AND model NOT IN ('', 'default') AND durationMs > 0 AND durationMs < 86400000 AND JSONExtractBool(properties, 'subagent') = 0)
  WHERE eff IN ('', 'none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max')
  GROUP BY base, eff HAVING u >= ${MIN_USERS} AND n >= ${MIN_TURNS})
 GROUP BY base ORDER BY total DESC LIMIT 100`;
 
-type Effort = [eff: string, turns: number, users: number, meanSec: number | null, medianSec: number | null, p90Sec: number | null, outputTokens: number | null];
-export type T3Payload = { fetchedAt: string; start: string; end: string; rows: [base: string, total: number, efforts: Effort[]][] };
+/**
+ * Token columns (older cached payloads stop at outputTokens): turns with token counts, then their average tokens by kind. T3's
+ * inputTokens includes cached reads and cache writes for every harness (cached plus written never exceeds it), so fresh input is
+ * the rest.
+ */
+type Effort = [eff: string, turns: number, users: number, meanSec: number | null, medianSec: number | null, p90Sec: number | null, outputTokens: number | null,
+  tokenTurns?: number, fresh?: number | null, cached?: number | null, written?: number | null, tokenOutput?: number | null, tokenUsers?: number];
+/** Bumped when the query gains columns, so a cached payload from the old query is refetched instead of served for up to a day. */
+export const T3_PAYLOAD_VERSION = 3;
+export type T3Payload = { version?: number; fetchedAt: string; start: string; end: string; rows: [base: string, total: number, efforts: Effort[]][] };
 
 export function parseT3Telemetry(p: T3Payload): Pick<ScrapeResult, "benchmarks" | "rows" | "notes"> {
   const window = `${p.start} to ${p.end}`;
@@ -57,12 +69,16 @@ export function parseT3Telemetry(p: T3Payload): Pick<ScrapeResult, "benchmarks" 
     const explicit = usable.filter(([eff]) => eff !== ""), unstated = usable.filter(([eff]) => eff === "");
     const turns = (list: Effort[]) => list.reduce((a, [, n]) => a + n, 0);
     const pick = explicit.length && turns(explicit) >= 0.05 * turns(usable) ? explicit : unstated;
-    for (const [eff, n, u, mean, median, p90, out] of pick) {
+    for (const [eff, n, u, mean, median, p90, out, tokenTurns, fresh, cached, written, tokenOut, tokenUsers] of pick) {
+      // Tokens by kind for an average turn, which scripts/scrape/t3-costs.ts prices at the model's list price. Some harnesses send no
+      // token counts (Antigravity often), so the turns and users behind the tokens must clear the same bar on their own.
+      const perTurn = (tokenTurns ?? 0) >= MIN_TURNS && (tokenUsers ?? 0) >= MIN_USERS && typeof tokenOut === "number" && tokenOut > 0
+        ? { fresh: fresh ?? 0, cached: cached ?? 0, written: written ?? 0, output: tokenOut } : undefined;
       rows.push({
         benchmarkId: T3_TURN_TIME_ID, modelLabel: base.replace(/(\d)p(\d)/g, "$1.$2"), ...(eff ? { effort: eff } : { effortUnstated: true }), value: Math.round((mean! / 60) * 100) / 100, durationSec: mean!,
         ...(typeof out === "number" && out > 0 ? { outputTokens: out } : {}), sourceUrl: SITE,
         note: `mean of ${n.toLocaleString("en-US")} completed turns from ${u.toLocaleString("en-US")} T3 Code users, ${window}${eff ? "" : "; effort not recorded (harness default)"}`,
-        details: { users: u, turns: n, medianSec: median ?? undefined, p90Sec: p90 ?? undefined, window },
+        details: { users: u, turns: n, medianSec: median ?? undefined, p90Sec: p90 ?? undefined, window, ...(perTurn ? { perTurn, tokenTurns, tokenUsers } : {}) },
       });
     }
   }
@@ -92,7 +108,7 @@ const source: Source = {
     let cached: T3Payload | undefined;
     try { cached = JSON.parse(readFileSync(cacheFile, "utf8")) as T3Payload; } catch { /* first run */ }
     const age = cached ? (Date.parse(ctx.now) - Date.parse(cached.fetchedAt)) / 3_600_000 : Infinity;
-    let payload = cached && age < CACHE_HOURS ? cached : undefined;
+    let payload = cached && age < CACHE_HOURS && cached.version === T3_PAYLOAD_VERSION ? cached : undefined;
     if (!payload) {
       const jar = process.env.PRIORS_SLOPHOUSE_JAR ?? path.join(homedir(), "Projects/overnight-2026-10-20/data/b81/.jar");
       try {
@@ -107,7 +123,7 @@ const source: Source = {
         const json = await res.json() as { rows?: T3Payload["rows"]; error?: string };
         if (!Array.isArray(json.rows)) throw new Error(`slophouse: ${json.error ?? "no rows"}`);
         const now = Date.parse(ctx.now);
-        payload = { fetchedAt: ctx.now, start: day(now - DAYS * 86_400_000), end: day(now - 86_400_000), rows: json.rows };
+        payload = { version: T3_PAYLOAD_VERSION, fetchedAt: ctx.now, start: day(now - DAYS * 86_400_000), end: day(now - 86_400_000), rows: json.rows };
         mkdirSync(path.dirname(cacheFile), { recursive: true });
         writeFileSync(cacheFile, JSON.stringify(payload));
       } catch (e) {

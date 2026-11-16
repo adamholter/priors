@@ -28,7 +28,7 @@ export function taskMetricDescription(source: TaskMetricSource, metric: TaskMetr
     ? "DeepSWE 1.1 · average cost per task run, mini-swe-agent"
     : "DeepSWE 1.1 · average task-run duration, mini-swe-agent";
   if (source === "t3-code") return metric === "cost"
-    ? "T3 Code · API cost of an average turn in real coding sessions, its tokens by kind at the model's list price, last 30 days"
+    ? "T3 Code · API cost of an average turn in real coding sessions, by reasoning effort, its tokens by kind at the model's list price, last 30 days"
     : "T3 Code · average time per completed turn in real coding sessions, by reasoning effort, tool and wait time included, last 30 days. Hover a model for how many users it rests on";
   if (source === "frontierswe-v2") return metric === "cost"
     ? "FrontierSWE v2 · average cost per trial, Proximus, five trials per task"
@@ -57,8 +57,17 @@ export const hasSubscriptionPrices = (snapshot: Snapshot) => snapshot.benchmarks
  */
 const tbBoard = (snapshot: Snapshot) => snapshot.benchmarks.some((b) => b.id === "terminalbench-4.1") ? "terminalbench-4.1" : "terminalbench-4";
 
+/**
+ * T3 Code's per-effort rows from its ClickHouse telemetry (`t3-turn-time`) for time, and for cost where those rows were priced
+ * (`costUsd`, scripts/scrape/t3-costs.ts); otherwise Slopalytics' model-level usage rows, as older snapshots have.
+ */
+function t3Benchmark(snapshot: Snapshot, metric: TaskMetric): string {
+  if (!snapshot.benchmarks.some((b) => b.id === "t3-turn-time")) return "t3-usage-share";
+  return metric === "time" || snapshot.observations.some((o) => o.benchmarkId === "t3-turn-time" && o.costUsd != null) ? "t3-turn-time" : "t3-usage-share";
+}
+
 export function taskMetricData(snapshot: Snapshot, source: string, metric: TaskMetric) {
-  const benchmarkId = source === "terminalbench-4" ? tbBoard(snapshot) : source === "t3-code" ? (metric === "time" && snapshot.benchmarks.some((b) => b.id === "t3-turn-time") ? "t3-turn-time" : "t3-usage-share") : source !== "aa" ? source : metric === "cost" ? "aa-cost-per-task-index"
+  const benchmarkId = source === "terminalbench-4" ? tbBoard(snapshot) : source === "t3-code" ? t3Benchmark(snapshot, metric) : source !== "aa" ? source : metric === "cost" ? "aa-cost-per-task-index"
     : snapshot.benchmarks.filter((b) => b.id.startsWith("aa-intelligence-index")).sort((a, b) => b.id.localeCompare(a.id))[0]?.id;
   const rows = new Map<string, { value: number; observation: Observation }>();
   for (const o of benchmarkId === undefined ? [] : observationsOf(snapshot, benchmarkId)) {
