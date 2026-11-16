@@ -29,6 +29,8 @@ export interface SubscriptionDetails {
   ratio?: number;
   /** A model no plan sells yet, assumed to get this model's share of API price (`scripts/scrape/sources/subscription-overrides.ts`). */
   sameAs?: string;
+  /** With `sameAs` on a shared pool: how much of it a list-price dollar of this model uses against one of that model's (3 = a third of its share). */
+  poolRate?: number;
   /** Where a curated figure came from. */
   source?: string;
   feeUsd?: number;
@@ -192,7 +194,17 @@ export function subscriptionPrices(snapshot: Snapshot, chosen: Record<string, st
   // A model assumed to match another's subsidy pays that model's share, whatever its own list price (a free tier is not a plan's subsidy).
   // Its label follows the plan the other model is priced at ("Google AI Pro (assumed same as Argon)").
   // The share at the other model's full list price: a temporary API discount on that model is not a subsidy this one gets.
-  for (const [modelId, d] of assumed) { const from = out.get(d.sameAs!); if (positive(from?.ratio)) out.set(modelId, { ratio: from.aaCostRatio ?? from.ratio, plan: d.plan.replace(/^.*?(?= \(assumed same as )/, from.plan), feeUsd: from.feeUsd, confidence: d.confidence }); }
+  for (const [modelId, d] of assumed) {
+    // Sold only on some plans (Carbon: Ultra): the other model's share on the plan a visitor picked when it is one of them, else on this row's own plan.
+    if (d.plans?.length) {
+      const want = labOf && chosen[labOf.get(modelId) ?? ""], own = d.plan.replace(/ \(assumed same as .*\)$/, "");
+      const p = (want !== undefined ? d.plans.find((x) => currentPlanName(x.plan) === currentPlanName(want)) : undefined) ?? d.plans.find((x) => x.plan === own);
+      const prices = d.listPrice ?? aaPrices.get(d.sameAs!), api = p && prices && d.mix ? blendedApiPrice(prices, d.mix) : 0;
+      if (p && positive(p.usdPerMtok) && positive(api)) out.set(modelId, { ratio: (p.usdPerMtok / api) * (d.poolRate ?? 1), plan: d.plan.replace(/^.*?(?= \(assumed same as )/, p.plan), feeUsd: p.feeUsd, confidence: d.confidence });
+      continue;
+    }
+    const from = out.get(d.sameAs!); if (positive(from?.ratio)) out.set(modelId, { ratio: from.aaCostRatio ?? from.ratio, plan: d.plan.replace(/^.*?(?= \(assumed same as )/, from.plan), feeUsd: from.feeUsd, confidence: d.confidence });
+  }
   // An OpenAI model Codex lists with no plan data yet pays the median share of API price of the OpenAI models measured.
   // `scripts/verify/subsidy-backtest.ts` hides known rows to compare ways of doing this: pricing from Codex's message
   // limits scored worst on OpenAI's rows, and on other labs a new model's error is about the same whichever sibling rule is used.

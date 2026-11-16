@@ -70,12 +70,6 @@ describe("list prices", () => {
     expect(after.listPrice).toBeUndefined();
     expect(after.listUntil).toBeUndefined();
   });
-  it("leaves that price with Argon when Carbon borrows its subsidy", () => {
-    const carbon = parseSubscriptions(payload, conventions, channels, new Date("2026-11-05T00:00:00Z")).find((r) => r.modelLabel === "Gemini 4 Carbon (max)")!.details as unknown as { sameAs: string; listPrice?: unknown; listUntil?: unknown };
-    expect(carbon.sameAs).toBe("gemini-4");
-    expect(carbon.listPrice).toBeUndefined();
-    expect(carbon.listUntil).toBeUndefined();
-  });
   it("takes a budget plan's rates as the list price on the seller's own model, so its share is fee over budget", () => {
     const rows = parseSubscriptions({ ...payload, points: [] }, conventions, channels);
     const large = rows.find((r) => r.modelLabel === "Mistral Large 4")!, d = large.details as unknown as { listPrice: { input: number; cached: number; output: number }; mix: { cache: number; input: number; output: number } };
@@ -170,12 +164,9 @@ describe("Real API Pricing subscriptions", () => {
     const plans = (renamed.find((r) => r.modelLabel === "GPT 6.1 Sol")!.details as { plans: { plan: string; usdPerMtok: number }[] }).plans;
     expect(plans.filter((p) => p.plan === "ChatGPT Pro 10x")).toEqual([expect.objectContaining({ usdPerMtok: 0.01 })]);
   });
-  it("derives Google AI Plus for Flash models at half Pro's token price (half the usage for a quarter of the fee), not for Argon", () => {
-    const got = parseSubscriptions({ ...payload, points: [point("google_ai_pro_us::gemini-3.8-flash", "Google AI Pro", "Google", 0.008, { model_display: "Gemini 3.8 Flash", price_usd: 19.99, confidence: "high" }), point("google_ai_pro_us::gemini-4-argon", "Google AI Pro", "Google", 0.3, { model_display: "Gemini 4 Argon", price_usd: 19.99, confidence: "low" })] }, conventions, channels);
-    const plans = (label: string) => (got.find((r) => r.modelLabel === label)!.details as { plans: { plan: string; feeUsd: number; usdPerMtok: number }[] }).plans;
-    expect(plans("Gemini 3.8 Flash").find((p) => p.plan === "Google AI Plus")).toMatchObject({ feeUsd: 4.99 });
-    expect(plans("Gemini 3.8 Flash").find((p) => p.plan === "Google AI Plus")!.usdPerMtok).toBeCloseTo(0.004, 3);
-    expect(plans("Gemini 4 Argon").some((p) => p.plan === "Google AI Plus")).toBe(false);
+  it("lists no Google AI Plus: Antigravity, where every Google row is measured, gives Plus only the free tier", () => {
+    const got = parseSubscriptions({ ...payload, points: [point("google_ai_pro_us::gemini-3.8-flash", "Google AI Pro", "Google", 0.008, { model_display: "Gemini 3.8 Flash", price_usd: 19.99, confidence: "high" })] }, conventions, channels);
+    expect((got.find((r) => r.modelLabel === "Gemini 3.8 Flash")!.details as { plans: { plan: string }[] }).plans.some((p) => p.plan === "Google AI Plus")).toBe(false);
   });
   it("falls back to the best medium-confidence reseller plan when a model has no first-party plan", () => {
     expect(row("Qwen3.8 Max")).toMatchObject({ value: 0.04, details: { plan: "Droid Max", confidence: "medium" } });
@@ -185,15 +176,23 @@ describe("Real API Pricing subscriptions", () => {
     expect(rows.filter((r) => r.modelLabel.startsWith("Gemini 4 Argon"))).toHaveLength(1);
     expect(row("Gemini 4 Argon")).toMatchObject({ value: 0.303, details: { plan: "Google AI Pro", confidence: "low", mix: { cache: 0.85, input: 0.145, output: 0.005 } } });
   });
-  it("gives Gemini 4 Carbon, which no plan sells yet, Argon's Google AI Pro row, labelled as an assumption", () => {
-    expect(row("Gemini 4 Carbon (max)")).toMatchObject({ value: 0.303, details: { plan: "Google AI Pro (assumed same as Argon)", sameAs: "gemini-4", confidence: "assumed", mix: { cache: 0.85, input: 0.145, output: 0.005 } } });
-    expect(row("Gemini 4 Carbon (max)").note).toContain("No plan sells Carbon yet");
+  it("gives Gemini 4 Carbon, sold only on Ultra, Flash's Ultra rows from the shared pool, Ultra 5x by default", () => {
+    const flash = (id: string, plan: string, v: number, fee: number) => point(`${id}::gemini-3.8-flash`, plan, "Google", v, { model_display: "Gemini 3.8 Flash", price_usd: fee, workload: "lowCache", confidence: id.includes("ultra") ? "low" : "high" });
+    const points = [...payload.points, flash("google_ai_pro_us", "Google AI Pro", 0.0077, 19.99), flash("google_ai_ultra_5x_us", "Google AI Ultra 5x", 0.0077, 99.99), flash("google_ai_ultra_20x_us", "Google AI Ultra 20x", 0.0039, 199.99)];
+    const carbon = parseSubscriptions({ ...payload, points }, conventions, channels).find((r) => r.modelLabel === "Gemini 4 Carbon (max)")!;
+    expect(carbon.value).toBeCloseTo(0.0231, 6);
+    expect(carbon).toMatchObject({ details: { plan: "Google AI Ultra 5x (assumed same as Flash)", feeUsd: 99.99, sameAs: "gemini-3.8-flash", poolRate: 3, confidence: "assumed" } });
+    const d = carbon.details as unknown as { plans: { plan: string }[]; listPrice?: unknown };
+    expect(d.plans.map((p) => p.plan).sort()).toEqual(["Google AI Ultra 20x", "Google AI Ultra 5x"]);
+    expect(d.listPrice).toBeUndefined();
+    // No Ultra measurement, no Carbon row: Pro does not sell it.
+    expect(row("Gemini 4 Carbon (max)")).toBeUndefined();
   });
   it("prices Hydrogen from the shared Gemini pool, keeping Argon's separate Pro quota out of its estimate", () => {
     const flash = point("google_ai_pro_us::gemini-3.8-flash", "Google AI Pro", "Google", 0.0077450601, { model_display: "Gemini 3.8 Flash", price_usd: 19.99, workload: "lowCache", confidence: "high" });
     const points = [...payload.points, flash];
     const found = parseSubscriptions({ ...payload, points }, conventions, channels);
-    expect(found.find((r) => r.modelLabel.startsWith("Gemini 4 Hydrogen"))).toMatchObject({ value: flash.real_usd_per_mtok, details: { sameAs: "gemini-3.8-flash", confidence: "assumed", plan: "Google AI Pro (assumed same as Flash)" } });
+    expect(found.find((r) => r.modelLabel.startsWith("Gemini 4 Hydrogen"))).toMatchObject({ value: flash.real_usd_per_mtok, details: { sameAs: "gemini-3.8-flash", confidence: "medium", plan: "Google AI Pro (assumed same as Flash)" } });
     expect(found.find((r) => r.modelLabel === "Gemini 4 Argon")!.value).toBe(0.303);
     // Without a shared-pool measurement, do not silently substitute Argon's unrelated allowance.
     expect(rows.some((r) => r.modelLabel.startsWith("Gemini 4 Hydrogen"))).toBe(false);
@@ -266,7 +265,7 @@ describe("Real API Pricing subscriptions", () => {
     const ctx = { fetchText: async (url: string) => JSON.stringify(files[url.split("/").pop()!]) } as unknown as Parameters<typeof source.scrape>[0];
     const r = await source.scrape(ctx);
     expect(r.benchmarks[0]).toMatchObject({ id: SUBSCRIPTION_BENCHMARK, unit: "usd", proxy: true, defaultWeight: 0, eligibleForDefault: false, lastUpdated: "2026-10-08" });
-    expect(r.rows).toHaveLength(9 + 7 + 2 + 1); // + Mistral Vibe Pro's rows (four Mistral models, GLM 5.2, GLM 5.3 Flash, DeepSeek V4.1 Flash 1017), Tencent Token Plan's Hy4 and Hy4 preview, Fable 5.2's measured share. Hydrogen is absent without a Flash shared-pool measurement
+    expect(r.rows).toHaveLength(8 + 7 + 2 + 1); // Carbon is absent without a Flash Ultra measurement. + Mistral Vibe Pro's rows (four Mistral models, GLM 5.2, GLM 5.3 Flash, DeepSeek V4.1 Flash 1017), Tencent Token Plan's Hy4 and Hy4 preview, Fable 5.2's measured share. Hydrogen is absent without a Flash shared-pool measurement
     expect(Object.keys(r.raw)).toEqual(["points.json", "conventions.json", "channel-colors.json"]);
   });
 });

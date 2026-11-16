@@ -25,7 +25,7 @@ describe("student offers", () => {
     expect(by("Mistral Vibe Pro").url).toBe("https://mistral.ai/pricing");
     expect(by("Mistral Vibe Pro").eligibility).toMatch(/existing account[\s\S]*Teachers[\s\S]*only for students/);
     expect(by("Google AI Pro")).toMatchObject({ studentFeeUsd: 0, months: 12, regularFeeUsd: 19.99, deadline: "2026-12-31" });
-    for (const p of ["Google AI Pro", "Google AI Plus"]) expect(by(p).eligibility).toMatch(/usage limits may differ/);
+    for (const p of ["Google AI Pro"]) expect(by(p).eligibility).toMatch(/usage limits may differ/);
   });
 
   it("names plans the snapshot sells, at the fee the snapshot lists", () => {
@@ -46,7 +46,7 @@ describe("student offers", () => {
   });
 
   it("describes price, saving and value from the offer alone", () => {
-    const [pro, , mistral] = STUDENT_OFFERS;
+    const [pro, mistral] = STUDENT_OFFERS;
     expect(studentPriceText(pro)).toBe("free for 12 months");
     expect(studentSavingUsd(pro)).toBe(239.88);
     expect(studentValueMultiple(pro)).toBeUndefined();

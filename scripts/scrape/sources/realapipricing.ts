@@ -142,12 +142,26 @@ export function parseSubscriptions(json: Points, conventions: Conventions, chann
   for (const a of SUBSIDY_ASSUMPTIONS) {
     const from = rows.find((r) => idOf(r) === a.sameAs);
     if (!from || rows.some((r) => idOf(r) === a.modelId)) continue;
-    const d = from.details as unknown as SubscriptionDetails;
-    const plan = `${d.plan} (assumed same as ${a.sameAsName})`;
+    const row = from.details as unknown as SubscriptionDetails;
+    if (!a.plans) {
+      const d = row, plan = `${d.plan} (assumed same as ${a.sameAsName})`;
+      rows.push({
+        benchmarkId: SUBSCRIPTION_BENCHMARK, modelLabel: a.label, value: from.value, sourceUrl: from.sourceUrl, note: `${plan}${d.feeUsd ? `, $${d.feeUsd}/month` : ""}; ${a.confidence ?? "assumed"}; ${a.note}`,
+        // A list price held for a stated period is the other model's own, so it stays behind.
+        details: { ...d, ...(d.listUntil ? { listPrice: undefined, listUntil: undefined } : {}), plan, sameAs: a.sameAs, confidence: a.confidence ?? "assumed", dataDate: a.checked, plans: [] } as unknown as Record<string, unknown>,
+      });
+      continue;
+    }
+    // Only the plans that sell this model, from the other model's paid plans (past its free tier). Their token prices ride along so the
+    // engine prices this model at the plan a visitor picks, `defaultPlan` otherwise.
+    const paid = row.free && row.paid ? row.paid : row, plans = paid.plans.filter((p) => a.plans!.test(p.plan));
+    const at = plans.find((p) => p.plan === a.defaultPlan) ?? plans[0];
+    if (!at) continue;
+    const plan = `${at.plan} (assumed same as ${a.sameAsName})`;
+    const { free: _f, limited: _l, paid: _p, ratio: _r, source: _s, ...rest } = paid as SubscriptionDetails & { value?: number };
     rows.push({
-      benchmarkId: SUBSCRIPTION_BENCHMARK, modelLabel: a.label, value: from.value, sourceUrl: from.sourceUrl, note: `${plan}${d.feeUsd ? `, $${d.feeUsd}/month` : ""}; assumed; ${a.note}`,
-      // A list price held for a stated period is the other model's own, so it stays behind.
-      details: { ...d, ...(d.listUntil ? { listPrice: undefined, listUntil: undefined } : {}), plan, sameAs: a.sameAs, confidence: "assumed", dataDate: a.checked, plans: [] } as unknown as Record<string, unknown>,
+      benchmarkId: SUBSCRIPTION_BENCHMARK, modelLabel: a.label, value: at.usdPerMtok * (a.poolRate ?? 1), sourceUrl: from.sourceUrl, note: `${plan}, $${at.feeUsd}/month; assumed; ${a.note}`,
+      details: { ...rest, ...(rest.listUntil ? { listPrice: undefined, listUntil: undefined } : {}), value: undefined, plan, feeUsd: at.feeUsd, sameAs: a.sameAs, ...(a.poolRate ? { poolRate: a.poolRate } : {}), confidence: a.confidence ?? "assumed", dataDate: a.checked, plans } as unknown as Record<string, unknown>,
     });
   }
   return rows;
