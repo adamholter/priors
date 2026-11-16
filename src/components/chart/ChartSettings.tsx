@@ -18,7 +18,7 @@ import styles from "./ChartSettings.module.css";
 
 const EFFORT_LABELS: Record<string, string> = { none: "none", low: "low", medium: "medium", high: "high", xhigh: "xhigh", max: "max" };
 
-export function ChartSettings({ freeTiers, planReading, speedTiers, label, mode, onChange, efforts, releasedAfter, onChangeReleased, models = [], excluded, onToggleModel, onShowAllModels, onHideAllModels, onShowOnly, view, onView, dataSource, costBasis, planResets, subscriptionPlans, defaultScale, anchor, formula }: {
+export function ChartSettings({ freeTiers, planReading, speedTiers, label, mode, onChange, efforts, releasedAfter, onChangeReleased, models = [], excluded, onToggleModel, onShowAllModels, onHideAllModels, onShowOnly, view, onView, dataSource, costBasis, planResets, subscriptionPlans, defaultScale, anchor, formula, minUsers }: {
   /** Data tab: a custom formula for this chart's metric. Omitted where a chart has no formula support. */
   formula?: FormulaSettings;
   /** Subscription pricing: price models free today at nothing, or on their paid plans. Shown in the plans section. */
@@ -36,6 +36,8 @@ export function ChartSettings({ freeTiers, planReading, speedTiers, label, mode,
   anchor?: string;
   /** Default metric scale, when the chart supports switching to linear. */
   defaultScale?: "log" | "linear";
+  /** Real-use data (T3 Code): hide points resting on fewer users. `floor` is the least the data publishes. */
+  minUsers?: { value?: number; floor: number; onChange: (value: number | undefined) => void };
   dataSource?: { value: TaskMetricSource; options: { id: TaskMetricSource; name: string; modelCount: number }[]; onChange: (source: TaskMetricSource) => void };
   label: string; mode: "all" | "best"; onChange: (mode: "all" | "best") => void;
   /** Cost, time and speed charts: pick which reasoning efforts show, one by one, instead of the all/best dropdown. */
@@ -133,6 +135,12 @@ export function ChartSettings({ freeTiers, planReading, speedTiers, label, mode,
     <dl className={styles.resetRows}>{speedTiers.rows.map((r) => <div key={r.tier}><dt>{r.name}</dt><dd>{r.text}</dd></div>)}</dl>
     <p className={styles.resetNote}>A tier replaces standard where a model has it. Keep Standard on to compare both.</p>
   </details>;
+  const USER_STEPS = [25, 100, 500, 1000];
+  const usersSection = minUsers && <details className={styles.sub} open={minUsers.value ? true : undefined}>
+    <summary className="disclosure">Minimum users<span>{minUsers.value ? `${minUsers.value.toLocaleString("en-US")}+` : `Any (${minUsers.floor}+)`}</span></summary>
+    <div className={styles.row}><label htmlFor={`${id}-min-users`}>Users behind each point</label><select aria-label={`${label} minimum users`} id={`${id}-min-users`} value={minUsers.value ?? ""} onChange={e => minUsers.onChange(e.target.value ? +e.target.value : undefined)}><option value="">Any ({minUsers.floor}+)</option>{USER_STEPS.map(n => <option key={n} value={n}>{n.toLocaleString("en-US")}+</option>)}</select></div>
+    <p className={styles.resetNote}>T3 Code times come from real sessions. A model or effort few people use rests on a small sample and can be off by a lot.</p>
+  </details>;
   const dataPanel = <>
     {(dataSource || onChangeReleased) && <div className={styles.dataControls}>
       {dataSource && <div className={styles.dataField}><label htmlFor={`${id}-source`}>Data source</label><select aria-label={`${label} data source`} id={`${id}-source`} value={dataSource.value} onChange={e => dataSource.onChange(e.target.value as TaskMetricSource)}>{dataSource.options.map(s => <option key={s.id} value={s.id}>{s.name} ({s.modelCount} models)</option>)}</select></div>}
@@ -145,7 +153,7 @@ export function ChartSettings({ freeTiers, planReading, speedTiers, label, mode,
     {!plans && readingRow}
     {!plans && freeRow}
     {!plans && resetsRow}
-    {(tierSection || planSection || formulaSection) && <div className={styles.sections}>{tierSection}{planSection}{formulaSection}</div>}
+    {(tierSection || planSection || formulaSection || usersSection) && <div className={styles.sections}>{tierSection}{usersSection}{planSection}{formulaSection}</div>}
   </>;
   const displayPanel = view && onView && <>
     {defaultScale && scatter && <div className={styles.row}><span id={`${id}-scale-label`}>Scale</span><div className={styles.choice} role="group" aria-labelledby={`${id}-scale-label`}>{(["log", "linear"] as const).map(value => <button key={value} type="button" aria-pressed={(scatter.view.scale ?? defaultScale) === value} onClick={() => scatter.onView({ ...scatter.view, scale: value })}>{value === "log" ? "Log" : "Linear"}</button>)}</div></div>}

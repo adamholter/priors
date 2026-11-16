@@ -41,11 +41,11 @@ export function ownerBase(owner?: OwnerView | null): ScatterView | null {
 }
 /** Only the fields an owner default stores. */
 export function toOwnerView(v: ScatterView, mode?: "all" | "best"): OwnerView {
-  const out: OwnerView = { kind: v.kind, scale: v.scale, frontier: v.frontier, links: v.links, guides: v.guides, density: v.density, labelScale: v.labelScale, formula: v.formula?.trim().slice(0, FORMULA_MAX) || undefined, formulaBetter: v.formula?.trim() ? v.formulaBetter : undefined, allModels: v.allModels || undefined, paretoOnly: v.paretoOnly || undefined, ...(mode ? { mode } : {}) };
+  const out: OwnerView = { kind: v.kind, scale: v.scale, frontier: v.frontier, links: v.links, guides: v.guides, density: v.density, labelScale: v.labelScale, formula: v.formula?.trim().slice(0, FORMULA_MAX) || undefined, formulaBetter: v.formula?.trim() ? v.formulaBetter : undefined, allModels: v.allModels || undefined, paretoOnly: v.paretoOnly || undefined, minUsers: v.minUsers || undefined, ...(mode ? { mode } : {}) };
   for (const k of Object.keys(out) as (keyof OwnerView)[]) if (out[k] === undefined) delete out[k];
   return out;
 }
-export type OwnerView = { kind?: "scatter" | "bars"; mode?: "all" | "best"; scale?: "log" | "linear"; frontier?: boolean; links?: boolean; guides?: boolean; density?: number; labelScale?: number; formula?: string; formulaBetter?: "higher" | "lower"; allModels?: boolean; paretoOnly?: boolean };
+export type OwnerView = { kind?: "scatter" | "bars"; mode?: "all" | "best"; scale?: "log" | "linear"; frontier?: boolean; links?: boolean; guides?: boolean; density?: number; labelScale?: number; formula?: string; formulaBetter?: "higher" | "lower"; allModels?: boolean; paretoOnly?: boolean; minUsers?: number };
 
 /**
  * A chart's view state. Visitors start from the page owner's default (`owner`) and keep their own
@@ -105,6 +105,7 @@ function PointCard({ point, labs, pal, onFrontier, format, unit, extra, onClose,
       {[[axis.format(r.score), "score"], [value, metric], ...(speed ? [[String(speed), "tok/s"]] : [])].map(([big, small], i) => <div key={i} className="px-3 py-1.5" style={i ? { borderLeft: `1px solid ${pal.hair}` } : undefined}><div className="font-mono text-[14px] leading-tight whitespace-nowrap">{big}</div><div style={{ color: pal.grey, fontSize: 10.5 }}>{small}</div></div>)}
     </div>
     {planName && <div className="flex items-baseline justify-between gap-3 border-t px-3 py-1.5" style={{ borderColor: pal.hair, color: pal.grey, fontSize: 11 }}><span className="min-w-0">{planName}</span>{apiPrice && <span className="whitespace-nowrap"><span className="font-mono">{apiPrice}</span> at API price</span>}</div>}
+    {point.users != null && <div className="border-t px-3 py-1.5" style={{ borderColor: pal.hair, color: pal.grey, fontSize: 11 }}>Based on <span className="font-mono" style={{ color: point.users < 100 ? pal.ink : undefined }}>{point.users.toLocaleString("en-US")}</span> T3 Code {point.users === 1 ? "user" : "users"}{point.turns != null ? `, ${point.turns.toLocaleString("en-US")} turns` : ""}{point.users < 100 ? ". Few users: noisy" : ""}</div>}
     {r.scoreEstimate && <div className="px-3 pb-2" style={{ color: pal.grey, fontSize: 11 }}>Estimated: the index lacks its evaluations. From AA Progress Index {Math.round(r.scoreEstimate.progress)}, fit on {r.scoreEstimate.pairs} scored efforts (R² {r.scoreEstimate.r2.toFixed(2)}).</div>}
   </div>;
 }

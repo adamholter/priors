@@ -1,0 +1,123 @@
+/**
+ * T3 Code's own telemetry, read from its ClickHouse dashboard (slophouse, shared with Adam by Theo), for time per turn by
+ * model AND reasoning effort, with how many installs each figure rests on. Slopalytics (slopalytics.ts) publishes the same
+ * telemetry model-level only and drops models under 2,000 turns, so a new model (Gemini 4 Hydrogen) had no per-effort
+ * times. One aggregate query over the last 30 complete days, at most once a day (cached): completed, non-subagent turns,
+ * grouped by model and effort, kept only where at least MIN_USERS installs and MIN_TURNS turns stand behind it. Only
+ * aggregates leave the dashboard: no install ids or per-user rows.
+ *
+ * Effort is T3's `effort` column, except for Gemini, whose harnesses put it in the model id (`gemini-4-hydrogen-high`):
+ * there the suffix is the effort. Turns with no effort recorded use the harness default, which differs by harness, so they
+ * count only for a model that has no turns at an explicit effort. Provider-prefixed, regional, fast-mode and composite ids
+ * (`us.anthropic.…`, `…-fast`, `fusion-…`) are left out rather than folded into the plain model.
+ *
+ * Fireworks-style versions (`glm-5p3`) read as `glm-5.3`. Value: mean seconds per completed turn, tool and wait time included (Slopalytics' "average" too); the median and 90th
+ * percentile ride in details. Rows also carry `durationSec`, which the time charts read for the "T3 Code" source.
+ */
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
+import path from "node:path";
+import type { RawRow, ScrapeResult, Source } from "../../../src/data/types";
+import { T3_MIN_USERS } from "../../../src/data/task-metrics";
+
+export const T3_TURN_TIME_ID = "t3-turn-time";
+const SITE = "https://t3.codes";
+const DASHBOARD = "https://slophouse.ineededadomain.com";
+/** The least installs and turns behind a published figure. Low on purpose: every effort of a new model should show; the time chart's Advanced filter raises it. */
+export const MIN_USERS = T3_MIN_USERS, MIN_TURNS = 30;
+const DAYS = 30, CACHE_HOURS = 20, CACHE_MAX_DAYS = 7;
+const EFFORTS = new Set(["none", "minimal", "low", "medium", "high", "xhigh", "max"]);
+/** Ids that are not the plain model: provider or region prefixes (`openai.`, `us.anthropic.`), fast and sovereign modes, composites, an effort in a non-Gemini id, and aliases with no version (`opus`). */
+const NOT_PLAIN = /[:[\]"\s/]|^[a-z-]+\.|^fusion-|-(fast|build|turbo|sidekick|ultrafast|sovereign|latest)(-|$)|-(minimal|low|medium|high|xhigh|max)$|^[^0-9]*$/;
+
+export const T3_SQL = `SELECT base, sum(n) total, groupArray((eff, n, u, avg_s, med_s, p90_s, out_tok)) efforts FROM (
+ SELECT base, eff, count() n, uniq(installId) u, round(avg(durationMs)/1000, 2) avg_s, round(quantileTDigest(0.5)(durationMs)/1000, 2) med_s, round(quantileTDigest(0.9)(durationMs)/1000, 2) p90_s, round(avg(outputTokens)) out_tok
+ FROM (SELECT replaceRegexpOne(replaceRegexpOne(model, '\\\\[1m\\\\]$', ''), '^(claude-[a-z]+-[0-9]+)\\\\.([0-9]+)$', '\\\\1-\\\\2') AS m2,
+   extract(m2, '^gemini-.+-(minimal|low|medium|high|xhigh)$') AS sfx,
+   if(sfx != '', substring(m2, 1, length(m2) - length(sfx) - 1), m2) AS base,
+   if(sfx != '', sfx, effort) AS eff, installId, durationMs, outputTokens
+  FROM events WHERE event = 'provider.turn.completed' AND terminalStatus = 'completed' AND timestamp >= today() - {days:UInt32} AND timestamp < today()
+   AND position(model, '/') = 0 AND model NOT IN ('', 'default') AND durationMs > 0 AND durationMs < 86400000 AND JSONExtractBool(properties, 'subagent') = 0)
+ WHERE eff IN ('', 'none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max')
+ GROUP BY base, eff HAVING u >= ${MIN_USERS} AND n >= ${MIN_TURNS})
+GROUP BY base ORDER BY total DESC LIMIT 100`;
+
+type Effort = [eff: string, turns: number, users: number, meanSec: number | null, medianSec: number | null, p90Sec: number | null, outputTokens: number | null];
+export type T3Payload = { fetchedAt: string; start: string; end: string; rows: [base: string, total: number, efforts: Effort[]][] };
+
+export function parseT3Telemetry(p: T3Payload): Pick<ScrapeResult, "benchmarks" | "rows" | "notes"> {
+  const window = `${p.start} to ${p.end}`;
+  const rows: RawRow[] = [];
+  let skipped = 0;
+  for (const [base, , efforts] of p.rows) {
+    if (!base || NOT_PLAIN.test(base)) { skipped++; continue; }
+    const usable = efforts.filter(([eff, n, u, mean]) => (eff === "" || EFFORTS.has(eff)) && n >= MIN_TURNS && u >= MIN_USERS && typeof mean === "number" && mean > 0);
+    // No effort recorded means the harness default, which differs by harness: it stands in only for a model run (almost) without an
+    // explicit effort, such as Composer 2.5, where a stray handful of "high" turns is noise rather than a setting.
+    const explicit = usable.filter(([eff]) => eff !== ""), unstated = usable.filter(([eff]) => eff === "");
+    const turns = (list: Effort[]) => list.reduce((a, [, n]) => a + n, 0);
+    const pick = explicit.length && turns(explicit) >= 0.05 * turns(usable) ? explicit : unstated;
+    for (const [eff, n, u, mean, median, p90, out] of pick) {
+      rows.push({
+        benchmarkId: T3_TURN_TIME_ID, modelLabel: base.replace(/(\d)p(\d)/g, "$1.$2"), ...(eff ? { effort: eff } : { effortUnstated: true }), value: Math.round((mean! / 60) * 100) / 100, durationSec: mean!,
+        ...(typeof out === "number" && out > 0 ? { outputTokens: out } : {}), sourceUrl: SITE,
+        note: `mean of ${n.toLocaleString("en-US")} completed turns from ${u.toLocaleString("en-US")} T3 Code users, ${window}${eff ? "" : "; effort not recorded (harness default)"}`,
+        details: { users: u, turns: n, medianSec: median ?? undefined, p90Sec: p90 ?? undefined, window },
+      });
+    }
+  }
+  if (rows.length < 10) throw new Error(`T3 telemetry: ${rows.length} rows; query or schema changed?`);
+  return {
+    benchmarks: [{
+      id: T3_TURN_TIME_ID, name: "T3 Code minutes per turn by effort", shortName: "T3 min/turn (effort)", sourceId: "t3-telemetry", url: SITE, lastUpdated: p.fetchedAt.slice(0, 10),
+      description: `Average time from sending a turn to its completion in real T3 Code sessions, by model and reasoning effort (${window}), tool and wait time included. Lower is faster. From T3 Code's own telemetry, shared by Theo. Each figure lists the users behind it; a figure from few users is noisy. At least ${MIN_USERS} users and ${MIN_TURNS} turns.`,
+      unit: "score", higherIsBetter: false, category: "speed", eligibleForDefault: false, defaultWeight: 0,
+    }],
+    rows,
+    notes: [`${rows.length} model-efforts from ${p.rows.length} model ids (${skipped} provider, regional or fast-mode ids left out), ${window}`],
+  };
+}
+
+/** Netscape cookie jar (curl -c) to a Cookie header. The value is Adam's session: never logged or written anywhere else. */
+function cookieHeader(jar: string): string {
+  return readFileSync(jar, "utf8").split("\n").map((l) => l.replace(/^#HttpOnly_/, "")).filter((l) => l && !l.startsWith("#")).map((l) => l.split("\t")).filter((f) => f.length >= 7).map((f) => `${f[5]}=${f[6].trim()}`).join("; ");
+}
+
+const day = (t: number) => new Date(t).toISOString().slice(0, 10);
+
+const source: Source = {
+  id: "t3-telemetry", name: "T3 Code telemetry (by effort)", url: SITE,
+  async scrape(ctx): Promise<ScrapeResult> {
+    const cacheFile = path.join(homedir(), ".cache", "priors", "t3-telemetry.json");
+    let cached: T3Payload | undefined;
+    try { cached = JSON.parse(readFileSync(cacheFile, "utf8")) as T3Payload; } catch { /* first run */ }
+    const age = cached ? (Date.parse(ctx.now) - Date.parse(cached.fetchedAt)) / 3_600_000 : Infinity;
+    let payload = cached && age < CACHE_HOURS ? cached : undefined;
+    if (!payload) {
+      const jar = process.env.PRIORS_SLOPHOUSE_JAR ?? path.join(homedir(), "Projects/overnight-2026-10-20/data/b81/.jar");
+      try {
+        if (!existsSync(jar)) throw new Error("no slophouse session on this machine");
+        const res = await fetch(`${DASHBOARD}/api/query`, {
+          method: "POST", signal: AbortSignal.timeout(150_000),
+          headers: { Cookie: cookieHeader(jar), Origin: DASHBOARD, "Sec-Fetch-Site": "same-origin", "Content-Type": "application/json" },
+          body: JSON.stringify({ sql: T3_SQL, days: DAYS }),
+        });
+        if (res.status === 401 || res.status === 403) throw new Error(`slophouse session expired (${res.status}); sign in again in a browser and save the cookie jar`);
+        if (!res.ok) throw new Error(`slophouse ${res.status}`);
+        const json = await res.json() as { rows?: T3Payload["rows"]; error?: string };
+        if (!Array.isArray(json.rows)) throw new Error(`slophouse: ${json.error ?? "no rows"}`);
+        const now = Date.parse(ctx.now);
+        payload = { fetchedAt: ctx.now, start: day(now - DAYS * 86_400_000), end: day(now - 86_400_000), rows: json.rows };
+        mkdirSync(path.dirname(cacheFile), { recursive: true });
+        writeFileSync(cacheFile, JSON.stringify(payload));
+      } catch (e) {
+        // A day or two old is still the same 30-day window give or take; past a week the build carries the last snapshot's rows instead.
+        if (!cached || age > CACHE_MAX_DAYS * 24) throw e;
+        ctx.log(`T3 telemetry: ${(e as Error).message}; using the ${Math.round(age)} h old result`);
+        payload = cached;
+      }
+    }
+    return { ...parseT3Telemetry(payload), raw: { "t3-telemetry.json": JSON.stringify(payload) } };
+  },
+};
+export default source;

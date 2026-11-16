@@ -1,7 +1,7 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { IconArrowDown, IconArrowUp, IconEye, IconEyeOff, IconSquare, IconSquareCheck } from "@tabler/icons-react";
-import { taskMetricOptions, type TaskMetricSource } from "@/data/task-metrics";
+import { T3_MIN_USERS, taskMetricOptions, type TaskMetricSource } from "@/data/task-metrics";
 import { speedTierLegend } from "@/data/speed-tiers";
 import type { Snapshot, Lab } from "@/data/types";
 import type { IndexConfig, IndexResult, RankedVariant } from "@/engine";
@@ -93,7 +93,12 @@ export function GalleryChart({ id, anchor, title, chart, speed, ranked: indexRan
   const formula = useFormulaChart(base, savedView, inputs, ranked), metric = formula.metric, view = formula.view;
   const setMode = (m: "all" | "best") => { if (onOwner) onOwner({ ...owner, mode: m }); else setModeState(m); };
   const bars = view.kind === "bars" && metric?.scale !== "time";
-  const allMetricPoints = useMemo(() => metric?.points(ranked) ?? [], [metric, ranked]);
+  // Real-use points (T3 Code) carry how many users stand behind them; Advanced can hide thin samples.
+  const minUsers = view.minUsers;
+  const keepUsers = useCallback(<P extends { users?: number }>(list: P[]) => minUsers ? list.filter((p) => p.users == null || p.users >= minUsers) : list, [minUsers]);
+  const rawMetricPoints = useMemo(() => metric?.points(ranked) ?? [], [metric, ranked]);
+  const hasUsers = rawMetricPoints.some((p) => p.users != null);
+  const allMetricPoints = useMemo(() => keepUsers(rawMetricPoints), [keepUsers, rawMetricPoints]);
   // Deep links carry the chart view (`cv=bars`, `cm=best|all`). Captured once per mount —
   // mirror effects may rewrite the URL before init effects run (and StrictMode mounts twice).
   const linked = useMemo(() => {
@@ -127,14 +132,14 @@ export function GalleryChart({ id, anchor, title, chart, speed, ranked: indexRan
   }, [bars, mode, anchor, defaultMode, defaultKind, formula.defaultScale, view.scale, formula.link.cf, formula.link.cb]); // eslint-disable-line react-hooks/exhaustive-deps
   const kind = bars ? ("bars" as const) : ("scatter" as const);
   const linkParams = { cv: kind !== defaultKind ? kind : undefined, cm: mode !== defaultMode ? mode : undefined, cs: !bars && formula.defaultScale ? view.scale : undefined, extra: formula.link };
-  const pts = useMemo(() => (metric ? pickPoints(metric, ranked, mode) : []), [metric, ranked, mode]);
+  const pts = useMemo(() => (metric ? keepUsers(pickPoints(metric, ranked, mode)) : []), [metric, ranked, mode, keepUsers]);
   const barVisibility = useBarModelVisibility({ metricPoints: allMetricPoints, points: pts, better: metric?.better ?? "higher", ranked, modelOptions: settings?.models });
   const chartModelSettings = bars ? barVisibility.picker : {};
   const toggle = <div className="seg" role="group" aria-label={`${title} chart type`}>
     <button type="button" aria-pressed={!bars} title="Score vs metric" onClick={() => setView({ ...savedView, kind: "scatter" })}><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><circle cx="4" cy="11" r="1.6" /><circle cx="8" cy="6" r="1.6" /><circle cx="12.5" cy="4" r="1.6" /><circle cx="10" cy="10" r="1.6" /></svg></button>
     <button type="button" aria-pressed={bars} title="Bar chart" onClick={() => setView({ ...savedView, kind: "bars" })}><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><rect x="2" y="3" width="3" height="11" /><rect x="6.5" y="6" width="3" height="8" /><rect x="11" y="9" width="3" height="5" /></svg></button>
   </div>;
-  const actions = <>{metric?.scale !== "time" && toggle}<ChartSettings anchor={anchor} defaultScale={formula.defaultScale} formula={formula.settings} dataSource={dataSource} label={title} mode={mode} onChange={setMode} view={savedView} onView={setView} {...settings} speedTiers={speedTiers} {...chartModelSettings} /></>;
+  const actions = <>{metric?.scale !== "time" && toggle}<ChartSettings anchor={anchor} defaultScale={formula.defaultScale} formula={formula.settings} dataSource={dataSource} minUsers={hasUsers ? { value: minUsers, floor: T3_MIN_USERS, onChange: (v) => setView({ ...savedView, minUsers: v }) } : undefined} label={title} mode={mode} onChange={setMode} view={savedView} onView={setView} {...settings} speedTiers={speedTiers} {...chartModelSettings} /></>;
   if (!metric) return null;
   const caption = formula.custom && <p className="cap max-sm:px-4">{formula.caption}: <span className="mono text-ink-2">{formula.custom.source}</span></p>;
   if (formula.custom) {

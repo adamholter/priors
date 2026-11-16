@@ -9,7 +9,7 @@ import { compileFormula, type FormulaVars } from "./formula";
 export const anchorOf = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 
 /** A metric scatter point: x is the (possibly transformed) metric value. */
-export interface MetricPoint { x: number; r: RankedVariant; /** untransformed value for labels when x is transformed */ raw?: number; /** Costs nothing (a free tier): `raw` is 0 and `x` sits on `freeFloor`, since a log axis has no 0. */ free?: boolean }
+export interface MetricPoint { /** Users (installs) and turns behind a real-use measurement (T3 Code), so small samples can be shown and filtered. */ users?: number; turns?: number; x: number; r: RankedVariant; /** untransformed value for labels when x is transformed */ raw?: number; /** Costs nothing (a free tier): `raw` is 0 and `x` sits on `freeFloor`, since a log axis has no 0. */ free?: boolean }
 
 export interface MetricChart {
   better: "lower" | "higher";
@@ -85,8 +85,10 @@ export function metricPanels(snapshot: Snapshot, ranked: RankedVariant[], timeSo
   const decode = (rows: RankedVariant[]): MetricPoint[] => rows.flatMap((r) => {
     const tier = r.speedTier;
     if (tier && (timeSource !== "aa" || !tier.speedMultiple)) return [];
-    const x = timeData.get(tier?.baseVariantId ?? r.variant.id)?.value;
-    return x == null ? [] : [{ x: tier ? x / tier.speedMultiple! : x, r }];
+    const hit = timeData.get(tier?.baseVariantId ?? r.variant.id), x = hit?.value;
+    if (x == null) return [];
+    const users = hit?.observation.details?.users, turns = hit?.observation.details?.turns;
+    return [{ x: tier ? x / tier.speedMultiple! : x, r, ...(typeof users === "number" ? { users } : {}), ...(typeof turns === "number" ? { turns } : {}) }];
   });
   const tokens = iiId ? at(iiId, (o) => outputTokensPerTask(o.details?.outputTokensPerTask) ?? o.outputTokens ?? undefined) : () => [];
   const uptime = at("openrouter-uptime");
