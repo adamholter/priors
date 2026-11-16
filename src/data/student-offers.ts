@@ -21,14 +21,25 @@ export interface StudentOffer {
   url: string;
   /** Last day to claim, `YYYY-MM-DD`. */
   deadline?: string;
+  /**
+   * Only these models get the student fee; any other model on the plan keeps its regular price, because the offer does not
+   * include it. Absent when the offer is the full plan. Google's free year counts as a trial in Antigravity, where every Google
+   * row Priors has was measured: trials get no Gemini 4 Argon or Claude 5.5 (Antigravity's models table and forum staff,
+   * November 13, 2026), and Hydrogen reaches paid plans before trials.
+   */
+  models?: string[];
   checked: string;
 }
 
 export const STUDENT_OFFERS: StudentOffer[] = [
   {
     labId: "google", plan: "Google AI Pro", studentFeeUsd: 0, months: 12, regularFeeUsd: 19.99,
-    eligibility: "Students at a US college, 18 or older, verified through SheerID with a personal Google Account (no family group, supervised account or school-issued Workspace account). New users, or students whose 2025 AI Pro trial has expired. A payment method is required and it renews at $19.99/mo unless cancelled. Google's Offer Terms say usage limits may differ from a paid plan.",
+    eligibility: "Students at a US college, 18 or older, verified through SheerID with a personal Google Account (no family group, supervised account or school-issued Workspace account). New users, or students whose 2025 AI Pro trial has expired. A payment method is required and it renews at $19.99/mo unless cancelled. Google's Offer Terms say usage limits may differ from a paid plan. In Antigravity the free year counts as a trial: no Gemini 4 Argon or Claude 5.5 until a paid billing cycle starts, and Hydrogen comes to trials after paid plans, so only Gemini 3.8 Flash is priced at the student fee here. A paid, discounted student plan counts as regular Pro.",
     url: "https://gemini.google/us/students", deadline: "2026-12-31", checked: "2026-11-16",
+    // In Antigravity the free year is "Pro (Trial)": antigravity.google/docs/models (Argon needs a paid plan, Claude 5.5 a non-trial one)
+    // and discuss.ai.google.dev/t/google-ai-pro-student-offer/199844 (unlocks "once a paid billing cycle is active"); Hydrogen goes to
+    // paid, non-trial plans first. A paid, discounted student plan is regular paid Pro, but Google publishes no price for it.
+    models: ["gemini-3.8-flash"],
   },
   {
     labId: "mistral", plan: "Mistral Vibe Pro", studentFeeUsd: 5.99, months: 12, regularFeeUsd: 14.99,
@@ -58,14 +69,15 @@ const offerFor = (offers: readonly StudentOffer[], labId: string | undefined, pl
 
 /**
  * Plan prices with student offers applied, for cost charts only: a covered plan's share of API price scales by student fee over
- * regular fee, so a free offer prices its models at 0 (the free column). Free tiers and plans no offer covers are unchanged.
+ * regular fee, so a free offer prices its models at 0 (the free column). Free tiers, plans no offer covers and models an offer
+ * leaves out (`models`) are unchanged.
  */
 export function withStudentOffers(prices: Map<string, SubscriptionPrice>, labOf: (modelId: string) => string | undefined, offers: readonly StudentOffer[]): Map<string, SubscriptionPrice> {
   if (!offers.length) return prices;
   const out = new Map(prices);
   for (const [id, p] of prices) {
     const o = p.ratio > 0 ? offerFor(offers, labOf(id), p.plan) : undefined;
-    if (!o) continue;
+    if (!o || (o.models && !o.models.includes(id))) continue;
     const k = o.studentFeeUsd / o.regularFeeUsd;
     out.set(id, { ...p, ratio: p.ratio * k, ...(p.aaCostRatio != null ? { aaCostRatio: p.aaCostRatio * k } : {}), plan: `${p.plan}, student offer`, feeUsd: o.studentFeeUsd });
   }

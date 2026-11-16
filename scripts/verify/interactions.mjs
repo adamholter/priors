@@ -564,14 +564,14 @@ try {
     } finally { await c.context().close(); }
   });
 
-  await check("Subscription plans > Plan prices: Student lists official offers and reprices the cost chart, not the ranking or link", async () => {
+  await check("Subscription plans > Plan prices: Student lists official offers, keeps trial-excluded models at the paid price, and leaves the ranking and link alone", async () => {
     const c = await (await browser.newContext({ viewport: { width: 1440, height: 1000 } })).newPage();
     try {
       await c.goto(`${BASE}/builder`, { waitUntil: "domcontentloaded" });
       await c.locator(".ranking-list [data-k]").first().waitFor({ timeout: 30000 });
       const chart = c.locator('[role="img"][aria-label*="cost per task"]').first();
       await chart.locator("svg text").first().waitFor({ timeout: 30000 });
-      // Where the chart draws a model's label: Student moves Gemini 4 Hydrogen (Google AI Pro, free for students) left to the free column.
+      // Where the chart draws a model's label: Google's free student year is a trial in Antigravity, so Gemini 4 Hydrogen keeps its paid price.
       const labelX = (name) => chart.evaluate((el, name) => { const t = [...el.querySelectorAll("svg text")].find((n) => n.textContent === name); return t ? t.getBoundingClientRect().x : null; }, name);
       const svg = () => chart.evaluate((el) => [...el.querySelectorAll("svg text")].map((n) => `${n.textContent}@${Math.round(n.getBoundingClientRect().x)}`).sort().join("|"));
       const rank = () => c.locator(".ranking-list [data-k]").evaluateAll((els) => els.map((e) => e.getAttribute("data-k")).join(","));
@@ -590,13 +590,13 @@ try {
       const offers = menu.getByLabel("Official student offers");
       await offers.waitFor();
       const text = await offers.innerText();
-      assert.match(text, /Google AI Pro[\s\S]*Free for 12 months, then \$19.99\/mo[\s\S]*Students at a US college/);
+      assert.match(text, /Google AI Pro[\s\S]*Free for 12 months, then \$19.99\/mo[\s\S]*Students at a US college[\s\S]*counts as a trial/);
       assert.match(text, /Mistral Vibe Pro[\s\S]*\$5.99\/mo for 12 months[\s\S]*institution/);
       const hrefs = await offers.locator("a").evaluateAll((as) => as.map((a) => a.href));
       assert.ok(hrefs.length >= 1 && hrefs.every((h) => /^https:\/\/(gemini\.google|blog\.google|mistral\.ai)\//.test(h)), `official links: ${hrefs}`);
       await c.waitForTimeout(900);
       const xAfter = await labelX("Gemini 4 Hydrogen");
-      assert.ok(xAfter != null && xAfter < xBefore - 20, `Hydrogen moves left on student prices: ${xBefore} -> ${xAfter}`);
+      assert.ok(xAfter != null && Math.abs(xAfter - xBefore) < 4, `Hydrogen stays at its paid price (not in the free trial): ${xBefore} -> ${xAfter}`);
       assert.equal(await rank(), rankBefore, "the ranking is unchanged");
       assert.equal(c.url(), urlBefore, "the link does not carry the toggle");
       assert.equal(await c.evaluate(() => localStorage.getItem("priors:subscription-plans")), null, "it picks no plan");

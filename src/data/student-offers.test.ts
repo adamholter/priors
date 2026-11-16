@@ -59,12 +59,15 @@ describe("student offers", () => {
   it("prices covered plans at the student fee and leaves free tiers and uncovered plans alone", () => {
     const regular = subscriptionPrices(snapshot), labOf = new Map(snapshot.models.map((m) => [m.id, m.labId]));
     const student = withStudentOffers(regular, (id) => labOf.get(id), STUDENT_OFFERS);
-    const hydrogen = [...regular.keys()].find((id) => /hydrogen/.test(id) && /^Google AI Pro/.test(regular.get(id)!.plan));
-    expect(hydrogen, "Hydrogen is priced on Google AI Pro").toBeTruthy();
-    expect(student.get(hydrogen!)).toMatchObject({ ratio: 0, feeUsd: 0 });
+    const onPro = (re: RegExp) => [...regular.keys()].find((id) => re.test(id) && /^Google AI Pro/.test(regular.get(id)!.plan));
+    const flash = onPro(/^gemini-3\.8-flash$/), hydrogen = onPro(/hydrogen/), argon = onPro(/^gemini-4$/);
+    expect(flash, "3.8 Flash is priced on Google AI Pro").toBeTruthy();
+    expect(student.get(flash!)).toMatchObject({ ratio: 0, feeUsd: 0 });
+    // The free year is a trial in Antigravity: Hydrogen and Argon are not in it, so they keep the paid price.
+    for (const id of [hydrogen, argon]) if (id) expect(student.get(id), id).toEqual(regular.get(id));
     const mistral = [...regular].find(([, p]) => p.plan === "Mistral Vibe Pro")!;
     expect(student.get(mistral[0])!.ratio).toBeCloseTo(mistral[1].ratio * 5.99 / 14.99, 12);
-    for (const [id, p] of regular) if (!/^(Google AI Pro|Google AI Plus|Mistral Vibe Pro)/.test(p.plan) || p.ratio === 0) expect(student.get(id), id).toEqual(p);
+    for (const [id, p] of regular) if (!/^(Google AI Pro|Mistral Vibe Pro)/.test(p.plan) || p.ratio === 0 || (/^Google AI Pro/.test(p.plan) && id !== flash)) expect(student.get(id), id).toEqual(p);
     expect(withStudentOffers(regular, (id) => labOf.get(id), [])).toBe(regular);
   });
 
@@ -75,8 +78,9 @@ describe("student offers", () => {
     expect(ranks(after)).toEqual(ranks(before));
     expect(after.benchmarks).toEqual(before.benchmarks);
     const cost = (r: typeof before, re: RegExp) => r.ranked.find((x) => re.test(x.model.id) && x.costUsd != null);
-    expect(cost(before, /hydrogen/)!.costUsd).toBeGreaterThan(0);
-    expect(cost(after, /hydrogen/)!.costUsd).toBe(0);
+    expect(cost(before, /^gemini-3\.8-flash$/)!.costUsd).toBeGreaterThan(0);
+    expect(cost(after, /^gemini-3\.8-flash$/)!.costUsd).toBe(0);
+    expect(cost(after, /hydrogen/)!.costUsd).toBe(cost(before, /hydrogen/)!.costUsd);
     expect(after.ranked.filter((x) => x.costUsd !== before.ranked.find((y) => y.variant.id === x.variant.id)!.costUsd).every((x) => ["google", "mistral"].includes(x.model.labId))).toBe(true);
     expect(encodeIndex(after.config)).toBe(encodeIndex(before.config));
     expect(JSON.stringify([...subscriptionPrices(snapshot)])).toBe(JSON.stringify([...subscriptionPrices(snapshot)]));
