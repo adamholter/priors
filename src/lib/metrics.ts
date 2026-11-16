@@ -1,5 +1,5 @@
 import type { CostBasis } from "../data/subscription";
-import { taskMetricData, taskMetricDescription, type TaskMetricSource } from "../data/task-metrics";
+import { defaultTimeSource, taskMetricData, taskMetricDescription, type TaskMetricSource } from "../data/task-metrics";
 import { onAaPerformanceV3 } from "../data/series-breaks";
 import type { Observation, Snapshot } from "@/data/types";
 import type { RankedVariant } from "@/engine";
@@ -67,7 +67,7 @@ export function modelLabel(r: RankedVariant) {
 
 /** Gallery panel definitions — shared between the client gallery and share cards.
  *  `estimated` (IndexResult.estimated, effort-filtered like `ranked`) joins the release-date chart only: models the index cannot score, placed in time on an estimated score. */
-export function metricPanels(snapshot: Snapshot, ranked: RankedVariant[], timeSource: TaskMetricSource = "aa", estimated: RankedVariant[] = []): MetricPanel[] {
+export function metricPanels(snapshot: Snapshot, ranked: RankedVariant[], timeSource: TaskMetricSource = defaultTimeSource(snapshot), estimated: RankedVariant[] = []): MetricPanel[] {
   const obs = new Map<string, Map<string, Observation>>();
   for (const o of snapshot.observations) {
     const b = obs.get(o.benchmarkId) ?? obs.set(o.benchmarkId, new Map()).get(o.benchmarkId)!;
@@ -200,7 +200,7 @@ export function chartTitle(c: string | undefined): string | undefined {
 }
 
 /** Resolve a chart param to its card kind: "rankings" | "cost" | a metric chart. */
-export function chartKind(snapshot: Snapshot, ranked: RankedVariant[], c: string | undefined, timeSource: TaskMetricSource = "aa", estimated: RankedVariant[] = []): { kind: "rankings" | "cost" } | { kind: "metric"; chart: MetricChart } | null {
+export function chartKind(snapshot: Snapshot, ranked: RankedVariant[], c: string | undefined, timeSource: TaskMetricSource = defaultTimeSource(snapshot), estimated: RankedVariant[] = []): { kind: "rankings" | "cost" } | { kind: "metric"; chart: MetricChart } | null {
   if (!c || c === "rankings") return { kind: "rankings" };
   if (c === "cost") return { kind: "cost" };
   if (c === "output-speed") return ranked.some((r) => r.speed) ? { kind: "metric", chart: speedChart } : null;
@@ -218,7 +218,7 @@ const inputsCache = new WeakMap<RankedVariant[], Map<string, FormulaInputs>>();
  * drawing a chart that has a formula), so charts without one never pay for it. `panels` reuses a
  * gallery's already-computed metric panels.
  */
-export function formulaInputs(snapshot: Snapshot, ranked: RankedVariant[], timeSource: TaskMetricSource = "aa", panels?: MetricPanel[]): FormulaInputs {
+export function formulaInputs(snapshot: Snapshot, ranked: RankedVariant[], timeSource: TaskMetricSource = defaultTimeSource(snapshot), panels?: MetricPanel[]): FormulaInputs {
   // One per ranking and time source, so callers can ask on every render and get the same object back.
   const cached = inputsCache.get(ranked)?.get(timeSource);
   if (cached) return cached;

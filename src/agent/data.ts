@@ -8,7 +8,7 @@ import type { Observation, Snapshot } from "../data/types";
 import { EFFORT_ORDER } from "../data/types";
 import { computeIndex, type IndexConfig, type RankedVariant } from "../engine";
 import { supersededModelIds } from "../engine/superseded";
-import { taskMetricData } from "../data/task-metrics";
+import { taskMetricData, timeSourceOf } from "../data/task-metrics";
 import { outputTokensPerTask } from "../lib/metrics";
 import { resolveBenchmark, resolveLab, resolveModel, resolveVariant } from "./resolve";
 
@@ -73,7 +73,7 @@ export class DataView {
       const m = this.obs.get(o.benchmarkId) ?? this.obs.set(o.benchmarkId, new Map()).get(o.benchmarkId)!;
       if (!m.has(o.variantId) && !o.details?.priorsEstimate) m.set(o.variantId, o);
     }
-    this.time = taskMetricData(snapshot, config.timeSource ?? "aa", "time");
+    this.time = taskMetricData(snapshot, timeSourceOf(snapshot, config.timeSource), "time");
     this.iiId = snapshot.benchmarks.filter((b) => b.id.startsWith("aa-intelligence-index")).sort((a, b) => b.id.localeCompare(a.id))[0]?.id;
   }
 

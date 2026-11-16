@@ -76,6 +76,18 @@ export function taskMetricData(snapshot: Snapshot, source: string, metric: TaskM
   };
 }
 
+/**
+ * Time per task defaults to T3 Code's real use, where the snapshot has it (older snapshots fall back to Artificial
+ * Analysis' computed time). An explicit choice, including "aa", is kept in the index and its links (`timesrc=aa`).
+ */
+const defaultTime = new WeakMap<Snapshot, TaskMetricSource>();
+export function defaultTimeSource(snapshot: Snapshot): TaskMetricSource {
+  let s = defaultTime.get(snapshot);
+  if (!s) defaultTime.set(snapshot, s = taskMetricData(snapshot, "t3-code", "time").modelCount >= 5 ? "t3-code" : "aa");
+  return s;
+}
+export const timeSourceOf = (snapshot: Snapshot, chosen?: TaskMetricSource): TaskMetricSource => chosen ?? defaultTimeSource(snapshot);
+
 export function taskMetricOptions(snapshot: Snapshot, metric: TaskMetric) {
   return TASK_METRIC_SOURCES.map((source) => ({ ...source, modelCount: taskMetricData(snapshot, source.id, metric).modelCount }));
 }

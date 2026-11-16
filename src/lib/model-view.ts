@@ -1,4 +1,4 @@
-import { taskMetricDescription } from "@/data/task-metrics";
+import { taskMetricDescription, timeSourceOf } from "@/data/task-metrics";
 import { computeIndex, defaultConfig, type IndexConfig, type IndexResult, type RankedVariant } from "@/engine";
 import { defaultPriorsMix } from "@/onboarding/defaults";
 import { effectiveBasis, tokenPrice, type CostBasis, type TokenPrice } from "@/data/subscription";
@@ -93,7 +93,7 @@ function field(snapshot: Snapshot, mix: IndexConfig, costConfig: IndexConfig) {
 }
 
 function panelValues(snapshot: Snapshot, ranked: RankedVariant[], mix: IndexConfig) {
-  const panels = new Map(metricPanels(snapshot, ranked, mix.timeSource).map((p) => [p.id, p]));
+  const panels = new Map(metricPanels(snapshot, ranked, timeSourceOf(snapshot, mix.timeSource)).map((p) => [p.id, p]));
   const from = (id: string) => { const pts = panels.get(id)?.chart?.points(ranked) ?? []; const m = new Map(pts.map((p) => [p.r.variant.id, p.raw ?? p.x])); return (r: RankedVariant) => m.get(r.variant.id); };
   return { tpt: from("tpt"), latency: from("latency"), tokens: from("tokens") };
 }
@@ -108,7 +108,7 @@ function costSide(snapshot: Snapshot, modelId: string, ranked: RankedVariant[], 
     metrics.forEach((of, i) => { if (of(r) != null && !taken[i].has(r.model.id)) { taken[i].add(r.model.id); keep = true; } });
     if (keep) rows.push({ id: r.variant.id, modelId: r.model.id, name: r.model.name, effort: r.variant.effort, score: r.score, costUsd: r.costUsd, speed: r.speed, tpt: tpt(r), latency: latency(r), tokens: tokens(r) });
   }
-  return { rows, floor: freeFloor(ranked.flatMap((r) => (r.costUsd ? [r.costUsd] : []))), hasFree: ranked.some((r) => r.costUsd === 0), models: new Set(ranked.map((r) => r.model.id)).size, token: tokenPrice(snapshot, modelId, mix.subscriptionPlans), timeNote: taskMetricDescription(mix.timeSource ?? "aa", "time", snapshot.date), apiDefaultEffort: snapshot.variants.find((v) => v.modelId === modelId && v.apiDefaultEffort && v.effort !== "default")?.effort };
+  return { rows, floor: freeFloor(ranked.flatMap((r) => (r.costUsd ? [r.costUsd] : []))), hasFree: ranked.some((r) => r.costUsd === 0), models: new Set(ranked.map((r) => r.model.id)).size, token: tokenPrice(snapshot, modelId, mix.subscriptionPlans), timeNote: taskMetricDescription(timeSourceOf(snapshot, mix.timeSource), "time", snapshot.date), apiDefaultEffort: snapshot.variants.find((v) => v.modelId === modelId && v.apiDefaultEffort && v.effort !== "default")?.effort };
 }
 
 function strengths(modelId: string, mixName: string, { axes, models, median }: ReturnType<typeof radarModelsFor>): ModelView["strengths"] {

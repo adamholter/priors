@@ -52,7 +52,7 @@ export function encodeIndex(c: FromPage, keepPage = false): string {
   else if (c.freeTiers === "limited") parts.push("free=limited");
   if (c.planReading && /^[a-z0-9-]{1,24}$/.test(c.planReading)) parts.push(`reading=${c.planReading}`);
   if (c.subscriptionPlans && Object.keys(c.subscriptionPlans).length) parts.push(`plans=${Object.entries(c.subscriptionPlans).sort(([a], [b]) => a.localeCompare(b)).map(([lab, plan]) => `${lab}:${encodeURIComponent(plan)}`).join(",")}`);
-  if (c.timeSource && c.timeSource !== "aa") parts.push(`timesrc=${c.timeSource}`);
+  if (c.timeSource) parts.push(`timesrc=${c.timeSource}`);
   if (c.focus) parts.push(`focus=${c.focus}`);
   if (c.highlight?.length) parts.push(`hl=${c.highlight.join(",")}`);
   if (keepPage && c.page) parts.push(`page=${c.page}`);

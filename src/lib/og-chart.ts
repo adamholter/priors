@@ -2,6 +2,7 @@ import { rasterize } from "@/lib/rasterize";
 export { rasterize } from "@/lib/rasterize";
 import type { EChartsOption } from "echarts";
 import type { Lab, Snapshot } from "../data/types";
+import { timeSourceOf } from "../data/task-metrics";
 import type { RankedVariant, IndexConfig } from "../engine";
 import { chartVariantMode, filterEfforts } from "../engine";
 import { echarts, themeFor, paletteFor, markColor, DARK_PALETTE, SANS_STATIC, MONO_STATIC, type ChartPalette } from "../components/chart/theme";
@@ -44,10 +45,10 @@ export function scatterSpec(snapshot: Snapshot, ranked: RankedVariant[], index: 
   // The page draws its cost, time and speed charts from the efforts the index shows; the card must start from the same set.
   const from = (chart: MetricChart, title: string, hasTitle: boolean, rows = ranked) => metricSpec(chart, rows, index, title, hasTitle, { cm, cs, hidden, labelScale, allModels });
   if (c === "cost") return from(costChartFor(effectiveBasis(index.costBasis)), effectiveBasis(index.costBasis) === "subscription" ? "Score vs subscription cost per task" : "Score vs cost per task", true, withSpeedTiers(ranked, snapshot, index.speedTiers, index.subscriptionPlans, { chart: "cost" }));
-  const ck = chartKind(snapshot, ranked, c, index.timeSource, filterEfforts(estimated, index.efforts));
+  const ck = chartKind(snapshot, ranked, c, timeSourceOf(snapshot, index.timeSource), filterEfforts(estimated, index.efforts));
   if (ck?.kind !== "metric") return null;
   // The same two charts the page gives speed tiers: output speed, and Artificial Analysis' time per task.
-  const tiered = c === "output-speed" || (c === "time-per-task" && (index.timeSource ?? "aa") === "aa");
+  const tiered = c === "output-speed" || (c === "time-per-task" && timeSourceOf(snapshot, index.timeSource) === "aa");
   return from(ck.chart, chartTitle(c) ?? ck.chart.xName, false, tiered ? withSpeedTiers(ranked, snapshot, index.speedTiers, index.subscriptionPlans, { chart: "speed" }) : ranked);
 }
 
