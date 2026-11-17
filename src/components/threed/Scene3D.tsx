@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import type * as T from "three";
 import type { OrbitControls as Orbit } from "three/examples/jsm/controls/OrbitControls.js";
-import { axisIsLog, valueAt, type Axis, type Point3 } from "@/lib/three-d";
+import { axisIsLog, frontierSurface, valueAt, type Axis, type Point3 } from "@/lib/three-d";
 
 export interface ScenePalette { ink: string; grey: string; hair: string; bg: string }
 export type ViewPreset = { ortho: boolean; dir: [number, number, number]; nonce: number };
@@ -34,9 +34,10 @@ interface Box { x: number; y: number; w: number; h: number; owner?: string }
 const hit = (a: Box, b: Box, pad = 3) => a.x < b.x + b.w + pad && a.x + a.w + pad > b.x && a.y < b.y + b.h + pad && a.y + a.h + pad > b.y;
 
 /**
- * The 3D scatter: a unit cube whose three edges are the axes, the better end of each at the far corner, and a
- * green zone from the median model to that corner. Drawn on demand. Labels are HTML laid out on top of the canvas,
- * so they stay crisp and are placed so that none covers another.
+ * The 3D scatter: a unit cube whose three edges are the axes, the better end of each at the far corner. The Pareto
+ * frontier is drawn as a surface (the staircase of everything the frontier models beat, `frontierSurface`): models on it
+ * are full size, models under it are small and faded. The median zone is a light outline. Drawn on demand. Labels are
+ * HTML laid out on top of the canvas, so they stay crisp and are placed so that none covers another.
  */
 export function Scene3D(props: SceneProps) {
   const host = useRef<HTMLDivElement>(null);
@@ -66,7 +67,7 @@ export function Scene3D(props: SceneProps) {
       const persp = new THREE.PerspectiveCamera(38, 1, 0.1, 200), ortho = new THREE.OrthographicCamera(-1, 1, 1, -1, -100, 200);
       let camera: T.PerspectiveCamera | T.OrthographicCamera = persp, controls: Orbit;
       let pickables: { mesh: T.Mesh; id: string }[] = [];
-      let drops: T.Object3D[] = [], shells: T.Object3D[] = [];
+      let drops: T.Object3D[] = [], surface: T.Object3D[] = [];
       let anchors: { id: string; v: T.Vector3; node: HTMLElement; w: number; h: number }[] = [];
       let statics: { v: T.Vector3; node: HTMLElement; out: number; w: number; h: number; axis?: number; u?: number }[] = [];
       let axisLines: T.Line[] = [];
@@ -186,7 +187,7 @@ export function Scene3D(props: SceneProps) {
           });
         }
         overlay.replaceChildren();
-        pickables = []; drops = []; shells = []; anchors = []; statics = []; axisLines = []; order = [];
+        pickables = []; drops = []; surface = []; anchors = []; statics = []; axisLines = []; order = [];
       };
 
       const line = (a: T.Vector3, b: T.Vector3, color: string, opacity = 1) =>
@@ -209,14 +210,30 @@ export function Scene3D(props: SceneProps) {
           }
           const n = tag(`<b>${esc(p.titles[i])}</b><i>${axis.meta.better === "lower" ? "lower" : "higher"} is better →</i>`, "t3d-title"); statics.push({ v: new THREE.Vector3(), node: n, out: 44, axis: i, ...sizeOf(n) });
         }
-        // The zone: better than the median model on all three axes, shaded like the best quadrant of a 2D chart.
+        // The median zone (better than the median model on all three axes) as a light outline: the frontier surface is the figure.
         const lo = p.zone.map((u) => world(u)), span = lo.map((l) => HALF - l);
         if (span.every((s) => s > 0.05)) {
-          const box = new THREE.BoxGeometry(span[0], span[1], span[2]);
-          const zone = new THREE.Mesh(box, new THREE.MeshBasicMaterial({ color: good, transparent: true, opacity: 0.075, depthWrite: false, side: THREE.DoubleSide }));
-          zone.position.set(lo[0] + span[0] / 2, lo[1] + span[1] / 2, lo[2] + span[2] / 2); zone.renderOrder = -1; content.add(zone);
-          const edges = new THREE.LineSegments(new THREE.EdgesGeometry(box), new THREE.LineBasicMaterial({ color: good, transparent: true, opacity: 0.5 }));
-          edges.position.copy(zone.position); content.add(edges);
+          const edges = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(span[0], span[1], span[2])), new THREE.LineDashedMaterial({ color: grey, transparent: true, opacity: 0.45, dashSize: 0.25, gapSize: 0.18 }));
+          edges.position.set(lo[0] + span[0] / 2, lo[1] + span[1] / 2, lo[2] + span[2] / 2); edges.computeLineDistances(); content.add(edges);
+        }
+        // The frontier surface: walls facing each axis at their own strength, so the steps read as steps, and the outline of each step.
+        const { faces, edges: outline } = frontierSurface(p.points);
+        const wv = (c: [number, number, number]) => [world(c[0]), world(c[1]), world(c[2])];
+        for (const axis of [0, 1, 2] as const) {
+          const quads = faces.filter((f) => f.axis === axis);
+          if (!quads.length) continue;
+          const pos = new Float32Array(quads.length * 18);
+          quads.forEach((f, q) => { const [a, b, c, d] = f.corners.map(wv); pos.set([...a, ...b, ...c, ...a, ...c, ...d], q * 18); });
+          const geo = new THREE.BufferGeometry(); geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+          const wall = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: good, transparent: true, opacity: axis === 1 ? 0.15 : axis === 0 ? 0.06 : 0.045, depthWrite: false, side: THREE.DoubleSide }));
+          wall.renderOrder = -1; content.add(wall); surface.push(wall);
+        }
+        if (outline.length) {
+          const pos = new Float32Array(outline.length * 6);
+          outline.forEach(([a, b], q) => pos.set([...wv(a), ...wv(b)], q * 6));
+          const geo = new THREE.BufferGeometry(); geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+          const lines = new THREE.LineSegments(geo, new THREE.LineBasicMaterial({ color: good, transparent: true, opacity: 0.42 }));
+          content.add(lines); surface.push(lines);
         }
         const corner = tag("Best corner", "t3d-corner"); corner.style.color = good;
         statics.push({ v: new THREE.Vector3(HALF, HALF, HALF), node: corner, out: 22, ...sizeOf(corner) });
@@ -226,14 +243,15 @@ export function Scene3D(props: SceneProps) {
         order = [...byScore].sort((a, b) => Number(key.has(b.id)) - Number(key.has(a.id)) || Number(b.frontier) - Number(a.frontier) || b.r.score - a.r.score).map((q) => q.id);
         for (const q of p.points) {
           const color = p.colorOf(q), pos = new THREE.Vector3(world(q.pos[0]), world(q.pos[1]), world(q.pos[2]));
-          const halo = new THREE.Mesh(new THREE.SphereGeometry(0.27, 18, 12), new THREE.MeshBasicMaterial({ color: bg, side: THREE.BackSide }));
-          const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.2, 22, 16), new THREE.MeshBasicMaterial({ color }));
+          // On the frontier: full size. Under it: smaller and faded, so the models that matter stand out.
+          const r = q.frontier ? 0.22 : 0.14, fade = q.frontier ? 1 : 0.42;
+          const halo = new THREE.Mesh(new THREE.SphereGeometry(r + 0.07, 18, 12), new THREE.MeshBasicMaterial({ color: bg, side: THREE.BackSide, transparent: fade < 1, opacity: fade }));
+          const mesh = new THREE.Mesh(new THREE.SphereGeometry(r, 22, 16), new THREE.MeshBasicMaterial({ color, transparent: fade < 1, opacity: fade }));
           halo.position.copy(pos); mesh.position.copy(pos); content.add(halo, mesh); pickables.push({ mesh, id: q.id });
-          if (q.frontier) { const shell = new THREE.Mesh(new THREE.SphereGeometry(0.38, 20, 14), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.2, depthWrite: false })); shell.position.copy(pos); content.add(shell); shells.push(shell); }
-          const drop = line(pos, new THREE.Vector3(pos.x, -HALF, pos.z), grey, 0.16);
+          const drop = line(pos, new THREE.Vector3(pos.x, -HALF, pos.z), grey, q.frontier ? 0.22 : 0.1);
           const dot = new THREE.Mesh(new THREE.CircleGeometry(0.09, 12), new THREE.MeshBasicMaterial({ color: grey, transparent: true, opacity: 0.3 }));
           dot.rotation.x = -Math.PI / 2; dot.position.set(pos.x, -HALF + 0.01, pos.z); drops.push(drop, dot); content.add(drop, dot);
-          const n = tag(esc(p.nameOf(q)), "t3d-name"); n.style.visibility = "hidden";
+          const n = tag(esc(p.nameOf(q)), q.frontier ? "t3d-name" : "t3d-name t3d-under"); n.style.visibility = "hidden";
           anchors.push({ id: q.id, v: pos, node: n, ...sizeOf(n) });
         }
         refresh();
@@ -242,7 +260,7 @@ export function Scene3D(props: SceneProps) {
       const refresh = () => {
         const p = latest.current;
         for (const d of drops) d.visible = p.dropLines;
-        for (const s of shells) s.visible = p.frontier;
+        for (const s of surface) s.visible = p.frontier;
         for (const { mesh, id } of pickables) mesh.scale.setScalar(id === p.selected ? 1.8 : id === hoverId ? 1.4 : 1);
         controls.autoRotate = p.autoRotate && !p.selected;
         request();

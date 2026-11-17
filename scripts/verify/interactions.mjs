@@ -1177,6 +1177,9 @@ try {
       const list = c.getByRole("region", { name: "Closest to the best corner" }).locator("li");
       await list.first().waitFor({ timeout: 30000 });
       assert.equal(await list.count(), 6, "six models listed");
+      // The frontier surface is on by default and its count is in the side panel.
+      assert.match(await c.getByRole("region", { name: "Closest to the best corner" }).innerText(), /\d+ on the frontier/);
+      assert.equal(await c.getByRole("button", { name: "Pareto frontier" }).getAttribute("aria-pressed"), "true");
       await c.getByRole("button", { name: /^Across axis: Time per task/ }).waitFor();
       await c.getByRole("button", { name: /^Up axis/ }).click();
       await c.getByRole("option", { name: /Subscription cost per task|Cost per task/ }).click();

@@ -48,3 +48,5 @@
   .t3d-hint { display: none; }
   .t3d-bar-top .t3d-tools { margin-left: auto; }
 }
+/* Models under the frontier: their names step back, unless hovered or picked. */
+.t3d-under:not(.t3d-hot) { color: var(--grey); font-weight: 400; }

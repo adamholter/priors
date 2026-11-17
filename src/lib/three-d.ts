@@ -76,3 +76,44 @@ export function valueAt(axis: Axis, u: number, log: boolean): number {
   return log && axis.min > 0 ? 10 ** (Math.log10(lo) + (Math.log10(hi) - Math.log10(lo)) * u) : lo + (hi - lo) * u;
 }
 export const axisIsLog = (axis: Axis) => axis.meta.log && axis.min > 0;
+
+/** A face of the frontier surface: four corners in unit-cube coordinates (1 = the better end), and the axis it faces along. */
+export interface Face { corners: [[number, number, number], [number, number, number], [number, number, number], [number, number, number]]; axis: 0 | 1 | 2 }
+
+/**
+ * The Pareto frontier as a surface: the outer boundary of everything the frontier models beat. Each frontier model claims the box from
+ * the worst corner to its own point; the union of those boxes is a staircase whose outer corners are the frontier models, and any model
+ * under it is beaten on all three axes by one of them. Built on the grid of the frontier's own coordinates, keeping each cell wall that
+ * separates a beaten cell from an open one (or from the cube's better wall). `edges` is the staircase's outline: wall edges that are not
+ * shared by two walls in the same plane, so the drawing shows steps, not the grid.
+ */
+export function frontierSurface(points: Pick<Point3, "pos" | "frontier">[]): { faces: Face[]; edges: [[number, number, number], [number, number, number]][] } {
+  const front = points.filter((p) => p.frontier).map((p) => p.pos);
+  if (front.length < 2) return { faces: [], edges: [] };
+  const cuts = [0, 1, 2].map((i) => [...new Set([0, ...front.map((p) => p[i])])].sort((a, b) => a - b));
+  const n = cuts.map((c) => c.length - 1);
+  // A cell is beaten when one frontier model is at least as good as the cell's best corner on every axis.
+  const beaten = (i: number, j: number, k: number) => i < n[0] && j < n[1] && k < n[2] && front.some((p) => p[0] >= cuts[0][i + 1] && p[1] >= cuts[1][j + 1] && p[2] >= cuts[2][k + 1]);
+  const faces: Face[] = [];
+  for (let i = 0; i < n[0]; i++) for (let j = 0; j < n[1]; j++) for (let k = 0; k < n[2]; k++) {
+    if (!beaten(i, j, k)) continue;
+    const lo = [cuts[0][i], cuts[1][j], cuts[2][k]], hi = [cuts[0][i + 1], cuts[1][j + 1], cuts[2][k + 1]], idx = [i, j, k];
+    for (const axis of [0, 1, 2] as const) {
+      const next = [...idx]; next[axis]++;
+      if (beaten(next[0], next[1], next[2])) continue;
+      const [a, b] = [0, 1, 2].filter((x) => x !== axis) as [0 | 1 | 2, 0 | 1 | 2];
+      const corner = (ua: number, ub: number) => { const v = [0, 0, 0] as [number, number, number]; v[axis] = hi[axis]; v[a] = ua; v[b] = ub; return v; };
+      faces.push({ axis, corners: [corner(lo[a], lo[b]), corner(hi[a], lo[b]), corner(hi[a], hi[b]), corner(lo[a], hi[b])] });
+    }
+  }
+  const key = (p: number[]) => p.map((x) => x.toFixed(6)).join(",");
+  const seen = new Map<string, { count: number; ends: [[number, number, number], [number, number, number]] }>();
+  for (const f of faces) for (let e = 0; e < 4; e++) {
+    const a = f.corners[e], b = f.corners[(e + 1) % 4], [p, q] = key(a) < key(b) ? [a, b] : [b, a];
+    const id = `${f.axis}|${f.corners[0][f.axis].toFixed(6)}|${key(p)}|${key(q)}`;
+    const s = seen.get(id); if (s) s.count++; else seen.set(id, { count: 1, ends: [p, q] });
+  }
+  const outline = new Map<string, [[number, number, number], [number, number, number]]>();
+  for (const s of seen.values()) if (s.count === 1) outline.set(`${key(s.ends[0])}|${key(s.ends[1])}`, s.ends);
+  return { faces, edges: [...outline.values()] };
+}
