@@ -75,6 +75,32 @@ export function blendedApiPrice(p: Prices, mix: TokenMix): number {
   return mix.cache * cached + mix.input * p.input + (mix.cacheWrite ?? 0) * (p.cacheWrite ?? p.input * 1.25) + mix.output * p.output;
 }
 
+/**
+ * Plans sold at different rates by time of day measure each rate as its own row: GLM Coding's 闲时 (off-peak), 中间值 (a mix) and 忙时
+ * (peak, Monday to Friday 14:00-18:00 UTC+8, where credits cost twice the off-peak rate), and MiMo Token Plan's Day and Night (0.8x)
+ * rows. The headline prices each model at its median plan, whichever row that is (GLM Coding Pro off-peak, MiMo Token Plan Max Day).
+ * `PeakHours` is a visitor's choice to price these plans at their mixed or peak row instead: a view choice (Data → Subscription plans →
+ * Peak hours, kept in this browser like Plan prices: Student), never stored in an index or a link.
+ */
+export type PeakHours = "mixed" | "peak";
+export const PEAK_HOURS: { id: PeakHours | undefined; name: string }[] = [{ id: undefined, name: "Off-peak" }, { id: "mixed", name: "Mixed" }, { id: "peak", name: "Peak" }];
+export const isPeakHours = (value: unknown): value is PeakHours => value === "mixed" || value === "peak";
+type PeakKind = "offpeak" | PeakHours;
+/** A plan row's time-of-day rate, and the plan it belongs to. Undefined for a plan sold at one rate. */
+export function peakKind(plan: string): { base: string; kind: PeakKind } | undefined {
+  const glm = /^(.*?),? (闲时|中间值|忙时)$/.exec(plan);
+  if (glm) return { base: glm[1], kind: glm[2] === "闲时" ? "offpeak" : glm[2] === "忙时" ? "peak" : "mixed" };
+  const dayNight = /^(.*) \((Day|Night\b[^)]*)\)$/.exec(plan);
+  if (dayNight) return { base: dayNight[1], kind: dayNight[2] === "Day" ? "peak" : "offpeak" };
+  return undefined;
+}
+/** The same plan's row at the chosen rate, when the plan has one and the row is not already it. */
+export function peakSibling<P extends { plan: string; usdPerMtok: number }>(plan: string, plans: readonly P[], want: PeakHours): P | undefined {
+  const k = peakKind(plan);
+  if (!k || k.kind === want) return undefined;
+  return plans.find((p) => { const q = peakKind(p.plan); return q?.base === k.base && q.kind === want && positive(p.usdPerMtok); });
+}
+
 /** OpenAI's estimated Codex messages per five hours on Plus, per model (`scripts/scrape/sources/codex-limits.ts`). */
 export const CODEX_LIMITS_BENCHMARK = "codex-plus-messages";
 /** The workload assumed when usage can't tell: Real API Pricing's standard convention. */
@@ -152,9 +178,10 @@ export function subscriptionPlanOptions(snapshot: Snapshot): { labId: string; pl
  * spent at list prices gives the same share at any mix, and mixing the two would change the share for no reason.
  * Only comparing two different models' prices depends on the mix, so that (below) uses measured mixes.
  */
-export function subscriptionPrices(snapshot: Snapshot, chosen: Record<string, string> = {}, { free = true, reading }: {
+export function subscriptionPrices(snapshot: Snapshot, chosen: Record<string, string> = {}, { free = true, reading, peakHours }: {
   /** `false`: a model free today is priced on its paid plans, or left to API price with none. `true` counts generous free tiers; `"limited"` rate-limited ones too. */ free?: boolean | "limited";
   /** The reading to use where a row has several (`PlanReading.id`); unset or unknown is each row's first. */ reading?: string;
+  /** Price plans sold by time of day at their mixed or peak row (`PeakHours`). Unset keeps each model's row as is. */ peakHours?: PeakHours;
 } = {}): Map<string, SubscriptionPrice> {
   const labOf = Object.keys(chosen).length ? new Map(snapshot.models.map((m) => [m.id, m.labId])) : undefined;
   const out = new Map<string, SubscriptionPrice>();
@@ -182,7 +209,9 @@ export function subscriptionPrices(snapshot: Snapshot, chosen: Record<string, st
       out.set(modelId, { ratio: r && positive(r.ratio) ? r.ratio : d.ratio, plan: d.plan, feeUsd: d.feeUsd, confidence: d.confidence, ...(r ? { reading: r.id } : {}) });
       continue;
     }
-    const want = labOf && chosen[labOf.get(modelId) ?? ""], pick = want !== undefined ? d?.plans?.find((p) => currentPlanName(p.plan) === currentPlanName(want) && positive(p.usdPerMtok)) : undefined;
+    const want = labOf && chosen[labOf.get(modelId) ?? ""], chosenRow = want !== undefined ? d?.plans?.find((p) => currentPlanName(p.plan) === currentPlanName(want) && positive(p.usdPerMtok)) : undefined;
+    // The same plan at the visitor's time of day, picked or median.
+    const pick = (peakHours && d?.plans ? peakSibling(chosenRow?.plan ?? d.plan, d.plans, peakHours) : undefined) ?? chosenRow;
     const value = pick?.usdPerMtok ?? rowValue;
     if (!positive(value)) continue;
     const prices = d?.listPrice ?? aaPrices.get(modelId);

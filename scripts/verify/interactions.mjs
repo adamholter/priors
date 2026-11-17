@@ -569,6 +569,42 @@ try {
     } finally { await c.context().close(); }
   });
 
+  await check("Subscription plans > Peak hours defaults to off-peak, switches without touching the ranking or the link, and resets cleanly", async () => {
+    const c = await (await browser.newContext({ viewport: { width: 1440, height: 1000 } })).newPage();
+    try {
+      await c.goto(`${BASE}/builder`, { waitUntil: "domcontentloaded" });
+      await c.locator(".ranking-list [data-k]").first().waitFor({ timeout: 30000 });
+      const chart = c.locator('[role="img"][aria-label*="cost per task"]').first();
+      await chart.locator("svg text").first().waitFor({ timeout: 30000 });
+      const svg = () => chart.evaluate((el) => [...el.querySelectorAll("svg text")].map((n) => `${n.textContent}@${Math.round(n.getBoundingClientRect().x)}`).sort().join("|"));
+      const rank = () => c.locator(".ranking-list [data-k]").evaluateAll((els) => els.map((e) => e.getAttribute("data-k")).join(","));
+      const picker = c.locator("details", { has: c.locator("summary[aria-label='Pareto settings']") }).first();
+      await picker.scrollIntoViewIfNeeded();
+      await picker.locator("summary[aria-label='Pareto settings']").click();
+      const menu = picker.locator(".chart-settings-menu");
+      await menu.getByRole("tab", { name: "Data" }).click();
+      await menu.locator("summary", { hasText: "Subscription plans" }).click();
+      const group = menu.getByRole("group", { name: "Peak hours" });
+      await group.waitFor();
+      await c.waitForTimeout(500);
+      const svgBefore = await svg(), rankBefore = await rank(), urlBefore = c.url();
+      assert.equal(await group.getByRole("button", { name: "Off-peak", exact: true }).getAttribute("aria-pressed"), "true", "off-peak by default");
+      assert.match(await menu.innerText(), /GLM Coding/, "names the GLM plan it applies to");
+      for (const name of ["Mixed", "Peak"]) {
+        await group.getByRole("button", { name, exact: true }).click();
+        assert.equal(await group.getByRole("button", { name, exact: true }).getAttribute("aria-pressed"), "true", `${name} pressed`);
+        assert.equal(await c.evaluate(() => localStorage.getItem("priors:peak-hours")), name.toLowerCase(), "kept in this browser");
+        await c.waitForTimeout(600);
+        assert.equal(await rank(), rankBefore, `${name}: the ranking is unchanged`);
+        assert.equal(c.url(), urlBefore, `${name}: the link does not carry it`);
+      }
+      await group.getByRole("button", { name: "Off-peak", exact: true }).click();
+      await c.waitForTimeout(900);
+      assert.equal(await c.evaluate(() => localStorage.getItem("priors:peak-hours")), null, "off-peak stores nothing");
+      assert.equal(await svg(), svgBefore, "back to off-peak, every label is where it was");
+    } finally { await c.context().close(); }
+  });
+
   await check("Subscription plans > Plan prices: Student lists official offers, keeps trial-excluded models at the paid price, and leaves the ranking and link alone", async () => {
     const c = await (await browser.newContext({ viewport: { width: 1440, height: 1000 } })).newPage();
     try {

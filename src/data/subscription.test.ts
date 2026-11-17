@@ -5,7 +5,7 @@ import { computeIndex, type IndexConfig } from "../engine";
 import { decodeIndex, encodeIndex } from "../lib/url";
 import { clientSnapshot } from "./client-snapshot";
 import { countedResets, extraWeeks, hasFableGrant, planResetBoosts, planResetNote, planResetRows, resetBoostFor } from "./plan-resets";
-import { blendedApiPrice, currentPlanName, CODEX_LIMITS_BENCHMARK, measuredTokenMixes, subscriptionPlanOptions, subscriptionPrices, SUBSCRIPTION_BENCHMARK, tokenPrice, type SubscriptionDetails } from "./subscription";
+import { blendedApiPrice, currentPlanName, CODEX_LIMITS_BENCHMARK, measuredTokenMixes, peakKind, peakSibling, subscriptionPlanOptions, subscriptionPrices, SUBSCRIPTION_BENCHMARK, tokenPrice, type SubscriptionDetails } from "./subscription";
 
 const standard = { cache: 0.97, input: 0.025, output: 0.005 };
 const plan = (name: string, extra: Partial<SubscriptionDetails> = {}): Record<string, unknown> => ({ plan: name, feeUsd: 20, confidence: "high", mix: standard, plans: [], ...extra });
@@ -334,3 +334,78 @@ describe("not counting free tiers", () => {
   it("reaches the browser", () => expect((clientSnapshot(snap).observations[0].details as { paid?: unknown }).paid).toBeTruthy());
 });
 
+
+describe("peak hours", () => {
+  // GLM Coding: Real API Pricing measures each plan off-peak (闲时), mixed (中间值) and peak (忙时); the median lands on Pro's off-peak row.
+  // MiMo Token Plan: Day and Night (0.8x) rows; its median lands on Max's Day row.
+  const glm = (tier: string, fee: number, off: number) => [
+    { plan: `GLM Coding ${tier} 闲时`, feeUsd: fee, usdPerMtok: off, confidence: "high" },
+    { plan: `GLM Coding ${tier} 中间值`, feeUsd: fee, usdPerMtok: off * 4 / 3, confidence: "high" },
+    { plan: `GLM Coding ${tier} 忙时`, feeUsd: fee, usdPerMtok: off * 2, confidence: "high" },
+  ];
+  const glmPlans = [...glm("Pro (新客 ¥538)", 79.37, 0.032106088), ...glm("Max (新客 ¥1078)", 159.03, 0.027565877)];
+  const mimoPlans = [
+    { plan: "MiMo Token Plan Max (Day)", feeUsd: 100, usdPerMtok: 0.01576, confidence: "medium" },
+    { plan: "MiMo Token Plan Max (Night 0.8x)", feeUsd: 100, usdPerMtok: 0.01261, confidence: "medium" },
+  ];
+  const list = { cached: 0.14, input: 1.4, output: 4.4 };
+  function peakSnap(): Snapshot {
+    const s = snap();
+    s.models = [...s.models, { id: "glm", name: "GLM", labId: "zhipu", kind: "llm", reasoning: true, aliases: [], releaseDate: "2026-09-01" }, { id: "mimo", name: "MiMo", labId: "xiaomi", kind: "llm", reasoning: true, aliases: [], releaseDate: "2026-09-01" }] as Snapshot["models"];
+    s.variants = [...s.variants, { id: "glm@max", modelId: "glm", effort: "max" }, { id: "mimo@max", modelId: "mimo", effort: "max" }] as Snapshot["variants"];
+    const o = (benchmarkId: string, variantId: string, value: number, details?: Record<string, unknown>) => ({ benchmarkId, variantId, value, observedAt: "", sourceUrl: "", details });
+    s.observations = [...s.observations,
+      o("swe", "glm@max", 72), o("swe", "mimo@max", 65), o("aa-cost-per-task-index", "glm@max", 3), o("aa-cost-per-task-index", "mimo@max", 2),
+      o(SUBSCRIPTION_BENCHMARK, "glm@max", 0.032106088, plan("GLM Coding Pro (新客 ¥538) 闲时", { feeUsd: 79.37, listPrice: list, plans: glmPlans })),
+      o(SUBSCRIPTION_BENCHMARK, "mimo@max", 0.01576, plan("MiMo Token Plan Max (Day)", { feeUsd: 100, listPrice: list, plans: mimoPlans })),
+    ];
+    return s;
+  }
+  const api = blendedApiPrice(list, standard);
+  const share = (peakHours?: "mixed" | "peak", chosen: Record<string, string> = {}) => subscriptionPrices(peakSnap(), chosen, { peakHours }).get("glm")!;
+
+  it("reads each plan's time-of-day row", () => {
+    expect(peakKind("GLM Coding Pro (新客 ¥538) 闲时")).toEqual({ base: "GLM Coding Pro (新客 ¥538)", kind: "offpeak" });
+    expect(peakKind("GLM Coding Lite (老客 ¥49), 忙时")).toEqual({ base: "GLM Coding Lite (老客 ¥49)", kind: "peak" });
+    expect(peakKind("GLM Coding Max (新客 ¥1078) 中间值")?.kind).toBe("mixed");
+    expect(peakKind("MiMo Token Plan Max (Day)")).toEqual({ base: "MiMo Token Plan Max", kind: "peak" });
+    expect(peakKind("MiMo Token Plan Max (Night 0.8x)")?.kind).toBe("offpeak");
+    expect(peakKind("Claude Ultra")).toBeUndefined();
+    expect(peakKind("ChatGPT Pro 10x")).toBeUndefined();
+    expect(peakSibling("GLM Coding Pro (新客 ¥538) 闲时", glmPlans, "peak")?.plan).toBe("GLM Coding Pro (新客 ¥538) 忙时");
+    expect(peakSibling("GLM Coding Pro (新客 ¥538) 忙时", glmPlans, "peak")).toBeUndefined();
+    expect(peakSibling("MiMo Token Plan Max (Day)", mimoPlans, "mixed")).toBeUndefined();
+  });
+  it("leaves the default exactly as before: GLM on Pro's off-peak row, every other model untouched", () => {
+    const def = subscriptionPrices(peakSnap());
+    expect(def.get("glm")).toEqual({ ratio: 0.032106088 / api, plan: "GLM Coding Pro (新客 ¥538) 闲时", feeUsd: 79.37, confidence: "high" });
+    expect(def.get("mimo")?.plan).toBe("MiMo Token Plan Max (Day)");
+    expect(subscriptionPrices(peakSnap(), {}, { peakHours: undefined })).toEqual(def);
+    const plain = subscriptionPrices(snap());
+    for (const [id, p] of plain) expect(def.get(id)).toEqual(p);
+  });
+  it("prices GLM at the same plan's mixed or peak row", () => {
+    expect(share("mixed")).toMatchObject({ plan: "GLM Coding Pro (新客 ¥538) 中间值", feeUsd: 79.37 });
+    expect(share("mixed").ratio).toBeCloseTo((0.032106088 * 4 / 3) / api, 10);
+    expect(share("peak")).toMatchObject({ plan: "GLM Coding Pro (新客 ¥538) 忙时" });
+    expect(share("peak").ratio / share().ratio).toBeCloseTo(2, 10);
+  });
+  it("follows a plan the visitor picked, and goes back to off-peak from a picked peak row", () => {
+    expect(share("peak", { zhipu: "GLM Coding Max (新客 ¥1078) 闲时" }).plan).toBe("GLM Coding Max (新客 ¥1078) 忙时");
+    expect(share(undefined, { zhipu: "GLM Coding Max (新客 ¥1078) 忙时" }).plan).toBe("GLM Coding Max (新客 ¥1078) 忙时");
+  });
+  it("moves MiMo only to a row it has: Day is already its peak rate, and it has no mixed row", () => {
+    for (const peakHours of ["mixed", "peak"] as const) expect(subscriptionPrices(peakSnap(), {}, { peakHours }).get("mimo")?.plan).toBe("MiMo Token Plan Max (Day)");
+    expect(subscriptionPrices(peakSnap(), { xiaomi: "MiMo Token Plan Max (Night 0.8x)" }, { peakHours: "peak" }).get("mimo")?.plan).toBe("MiMo Token Plan Max (Day)");
+  });
+  it("changes cost charts only: scores, ranks and every other model's cost stay put, and links never carry it", () => {
+    const def = computeIndex(peakSnap(), base), peak = computeIndex(peakSnap(), base, { peakHours: "peak" });
+    const by = (r: typeof def) => Object.fromEntries(r.ranked.map((x) => [x.variant.id, x]));
+    expect(computeIndex(peakSnap(), base, {}).ranked.map((r) => [r.variant.id, r.score, r.costUsd])).toEqual(def.ranked.map((r) => [r.variant.id, r.score, r.costUsd]));
+    expect(peak.ranked.map((r) => [r.variant.id, r.score])).toEqual(def.ranked.map((r) => [r.variant.id, r.score]));
+    expect(by(peak)["glm@max"].costUsd! / by(def)["glm@max"].costUsd!).toBeCloseTo(2, 6);
+    for (const id of ["a@max", "b@xhigh", "mimo@max"]) expect(by(peak)[id].costUsd).toBe(by(def)[id].costUsd);
+    expect(encodeIndex(base)).toBe(encodeIndex({ ...base }));
+    expect(JSON.stringify(decodeIndex(encodeIndex(base), "t"))).not.toContain("peak");
+  });
+});

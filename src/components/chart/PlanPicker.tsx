@@ -1,8 +1,9 @@
 "use client";
 import type { ReactNode } from "react";
-import type { CostBasis } from "@/data/subscription";
+import { PEAK_HOURS, peakKind, type CostBasis } from "@/data/subscription";
 import { activeStudentOffers, studentOptionNote, studentSavingUsd, studentValueMultiple, todayIso, type StudentOffer } from "@/data/student-offers";
 import { setStudentPricingPref, useStudentPricingPref } from "@/lib/student-pricing-pref";
+import { setPeakHoursPref, usePeakHoursPref } from "@/lib/peak-hours-pref";
 import styles from "./ChartSettings.module.css";
 
 type Lab = { labId: string; name: string; plans: { plan: string; feeUsd?: number; models: number }[]; median: { plan: string; models: number }[] };
@@ -49,6 +50,22 @@ function PriceBasis({ on }: { on: boolean }) {
   </div>;
 }
 
+/** Plans sold at time-of-day rates, by family name: "GLM Coding", "MiMo Token Plan". */
+const peakPlans = (plans: PlanOptions) => [...new Set(plans.labs.flatMap((l) => l.plans.flatMap((p) => { const b = peakKind(p.plan)?.base; return b ? [b.replace(/\s*\(.*$/, "").replace(/ (Lite|Standard|Pro|Max)$/, "")] : []; })))];
+
+/** Which time-of-day row prices plans sold by time of day. Shown only when the snapshot has such a plan. */
+function PeakHoursRow({ names }: { names: string[] }) {
+  const value = usePeakHoursPref();
+  return <div className={styles.planRow}><label id="peak-hours-label">Peak hours</label>
+    <div role="group" aria-labelledby="peak-hours-label" className={styles.studentToggle}>
+      {PEAK_HOURS.map((o) => <button key={o.name} type="button" aria-pressed={value === o.id} onClick={() => setPeakHoursPref(o.id)}>{o.name}</button>)}
+    </div>
+    <span className={styles.planNote}>{value
+      ? `Cost charts price ${names.join(" and ")} at ${value === "peak" ? "the peak rate" : "a mix of peak and off-peak rates"} where that rate was measured. Rankings, links and saved pages keep the default.`
+      : `${names.join(" and ")} cost less off-peak (GLM: peak is 14:00-18:00 Beijing time on weekdays). Each model keeps its median plan's rate.`}</span>
+  </div>;
+}
+
 function SelectRows({ id, plans, basis, offers }: Props & { offers: readonly StudentOffer[] }) {
   return <>{plans.labs.map((l) => { const v = plans.value[l.labId] ?? ""; return <div key={l.labId} className={styles.planRow}>
     <label htmlFor={`${id}-plan-${l.labId}`}>{l.name}</label>
@@ -69,6 +86,7 @@ export function PlanSection({ id, plans, basis, extra, children }: Props & { ext
     <summary className="disclosure">Subscription plans<span>{[planStatus({ plans, basis }), extra].filter(Boolean).join(", ")}</span></summary>
     <Note plans={plans} basis={basis} />
     <PriceBasis on={student} />
+    {peakPlans(plans).length > 0 && <PeakHoursRow names={peakPlans(plans)} />}
     <SelectRows id={id} plans={plans} basis={basis} offers={offers} />
     {student && <StudentOffers offers={offers} labName={(l) => names.get(l) ?? l.charAt(0).toUpperCase() + l.slice(1)} />}
     {children}
