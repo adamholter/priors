@@ -265,6 +265,11 @@ try {
       await p.locator(".ranking-list [data-k]").first().waitFor({ timeout: 30000 });
       await p.getByLabel("Ranking settings", { exact: true }).first().click();
       const labs = p.getByRole("group", { name: "Models by lab" });
+      // The Labs section starts collapsed: models matter more than labs, and the selected models list first.
+      assert.equal(await labs.isVisible(), false, "the Labs section starts collapsed");
+      const rows = await p.locator('input[aria-label="Search models"] + * input[type=checkbox]').evaluateAll((els) => els.map((e) => e.checked));
+      assert.ok(rows.indexOf(false) < 0 || !rows.slice(rows.indexOf(false)).includes(true), "every selected model lists above the unselected ones");
+      await p.locator("summary", { hasText: /^Labs/ }).click();
       await labs.waitFor();
       const lab = labs.getByRole("checkbox", { name: "Anthropic" });
       const count = async () => Number((await p.getByText(/of \d+ selected/).first().textContent()).match(/^(\d+)/)[1]);

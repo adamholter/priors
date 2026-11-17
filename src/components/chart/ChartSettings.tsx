@@ -81,6 +81,7 @@ export function ChartSettings({ freeTiers, planReading, speedTiers, label, mode,
   const releaseDate = (months: number) => { const d = new Date(); d.setMonth(d.getMonth() - months); return d.toISOString().slice(0, 10); };
   const releaseValue = releasedAfter === "" ? "all" : releasedAfter === undefined ? "6" : [6, 12, 24].find(m => Math.abs(Date.parse(releasedAfter) - Date.parse(releaseDate(m))) < 45 * 86400000)?.toString() ?? "custom";
   // Rows keep the order they had when the menu opened, so a model you untick stays under your cursor instead of jumping to the bottom.
+  // Opening puts the models on the chart first, so none hides below a run of unticked ones.
   const [openOrder, setOpenOrder] = useState<string[]>([]);
   const place = useMemo(() => new Map(openOrder.map((id, i) => [id, i])), [openOrder]);
   const filtered = useMemo(() => models.filter(m => `${m.name} ${m.lab ?? ""}`.toLowerCase().includes(query.trim().toLowerCase())).sort((a, b) => (place.get(a.id) ?? 1e9) - (place.get(b.id) ?? 1e9)).sort((a, b) => Number(!!hl && isHighlighted(hl.items, b.id)) - Number(!!hl && isHighlighted(hl.items, a.id))), [models, query, hl, place]);
@@ -94,7 +95,7 @@ export function ChartSettings({ freeTiers, planReading, speedTiers, label, mode,
     <div className={styles.modelCount}><span>{models.filter(m => !ticked?.has(m.id)).length} of {models.length} selected</span>{onShowAllModels && <button type="button" onClick={onShowAllModels}>All</button>}{onHideAllModels && <button type="button" onClick={onHideAllModels}>None</button>}{onShowOnly && models.some((m) => m.open !== undefined) && <>
       <button type="button" onClick={() => onShowOnly(models.filter((m) => m.open === true).map((m) => m.id))} title="Show only models whose weights can be downloaded">Open</button>
       <button type="button" onClick={() => onShowOnly(models.filter((m) => m.open === false).map((m) => m.id))} title="Show only models with closed weights">Closed</button></>}</div>
-    {onShowOnly && labRows.length > 1 && <div className={styles.labRows} role="group" aria-label="Models by lab">{labRows.map(({ lab, color, ids }) => { const on = ids.filter((id) => !ticked?.has(id)).length; return <label key={lab}><input type="checkbox" checked={on === ids.length} ref={(el) => { if (el) el.indeterminate = on > 0 && on < ids.length; }} onChange={() => setLab(ids, on !== ids.length)} />{color && <i aria-hidden="true" style={{ background: color }} />}<span>{lab}</span></label>; })}</div>}
+    {onShowOnly && labRows.length > 1 && <details className={`${styles.sub} ${styles.labs}`}><summary>Labs<span>{labRows.filter(({ ids }) => ids.some((id) => !ticked?.has(id))).length} of {labRows.length} labs</span></summary><div className={styles.labRows} role="group" aria-label="Models by lab">{labRows.map(({ lab, color, ids }) => { const on = ids.filter((id) => !ticked?.has(id)).length; return <label key={lab}><input type="checkbox" checked={on === ids.length} ref={(el) => { if (el) el.indeterminate = on > 0 && on < ids.length; }} onChange={() => setLab(ids, on !== ids.length)} />{color && <i aria-hidden="true" style={{ background: color }} />}<span>{lab}</span></label>; })}</div></details>}
     <input type="search" className={styles.search} aria-label="Search models" placeholder="Search models" value={query} onChange={e => setQuery(e.target.value)} />
     <div className={styles.modelList}>{filtered.map(m => {
       const star = !!hl && isHighlighted(hl.items, m.id);
@@ -181,7 +182,7 @@ export function ChartSettings({ freeTiers, planReading, speedTiers, label, mode,
     setTab(tabs[next].id); document.getElementById(`${id}-${tabs[next].id}-tab`)?.focus();
   };
   return <details ref={root} open={open} className={styles.picker} name="chart-settings">
-    <summary ref={trigger} aria-label={`${label} settings`} title={`${label} settings`} onClick={e => { e.preventDefault(); if (!open) { setTab(hasModels ? "models" : "data"); setOpenOrder(models.map(m => m.id)); } setOpen(!open); }}><IconAdjustmentsHorizontal size={16} stroke={1.5} aria-hidden="true" /></summary>
+    <summary ref={trigger} aria-label={`${label} settings`} title={`${label} settings`} onClick={e => { e.preventDefault(); if (!open) { setTab(hasModels ? "models" : "data"); setOpenOrder([...models.filter(m => !excluded?.has(m.id)), ...models.filter(m => excluded?.has(m.id))].map(m => m.id)); } setOpen(!open); }}><IconAdjustmentsHorizontal size={16} stroke={1.5} aria-hidden="true" /></summary>
     {/* Built only while open: every chart has one of these, and a closed menu's model list was most of a page's DOM. */}
     {open && <div className={`${styles.menu} chart-settings-menu`} data-above={placement.above} style={{ "--picker-space": `${placement.height}px` } as CSSProperties}>
       <div className={styles.heading}><span>Chart settings</span><button type="button" aria-label="Close chart settings" onClick={() => dismiss("escape")}><IconX size={16} stroke={1.5} aria-hidden="true" /></button></div>
