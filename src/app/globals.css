@@ -94,9 +94,12 @@ button, [role="button"] { cursor: pointer; }
 .export-split > button { font-size: 12px; padding: 4px 9px; border: 0; background: transparent; color: var(--ink-2); cursor: pointer; }
 .export-split > button:hover { color: var(--ink); }
 /* The brush that opens the screenshot editor shows when PNG is hovered or focused, and always on touch screens. */
-.export-split > .export-edit { display: none; align-items: center; padding: 4px 6px; border-left: 1px solid var(--hair); }
-.export-split:hover > .export-edit, .export-split:focus-within > .export-edit { display: inline-flex; }
-@media (hover: none) { .export-split > .export-edit { display: inline-flex; } }
+/* The brush slides open beside PNG on hover. It stays out of the tab order until then (visibility waits for the slide to finish). */
+.export-split > .export-edit { display: inline-flex; align-items: center; justify-content: center; width: 0; padding: 4px 0; overflow: hidden; opacity: 0; visibility: hidden; border-left: 0 solid var(--hair); transition: width .16s ease-out, padding .16s ease-out, border-left-width .16s ease-out, opacity .12s ease-out, visibility 0s linear .16s; }
+.export-split > .export-edit svg { flex: none; }
+.export-split:hover > .export-edit, .export-split:focus-within > .export-edit { width: 26px; padding: 4px 6px; opacity: 1; visibility: visible; border-left-width: 1px; transition-delay: 0s; }
+@media (hover: none) { .export-split > .export-edit { width: 26px; padding: 4px 6px; opacity: 1; visibility: visible; border-left-width: 1px; } }
+@media (prefers-reduced-motion: reduce) { .export-split > .export-edit { transition: none; } }
 .export-split > button:disabled { cursor: not-allowed; opacity: .5; }
 .export-split .export-toggle { border-left: 1px solid var(--hair); padding: 4px 6px; display: inline-flex; align-items: center; }
 .export-menu { position: absolute; right: 0; top: calc(100% + 5px); z-index: 30; min-width: 86px; background: var(--white); border: 1px solid var(--hair); border-radius: 4px; overflow: hidden; }
@@ -152,6 +155,16 @@ details.gallery-panel > summary::-webkit-details-marker { display: none; }
 .account-popover { z-index: 70; max-width: calc(100vw - 32px); }
 header:has(.account-menu > [aria-expanded="true"]) { z-index: 60; }
 .chart-toolbar:has(details[open], .export-menu) { position: relative; z-index: 30; }
+/* Zoom history: sized from the row's spare width only (inline-size containment), so it can never wrap the toolbar. Older levels, then the word, drop as room runs out. */
+.chart-toolbar > :last-child:has(> .zoom-trail) { flex: 1 1 auto; justify-content: flex-end; }
+.zoom-trail { container-type: inline-size; flex: 1 1 0; min-width: 0; }
+.zoom-trail nav { display: flex; align-items: center; justify-content: flex-end; gap: 4px; padding: 0 10px 0 4px; white-space: nowrap; overflow: hidden; }
+.zoom-trail[data-depth="5"] .zoom-mid { display: none; }
+@container (max-width: 149px) { .zoom-trail[data-depth="2"] .zoom-mid { display: none; } }
+@container (max-width: 204px) { .zoom-trail[data-depth="3"] .zoom-mid { display: none; } }
+@container (max-width: 259px) { .zoom-trail[data-depth="4"] .zoom-mid { display: none; } }
+@container (max-width: 94px) { .zoom-word { display: none; } }
+@container (max-width: 56px) { .zoom-trail nav { visibility: hidden; } }
 .chart-toolbar:has(details[open] > .chart-settings-menu) { z-index: 60; }
 .chart-context-menu { position: fixed; z-index: 80; width: 232px; max-width: calc(100vw - 16px); max-height: calc(100dvh - 16px); overflow-y: auto; background: var(--white); color: var(--ink); border: 1px solid var(--hair); border-radius: 5px; box-shadow: 0 5px 24px var(--shadow); padding: 5px; font: 12.5px var(--font-sans); }
 .chart-context-title { padding: 7px 9px 9px; font-size: 11px; color: var(--grey); overflow-wrap: anywhere; }

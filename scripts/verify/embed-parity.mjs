@@ -255,6 +255,7 @@ async function download(page, button) {
 async function runEditor(page, wrap, name, applied) {
   // The brush shows on hover of the PNG split button, as for a person.
   await wrap.locator(".export-split").first().hover();
+  await page.waitForTimeout(250); // It slides open.
   await wrap.locator(".export-edit").first().click();
   const dialog = page.locator("dialog.xe[open]");
   await dialog.waitFor({ timeout: 15000 });

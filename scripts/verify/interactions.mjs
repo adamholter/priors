@@ -806,6 +806,7 @@ try {
     const group = page.locator('[role="group"][aria-label="Export Time per task"]').first();
     await group.scrollIntoViewIfNeeded();
     await group.hover();
+    await page.waitForTimeout(250); // The brush slides open.
     await group.getByRole("button", { name: /Edit .* screenshot/ }).click();
     const box = page.getByTestId("xe-box");
     await box.waitFor({ timeout: 10000 });
@@ -842,6 +843,7 @@ try {
     const group = page.locator('[role="group"][aria-label="Export Rankings"]').first();
     await group.scrollIntoViewIfNeeded();
     await group.hover();
+    await page.waitForTimeout(250); // The brush slides open.
     await group.getByRole("button", { name: "Edit Rankings screenshot" }).click();
     const shot = page.getByTestId("rankings-shot");
     await shot.waitFor({ timeout: 10000 });
@@ -1706,6 +1708,58 @@ try {
       await v.getByRole("group", { name: "Update notices" }).getByRole("button", { name: "On" }).click();
       assert.equal(await v.evaluate(() => localStorage.getItem("priors:version-notices")), null);
       await notice.waitFor({ timeout: 10000 });
+    } finally { await ctx.close(); }
+  });
+
+  await check("drag to zoom: a box zooms and nests, Escape cancels a drag and steps back, an expanded chart unzooms before it closes", async () => {
+    const ctx = await browser.newContext({ viewport: { width: 1440, height: 1000 } }), v = await ctx.newPage();
+    v.on("pageerror", (e) => errors.push(`${v.url()}: ${e.message}`));
+    try {
+      await v.goto(`${BASE}/builder`, { waitUntil: "domcontentloaded" });
+      const chart = v.locator('[role="img"][data-zoomed]').first();
+      await chart.waitFor({ timeout: 30000 }); await chart.locator("svg").first().waitFor({ timeout: 30000 }); await v.waitForTimeout(1200);
+      const count = async () => ((await chart.getAttribute("data-points")) || "").split(",").filter(Boolean).length;
+      const zoomed = () => chart.getAttribute("data-zoomed");
+      const spot = async () => { await chart.scrollIntoViewIfNeeded(); const r = await chart.boundingBox(); return (fx, fy) => ({ x: r.x + 70 + (r.width - 210) * fx, y: r.y + 40 + (r.height - 110) * fy }); };
+      const sweep = async (a, b) => { await v.mouse.move(a.x, a.y); await v.mouse.down(); for (let i = 1; i <= 8; i++) await v.mouse.move(a.x + (b.x - a.x) * i / 8, a.y + (b.y - a.y) * i / 8); };
+      const box = async (at) => { await sweep(at(.3, .03), at(1, .75)); await v.mouse.up(); await v.waitForTimeout(800); };
+      const esc = async () => { await v.keyboard.press("Escape"); await v.waitForTimeout(800); };
+      const all = await count(); let at = await spot();
+      // Escape during a drag: no box, no zoom, and the release is not a click on the chart.
+      const url = v.url();
+      await sweep(at(.3, .03), at(1, .75));
+      assert.equal(await v.locator("[data-zoom-band]").count(), 1, "the band shows while dragging");
+      await v.keyboard.press("Escape");
+      assert.equal(await v.locator("[data-zoom-band]").count(), 0, "Escape removes the band");
+      await v.mouse.up(); await v.waitForTimeout(500);
+      assert.equal(await zoomed(), "false", "a cancelled drag does not zoom"); assert.equal(v.url(), url, "a cancelled drag highlights nothing");
+      const top = (await chart.boundingBox()).y;
+      await box(at); const one = await count();
+      assert.equal((await chart.boundingBox()).y, top, "zooming does not move the chart");
+      assert.equal(await zoomed(), "true"); assert.ok(one < all && one > 0, `marks outside the box leave (${all} -> ${one})`);
+      await box(at); const two = await count(), trail = v.getByRole("navigation", { name: "Zoom levels" }).first();
+      assert.match(await trail.textContent(), /All.*Zoom 1.*Zoom 2/); assert.ok(two <= one);
+      // The trail keeps clear of the scatter/bars switch.
+      const gap = await trail.evaluate((n) => n.parentElement.nextElementSibling.getBoundingClientRect().left - n.lastElementChild.getBoundingClientRect().right);
+      assert.ok(gap >= 8, `trail to the next control is ${gap}px`);
+      // An open menu keeps its Escape.
+      await v.locator(".chart-toolbar").first().getByRole("button", { name: /More export formats/ }).click();
+      await esc(); assert.equal(await count(), two, "Escape with a menu open leaves the zoom alone");
+      await v.locator('button[aria-label="Close export menu"]').click();
+      await esc(); assert.equal(await count(), one, "Escape steps back one level");
+      await esc(); assert.equal(await zoomed(), "false", "Escape steps back to the whole chart"); assert.equal(await count(), all);
+      await box(at); await v.mouse.dblclick(at(.5, .5).x, at(.5, .5).y); await v.waitForTimeout(800); assert.equal(await zoomed(), "false", "double-click steps back");
+      // Expanded: the first Escape unzooms, the next closes.
+      await v.getByRole("button", { name: /^Expand / }).first().click(); await v.waitForTimeout(600); at = await (async () => { const r = await chart.boundingBox(); return (fx, fy) => ({ x: r.x + 70 + (r.width - 210) * fx, y: r.y + 40 + (r.height - 110) * fy }); })();
+      await box(at); assert.equal(await zoomed(), "true", "an expanded chart zooms");
+      await esc(); assert.equal(await zoomed(), "false"); assert.equal(await v.locator(".chart-expanded").count(), 1, "the first Escape only unzooms");
+      await esc(); assert.equal(await v.locator(".chart-expanded").count(), 0, "the next Escape closes it");
+      // The brush beside PNG slides open rather than popping in.
+      const split = v.locator(".chart-toolbar .export-split").first(), brush = split.locator(".export-edit");
+      await v.mouse.move(0, 0); await v.waitForTimeout(300);
+      assert.equal((await brush.boundingBox())?.width ?? 0, 0, "the brush is closed at rest");
+      assert.equal(await brush.evaluate((n) => getComputedStyle(n).transitionProperty.includes("width") && parseFloat(getComputedStyle(n).transitionDuration) > 0), true, "the brush animates");
+      await split.hover(); await v.waitForTimeout(350); assert.equal((await brush.boundingBox()).width, 26, "the brush opens on hover");
     } finally { await ctx.close(); }
   });
 

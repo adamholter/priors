@@ -25,6 +25,8 @@ import { FORMULA_MAX } from "@/lib/formula";
 import { focusPoints } from "@/lib/chart-focus";
 import { viewParam } from "@/lib/export-editor";
 import type { FallingDot } from "./GravityLayer";
+import { useChartZoom } from "./ChartZoom";
+import { inBox } from "./chart-zoom";
 
 const GravityLayer = dynamic(() => import("./GravityLayer"), { ssr: false });
 const ExportEditor = dynamic(() => import("./ExportEditor"), { ssr: false });
@@ -195,10 +197,17 @@ export function ScoreScatter(props: ScatterProps) {
   const plotHeight = useCallback(() => plotH, [plotH]);
   // Where the marks are drawn, so labels can steer around them. Set once the chart exists; the next layout pass uses it.
   const handle = useRef<ECharts | null>(null);
+  // Drag-to-zoom (ChartZoom.tsx). Zoomed, the marks outside the window leave the chart (`shown`);
+  // the frontier and effort lines still come from every mark and are clipped at the plot's edge.
+  const zoom = useChartZoom({ handle, host: wrapRef, scale, bare, pal });
+  const zoomFilter = zoom.filter;
+  const shown = useMemo(() => zoomFilter ? pts.filter((p) => inBox(p.x, p.r.score, zoomFilter)) : pts, [pts, zoomFilter]);
+  // The drawn marks first; zoomed, then the ones outside the window (scatterOption steers labels off frontier segments that leave it).
+  const placed = useMemo(() => shown === pts ? pts : [...shown, ...pts.filter((p) => !shown.includes(p))], [shown, pts]);
   const dots = useCallback(() => {
     const c = handle.current; if (!c) return undefined;
-    try { return pts.map((p) => { const [x, y] = c.convertToPixel({ xAxisIndex: 0, yAxisIndex: 0 }, [p.x, p.r.score]) as number[]; return { x, y }; }); } catch { return undefined; }
-  }, [pts]);
+    try { return placed.map((p) => { const [x, y] = c.convertToPixel({ xAxisIndex: 0, yAxisIndex: 0 }, [p.x, p.r.score]) as number[]; return { x, y }; }); } catch { return undefined; }
+  }, [placed]);
   const hlItems = hl?.items;
   const highlight = useMemo<Highlight | undefined>(() => hlItems?.length ? { items: hlItems, guides: view.guides !== false } : undefined, [hlItems, view.guides]);
   // Easter egg (Konami code): marks off the frontier drop to the x-axis. See GravityLayer.
@@ -207,12 +216,13 @@ export function ScoreScatter(props: ScatterProps) {
   // Where each label landed after the layout ran, so draw() can join a label that was nudged off its dot back to it.
   const labelAt = useRef(new Map<string, { x: number; y: number; align: "left" | "right" }>());
   const onLabel = useCallback((id: string, at: { x: number; y: number; align: "left" | "right" } | null) => { if (at) labelAt.current.set(id, at); else labelAt.current.delete(id); }, []);
+  const zoomRange = zoom.range;
   // Each new option lays its labels out afresh: a label that is no longer shown (or a dot that moved) must not keep its old
   // spot, or a leader line runs from the dot to empty space.
   // `dots` only reads the chart handle later, when ECharts runs the label layout (never while this renders).
   // eslint-disable-next-line react-hooks/refs
-  const option = useMemo<EChartsOption>(() => (labelAt.current.clear(), scatterOption({ axis, pts, labs, better, xName, xShort, xUnit, scale, formatX, formatValue, view, pal, narrow, hasTitle: !!title, tooltipExtra, width: plotWidth, height: plotHeight, dots, onLabel, highlight, fallen })),
-    [axis, pts, labs, better, view, narrow, xName, xShort, xUnit, scale, formatX, formatValue, tooltipExtra, title, pal, plotWidth, plotHeight, dots, onLabel, highlight, fallen]);
+  const option = useMemo<EChartsOption>(() => (labelAt.current.clear(), scatterOption({ axis, pts: shown, labs, better, xName, xShort, xUnit, scale, formatX, formatValue, view, pal, narrow, hasTitle: !!title, tooltipExtra, width: plotWidth, height: plotHeight, dots, onLabel, highlight, fallen, zoom: zoomRange ? { range: zoomRange, context: pts } : undefined })),
+    [axis, shown, pts, zoomRange, labs, better, view, narrow, xName, xShort, xUnit, scale, formatX, formatValue, tooltipExtra, title, pal, plotWidth, plotHeight, dots, onLabel, highlight, fallen]);
   const [hover, setHover] = useState<ScatterPoint | null>(null), [pinned, setPinned] = useState<ScatterPoint | null>(null);
   // Clicking a mark toggles that exact effort's highlight (several efforts per model are allowed).
   const pick = useRef<(p: ScatterPoint) => void>(() => {});
@@ -266,7 +276,7 @@ export function ScoreScatter(props: ScatterProps) {
     if (c) {
       const x = event.clientX - box.left, y = event.clientY - box.top;
       let best: ScatterPoint | undefined, bestD = 22;
-      for (const p of pts) {
+      for (const p of shown) {
         let px: number[]; try { px = c.convertToPixel({ xAxisIndex: 0, yAxisIndex: 0 }, [p.x, p.r.score]) as number[]; } catch { continue; }
         const d = Math.hypot(px[0] - x, px[1] - y);
         if (Number.isFinite(d) && d < bestD) { best = p; bestD = d; }
@@ -281,12 +291,13 @@ export function ScoreScatter(props: ScatterProps) {
   // The point under the cursor, or the one a click pinned (a tap on touch screens), is drawn with crosshair guides and described in a corner card.
   const focus = useMemo(() => {
     const pick = hover ?? pinned;
-    return pick ? pts.find((p) => p.r.variant.id === pick.r.variant.id) ?? null : null;
-  }, [hover, pinned, pts]);
+    return pick ? shown.find((p) => p.r.variant.id === pick.r.variant.id) ?? null : null;
+  }, [hover, pinned, shown]);
+  const zoomable = zoom.enabled;
   const guides = useMemo(() => {
-    const base = guidePoints(pts, highlight);
+    const base = guidePoints(shown, highlight);
     return focus && !base.some((p) => p.r.variant.id === focus.r.variant.id) ? [...base, focus] : base;
-  }, [pts, highlight, focus]);
+  }, [shown, highlight, focus]);
   useEffect(() => {
     const c = chart.current; if (!c) return;
     const colorOf = new Map(labs.map((l) => [l.id, markColor(l.color, pal, l.id)]));
@@ -322,11 +333,13 @@ export function ScoreScatter(props: ScatterProps) {
         ];
       });
       // A thin leader from each label that sits away from its own dot, so a crowded label still says which point it names.
-      const byId = new Map(pts.map((p) => [p.r.variant.id, p]));
+      const byId = new Map(shown.map((p) => [p.r.variant.id, p]));
       const leaders = [...labelAt.current].flatMap(([id, at]) => {
         const p = byId.get(id); if (!p || fallen?.has(id)) return [];
         const px = c.convertToPixel({ seriesId: "marks" }, [p.x, p.r.score]) as unknown as number[] | undefined;
         if (!px || !Number.isFinite(px[0]) || !Number.isFinite(px[1]) || Math.hypot(at.x - px[0], at.y - px[1]) < 15) return [];
+        // A mark off the plot (sliding out while a zoom animates) has no visible dot to lead to.
+        if (zoomable && (px[0] < grid.x - 1 || px[0] > grid.x + grid.width + 1 || px[1] < grid.y - 1 || px[1] > bottom + 1)) return [];
         return [{ type: "line", shape: { x1: Math.round(px[0]), y1: Math.round(px[1]), x2: Math.round(at.x + (at.align === "left" ? -3 : 3)), y2: Math.round(at.y) }, style: { stroke: pal.grey, lineWidth: 0.8, opacity: 0.7 }, z: 3, silent: true }];
       });
       const key = JSON.stringify([...children, ...leaders]);
@@ -340,7 +353,7 @@ export function ScoreScatter(props: ScatterProps) {
     const scheduleDraw = () => { cancelAnimationFrame(frame); frame = requestAnimationFrame(draw); };
     c.on("finished", scheduleDraw);
     return () => { cancelAnimationFrame(frame); c.off("finished", scheduleDraw); };
-  }, [axis, guides, labs, pal, formatX, chart, option, pts, fallen]);
+  }, [axis, guides, labs, pal, formatX, chart, option, shown, fallen, zoomable]);
   // Where each dropped mark starts, measured from the laid-out chart. The least Pareto-optimal
   // (furthest below the frontier at its position) lets go first.
   const [fall, setFall] = useState<{ dots: FallingDot[]; width: number; height: number; floor: number; left: number; right: number; run: number } | null>(null);
@@ -397,19 +410,22 @@ export function ScoreScatter(props: ScatterProps) {
         <div className="flex items-center gap-1 ml-auto pointer-events-auto">
           <HighlightMenu label={exportName} />
           {visibility.canUndo && <button type="button" className="cap hover:text-ink" onClick={visibility.undo} aria-label="Undo chart removal">Undo</button>}
+          {zoom.controls}
           {actions}
           {anchor && <ChartLink id={anchor} name={exportName} params={{ ...effectiveLinkParams, hidden: visibility.hidden }} />}
           <ChartExport ref={exportControl} name={exportName} frame onEdit={anchor ? openEditor : undefined} getHtml={getHtml} getSvg={() => chart.current?.renderToSVGString()} getRows={() => pts.map((p) => ({ rank: p.r.rank, model: p.r.model.name, effort: p.r.variant.effort, score: +p.r.score.toFixed(2), lab: p.r.model.labId, [xName]: +(p.raw ?? p.x).toFixed(4), on_frontier: onFrontierIds.has(p.r.variant.id), ...extraRows?.(p) }))} />
           {expand.button}
         </div>
       </div>}
-      <div className={`relative ${expand.expanded ? "flex-1 min-h-0" : ""}`}>
-        <div ref={ref} role="img" aria-label={aria} data-points={pts.map((p) => p.r.variant.id).sort().join(",")} tabIndex={0} onContextMenu={onContextMenu} onKeyDown={context.onKeyDown} style={{ width: "100%", height: expand.expanded ? "100%" : bare ? height : Math.round(height * (pal.size?.height ?? 1)), overflow: "hidden", position: "relative", isolation: "isolate" }} />
+      <div className={`relative ${expand.expanded ? "flex-1 min-h-0" : ""}`} style={zoom.surface}>
+        <div ref={ref} role="img" aria-label={aria} data-points={shown.map((p) => p.r.variant.id).sort().join(",")} data-zoomed={zoom.enabled ? String(zoom.zoomed) : undefined} tabIndex={0} onContextMenu={onContextMenu} onKeyDown={context.onKeyDown} style={{ width: "100%", height: expand.expanded ? "100%" : bare ? height : Math.round(height * (pal.size?.height ?? 1)), overflow: "hidden", position: "relative", isolation: "isolate" }} />
         {fall && !!fallen?.size && <GravityLayer key={fall.run} dots={fall.dots} width={fall.width} height={fall.height} floor={fall.floor} left={fall.left} right={fall.right} stroke={pal.bg} />}
         {!pts.length && <p className="cap absolute inset-0 grid place-items-center">No model in this view has this metric.</p>}
-        {focus && <PointCard mark={() => { try { const [x, y] = chart.current?.convertToPixel({ xAxisIndex: 0, yAxisIndex: 0 }, [focus.x, focus.r.score]) as number[]; return Number.isFinite(x) && Number.isFinite(y) ? { x, y } : undefined; } catch { return undefined; } }} point={focus} labs={labs} pal={pal} onFrontier={view.frontier && onFrontierIds.has(focus.r.variant.id)} format={formatValue ?? formatX} unit={xUnit} extra={[tooltipExtra?.(focus), focus.r.speedTier ? ` · ${speedTierNote(focus.r)}` : ""].filter(Boolean).join("") || undefined} xLabel={xShort ?? xName} onClose={pinned && !hover ? () => setPinned(null) : undefined} />}
+        {zoom.overlay}
+        {focus && !zoom.dragging && <PointCard mark={() => { try { const [x, y] = chart.current?.convertToPixel({ xAxisIndex: 0, yAxisIndex: 0 }, [focus.x, focus.r.score]) as number[]; return Number.isFinite(x) && Number.isFinite(y) ? { x, y } : undefined; } catch { return undefined; } }} point={focus} labs={labs} pal={pal} onFrontier={view.frontier && onFrontierIds.has(focus.r.variant.id)} format={formatValue ?? formatX} unit={xUnit} extra={[tooltipExtra?.(focus), focus.r.speedTier ? ` · ${speedTierNote(focus.r)}` : ""].filter(Boolean).join("") || undefined} xLabel={xShort ?? xName} onClose={pinned && !hover ? () => setPinned(null) : undefined} />}
       </div>
       {!bare && (legend || trimmedModels > 0) && <p className="cap mt-1 max-sm:px-4 pr-16">{legend}{legend && trimmedModels > 0 ? " " : ""}{trimmedModels > 0 && <>{trimmedModels} more models under All models in settings.</>}</p>}
+      {!bare && zoom.box && <p className="cap mt-1 max-sm:px-4 pr-16" role="status">Zoomed to {formatX(zoom.box.x[0])} to {formatX(zoom.box.x[1])}, {axis.name.toLowerCase()} {axis.format(zoom.box.y[0])} to {axis.format(zoom.box.y[1])}: {new Set(shown.map((p) => p.r.model.id)).size} of {new Set(pts.map((p) => p.r.model.id)).size} models. <button type="button" className="underline hover:text-ink" onClick={zoom.reset}>Show all</button></p>}
       {!bare && <ChartContextMenu exportControl={exportControl} state={context.menu} close={context.close} name={exportName} points={pts} visibility={visibility} chart={chart} wrap={wrapRef} expanded={expand.expanded} anchor={anchor} />}
       {editor && <ExportEditor name={exportName} initial={editor} viewOnly={editor.viewOnly} defaultScale={defaultScale === "log" ? "log" : "linear"} base={view} showScale={defaultScale !== "time"} onClose={closeEditor}
         link={(xe) => chartLinkUrl(window.location.href, anchor ?? exportName, { ...effectiveLinkParams, hidden: visibility.hidden, extra: { ...effectiveLinkParams.extra, xe: encodeEditor(xe) } }, hl ?? undefined).toString()}

@@ -7,6 +7,7 @@ import { scatterLabelLayout } from "./scatter-label-layout";
 import { chartLabel, modelLabel } from "../../lib/metrics";
 import { baseModelId, tierModelIds } from "../../data/speed-tiers";
 import { labelScale } from "./label-size";
+import { logTicks, type ZoomBox } from "./chart-zoom";
 
 export interface ScatterPoint { /** Users and turns behind a real-use measurement (T3 Code). */ users?: number; turns?: number; x: number; r: RankedVariant; /** untransformed value for tooltips/export when x is transformed */ raw?: number; /** Costs nothing: drawn on the "free" line left of the cheapest paid point. */ free?: boolean }
 export interface ScatterView { labelScale?: number; scale?: "log" | "linear"; density: number; frontier: boolean; links: boolean; /** The user explicitly toggled the frontier rather than saving an old default. */ frontierChosen?: boolean; /** Dashed axis guides for highlighted efforts (default on). */ guides?: boolean; kind?: "scatter" | "bars"; /** The user picked `kind` (vs. the chart default). */ kindChosen?: boolean; /** Advanced: a custom formula that replaces the chart's metric (src/lib/formula.ts), and which direction is better. */ formula?: string; formulaBetter?: "higher" | "lower"; /** Every model on the chart, instead of the frontier and current flagships (src/lib/chart-focus.ts). */ allModels?: boolean; /** Advanced: only the models on the Pareto frontier, as the chart's pricing draws it (so API and subscription pricing can differ). */ paretoOnly?: boolean; /** Advanced: hide real-use points (T3 Code) resting on fewer users than this. */ minUsers?: number }
@@ -98,7 +99,7 @@ function quadrantArea(pts: ScatterPoint[], better: "lower" | "higher", scale: "l
   return [{ xAxis: better === "lower" ? edge[0] : mx, yAxis: my }, { xAxis: better === "lower" ? mx : edge[1], yAxis: 1e9 }] as [{ xAxis: number | string; yAxis: number | string }, { xAxis: number | string; yAxis: number | string }];
 }
 
-export function scatterOption({ pts, labs, better, xName, xShort, xUnit = "", scale = "linear", formatX, formatValue, view, pal, narrow, hasTitle = false, tooltipExtra, width, height, dots, highlight, fallen, onLabel, axis = INDEX_SCORE_AXIS }: {
+export function scatterOption({ pts, labs, better, xName, xShort, xUnit = "", scale = "linear", formatX, formatValue, view, pal, narrow, hasTitle = false, tooltipExtra, width, height, dots, highlight, fallen, onLabel, axis = INDEX_SCORE_AXIS, zoom }: {
   /** The vertical axis: index score unless a benchmark page plots its own published value. */
   axis?: ScoreAxis;
   pts: ScatterPoint[]; labs: Lab[]; better: "lower" | "higher"; xName: string; xShort?: string; xUnit?: string;
@@ -114,17 +115,22 @@ export function scatterOption({ pts, labs, better, xName, xShort, xUnit = "", sc
   highlight?: Highlight;
   /** Marks the gravity easter egg has dropped: kept in the data so the axes hold still, drawn by GravityLayer instead. */
   fallen?: Set<string>;
+  /** Drag-to-zoom: the axes draw exactly `range`, and `pts` are only the marks inside it. The frontier and effort lines
+   * still come from every mark (`context`), clipped at the plot's edge, so the frontier is the chart's, not the window's. */
+  zoom?: { range: ZoomBox; context: ScatterPoint[] };
 }): EChartsOption {
-  const frontier = frontierOf(pts, better);
+  const frontier = frontierOf(zoom?.context ?? pts, better);
   const t = textSize(pal), m = markSize(pal), fontScale = labelScale(view.labelScale) * t;
   const color = new Map(labs.map((l) => [l.id, markColor(l.color, pal, l.id)]));
   const onFrontier = new Set(frontier.map((p) => p.r.variant.id));
   const labeled = pickLabels(pts, better, narrow ? view.density ** 2 : view.density);
   const byModel = new Map<string, ScatterPoint[]>();
   for (const p of pts) (byModel.get(p.r.model.id) ?? byModel.set(p.r.model.id, []).get(p.r.model.id)!).push(p);
+  // Zoomed, a model's effort line keeps its efforts outside the window, so it runs off the edge instead of stopping short.
+  if (zoom) for (const p of zoom.context) { const v = byModel.get(p.r.model.id); if (v && !v.includes(p)) v.push(p); }
   const links = view.links && !fallen?.size ? [...byModel.values()].filter((v) => v.length > 1).map((v) => [...v].sort((a, b) => a.x - b.x)) : [];
   const ys = pts.map((p) => p.r.score);
-  const [yMin, yMax] = scoreRange(ys, axis.fit);
+  const [yMin, yMax] = zoom ? zoom.range.y : scoreRange(ys, axis.fit);
   // ECharts resolves equal-sized overlapping labels in data order. Give the chosen labels their
   // selection priority so a repeat effort cannot hide a model's only label.
   const priority = new Map([...labeled].map((id, i) => [id, i]));
@@ -147,10 +153,12 @@ export function scatterOption({ pts, labs, better, xName, xShort, xUnit = "", sc
   // Chosen marks draw last so they sit on top and win label overlap.
   const drawOrder = on ? [...ordered].sort((a, b) => Number(hl.has(a.r.model.id)) - Number(hl.has(b.r.model.id))) : ordered;
   // Labels steer around the frontier line where a clear slot exists: points along it count as marks.
+  // Zoomed, `dots` also places the marks outside the window (after the drawn ones), so the frontier's segments that cross the edge are steered around too.
+  const placedOrder = zoom ? [...pts, ...zoom.context.filter((p) => !pts.includes(p))] : pts;
   const line = dots && view.frontier && frontier.length > 1 ? () => {
     const all = dots();
     if (!all) return all;
-    const at = new Map(pts.map((p, i) => [p.r.variant.id, all[i]])), path = frontier.map((p) => at.get(p.r.variant.id));
+    const at = new Map(placedOrder.map((p, i) => [p.r.variant.id, all[i]])), path = frontier.map((p) => at.get(p.r.variant.id));
     return [...all, ...path.slice(1).flatMap((b, i) => { const a = path[i]; if (!a || !b) return []; const n = Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) / 6); return Array.from({ length: n }, (_, k) => ({ x: a.x + (b.x - a.x) * k / n, y: a.y + (b.y - a.y) * k / n })); })];
   } : dots;
   const marks = drawOrder.map((p) => ({ name: chartLabel(p.r), value: [p.x, p.r.score], id: p.r.variant.id, extra: p, ...markOf(p) }));
@@ -182,10 +190,13 @@ export function scatterOption({ pts, labs, better, xName, xShort, xUnit = "", sc
       type: scale === "linear" ? "value" : scale, name, nameLocation: "end", nameGap: 8, scale: scale === "linear",
       nameTextStyle: { color: pal.grey, fontSize: 11 * t, align: "right", verticalAlign: "top", padding: [26 * t, 0, 0, 0] },
       // Log/time axes otherwise print odd extent values ($0.007, 12.78s) that collide with round ticks.
-      axisLabel: scale === "time" ? { hideOverlap: true, showMinLabel: false, showMaxLabel: false } : { formatter: (v: number) => formatX(v), hideOverlap: true, showMinLabel: scale !== "log", showMaxLabel: scale !== "log" },
-      ...(scale === "log" ? { min: (e: { min: number }) => e.min / 1.5, max: (e: { max: number }) => e.max * 1.8 } : {}),
+      axisLabel: scale === "time" ? { hideOverlap: true, showMinLabel: false, showMaxLabel: false } : { formatter: (v: number) => formatX(v), hideOverlap: true, showMinLabel: zoom ? scale === "log" : scale !== "log", showMaxLabel: zoom ? scale === "log" : scale !== "log", ...(zoom && scale === "log" ? { customValues: logTicks(zoom.range.x[0], zoom.range.x[1]) } : {}) },
+      // Zoomed, the axis draws exactly the window; a log axis also gets its own ticks, since ECharts ticks one only at powers of ten.
+      // The axis stays on the plot's bottom edge (a window holding score 0 would otherwise lift it to 0), and its name stays put below the labels.
+      ...(zoom ? { nameMoveOverlap: false, axisLine: { onZero: false }, min: zoom.range.x[0], max: zoom.range.x[1], ...(scale === "log" ? { axisTick: { customValues: logTicks(zoom.range.x[0], zoom.range.x[1]) } } : {}) } : scale === "log" ? { min: (e: { min: number }) => e.min / 1.5, max: (e: { max: number }) => e.max * 1.8 } : {}),
     } as EChartsOption["xAxis"],
-    yAxis: { type: "value", name: axis.name, ...(axis.fit ? { axisLabel: { formatter: (v: number) => axis.format(v) } } : {}), nameTextStyle: { color: pal.grey, fontSize: 11 * t, align: "left", padding: [0, 0, 0, (narrow ? -22 : -30) * t] }, min: yMin, max: yMax },
+    // A zoomed window's edges are not round numbers, so their labels are left off and the round ticks inside carry the scale.
+    yAxis: { type: "value", name: axis.name, ...(axis.fit || zoom ? { axisLabel: { ...(axis.fit ? { formatter: (v: number) => axis.format(v) } : {}), ...(zoom ? { showMinLabel: false, showMaxLabel: false } : {}) } } : {}), nameTextStyle: { color: pal.grey, fontSize: 11 * t, align: "left", padding: [0, 0, 0, (narrow ? -22 : -30) * t] }, min: yMin, max: yMax },
     // The point's details are a card in the chart's corner (ScoreScatter), so nothing floats beside the mark and covers its neighbours.
     tooltip: { show: false },
     series,
