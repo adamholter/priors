@@ -20,6 +20,14 @@
 .choice { display: flex; border: 1px solid var(--hair); border-radius: 3px; overflow: hidden; }
 .choice button { padding: 6px 12px; color: var(--grey); }
 .choice button[aria-pressed="true"] { background: var(--indigo-soft); color: var(--indigo); }
+/* A long label over a full-width switch whose options share the width: side by side, both wrapped in the narrow menu. */
+.row.stack { flex-direction: column; align-items: stretch; gap: 6px; min-height: 0; padding: 8px 0 4px; }
+.row.stack .choice { display: flex; }
+.row.stack .choice button { flex: 1 1 auto; padding: 6px 8px; white-space: nowrap; }
+.row.stack .choice button + button { border-left: 1px solid var(--hair); }
+.readingRows { margin: 2px 0 10px; display: grid; gap: 8px; font-size: 11.5px; line-height: 1.45; }
+.readingRows dt { color: var(--ink-2); }
+.readingRows dd { margin: 0; color: var(--grey); }
 .labels { padding: 12px 0 18px; }
 .labels > div { display: flex; justify-content: space-between; margin-bottom: 14px; }
 .labels span { color: var(--grey); font: 11px var(--font-mono); }

@@ -114,15 +114,15 @@ export function ChartSettings({ freeTiers, planReading, speedTiers, label, mode,
   const free = costBasis?.value === "subscription" ? freeTiers : undefined;
   const FREE_CHOICES = [{ id: "generous", name: "Generous" }, { id: "limited", name: "Plus rate-limited" }, { id: "off", name: "None" }] as const;
   const freeRow = free && <div className={styles.checks}>
-    <div className={styles.row}><span id={`${id}-free-label`}>Free tiers</span><div className={styles.choice} role="group" aria-labelledby={`${id}-free-label`}>{FREE_CHOICES.filter((c) => c.id !== "limited" || free.limited > 0).map((c) => <button key={c.id} type="button" aria-pressed={free.value === c.id} onClick={() => free.onChange(c.id)}>{c.name}</button>)}</div></div>
+    <div className={`${styles.row} ${styles.stack}`}><span id={`${id}-free-label`}>Free tiers</span><div className={styles.choice} role="group" aria-labelledby={`${id}-free-label`}>{FREE_CHOICES.filter((c) => c.id !== "limited" || free.limited > 0).map((c) => <button key={c.id} type="button" aria-pressed={free.value === c.id} onClick={() => free.onChange(c.id)}>{c.name}</button>)}</div></div>
     <p className={styles.resetNote}>{free.value === "off" ? "Free models use their paid plans, or API price with none."
       : free.value === "limited" ? `${free.generous + free.limited} models cost nothing here, ${free.limited} of them on rate-limited free tiers (OpenRouter, Gemini API).`
       : `${free.generous} models are free in real volume today and cost nothing here.${free.limited ? ` ${free.limited} more are free only rate-limited, too little to count by default.` : ""}`}</p>
   </div>;
   const reading = costBasis?.value === "subscription" ? planReading : undefined, readingDefault = reading && reading.value === reading.options[0].id;
   const readingRow = reading && <div className={styles.checks}>
-    <div className={styles.row}><span id={`${id}-reading-label`}>{reading.models.map((m) => m.name).join(", ")} plan rate</span><div className={styles.choice} role="group" aria-labelledby={`${id}-reading-label`}>{reading.options.map((r) => <button key={r.id} type="button" aria-pressed={reading.value === r.id} onClick={() => reading.onChange(r.id)}>{r.name}</button>)}</div></div>
-    <dl className={styles.resetRows}>{reading.options.map((r) => <div key={r.id}><dt>{r.name}{r.id === reading.options[0].id ? " (default)" : ""}</dt><dd>{r.note}</dd></div>)}</dl>
+    <div className={`${styles.row} ${styles.stack}`}><span id={`${id}-reading-label`}>{reading.models.map((m) => m.name).join(", ")} plan rate</span><div className={styles.choice} role="group" aria-labelledby={`${id}-reading-label`}>{reading.options.map((r) => <button key={r.id} type="button" aria-pressed={reading.value === r.id} onClick={() => reading.onChange(r.id)}>{r.name}</button>)}</div></div>
+    <dl className={styles.readingRows}>{reading.options.map((r) => <div key={r.id}><dt>{r.name}{r.id === reading.options[0].id ? " (default)" : ""}</dt><dd>{r.note}</dd></div>)}</dl>
   </div>;
   const planSection = plans && costBasis && <PlanSection id={id} plans={plans} basis={costBasis} extra={[resets?.value && "resets on", free && free.value === "off" && "no free tiers", free && free.value === "limited" && "rate-limited free tiers", reading && !readingDefault && reading.options.find((r) => r.id === reading.value)?.name.toLowerCase()].filter(Boolean).join(", ") || undefined}>{readingRow}{freeRow}{resetsRow}</PlanSection>;
   const formulaSection = formula && view && onView && <details className={styles.sub} open={formulaOpen} onToggle={e => setFormulaOpen(e.currentTarget.open)}>
