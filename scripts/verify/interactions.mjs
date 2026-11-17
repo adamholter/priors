@@ -257,6 +257,37 @@ try {
     } finally { await context.close(); }
   });
 
+  await check("a mix restored from this browser (plain /builder, no link) still lets the model picker tick and untick models", async () => {
+    const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+    const p = await context.newPage();
+    try {
+      const open = async () => {
+        await p.locator(".ranking-list [data-k]").first().waitFor({ timeout: 30000 });
+        await p.getByLabel("Ranking settings", { exact: true }).first().click();
+        await p.getByText(/of \d+ selected/).first().waitFor();
+      };
+      const count = async () => Number((await p.getByText(/of \d+ selected/).first().textContent()).match(/^(\d+)/)[1]);
+      const firstTicked = () => p.locator('input[aria-label="Search models"] + * input[type=checkbox]:checked').first();
+      await p.goto(`${BASE}/builder`, { waitUntil: "domcontentloaded" });
+      await open();
+      await firstTicked().click();
+      await p.waitForFunction(() => !!localStorage.getItem("priors:indices"), null, { timeout: 5000 });
+      // The same browser comes back with no link: the saved mix is restored under new index ids.
+      await p.goto(`${BASE}/builder`, { waitUntil: "domcontentloaded" });
+      await open();
+      await p.waitForTimeout(500);
+      const before = await count(), box = firstTicked(), name = await box.evaluate((el) => el.closest("label").textContent);
+      await box.click();
+      await p.waitForTimeout(1500);
+      assert.equal(await count(), before - 1, `unticking ${name} stuck`);
+      const row = p.locator('input[aria-label="Search models"] + * label', { hasText: name }).first().locator("input");
+      assert.equal(await row.isChecked(), false, `${name} stays unticked`);
+      await row.click();
+      await p.waitForTimeout(1500);
+      assert.equal(await count(), before, `ticking ${name} again stuck`);
+    } finally { await context.close(); }
+  });
+
   await check("the model picker turns a whole lab off and on", async () => {
     const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
     const p = await context.newPage();

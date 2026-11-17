@@ -126,11 +126,14 @@ export function Builder({ snapshot: base, initialIndices }: { snapshot: Snapshot
   }, [result, active.excludeModels, snapshot, labColor]);
   const pickerIds = useMemo(() => pickerModels.map((m) => m.id), [pickerModels]);
   const excludedIds = useMemo(() => hiddenIds(active, pickerIds, result.autoHidden), [active, pickerIds, result.autoHidden]);
-  const setVisibility = useCallback((vis: Vis) => setIndices((list) => list.map((i) => i.id === activeId ? { ...i, ...vis } : i)), [activeId]);
+  // The index on screen, not `activeId`: a mix restored from this browser comes back with new ids ("i0"), and `active` falls back to the
+  // first one. Matching `activeId` then changed nothing, so a ticked box sprang back as soon as the charts redrew.
+  const shownId = active.id;
+  const setVisibility = useCallback((vis: Vis) => setIndices((list) => list.map((i) => i.id === shownId ? { ...i, ...vis } : i)), [shownId, setIndices]);
   const toggleModel = useCallback((id: string) => setIndices((list) => list.map((i) => {
-    if (i.id !== activeId) return i;
+    if (i.id !== shownId) return i;
     return { ...i, ...toggleVisibility(i, id, pickerIds, result.autoHidden) };
-  })), [activeId, pickerIds, result.autoHidden]);
+  })), [shownId, setIndices, pickerIds, result.autoHidden]);
   // Legacy allowlists are converted when the user changes model visibility.
   const modelPicker = { models: pickerModels, excluded: excludedIds, onToggleModel: toggleModel, onShowAllModels: () => setVisibility(SHOW_ALL), onHideAllModels: () => setVisibility({ excludeModels: pickerIds, onlyModels: undefined }), onShowOnly: (ids: string[]) => setVisibility({ excludeModels: pickerIds.filter((id) => !ids.includes(id)), onlyModels: undefined }) };
   const [paretoView, setParetoView] = useScatterView("pareto");
@@ -207,7 +210,7 @@ export function Builder({ snapshot: base, initialIndices }: { snapshot: Snapshot
   };
   // AA's index is one click away, as a reference to compare against, but not a tab nobody asked for.
   const addReference = () => { setIndices((l) => (l.some((i) => i.id === REFERENCE_ID) ? l : [...l, { ...aaIndexMix(snapshot), id: REFERENCE_ID }])); setActiveId(REFERENCE_ID); };
-  const remove = (id: string) => { setIndices((l) => { const n = l.filter((i) => i.id !== id); if (!n.length) n.push(aaIndexMix(snapshot)); if (activeId === id) setActiveId(n[0].id); return n; }); };
+  const remove = (id: string) => { setIndices((l) => { const n = l.filter((i) => i.id !== id); if (!n.length) n.push(aaIndexMix(snapshot)); if (active.id === id) setActiveId(n[0].id); return n; }); };
 
   return (
     <ChartPaletteContext.Provider value={palette}>
