@@ -6,7 +6,8 @@ import { loadSnapshot } from "@/data/load";
 import { mergeImports } from "@/lib/import";
 import { decodeIndex } from "@/lib/url";
 import type { Profile } from "@/components/page/IndexPage";
-import { runAgent, type AgentEvent } from "@/agent/agent";
+import { agentRoutes, runAgent, type AgentEvent } from "@/agent/agent";
+import { envKeys } from "@/agent/providers";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -21,14 +22,15 @@ const body = z.object({
 
 /**
  * The assistant (questions, charts, mix changes, highlights, theme). Signed-in only. Streams NDJSON events: {type:"step"} progress lines, then one
- * {type:"done"} with the proposal (or {type:"error"}). The OpenRouter key and the budget secret stay
- * on the server; every model call is pre-authorized against the Convex daily cap.
+ * {type:"done"} with the proposal (or {type:"error"}). The provider keys and the budget secret stay on the server; every model call is
+ * pre-authorized against its pool's Convex daily cap. Routes (`agentRoutes`): GPT-6 Luna on OpenAI, then on OpenRouter; Claude Sonnet 5.5
+ * first only when AGENT_CLAUDE=on.
  */
 export async function POST(req: Request) {
   const { userId } = await auth();
   if (!userId) return Response.json({ error: "Sign in to use the assistant." }, { status: 401 });
-  const key = process.env.OPENROUTER_API_KEY, secret = process.env.AGENT_SERVER_SECRET, convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
-  if (!key || !secret || !convexUrl) return Response.json({ error: "The assistant isn't configured." }, { status: 503 });
+  const routes = agentRoutes(envKeys(), process.env), secret = process.env.AGENT_SERVER_SECRET, convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
+  if (!routes.length || !secret || !convexUrl) return Response.json({ error: "The assistant isn't configured." }, { status: 503 });
   const parsed = body.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return Response.json({ error: "Invalid request." }, { status: 400 });
   const { index, date, handle, messages, view } = parsed.data;
@@ -53,10 +55,10 @@ export async function POST(req: Request) {
       const emit = (e: AgentEvent) => controller.enqueue(encoder.encode(JSON.stringify(e) + "\n"));
       try {
         await runAgent({
-          snapshot: snapshot!, config, history: messages, view, apiKey: key, signal: req.signal, referer: new URL(req.url).origin, emit,
+          snapshot: snapshot!, config, history: messages, view, routes, signal: req.signal, referer: new URL(req.url).origin, emit,
           budget: {
-            reserve: (estimateUsd) => convex.mutation(api.agentBudget.reserve, { secret, estimateUsd }),
-            settle: async (estimateUsd, actualUsd) => { await convex.mutation(api.agentBudget.settle, { secret, userId, estimateUsd, actualUsd }); },
+            reserve: (estimateUsd, pool) => convex.mutation(api.agentBudget.reserve, { secret, estimateUsd, pool }),
+            settle: async (estimateUsd, actualUsd, pool) => { await convex.mutation(api.agentBudget.settle, { secret, userId, estimateUsd, actualUsd, pool }); },
           },
         });
       } catch {

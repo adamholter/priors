@@ -5,6 +5,7 @@
 import type { Snapshot } from "../../src/data/types";
 import type { IndexConfig } from "../../src/engine";
 import { runAgent, type AgentEvent, type ChatMessage } from "../../src/agent/agent";
+import type { Route } from "../../src/agent/providers";
 import { DataView } from "../../src/agent/data";
 import type { ViewState } from "../../src/agent/tools";
 
@@ -18,18 +19,20 @@ export interface RunResult {
   rankBefore: Map<string, number>; rankAfter: Map<string, number>;
 }
 
-export async function runCase(opts: { snapshot: Snapshot; config: IndexConfig; prompt: string; history?: ChatMessage[]; view: ViewState; model: string; apiKey: string; spend: { left: number } }): Promise<RunResult> {
+export async function runCase(opts: { snapshot: Snapshot; config: IndexConfig; prompt: string; history?: ChatMessage[]; view: ViewState; route: Route; spend: { left: number } }): Promise<RunResult> {
   const { snapshot, config } = opts, t = Date.now();
   const steps: string[] = [], tools: RunResult["tools"] = [];
   let done: Done | undefined, error: string | undefined, costUsd = 0;
   await runAgent({
-    snapshot, config, model: opts.model, apiKey: opts.apiKey, view: opts.view,
+    snapshot, config, routes: [opts.route], view: opts.view,
     history: [...(opts.history ?? []), { role: "user", content: opts.prompt }],
     emit: (e) => { if (e.type === "step") steps.push(e.text); else if (e.type === "done") done = e; else error = e.message; },
     onToolCall: (name, args, result) => tools.push({ name, args, result }),
     budget: {
-      reserve: async (estimate) => { if (opts.spend.left < estimate) return false; opts.spend.left -= estimate; return true; },
-      settle: async (estimate, actual) => { opts.spend.left += estimate - actual; costUsd += actual; },
+      // The cap counts what calls cost, not their worst case: cases run side by side, and reserving a full answer for each of them
+      // spent the cap on reservations and failed cases that would have cost cents.
+      reserve: async () => opts.spend.left > 0,
+      settle: async (_estimate, actual) => { opts.spend.left -= actual; costUsd += actual; },
     },
   });
   const after: IndexConfig = { ...config, ...(done?.proposal ? { weights: done.proposal.weights, required: done.proposal.required } : {}), ...(done?.highlight ? { highlight: done.highlight } : {}), ...(done?.visibility ? { excludeModels: done.visibility.excludeModels?.length ? done.visibility.excludeModels : undefined, onlyModels: undefined } : {}) };

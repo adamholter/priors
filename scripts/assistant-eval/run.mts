@@ -1,4 +1,5 @@
-// Assistant eval: npx tsx scripts/assistant-eval/run.mts [--model openai/gpt-6-luna] [--cases a,b] [--repeat 1] [--budget 3]
+// Assistant eval: npx tsx scripts/assistant-eval/run.mts [--route openai:gpt-6-luna:low | anthropic:claude-sonnet-5-5:medium | openrouter:<id>:low]
+//   [--model <OpenRouter id>] [--cases a,b] [--repeat 1] [--budget 3]. The default route is the assistant's own: GPT-6 Luna on OpenAI's API.
 // Runs every case through the real agent loop on the pinned snapshot, checks hard requirements, asks
 // the LLM grader whether the response is reasonable, and writes results to scripts/assistant-eval/results/.
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -10,9 +11,14 @@ const { runCase } = await import("./harness");
 const { judge, describeRun, JUDGE_MODEL } = await import("./judge");
 
 const arg = (name: string) => { const i = process.argv.indexOf(`--${name}`); return i > 0 ? process.argv[i + 1] : undefined; };
-const model = arg("model") ?? AGENT_MODEL, only = arg("cases")?.split(","), repeat = Number(arg("repeat") ?? 1), spend = { left: Number(arg("budget") ?? 3) };
+const only = arg("cases")?.split(","), repeat = Number(arg("repeat") ?? 1), spend = { left: Number(arg("budget") ?? 3) };
+// The grader runs on OpenRouter.
 const apiKey = process.env.OPENROUTER_API_KEY;
 if (!apiKey) throw new Error("OPENROUTER_API_KEY missing from .env.local");
+const [provider, routeModel, effort] = (arg("route") ?? (arg("model") ? `openrouter:${arg("model")}:low` : process.env.OPENAI_API_KEY ? "openai:gpt-6-luna:low" : `openrouter:${AGENT_MODEL}:low`)).split(":");
+if (!["anthropic", "openai", "openrouter"].includes(provider) || !routeModel || !["low", "medium", "high"].includes(effort ?? "low")) throw new Error("--route is provider:model:effort");
+const route = { provider, model: routeModel, effort: effort ?? "low", pool: "base" } as import("../../src/agent/providers").Route;
+const model = `${provider}:${routeModel}:${route.effort}`;
 const snapshot = (await loadSnapshot(EVAL_SNAPSHOT))!;
 const cases = CASES.filter((c) => !only || only.includes(c.id));
 
@@ -22,7 +28,7 @@ const queue = cases.flatMap((c) => Array.from({ length: repeat }, (_, run) => ({
 async function worker() {
   for (let job = queue.shift(); job; job = queue.shift()) {
     const { c, run } = job, config = configFor(c, snapshot), env = { snapshot, config };
-    const r = await runCase({ snapshot, config, prompt: c.prompt, history: c.history, view: { page: "builder", theme: "bone", mode: "system", ...c.view }, model, apiKey: apiKey!, spend });
+    const r = await runCase({ snapshot, config, prompt: c.prompt, history: c.history, view: { page: "builder", theme: "bone", mode: "system", ...c.view }, route, spend });
     const failed = c.checks.map((check) => check(r, env)).filter((x): x is string => !!x);
     const facts = c.facts ? await c.facts(env) : "";
     const v = await judge(c, r, facts, snapshot, apiKey!);

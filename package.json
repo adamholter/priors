@@ -40,6 +40,7 @@
     "cf:deploy": "node scripts/ops/cloudflare-deploy.mjs"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.9.0",
     "@clerk/nextjs": "^7.9.23",
     "@clerk/shared": "4.43.1",
     "@opennextjs/cloudflare": "1.20.15",

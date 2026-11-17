@@ -5,13 +5,14 @@ const { ConvexHttpClient } = await import("convex/browser");
 const { api } = await import("../convex/_generated/api");
 const { loadSnapshot } = await import("../src/data/load");
 const { defaultConfig } = await import("../src/engine");
-const { runAgent } = await import("../src/agent/agent");
+const { runAgent, agentRoutes } = await import("../src/agent/agent");
+const { envKeys } = await import("../src/agent/providers");
 const s = (await loadSnapshot())!;
 const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
 const secret = process.env.AGENT_SERVER_SECRET!;
 console.log(await convex.mutation(api.agentBudget.begin, { secret, userId: "test-user" }));
 let spent = 0;
 const t = Date.now();
-await runAgent({ snapshot: s, config: defaultConfig(s), history: [{ role: "user", content: process.argv[2] ?? "Fable 5.1 is too high" }], apiKey: process.env.OPENROUTER_API_KEY!, emit: (e) => console.log(JSON.stringify(e).slice(0, 1500)),
-  budget: { reserve: (est) => convex.mutation(api.agentBudget.reserve, { secret, estimateUsd: est }), settle: async (est, act) => { spent += act; await convex.mutation(api.agentBudget.settle, { secret, userId: "test-user", estimateUsd: est, actualUsd: act }); } } });
+await runAgent({ snapshot: s, config: defaultConfig(s), history: [{ role: "user", content: process.argv[2] ?? "Fable 5.1 is too high" }], routes: agentRoutes(envKeys(), process.env), onRoute: (r) => console.log("route", r.provider, r.model), emit: (e) => console.log(JSON.stringify(e).slice(0, 1500)),
+  budget: { reserve: (est, pool) => convex.mutation(api.agentBudget.reserve, { secret, estimateUsd: est, pool }), settle: async (est, act, pool) => { spent += act; await convex.mutation(api.agentBudget.settle, { secret, userId: "test-user", estimateUsd: est, actualUsd: act, pool }); } } });
 console.log("spent $", spent.toFixed(5), "secs", (Date.now() - t) / 1000);

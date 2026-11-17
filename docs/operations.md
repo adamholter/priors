@@ -12,9 +12,9 @@ Clerk and Convex are optional locally: without their keys the site runs fully an
 
 Environment variables:
 
-- `.env.local`: `NEXT_PUBLIC_CONVEX_URL`, `CONVEX_DEPLOYMENT`, `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`, `AGENT_SERVER_SECRET`, `OPENROUTER_API_KEY`.
+- `.env.local`: `NEXT_PUBLIC_CONVEX_URL`, `CONVEX_DEPLOYMENT`, `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`, `AGENT_SERVER_SECRET`, `OPENROUTER_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY` (the assistant's providers; `AGENT_CLAUDE=on` puts Claude first, off by default).
 - Vercel production also has `NEXT_PUBLIC_SITE_URL=https://mypriors.com` (absolute link-preview URLs).
-- Convex has `CLERK_JWT_ISSUER_DOMAIN` (prod: `clerk.mypriors.com`), `AGENT_SERVER_SECRET`, `REQUESTS_TOKEN` (see Requests below), and optionally `AGENT_DAILY_USD_CAP`, `AGENT_USER_DAILY_REQUESTS` and `REQUESTS_DAILY_CAP`.
+- Convex has `CLERK_JWT_ISSUER_DOMAIN` (prod: `clerk.mypriors.com`), `AGENT_SERVER_SECRET`, `REQUESTS_TOKEN` (see Requests below), and optionally `AGENT_DAILY_USD_CAP`, `AGENT_PREMIUM_DAILY_USD`, `AGENT_USER_DAILY_REQUESTS` and `REQUESTS_DAILY_CAP`.
 - When adding a Vercel variable from a shell, use `printf`, not `echo`: a trailing newline breaks it.
 
 ## Checks and deploys
