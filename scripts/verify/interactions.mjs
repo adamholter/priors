@@ -62,9 +62,14 @@ try {
         assert.equal(res.status(), 200, `${route} status`);
         assert.ok(await p.locator('header a[href="/tools"]').count(), `${route} links back to /tools`);
       }
-      await p.goto(`${BASE}/benchmarks`, { waitUntil: "domcontentloaded" });
-      await p.getByRole("navigation", { name: "Footer" }).getByRole("link", { name: "Report or request" }).click();
-      await p.waitForURL(/\/request$/);
+      // Click once the page has loaded (a click during hydration can be dropped), and wait for the address to change, not for
+      // /request's own load event: that waits on every subresource and is what timed out on a busy CI runner.
+      await p.goto(`${BASE}/benchmarks`, { waitUntil: "load" });
+      await Promise.all([
+        p.waitForURL(/\/request$/, { waitUntil: "commit", timeout: 30000 }),
+        p.getByRole("navigation", { name: "Footer" }).getByRole("link", { name: "Report or request" }).click(),
+      ]);
+      await p.getByRole("button", { name: "Send", exact: true }).waitFor({ timeout: 30000 });
     } finally { await context.close(); }
   });
 
@@ -195,6 +200,10 @@ try {
       assert.ok(picked.length >= 5, "enough benchmarks to draw a radar");
       await p.goto(`${BASE}/builder?i=${encodeURIComponent(`Long names|${picked.map((b) => `${b.id}:10`).join(",")}|strict=0`)}&c=strengths#strengths`, { waitUntil: "domcontentloaded" });
       await p.locator(".rl-main .rl-radar svg").waitFor({ timeout: 30000 });
+      // The builder fetches the newest snapshot after first paint and redraws its charts with it; measuring during that swap read a
+      // detached tooltip. Wait for the page to go quiet and for every axis name to be drawn first.
+      await p.waitForLoadState("networkidle", { timeout: 30000 }).catch(() => {});
+      await p.waitForFunction((n) => document.querySelectorAll(".rl-main .rl-radar svg .rl-label").length === n, picked.length, { timeout: 30000 });
       const radar = await p.$eval(".rl-main .rl-radar svg", (svg) => {
         const s = svg.getBoundingClientRect(), labels = [...svg.querySelectorAll(".rl-label")], rs = labels.map((e) => e.getBoundingClientRect());
         let overlaps = 0;
@@ -209,8 +218,14 @@ try {
       assert.equal(radar.overlaps, 0, "no two names overlap");
       // Hover: a card with the description, held inside the chart.
       for (const i of [0, Math.floor(picked.length / 2), picked.length - 1]) {
-        await p.locator(".rl-main .rl-axis-link").nth(i).hover();
-        const tip = await p.locator(".rl-main .rl-tip-axis").evaluate((e) => { const r = e.getBoundingClientRect(), c = e.closest(".rl-radar").getBoundingClientRect(); return { what: e.querySelector(".rl-tip-what")?.textContent ?? "", inside: r.left >= c.left - 1 && r.right <= c.right + 1 }; });
+        // A redraw between hovering and measuring replaces the card: measure only a card still in the chart, hovering again if not.
+        let tip = null;
+        for (let tries = 0; !tip && tries < 20; tries++) {
+          await p.locator(".rl-main .rl-axis-link").nth(i).hover();
+          tip = await p.locator(".rl-main .rl-tip-axis").first().evaluate((e) => { const box = e.isConnected && e.closest(".rl-radar"); if (!box) return null; const r = e.getBoundingClientRect(), c = box.getBoundingClientRect(); return { what: e.querySelector(".rl-tip-what")?.textContent ?? "", inside: r.left >= c.left - 1 && r.right <= c.right + 1 }; }, null, { timeout: 5000 }).catch(() => null);
+          if (!tip) await p.waitForTimeout(250);
+        }
+        assert.ok(tip, `hovering ${radar.names[i]} shows its card`);
         assert.ok(tip.what.length > 20, `the card for ${radar.names[i]} says what it measures`);
         assert.ok(tip.inside, `the card for ${radar.names[i]} stays inside the chart`);
       }
