@@ -55,7 +55,9 @@ export async function POST(req: Request) {
       const emit = (e: AgentEvent) => controller.enqueue(encoder.encode(JSON.stringify(e) + "\n"));
       try {
         await runAgent({
-          snapshot: snapshot!, config, history: messages, view, routes, signal: req.signal, referer: new URL(req.url).origin, emit,
+          snapshot: snapshot!, config, history: messages, view, routes, signal: req.signal,
+          // Provider and model only: shows in Vercel's logs which route answered and when a request fell back.
+          onRoute: (r) => console.info(`assistant route: ${r.provider} ${r.model}`), referer: new URL(req.url).origin, emit,
           budget: {
             reserve: (estimateUsd, pool) => convex.mutation(api.agentBudget.reserve, { secret, estimateUsd, pool }),
             settle: async (estimateUsd, actualUsd, pool) => { await convex.mutation(api.agentBudget.settle, { secret, userId, estimateUsd, actualUsd, pool }); },
