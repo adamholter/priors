@@ -14,7 +14,7 @@
  */
 import type { Source, ScrapeResult, RawRow } from "../../../src/data/types";
 import { normalizeLabel } from "../../../src/data/normalize";
-import { blendedApiPrice, SUBSCRIPTION_BENCHMARK, type SubscriptionDetails, type TokenMix } from "../../../src/data/subscription";
+import { blendedApiPrice, offPeakOf, planDisplayName, SUBSCRIPTION_BENCHMARK, type SubscriptionDetails, type TokenMix } from "../../../src/data/subscription";
 import { BUDGET_PLANS, LEGACY_PLANS, LIST_PRICES_UNTIL, PLAN_CHANGES, PLAN_MULTIPLES, SUBSIDY_ASSUMPTIONS, SUBSIDY_OVERRIDES } from "./subscription-overrides";
 
 const SITE = "https://realapipricing.com";
@@ -87,7 +87,8 @@ export function parseSubscriptions(json: Points, conventions: Conventions, chann
   const rows: RawRow[] = [];
   const taken = new Set<string>();
   // "(9/14+)" marks which generation of a plan's limits was measured; it is not part of the plan's name.
-  const name = (p: Point) => `${(p.plan_en || p.plan).replace(/\s*\(\d+\/\d+\+\)$/, "")}${LEGACY_PLANS.some((prefix) => p.id.startsWith(prefix)) ? ", legacy" : ""}`;
+  // Time-of-day rows get Priors' names ("GLM Coding Pro ¥538 (off-peak)", "MiMo Token Plan Max (peak)"): `planDisplayName`.
+  const name = (p: Point) => `${planDisplayName((p.plan_en || p.plan).replace(/\s*\(\d+\/\d+\+\)$/, ""))}${LEGACY_PLANS.some((prefix) => p.id.startsWith(prefix)) ? ", legacy" : ""}`;
   // A budget plan on another lab's model is listed with that model's first-party plans, so it can be picked.
   const hosted = (model: string) => (resold.get(model) ?? []).filter((p) => budgetOf(p.id));
   const add = (all: Point[], pick: Point, note: string, extra: Point[] = []) => {
@@ -117,7 +118,10 @@ export function parseSubscriptions(json: Points, conventions: Conventions, chann
     const listed = all.filter((p) => !PLAN_MULTIPLES.some((m) => m.listOnly && p.id.startsWith(`${m.planId}::`))), sold = listed.filter((p) => !LEGACY_PLANS.some((prefix) => p.id.startsWith(prefix)));
     const counted = sold.length ? sold : listed, graded = counted.filter((p) => p.confidence !== "low");
     const pool = (graded.length ? graded : counted).sort(cheaper);
-    add(all, pool[Math.floor(pool.length / 2)], `median of ${pool.length} first-party plan${pool.length === 1 ? "" : "s"}`, hosted(all[0].model));
+    // A plan sold by time of day is priced at its off-peak rate by default: GLM's and MiMo's peak hours are the US night. Its peak and
+    // mixed rows stay in the plan list for a visitor to pick.
+    const median = pool[Math.floor(pool.length / 2)], off = offPeakOf(name(median), all.map((p) => ({ plan: name(p), p })))?.p;
+    add(all, off ?? median, `median of ${pool.length} first-party plan${pool.length === 1 ? "" : "s"}${off ? ", its off-peak rate" : ""}`, hosted(all[0].model));
   }
   // Models with no first-party plan: the best subsidy a reseller or harness offers (lowest token price,
   // medium confidence or better). Same list price at every plan, so the cheapest tokens are the biggest subsidy.

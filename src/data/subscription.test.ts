@@ -5,7 +5,7 @@ import { computeIndex, type IndexConfig } from "../engine";
 import { decodeIndex, encodeIndex } from "../lib/url";
 import { clientSnapshot } from "./client-snapshot";
 import { countedResets, extraWeeks, hasFableGrant, planResetBoosts, planResetNote, planResetRows, resetBoostFor } from "./plan-resets";
-import { blendedApiPrice, currentPlanName, CODEX_LIMITS_BENCHMARK, measuredTokenMixes, peakKind, peakSibling, subscriptionPlanOptions, subscriptionPrices, SUBSCRIPTION_BENCHMARK, tokenPrice, type SubscriptionDetails } from "./subscription";
+import { blendedApiPrice, currentPlanName, CODEX_LIMITS_BENCHMARK, measuredTokenMixes, offPeakOf, peakKind, planDisplayName, subscriptionPlanOptions, subscriptionPrices, SUBSCRIPTION_BENCHMARK, tokenPrice, type SubscriptionDetails } from "./subscription";
 
 const standard = { cache: 0.97, input: 0.025, output: 0.005 };
 const plan = (name: string, extra: Partial<SubscriptionDetails> = {}): Record<string, unknown> => ({ plan: name, feeUsd: 20, confidence: "high", mix: standard, plans: [], ...extra });
@@ -335,15 +335,15 @@ describe("not counting free tiers", () => {
 });
 
 
-describe("peak hours", () => {
-  // GLM Coding: Real API Pricing measures each plan off-peak (闲时), mixed (中间值) and peak (忙时); the median lands on Pro's off-peak row.
-  // MiMo Token Plan: Day and Night (0.8x) rows; its median lands on Max's Day row.
+describe("time-of-day plan options", () => {
+  // GLM Coding: Real API Pricing measures each plan off-peak (闲时), mixed (中间值) and peak (忙时), named in Chinese; MiMo Token Plan as Day
+  // and Night (0.8x). The scraper defaults each model to its median plan's off-peak row; here the row is already that.
   const glm = (tier: string, fee: number, off: number) => [
     { plan: `GLM Coding ${tier} 闲时`, feeUsd: fee, usdPerMtok: off, confidence: "high" },
     { plan: `GLM Coding ${tier} 中间值`, feeUsd: fee, usdPerMtok: off * 4 / 3, confidence: "high" },
     { plan: `GLM Coding ${tier} 忙时`, feeUsd: fee, usdPerMtok: off * 2, confidence: "high" },
   ];
-  const glmPlans = [...glm("Pro (新客 ¥538)", 79.37, 0.032106088), ...glm("Max (新客 ¥1078)", 159.03, 0.027565877)];
+  const glmPlans = [...glm("Pro (新客 ¥538)", 79.37, 0.032106088), ...glm("Max (老客 ¥469)", 69.19, 0.011992946)];
   const mimoPlans = [
     { plan: "MiMo Token Plan Max (Day)", feeUsd: 100, usdPerMtok: 0.01576, confidence: "medium" },
     { plan: "MiMo Token Plan Max (Night 0.8x)", feeUsd: 100, usdPerMtok: 0.01261, confidence: "medium" },
@@ -357,55 +357,51 @@ describe("peak hours", () => {
     s.observations = [...s.observations,
       o("swe", "glm@max", 72), o("swe", "mimo@max", 65), o("aa-cost-per-task-index", "glm@max", 3), o("aa-cost-per-task-index", "mimo@max", 2),
       o(SUBSCRIPTION_BENCHMARK, "glm@max", 0.032106088, plan("GLM Coding Pro (新客 ¥538) 闲时", { feeUsd: 79.37, listPrice: list, plans: glmPlans })),
-      o(SUBSCRIPTION_BENCHMARK, "mimo@max", 0.01576, plan("MiMo Token Plan Max (Day)", { feeUsd: 100, listPrice: list, plans: mimoPlans })),
+      o(SUBSCRIPTION_BENCHMARK, "mimo@max", 0.01261, plan("MiMo Token Plan Max (Night 0.8x)", { feeUsd: 100, listPrice: list, plans: mimoPlans })),
     ];
     return s;
   }
   const api = blendedApiPrice(list, standard);
-  const share = (peakHours?: "mixed" | "peak", chosen: Record<string, string> = {}) => subscriptionPrices(peakSnap(), chosen, { peakHours }).get("glm")!;
 
-  it("reads each plan's time-of-day row", () => {
-    expect(peakKind("GLM Coding Pro (新客 ¥538) 闲时")).toEqual({ base: "GLM Coding Pro (新客 ¥538)", kind: "offpeak" });
-    expect(peakKind("GLM Coding Lite (老客 ¥49), 忙时")).toEqual({ base: "GLM Coding Lite (老客 ¥49)", kind: "peak" });
-    expect(peakKind("GLM Coding Max (新客 ¥1078) 中间值")?.kind).toBe("mixed");
-    expect(peakKind("MiMo Token Plan Max (Day)")).toEqual({ base: "MiMo Token Plan Max", kind: "peak" });
-    expect(peakKind("MiMo Token Plan Max (Night 0.8x)")?.kind).toBe("offpeak");
+  it("names each rate as its own plan, and reads the old names", () => {
+    expect(planDisplayName("GLM Coding Pro (新客 ¥538) 闲时")).toBe("GLM Coding Pro ¥538 (off-peak)");
+    expect(planDisplayName("GLM Coding Lite (老客 ¥49), 忙时")).toBe("GLM Coding Lite ¥49, existing subscribers (peak)");
+    expect(planDisplayName("GLM Coding Max (新客 ¥1078) 中间值")).toBe("GLM Coding Max ¥1078 (mixed)");
+    expect(planDisplayName("MiMo Token Plan Max (Day)")).toBe("MiMo Token Plan Max (peak)");
+    expect(planDisplayName("MiMo Token Plan Max (Night 0.8x)")).toBe("MiMo Token Plan Max (off-peak)");
+    for (const p of ["Claude Ultra", "ChatGPT Pro 10x", "Google AI Pro", "Cursor Ultra (Day)"]) expect(planDisplayName(p)).toBe(p);
+    expect(currentPlanName("GLM Coding Pro (新客 ¥538) 闲时")).toBe("GLM Coding Pro ¥538 (off-peak)");
+    expect(peakKind("GLM Coding Pro ¥538 (peak)")).toEqual({ base: "GLM Coding Pro ¥538", kind: "peak" });
     expect(peakKind("Claude Ultra")).toBeUndefined();
-    expect(peakKind("ChatGPT Pro 10x")).toBeUndefined();
-    expect(peakSibling("GLM Coding Pro (新客 ¥538) 闲时", glmPlans, "peak")?.plan).toBe("GLM Coding Pro (新客 ¥538) 忙时");
-    expect(peakSibling("GLM Coding Pro (新客 ¥538) 忙时", glmPlans, "peak")).toBeUndefined();
-    expect(peakSibling("MiMo Token Plan Max (Day)", mimoPlans, "mixed")).toBeUndefined();
+    expect(offPeakOf("MiMo Token Plan Max (Day)", mimoPlans)?.plan).toBe("MiMo Token Plan Max (Night 0.8x)");
+    expect(offPeakOf("GLM Coding Pro (新客 ¥538) 闲时", glmPlans)).toBeUndefined();
   });
-  it("leaves the default exactly as before: GLM on Pro's off-peak row, every other model untouched", () => {
+  it("keeps the default exactly: GLM on Pro's off-peak row, MiMo on Max's off-peak row, every other model untouched", () => {
     const def = subscriptionPrices(peakSnap());
-    expect(def.get("glm")).toEqual({ ratio: 0.032106088 / api, plan: "GLM Coding Pro (新客 ¥538) 闲时", feeUsd: 79.37, confidence: "high" });
-    expect(def.get("mimo")?.plan).toBe("MiMo Token Plan Max (Day)");
-    expect(subscriptionPrices(peakSnap(), {}, { peakHours: undefined })).toEqual(def);
+    expect(def.get("glm")).toEqual({ ratio: 0.032106088 / api, plan: "GLM Coding Pro ¥538 (off-peak)", feeUsd: 79.37, confidence: "high" });
+    expect(def.get("mimo")).toMatchObject({ ratio: 0.01261 / api, plan: "MiMo Token Plan Max (off-peak)" });
     const plain = subscriptionPrices(snap());
     for (const [id, p] of plain) expect(def.get(id)).toEqual(p);
   });
-  it("prices GLM at the same plan's mixed or peak row", () => {
-    expect(share("mixed")).toMatchObject({ plan: "GLM Coding Pro (新客 ¥538) 中间值", feeUsd: 79.37 });
-    expect(share("mixed").ratio).toBeCloseTo((0.032106088 * 4 / 3) / api, 10);
-    expect(share("peak")).toMatchObject({ plan: "GLM Coding Pro (新客 ¥538) 忙时" });
-    expect(share("peak").ratio / share().ratio).toBeCloseTo(2, 10);
+  it("lists every rate in the lab's plan list, with the off-peak one as the median", () => {
+    const zhipu = subscriptionPlanOptions(peakSnap()).find((l) => l.labId === "zhipu")!;
+    expect(zhipu.plans.map((p) => p.plan)).toEqual(expect.arrayContaining(["GLM Coding Pro ¥538 (off-peak)", "GLM Coding Pro ¥538 (mixed)", "GLM Coding Pro ¥538 (peak)", "GLM Coding Max ¥469, existing subscribers (peak)"]));
+    expect(zhipu.median).toEqual([{ plan: "GLM Coding Pro ¥538 (off-peak)", models: 1 }]);
+    expect(subscriptionPlanOptions(peakSnap()).find((l) => l.labId === "xiaomi")!.plans.map((p) => p.plan)).toEqual(["MiMo Token Plan Max (off-peak)", "MiMo Token Plan Max (peak)"]);
   });
-  it("follows a plan the visitor picked, and goes back to off-peak from a picked peak row", () => {
-    expect(share("peak", { zhipu: "GLM Coding Max (新客 ¥1078) 闲时" }).plan).toBe("GLM Coding Max (新客 ¥1078) 忙时");
-    expect(share(undefined, { zhipu: "GLM Coding Max (新客 ¥1078) 忙时" }).plan).toBe("GLM Coding Max (新客 ¥1078) 忙时");
+  it("prices a picked peak or mixed option, by its new name or a link's old one", () => {
+    const at = (plan: string) => subscriptionPrices(peakSnap(), { zhipu: plan }).get("glm")!;
+    expect(at("GLM Coding Pro ¥538 (peak)")).toMatchObject({ plan: "GLM Coding Pro ¥538 (peak)", feeUsd: 79.37 });
+    expect(at("GLM Coding Pro ¥538 (peak)").ratio / at("GLM Coding Pro ¥538 (off-peak)").ratio).toBeCloseTo(2, 10);
+    expect(at("GLM Coding Pro ¥538 (mixed)").ratio).toBeCloseTo((0.032106088 * 4 / 3) / api, 10);
+    expect(at("GLM Coding Pro (新客 ¥538) 忙时")).toEqual(at("GLM Coding Pro ¥538 (peak)"));
+    expect(subscriptionPrices(peakSnap(), { xiaomi: "MiMo Token Plan Max (peak)" }).get("mimo")).toMatchObject({ ratio: 0.01576 / api, plan: "MiMo Token Plan Max (peak)" });
   });
-  it("moves MiMo only to a row it has: Day is already its peak rate, and it has no mixed row", () => {
-    for (const peakHours of ["mixed", "peak"] as const) expect(subscriptionPrices(peakSnap(), {}, { peakHours }).get("mimo")?.plan).toBe("MiMo Token Plan Max (Day)");
-    expect(subscriptionPrices(peakSnap(), { xiaomi: "MiMo Token Plan Max (Night 0.8x)" }, { peakHours: "peak" }).get("mimo")?.plan).toBe("MiMo Token Plan Max (Day)");
-  });
-  it("changes cost charts only: scores, ranks and every other model's cost stay put, and links never carry it", () => {
-    const def = computeIndex(peakSnap(), base), peak = computeIndex(peakSnap(), base, { peakHours: "peak" });
+  it("moves cost only, and only for the lab picked: scores, ranks and other models stay put", () => {
+    const def = computeIndex(peakSnap(), base), peak = computeIndex(peakSnap(), { ...base, subscriptionPlans: { zhipu: "GLM Coding Pro ¥538 (peak)" } });
     const by = (r: typeof def) => Object.fromEntries(r.ranked.map((x) => [x.variant.id, x]));
-    expect(computeIndex(peakSnap(), base, {}).ranked.map((r) => [r.variant.id, r.score, r.costUsd])).toEqual(def.ranked.map((r) => [r.variant.id, r.score, r.costUsd]));
-    expect(peak.ranked.map((r) => [r.variant.id, r.score])).toEqual(def.ranked.map((r) => [r.variant.id, r.score]));
+    expect(peak.ranked.map((r) => [r.variant.id, r.score, r.rank])).toEqual(def.ranked.map((r) => [r.variant.id, r.score, r.rank]));
     expect(by(peak)["glm@max"].costUsd! / by(def)["glm@max"].costUsd!).toBeCloseTo(2, 6);
     for (const id of ["a@max", "b@xhigh", "mimo@max"]) expect(by(peak)[id].costUsd).toBe(by(def)[id].costUsd);
-    expect(encodeIndex(base)).toBe(encodeIndex({ ...base }));
-    expect(JSON.stringify(decodeIndex(encodeIndex(base), "t"))).not.toContain("peak");
   });
 });

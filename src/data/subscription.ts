@@ -1,5 +1,6 @@
 import { columnsOf, observationsOf } from "./columns";
 import type { Snapshot } from "./types";
+import { activeStudentOffers, type StudentOffer } from "./student-offers";
 
 /** Subscription token price per model, scraped from Real API Pricing (`scripts/scrape/sources/realapipricing.ts`). */
 export const SUBSCRIPTION_BENCHMARK = "subscription-token-price";
@@ -76,29 +77,51 @@ export function blendedApiPrice(p: Prices, mix: TokenMix): number {
 }
 
 /**
- * Plans sold at different rates by time of day measure each rate as its own row: GLM Coding's 闲时 (off-peak), 中间值 (a mix) and 忙时
- * (peak, Monday to Friday 14:00-18:00 UTC+8, where credits cost twice the off-peak rate), and MiMo Token Plan's Day and Night (0.8x)
- * rows. The headline prices each model at its median plan, whichever row that is (GLM Coding Pro off-peak, MiMo Token Plan Max Day).
- * `PeakHours` is a visitor's choice to price these plans at their mixed or peak row instead: a view choice (Data → Subscription plans →
- * Peak hours, kept in this browser like Plan prices: Student), never stored in an index or a link.
+ * Plans sold at different rates by time of day are measured once per rate, and each rate is its own plan option: GLM Coding's
+ * off-peak, mixed and peak rows (Z.ai's peak is Monday to Friday 14:00-18:00 UTC+8, at twice the off-peak credits) and MiMo Token
+ * Plan's peak and off-peak rows (00:00-08:00 Beijing time is off-peak at 0.8x the credits). Both peak windows fall in the US night,
+ * so a model's default is the off-peak row of its median plan (`scripts/scrape/sources/realapipricing.ts`); the peak and mixed rows
+ * are options a visitor picks in the lab's plan list. Real API Pricing names them in Chinese (闲时 off-peak, 中间值 mixed, 忙时 peak;
+ * 新客 the new-subscriber price, 老客 the existing subscribers' price) or as Day and Night; `planDisplayName` gives the names Priors shows,
+ * and links and saved pages that kept an old name still find the plan through `currentPlanName`.
  */
-export type PeakHours = "mixed" | "peak";
-export const PEAK_HOURS: { id: PeakHours | undefined; name: string }[] = [{ id: undefined, name: "Off-peak" }, { id: "mixed", name: "Mixed" }, { id: "peak", name: "Peak" }];
-export const isPeakHours = (value: unknown): value is PeakHours => value === "mixed" || value === "peak";
-type PeakKind = "offpeak" | PeakHours;
-/** A plan row's time-of-day rate, and the plan it belongs to. Undefined for a plan sold at one rate. */
-export function peakKind(plan: string): { base: string; kind: PeakKind } | undefined {
-  const glm = /^(.*?),? (闲时|中间值|忙时)$/.exec(plan);
-  if (glm) return { base: glm[1], kind: glm[2] === "闲时" ? "offpeak" : glm[2] === "忙时" ? "peak" : "mixed" };
-  const dayNight = /^(.*) \((Day|Night\b[^)]*)\)$/.exec(plan);
-  if (dayNight) return { base: dayNight[1], kind: dayNight[2] === "Day" ? "peak" : "offpeak" };
-  return undefined;
+export type PeakKind = "off-peak" | "mixed" | "peak";
+const GLM_ROW = /^GLM Coding (\S+) \((新客|老客) ¥(\d+)\),? (闲时|中间值|忙时)$/;
+const DAY_NIGHT_ROW = /^(.*) \((Day|Night\b[^)]*)\)$/;
+/** The name Priors shows for a plan: "GLM Coding Pro ¥538 (off-peak)" for Real API Pricing's "GLM Coding Pro (新客 ¥538) 闲时". */
+export function planDisplayName(plan: string): string {
+  const glm = GLM_ROW.exec(plan);
+  if (glm) return `GLM Coding ${glm[1]} ¥${glm[3]}${glm[2] === "老客" ? ", existing subscribers" : ""} (${glm[4] === "闲时" ? "off-peak" : glm[4] === "忙时" ? "peak" : "mixed"})`;
+  const dn = DAY_NIGHT_ROW.exec(plan);
+  if (dn && /^MiMo /.test(dn[1])) return `${dn[1]} (${dn[2] === "Day" ? "peak" : "off-peak"})`;
+  return plan;
 }
-/** The same plan's row at the chosen rate, when the plan has one and the row is not already it. */
-export function peakSibling<P extends { plan: string; usdPerMtok: number }>(plan: string, plans: readonly P[], want: PeakHours): P | undefined {
+/** A plan option's time-of-day rate and the plan it belongs to; undefined for a plan sold at one rate. Reads old names too. */
+export function peakKind(plan: string): { base: string; kind: PeakKind } | undefined {
+  const m = /^(.*) \((off-peak|mixed|peak)\)$/.exec(planDisplayName(plan));
+  return m ? { base: m[1], kind: m[2] as PeakKind } : undefined;
+}
+/** The off-peak option of the same plan, when `plan` is a peak or mixed one and the off-peak one was measured. */
+export function offPeakOf<P extends { plan: string }>(plan: string, plans: readonly P[]): P | undefined {
   const k = peakKind(plan);
-  if (!k || k.kind === want) return undefined;
-  return plans.find((p) => { const q = peakKind(p.plan); return q?.base === k.base && q.kind === want && positive(p.usdPerMtok); });
+  if (!k || k.kind === "off-peak") return undefined;
+  return plans.find((p) => { const q = peakKind(p.plan); return q?.base === k.base && q.kind === "off-peak"; });
+}
+
+/**
+ * A lab's official student offer is a plan option of its own, "Google AI Pro (Student)", listed beside the regular plan it discounts.
+ * Picking it prices the models the offer covers at the student fee: the regular plan's share of API price times student fee over
+ * regular fee, so a free offer is the free column. Models the offer leaves out (`StudentOffer.models`) keep the regular price. Never a
+ * default, and nothing reads it unless a visitor picks it for that lab.
+ */
+export const STUDENT_SUFFIX = " (Student)";
+export const studentPlanName = (plan: string) => `${plan}${STUDENT_SUFFIX}`;
+/** The regular plan a student option discounts, or undefined for any other plan name. */
+export const studentBase = (plan: string) => plan.endsWith(STUDENT_SUFFIX) ? plan.slice(0, -STUDENT_SUFFIX.length) : undefined;
+/** The open offer behind a lab's student option, on `today` (`YYYY-MM-DD`). */
+export function studentOfferFor(labId: string | undefined, plan: string, today: string): StudentOffer | undefined {
+  const base = studentBase(plan) ?? plan;
+  return activeStudentOffers(today).find((o) => o.labId === labId && currentPlanName(o.plan) === currentPlanName(base));
 }
 
 /** OpenAI's estimated Codex messages per five hours on Plus, per model (`scripts/scrape/sources/codex-limits.ts`). */
@@ -145,7 +168,7 @@ export function tokenPrice(snapshot: Snapshot, modelId: string, chosen: Record<s
 /** The plans a viewer can price each lab at (Advanced → Plan): every plan a model of that lab was measured on, by monthly fee. Labs with one plan are left out. `median`: the plans its models fall on with nothing picked, most models first. */
 /** Plans a lab has renamed. Links, saved pages and browsers keep the name they were saved with, and older snapshots keep the old label. */
 const FORMER_PLAN_NAMES: Record<string, string> = { "Claude Max 20x": "Claude Ultra" };
-export const currentPlanName = (plan: string) => FORMER_PLAN_NAMES[plan] ?? plan;
+export const currentPlanName = (plan: string) => FORMER_PLAN_NAMES[plan] ?? planDisplayName(plan);
 
 export function subscriptionPlanOptions(snapshot: Snapshot): { labId: string; plans: { plan: string; feeUsd?: number; models: number }[]; median: { plan: string; models: number }[] }[] {
   const lab = new Map(snapshot.models.map((m) => [m.id, m.labId])), variants = new Map(snapshot.variants.map((v) => [v.id, v.modelId]));
@@ -155,12 +178,19 @@ export function subscriptionPlanOptions(snapshot: Snapshot): { labId: string; pl
     const row = o.details as unknown as SubscriptionDetails | undefined, d = row?.free ? row.paid : row, modelId = variants.get(o.variantId) ?? o.variantId.split("@")[0], labId = lab.get(modelId);
     if (!labId || !d?.plans?.length || d.ratio != null || d.sameAs) continue;
     const plans = byLab.get(labId) ?? byLab.set(labId, new Map()).get(labId)!;
-    for (const p of d.plans) (plans.get(p.plan) ?? plans.set(p.plan, { plan: p.plan, feeUsd: p.feeUsd, models: new Set() }).get(p.plan)!).models.add(modelId);
+    for (const p of d.plans) { const name = planDisplayName(p.plan); (plans.get(name) ?? plans.set(name, { plan: name, feeUsd: p.feeUsd, models: new Set() }).get(name)!).models.add(modelId); }
+  }
+  // Each open student offer is an option beside the plan it discounts, counting the models it covers.
+  for (const offer of activeStudentOffers(snapshot.date)) {
+    const plans = byLab.get(offer.labId), regular = plans?.get(offer.plan) ?? [...(plans?.values() ?? [])].find((p) => currentPlanName(p.plan) === currentPlanName(offer.plan));
+    if (!plans || !regular) continue;
+    const covered = [...regular.models].filter((id) => !offer.models || offer.models.includes(id));
+    if (covered.length) plans.set(studentPlanName(regular.plan), { plan: studentPlanName(regular.plan), feeUsd: offer.studentFeeUsd, models: new Set(covered) });
   }
   const medians = [...subscriptionPrices(snapshot)];
   return [...byLab].map(([labId, plans]) => {
     const median = new Map<string, number>();
-    for (const [id, p] of medians) if (lab.get(id) === labId && p.plan && plans.has(p.plan)) median.set(p.plan, (median.get(p.plan) ?? 0) + 1);
+    for (const [id, p] of medians) { const name = p.plan && planDisplayName(p.plan); if (lab.get(id) === labId && name && plans.has(name)) median.set(name, (median.get(name) ?? 0) + 1); }
     return { labId, plans: [...plans.values()].map((p) => ({ plan: p.plan, feeUsd: p.feeUsd, models: p.models.size })).sort((a, b) => (a.feeUsd ?? 0) - (b.feeUsd ?? 0) || a.plan.localeCompare(b.plan)), median: [...median].map(([plan, models]) => ({ plan, models })).sort((a, b) => b.models - a.models || a.plan.localeCompare(b.plan)) };
   })
     .filter((l) => l.plans.length > 1)
@@ -178,12 +208,13 @@ export function subscriptionPlanOptions(snapshot: Snapshot): { labId: string; pl
  * spent at list prices gives the same share at any mix, and mixing the two would change the share for no reason.
  * Only comparing two different models' prices depends on the mix, so that (below) uses measured mixes.
  */
-export function subscriptionPrices(snapshot: Snapshot, chosen: Record<string, string> = {}, { free = true, reading, peakHours }: {
+export function subscriptionPrices(snapshot: Snapshot, picks: Record<string, string> = {}, { free = true, reading }: {
   /** `false`: a model free today is priced on its paid plans, or left to API price with none. `true` counts generous free tiers; `"limited"` rate-limited ones too. */ free?: boolean | "limited";
   /** The reading to use where a row has several (`PlanReading.id`); unset or unknown is each row's first. */ reading?: string;
-  /** Price plans sold by time of day at their mixed or peak row (`PeakHours`). Unset keeps each model's row as is. */ peakHours?: PeakHours;
 } = {}): Map<string, SubscriptionPrice> {
-  const labOf = Object.keys(chosen).length ? new Map(snapshot.models.map((m) => [m.id, m.labId])) : undefined;
+  const labOf = Object.keys(picks).length ? new Map(snapshot.models.map((m) => [m.id, m.labId])) : undefined;
+  // A student option is priced as the plan it discounts, then scaled for the models its offer covers (below).
+  const chosen = Object.fromEntries(Object.entries(picks).map(([lab, plan]) => [lab, studentBase(plan) ?? plan]));
   const out = new Map<string, SubscriptionPrice>();
   const mixes = new Map<string, TokenMix>();
   const variants = columnsOf(snapshot).modelOf;
@@ -209,16 +240,14 @@ export function subscriptionPrices(snapshot: Snapshot, chosen: Record<string, st
       out.set(modelId, { ratio: r && positive(r.ratio) ? r.ratio : d.ratio, plan: d.plan, feeUsd: d.feeUsd, confidence: d.confidence, ...(r ? { reading: r.id } : {}) });
       continue;
     }
-    const want = labOf && chosen[labOf.get(modelId) ?? ""], chosenRow = want !== undefined ? d?.plans?.find((p) => currentPlanName(p.plan) === currentPlanName(want) && positive(p.usdPerMtok)) : undefined;
-    // The same plan at the visitor's time of day, picked or median.
-    const pick = (peakHours && d?.plans ? peakSibling(chosenRow?.plan ?? d.plan, d.plans, peakHours) : undefined) ?? chosenRow;
+    const want = labOf && chosen[labOf.get(modelId) ?? ""], pick = want !== undefined ? d?.plans?.find((p) => currentPlanName(p.plan) === currentPlanName(want) && positive(p.usdPerMtok)) : undefined;
     const value = pick?.usdPerMtok ?? rowValue;
     if (!positive(value)) continue;
     const prices = d?.listPrice ?? aaPrices.get(modelId);
     if (!d?.mix || !prices) continue;
     const api = blendedApiPrice(prices, d.mix);
     const aaList = d.listUntil ? aaPrices.get(modelId) : undefined, aaCost = aaList ? { aaCostRatio: value / blendedApiPrice(aaList, d.mix) } : {};
-    if (positive(api)) { out.set(modelId, pick ? { ratio: value / api, ...aaCost, plan: pick.plan, feeUsd: pick.feeUsd, confidence: pick.confidence } : { ratio: value / api, ...aaCost, plan: d.plan, feeUsd: d.feeUsd, confidence: d.confidence }); mixes.set(modelId, d.mix); }
+    if (positive(api)) { out.set(modelId, pick ? { ratio: value / api, ...aaCost, plan: planDisplayName(pick.plan), feeUsd: pick.feeUsd, confidence: pick.confidence } : { ratio: value / api, ...aaCost, plan: planDisplayName(d.plan), feeUsd: d.feeUsd, confidence: d.confidence }); mixes.set(modelId, d.mix); }
   }
   // A model assumed to match another's subsidy pays that model's share, whatever its own list price (a free tier is not a plan's subsidy).
   // Its label follows the plan the other model is priced at ("Google AI Pro (assumed same as Argon)").
@@ -233,6 +262,18 @@ export function subscriptionPrices(snapshot: Snapshot, chosen: Record<string, st
       continue;
     }
     const from = out.get(d.sameAs!); if (positive(from?.ratio)) out.set(modelId, { ratio: from.aaCostRatio ?? from.ratio, plan: d.plan.replace(/^.*?(?= \(assumed same as )/, from.plan), feeUsd: from.feeUsd, confidence: d.confidence });
+  }
+  // A picked student option: the models its offer covers, priced on the plan it discounts, pay the student fee instead.
+  for (const [lab, plan] of Object.entries(picks)) {
+    const base = studentBase(plan), offer = base !== undefined ? studentOfferFor(lab, plan, snapshot.date) : undefined;
+    if (!offer) continue;
+    const k = offer.studentFeeUsd / offer.regularFeeUsd;
+    for (const [id, p] of out) {
+      if (labOf?.get(id) !== lab || !(p.ratio > 0) || (offer.models && !offer.models.includes(id))) continue;
+      const own = currentPlanName(p.plan.replace(/ \(assumed same as .*\)$/, ""));
+      if (own !== currentPlanName(base!)) continue;
+      out.set(id, { ...p, ratio: p.ratio * k, ...(p.aaCostRatio != null ? { aaCostRatio: p.aaCostRatio * k } : {}), plan: p.plan.replace(own, studentPlanName(own)), feeUsd: offer.studentFeeUsd });
+    }
   }
   // An OpenAI model Codex lists with no plan data yet pays the median share of API price of the OpenAI models measured.
   // `scripts/verify/subsidy-backtest.ts` hides known rows to compare ways of doing this: pricing from Codex's message

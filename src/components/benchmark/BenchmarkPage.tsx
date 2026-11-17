@@ -2,8 +2,6 @@
 import { categoryNames } from "@/data/categories";
 import { breaksFor } from "@/data/series-breaks";
 import { planResetsProps, usePlanResetsOn, withResetsPref } from "@/lib/plan-resets-pref";
-import { useStudentOffersView } from "@/lib/student-pricing-pref";
-import { usePeakHoursPref } from "@/lib/peak-hours-pref";
 import { planPicker, useSubscriptionPlansPref, withPlansPref } from "@/lib/subscription-plans-pref";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -42,8 +40,8 @@ export function BenchmarkPage({ snapshot, benchmarkId, models, relatives, initia
   const b = snapshot.benchmarks.find((x) => x.id === benchmarkId)!;
   const [config, setConfig] = useState<IndexConfig>(() => initial ?? benchmarkIndex(snapshot, benchmarkId));
   const patch = useCallback((p: Partial<IndexConfig>) => setConfig((c) => ({ ...c, ...p })), []);
-  const resetsOn = usePlanResetsOn(), plansPref = useSubscriptionPlansPref(), studentOffers = useStudentOffersView(), peakHours = usePeakHoursPref();
-  const result = useMemo(() => computeIndex(snapshot, { ...withPlansPref(withResetsPref(config, resetsOn), plansPref), variants: "all" }, { ...benchmarkView(snapshot, benchmarkId), studentOffers, peakHours }), [snapshot, config, benchmarkId, resetsOn, plansPref, studentOffers, peakHours]);
+  const resetsOn = usePlanResetsOn(), plansPref = useSubscriptionPlansPref();
+  const result = useMemo(() => computeIndex(snapshot, { ...withPlansPref(withResetsPref(config, resetsOn), plansPref), variants: "all" }, benchmarkView(snapshot, benchmarkId)), [snapshot, config, benchmarkId, resetsOn, plansPref]);
   const pal = useChartPalette();
   const rankingMode = chartVariantMode(config, "ranking"), paretoMode = chartVariantMode(config, "pareto");
   const rows = useMemo(() => rankingRowsOf(result.ranked, config), [result, config]);

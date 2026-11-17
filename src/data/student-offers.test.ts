@@ -1,11 +1,10 @@
 import { readFileSync } from "node:fs";
 import { gunzipSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
-import { activeStudentOffers, STUDENT_OFFERS, studentOptionNote, studentPriceText, studentSavingUsd, studentValueMultiple, withStudentOffers } from "./student-offers";
+import { existsSync } from "node:fs";
+import { activeStudentOffers, STUDENT_OFFERS, studentPriceText, studentSavingUsd, studentValueMultiple } from "./student-offers";
 import { computeIndex, defaultConfig, PAGE_VIEW } from "@/engine/index";
-import { encodeIndex } from "@/lib/url";
 import { currentPlanName, subscriptionPlanOptions, subscriptionPrices } from "./subscription";
-import { planPrices } from "@/lib/plan-prices";
 import type { Snapshot } from "./types";
 
 const snapshot = JSON.parse(gunzipSync(readFileSync("data/snapshots/latest.json.gz")).toString()) as Snapshot;
@@ -52,44 +51,54 @@ describe("student offers", () => {
     expect(studentValueMultiple(pro)).toBeUndefined();
     expect(studentPriceText(mistral)).toBe("$5.99/mo for 12 months");
     expect(studentValueMultiple(mistral)).toBe(2.5);
-    expect(studentOptionNote(STUDENT_OFFERS, "mistral", "Mistral Vibe Pro")).toBe(" · student $5.99/mo for 12 months");
-    expect(studentOptionNote(STUDENT_OFFERS, "openai", "ChatGPT Plus")).toBe("");
   });
 
-  it("prices covered plans at the student fee and leaves free tiers and uncovered plans alone", () => {
-    const regular = subscriptionPrices(snapshot), labOf = new Map(snapshot.models.map((m) => [m.id, m.labId]));
-    const student = withStudentOffers(regular, (id) => labOf.get(id), STUDENT_OFFERS);
+  it("lists each open offer as a plan option beside the plan it discounts, at the student fee", () => {
+    const options = subscriptionPlanOptions(snapshot), lab = (id: string) => options.find((l) => l.labId === id);
+    const pro = lab("google")!.plans.find((p) => p.plan === "Google AI Pro (Student)");
+    expect(pro).toMatchObject({ feeUsd: 0 });
+    // Only the models the free year covers (a trial in Antigravity): fewer than the regular plan's.
+    expect(pro!.models).toBeLessThan(lab("google")!.plans.find((p) => p.plan === "Google AI Pro")!.models);
+    const vibe = lab("mistral")?.plans.find((p) => p.plan === "Mistral Vibe Pro (Student)");
+    if (vibe) expect(vibe.feeUsd).toBe(5.99);
+    // Never anyone's median: no model defaults to a student option.
+    for (const l of options) expect(l.median.some((m) => / \(Student\)$/.test(m.plan)), l.labId).toBe(false);
+  });
+
+  it("prices a picked student option at the student fee for the models it covers, and leaves the rest at the regular plan", () => {
+    const regular = subscriptionPrices(snapshot, { google: "Google AI Pro" }), student = subscriptionPrices(snapshot, { google: "Google AI Pro (Student)" });
     const onPro = (re: RegExp) => [...regular.keys()].find((id) => re.test(id) && /^Google AI Pro/.test(regular.get(id)!.plan));
     const flash = onPro(/^gemini-3\.8-flash$/), hydrogen = onPro(/hydrogen/), argon = onPro(/^gemini-4$/);
     expect(flash, "3.8 Flash is priced on Google AI Pro").toBeTruthy();
-    expect(student.get(flash!)).toMatchObject({ ratio: 0, feeUsd: 0 });
+    expect(student.get(flash!)).toMatchObject({ ratio: 0, feeUsd: 0, plan: "Google AI Pro (Student)" });
     // The free year is a trial in Antigravity: Hydrogen and Argon are not in it, so they keep the paid price.
     for (const id of [hydrogen, argon]) if (id) expect(student.get(id), id).toEqual(regular.get(id));
-    const mistral = [...regular].find(([, p]) => p.plan === "Mistral Vibe Pro")!;
-    expect(student.get(mistral[0])!.ratio).toBeCloseTo(mistral[1].ratio * 5.99 / 14.99, 12);
-    for (const [id, p] of regular) if (!/^(Google AI Pro|Mistral Vibe Pro)/.test(p.plan) || p.ratio === 0 || (/^Google AI Pro/.test(p.plan) && id !== flash)) expect(student.get(id), id).toEqual(p);
-    expect(withStudentOffers(regular, (id) => labOf.get(id), [])).toBe(regular);
+    for (const [id, p] of regular) if (id !== flash) expect(student.get(id), id).toEqual(p);
+    const mistral = [...subscriptionPrices(snapshot)].find(([, p]) => p.plan === "Mistral Vibe Pro");
+    if (mistral) {
+      const picked = subscriptionPrices(snapshot, { mistral: "Mistral Vibe Pro (Student)" }).get(mistral[0])!;
+      expect(picked.ratio).toBeCloseTo(mistral[1].ratio * 5.99 / 14.99, 12);
+      expect(picked).toMatchObject({ plan: "Mistral Vibe Pro (Student)", feeUsd: 5.99 });
+    }
   });
 
-  it("Student mode moves cost only: ranks, scores, the link and stored pricing stay the same", () => {
+  it("is never the default: unpicked prices and rankings stay at the regular fee, and a pick moves cost only", () => {
+    expect([...subscriptionPrices(snapshot).values()].some((p) => / \(Student\)/.test(p.plan))).toBe(false);
     const config = { ...defaultConfig(snapshot), costBasis: "subscription" as const, variants: "all" as const };
-    const before = computeIndex(snapshot, config, PAGE_VIEW), after = computeIndex(snapshot, config, { ...PAGE_VIEW, studentOffers: STUDENT_OFFERS });
+    const before = computeIndex(snapshot, config, PAGE_VIEW), after = computeIndex(snapshot, { ...config, subscriptionPlans: { google: "Google AI Pro (Student)" } }, PAGE_VIEW);
     const ranks = (r: typeof before) => r.ranked.map((x) => `${x.variant.id}:${x.rank}:${x.score}`);
     expect(ranks(after)).toEqual(ranks(before));
-    expect(after.benchmarks).toEqual(before.benchmarks);
     const cost = (r: typeof before, re: RegExp) => r.ranked.find((x) => re.test(x.model.id) && x.costUsd != null);
     expect(cost(before, /^gemini-3\.8-flash$/)!.costUsd).toBeGreaterThan(0);
     expect(cost(after, /^gemini-3\.8-flash$/)!.costUsd).toBe(0);
     expect(cost(after, /hydrogen/)!.costUsd).toBe(cost(before, /hydrogen/)!.costUsd);
-    expect(after.ranked.filter((x) => x.costUsd !== before.ranked.find((y) => y.variant.id === x.variant.id)!.costUsd).every((x) => ["google", "mistral"].includes(x.model.labId))).toBe(true);
-    expect(encodeIndex(after.config)).toBe(encodeIndex(before.config));
-    expect(JSON.stringify([...subscriptionPrices(snapshot)])).toBe(JSON.stringify([...subscriptionPrices(snapshot)]));
+    expect(after.ranked.filter((x) => x.costUsd !== before.ranked.find((y) => y.variant.id === x.variant.id)!.costUsd).every((x) => x.model.labId === "google")).toBe(true);
   });
 
-  it("stored pricing, links and plan price shares never read student offers", () => {
-    const before = JSON.stringify([[...subscriptionPrices(snapshot)], subscriptionPlanOptions(snapshot), planPrices(snapshot)]);
-    withStudentOffers(subscriptionPrices(snapshot), () => "google", STUDENT_OFFERS);
-    expect(JSON.stringify([[...subscriptionPrices(snapshot)], subscriptionPlanOptions(snapshot), planPrices(snapshot)])).toBe(before);
-    for (const f of ["src/data/subscription.ts", "src/lib/plan-prices.ts", "src/lib/metrics.ts", "src/lib/url.ts", "src/lib/og.tsx", "convex/validators.ts"]) expect(readFileSync(f, "utf8"), f).not.toMatch(/student-offers|student-pricing|studentOffers/);
+  it("has no Regular/Student or Peak hours toggle any more: both are plan options", () => {
+    for (const f of ["src/lib/student-pricing-pref.ts", "src/lib/peak-hours-pref.ts"]) expect(existsSync(f), f).toBe(false);
+    const picker = readFileSync("src/components/chart/PlanPicker.tsx", "utf8");
+    expect(picker).not.toMatch(/Plan prices|Peak hours|setStudentPricingPref|setPeakHoursPref/);
+    for (const f of ["src/engine/index.ts", "src/components/Builder.tsx", "src/components/page/IndexPage.tsx", "src/components/benchmark/BenchmarkPage.tsx"]) expect(readFileSync(f, "utf8"), f).not.toMatch(/studentOffers|peakHours/);
   });
 });

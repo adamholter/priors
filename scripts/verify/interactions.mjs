@@ -615,50 +615,14 @@ try {
     } finally { await c.context().close(); }
   });
 
-  await check("Subscription plans > Peak hours defaults to off-peak, switches without touching the ranking or the link, and resets cleanly", async () => {
+  await check("Subscription plans: student offers and peak hours are plan options (no toggles), off-peak and regular by default, and a student pick moves cost only", async () => {
     const c = await (await browser.newContext({ viewport: { width: 1440, height: 1000 } })).newPage();
     try {
       await c.goto(`${BASE}/builder`, { waitUntil: "domcontentloaded" });
       await c.locator(".ranking-list [data-k]").first().waitFor({ timeout: 30000 });
       const chart = c.locator('[role="img"][aria-label*="cost per task"]').first();
       await chart.locator("svg text").first().waitFor({ timeout: 30000 });
-      const svg = () => chart.evaluate((el) => [...el.querySelectorAll("svg text")].map((n) => `${n.textContent}@${Math.round(n.getBoundingClientRect().x)}`).sort().join("|"));
-      const rank = () => c.locator(".ranking-list [data-k]").evaluateAll((els) => els.map((e) => e.getAttribute("data-k")).join(","));
-      const picker = c.locator("details", { has: c.locator("summary[aria-label='Pareto settings']") }).first();
-      await picker.scrollIntoViewIfNeeded();
-      await picker.locator("summary[aria-label='Pareto settings']").click();
-      const menu = picker.locator(".chart-settings-menu");
-      await menu.getByRole("tab", { name: "Data" }).click();
-      await menu.locator("summary", { hasText: "Subscription plans" }).click();
-      const group = menu.getByRole("group", { name: "Peak hours" });
-      await group.waitFor();
-      await c.waitForTimeout(500);
-      const svgBefore = await svg(), rankBefore = await rank(), urlBefore = c.url();
-      assert.equal(await group.getByRole("button", { name: "Off-peak", exact: true }).getAttribute("aria-pressed"), "true", "off-peak by default");
-      assert.match(await menu.innerText(), /GLM Coding/, "names the GLM plan it applies to");
-      for (const name of ["Mixed", "Peak"]) {
-        await group.getByRole("button", { name, exact: true }).click();
-        assert.equal(await group.getByRole("button", { name, exact: true }).getAttribute("aria-pressed"), "true", `${name} pressed`);
-        assert.equal(await c.evaluate(() => localStorage.getItem("priors:peak-hours")), name.toLowerCase(), "kept in this browser");
-        await c.waitForTimeout(600);
-        assert.equal(await rank(), rankBefore, `${name}: the ranking is unchanged`);
-        assert.equal(c.url(), urlBefore, `${name}: the link does not carry it`);
-      }
-      await group.getByRole("button", { name: "Off-peak", exact: true }).click();
-      await c.waitForTimeout(900);
-      assert.equal(await c.evaluate(() => localStorage.getItem("priors:peak-hours")), null, "off-peak stores nothing");
-      assert.equal(await svg(), svgBefore, "back to off-peak, every label is where it was");
-    } finally { await c.context().close(); }
-  });
-
-  await check("Subscription plans > Plan prices: Student lists official offers, keeps trial-excluded models at the paid price, and leaves the ranking and link alone", async () => {
-    const c = await (await browser.newContext({ viewport: { width: 1440, height: 1000 } })).newPage();
-    try {
-      await c.goto(`${BASE}/builder`, { waitUntil: "domcontentloaded" });
-      await c.locator(".ranking-list [data-k]").first().waitFor({ timeout: 30000 });
-      const chart = c.locator('[role="img"][aria-label*="cost per task"]').first();
-      await chart.locator("svg text").first().waitFor({ timeout: 30000 });
-      // Where the chart draws a model's label: Google's free student year is a trial in Antigravity, so Gemini 4 Hydrogen keeps its paid price.
+      await c.waitForLoadState("networkidle", { timeout: 30000 }).catch(() => {});
       const labelX = (name) => chart.evaluate((el, name) => { const t = [...el.querySelectorAll("svg text")].find((n) => n.textContent === name); return t ? t.getBoundingClientRect().x : null; }, name);
       const svg = () => chart.evaluate((el) => [...el.querySelectorAll("svg text")].map((n) => `${n.textContent}@${Math.round(n.getBoundingClientRect().x)}`).sort().join("|"));
       const rank = () => c.locator(".ranking-list [data-k]").evaluateAll((els) => els.map((e) => e.getAttribute("data-k")).join(","));
@@ -669,29 +633,34 @@ try {
       await menu.getByRole("tab", { name: "Data" }).click();
       await menu.locator("summary", { hasText: "Subscription plans" }).click();
       await c.waitForTimeout(500);
-      const svgBefore = await svg(), xBefore = await labelX("Gemini 4 Hydrogen"), rankBefore = await rank(), urlBefore = c.url();
+      assert.equal(await menu.getByRole("group", { name: "Plan prices" }).count(), 0, "no Regular/Student toggle");
+      assert.equal(await menu.getByRole("group", { name: "Peak hours" }).count(), 0, "no Peak hours toggle");
+      const google = menu.getByLabel("Google plan", { exact: true });
+      const options = (sel) => sel.locator("option").evaluateAll((os) => os.map((o) => o.textContent));
+      assert.equal(await google.inputValue(), "", "Google starts on its median plan");
+      assert.ok((await options(google)).some((t) => /^Google AI Pro \(Student\)/.test(t)), "Google AI Pro (Student) is a plan option");
+      // Every time-of-day plan lists each rate, and the lab's default names its off-peak one.
+      const zhipu = menu.locator("select").filter({ has: c.locator("option", { hasText: "GLM Coding" }) }).first();
+      const glm = await options(zhipu);
+      for (const rate of ["(off-peak)", "(mixed)", "(peak)"]) assert.ok(glm.some((t) => t.includes(rate)), `GLM Coding lists its ${rate} option`);
+      const medians = await zhipu.getAttribute("title");
+      assert.match(medians, /GLM Coding Pro ¥538 \(off-peak\)/, `GLM-5.3 defaults to GLM Coding Pro off-peak: ${medians}`);
+      assert.doesNotMatch(medians, /\((peak|mixed)\)/, "no model defaults to a peak or mixed option");
+      const svgBefore = await svg(), xBefore = await labelX("Gemini 4 Hydrogen"), rankBefore = await rank();
       assert.ok(xBefore != null, "the cost chart labels Gemini 4 Hydrogen");
-      assert.equal(await menu.getByRole("button", { name: "Regular" }).getAttribute("aria-pressed"), "true", "regular prices by default");
-      assert.equal(await menu.getByLabel("Official student offers").count(), 0, "no offers until asked");
-      await menu.getByRole("button", { name: "Student" }).click();
-      const offers = menu.getByLabel("Official student offers");
-      await offers.waitFor();
-      const text = await offers.innerText();
-      assert.match(text, /Google AI Pro[\s\S]*Free for 12 months, then \$19.99\/mo[\s\S]*Students at a US college[\s\S]*counts as a trial/);
-      assert.match(text, /Mistral Vibe Pro[\s\S]*\$5.99\/mo for 12 months[\s\S]*institution/);
-      const hrefs = await offers.locator("a").evaluateAll((as) => as.map((a) => a.href));
-      assert.ok(hrefs.length >= 1 && hrefs.every((h) => /^https:\/\/(gemini\.google|blog\.google|mistral\.ai)\//.test(h)), `official links: ${hrefs}`);
+      await google.selectOption({ label: (await options(google)).find((t) => /^Google AI Pro \(Student\)/.test(t)) });
+      const card = menu.getByLabel("Student offer");
+      await card.waitFor();
+      assert.match(await card.innerText(), /Free for 12 months, then \$19.99\/mo[\s\S]*Students at a US college/);
+      assert.match(await card.locator("a").getAttribute("href"), /^https:\/\/(gemini\.google|blog\.google)\//, "links the official page");
       await c.waitForTimeout(900);
       const xAfter = await labelX("Gemini 4 Hydrogen");
-      assert.ok(xAfter != null && Math.abs(xAfter - xBefore) < 4, `Hydrogen stays at its paid price (not in the free trial): ${xBefore} -> ${xAfter}`);
+      assert.ok(xAfter != null && Math.abs(xAfter - xBefore) < 4, `Hydrogen keeps its paid price (not in the free trial): ${xBefore} -> ${xAfter}`);
       assert.equal(await rank(), rankBefore, "the ranking is unchanged");
-      assert.equal(c.url(), urlBefore, "the link does not carry the toggle");
-      assert.equal(await c.evaluate(() => localStorage.getItem("priors:subscription-plans")), null, "it picks no plan");
-      await menu.getByRole("button", { name: "Regular" }).click();
-      await menu.getByLabel("Official student offers").waitFor({ state: "detached" });
+      await google.selectOption("");
+      await card.waitFor({ state: "detached" });
       await c.waitForTimeout(900);
-      assert.equal(await labelX("Gemini 4 Hydrogen"), xBefore, "back to regular, Hydrogen returns");
-      assert.equal(await svg(), svgBefore, "back to regular, every label is where it was");
+      assert.equal(await svg(), svgBefore, "back on the median plan, every label is where it was");
     } finally { await c.context().close(); }
   });
 

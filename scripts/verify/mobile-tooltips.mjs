@@ -1,5 +1,5 @@
 // Mobile touch checks for the chart point card and the title info popover, on iPhone and Android profiles, light and dark,
-// including the Student pricing toggle. Asserts placement (fully inside the visible viewport, above the browser toolbar
+// including a student plan option (Google AI Pro (Student)). Asserts placement (fully inside the visible viewport, above the browser toolbar
 // reserve) and tap dismissal, and saves screenshots to SHOTS (default: scripts/verify/.shots, ignored) as a visual record.
 //   BASE=http://localhost:48740 [SHOTS=~/data/priors/tooltip-fix/after] node scripts/verify/mobile-tooltips.mjs
 import { chromium, devices } from "playwright";
@@ -80,8 +80,8 @@ for (const [pname, profile] of Object.entries(PROFILES)) for (const scheme of ["
       assert.equal(await pop.count(), 0, "popover still open");
     });
   }
-  // The Student toggle changes only the plan prices; the point card must still fit with its changed values.
-  await check(`${tag}: Student pricing toggle, card still on screen`, async () => {
+  // A student plan option changes only the plan prices; the menu with the offer's terms and the point card must still fit.
+  await check(`${tag}: student plan option, card still on screen`, async () => {
     const root = chartBox(CHARTS[0]);
     const details = root.locator("details", { has: p.locator("summary[aria-label$='settings']") }).first();
     await details.scrollIntoViewIfNeeded();
@@ -89,8 +89,11 @@ for (const [pname, profile] of Object.entries(PROFILES)) for (const scheme of ["
     const menu = details.locator(".chart-settings-menu");
     await menu.getByRole("tab", { name: "Data" }).tap();
     await menu.locator("summary", { hasText: "Subscription plans" }).tap();
-    await menu.getByRole("button", { name: "Student" }).tap();
-    await menu.getByLabel("Official student offers").waitFor();
+    const google = menu.getByLabel("Google plan", { exact: true });
+    const student = (await google.locator("option").evaluateAll((os) => os.map((o) => o.textContent))).find((t) => /^Google AI Pro \(Student\)/.test(t));
+    assert.ok(student, "Google AI Pro (Student) is a plan option");
+    await google.selectOption({ label: student });
+    await menu.getByLabel("Student offer").waitFor();
     await shot("student-menu");
     const mr = await menu.evaluate((el) => { const r = el.getBoundingClientRect(); return { left: r.left, right: r.right, top: 0, bottom: 0 }; });
     assert.ok(mr.left >= 0 && mr.right <= vw + 1, `menu sideways ${mr.left}..${mr.right}`);

@@ -269,3 +269,37 @@ describe("Real API Pricing subscriptions", () => {
     expect(Object.keys(r.raw)).toEqual(["points.json", "conventions.json", "channel-colors.json"]);
   });
 });
+
+describe("plans sold by time of day", () => {
+  const glm = (id: string, plan: string, real: number, price = 79.37) => point(`${id}::glm-5.3`, plan, "Zhipu", real, { model_display: "GLM 5.3", price_usd: price, confidence: "high", list_price: { cached: 1.6, input: 8, output: 32, currency: "CNY" } });
+  const mimo = (id: string, plan: string, real: number, price: number) => point(`${id}::mimo-v2.6-pro`, plan, "Xiaomi", real, { model_display: "MiMo V2.6 Pro", price_usd: price, list_price: { cached: 0.0036, input: 0.435, output: 0.87, currency: "USD" } });
+  const ch: Channels = { channels: [...channels.channels, ["mimo", "Xiaomi"]] };
+  it("names each rate as Priors shows it, and keeps a median that is already off-peak", () => {
+    const rows = parseSubscriptions({ ...payload, points: [
+      glm("glm_coding_pro_cn_new_offpeak", "GLM Coding Pro (新客 ¥538) 闲时", 0.0321), glm("glm_coding_pro_cn_new_mid", "GLM Coding Pro (新客 ¥538) 中间值", 0.0428), glm("glm_coding_pro_cn_new_peak", "GLM Coding Pro (新客 ¥538) 忙时", 0.0642),
+      glm("glm_coding_pro_cn_old_offpeak", "GLM Coding Pro (老客 ¥149) 闲时", 0.0089, 21.98), glm("glm_coding_pro_cn_old_peak", "GLM Coding Pro (老客 ¥149) 忙时", 0.0178, 21.98),
+    ] }, conventions, ch);
+    const row = rows.find((r) => r.modelLabel === "GLM 5.3")!, d = row.details as { plan: string; plans: { plan: string }[] };
+    expect(d.plan).toBe("GLM Coding Pro ¥538 (off-peak)");
+    expect(row.value).toBe(0.0321);
+    expect(d.plans.map((p) => p.plan)).toEqual(expect.arrayContaining(["GLM Coding Pro ¥538 (peak)", "GLM Coding Pro ¥538 (mixed)", "GLM Coding Pro ¥149, existing subscribers (off-peak)"]));
+  });
+  it("moves a peak-rate median to the same plan's off-peak rate, and keeps one that has none", () => {
+    const pick = (pts: Points["points"]) => parseSubscriptions({ ...payload, points: pts }, conventions, ch).find((r) => r.modelLabel === "MiMo V2.6 Pro")!;
+    // Cheapest first: Max Night, Lite Night, Max Day, Lite Day. The median is Max (Day), priced at Max's Night row instead.
+    const four = pick([
+      mimo("mimo_token_lite_day", "MiMo Token Plan Lite (Day)", 0.0189, 6), mimo("mimo_token_lite_night", "MiMo Token Plan Lite (Night 0.8x)", 0.0151, 6),
+      mimo("mimo_token_max_day", "MiMo Token Plan Max (Day)", 0.01576, 100), mimo("mimo_token_max_night", "MiMo Token Plan Max (Night 0.8x)", 0.01261, 100),
+    ]);
+    expect((four.details as { plan: string }).plan).toBe("MiMo Token Plan Max (off-peak)");
+    expect(four.value).toBe(0.01261);
+    expect(four.note).toMatch(/its off-peak rate/);
+    // Lite Night, Pro Day, Lite Day: the median Pro (Day) has no Night row measured, so it stands.
+    const lone = pick([
+      mimo("mimo_token_lite_day", "MiMo Token Plan Lite (Day)", 0.0189, 6), mimo("mimo_token_lite_night", "MiMo Token Plan Lite (Night 0.8x)", 0.0151, 6),
+      mimo("mimo_token_pro_day", "MiMo Token Plan Pro (Day)", 0.0170, 50),
+    ]);
+    expect((lone.details as { plan: string }).plan).toBe("MiMo Token Plan Pro (peak)");
+    expect(lone.note).not.toMatch(/off-peak rate/);
+  });
+});
