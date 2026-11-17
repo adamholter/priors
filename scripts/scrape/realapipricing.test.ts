@@ -188,6 +188,21 @@ describe("Real API Pricing subscriptions", () => {
     // No Ultra measurement, no Carbon row: Pro does not sell it.
     expect(row("Gemini 4 Carbon (max)")).toBeUndefined();
   });
+  it("gives GPT-6.2 Astra GPT-6 Astra's ChatGPT plan tokens, priced against its own lower list price, until it is measured", () => {
+    const astra = (id: string, plan: string, v: number, fee: number) => point(`${id}::gpt-6-astra`, plan, "OpenAI", v, { model_display: "GPT 6 Astra", price_usd: fee, confidence: "medium" });
+    const points = [...payload.points, astra("chatgpt_pro_10x", "ChatGPT Pro 10x", 0.0629, 100), astra("chatgpt_plus", "ChatGPT Plus", 0.1258, 20)];
+    const found = parseSubscriptions({ ...payload, points }, conventions, channels);
+    const row62 = found.find((r) => r.modelLabel === "GPT-6.2 Astra (max)")!;
+    // Same tokens per plan dollar as GPT-6 Astra...
+    expect(row62.value).toBeCloseTo(0.0629, 9);
+    expect(row62).toMatchObject({ details: { plan: "ChatGPT Pro 10x (assumed same as GPT-6 Astra)", sameAs: "gpt-6-astra", listPrice: { input: 8, cached: 0.4, output: 40 }, confidence: "assumed" } });
+    // ...so a larger share of the cheaper list price: about 1.9 times GPT-6 Astra's at the standard mix ($10 / $1 / $50 before).
+    const mix = conventions.standardTokenMix;
+    expect(blendedApiPrice({ input: 10, cached: 1, output: 50 }, mix) / blendedApiPrice({ input: 8, cached: 0.4, output: 40 }, mix)).toBeCloseTo(1.865, 2);
+    // A measured row replaces the assumption.
+    const measured = parseSubscriptions({ ...payload, points: [...points, point("chatgpt_pro_10x::gpt-6.2-astra", "ChatGPT Pro 10x", "OpenAI", 0.05, { model_display: "GPT 6.2 Astra", price_usd: 100 })] }, conventions, channels);
+    expect(measured.filter((r) => /^GPT[- ]6\.2 Astra/.test(r.modelLabel)).map((r) => r.value)).toEqual([0.05]);
+  });
   it("prices Hydrogen from the shared Gemini pool, keeping Argon's separate Pro quota out of its estimate", () => {
     const flash = point("google_ai_pro_us::gemini-3.8-flash", "Google AI Pro", "Google", 0.0077450601, { model_display: "Gemini 3.8 Flash", price_usd: 19.99, workload: "lowCache", confidence: "high" });
     const points = [...payload.points, flash];

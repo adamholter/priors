@@ -165,7 +165,7 @@ export function parseSubscriptions(json: Points, conventions: Conventions, chann
     const { free: _f, limited: _l, paid: _p, ratio: _r, source: _s, ...rest } = paid as SubscriptionDetails & { value?: number };
     rows.push({
       benchmarkId: SUBSCRIPTION_BENCHMARK, modelLabel: a.label, value: at.usdPerMtok * (a.poolRate ?? 1), sourceUrl: from.sourceUrl, note: `${plan}, $${at.feeUsd}/month; assumed; ${a.note}`,
-      details: { ...rest, ...(rest.listUntil ? { listPrice: undefined, listUntil: undefined } : {}), value: undefined, plan, feeUsd: at.feeUsd, sameAs: a.sameAs, ...(a.poolRate ? { poolRate: a.poolRate } : {}), confidence: a.confidence ?? "assumed", dataDate: a.checked, plans } as unknown as Record<string, unknown>,
+      details: { ...rest, ...(rest.listUntil ? { listPrice: undefined, listUntil: undefined } : {}), ...(a.listPrice ? { listPrice: a.listPrice } : {}), value: undefined, plan, feeUsd: at.feeUsd, sameAs: a.sameAs, ...(a.poolRate ? { poolRate: a.poolRate } : {}), confidence: a.confidence ?? "assumed", dataDate: a.checked, plans } as unknown as Record<string, unknown>,
     });
   }
   return rows;

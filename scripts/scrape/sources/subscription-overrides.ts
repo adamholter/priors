@@ -76,11 +76,30 @@ export interface SubsidyAssumption {
   poolRate?: number;
   /** Set once the assumption itself is measured; default "assumed". */
   confidence?: string;
+  /**
+   * This model's own API list price (USD per 1M), when it differs from the other model's and no source lists it yet. With `plans`, the
+   * plan's token price (what a dollar of plan buys) is kept and the share of API price is worked out against this price instead.
+   */
+  listPrice?: { input: number; cached: number; output: number };
   checked: string;
   note: string;
 }
 
 export const SUBSIDY_ASSUMPTIONS: SubsidyAssumption[] = [
+  // GPT-6.2 Astra and Sol (OpenAI, 2026-11-17) have no plan measurement yet. Adam's call (November 17): assume each plan gives the same
+  // tokens as the model it follows on ChatGPT plans, GPT-6 Astra and GPT-6.1 Sol, so the plan's token price carries over. Astra's API
+  // price dropped (input and output 20%, cached input 60%), so the same tokens are a larger share of its new list price; Sol's price is
+  // unchanged. A measured row for either replaces this the day it appears.
+  {
+    modelId: "gpt-6.2-astra", label: "GPT-6.2 Astra (max)", sameAs: "gpt-6-astra", sameAsName: "GPT-6 Astra", plans: /^ChatGPT /, defaultPlan: "ChatGPT Pro 10x",
+    listPrice: { input: 8, cached: 0.4, output: 40 }, checked: "2026-11-17",
+    note: "No plan measurement for GPT-6.2 Astra yet: each ChatGPT plan is assumed to give as many tokens as it does for GPT-6 Astra, priced against GPT-6.2 Astra's lower API list price ($8 input, $0.40 cached, $40 output per 1M, from OpenAI's launch post), so its share of API price is higher than GPT-6 Astra's.",
+  },
+  {
+    modelId: "gpt-6.2-sol", label: "GPT-6.2 Sol (max)", sameAs: "gpt-6.1-sol", sameAsName: "GPT-6.1 Sol", plans: /^ChatGPT /, defaultPlan: "ChatGPT Pro 10x",
+    listPrice: { input: 2, cached: 0.1, output: 10 }, checked: "2026-11-17",
+    note: "No plan measurement for GPT-6.2 Sol yet: each ChatGPT plan is assumed to give as many tokens as it does for GPT-6.1 Sol, whose API prices GPT-6.2 Sol keeps ($2 input, $0.10 cached, $10 output per 1M).",
+  },
   // Carbon is Ultra-only (Sundar Pichai, November 10; Antigravity's models table). On Ultra every Gemini model, Carbon and Argon included,
   // draws on one shared weekly pool, but not at the same rate per list-price dollar: Flash and Hydrogen use it at exactly the same rate,
   // and Argon and Carbon at about three times that ($600 of Flash or $200 of Argon/Carbon a week on Ultra 5x). Evidence in docs/data.md.
