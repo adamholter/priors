@@ -50,6 +50,21 @@ describe("launch claims", () => {
     applyLaunchClaims(s, "2026-10-29", efforts);
     expect(s.observations.filter((o) => o.benchmarkId === "board-b").map((o) => [o.variantId, o.value])).toEqual([["gemini-4-carbon@low", 40], ["gemini-4-carbon@high", 70], ["gemini-4-carbon@max", 72]]);
   });
+  it("with fillEfforts, fills only the efforts a board hasn't listed yet", () => {
+    const s = snapshot();
+    // The board has the model at max only (a cost rolled out effort by effort).
+    s.observations.push({ benchmarkId: "board-b", variantId: "gemini-4-carbon@max", value: 1.01, observedAt: "", sourceUrl: "" });
+    s.variants.push({ id: "gemini-4-carbon@max", modelId: "gemini-4-carbon", effort: "max" });
+    const at = (effort: LaunchClaim["effort"], v: number, fill?: true): LaunchClaim => ({ ...claim, effort, scores: { "board-b": v }, ...(fill ? { fillEfforts: fill } : {}) });
+    applyLaunchClaims(s, "2026-10-28", [at("low", 0.18, true), at("max", 1.0, true)]);
+    expect(s.observations.filter((o) => o.benchmarkId === "board-b").map((o) => [o.variantId, o.value])).toEqual([["gemini-4-carbon@max", 1.01], ["gemini-4-carbon@low", 0.18]]);
+    // Without it, any effort on the board sets the whole claim aside.
+    const t = snapshot();
+    t.observations.push({ benchmarkId: "board-b", variantId: "gemini-4-carbon@max", value: 1.01, observedAt: "", sourceUrl: "" });
+    t.variants.push({ id: "gemini-4-carbon@max", modelId: "gemini-4-carbon", effort: "max" });
+    applyLaunchClaims(t, "2026-10-28", [at("low", 0.18)]);
+    expect(t.observations.filter((o) => o.benchmarkId === "board-b")).toHaveLength(1);
+  });
   it("every claim names a model Priors recognizes", () => {
     expect(() => applyLaunchClaims(snapshot(), "2026-10-28", LAUNCH_CLAIMS)).not.toThrow();
   });

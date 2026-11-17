@@ -21,6 +21,12 @@ export interface LaunchClaim {
   by: string; url: string; published: string;
   /** Priors benchmark id → score in that benchmark's unit. */
   scores: Record<string, number>;
+  /**
+   * Step aside only where the board lists this exact effort, not wherever it lists the model at all. For a board that publishes a model's
+   * efforts one at a time, when the lab's figure is the board's own (GPT-6.2 Sol: AA's cost per task arrived at max first, and OpenAI's
+   * chart is AA's cost to the cent).
+   */
+  fillEfforts?: true;
 }
 
 /**
@@ -94,23 +100,23 @@ export const LAUNCH_CLAIMS: LaunchClaim[] = [{
   scores: { "agents-last-exam": 77.6, "aa-intelligence-index-v5.0.1": 62.1, "aa-cost-per-task-index": 3.9979, "aa-harvey-lab-aa": 15.0, "aa-3d": 1318, "aa-analyst-agent": 62.5 },
 },
 {
-  model: "GPT-6.2 Sol", effort: "low", releaseDate: "2026-11-17", by: "OpenAI", url: BLOG_62, published: "2026-11-17",
+  model: "GPT-6.2 Sol", effort: "low", releaseDate: "2026-11-17", by: "OpenAI", url: BLOG_62, published: "2026-11-17", fillEfforts: true,
   scores: { "agents-last-exam": 66.7, "aa-intelligence-index-v5.0.1": 40.6, "aa-cost-per-task-index": 0.18, "aa-harvey-lab-aa": 3.1 },
 },
 {
-  model: "GPT-6.2 Sol", effort: "medium", releaseDate: "2026-11-17", by: "OpenAI", url: BLOG_62, published: "2026-11-17",
+  model: "GPT-6.2 Sol", effort: "medium", releaseDate: "2026-11-17", by: "OpenAI", url: BLOG_62, published: "2026-11-17", fillEfforts: true,
   scores: { "agents-last-exam": 70.3, "aa-intelligence-index-v5.0.1": 52.7, "aa-cost-per-task-index": 0.41, "aa-harvey-lab-aa": 5.0 },
 },
 {
-  model: "GPT-6.2 Sol", effort: "high", releaseDate: "2026-11-17", by: "OpenAI", url: BLOG_62, published: "2026-11-17",
+  model: "GPT-6.2 Sol", effort: "high", releaseDate: "2026-11-17", by: "OpenAI", url: BLOG_62, published: "2026-11-17", fillEfforts: true,
   scores: { "agents-last-exam": 72.0, "aa-intelligence-index-v5.0.1": 54.9, "aa-cost-per-task-index": 0.56, "aa-harvey-lab-aa": 5.8 },
 },
 {
-  model: "GPT-6.2 Sol", effort: "xhigh", releaseDate: "2026-11-17", by: "OpenAI", url: BLOG_62, published: "2026-11-17",
+  model: "GPT-6.2 Sol", effort: "xhigh", releaseDate: "2026-11-17", by: "OpenAI", url: BLOG_62, published: "2026-11-17", fillEfforts: true,
   scores: { "agents-last-exam": 72.5, "aa-intelligence-index-v5.0.1": 55.7, "aa-cost-per-task-index": 0.65, "aa-harvey-lab-aa": 6.1 },
 },
 {
-  model: "GPT-6.2 Sol", effort: "max", releaseDate: "2026-11-17", by: "OpenAI", url: BLOG_62, published: "2026-11-17",
+  model: "GPT-6.2 Sol", effort: "max", releaseDate: "2026-11-17", by: "OpenAI", url: BLOG_62, published: "2026-11-17", fillEfforts: true,
   scores: { "agents-last-exam": 73.0, "aa-intelligence-index-v5.0.1": 57.3, "aa-cost-per-task-index": 1.01, "aa-harvey-lab-aa": 11.1, "aa-3d": 1259 },
 }];
 
@@ -128,8 +134,8 @@ export function applyLaunchClaims(snap: Snapshot, date: string, claims: LaunchCl
     const n = normalizeLabel(c.model);
     if (!n.ok) throw new Error(`launch claim for unknown model "${c.model}": add it to normalize.ts`);
     const mine = snap.observations.filter((o) => modelOf.get(o.variantId) === n.modelId);
-    const listed = new Set(mine.filter((o) => !o.details?.launchClaim).map((o) => o.benchmarkId));
     const vid = variantId(n.modelId, c.effort);
+    const listed = new Set(mine.filter((o) => !o.details?.launchClaim && (!c.fillEfforts || o.variantId === vid)).map((o) => o.benchmarkId));
     for (const [benchmarkId, value] of Object.entries(c.scores)) {
       const key = `${n.modelName} ${benchmarkId}`;
       if (!benchmarks.has(benchmarkId)) { out.untracked.push(key); continue; }
