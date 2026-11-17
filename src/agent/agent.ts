@@ -94,8 +94,8 @@ export async function runAgent(opts: { snapshot: Snapshot; config: IndexConfig; 
         if (reply.refused) { if (!last) { at++; continue; } emit({ type: "error", message: "The assistant couldn't answer that. Try rephrasing it." }); return; }
         msg = reply;
       } catch (e) {
-        // A provider error bills what it reports (nothing, usually); anything unexplained keeps the reservation.
-        await budget.settle(estimate, e instanceof ModelError ? (e as ModelError & { usd?: number }).usd ?? 0 : estimate, route.pool);
+        // A failed call bills what the provider says it cost; when that is unknown (timeout, dropped connection, abort, 5xx), the reservation stands.
+        await budget.settle(estimate, e instanceof ModelError && typeof e.usd === "number" ? e.usd : estimate, route.pool);
         if (opts.signal?.aborted) { emit({ type: "error", message: "Stopped." }); return; }
         if (!last) { at++; continue; }
         emit({ type: "error", message: "The assistant couldn't reach its model. Try again in a moment." }); return;

@@ -73,10 +73,15 @@ describe("falling back between routes", async () => {
     expect(r.done).toMatchObject({ reply: "Fable leads." });
     expect(r.settled).toEqual({ base: 0.001, premium: 0 });
   });
-  it("moves to the next route when a provider fails, billing the failed call nothing", async () => {
-    const r = await run([luna, backup], (route) => { if (route.provider === "openai") throw Object.assign(new ModelError("down"), { usd: 0 }); return plainAnswer; });
+  it("moves to the next route when a provider fails, billing a refused call nothing and an unexplained one its whole reservation", async () => {
+    const r = await run([luna, backup], (route) => { if (route.provider === "openai") throw new ModelError("no credits", 0); return plainAnswer; });
     expect(r.calls).toEqual(["openai", "openrouter"]);
     expect(r.done).toMatchObject({ reply: "Fable leads." });
+    expect(r.settled.base).toBeCloseTo(0.001, 9);
+    // A timeout or dropped connection may still have billed: the pool keeps the worst case, so the cap can't be slipped past.
+    const unknown = await run([claude, luna], (route) => { if (route.provider === "anthropic") throw new ModelError("timeout"); return plainAnswer; });
+    expect(unknown.calls).toEqual(["anthropic", "openai"]);
+    expect(unknown.settled.premium).toBeGreaterThan(0.1);
   });
   it("moves on when a model refuses, and when a pool is spent", async () => {
     const refused = await run([claude, luna], (route) => (route.provider === "anthropic" ? { content: null, usd: 0.002, refused: true } : plainAnswer));

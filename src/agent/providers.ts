@@ -78,7 +78,10 @@ export function openaiUsd(model: string, u: { prompt_tokens?: number; completion
   return ((Math.max(0, (u.prompt_tokens ?? 0) - cached)) * p.input + cached * p.cached + (u.completion_tokens ?? 0) * p.output) / 1e6;
 }
 
-export class ModelError extends Error {}
+/** A failed call. `usd` is set only when the cost is known (reported usage, or a refusal before any generation); otherwise the reservation stands. */
+export class ModelError extends Error { constructor(message: string, readonly usd?: number) { super(message); } }
+/** Statuses a provider returns before generating anything, so nothing was billed. */
+const UNBILLED = new Set([400, 401, 402, 403, 404, 413, 422, 429]);
 
 /** A turn as OpenAI's chat API takes it: Claude's kept blocks stay behind. */
 const plain = (m: Msg) => ({ role: m.role, content: m.content, ...(m.tool_calls ? { tool_calls: m.tool_calls } : {}), ...(m.tool_call_id ? { tool_call_id: m.tool_call_id } : {}) });
@@ -96,10 +99,10 @@ export const callModel: CallModel = async (route, { messages, tools, maxTokens, 
     }),
   });
   const data = await res.json().catch(() => ({})) as { choices?: { message: { content: string | null; tool_calls?: ToolCall[] }; finish_reason?: string }[]; usage?: { cost?: number; prompt_tokens?: number; completion_tokens?: number; prompt_tokens_details?: { cached_tokens?: number } }; error?: { message?: string } };
-  const usd = data.usage ? (typeof data.usage.cost === "number" ? data.usage.cost : openaiUsd(route.model, data.usage)) : 0;
-  if (!res.ok || !data.choices?.length) throw Object.assign(new ModelError(data.error?.message ?? `Model call failed (${res.status})`), { usd });
+  const usd = data.usage ? (typeof data.usage.cost === "number" ? data.usage.cost : openaiUsd(route.model, data.usage)) : undefined;
+  if (!res.ok || !data.choices?.length) throw new ModelError(data.error?.message ?? `Model call failed (${res.status})`, usd ?? (UNBILLED.has(res.status) ? 0 : undefined));
   const msg = data.choices[0].message;
-  return { content: msg.content ?? null, ...(msg.tool_calls?.length ? { tool_calls: msg.tool_calls } : {}), usd, ...(data.choices[0].finish_reason === "content_filter" ? { refused: true } : {}) };
+  return { content: msg.content ?? null, ...(msg.tool_calls?.length ? { tool_calls: msg.tool_calls } : {}), usd: usd ?? worstCase(route.model, JSON.stringify(messages).length, maxTokens), ...(data.choices[0].finish_reason === "content_filter" ? { refused: true } : {}) };
 };
 
 const KEY_ENV: Record<Provider, string> = { anthropic: "ANTHROPIC_API_KEY", openai: "OPENAI_API_KEY", openrouter: "OPENROUTER_API_KEY" };
@@ -111,7 +114,8 @@ export const envKeys = (env: Record<string, string | undefined> = process.env): 
 const keyOf = (route: Route) => { const k = keys[route.provider] ?? envKeys()[route.provider]; if (!k) throw new ModelError(`No key for ${route.provider}`); return k; };
 
 async function callAnthropic(route: Route, messages: Msg[], tools: readonly ToolSpec[], maxTokens: number, signal?: AbortSignal): Promise<ModelReply> {
-  const client = new Anthropic({ apiKey: keyOf(route), maxRetries: 1 });
+  // No SDK retries: one reservation covers one call. A failure moves the request to the next route instead.
+  const client = new Anthropic({ apiKey: keyOf(route), maxRetries: 0 });
   const body = toAnthropic(messages, tools);
   let res: Anthropic.Message;
   try {
@@ -122,7 +126,8 @@ async function callAnthropic(route: Route, messages: Msg[], tools: readonly Tool
       cache_control: { type: "ephemeral" },
     }, { signal });
   } catch (e) {
-    if (e instanceof Anthropic.APIError) throw new ModelError(`Claude call failed (${e.status ?? "network"})`);
+    // Unbilled only for a status returned before generation; a timeout, dropped connection, abort or 5xx keeps the reservation.
+    if (e instanceof Anthropic.APIError && !(e instanceof Anthropic.APIUserAbortError)) throw new ModelError(`Claude call failed (${e.status ?? "network"})`, typeof e.status === "number" && UNBILLED.has(e.status) ? 0 : undefined);
     throw e;
   }
   const usd = anthropicUsd(route.model, res.usage);
