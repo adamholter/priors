@@ -42,6 +42,14 @@ describe("launch claims", () => {
     applyLaunchClaims(s, "2026-10-29", [claim]);
     expect(s.observations.filter((o) => o.variantId === "gemini-4-carbon@high")).toHaveLength(2);
   });
+  it("takes a model's figures at every effort the lab charted, and still doesn't double them on the next run", () => {
+    const s = snapshot();
+    const at = (effort: LaunchClaim["effort"], v: number): LaunchClaim => ({ ...claim, effort, scores: { "board-b": v } });
+    const efforts = [at("low", 40), at("high", 70), at("max", 72)];
+    applyLaunchClaims(s, "2026-10-28", efforts);
+    applyLaunchClaims(s, "2026-10-29", efforts);
+    expect(s.observations.filter((o) => o.benchmarkId === "board-b").map((o) => [o.variantId, o.value])).toEqual([["gemini-4-carbon@low", 40], ["gemini-4-carbon@high", 70], ["gemini-4-carbon@max", 72]]);
+  });
   it("every claim names a model Priors recognizes", () => {
     expect(() => applyLaunchClaims(snapshot(), "2026-10-28", LAUNCH_CLAIMS)).not.toThrow();
   });

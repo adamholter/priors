@@ -23,6 +23,18 @@ export interface LaunchClaim {
   scores: Record<string, number>;
 }
 
+/**
+ * GPT-6.2 Astra and Sol (OpenAI, 2026-11-17). The post's charts carry their data (each model at every effort, with score and cost per
+ * task); the rows kept are the ones whose reference models match the board exactly: Agents' Last Exam v1.1, AA Intelligence Index
+ * v5.0.1 (its cost is AA's cost per Intelligence Index task, to the cent for Opus 5.5, Fable 5.2, GPT-6 Astra and GPT-6.1 Sol),
+ * Harvey LAB-AA v1.1, and the text's AA-3D Elo (Fable 5.2's 1,271 matches AA) and AA-AnalystAgent (62.5%, AA's own measure; both at max,
+ * as AA runs these models). Left out: Terminal-Bench-Science 0.1 and FrontierCode 2.0 (OpenAI's reference scores differ from every board
+ * here, so another harness), AutomationBench 1.0.6 (Zapier's board already lists both, at the same numbers), Vals Science Index v1 and
+ * BenchCAD 2.1 Core (not tracked), and the internal or untracked ones (GDPval v2, LifeVal, SecureSWE, PatchBench, ExploitBench, DeepBinary).
+ * The post loaded only through a reader (openai.com served it as an error page); the numbers are the charts' own data.
+ */
+const BLOG_62 = "https://openai.com/index/introducing-gpt-6-2-astra-sol/";
+
 export const LAUNCH_CLAIMS: LaunchClaim[] = [{
   model: "Gemini 4 Carbon",
   effort: "high",
@@ -61,6 +73,45 @@ export const LAUNCH_CLAIMS: LaunchClaim[] = [{
   scores: {
     "aa-frontiercode-2-0": 31,
   },
+}, {
+  model: "GPT-6.2 Astra", effort: "low", releaseDate: "2026-11-17", by: "OpenAI", url: BLOG_62, published: "2026-11-17",
+  scores: { "agents-last-exam": 65.8, "aa-intelligence-index-v5.0.1": 45.7, "aa-cost-per-task-index": 0.6617, "aa-harvey-lab-aa": 2.2 },
+},
+{
+  model: "GPT-6.2 Astra", effort: "medium", releaseDate: "2026-11-17", by: "OpenAI", url: BLOG_62, published: "2026-11-17",
+  scores: { "agents-last-exam": 72.1, "aa-intelligence-index-v5.0.1": 57, "aa-cost-per-task-index": 1.6177, "aa-harvey-lab-aa": 8.1 },
+},
+{
+  model: "GPT-6.2 Astra", effort: "high", releaseDate: "2026-11-17", by: "OpenAI", url: BLOG_62, published: "2026-11-17",
+  scores: { "agents-last-exam": 76.0, "aa-intelligence-index-v5.0.1": 60.1, "aa-cost-per-task-index": 2.0739, "aa-harvey-lab-aa": 13.3 },
+},
+{
+  model: "GPT-6.2 Astra", effort: "xhigh", releaseDate: "2026-11-17", by: "OpenAI", url: BLOG_62, published: "2026-11-17",
+  scores: { "agents-last-exam": 78.3, "aa-intelligence-index-v5.0.1": 61.6, "aa-cost-per-task-index": 2.5211, "aa-harvey-lab-aa": 12.8 },
+},
+{
+  model: "GPT-6.2 Astra", effort: "max", releaseDate: "2026-11-17", by: "OpenAI", url: BLOG_62, published: "2026-11-17",
+  scores: { "agents-last-exam": 77.6, "aa-intelligence-index-v5.0.1": 62.1, "aa-cost-per-task-index": 3.9979, "aa-harvey-lab-aa": 15.0, "aa-3d": 1318, "aa-analyst-agent": 62.5 },
+},
+{
+  model: "GPT-6.2 Sol", effort: "low", releaseDate: "2026-11-17", by: "OpenAI", url: BLOG_62, published: "2026-11-17",
+  scores: { "agents-last-exam": 66.7, "aa-intelligence-index-v5.0.1": 40.6, "aa-cost-per-task-index": 0.18, "aa-harvey-lab-aa": 3.1 },
+},
+{
+  model: "GPT-6.2 Sol", effort: "medium", releaseDate: "2026-11-17", by: "OpenAI", url: BLOG_62, published: "2026-11-17",
+  scores: { "agents-last-exam": 70.3, "aa-intelligence-index-v5.0.1": 52.7, "aa-cost-per-task-index": 0.41, "aa-harvey-lab-aa": 5.0 },
+},
+{
+  model: "GPT-6.2 Sol", effort: "high", releaseDate: "2026-11-17", by: "OpenAI", url: BLOG_62, published: "2026-11-17",
+  scores: { "agents-last-exam": 72.0, "aa-intelligence-index-v5.0.1": 54.9, "aa-cost-per-task-index": 0.56, "aa-harvey-lab-aa": 5.8 },
+},
+{
+  model: "GPT-6.2 Sol", effort: "xhigh", releaseDate: "2026-11-17", by: "OpenAI", url: BLOG_62, published: "2026-11-17",
+  scores: { "agents-last-exam": 72.5, "aa-intelligence-index-v5.0.1": 55.7, "aa-cost-per-task-index": 0.65, "aa-harvey-lab-aa": 6.1 },
+},
+{
+  model: "GPT-6.2 Sol", effort: "max", releaseDate: "2026-11-17", by: "OpenAI", url: BLOG_62, published: "2026-11-17",
+  scores: { "agents-last-exam": 73.0, "aa-intelligence-index-v5.0.1": 57.3, "aa-cost-per-task-index": 1.01, "aa-harvey-lab-aa": 11.1, "aa-3d": 1259 },
 }];
 
 export interface ClaimResult { added: string[]; replaced: string[]; untracked: string[] }
@@ -70,19 +121,20 @@ export function applyLaunchClaims(snap: Snapshot, date: string, claims: LaunchCl
   const out: ClaimResult = { added: [], replaced: [], untracked: [] };
   const modelOf = new Map(snap.variants.map((v) => [v.id, v.modelId]));
   const benchmarks = new Set(snap.benchmarks.map((b) => b.id));
+  // Claims a failed source carried over from the last run, by variant and benchmark: those are already in place. Counted once, up front,
+  // so a model's claims at several efforts don't see each other's fresh rows as carried.
+  const carriedAtStart = new Set(snap.observations.filter((o) => o.details?.launchClaim).map((o) => `${o.variantId}|${o.benchmarkId}`));
   for (const c of claims) {
     const n = normalizeLabel(c.model);
     if (!n.ok) throw new Error(`launch claim for unknown model "${c.model}": add it to normalize.ts`);
     const mine = snap.observations.filter((o) => modelOf.get(o.variantId) === n.modelId);
     const listed = new Set(mine.filter((o) => !o.details?.launchClaim).map((o) => o.benchmarkId));
-    // A failed source carries its last scores, claims included: those are already in place.
-    const carried = new Set(mine.filter((o) => o.details?.launchClaim).map((o) => o.benchmarkId));
     const vid = variantId(n.modelId, c.effort);
     for (const [benchmarkId, value] of Object.entries(c.scores)) {
       const key = `${n.modelName} ${benchmarkId}`;
       if (!benchmarks.has(benchmarkId)) { out.untracked.push(key); continue; }
       if (listed.has(benchmarkId)) { out.replaced.push(key); continue; }
-      if (carried.has(benchmarkId)) continue;
+      if (carriedAtStart.has(`${vid}|${benchmarkId}`)) continue;
       snap.observations.push({
         benchmarkId, variantId: vid, value, observedAt: date, sourceUrl: c.url,
         note: `${c.by}'s self-reported launch figure (${c.published}); the board's own result replaces it once it lists the model`,

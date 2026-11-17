@@ -282,8 +282,10 @@ export function subscriptionPrices(snapshot: Snapshot, picks: Record<string, str
   const listed = new Set<string>();
   for (const o of observationsOf(snapshot, CODEX_LIMITS_BENCHMARK)) if (positive(o.value)) listed.add(variants.get(o.variantId) ?? o.variantId.split("@")[0]);
   const measured = [...listed].filter((id) => out.has(id));
+  // It needs an API cost to scale: a list price, or a cost per task (a lab's launch figure, before Artificial Analysis lists the model).
+  const costed = new Set(observationsOf(snapshot, "aa-cost-per-task-index").map((o) => variants.get(o.variantId) ?? o.variantId.split("@")[0]));
   for (const modelId of listed) {
-    if (out.has(modelId) || !aaPrices.has(modelId) || !measured.length) continue;
+    if (out.has(modelId) || !(aaPrices.has(modelId) || costed.has(modelId)) || !measured.length) continue;
     const ratio = median(measured.map((id) => out.get(id)!.ratio));
     const nearest = measured.reduce((a, b) => (Math.abs(out.get(b)!.ratio - ratio) < Math.abs(out.get(a)!.ratio - ratio) ? b : a));
     out.set(modelId, { ...out.get(nearest)!, ratio, confidence: `estimated from the median share of ${measured.join(", ")}` });

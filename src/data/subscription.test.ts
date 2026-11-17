@@ -92,6 +92,16 @@ describe("subscription cost basis", () => {
     // No limits published, no guess.
     expect(subscriptionPrices({ ...withTerra, observations: sn.observations }).has("gpt-6.1-terra")).toBe(false);
   });
+  it("estimates a just-launched OpenAI model with no list price yet from its launch cost per task", () => {
+    const sn = snap();
+    const codex = (variantId: string, value: number) => ({ benchmarkId: CODEX_LIMITS_BENCHMARK, variantId, value, observedAt: "", sourceUrl: "" });
+    // No Artificial Analysis record (so no list price), but a cost per task from the lab's launch post and a Codex limit.
+    const fresh = { ...sn, variants: [...sn.variants, { id: "gpt-6.2-sol@max", modelId: "gpt-6.2-sol", effort: "max" }] as Snapshot["variants"],
+      observations: [...sn.observations, codex("b@xhigh", 50), codex("gpt-6.2-sol@max", 55), { benchmarkId: "aa-cost-per-task-index", variantId: "gpt-6.2-sol@max", value: 1.01, observedAt: "", sourceUrl: "", details: { launchClaim: { by: "OpenAI", published: "2026-11-17" } } }] };
+    expect(subscriptionPrices(fresh).get("gpt-6.2-sol")).toMatchObject({ ratio: subscriptionPrices(fresh).get("b")!.ratio, confidence: "estimated from the median share of b" });
+    // Without either a price or a cost, nothing to scale.
+    expect(subscriptionPrices({ ...fresh, observations: fresh.observations.filter((o) => o.benchmarkId !== "aa-cost-per-task-index") }).has("gpt-6.2-sol")).toBe(false);
+  });
   it("leaves costs untouched when the index asks for the API basis", () => {
     expect(costs({ ...base, costBasis: "api" })).toEqual({ "a@max": 12, "a@high": 4, "b@xhigh": 7, "c@default": 5 });
     expect(computeIndex(snap(), { ...base, costBasis: "api" }).ranked.every((r) => r.costPlan === undefined)).toBe(true);
