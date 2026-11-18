@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Snapshot } from "@/data/types";
 import { aaTaskMetrics } from "./aa-task-metrics";
-import { parseReport } from "./extension-feedback";
+import { parseReport, senderAddress } from "./extension-feedback";
 
 function snap(n: number): Snapshot {
   const ids = Array.from({ length: n }, (_, i) => `m${i}`);
@@ -28,6 +28,13 @@ describe("AA Plus reports", () => {
   it("takes a bug report with its details and browser id", () => {
     const r = parseReport({ kind: "bug", text: " The plan picker does nothing ", contact: "me@example.com", url: "https://artificialanalysis.ai/", context: "AA Plus 0.5.0", client: "abcd1234" });
     expect(r).toEqual({ ok: true, client: "abcd1234", value: { kind: "bug", text: "The plan picker does nothing", contact: "me@example.com", url: "https://artificialanalysis.ai/", context: "AA Plus 0.5.0" } });
+  });
+  it("reads the sender's address only from the header the host writes", () => {
+    const h = (o: Record<string, string>) => new Headers(o);
+    expect(senderAddress(h({ "x-vercel-forwarded-for": "203.0.113.9", "x-real-ip": "1.1.1.1" }), false)).toBe("203.0.113.9");
+    expect(senderAddress(h({ "x-real-ip": "1.1.1.1", "x-forwarded-for": "1.1.1.1" }), false)).toBeNull();
+    expect(senderAddress(h({ "cf-connecting-ip": "2001:db8::1", "x-vercel-forwarded-for": "1.1.1.1" }), true)).toBe("2001:db8::1");
+    expect(senderAddress(h({ "x-vercel-forwarded-for": "not an address" }), false)).toBeNull();
   });
   it("refuses what could never be stored", () => {
     expect(parseReport({ kind: "benchmark", text: "x" }).ok).toBe(false);

@@ -18,4 +18,9 @@ export function parseReport(fields: { kind?: unknown; text?: unknown; contact?: 
   const client = str(fields.client);
   return { ok: true, value: cleaned.value, ...(/^[A-Za-z0-9_-]{8,64}$/.test(client) ? { client } : {}), ...(str(fields.website) ? { website: str(fields.website) } : {}) };
 }
+/** The sender's address from the one header this host writes itself (anything else could be the sender's own word). Null when it is not an address. */
+export function senderAddress(headers: Pick<Headers, "get">, onCloudflare: boolean): string | null {
+  const ip = headers.get(onCloudflare ? "cf-connecting-ip" : "x-vercel-forwarded-for")?.split(",")[0]?.trim() ?? "";
+  return /^[0-9a-fA-F:.]{3,45}$/.test(ip) ? ip : null;
+}
 export const reportFileName = (name: string) => cleanFileName(name);

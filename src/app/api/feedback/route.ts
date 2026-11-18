@@ -2,7 +2,7 @@ import { ConvexHttpClient } from "convex/browser";
 import { NextResponse } from "next/server";
 import { api } from "../../../../convex/_generated/api";
 import type { Id } from "../../../../convex/_generated/dataModel";
-import { parseReport, reportFileName } from "@/lib/extension-feedback";
+import { parseReport, reportFileName, senderAddress } from "@/lib/extension-feedback";
 
 const reply = (status: number, body: { ok: true; filesDropped?: number } | { ok: false; error: string }) => NextResponse.json(body, { status, headers: { "cache-control": "no-store" } });
 
@@ -22,7 +22,7 @@ export async function POST(request: Request) {
   if (!parsed.ok) return reply(400, parsed);
   const site = convexUrl.replace(/\.convex\.cloud\/?$/, ".convex.site"), ids: Id<"requestFiles">[] = [];
   // Uploads leave from this server, so it says who sent them; each sender then keeps an hourly limit of their own.
-  const secret = process.env.AGENT_SERVER_SECRET, sender = request.headers.get("x-real-ip") ?? request.headers.get("x-forwarded-for")?.split(",").pop()?.trim();
+  const secret = process.env.AGENT_SERVER_SECRET, sender = senderAddress(request.headers, !!process.env.PRIORS_CLOUDFLARE);
   const relay: Record<string, string> = secret && sender ? { "x-priors-relay": secret, "x-priors-sender": sender } : {};
   let filesDropped = 0;
   for (const file of files) {
