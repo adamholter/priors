@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { anonCapOf, cleanFileName, cleanRequest, cleanUrl, clientKey, COOLDOWN_MS, DAILY_CAP, fileLimitOf, FILES_DAILY_BYTES, FILES_DAILY_CAP, FILES_PER_HOUR, isAccountKey, isText, LIMIT_MESSAGE, limitOf, MAX_CONTACT, MAX_CONTEXT, MAX_FILE_NAME, MAX_TEXT, MAX_URL, sniffFile, tokenMatches, uploaderKey } from "../../convex/requestRules";
+import { anonCapOf, cleanFileName, cleanRequest, cleanUrl, clientKey, COOLDOWN_MS, DAILY_CAP, fileLimitOf, FILES_DAILY_BYTES, FILES_DAILY_CAP, FILES_PER_HOUR, isAccountKey, isText, LIMIT_MESSAGE, limitOf, MAX_CONTACT, MAX_CONTEXT, MAX_FILE_NAME, MAX_TEXT, MAX_URL, sniffFile, tokenMatches, relayedAddress, uploaderKey } from "../../convex/requestRules";
 
 describe("cleanRequest", () => {
   it("keeps a plain request and drops empty optional fields", () => {
@@ -153,5 +153,12 @@ describe("tokenMatches", () => {
   });
   it("refuses everything while no token is configured", () => {
     for (const want of [undefined, ""]) for (const given of ["", "anything"]) expect(tokenMatches(given, want)).toBe(false);
+  });
+  it("takes a forwarded sender's address only with the server secret", () => {
+    expect(relayedAddress("s3cret", "s3cret", "203.0.113.9")).toBe("203.0.113.9");
+    expect(relayedAddress("guess", "s3cret", "203.0.113.9")).toBeNull();
+    expect(relayedAddress(null, "s3cret", "203.0.113.9")).toBeNull();
+    expect(relayedAddress("s3cret", undefined, "203.0.113.9")).toBeNull();
+    expect(relayedAddress("s3cret", "s3cret", null)).toBeNull();
   });
 });

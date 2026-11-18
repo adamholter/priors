@@ -21,11 +21,14 @@ export async function POST(request: Request) {
   const parsed = parseReport(Object.fromEntries([...form.entries()].filter(([, v]) => typeof v === "string")), files);
   if (!parsed.ok) return reply(400, parsed);
   const site = convexUrl.replace(/\.convex\.cloud\/?$/, ".convex.site"), ids: Id<"requestFiles">[] = [];
+  // Uploads leave from this server, so it says who sent them; each sender then keeps an hourly limit of their own.
+  const secret = process.env.AGENT_SERVER_SECRET, sender = request.headers.get("x-real-ip") ?? request.headers.get("x-forwarded-for")?.split(",").pop()?.trim();
+  const relay: Record<string, string> = secret && sender ? { "x-priors-relay": secret, "x-priors-sender": sender } : {};
   let filesDropped = 0;
   for (const file of files) {
     try {
       const q = new URLSearchParams({ name: reportFileName(file.name), ...(parsed.client ? { client: parsed.client } : {}) });
-      const res = await fetch(`${site}/request-file?${q}`, { method: "POST", body: await file.arrayBuffer(), headers: { "content-type": file.type } });
+      const res = await fetch(`${site}/request-file?${q}`, { method: "POST", body: await file.arrayBuffer(), headers: { "content-type": file.type, ...relay } });
       const body = await res.json() as { id?: string };
       if (res.ok && body.id) ids.push(body.id as Id<"requestFiles">); else filesDropped++;
     } catch { filesDropped++; }

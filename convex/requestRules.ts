@@ -137,6 +137,14 @@ export function limitOf({ now, lastAt, dayCount, anonCount = dayCount, signedIn 
 }
 
 /** Whether `given` is the reader's token. False while none is configured. The loop never stops early, so timing says nothing about where they differ. */
+/**
+ * The sender's address when the site's own server forwards an upload (the extension's report form can only reach the site). It counts
+ * only with the shared server secret, so nobody else can choose whose hourly limit an upload lands on. Otherwise null.
+ */
+export function relayedAddress(secretGiven: string | null | undefined, secret: string | undefined, address: string | null | undefined): string | null {
+  return tokenMatches(secretGiven ?? "", secret) && address ? address : null;
+}
+
 export function tokenMatches(given: string, want: string | undefined): boolean {
   if (!want || given.length !== want.length) return false;
   let diff = 0;

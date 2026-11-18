@@ -3,7 +3,7 @@ import { ConvexError } from "convex/values";
 import { internal } from "./_generated/api";
 import { httpAction } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
-import { cleanFileName, FILE_KINDS, isText, MAX_FILE_BYTES, sniffFile, uploaderKey } from "./requestRules";
+import { cleanFileName, FILE_KINDS, isText, MAX_FILE_BYTES, sniffFile, uploaderKey, relayedAddress } from "./requestRules";
 
 /**
  * POST /upload?field=avatar|banner, with the signed-in user's Convex token as a bearer token and the
@@ -104,7 +104,7 @@ async function scrambled(key: string): Promise<string> {
 }
 const requestFile = httpAction(async (ctx, request) => {
   const q = new URL(request.url).searchParams;
-  const name = cleanFileName(q.get("name") ?? ""), client = await scrambled(uploaderKey(request.headers.get("x-forwarded-for"), q.get("client")));
+  const name = cleanFileName(q.get("name") ?? ""), client = await scrambled(uploaderKey(relayedAddress(request.headers.get("x-priors-relay"), process.env.AGENT_SERVER_SECRET, request.headers.get("x-priors-sender")) ?? request.headers.get("x-forwarded-for"), q.get("client")));
   const stated = Number(request.headers.get("content-length"));
   if (stated > MAX_FILE_BYTES) return fileReply(413, { error: FILE_TOO_BIG });
   let id: Id<"requestFiles"> | undefined, kept = false;
