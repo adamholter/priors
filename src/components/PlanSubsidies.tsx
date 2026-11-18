@@ -1,4 +1,5 @@
 "use client";
+import { PlanCaveatSources } from "@/components/PlanCaveatSources";
 import Link from "next/link";
 import { useMemo, useState, type CSSProperties, type MouseEvent, type ReactNode } from "react";
 import { IconChevronRight, IconSearch } from "@tabler/icons-react";
@@ -53,6 +54,7 @@ function ModelBars({ models, scale }: { models: Model[]; scale: Scale }) {
     <span className="min-w-0 flex items-baseline gap-2 pl-[42px]"><Link href={`/models/${encodeURIComponent(m.id)}` as "/"} prefetch={false} className="truncate hover:underline" title={m.name}>{m.name}</Link>{m.preliminary ? <span className="cap shrink-0" title={`${m.preliminary.short} ${m.preliminary.note}`}>{m.preliminary.label.toLowerCase()}</span> : m.assumed && <span className="cap shrink-0">assumed</span>}{m.multiple != null && <span className="num ml-auto shrink-0 sm:hidden">{times(m.multiple)}</span>}</span>
     {m.multiple != null ? <span className="relative block h-[7px] max-sm:ml-[42px] rounded-[2px] bg-hair-2" aria-hidden="true"><i className="sub-bar absolute inset-y-0 left-0 rounded-[2px]" style={{ width: `max(3px, ${scale.pct(m.multiple)})`, background: scale.color(m.lab) }} /></span> : <span className="cap max-sm:ml-[42px]">not measured</span>}
     <span className="num text-right max-sm:hidden">{m.multiple != null ? times(m.multiple) : ""}</span>
+    <PlanCaveatSources caveat={m.preliminary} className="col-span-full pl-[42px]" />
   </li>)}</ul>;
 }
 

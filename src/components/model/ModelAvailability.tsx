@@ -1,4 +1,5 @@
 "use client";
+import { PlanCaveatSources } from "@/components/PlanCaveatSources";
 import { useState } from "react";
 import type { ModelAvailability } from "@/lib/model-availability";
 
@@ -24,6 +25,7 @@ export function ModelAvailabilitySection({ data }: { data: ModelAvailability }) 
             <span className="cap shrink-0 ml-auto">{p.free ? "" : `${fee(p.feeUsd)}/mo`}</span>
             {p.free ? <span className="num shrink-0 w-[46px] text-right">free</span> : p.ratio ? <span className="num shrink-0 w-[46px] text-right">{multiple(p.ratio)}</span> : <span className="cap shrink-0">not measured</span>}
           </div>
+          <PlanCaveatSources caveat={p.preliminary} />
           <span className="h-[6px] rounded-[2px] bg-hair-2 overflow-hidden" aria-hidden="true"><i className="block h-full rounded-[2px] bg-indigo" style={{ width: p.free ? "100%" : p.ratio ? `${Math.max(2, 100 / p.ratio / top).toFixed(2)}%` : 0 }} /></span>
         </li>)}</ul>
       </div>}

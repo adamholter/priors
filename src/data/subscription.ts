@@ -36,6 +36,8 @@ export interface PlanCaveat {
   credit?: string;
   source?: string;
   samples?: number;
+  /** Who the figure rests on, each linked to what they published. `counted: false` is related evidence left out of the figure. */
+  sources?: { by: string; url: string; counted: boolean }[];
 }
 
 export interface SubscriptionDetails {

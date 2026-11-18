@@ -129,9 +129,9 @@ export const SUBSIDY_ASSUMPTIONS: SubsidyAssumption[] = [
 ];
 
 /**
- * What real subscribers got from a plan: the tokens one person's use came to at API prices, against the fee. One figure per person, plan and model; add a row for
- * each new data point (another user, another Qwen model) and the estimate follows. `planUsageEstimates` takes the median across people, and every estimate is shown
- * as preliminary with who it came from, until a larger measurement or a Real API Pricing row replaces it.
+ * What real subscribers got from a plan, one row per person, plan and model: the tokens they used at API prices against the credits those tokens took. Add a row for each new data
+ * point. `planUsageEstimates` scales each to a full allowance of the plan named, takes the median person, and labels the result preliminary with its sample size and everyone's source,
+ * until a larger measurement or a Real API Pricing row replaces it.
  */
 export interface PlanUsageSample {
   modelId: string;
@@ -141,41 +141,78 @@ export interface PlanUsageSample {
   feeUsd: number;
   /** API value of the tokens used, at `listPrice`. */
   apiUsd: number;
-  /** How much of the plan's allowance those tokens used: 1 is all of it. */
+  /** How much of this plan's allowance those tokens take at the standard credit rate: 1 is all of it. */
   usedShare: number;
-  listPrice: { cached: number; input: number; output: number };
-  tokens: { cached: number; input: number; output: number };
+  listPrice: { cached: number; input: number; output: number; cacheWrite?: number };
+  tokens: { cached: number; input: number; output: number; cacheWrite?: number };
   /** Who shared it, as they go by publicly. */
   by: string;
   source: string;
   period: string;
   checked: string;
+  /** Part of the usage could not be read, so the true figure is at least this. */
+  atLeast?: boolean;
+  /** Said on hover beside the figure, for what every reader should know. */
+  caveat?: string;
   note?: string;
 }
 
+/** Published evidence that bears on a plan's figure but is not comparable enough to count in it. */
+export interface PlanUsageContext { modelId: string; plan: string; by: string; source: string; note: string }
+
+const QWEN_STANDARD = { plan: "Qwen Token Plan Standard", feeUsd: 18, checked: "2026-11-18" }, STANDARD_CREDITS = 80_000;
+const QWEN_38_MAX = { ...QWEN_STANDARD, modelId: "qwen-3.8-max", label: "Qwen 3.8 Max (max)", listPrice: { cached: 0.25, input: 2, output: 6, cacheWrite: 2.5 }, caveat: "Usage from August 2026, rescaled to today's quotas." };
+
 export const PLAN_USAGE_SAMPLES: PlanUsageSample[] = [
   // @SSHCodes used all 80,000 credits of the $18 plan with Qwen4-Max in T3 Code, 2,094 responses. 731.6M cached x $0.075 + 15.1M input x $1.50 + 2.26M output x $4.50 per 1M is $87.69
-  // from the rounded counts; his logs give $87.76. Alibaba's plan page confirms $18 and 80,000 credits a month. The cheaper qwen4-max-preview ran until November 25 at a fifth of the credits; his graphic says production Qwen4-Max.
+  // from the rounded counts; his logs give $87.76. Alibaba's plan page confirms $18 and 80,000 credits a month.
   {
-    modelId: "qwen-4-max", label: "Qwen 4 Max (max)", plan: "Qwen Token Plan Standard", feeUsd: 18, apiUsd: 87.76, usedShare: 1, listPrice: { cached: 0.075, input: 1.5, output: 4.5 },
-    tokens: { cached: 731.6e6, input: 15.1e6, output: 2.26e6 }, by: "@SSHCodes", source: "https://x.com/SSHCodes/status/2123184045572096137", period: "November 15 to 16, 2026", checked: "2026-11-18",
+    ...QWEN_STANDARD, modelId: "qwen-4-max", label: "Qwen 4 Max (max)", apiUsd: 87.76, usedShare: 1, listPrice: { cached: 0.075, input: 1.5, output: 4.5 },
+    tokens: { cached: 731.6e6, input: 15.1e6, output: 2.26e6 }, by: "@SSHCodes", source: "https://x.com/SSHCodes/status/2123184045572096137", period: "November 15 to 16, 2026",
     note: "749M tokens over 2,094 responses in T3 Code, 98% of input cached, using all 80,000 of the plan's monthly credits",
+  },
+  // Qwen3.8-Max, August 2026, from the screenshots in each post: API value per credit at the standard rate, applied to today's 80,000-credit plan. Quotas were weekly and far smaller then,
+  // so this assumes credits per token have not changed. $0.25 per 1M cached is from price trackers; Alibaba does not publish it. Research: ~/Projects/qwen-plan-subsidy-research/REPORT.md.
+  {
+    ...QWEN_38_MAX, apiUsd: 9.858515, usedShare: 5_000 / STANDARD_CREDITS, tokens: { cached: 6_805_823, input: 3_269_275, cacheWrite: 597_906, output: 20_624 }, by: "u/DertekAn",
+    source: "https://www.reddit.com/r/Qwen_AI/comments/1vhv1z8/alibaba_blocked_me_for_saying_please_fix_your/", period: "August 6, 2026", note: "a full 2,500-credit Lite week at the 50% night rate, so 5,000 credits at the standard rate; 3.52 times the fee on the plan as it was then",
+  },
+  {
+    ...QWEN_38_MAX, apiUsd: 17.580912, usedShare: 10_000 / STANDARD_CREDITS, tokens: { cached: 49_490_304, input: 1_897_824, output: 235_448 }, by: "u/Particular_Dingo_210",
+    source: "https://www.reddit.com/r/Qwen_AI/comments/1vu9stj/qwen_standard_token_plan_usage_limits/", period: "August 17, 2026", note: "a full 10,000-credit Standard week; 4.19 times the fee as the plan was then, and 3.91 times today's if all of it ran at the night rate",
+  },
+  {
+    ...QWEN_38_MAX, apiUsd: 3.884281, usedShare: 2_500 / STANDARD_CREDITS, atLeast: true, tokens: { cached: 6_974_483, input: 911_543, output: 52_929 }, by: "u/Weak_Lock_4076",
+    source: "https://www.reddit.com/r/Qwen_AI/comments/1vhtr3m/wth_spent_my_week_quota_with_10m_token_for_qwen/", period: "August 6, 2026", note: "a full 2,500-credit Lite week with only the first day's tokens readable, so a floor; assumes no night discount",
+  },
+];
+
+export const PLAN_USAGE_CONTEXT: PlanUsageContext[] = [
+  {
+    ...QWEN_STANDARD, modelId: "qwen-4-max", by: "mamaruo", source: "https://github.com/Fei2411/real-api-pricing/issues/240",
+    note: "Not counted: mamaruo's Qwen4-Max-Preview usage works out to 3.89 times the fee at Standard's credits per dollar. It is a discounted preview on the China site, priced here at Qwen4-Max's API rates, and it retires November 25, 2026.",
   },
 ];
 
 export interface PlanUsageEstimate { modelId: string; label: string; plan: string; feeUsd: number; ratio: number; listPrice: PlanUsageSample["listPrice"]; source: string; checked: string; preliminary: PlanCaveat }
 
+const times = (n: number) => `${n.toFixed(1)} times`;
 /** One estimate per model and plan: the median person's API value for a full allowance, as a share paid of it. */
-export function planUsageEstimates(samples: PlanUsageSample[] = PLAN_USAGE_SAMPLES): PlanUsageEstimate[] {
-  const groups = new Map<string, PlanUsageSample[]>();
-  for (const s of samples) if (s.apiUsd > 0 && s.usedShare > 0 && s.feeUsd > 0) (groups.get(`${s.modelId}|${s.plan}`) ?? groups.set(`${s.modelId}|${s.plan}`, []).get(`${s.modelId}|${s.plan}`)!).push(s);
+export function planUsageEstimates(samples: PlanUsageSample[] = PLAN_USAGE_SAMPLES, context: PlanUsageContext[] = PLAN_USAGE_CONTEXT): PlanUsageEstimate[] {
+  const groups = new Map<string, PlanUsageSample[]>(), key = (s: { modelId: string; plan: string }) => `${s.modelId}|${s.plan}`;
+  for (const s of samples) if (s.apiUsd > 0 && s.usedShare > 0 && s.feeUsd > 0) (groups.get(key(s)) ?? groups.set(key(s), []).get(key(s))!).push(s);
   return [...groups.values()].map((list) => {
-    const multiples = list.map((s) => s.apiUsd / s.usedShare / s.feeUsd).sort((a, b) => a - b), mid = multiples.length >> 1, multiple = multiples.length % 2 ? multiples[mid] : (multiples[mid - 1] + multiples[mid]) / 2;
-    const first = list[0], people = [...new Set(list.map((s) => s.by))], who = people.join(", "), one = people.length === 1, latest = list.map((s) => s.checked).sort().at(-1)!;
-    const about = list.map((s) => `${s.by}: $${s.apiUsd.toFixed(2)} of API value from ${s.usedShare === 1 ? "the full allowance" : `${Math.round(s.usedShare * 100)}% of the allowance`}, ${s.period}${s.note ? ` (${s.note})` : ""}`).join("; ");
+    const value = (s: PlanUsageSample) => s.apiUsd / s.usedShare / s.feeUsd, multiples = list.map(value).sort((a, b) => a - b), mid = multiples.length >> 1, multiple = multiples.length % 2 ? multiples[mid] : (multiples[mid - 1] + multiples[mid]) / 2;
+    const first = list[0], people = [...new Set(list.map((s) => s.by))], who = people.join(", "), n = people.length, latest = list.map((s) => s.checked).sort().at(-1)!, caveat = [...new Set(list.flatMap((s) => s.caveat ?? []))].join(" "), related = context.filter((c) => key(c) === key(first));
+    const base = `From ${n === 1 ? "one user's" : `${n} users'`} data (${who})`;
+    const about = list.map((s) => `${s.by}: ${s.atLeast ? "at least " : ""}${times(value(s))}, ${s.period}${s.note ? ` (${s.note})` : ""}`).join("; ");
     return {
       modelId: first.modelId, label: first.label, plan: first.plan, feeUsd: first.feeUsd, ratio: 1 / multiple, listPrice: first.listPrice, source: first.source, checked: latest,
-      preliminary: { label: "Preliminary", short: `From ${one ? "one user's" : `${people.length} users'`} data (${who}), pending larger-scale data.`, note: `${multiple.toFixed(1)} times the fee in API value. ${about}. Results depend on each person's model and cache use.`, credit: who, source: first.source, samples: list.length },
+      preliminary: {
+        label: `Preliminary, ${n} user${n === 1 ? "" : "s"}`, short: caveat ? `${base}. ${caveat} Pending larger-scale data.` : `${base}, pending larger-scale data.`,
+        note: `${times(multiple)} the fee in API value${n > 1 ? `, the median of ${n} users` : ""}. ${about}. Results depend on each person's cache use.${related.length ? ` ${related.map((c) => c.note).join(" ")}` : ""}`,
+        credit: who, source: first.source, samples: n, sources: [...list.map((s) => ({ by: s.by, url: s.source, counted: true })), ...related.map((c) => ({ by: c.by, url: c.source, counted: false }))],
+      },
     };
   });
 }

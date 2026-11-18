@@ -23,9 +23,9 @@ const payload: Points = { generatedAt: "2026-10-08", points: [
   point("claude_max_20x::claude-fable-5", "Claude Max 20x", "Anthropic", 0.16, { model_display: "Claude Fable 5", confidence: "low" }),
   point("glm_coding_pro::glm-5.3", "GLM Coding Pro", "Zhipu", 0.03, { model_display: "GLM 5.3 (v3)", list_price: { cached: 1.6, input: 8, output: 32, currency: "CNY" } }),
   point("glm_coding_pro::glm-5.3-flashx", "GLM Coding Pro", "Zhipu", 0.01, { model_display: "GLM 5.3 FlashX" }),
-  point("opencode_go::qwen3.8-max", "OpenCode Go", "Alibaba", 0.2, { model_display: "Qwen3.8 Max", price_usd: 10 }),
-  point("droid_max::qwen3.8-max", "Droid Max", "Alibaba", 0.04, { model_display: "Qwen3.8 Max", price_usd: 200 }),
-  point("scam_plan::qwen3.8-max", "Cheap Plan", "Alibaba", 0.001, { model_display: "Qwen3.8 Max", confidence: "low" }),
+  point("opencode_go::qwen3.7-max", "OpenCode Go", "Alibaba", 0.2, { model_display: "Qwen3.7 Max", price_usd: 10 }),
+  point("droid_max::qwen3.7-max", "Droid Max", "Alibaba", 0.04, { model_display: "Qwen3.7 Max", price_usd: 200 }),
+  point("scam_plan::qwen3.7-max", "Cheap Plan", "Alibaba", 0.001, { model_display: "Qwen3.7 Max", confidence: "low" }),
   point("devin_pro::swe-2", "Devin Pro", "Cognition", 0, { model_display: "SWE-2", unmetered: true }),
   point("google_ai_pro_us::gemini-4-argon", "Google AI Pro", "Google", 0.303, { model_display: "Gemini 4 Argon", confidence: "low", workload: "lowCache", price_usd: 19.99 }),
   point("opencode_go::gemini-4-argon-contributor", "OpenCode Go", "Google", 0.131, { model_display: "Gemini 4 Argon Contributor", price_usd: 10 }),
@@ -129,7 +129,7 @@ describe("Real API Pricing subscriptions", () => {
   });
   const computed = rows.filter((r) => !(r.details as { source?: string; sameAs?: string }).source && !(r.details as { sameAs?: string }).sameAs && r.sourceUrl !== VIBE);
   it("keeps one row per model on its lab's own plans: no resellers, metered APIs or unmetered promos", () => {
-    expect(computed.map((r) => r.modelLabel)).toEqual(["GPT 5.6 Sol", "Claude Opus 5.5", "Claude Fable 5", "GLM 5.3", "GLM 5.3 FlashX", "Gemini 4 Argon", "Hy4", "Hy4 preview", "Qwen3.8 Max"]);
+    expect(computed.map((r) => r.modelLabel)).toEqual(["GPT 5.6 Sol", "Claude Opus 5.5", "Claude Fable 5", "GLM 5.3", "GLM 5.3 FlashX", "Gemini 4 Argon", "Hy4", "Hy4 preview", "Qwen3.7 Max"]);
     expect(row("GPT 5.6 Sol").details).toMatchObject({ plans: [{ plan: "ChatGPT Pro 20x" }, { plan: "ChatGPT Pro 500" }, { plan: "ChatGPT Pro 10x" }, { plan: "ChatGPT Plus" }] });
   });
   it("marks Cursor's old plans as legacy on its own model, and never prices another lab's model on them", () => {
@@ -176,8 +176,8 @@ describe("Real API Pricing subscriptions", () => {
     expect((got.find((r) => r.modelLabel === "Gemini 3.8 Flash")!.details as { plans: { plan: string }[] }).plans.some((p) => p.plan === "Google AI Plus")).toBe(false);
   });
   it("falls back to the best medium-confidence reseller plan when a model has no first-party plan", () => {
-    expect(row("Qwen3.8 Max")).toMatchObject({ value: 0.04, details: { plan: "Droid Max", confidence: "medium" } });
-    expect(row("Qwen3.8 Max").note).toContain("best of 2 reseller plans");
+    expect(row("Qwen3.7 Max")).toMatchObject({ value: 0.04, details: { plan: "Droid Max", confidence: "medium" } });
+    expect(row("Qwen3.7 Max").note).toContain("best of 2 reseller plans");
   });
   it("finds a model whose Priors id differs from the source's slug: Gemini 4 Argon is gemini-4, priced on Google's own plan", () => {
     expect(rows.filter((r) => r.modelLabel.startsWith("Gemini 4 Argon"))).toHaveLength(1);
@@ -194,7 +194,7 @@ describe("Real API Pricing subscriptions", () => {
     const go = point("opencode_go::qwen4-max", "OpenCode Go", "Qwen", 0.09, { model_display: "Qwen4 Max", price_usd: 10, list_price: { cached: 0.075, input: 1.5, output: 4.5, currency: "USD" } });
     const row = parseSubscriptions({ ...payload, points: [...payload.points, go] }, conventions, channels).find((r) => r.sourceUrl?.includes("SSHCodes"))!, d = row.details as unknown as SubscriptionDetails;
     expect(row.value / blendedApiPrice(d.listPrice!, d.mix)).toBeCloseTo(18 / 87.76, 6);
-    expect(d).toMatchObject({ plan: "Qwen Token Plan Standard", feeUsd: 18, confidence: "preliminary", preliminary: { label: "Preliminary", credit: "@SSHCodes" } });
+    expect(d).toMatchObject({ plan: "Qwen Token Plan Standard", feeUsd: 18, confidence: "preliminary", preliminary: { label: "Preliminary, 1 user", credit: "@SSHCodes" } });
     expect(d.preliminary!.short).toBe("From one user's data (@SSHCodes), pending larger-scale data.");
     expect(d.plans[0].preliminary?.credit).toBe("@SSHCodes");
   });
@@ -302,7 +302,7 @@ describe("Real API Pricing subscriptions", () => {
     const ctx = { fetchText: async (url: string) => JSON.stringify(files[url.split("/").pop()!]) } as unknown as Parameters<typeof source.scrape>[0];
     const r = await source.scrape(ctx);
     expect(r.benchmarks[0]).toMatchObject({ id: SUBSCRIPTION_BENCHMARK, unit: "usd", proxy: true, defaultWeight: 0, eligibleForDefault: false, lastUpdated: "2026-10-08" });
-    expect(r.rows).toHaveLength(8 + 7 + 2 + 1 + 1); // + the Qwen4-Max plan usage row, added even before a plan row exists. // Carbon is absent without a Flash Ultra measurement. + Mistral Vibe Pro's rows (four Mistral models, GLM 5.2, GLM 5.3 Flash, DeepSeek V4.1 Flash 1017), Tencent Token Plan's Hy4 and Hy4 preview, Fable 5.2's measured share. Hydrogen is absent without a Flash shared-pool measurement
+    expect(r.rows).toHaveLength(8 + 7 + 2 + 1 + 2); // + the Qwen plan usage rows, added even before a plan row exists. // Carbon is absent without a Flash Ultra measurement. + Mistral Vibe Pro's rows (four Mistral models, GLM 5.2, GLM 5.3 Flash, DeepSeek V4.1 Flash 1017), Tencent Token Plan's Hy4 and Hy4 preview, Fable 5.2's measured share. Hydrogen is absent without a Flash shared-pool measurement
     expect(Object.keys(r.raw)).toEqual(["points.json", "conventions.json", "channel-colors.json"]);
   });
 });
