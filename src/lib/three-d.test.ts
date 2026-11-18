@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { RankedVariant } from "@/engine";
 import type { FormulaInputs } from "./metrics";
-import { frontierSurface, placePoints, valueAt, axisIsLog } from "./three-d";
+import { axisIsLog, axisTicks, frontierSurface, metaFor, placePoints, valueAt } from "./three-d";
 
 const row = (model: string, effort: string, score: number): RankedVariant => ({ variant: { id: `${model}@${effort}`, modelId: model, effort } as never, model: { id: model, name: model } as never, score, coverage: 1, measuredShare: 1, values: [], onFrontier: false, rank: 0 });
 const rows = [row("a", "low", 50), row("a", "high", 60), row("b", "high", 55), row("c", "high", 40), row("d", "high", 70)];
@@ -44,6 +44,25 @@ describe("placePoints", () => {
     expect(zone.every((m) => m >= 0 && m <= 1)).toBe(true);
     for (const p of points) expect(p.inZone).toBe(p.pos.every((u, i) => u >= zone[i]));
   });
+});
+
+describe("axisTicks", () => {
+  const axis = (name: string, min: number, max: number) => ({ name, min, max, meta: metaFor(name) });
+  it("puts round values inside a linear axis, placed from the worse end", () => {
+    const ticks = axisTicks(axis("score", 27.8, 64.6));
+    expect(ticks.map((t) => t.value)).toEqual([30, 40, 50, 60]);
+    expect(ticks[0].u).toBeCloseTo((30 - 27.8) / (64.6 - 27.8));
+  });
+  it("runs a lower-is-better log axis from its largest value", () => {
+    const ticks = axisTicks(axis("cost", 0.002, 1));
+    expect(ticks.map((t) => t.value)).toEqual([0.003, 0.01, 0.03, 0.1, 0.3, 1]);
+    expect(ticks.at(-1)!.u).toBeCloseTo(0);
+    expect(ticks[0].u).toBeGreaterThan(ticks[1].u);
+  });
+  it("marks a narrow time axis in whole minutes", () => {
+    expect(axisTicks(axis("time", 190, 1080)).map((t) => t.label)).toEqual(["5 min", "10 min", "15 min"]);
+  });
+  it("has nothing to mark on an axis with one value", () => { expect(axisTicks(axis("score", 5, 5))).toEqual([]); });
 });
 
 describe("frontierSurface", () => {

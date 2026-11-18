@@ -1186,7 +1186,7 @@ try {
       await c.getByRole("button", { name: /^Up axis/ }).click();
       await c.getByRole("option", { name: /Subscription cost per task|Cost per task/ }).click();
       assert.match(c.url(), /ax=/, "the link carries the axes");
-      await c.getByRole("button", { name: "Isometric" }).click();
+      await c.getByRole("button", { name: "Side" }).click();
       await list.first().click();
       assert.ok(await c.getByRole("region", { name: "Selected model" }).isVisible(), "picking a model shows its details");
     } finally { await c.context().close(); }

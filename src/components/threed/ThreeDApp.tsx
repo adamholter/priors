@@ -25,8 +25,7 @@ import "../compare/compare.css";
 import "./threed.css";
 
 const VIEWS = {
-  perspective: { label: "Perspective", ortho: false, dir: [1, 0.8, 1.25] },
-  isometric: { label: "Isometric", ortho: true, dir: [1, 1, 1] },
+  perspective: { label: "Perspective", ortho: false, dir: [1.15, 0.62, -0.72] },
   front: { label: "Front", ortho: true, dir: [0, 0, 1] },
   side: { label: "Side", ortho: true, dir: [1, 0, 0] },
   top: { label: "Top", ortho: true, dir: [0, 1, 0] },
@@ -104,7 +103,7 @@ export function ThreeDApp({ initial, wantMine, axes: axesParam, published }: { i
     </header>
     <div className="max-w-[1280px] mx-auto px-4 sm:px-8 py-8 grid gap-5">
       <div className="flex flex-wrap items-end justify-between gap-4">
-        <div><h1 className="text-[36px] leading-tight">3D</h1><p className="text-[13.5px] text-ink-2 mt-1 max-w-[62ch]">Every model as a point, with the better end of each axis at the far corner. The green surface is the Pareto frontier: the models on it are the full-size points, and every model under it is beaten on all three by one of them.</p></div>
+        <div><h1 className="text-[36px] leading-tight">3D</h1><p className="text-[13.5px] text-ink-2 mt-1 max-w-[62ch]">Every model as a point, with the better end of each axis at the best corner. Each point is projected onto the floor and back walls so you can read it against the grid. The green surface is the Pareto frontier: every model under it is beaten on all three by a model on it. Hover a point to trace its values.</p></div>
         <div className="w-full sm:w-[360px]"><SidePicker tone="a" label="Ranking" value={choice} sources={sources} onPick={(c) => { setPicked(c); setSelected(null); }} /></div>
       </div>
       {loading ? <div role="status" aria-busy={!error} className="grid gap-4"><div className="load-bar h-[480px] w-full" />
@@ -120,16 +119,16 @@ export function ThreeDApp({ initial, wantMine, axes: axesParam, published }: { i
             </div>
             <div className="t3d-canvas">
               <Scene3D points={placed.points} axes={placed.axes} zone={placed.zone} titles={titles} palette={scenePal} colorOf={colorOf} nameOf={nameOf} view={view} labels={labels} dropLines={dropLines} frontier={frontier} autoRotate={spin} selected={selected} onSelect={setSelected} onHover={setHover} />
-              <p className="cap t3d-hint">Drag to orbit · scroll to zoom · right-drag to pan</p>
               {tip && hover && <div role="status" className="t3d-tip" style={{ left: hover.x + 14, top: hover.y + 14 }}>
                 <div className="font-semibold">{nameOf(tip)}</div>
                 {([0, 1, 2] as const).map((i) => <div key={i} className="flex justify-between gap-4 text-ink-2"><span>{titles[i]}</span><span className="num text-ink">{fmt(tip, i)}</span></div>)}
               </div>}
             </div>
             <div className="t3d-bar t3d-bar-bottom">
+              <p className="cap t3d-hint">Drag to orbit · scroll to zoom · right-drag to pan</p>
               <div className="t3d-tools t3d-tools-bottom" role="group" aria-label="Display">
                 <button type="button" className="t3d-tool" aria-pressed={labels !== "none"} data-tip={labels === "key" ? "Key labels (click for all)" : labels === "all" ? "All labels (click for none)" : "No labels (click for key)"} aria-label="Cycle labels" onClick={() => setLabels(labelModes[(labelModes.indexOf(labels) + 1) % 3])}>{TOGGLE_ICONS.labels}</button>
-                <button type="button" className="t3d-tool" aria-pressed={dropLines} data-tip="Drop lines" aria-label="Drop lines" onClick={() => setDropLines((v) => !v)}>{TOGGLE_ICONS.drops}</button>
+                <button type="button" className="t3d-tool" aria-pressed={dropLines} data-tip="Drop lines and wall projections" aria-label="Drop lines" onClick={() => setDropLines((v) => !v)}>{TOGGLE_ICONS.drops}</button>
                 <button type="button" className="t3d-tool" aria-pressed={frontier} data-tip="Pareto frontier" aria-label="Pareto frontier" onClick={() => setFrontier((v) => !v)}>{TOGGLE_ICONS.glow}</button>
                 <button type="button" className="t3d-tool" aria-pressed={allEfforts} data-tip={allEfforts ? "Every effort" : "Best effort per model"} aria-label="Show every effort" onClick={() => setAllEfforts((v) => !v)}><MeasureIcon name="tokens" /></button>
                 <button type="button" className="t3d-tool" aria-pressed={spin} data-tip="Auto-rotate" aria-label="Auto-rotate" onClick={() => setSpin((v) => !v)}>{TOGGLE_ICONS.spin}</button>
@@ -146,7 +145,7 @@ export function ThreeDApp({ initial, wantMine, axes: axesParam, published }: { i
             </section>}
             <section aria-label="Closest to the best corner">
               <h2 className="font-serif text-[18px] mb-1">Closest to the best corner</h2>
-              <p className="cap mb-2 flex items-center gap-2"><i className="t3d-zone-key" aria-hidden="true" />{placed.points.filter((p) => p.frontier).length} on the frontier · {inZone} of {placed.points.length} beat the median on all three (dashed box)</p>
+              <p className="cap mb-2">{placed.points.filter((p) => p.frontier).length} on the frontier · {inZone} of {placed.points.length} beat the median on all three</p>
               <ol className="grid gap-1">{nearest.map((p, i) => <li key={p.id}><button type="button" className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left hover:bg-hair-2" aria-pressed={selected === p.id} onClick={() => setSelected(selected === p.id ? null : p.id)}>
                 <span className="num text-grey w-4">{i + 1}</span><i aria-hidden="true" className="inline-block w-2.5 h-2.5 rounded-full" style={{ background: colorOf(p) }} /><span className="truncate flex-1">{nameOf(p)}</span><span className="num text-ink-2">{p.gap.toFixed(2)}</span>
               </button></li>)}</ol>

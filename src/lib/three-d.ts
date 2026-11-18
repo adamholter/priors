@@ -77,6 +77,31 @@ export function valueAt(axis: Axis, u: number, log: boolean): number {
 }
 export const axisIsLog = (axis: Axis) => axis.meta.log && axis.min > 0;
 
+/** Where a raw value sits on an axis: 0 at the worse end, 1 at the better end. */
+export function unitOf(axis: Axis, v: number, log: boolean): number {
+  const lo = axis.meta.better === "higher" ? axis.min : axis.max, hi = axis.meta.better === "higher" ? axis.max : axis.min;
+  if (log && axis.min > 0) { const a = Math.log10(lo), b = Math.log10(hi); return a === b ? 0.5 : (Math.log10(v) - a) / (b - a); }
+  return lo === hi ? 0.5 : (v - lo) / (hi - lo);
+}
+
+/** Round values to mark on an axis, inside its range: 1, 2 and 5 steps on a log axis, a round step on a linear one. About `count` of them. */
+export function axisTicks(axis: Axis, count = 5): { value: number; u: number; label: string }[] {
+  const log = axisIsLog(axis), values: number[] = [];
+  if (axis.max > axis.min) {
+    const decades = log ? Math.log10(axis.max / axis.min) : 0, seconds = axis.name === "time" || axis.name === "latency";
+    if (log && decades >= 1.2) {
+      const steps = decades > count * 0.8 ? [1] : decades > count * 0.4 ? [1, 3] : [1, 2, 5];
+      for (let e = Math.floor(Math.log10(axis.min)); e <= Math.ceil(Math.log10(axis.max)); e++) for (const s of steps) { const v = s * 10 ** e; if (v >= axis.min && v <= axis.max) values.push(+v.toPrecision(3)); }
+    } else {
+      // A narrow log axis gets plain steps too: 1-2-5 would leave one or two marks. Durations step in whole minutes once they reach them.
+      const rough = (axis.max - axis.min) / count, power = 10 ** Math.floor(Math.log10(rough)), minutes = [60, 120, 300, 600, 900, 1800, 3600, 7200].find((s) => s >= rough);
+      const step = seconds && rough >= 30 && minutes ? minutes : [1, 2, 2.5, 5, 10].map((m) => m * power).find((s) => s >= rough)!;
+      for (let v = Math.ceil(axis.min / step) * step; v <= axis.max + step * 1e-9; v += step) values.push(+v.toPrecision(10));
+    }
+  }
+  return values.map((value) => ({ value, u: unitOf(axis, value, log), label: axis.meta.format(value) }));
+}
+
 /** A face of the frontier surface: four corners in unit-cube coordinates (1 = the better end), and the axis it faces along. */
 export interface Face { corners: [[number, number, number], [number, number, number], [number, number, number], [number, number, number]]; axis: 0 | 1 | 2 }
 
