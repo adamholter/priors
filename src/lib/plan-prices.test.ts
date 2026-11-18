@@ -58,4 +58,15 @@ describe("plan prices", () => {
     expect(plans["Claude Pro"].ratio).toBeCloseTo(plans["Claude Ultra"].ratio * 2, 4);
     expect(model("b")!.plans).toBeUndefined();
   });
+
+  it("prices a model whose allowance is assumed from another on every plan of its lab", () => {
+    const s = snap();
+    s.models.push({ id: "c", name: "C", labId: "anthropic", kind: "llm", reasoning: true, aliases: [] } as unknown as Snapshot["models"][number]);
+    s.variants.push({ id: "c@max", modelId: "c", effort: "max" } as unknown as Snapshot["variants"][number]);
+    const note = " (assumed same as A)", plans = [{ plan: "Claude Pro", feeUsd: 20, usdPerMtok: 0.02, confidence: "high" }, { plan: "Claude Max 20x", feeUsd: 200, usdPerMtok: 0.01, confidence: "medium" }];
+    s.observations.push({ benchmarkId: SUBSCRIPTION_BENCHMARK, variantId: "c@max", value: 0.01, observedAt: "", sourceUrl: "https://artificialanalysis.ai/models/model-c", details: { plan: `Claude Max 20x${note}`, feeUsd: 200, confidence: "assumed", mix, listPrice, plans, sameAs: "a" } } as unknown as Snapshot["observations"][number]);
+    const c = planPrices(s).models.find((m) => m.id === "c")!;
+    expect(Object.keys(c.plans ?? {}).sort()).toEqual(["Claude Pro", "Claude Ultra"]);
+    expect(c.plans!["Claude Pro"].ratio).toBeCloseTo(c.plans!["Claude Ultra"].ratio * 2, 4);
+  });
 });

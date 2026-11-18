@@ -24,6 +24,8 @@
 | `/api/agent`, `/api/assistant` | See `docs/assistant.md`. |
 | `/api/benchmarks`, `/api/snapshot`, `/api/library`, `/api/lineup` | Data for agents, the onboarding search, and returning visitors. |
 | `/api/plan-prices` | Per model, the share of API price a subscriber pays (default plan, each plan its lab sells, a free tier's paid plan) and the model's Artificial Analysis slugs. Public, any origin. `src/lib/plan-prices.ts`. Read by the AA Plus browser extension, which reprices Artificial Analysis's cost charts with it. |
+| `/api/aa-task-metrics` | Cost and time per task from Priors' other sources (T3 Code, Terminal-Bench, DeepSWE, FrontierSWE), by Artificial Analysis slug, for the AA Plus data-source setting. Public, read-only. |
+| `/api/feedback` | Bug reports and feature requests sent from the AA Plus extension. Stored with `/request`'s, under the same limits, with the extension's version and settings in `context`. POST only, and only with the `x-aa-plus` header, which a web page cannot send across origins without being refused. |
 | `/api/aa-strengths` | The evaluations inside Artificial Analysis's Intelligence Index (read from the snapshot's index `components`, so it follows AA's index version) with their descriptions and shares, and each configuration's score on them keyed by AA slug. Public, any origin. `src/lib/aa-strengths.ts`. AA Plus draws its strengths radar from it. |
 | `/ingest/*` | PostHog proxy. |
 

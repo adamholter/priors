@@ -2,7 +2,7 @@ import { currentPlanName, planReadings, subscriptionPlanOptions, subscriptionPri
 import type { Snapshot } from "@/data/types";
 
 /** One plan's price for a model: `ratio` is the share of API cost a subscriber pays (0.07 = 7% of API price). */
-export interface PlanPrice { plan: string; feeUsd?: number; ratio: number; confidence: string }
+export interface PlanPrice { plan: string; feeUsd?: number; ratio: number; confidence: string; /** The share for costs already at today's list price, when `ratio` is adjusted for an Artificial Analysis cost priced at an older one. */ listRatio?: number }
 export interface PlanPriceModel extends PlanPrice {
   id: string; name: string; lab: string;
   /** This model's slugs on artificialanalysis.ai, one per reasoning effort it lists. */
@@ -10,8 +10,8 @@ export interface PlanPriceModel extends PlanPrice {
   /** The model is free today. `paid` is what it costs on a paid plan, when it has one. */
   free?: true;
   paid?: PlanPrice;
-  /** The model's share on each plan its lab sells, for labs with more than one. */
-  plans?: Record<string, { ratio: number; feeUsd?: number }>;
+  /** The model's share on each plan that sells it, by plan name. */
+  plans?: Record<string, { ratio: number; feeUsd?: number; listRatio?: number }>;
   /** The share read more than one way (Fable 5.2: the shared weekly limit, or only the Fable a plan can buy). The first is `ratio`. */
   readings?: PlanReading[];
 }
@@ -27,7 +27,10 @@ export interface PlanPrices {
 const AA_MODEL = /^https:\/\/artificialanalysis\.ai\/models\/([a-z0-9][a-z0-9._-]*)\/?$/i;
 const round = (n: number) => +n.toPrecision(5);
 /** The share to scale an Artificial Analysis cost by: its own when AA priced the cost at another list price than the lab charges today. */
-const share = (p: SubscriptionPrice): PlanPrice => ({ plan: currentPlanName(p.plan), ...(p.feeUsd != null ? { feeUsd: p.feeUsd } : {}), ratio: round(p.aaCostRatio ?? p.ratio), confidence: p.confidence });
+const listRatio = (p: SubscriptionPrice) => p.aaCostRatio != null && round(p.aaCostRatio) !== round(p.ratio) ? { listRatio: round(p.ratio) } : {};
+const share = (p: SubscriptionPrice): PlanPrice => ({ plan: currentPlanName(p.plan), ...(p.feeUsd != null ? { feeUsd: p.feeUsd } : {}), ratio: round(p.aaCostRatio ?? p.ratio), confidence: p.confidence, ...listRatio(p) });
+/** A plan's name without the note on a model whose allowance is assumed from another model: that model is still priced on this plan. */
+const soldAs = (plan: string) => currentPlanName(plan.replace(/\s*\(assumed same as [^)]*\)$/, ""));
 
 /**
  * Every model a first-party plan sells, with the share of API price its subscribers pay: the figures
@@ -51,18 +54,18 @@ export function planPrices(snapshot: Snapshot): PlanPrices {
   const options = subscriptionPlanOptions(snapshot);
   const readings = new Map(planReadings(snapshot).map((m) => [m.modelId, m.readings.map((r) => ({ ...r, ratio: round(r.ratio) }))]));
   // One pass per plan a lab sells: what each of that lab's models costs on it.
-  const byPlan = new Map<string, Record<string, { ratio: number; feeUsd?: number }>>();
+  const byPlan = new Map<string, NonNullable<PlanPriceModel["plans"]>>();
   for (const lab of options) for (const { plan } of lab.plans) {
     for (const [id, p] of subscriptionPrices(snapshot, { [lab.labId]: plan }, { free: false })) {
-      if (labOf.get(id) !== lab.labId || currentPlanName(p.plan) !== currentPlanName(plan)) continue;
-      (byPlan.get(id) ?? byPlan.set(id, {}).get(id)!)[currentPlanName(plan)] = { ratio: round(p.aaCostRatio ?? p.ratio), ...(p.feeUsd != null ? { feeUsd: p.feeUsd } : {}) };
+      if (labOf.get(id) !== lab.labId || soldAs(p.plan) !== soldAs(plan)) continue;
+      (byPlan.get(id) ?? byPlan.set(id, {}).get(id)!)[currentPlanName(plan)] = { ratio: round(p.aaCostRatio ?? p.ratio), ...(p.feeUsd != null ? { feeUsd: p.feeUsd } : {}), ...listRatio(p) };
     }
   }
   const models = snapshot.models.flatMap((m): PlanPriceModel[] => {
     const now = withFree.get(m.id), paying = paid.get(m.id);
     if (!now && !paying) return [];
     const free = !!now && now.ratio === 0, plans = byPlan.get(m.id);
-    return [{ id: m.id, name: m.name, lab: m.labId, aa: [...(slugs.get(m.id) ?? [])].sort(), ...share(now ?? paying!), ...(free ? { free: true as const, ...(paying && paying.ratio > 0 ? { paid: share(paying) } : {}) } : {}), ...(plans && Object.keys(plans).length > 1 ? { plans } : {}), ...(readings.has(m.id) ? { readings: readings.get(m.id) } : {}) }];
+    return [{ id: m.id, name: m.name, lab: m.labId, aa: [...(slugs.get(m.id) ?? [])].sort(), ...share(now ?? paying!), ...(free ? { free: true as const, ...(paying && paying.ratio > 0 ? { paid: share(paying) } : {}) } : {}), ...(plans && Object.keys(plans).length ? { plans } : {}), ...(readings.has(m.id) ? { readings: readings.get(m.id) } : {}) }];
   });
   return {
     date: snapshot.date, generatedAt: snapshot.generatedAt,
