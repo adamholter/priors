@@ -1471,11 +1471,11 @@
         "effort": "default"
       },
       "expected": {
-        "modelId": "vals-model-9bbbb70a4dc1",
+        "modelId": "ember-1",
         "effort": "default",
         "canonical": false
       },
-      "legacyVariantId": "vals-model-9bbbb70a4dc1@default~vals-9bbbb70a4dc1"
+      "legacyVariantId": "ember-1@default"
     },
     {
       "id": "vals/stepfun/step-5-preview@default",

@@ -154,6 +154,7 @@ async function main() {
     if (m.labId === "other" && n.labId !== "other") m.labId = n.labId;
     if (!m.aliases.includes(label.toLowerCase())) m.aliases.push(label.toLowerCase());
     applyDateHint(m, hint?.releaseDateHint, fromRecord, recordDated);
+    if (!m.releaseDate && n.releaseDate) m.releaseDate = n.releaseDate;
     if (hint?.kind && hint.kind !== "llm") m.kind = hint.kind;
     if (n.effort) m.reasoning = true;
     models.set(m.id, m);

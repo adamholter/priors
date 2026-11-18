@@ -16,7 +16,7 @@ unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_PREFIX
 # PRIORS_PUSH_SKIP_E2E=1 skips the build and browser checks (ci still runs); CI will still run them.
 # Wired by `git config core.hooksPath .githooks`, relative so it resolves in every worktree.
 log="${TMPDIR:-/tmp}/priors-prepush.log"
-LIGHT='^(scripts/(scrape|radar|ops)/|\.githooks/|docs/|[^/]+\.md$|src/data/catalog/|src/data/normalize(\.test)?\.ts$|data/|public/intro/)'
+LIGHT='^(scripts/(scrape|radar|ops)/|\.githooks/|docs/|[^/]+\.md$|src/data/catalog/|src/data/(normalize|model-labels)(\.test)?\.ts$|src/engine/fixtures/expected\.json$|scripts/benchmarks/|data/|public/intro/)'
 root="${PRIORS_PREPUSH_DIR:-$HOME/.cache/priors-prepush}"
 fail() { echo "pre-push: $1 FAILED (log: $log). Not pushing." >&2; tail -30 "$log" >&2; exit 1; }
 clean() { env -i HOME="$HOME" USER="${USER:-}" PATH="$PATH" TMPDIR="${TMPDIR:-/tmp}" CI=true E2E_PORT="${E2E_PORT:-48797}" "$@"; }

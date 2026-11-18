@@ -1,3 +1,4 @@
+import { LABELED_MODELS, type LabeledModel } from "./model-labels";
 import type { Effort, Lab } from "./types";
 
 /**
@@ -47,6 +48,8 @@ const FAMILIES: { re: RegExp; id: (m: RegExpMatchArray) => string; name: (m: Reg
   // Derived releases retain their own identity, independent of the base-model note.
   { re: /\bnex[\s-]*n2[\s-]*pro\b/, id: () => "nex-n2-pro", name: () => "Nex-N2-Pro", lab: "other", reasoning: true },
   // Anthropic
+  // The older "Claude <version> <tier>" order. Claude 3.5 Sonnet is left out: it names two models, told apart in `normalizeLabel`.
+  { re: /\bclaude[\s-]*(3|3\.7|4|4\.1|4\.5)[\s-]*(opus|sonnet|haiku)\b|\bclaude[\s-]*(3\.5)[\s-]*(opus|haiku)\b/, id: (m) => `claude-${m[2] ?? m[4]}-${m[1] ?? m[3]}`, name: (m) => `${cap(m[2] ?? m[4])} ${m[1] ?? m[3]}`, lab: "anthropic", reasoning: true },
   { re: /\b(?:claude[\s-]*)?fable[\s-]*(\d+(?:\.\d+)?)\b/, id: (m) => `claude-fable-${m[1]}`, name: (m) => `Fable ${m[1]}`, lab: "anthropic", reasoning: true },
   { re: /\b(?:claude[\s-]*)?opus[\s-]*(\d+(?:\.\d+)?)\b/, id: (m) => `claude-opus-${m[1]}`, name: (m) => `Opus ${m[1]}`, lab: "anthropic", reasoning: true },
   { re: /\b(?:claude[\s-]*)?sonnet[\s-]*(\d+(?:\.\d+)?)\b/, id: (m) => `claude-sonnet-${m[1]}`, name: (m) => `Sonnet ${m[1]}`, lab: "anthropic", reasoning: true },
@@ -226,6 +229,8 @@ const VALS_PUBLISHED_MODELS: Record<string, { id: string; name: string; lab: str
 
 export interface Normalized {
   ok: true;
+  /** From `model-labels.ts`, for a model no source dates yet. */
+  releaseDate?: string;
   modelId: string;
   modelName: string;
   labId: string;
@@ -276,9 +281,22 @@ function deepseekCheckpoint(cleaned: string): { modelId: string; modelName: stri
   return FIRST_CHECKPOINT[base] === mmdd ? { modelId: base, modelName: name } : { modelId: `${base}-${mmdd}`, modelName: `${name} ${mmdd}` };
 }
 
+/** A label without a trailing effort, so "Beam 1.0 (XHigh)" finds "Beam 1.0". */
+const withoutEffort = (cleaned: string) => cleaned.replace(/[\s-]+(?:none|minimal|low|medium|high|xhigh|extra[\s-]high|max)(?:[\s-]+(?:effort|reasoning))?$/, "");
+const LABELED = new Map<string, LabeledModel>();
+for (const m of LABELED_MODELS) for (const l of m.labels) for (const key of [l.toLowerCase().trim(), cleanLabel(l), withoutEffort(cleanLabel(l))]) LABELED.set(key, m);
+
 export function normalizeLabel(label: string, effortHint?: string): Normalized | Unknown {
   const effort = (effortHint && EFFORT_WORDS[effortHint.toLowerCase().trim()]) || extractEffort(label);
   let cleaned = cleanLabel(label);
+  const listed = LABELED.get(label.toLowerCase().trim()) ?? LABELED.get(cleaned) ?? LABELED.get(withoutEffort(cleaned));
+  if (listed) return { ok: true, modelId: listed.id, modelName: listed.name, labId: listed.lab, effort, reasoningFamily: listed.reasoning, cleaned, ...(listed.releaseDate ? { releaseDate: listed.releaseDate } : {}) };
+  // Claude 3.5 Sonnet is two models: June 2024's, and October's upgrade under the same name (Sonnet 3.6 here). Without a date it could be either, so it stays unknown.
+  if (/\bclaude[\s-]*3\.5[\s-]*sonnet\b/.test(cleaned) && !ALIASES[cleaned]) {
+    const october = /\b(20241022|v2|latest|oct(?:ober)?(?:[\s-]+(?:20)?24)?)\b/.test(cleaned), june = /\b(20240620|june(?:[\s-]+(?:20)?24)?)\b/.test(cleaned);
+    if (october !== june) return { ok: true, modelId: october ? "claude-sonnet-3.6" : "claude-sonnet-3.5", modelName: october ? "Sonnet 3.6" : "Sonnet 3.5", labId: "anthropic", effort, reasoningFamily: true, cleaned };
+    return { ok: false, cleaned };
+  }
   const valsModel = VALS_PUBLISHED_MODELS[label.toLowerCase().trim()] ?? VALS_PUBLISHED_MODELS[cleaned];
   if (valsModel) return {
     ok: true,
