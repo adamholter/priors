@@ -9,6 +9,8 @@ import { aaIndexMix, defaultPriorsMix } from "../../src/onboarding/defaults";
 import { runTool, type ToolContext, type ViewState } from "../../src/agent/tools";
 import { toShares } from "../../src/agent/solver";
 import type { ChatMessage } from "../../src/agent/agent";
+import { norm } from "../../src/agent/resolve";
+import { categoriesOf } from "../../src/data/categories";
 import type { RunResult } from "./harness";
 import type { AnswerMark } from "../../src/lib/answer-chart";
 
@@ -64,6 +66,12 @@ const charts = (min: number, kinds?: string[]) => (r: RunResult) => {
 const noCharts = (r: RunResult) => r.done?.charts?.length ? "drew a chart for a request that needs none" : undefined;
 const mentions = (...names: string[]) => (r: RunResult) => { const t = reply(r).toLowerCase(); const miss = names.filter((n) => !t.includes(n.toLowerCase())); return miss.length ? `reply doesn't mention ${miss.join(", ")}` : undefined; };
 const rank = (r: RunResult, id: string, when: "before" | "after") => (when === "before" ? r.rankBefore : r.rankAfter).get(id);
+
+// ---- mixes built from a whole set of benchmarks
+const withData = (env: Env) => { const have = new Set(env.snapshot.observations.map((o) => o.benchmarkId)); return env.snapshot.benchmarks.filter((b) => have.has(b.id)); };
+const named = (env: Env, word: string) => withData(env).filter((b) => norm(`${b.name} ${b.shortName ?? ""} ${b.id}`).includes(word));
+const mixHolds = (want: (env: Env) => string[]) => (r: RunResult, env: Env) => { const got = new Set(Object.keys(r.after.weights).filter((id) => r.after.weights[id] > 0)), list = want(env), missing = list.filter((id) => !got.has(id)), extra = [...got].filter((id) => !list.includes(id)); return missing.length || extra.length ? `mix is wrong: missing ${missing.join(", ") || "none"}; extra ${extra.join(", ") || "none"}` : undefined; };
+const evenMix = (r: RunResult) => { const s = Object.values(toShares(r.after.weights)).filter((x) => x > 0); return Math.max(...s) / Math.min(...s) <= 1.5 ? undefined : "shares are not roughly equal"; };
 
 // ---- model visibility: which models the charts show (the Models list in chart settings)
 const universe = (env: Env) => { const full = computeIndex(env.snapshot, { ...env.config, excludeModels: undefined, onlyModels: undefined, variants: "all" }); return [...new Set([...full.ranked.map((x) => x.model.id), ...full.candidateModelIds])]; };
@@ -220,6 +228,40 @@ export const CASES: Case[] = [
     expect: "Muse Wonder at about 181 tokens per second (Sonnet 5.5 is next at about 141); highlights Muse Wonder only. Muse Wonder Full (Max) and Gemini 4 have no speed data. Doesn't change the mix.",
     facts: (env) => tool(env, "query_data", { metrics: ["speed"], top: 10 }),
     checks: [ok, noMixChange, mentions("Muse Wonder"), (r) => JSON.stringify(ids(r.done?.highlight)) === JSON.stringify(["aa-muse-wonder"]) ? undefined : `highlighted ${ids(r.done?.highlight).join(", ") || "nothing"}`],
+  },
+  {
+    id: "mix-every-name-match", kind: "change", prompt: "Make an index of all the benchmarks that have Arena in the name.",
+    expect: "Builds a mix from every benchmark with Arena in its name, more than fifteen of them, at roughly equal shares, and says how many it used.",
+    facts: async (env) => `Benchmarks with Arena in the name: ${named(env, "arena").map((b) => b.name).join(", ")}`,
+    checks: [ok, mixChanged, mixHolds((env) => named(env, "arena").map((b) => b.id)), evenMix],
+  },
+  {
+    id: "mix-every-name-missed-some", kind: "change", prompt: "I said every benchmark with Frontier in the name. You missed some.",
+    history: [{ role: "user", content: "Make an index of all the benchmarks that have Frontier in the name." }, { role: "assistant", content: "Rebuilt the index from FrontierMath Tier 4 and FrontierCode with equal weight." }],
+    expect: "Lists every benchmark with Frontier in its name and applies a mix holding all of them. It does not argue that the earlier list was complete.",
+    facts: async (env) => `Benchmarks with Frontier in the name: ${named(env, "frontier").map((b) => b.name).join(", ")}`,
+    checks: [ok, mixChanged, mixHolds((env) => named(env, "frontier").map((b) => b.id)), evenMix],
+  },
+  {
+    id: "mix-every-name-except", kind: "change", prompt: "equal weight every benchmark with frontier in the name, except the FrontierMath ones",
+    expect: "Applies an even mix of every benchmark with Frontier in its name, leaving out only the FrontierMath benchmarks.",
+    checks: [ok, mixChanged, mixHolds((env) => named(env, "frontier").filter((b) => !norm(`${b.name} ${b.id}`).includes("frontiermath")).map((b) => b.id)), evenMix],
+  },
+  {
+    id: "mix-every-category", kind: "change", prompt: "Build me an index of every math benchmark, all weighted the same.",
+    expect: "Builds an even mix from every benchmark in the math category and says how many it holds.",
+    checks: [ok, mixChanged, mixHolds((env) => withData(env).filter((b) => categoriesOf(b).includes("math")).map((b) => b.id)), evenMix],
+  },
+  {
+    id: "list-every-name-match", kind: "question", prompt: "Which benchmarks have Arena in the name?",
+    expect: "Answers with the complete list or the exact count of benchmarks with Arena in the name, and changes nothing.",
+    facts: async (env) => `${named(env, "arena").length} benchmarks: ${named(env, "arena").map((b) => b.name).join(", ")}`,
+    checks: [ok, noMixChange, (r, env) => { const n = named(env, "arena").length; return reply(r).includes(String(n)) || named(env, "arena").every((b) => reply(r).toLowerCase().includes((b.shortName ?? b.name).toLowerCase())) ? undefined : `reply gives neither the count ${n} nor the full list`; }],
+  },
+  {
+    id: "mix-every-name-none", kind: "edge", prompt: "Build an index from every benchmark with Zorblax in the name.",
+    expect: "Says no benchmark has that name and changes nothing.",
+    checks: [ok, noMixChange],
   },
   {
     id: "mix-from-ui-work", kind: "change", prompt: "Most of what I do is adding features, editing dashboards and fixing UI bugs from loose instructions. Design quality matters to me, and so do cost and speed. Build me a mix that represents that.",

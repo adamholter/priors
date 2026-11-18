@@ -1,5 +1,5 @@
 // Assistant eval: npx tsx scripts/assistant-eval/run.mts [--route openai:gpt-6-luna:low | anthropic:claude-sonnet-5-5:medium | openrouter:<id>:low]
-//   [--model <OpenRouter id>] [--cases a,b] [--repeat 1] [--budget 3]. The default route is the assistant's own: GPT-6 Luna on OpenAI's API.
+//   [--model <OpenRouter id>] [--cases a,b] [--repeat 1] [--budget 3] [--no-grade: hard checks only, no paid grader]. The default route is the assistant's own: GPT-6 Luna on OpenAI's API.
 // Runs every case through the real agent loop on the pinned snapshot, checks hard requirements, asks
 // the LLM grader whether the response is reasonable, and writes results to scripts/assistant-eval/results/.
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -11,7 +11,7 @@ const { runCase } = await import("./harness");
 const { judge, describeRun, JUDGE_MODEL } = await import("./judge");
 
 const arg = (name: string) => { const i = process.argv.indexOf(`--${name}`); return i > 0 ? process.argv[i + 1] : undefined; };
-const only = arg("cases")?.split(","), repeat = Number(arg("repeat") ?? 1), spend = { left: Number(arg("budget") ?? 3) };
+const noGrade = process.argv.includes("--no-grade"), only = arg("cases")?.split(","), repeat = Number(arg("repeat") ?? 1), spend = { left: Number(arg("budget") ?? 3) };
 // The grader runs on OpenRouter.
 const apiKey = process.env.OPENROUTER_API_KEY;
 if (!apiKey) throw new Error("OPENROUTER_API_KEY missing from .env.local");
@@ -31,7 +31,7 @@ async function worker() {
     const r = await runCase({ snapshot, config, prompt: c.prompt, history: c.history, view: { page: "builder", theme: "bone", mode: "system", ...c.view }, route, spend });
     const failed = c.checks.map((check) => check(r, env)).filter((x): x is string => !!x);
     const facts = c.facts ? await c.facts(env) : "";
-    const v = await judge(c, r, facts, snapshot, apiKey!);
+    const v = noGrade ? { score: 0, pass: true, issues: [], costUsd: 0 } : await judge(c, r, facts, snapshot, apiKey!);
     const row = { id: c.id, kind: c.kind, run, pass: !failed.length && v.pass, checks: failed, score: v.score, issues: v.issues, costUsd: r.costUsd, seconds: r.seconds, transcript: describeRun(r, snapshot), tools: r.tools.map((t) => t.name), calls: r.tools.map((t) => ({ name: t.name, args: t.args, result: JSON.stringify(t.result).slice(0, 600) })) };
     rows.push(row);
     console.log(`${row.pass ? "PASS" : "FAIL"} ${c.id}${repeat > 1 ? ` #${run + 1}` : ""}  grade ${v.score}/5  $${r.costUsd.toFixed(4)}  ${r.seconds.toFixed(0)}s  [${row.tools.join(" → ")}]${failed.length ? `\n     checks: ${failed.join("; ")}` : ""}${!v.pass || v.score < 4 ? `\n     grader: ${v.issues.join("; ")}` : ""}`);

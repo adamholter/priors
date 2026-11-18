@@ -93,12 +93,14 @@ const positive = (x: unknown) => (typeof x === "number" && x > 0 ? x : undefined
 type MoveArg = { model: string; below?: string; above?: string; rank?: number; min_rank?: number; max_rank?: number };
 const ids = (snapshot: Snapshot, list: unknown, fn: (snapshot: Snapshot, name: string) => string | null) => ((Array.isArray(list) ? list : []) as string[]).map((x) => fn(snapshot, String(x))).filter((x): x is string => !!x);
 
+const SEARCH_LIMIT = 15;
+
 export const TOOL_SPECS = [
   { name: "get_mix", description: "Current mix (benchmark shares), mix metrics, and the top of the ranking.", parameters: { type: "object", properties: {}, additionalProperties: false } },
   { name: "explain_model", description: "Why a model ranks where it does: each benchmark's share, the model's normalized score on it, its rank on that benchmark, and how much each benchmark pulls it ahead of (+) or behind (−) its neighbors above and below, in index points.", parameters: { type: "object", properties: { model: { type: "string" } }, required: ["model"], additionalProperties: false } },
   { name: "compare_models", description: "Why one model ranks above or below another under the current mix: each benchmark's share, both models' normalized scores on it, and how many index points it gives to which model. The points add up to the score gap.", parameters: { type: "object", properties: { a: { type: "string" }, b: { type: "string" } }, required: ["a", "b"], additionalProperties: false } },
   { name: "find_benchmarks", description: "Benchmarks (in or out of the mix) where a model is unusually strong or weak versus a comparison set (default: the other top-10 models). Use to find benchmarks to add or reweight to move a model.", parameters: { type: "object", properties: { model: { type: "string" }, direction: { type: "string", enum: ["strong", "weak"] }, against: { type: "array", items: { type: "string" } } }, required: ["model", "direction"], additionalProperties: false } },
-  { name: "search_benchmarks", description: "Find benchmarks by what they measure: words from the task, a name, or a category (coding, agentic, professional, science, math, reasoning, games, knowledge, vision, long-context, creative, behavior, safety, multilingual, preference). Any word can match. Returns each benchmark's id, category, quality, how many models it covers and what it measures, so you can pick by description.", parameters: { type: "object", properties: { query: { type: "string" } }, required: ["query"], additionalProperties: false } },
+  { name: "search_benchmarks", description: "Find benchmarks. query: by what they measure, words from the task, a name, or a category; any word can match and you get the 15 best matches with descriptions, so it is not a full list. name: every benchmark whose name contains this text. category (coding, agentic, professional, science, math, reasoning, games, knowledge, vision, long-context, creative, behavior, safety, multilingual, preference, composite, cost, speed, reliability, other): every benchmark in it. name and category return the complete list, and together they narrow each other. Use them whenever the user wants every or all of something.", parameters: { type: "object", properties: { query: { type: "string" }, name: { type: "string", description: "text the benchmark's name must contain; returns every match" }, category: { type: "string", description: "returns every benchmark in this category" } }, additionalProperties: false } },
   { name: "solve_edit", description: "Optimizer for edits. Finds the smallest change to the current mix that satisfies ranking moves and benchmark constraints, while keeping other rankings stable and the mix clean (few benchmarks, roughly even shares, soft 5–40% band). Returns up to 3 verified candidates: balanced, smallest change, cleanest. Moves: below/above another model, exact rank, or min_rank (at least this low) / max_rank (at least this high).", parameters: { type: "object", properties: { moves: { type: "array", items: { type: "object", properties: { model: { type: "string" }, below: { type: "string" }, above: { type: "string" }, rank: { type: "integer" }, min_rank: { type: "integer" }, max_rank: { type: "integer" } }, required: ["model"], additionalProperties: false } }, exclude: { type: "array", items: { type: "string" }, description: "benchmarks that must be removed" }, include: { type: "array", items: { type: "string" }, description: "benchmarks that must be in the mix" }, keep_top: { type: "integer", description: "keep the order of the current top N (moved models aside)" }, max_benchmarks: { type: "integer" }, allow_add: { type: "boolean", description: "may add new benchmarks (default: true when moving models, false for a drop or include on its own)" } }, additionalProperties: false } },
   { name: "fit_ranking", description: "Quality-aware generator (the onboarding algorithm). Builds a fresh mix that reproduces a model order, preferring fewer, higher-quality, focus-relevant benchmarks. Use for big changes or 'rebuild without X but keep my ranking'. Default order: the current top 16. Slower (~10 s).", parameters: { type: "object", properties: { order: { type: "array", items: { type: "string" } }, exclude: { type: "array", items: { type: "string" } }, focus: { type: "string", enum: FOCUS_IDS } }, additionalProperties: false } },
   { name: "try_mix", description: "Evaluate any mix you write by hand (benchmark → percent share). Returns metrics, how much weight moved from the original, churn, and the ranking with each model's previous rank. Use for simple manual tweaks or to check an idea.", parameters: { type: "object", properties: { pin: { type: "object", additionalProperties: { type: "number" }, description: "benchmarks whose share must be exactly this percent; the other weights are scaled to fill the rest" }, weights: { type: "object", additionalProperties: { type: "number" } } }, required: ["weights"], additionalProperties: false } },
@@ -117,7 +119,7 @@ export function stepLabel(name: string, args: Record<string, unknown>): string {
     case "explain_model": return `Looking at why ${args.model} ranks where it does`;
     case "compare_models": return `Comparing ${args.a} and ${args.b}`;
     case "find_benchmarks": return `Finding benchmarks where ${args.model} is ${args.direction}`;
-    case "search_benchmarks": return `Searching benchmarks for “${args.query}”`;
+    case "search_benchmarks": return args.name ? `Listing benchmarks named “${args.name}”` : args.category ? `Listing ${args.category} benchmarks` : `Searching benchmarks for “${args.query}”`;
     case "solve_edit": return "Solving for the smallest change";
     case "fit_ranking": return "Rebuilding the mix with the quality-aware fitter";
     case "try_mix": return "Testing a mix";
@@ -151,17 +153,27 @@ export async function runTool(ctx: ToolContext, name: string, args: Record<strin
       return benchmarksFor(snapshot, original, id, args.direction === "weak" ? "weak" : "strong", ids(snapshot, args.against, resolveModel));
     }
     case "search_benchmarks": {
-      // Any word of the query can match, best matches first, with the full description: the agent chooses benchmarks by what they measure.
-      const terms = norm(String(args.query ?? "")).split(" ").filter((t) => t.length > 1), q = qualityOf(snapshot);
-      const models = new Map<string, Set<string>>();
+      const q = qualityOf(snapshot), models = new Map<string, Set<string>>();
       for (const o of snapshot.observations) (models.get(o.benchmarkId) ?? models.set(o.benchmarkId, new Set()).get(o.benchmarkId)!).add(o.variantId.split("@")[0]);
+      const usable = snapshot.benchmarks.filter((b) => models.has(b.id)), title = (b: Snapshot["benchmarks"][number]) => norm(`${b.name} ${b.shortName ?? ""} ${b.id}`);
+      // Asked for a set by name or category: the whole set, because a capped list reads as "that's all of them".
+      const named = norm(String(args.name ?? "")), category = norm(String(args.category ?? "")).replace(/ /g, "-");
+      if (named || category) {
+        if (category && !usable.some((b) => categoriesOf(b).some((c) => c === category))) return { error: `Unknown category ${args.category}. Categories: ${[...new Set(usable.flatMap((b) => categoriesOf(b)))].join(", ")}.` };
+        const found = usable.filter((b) => (!named || title(b).includes(named)) && (!category || categoriesOf(b).some((c) => c === category))).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+        return { complete: true, total: found.length, benchmarks: found.map((b) => ({ id: b.id, name: b.name, category: b.category, models: models.get(b.id)!.size, inMix: !!original.weights[b.id] })) };
+      }
+      // Any word of the query can match, best matches first, with the full description: the agent chooses benchmarks by what they measure.
+      const terms = norm(String(args.query ?? "")).split(" ").filter((t) => t.length > 1);
+      if (!terms.length) return { error: "Give a query, a name or a category." };
       const score = (b: Snapshot["benchmarks"][number]) => {
-        const title = norm(`${b.name} ${b.shortName ?? ""} ${b.id}`), body = norm(b.description);
-        return terms.reduce((n, t) => n + (title.includes(t) ? 3 : 0) + (categoriesOf(b).some((c) => c === t) ? 2 : 0) + (body.includes(t) ? 1 : 0), 0);
+        const body = norm(b.description), head = title(b);
+        return terms.reduce((n, t) => n + (head.includes(t) ? 3 : 0) + (categoriesOf(b).some((c) => c === t) ? 2 : 0) + (body.includes(t) ? 1 : 0), 0);
       };
       // Cost, speed and reliability are read from their own charts, not weighed into a capability mix.
-      return snapshot.benchmarks.filter((b) => models.has(b.id) && !["cost", "speed", "reliability"].includes(b.category)).map((b) => ({ b, s: score(b) })).filter((x) => x.s > 0).sort((a, c) => c.s - a.s).slice(0, 15)
-        .map(({ b }) => ({ id: b.id, name: b.shortName ?? b.name, category: b.category, categories: categoriesOf(b), quality: Math.round(q.get(b.id) ?? 50), models: models.get(b.id)!.size, inMix: !!original.weights[b.id], measures: b.description.slice(0, 320) }));
+      const found = usable.filter((b) => !["cost", "speed", "reliability"].includes(b.category)).map((b) => ({ b, s: score(b) })).filter((x) => x.s > 0).sort((a, c) => c.s - a.s);
+      return { total: found.length, shown: Math.min(found.length, SEARCH_LIMIT), ...(found.length > SEARCH_LIMIT ? { note: `Only the best ${SEARCH_LIMIT} of ${found.length}. Use name or category for a complete list.` } : {}), benchmarks: found.slice(0, SEARCH_LIMIT)
+        .map(({ b }) => ({ id: b.id, name: b.name, category: b.category, categories: categoriesOf(b), quality: Math.round(q.get(b.id) ?? 50), models: models.get(b.id)!.size, inMix: !!original.weights[b.id], measures: b.description.slice(0, 320) })) };
     }
     case "solve_edit": {
       const moves: Move[] = [];
