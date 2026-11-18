@@ -2,7 +2,7 @@
  * T3 Code's own telemetry, read from its ClickHouse dashboard (slophouse, shared with Adam by Theo), for time per turn by
  * model AND reasoning effort, with how many installs each figure rests on. Slopalytics (slopalytics.ts) publishes the same
  * telemetry model-level only and drops models under 2,000 turns, so a new model (Gemini 4 Hydrogen) had no per-effort
- * times. One aggregate query over the last 30 complete days, at most once a day (cached): completed, non-subagent turns,
+ * times. One aggregate query over the last 30 days up to the moment it runs, at most once a day (cached), so a model released yesterday is already in it: completed, non-subagent turns,
  * grouped by model and effort, kept only where at least MIN_USERS installs and MIN_TURNS turns stand behind it. Only
  * aggregates leave the dashboard: no install ids or per-user rows.
  *
@@ -40,7 +40,7 @@ export const T3_SQL = `SELECT base, sum(n) total, groupArray((eff, n, u, avg_s, 
    if(sfx != '', substring(m2, 1, length(m2) - length(sfx) - 1), m2) AS base,
    if(sfx != '', sfx, effort) AS eff, installId, durationMs, outputTokens, inputTokens, cachedInputTokens, cacheCreationTokens,
    inputTokens IS NOT NULL AND outputTokens IS NOT NULL AS tok
-  FROM events WHERE event = 'provider.turn.completed' AND terminalStatus = 'completed' AND timestamp >= today() - {days:UInt32} AND timestamp < today()
+  FROM events WHERE event = 'provider.turn.completed' AND terminalStatus = 'completed' AND timestamp >= now() - toIntervalDay({days:UInt32}) AND timestamp < now()
    AND position(model, '/') = 0 AND model NOT IN ('', 'default') AND durationMs > 0 AND durationMs < 86400000 AND JSONExtractBool(properties, 'subagent') = 0)
  WHERE eff IN ('', 'none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max')
  GROUP BY base, eff HAVING u >= ${MIN_USERS} AND n >= ${MIN_TURNS})
@@ -53,8 +53,8 @@ GROUP BY base ORDER BY total DESC LIMIT 100`;
  */
 type Effort = [eff: string, turns: number, users: number, meanSec: number | null, medianSec: number | null, p90Sec: number | null, outputTokens: number | null,
   tokenTurns?: number, fresh?: number | null, cached?: number | null, written?: number | null, tokenOutput?: number | null, tokenUsers?: number];
-/** Bumped when the query gains columns, so a cached payload from the old query is refetched instead of served for up to a day. */
-export const T3_PAYLOAD_VERSION = 3;
+/** Bumped when the query changes, so a cached payload from the old query is refetched instead of served for up to a day. */
+export const T3_PAYLOAD_VERSION = 4;
 export type T3Payload = { version?: number; fetchedAt: string; start: string; end: string; rows: [base: string, total: number, efforts: Effort[]][] };
 
 export function parseT3Telemetry(p: T3Payload): Pick<ScrapeResult, "benchmarks" | "rows" | "notes"> {
@@ -123,7 +123,7 @@ const source: Source = {
         const json = await res.json() as { rows?: T3Payload["rows"]; error?: string };
         if (!Array.isArray(json.rows)) throw new Error(`slophouse: ${json.error ?? "no rows"}`);
         const now = Date.parse(ctx.now);
-        payload = { version: T3_PAYLOAD_VERSION, fetchedAt: ctx.now, start: day(now - DAYS * 86_400_000), end: day(now - 86_400_000), rows: json.rows };
+        payload = { version: T3_PAYLOAD_VERSION, fetchedAt: ctx.now, start: day(now - DAYS * 86_400_000), end: day(now), rows: json.rows };
         mkdirSync(path.dirname(cacheFile), { recursive: true });
         writeFileSync(cacheFile, JSON.stringify(payload));
       } catch (e) {

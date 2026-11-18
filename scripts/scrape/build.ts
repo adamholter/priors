@@ -389,7 +389,7 @@ async function main() {
 
   snap = canonicalizeSnapshot(snap);
   // T3 Code turns priced at today's list prices: T3's ClickHouse rows per effort where they carry tokens, else Slopalytics' model-level rows.
-  { const t3 = applyT3Costs(snap); if (t3.priced.length) console.log(`T3_COSTS priced ${t3.priced.length} models at list price${t3.perEffort ? ` (${t3.perEffort} model-efforts from T3's ClickHouse)` : " (Slopalytics, model-level)"}`); }
+  { const t3 = applyT3Costs(snap); if (t3.priced.length) console.log(`T3_COSTS priced ${t3.priced.length} models at list price${t3.perEffort ? ` (${t3.perEffort} model-efforts from T3's ClickHouse)` : " (Slopalytics, model-level)"}`); if (t3.held.length) console.log(`T3_COSTS held ${t3.held.join(", ")}: new, and cost per turn does not yet rise with effort`); }
   // Plain-language descriptions and categories, over whatever each source said.
   const catalogued = applyCatalog(snap.benchmarks);
   snap.benchmarks = catalogued.benchmarks;
