@@ -4,7 +4,7 @@ import { parseAle } from "./sources/snorkel-ale";
 import { parseChartography } from "./sources/surge-chartography";
 import { parseBabyVision } from "./sources/unipat-babyvision";
 import { parseZeroBench } from "./sources/zerobench";
-import { parseApexTable } from "./sources/matharena-apex";
+import { parseApexTable, parseOverall } from "./sources/matharena-apex";
 import { parseHleText } from "./sources/scale-hle-text";
 import { parseRanking } from "./sources/llmlearner";
 import { parseClockBench } from "./sources/clockbench";
@@ -51,6 +51,13 @@ describe("new leaderboards", () => {
     const rows = parseApexTable(JSON.stringify({ table }), "matharena-apex", "p");
     expect(rows.map((r) => [r.modelLabel, r.effort, r.value, r.ci])).toEqual([["Claude-Opus-4.8", "max", 81.25, [73.44, 89.06]], ["Kimi K3", undefined, 65.62, [56.12, 75.12]]]);
     expect(rows[0].costUsd).toBe(4.59);
+  });
+
+  it("reads MathArena's overall leaderboard from the home page's chart data, skipping nothing that has a score", () => {
+    const points = [{ capability: 92.238011, creator: "OpenAI", expected_cost: 2.6689, name: "GPT-6.2 Astra (max)", release_date: "2026-11-17", slug: "a" }, { capability: 40.5, creator: "Zhipu", expected_cost: null, name: "GLM 5.1", release_date: "2026-04-01", slug: "b" }];
+    const rows = parseOverall(`<script>const releasePoints = ${JSON.stringify(points)};\n const next = [];</script>`, "bg-matharena", "p");
+    expect(rows.map((r) => [r.modelLabel, r.effort, r.effortUnstated, r.value, r.costUsd, r.labHint])).toEqual([["GPT-6.2 Astra", "max", false, 92.24, 2.6689, "OpenAI"], ["GLM 5.1", undefined, true, 40.5, undefined, "Zhipu"]]);
+    expect(() => parseOverall("<html></html>", "bg-matharena", "p")).toThrow("overall data missing");
   });
 
   it("reads HLE text-only entries from the RSC payload, taking the effort from the parenthetical", () => {
