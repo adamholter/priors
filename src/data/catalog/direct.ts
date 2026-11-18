@@ -95,6 +95,7 @@ export const DIRECT: Record<string, Entry> = {
   "metr-time-horizon": { c: ["agentic", "coding"], d: "How long a task can the model finish on its own? The length of software and reasoning task, in minutes of skilled human work, that it completes half the time. Longer is better. From METR." },
   minebench: { c: ["creative"], d: "Models turn a text prompt into a Minecraft-style build, written out as raw block coordinates, and people vote between pairs of rendered builds. A conservative rating from those votes." },
   "nl2repo-bench": { c: ["coding", "agentic"], d: "Build a complete, installable Python project from a written spec and an empty folder (104 tasks). The average share of the original projects' tests passed. Scores are vendor and paper reports, gathered by LLMLearner." },
+  "plan-listed-models": { c: ["cost"], d: "How many subscription plans list the model in the seller's own docs. It says a plan sells the model, not how much usage it gives." },
   "openrouter-latency": { c: ["speed"], d: "How long a request waits before the answer starts, in seconds: the median across the providers serving the model on OpenRouter over the past 3 days. Lower is better." },
   "openrouter-tps": { c: ["speed"], d: "How fast the answer streams, in tokens per second: the median across the providers serving the model on OpenRouter over the past 3 days." },
   "openrouter-providers": { c: ["reliability"], d: "How many providers serve the model on OpenRouter. More providers means more fallbacks when one is down." },

@@ -35,7 +35,7 @@ describe("on today's snapshot", async () => {
     expect(plans.length).toBeGreaterThan(5);
     expect(plans.map((p) => p.median)).toEqual([...plans.map((p) => p.median)].sort((a, b) => b - a));
     const known = new Set(snapshot.models.map((m) => m.id));
-    for (const p of plans) for (const m of p.models) { expect(m.multiple).toBeGreaterThan(0); expect(known.has(m.id)).toBe(true); }
+    for (const p of plans) for (const m of p.models) { if (m.multiple != null) expect(m.multiple).toBeGreaterThan(0); expect(known.has(m.id)).toBe(true); }
   });
 
   it("groups every plan under its seller, with the plan most models use first and a logo for each", () => {
@@ -44,6 +44,28 @@ describe("on today's snapshot", async () => {
     for (const s of sellers) { expect(s.logo).toBe(true); expect(existsSync(`public/logos/${s.id}.png`)).toBe(true); }
     expect(sellers.find((s) => s.id === "anthropic")!.plans.every((p) => p.plan.startsWith("Claude"))).toBe(true);
     expect(sellers.map((s) => s.plans[0].median)).toEqual(sellers.map((s) => s.plans[0].median).sort((a, b) => b - a));
+  });
+
+  it("shows a model a plan lists before anyone has measured it, and leads Google with the plan selling its best model", () => {
+    const row = (modelId: string, plans: string[]) => ({ benchmarkId: "plan-listed-models", variantId: `${modelId}@max`, value: plans.length, observedAt: "", sourceUrl: "https://antigravity.google/docs/models", details: { plans: plans.map((plan) => ({ plan })) } });
+    const ultra = ["Google AI Ultra 5x", "Google AI Ultra 20x"], listed = { ...snapshot, observations: [...snapshot.observations, row("claude-opus-5.5", ["Google AI Pro", ...ultra]), row("gemini-4-carbon", ultra)] };
+    const opus = modelAvailability(listed, "claude-opus-5.5")!.plans.find((p) => p.plan === "Google AI Ultra 5x")!;
+    expect(opus.ratio).toBeUndefined(); expect(opus.feeUsd).toBeGreaterThan(0);
+    const google = subsidySellers(listed).find((s) => s.id === "google")!, plan = google.plans[0];
+    expect(plan.plan).toBe("Google AI Ultra 5x");
+    expect(plan.models.find((m) => m.id === "gemini-4-carbon")?.multiple).toBeGreaterThan(0);
+    expect(plan.models.at(-1)!.multiple).toBeUndefined();
+    expect(plan.models.some((m) => m.id === "claude-opus-5.5")).toBe(true);
+    expect(plan.median).toBeGreaterThan(0);
+  });
+
+  it("opens a reseller on the plan covering the most models, cheapest first", () => {
+    const go = subsidySellers(snapshot).find((s) => s.id === "ollama")!;
+    expect(go.plans[0].feeUsd).toBe(Math.min(...go.plans.filter((p) => p.models.length === go.plans[0].models.length).map((p) => p.feeUsd ?? Infinity)));
+  });
+
+  it("never opens a company on a plan it no longer sells", () => {
+    for (const s of subsidySellers(snapshot)) if (s.plans.some((p) => !/legacy|existing subscribers/i.test(p.plan))) expect(s.plans[0].plan).not.toMatch(/legacy|existing subscribers/i);
   });
 
   it("a model sold on a plan shows that plan", () => {

@@ -9,7 +9,8 @@ import type { CompareBench, CompareOption, CompareSide, ModelCompareView } from 
 import { HeaderAccount } from "../AccountMenu";
 import { Radar, RadarSwatch } from "../chart/Radar";
 import type { RadarSeries } from "../chart/radar-view";
-import { markColor, useChartPalette } from "../chart/echarts";
+import { useChartPalette } from "../chart/palette-context";
+import { markColor } from "../chart/theme-tokens";
 import { SiteFooter } from "../SiteFooter";
 import { SiteNav } from "../SiteNav";
 import { SettingsButton } from "../SiteSettings";

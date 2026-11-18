@@ -19,7 +19,7 @@ const nextConfig: NextConfig = {
     return { beforeFiles: [{ source: "/intro/:file([a-z0-9-]+\\.png)", destination: "https://raw.githubusercontent.com/adamholter/priors/data-live/public/intro/:file" }], afterFiles: [], fallback: [] };
   },
   async headers() {
-    return [{ source: "/intro/:file([a-z0-9-]+\\.png)", headers: [{ key: "X-Content-Type-Options", value: "nosniff" }, { key: "Cache-Control", value: "public, max-age=300, s-maxage=300" }] }];
+    return [{ source: "/subsidies", headers: [{ key: "Vercel-CDN-Cache-Control", value: "public, s-maxage=300, stale-while-revalidate=3600" }, { key: "Vercel-Cache-Tag", value: "priors-data" }] }, { source: "/logos/:file([a-z0-9-]+\\.png)", headers: [{ key: "Cache-Control", value: "public, max-age=86400, s-maxage=604800" }] }, { source: "/intro/:file([a-z0-9-]+\\.png)", headers: [{ key: "X-Content-Type-Options", value: "nosniff" }, { key: "Cache-Control", value: "public, max-age=300, s-maxage=300" }] }];
   },
   outputFileTracingIncludes: {
     "/og": ["./src/lib/og-fonts/*"],

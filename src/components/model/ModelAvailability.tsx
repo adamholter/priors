@@ -11,7 +11,7 @@ const FIRST_PROVIDERS = 8;
 export function ModelAvailabilitySection({ data }: { data: ModelAvailability }) {
   const { plans, providers, openRouterUrl, aaUrl } = data;
   const [all, setAll] = useState(false);
-  const shown = all ? providers : providers.slice(0, FIRST_PROVIDERS), top = Math.max(...plans.filter((p) => !p.free).map((p) => 1 / p.ratio), 1);
+  const shown = all ? providers : providers.slice(0, FIRST_PROVIDERS), top = Math.max(...plans.flatMap((p) => (p.ratio ? [1 / p.ratio] : [])), 1);
   return <section className="grid gap-4" data-availability>
     <div className="border-b hairline pb-2"><h2 className="text-[26px]">Availability</h2></div>
     <div className={`grid gap-x-10 gap-y-8 ${plans.length && providers.length ? "lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]" : ""}`}>
@@ -22,9 +22,9 @@ export function ModelAvailabilitySection({ data }: { data: ModelAvailability }) 
             <span className="truncate" title={p.plan}>{p.plan}</span>
             {p.assumed && <span className="cap shrink-0">assumed</span>}
             <span className="cap shrink-0 ml-auto">{p.free ? "" : `${fee(p.feeUsd)}/mo`}</span>
-            <span className="num shrink-0 w-[46px] text-right">{p.free ? "free" : multiple(p.ratio)}</span>
+            {p.free ? <span className="num shrink-0 w-[46px] text-right">free</span> : p.ratio ? <span className="num shrink-0 w-[46px] text-right">{multiple(p.ratio)}</span> : <span className="cap shrink-0">not measured</span>}
           </div>
-          <span className="h-[6px] rounded-[2px] bg-hair-2 overflow-hidden" aria-hidden="true"><i className="block h-full rounded-[2px] bg-indigo" style={{ width: p.free ? "100%" : `${Math.max(2, 100 / p.ratio / top).toFixed(2)}%` }} /></span>
+          <span className="h-[6px] rounded-[2px] bg-hair-2 overflow-hidden" aria-hidden="true"><i className="block h-full rounded-[2px] bg-indigo" style={{ width: p.free ? "100%" : p.ratio ? `${Math.max(2, 100 / p.ratio / top).toFixed(2)}%` : 0 }} /></span>
         </li>)}</ul>
       </div>}
       {providers.length > 0 && <div className="grid gap-2 content-start min-w-0">

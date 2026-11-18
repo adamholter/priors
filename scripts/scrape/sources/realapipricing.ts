@@ -57,10 +57,10 @@ export function parseOpenCodeGo(html: string, list: { data?: OpenCodeModel[] }, 
     const peak = Math.max(1, ...(m.cost?.multipliers ?? []).map((x) => x.factor ?? 1));
     const list_price = { cached: +((rate?.input?.cache?.read ?? 0) * peak).toPrecision(6), input: +(input * peak).toPrecision(6), output: +(output * peak).toPrecision(6), currency: "USD" };
     // The list's id can name a family ("deepseek-v4.1-flash") whose current revision is the canonical id: both models get the row.
-    const canonical = m.canonical_id?.split("/").pop()?.toLowerCase(), serves = [{ model: canonical ?? m.id, display: m.name }, ...(canonical && canonical !== m.id ? [{ model: m.id, display: m.name.replace(/\s+\d{4}$/, "") }] : [])];
+    const canonical = m.canonical_id?.split("/").pop()?.toLowerCase(), serves = [{ slug: canonical ?? m.id, display: m.name }, ...(canonical && canonical !== m.id ? [{ slug: m.id, display: m.name.replace(/\s+\d{4}$/, "") }] : [])].map((s) => { const n = normalizeLabel(s.display); return { ...s, model: n.ok ? n.modelId : s.slug }; });
     return OPENCODE_PLANS.flatMap(({ planId, plan, key }, i) => {
       const limit = usage[key];
-      return limit > 0 ? serves.map(({ model, display }): Point => ({ id: `${planId}::${model}`, plan, plan_en: plan, billing: "subscription", model, model_display: display, vendor: m.canonical_id?.split("/")[0] ?? "OpenCode Go", workload: "standard", list_price, price_usd: fees[i], confidence: "high", data_date: date, real_usd_per_mtok: fees[i] * blendedApiPrice(list_price, mix) / limit })) : [];
+      return limit > 0 ? serves.map(({ slug, model, display }): Point => ({ id: `${planId}::${slug}`, plan, plan_en: plan, billing: "subscription", model, model_display: display, vendor: m.canonical_id?.split("/")[0] ?? "OpenCode Go", workload: "standard", list_price, price_usd: fees[i], confidence: "high", data_date: date, real_usd_per_mtok: fees[i] * blendedApiPrice(list_price, mix) / limit })) : [];
     });
   });
   if (!points.length) throw new Error("OpenCode Go models: no monthly limits; response changed?");
@@ -92,7 +92,8 @@ export function parseSubscriptions(json: Points, conventions: Conventions, chann
   // Time-of-day rows get Priors' names ("GLM Coding Pro ¥538 (off-peak)", "MiMo Token Plan Max (peak)"): `planDisplayName`.
   const name = (p: Point) => `${planDisplayName((p.plan_en || p.plan).replace(/\s*\(\d+\/\d+\+\)$/, ""))}${LEGACY_PLANS.some((prefix) => p.id.startsWith(prefix)) ? ", legacy" : ""}`;
   // A budget plan on another lab's model is listed with that model's first-party plans, so it can be picked. OpenCode Go states its limits the same way.
-  const hosted = (model: string) => [...resold].filter(([m]) => squash(m) === squash(model)).flatMap(([, list]) => list).filter((p) => budgetOf(p.id) || (isOpenCodeGo(p.id) && stated.includes(p)));
+  const sameModel = (a: string, b: string) => squash(PRIORS_IDS[a] ?? a) === squash(PRIORS_IDS[b] ?? b);
+  const hosted = (model: string) => [...resold].filter(([m]) => sameModel(m, model)).flatMap(([, list]) => list).filter((p) => budgetOf(p.id) || (isOpenCodeGo(p.id) && stated.includes(p)));
   const add = (all: Point[], pick: Point, note: string, extra: Point[] = []) => {
     const label = all[0].model_display.replace(/\s*\(v\d+\)$/, "");
     const until = LIST_PRICES_UNTIL.find((l) => l.model === all[0].model && now < new Date(l.until));
