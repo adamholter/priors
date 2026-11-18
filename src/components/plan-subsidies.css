@@ -1,0 +1,23 @@
+/* Opening a company or a plan: the height eases open, then its rows and bars arrive in order. */
+.sub-collapse{--sub-open:320ms;display:grid;grid-template-rows:0fr;transition:grid-template-rows 200ms cubic-bezier(.4,0,.2,1)}
+.sub-collapse[data-open=true]{grid-template-rows:1fr;transition:grid-template-rows var(--sub-open) cubic-bezier(.16,1,.3,1)}
+@starting-style{.sub-collapse[data-open=true]:not([data-eager]){grid-template-rows:0fr}}
+.sub-clip{min-height:0;min-width:0;margin-inline:-8px;padding-inline:8px;overflow:hidden}
+/* Clipped only while moving, so a dot's card can leave the row once it is open. */
+.sub-collapse[data-open=true]>.sub-clip{overflow:visible;animation:sub-clip var(--sub-open)}
+@keyframes sub-clip{from,to{overflow:hidden}}
+
+.sub-seller[data-expanded=true]>.sub-collapse[data-open=true]>.sub-clip>.sub-plans>*,
+.sub-seller[data-expanded=true] .sub-collapse[data-open=true]>.sub-clip>.sub-models>li{animation:sub-row 300ms cubic-bezier(.16,1,.3,1) both;animation-delay:calc(min(var(--i),10)*22ms)}
+.sub-seller[data-expanded=true] .sub-collapse[data-open=true]>.sub-clip>.sub-models>li .sub-bar{transform-origin:left;animation:sub-bar 520ms cubic-bezier(.16,1,.3,1) both;animation-delay:calc(60ms + min(var(--i),10)*22ms)}
+@keyframes sub-row{from{opacity:0;transform:translateY(-4px)}}
+@keyframes sub-bar{from{transform:scaleX(0)}}
+
+/* Results appear at once while typing. */
+.sub-root[data-searching] .sub-collapse{transition:none}
+.sub-root[data-searching] .sub-collapse *{animation:none!important}
+
+@media (prefers-reduced-motion:reduce){
+  .sub-collapse{transition:none!important}
+  .sub-collapse *{animation:none!important}
+}

@@ -1,9 +1,10 @@
 "use client";
 import Link from "next/link";
-import { useMemo, useState, type MouseEvent } from "react";
+import { useMemo, useState, type CSSProperties, type MouseEvent, type ReactNode } from "react";
 import { IconChevronRight, IconSearch } from "@tabler/icons-react";
 import type { PlanSubsidy, SubsidySeller } from "@/lib/model-availability";
 import { markColor, useChartPalette } from "./chart/echarts";
+import "./plan-subsidies.css";
 
 type Model = PlanSubsidy["models"][number];
 type Scale = { pct: (m: number) => string; share: (m: number) => number; color: (lab: string) => string };
@@ -34,10 +35,18 @@ function PlanStrip({ plan, scale }: { plan: PlanSubsidy; scale: Scale }) {
   </span>;
 }
 
+/** Keeps what it opened, so closing can animate too. `eager` content is there from the start and only animates when it is switched. */
+function Collapse({ open, eager, children }: { open: boolean; eager?: boolean; children: ReactNode }) {
+  const [seen, setSeen] = useState(open || !!eager);
+  if (open && !seen) setSeen(true);
+  return <div className="sub-collapse" data-open={open} data-eager={eager || undefined} inert={!open}><div className="sub-clip">{seen && children}</div></div>;
+}
+const order = (i: number) => ({ "--i": i }) as CSSProperties;
+
 function ModelBars({ models, scale }: { models: Model[]; scale: Scale }) {
-  return <ul className="pb-3 pt-1">{models.map((m) => <li key={m.id} className={`${GRID} items-center gap-y-1 py-[5px] text-[13px]`}>
+  return <ul className="sub-models pb-3 pt-1">{models.map((m, i) => <li key={m.id} style={order(i)} className={`${GRID} items-center gap-y-1 py-[5px] text-[13px]`}>
     <span className="min-w-0 flex items-baseline gap-2 pl-[42px]"><Link href={`/models/${encodeURIComponent(m.id)}` as "/"} prefetch={false} className="truncate hover:underline" title={m.name}>{m.name}</Link>{m.assumed && <span className="cap shrink-0">assumed</span>}<span className="num ml-auto shrink-0 sm:hidden">{times(m.multiple)}</span></span>
-    <span className="relative block h-[7px] max-sm:ml-[42px] rounded-[2px] bg-hair-2" aria-hidden="true"><i className="absolute inset-y-0 left-0 rounded-[2px]" style={{ width: `max(3px, ${scale.pct(m.multiple)})`, background: scale.color(m.lab) }} /></span>
+    <span className="relative block h-[7px] max-sm:ml-[42px] rounded-[2px] bg-hair-2" aria-hidden="true"><i className="sub-bar absolute inset-y-0 left-0 rounded-[2px]" style={{ width: `max(3px, ${scale.pct(m.multiple)})`, background: scale.color(m.lab) }} /></span>
     <span className="num text-right max-sm:hidden">{times(m.multiple)}</span>
   </li>)}</ul>;
 }
@@ -61,7 +70,7 @@ export function PlanSubsidies({ sellers, labColors }: { sellers: SubsidySeller[]
     return { plans, models: models.size ? models : null, deep: true };
   };
   const shown = sellers.map((s) => ({ s, hit: found(s) })).filter(({ hit }) => hit.plans.length);
-  return <div className="grid gap-5">
+  return <div className="sub-root grid gap-5" data-searching={words.length ? "" : undefined}>
     <label className="relative block max-w-[420px]"><IconSearch size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-grey" aria-hidden="true" /><input className="inp !pl-9 h-[44px] !text-[14px]" value={query} placeholder="Search companies, plans or models" aria-label="Search companies, plans or models" onChange={(e) => setQuery(e.target.value)} /></label>
     <div>
       <div className={`${GRID} max-sm:hidden pb-1 border-b hairline`}><span /><div className="relative h-4">{TICKS.filter((t) => t <= high).map((t, i) => <span key={t} className={`cap absolute ${i === 0 ? "" : "-translate-x-1/2"}`} style={{ left: scale.pct(t) }}>{t}x</span>)}</div><span className="cap text-right">median</span></div>
@@ -69,20 +78,20 @@ export function PlanSubsidies({ sellers, labColors }: { sellers: SubsidySeller[]
       {shown.map(({ s, hit }) => {
         const main = hit.deep ? hit.plans[0] : s.plans[0], expanded = open[s.id] ?? hit.deep, choice = hit.plans.find((p) => p.plan === picked[s.id]) ?? main;
         const modelsOf = (p: PlanSubsidy) => hit.models ? p.models.filter((m) => hit.models!.has(m.id)) : p.models;
-        return <section key={s.id} className="border-b hairline" data-seller={s.id}>
-          <button type="button" aria-expanded={expanded} onClick={() => setOpen((v) => ({ ...v, [s.id]: !expanded }))} className={`${GRID} -mx-2 w-[calc(100%+16px)] px-2 text-left items-center gap-y-1 py-2 min-h-[48px] rounded-[3px] [@media(hover:hover)]:hover:bg-hair-2`}>
-            <span className="min-w-0 flex items-center gap-2 text-[14px]"><IconChevronRight size={14} className={`shrink-0 text-grey transition-transform ${expanded ? "rotate-90" : ""}`} aria-hidden="true" /><Logo seller={s} /><span className="shrink-0">{s.name}</span><span className="cap truncate" title={main.plan}>{main.plan}</span><span className="cap shrink-0">{fee(main.feeUsd)}</span><span className="num text-[13px] ml-auto sm:hidden">{times(main.median)}</span></span>
+        return <section key={s.id} className="sub-seller border-b hairline" data-seller={s.id} data-expanded={expanded}>
+          <button type="button" aria-expanded={expanded} onClick={() => setOpen((v) => ({ ...v, [s.id]: !expanded }))} className={`${GRID} -mx-2 w-[calc(100%+16px)] px-2 text-left items-center gap-y-1 py-2 min-h-[48px] rounded-[3px] transition-colors duration-150 [@media(hover:hover)]:hover:bg-hair-2`}>
+            <span className="min-w-0 flex items-center gap-2 text-[14px]"><IconChevronRight size={14} className={`shrink-0 text-grey transition-transform duration-200 ${expanded ? "rotate-90" : ""}`} aria-hidden="true" /><Logo seller={s} /><span className="shrink-0">{s.name}</span><span className="cap truncate" title={main.plan}>{main.plan}</span><span className="cap shrink-0">{fee(main.feeUsd)}</span><span className="num text-[13px] ml-auto sm:hidden">{times(main.median)}</span></span>
             <PlanStrip plan={main} scale={scale} />
             <span className="num text-[13px] text-right max-sm:hidden">{times(main.median)}</span>
           </button>
-          {expanded && (hit.plans.length === 1 ? <ModelBars models={modelsOf(choice)} scale={scale} /> : <div className="pb-2">{hit.plans.map((p) => { const on = p.plan === choice.plan; return <div key={p.plan}>
-            <button type="button" aria-pressed={on} onClick={() => setPicked((v) => ({ ...v, [s.id]: p.plan }))} className={`${GRID} -mx-2 w-[calc(100%+16px)] px-2 text-left items-center gap-y-1 py-1.5 min-h-[40px] max-sm:min-h-[48px] rounded-[3px] [@media(hover:hover)]:hover:bg-hair-2 ${on ? "bg-hair-2" : ""}`}>
-              <span className="min-w-0 flex items-baseline gap-2 pl-[42px] text-[13px]"><span className={`truncate ${on ? "text-indigo" : ""}`} title={p.plan}>{p.plan}</span><span className="cap shrink-0">{fee(p.feeUsd)}</span>{p === s.plans[0] && <span className="cap shrink-0">default</span>}<span className="num ml-auto sm:hidden">{times(p.median)}</span></span>
+          <Collapse open={expanded}>{hit.plans.length === 1 ? <ModelBars models={modelsOf(choice)} scale={scale} /> : <div className="sub-plans pb-2">{hit.plans.map((p, i) => { const on = p.plan === choice.plan; return <div key={p.plan} style={order(i)}>
+            <button type="button" aria-pressed={on} onClick={() => setPicked((v) => ({ ...v, [s.id]: p.plan }))} className={`${GRID} -mx-2 w-[calc(100%+16px)] px-2 text-left items-center gap-y-1 py-1.5 min-h-[40px] max-sm:min-h-[48px] rounded-[3px] transition-colors duration-150 [@media(hover:hover)]:hover:bg-hair-2 ${on ? "bg-hair-2" : ""}`}>
+              <span className="min-w-0 flex items-baseline gap-2 pl-[42px] text-[13px]"><span className={`truncate transition-colors duration-150 ${on ? "text-indigo" : ""}`} title={p.plan}>{p.plan}</span><span className="cap shrink-0">{fee(p.feeUsd)}</span>{p === s.plans[0] && <span className="cap shrink-0">default</span>}<span className="num ml-auto sm:hidden">{times(p.median)}</span></span>
               <PlanStrip plan={p} scale={scale} />
               <span className="num text-[13px] text-right max-sm:hidden">{times(p.median)}</span>
             </button>
-            {on && <ModelBars models={modelsOf(p)} scale={scale} />}
-          </div>; })}</div>)}
+            <Collapse open={on} eager><ModelBars models={modelsOf(p)} scale={scale} /></Collapse>
+          </div>; })}</div>}</Collapse>
         </section>;
       })}
     </div>
