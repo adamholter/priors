@@ -4,7 +4,8 @@ import { aaComponentWeights } from "@/data/aa-index";
 import { clientSnapshot } from "@/data/client-snapshot";
 import { loadSnapshot } from "@/data/load";
 import { featuredMixes } from "./featured-mixes";
-import { modelAvailability, planSubsidies, plansOf } from "./model-availability";
+import { existsSync } from "node:fs";
+import { modelAvailability, planSubsidies, plansOf, subsidySellers } from "./model-availability";
 import { compareView, modelView } from "./model-view";
 import type { PlanPriceModel } from "./plan-prices";
 import { rankStability } from "./rank-stability";
@@ -35,6 +36,14 @@ describe("on today's snapshot", async () => {
     expect(plans.map((p) => p.median)).toEqual([...plans.map((p) => p.median)].sort((a, b) => b - a));
     const known = new Set(snapshot.models.map((m) => m.id));
     for (const p of plans) for (const m of p.models) { expect(m.multiple).toBeGreaterThan(0); expect(known.has(m.id)).toBe(true); }
+  });
+
+  it("groups every plan under its seller, with the plan most models use first and a logo for each", () => {
+    const sellers = subsidySellers(snapshot), counted = sellers.flatMap((s) => s.plans.map((p) => p.plan)).sort();
+    expect(counted).toEqual(planSubsidies(snapshot).map((p) => p.plan).sort());
+    for (const s of sellers) { expect(s.logo).toBe(true); expect(existsSync(`public/logos/${s.id}.png`)).toBe(true); }
+    expect(sellers.find((s) => s.id === "anthropic")!.plans.every((p) => p.plan.startsWith("Claude"))).toBe(true);
+    expect(sellers.map((s) => s.plans[0].median)).toEqual(sellers.map((s) => s.plans[0].median).sort((a, b) => b - a));
   });
 
   it("a model sold on a plan shows that plan", () => {

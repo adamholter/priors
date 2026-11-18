@@ -6,6 +6,8 @@ import { planPrices, soldAs, type PlanPriceModel, type PlanPrices } from "./plan
 /** One subscription that sells a model. `ratio` is the share of API price its subscribers pay. */
 export interface PlanOffer { plan: string; feeUsd?: number; ratio: number; free?: true; assumed?: true }
 export interface ModelAvailability extends ModelProviders { plans: PlanOffer[] }
+/** A company selling plans. `plans[0]` is its default: the plan most of its models are priced on. */
+export interface SubsidySeller { id: string; name: string; logo: boolean; plans: PlanSubsidy[] }
 export interface PlanSubsidy { plan: string; feeUsd?: number; median: number; models: { id: string; name: string; lab: string; multiple: number; assumed?: true }[] }
 
 const cache = new WeakMap<Snapshot, PlanPrices>();
@@ -39,4 +41,26 @@ export function planSubsidies(snapshot: Snapshot): PlanSubsidy[] {
     row.models.push({ id: m.id, name: m.name, lab: m.lab, multiple: 1 / p.ratio, ...(p.assumed ? { assumed: true as const } : {}) });
   }
   return [...plans.values()].map((p) => ({ ...p, median: median(p.models.map((m) => m.multiple)), models: p.models.sort((a, b) => b.multiple - a.multiple) })).sort((a, b) => b.median - a.median || a.plan.localeCompare(b.plan));
+}
+
+/** Who sells a plan, read from its name. Logos are in `public/logos/<id>.png`. */
+const SELLERS: { id: string; name: string; plans: RegExp }[] = [
+  { id: "anthropic", name: "Anthropic", plans: /^Claude\b/ }, { id: "openai", name: "OpenAI", plans: /^ChatGPT\b/ }, { id: "google", name: "Google", plans: /^Google AI\b/ }, { id: "xai", name: "xAI", plans: /^SuperGrok\b/ },
+  { id: "cursor", name: "Cursor", plans: /^Cursor\b/ }, { id: "kimi", name: "Kimi", plans: /^Kimi\b/ }, { id: "zhipu", name: "Z.ai", plans: /^GLM\b/ }, { id: "minimax", name: "MiniMax", plans: /^MiniMax\b/ },
+  { id: "xiaomi", name: "Xiaomi", plans: /^MiMo\b/ }, { id: "tencent", name: "Tencent", plans: /^Tencent\b/ }, { id: "alibaba", name: "Alibaba", plans: /^(阿里云|Alibaba\b)/ }, { id: "mistral", name: "Mistral", plans: /^Mistral\b/ },
+  { id: "opencode", name: "OpenCode", plans: /^OpenCode\b/ }, { id: "commandcode", name: "Command Code", plans: /^Command Code\b/ }, { id: "factory", name: "Factory", plans: /^Droid\b/ }, { id: "ollama", name: "Ollama", plans: /^Ollama\b/ },
+];
+
+/** Plans grouped by the company selling them, the most generous default plan first. */
+export function subsidySellers(snapshot: Snapshot): SubsidySeller[] {
+  const defaults = new Map<string, number>();
+  for (const m of pricesOf(snapshot).models) { const own = m.free ? m.paid : m, plan = own && soldAs(own.plan); if (plan) defaults.set(plan, (defaults.get(plan) ?? 0) + 1); }
+  const groups = new Map<string, SubsidySeller>();
+  for (const plan of planSubsidies(snapshot)) {
+    const known = SELLERS.find((s) => s.plans.test(plan.plan)), id = known?.id ?? plan.plan;
+    (groups.get(id) ?? groups.set(id, { id, name: known?.name ?? plan.plan, logo: !!known, plans: [] }).get(id)!).plans.push(plan);
+  }
+  const rank = (p: PlanSubsidy) => [-(defaults.get(p.plan) ?? 0), -p.models.length, p.feeUsd ?? Infinity];
+  const byDefault = (a: PlanSubsidy, b: PlanSubsidy) => { const x = rank(a), y = rank(b); return x[0] - y[0] || x[1] - y[1] || x[2] - y[2]; };
+  return [...groups.values()].map((s) => { const [first, ...rest] = [...s.plans].sort(byDefault); return { ...s, plans: [first, ...rest.sort((a, b) => (a.feeUsd ?? Infinity) - (b.feeUsd ?? Infinity) || a.plan.localeCompare(b.plan))] }; }).sort((a, b) => b.plans[0].median - a.plans[0].median || a.name.localeCompare(b.name));
 }
