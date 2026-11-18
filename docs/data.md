@@ -167,6 +167,18 @@ An OpenAI model Codex lists (`sources/codex-limits.ts`, the Plus column of learn
 
 Subscription pricing is the default: `IndexConfig.costBasis` unset means subscription (`effectiveBasis` in `src/data/subscription.ts`); only an explicit `"api"` is stored (URL `costbasis=api`, the Pricing toggle in the cost chart's settings). It multiplies measured cost per task by that share, so a free tier costs $0. Log cost axes have no 0: `costChart.points` puts free models a step left of the cheapest paid cost (`freeFloor`, a quarter of it) with `free: true`, tooltips and bar labels read "free", and the scatter draws a dashed "free" line there. Models without plan data keep API cost. It is a lower bound, because it assumes the full allowance is used. The toggle only shows when the snapshot has the benchmark.
 
+### Availability and plan subsidies
+
+`modelAvailability` (`src/lib/model-availability.ts`) feeds the Availability section of a model page. The server sends it with the page, so it does not change with a visitor's ranking and stays out of the browser dataset.
+
+- **Providers** (`src/data/providers.ts`). The `openrouter` source stores each model's endpoints on its `openrouter-providers` row (`details.endpoints`): one row per provider, the cheapest endpoint that is not a flex, spot or batch tier. The `aa` source stores /leaderboards/providers on the first `aa-output-speed` row of each release (`details.providers`): the standard tier, medians across efforts. `mergeProviders` joins them by company name (`providerKey`). Price comes from OpenRouter when it lists the provider, otherwise from AA. Speed and first token come from AA.
+- **Subscriptions.** `plansOf` reads `planPrices`, so a plan's figure matches the cost charts and `/api/plan-prices`. Peak-hour, mixed-hour and student rows are left out. A share taken from another model is marked assumed.
+- **`/subsidies`** (`planSubsidies`) shows every paid plan's API value per dollar, one dot per model. Nothing links to it and it is not in the sitemap.
+
+### Rank stability
+
+`/api/rank-stability?r=general|aa[&model=<id>]` re-ranks a standard ranking 120 times with every weight multiplied by a log-normal factor (sigma 0.36, fixed seed) and returns each model's 10th, 50th and 90th percentile rank (`src/lib/rank-stability.ts`). No page draws it. A model page requests its own row after load, so it can be read from the network tab.
+
 ### Open weights
 
 `Model.openWeights` says whether a model's weights can be downloaded (any license); `paramsB` and `activeParamsB` hold parameter counts in billions when a source publishes them. `src/data/open-weights.ts` sets them at scrape time, from the most to the least trustworthy: `CHECKED_WEIGHTS` (repos checked by hand), Artificial Analysis's `isOpenWeights` in each variant's source metadata, flags other sources return in `modelFlags` (Epoch ECI's accessibility group, Benchmark Heaven), then `FAMILY_RULES` for families whose status never varies. Unknown stays undefined, which is not the same as closed. The build logs `OPEN_WEIGHTS n open, n closed, n unknown`. `/api/history` fills the flag on older snapshots from today's models, since a model's weights don't change. Charts: the history page's "Open vs closed" colouring and best-by-weights chart, and the assistant's `weights` filter.

@@ -30,7 +30,7 @@ const round = (n: number) => +n.toPrecision(5);
 const listRatio = (p: SubscriptionPrice) => p.aaCostRatio != null && round(p.aaCostRatio) !== round(p.ratio) ? { listRatio: round(p.ratio) } : {};
 const share = (p: SubscriptionPrice): PlanPrice => ({ plan: currentPlanName(p.plan), ...(p.feeUsd != null ? { feeUsd: p.feeUsd } : {}), ratio: round(p.aaCostRatio ?? p.ratio), confidence: p.confidence, ...listRatio(p) });
 /** A plan's name without the note on a model whose allowance is assumed from another model: that model is still priced on this plan. */
-const soldAs = (plan: string) => currentPlanName(plan.replace(/\s*\(assumed same as [^)]*\)$/, ""));
+export const soldAs = (plan: string) => currentPlanName(plan.replace(/\s*\(assumed same as [^)]*\)$/, ""));
 
 /**
  * Every model a first-party plan sells, with the share of API price its subscribers pay: the figures

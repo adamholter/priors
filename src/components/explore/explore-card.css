@@ -24,3 +24,10 @@
 .ex-foot a:not(:last-child){border-right:1px solid var(--hair);color:var(--ink-2)}
 .ex-foot a:last-child{color:var(--ink);font-weight:500}
 .ex-foot a:hover{background:color-mix(in srgb,var(--ink) 8%,transparent);color:var(--ink)}
+.ex-featured{padding-bottom:12px}
+.ex-rows{display:grid;gap:9px;list-style:none;margin:0;padding:0}
+.ex-rows>li{display:grid;gap:4px;min-width:0}
+.ex-row-line{display:flex;align-items:baseline;gap:7px;min-width:0;font-size:13px}
+.ex-row-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ex-row-bar{display:block;height:5px;background:var(--hair-2);border-radius:2px;overflow:hidden}
+.ex-row-bar b{display:block;height:100%;border-radius:2px}

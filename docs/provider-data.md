@@ -1,10 +1,10 @@
 # Provider data we could add
 
-Not built. This records where it comes from, so it can be added later without rediscovering it.
+Partly built: the Availability section of a model page shows each provider's price from OpenRouter's endpoint list and measured speed from Artificial Analysis (`src/data/providers.ts`, see `docs/data.md`). Regions, data policies and the rest below are not built. This records where they come from.
 
 ## What exists
 
-Which companies serve a model, at what price, in which region, and what they do with prompts. Priors reads none of it today beyond OpenRouter's operational metrics (`openrouter` source: uptime, provider count, throughput, latency, tool-call errors) and the subscription price (`realapipricing`).
+Which companies serve a model, at what price, in which region, and what they do with prompts. Beyond the Availability section, Priors reads OpenRouter's operational metrics (`openrouter` source: uptime, provider count, throughput, latency, tool-call errors) and the subscription price (`realapipricing`).
 
 ## Where to get it
 

@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
+import type { ModelAvailability } from "@/lib/model-availability";
 import type { ModelView } from "@/lib/model-view";
 import { findRanking, rankParam, rankingOptions } from "@/lib/model-ranking-param";
 import { usePlanResetsOn, withResetsPref } from "@/lib/plan-resets-pref";
@@ -14,7 +15,7 @@ import { ModelPage } from "./ModelPage";
  * dataset and the engine download only when the visitor needs something else: a ranking of their own, another ranking
  * picked here, their pricing choices, or a benchmark's details.
  */
-export function ModelLoader({ view: serverView, rankingKey, modelId, rank, summary }: { view: ModelView; rankingKey: string; modelId: string; rank?: string; summary?: string }) {
+export function ModelLoader({ view: serverView, availability, rankingKey, modelId, rank, summary }: { view: ModelView; availability?: ModelAvailability; rankingKey: string; modelId: string; rank?: string; summary?: string }) {
   const mine = useMyRankings();
   const options = useMemo(() => rankingOptions(mine.page, mine.builder), [mine.page, mine.builder]);
   // The ranking in the address (`?r=`), so a shared link opens in it; kept as the param, because a visitor's own rankings only load after mount.
@@ -32,6 +33,8 @@ export function ModelLoader({ view: serverView, rankingKey, modelId, rank, summa
   }, [needsData, snapshot, lib, modelId, options, pickedOption, mine.ready, resetsOn, plansPref]);
   const currentKey = pickedOption?.key ?? chosen?.key ?? rankingKey;
   const current = options.find((o) => o.key === currentKey) ?? options.find((o) => o.key === rankingKey)!;
+  // Not drawn anywhere: it puts the figure in the network tab for anyone who wants it.
+  useEffect(() => { const t = setTimeout(() => { void fetch(`/api/rank-stability?r=${rankingKey.slice("preset:".length)}&model=${encodeURIComponent(modelId)}`).catch(() => {}); }, 2000); return () => clearTimeout(t); }, [rankingKey, modelId]);
   const onPick = (param: string) => { setPicked(param); const url = new URL(window.location.href); url.searchParams.set("r", param); window.history.replaceState(window.history.state, "", url); };
-  return <ModelPage view={chosen?.view ?? serverView} othersUrl={`/api/models/${encodeURIComponent(modelId)}/field?r=${rankingKey.slice("preset:".length)}`} summary={summary} options={options} current={rankParam(current)} onPick={onPick} pending={needsData && !chosen && !error} error={needsData ? error : ""} retry={retry} infoSnapshot={chosen?.snapshot ?? snapshot} info={info} onInfo={setInfo} probe={mine.probe} />;
+  return <ModelPage view={chosen?.view ?? serverView} availability={availability} othersUrl={`/api/models/${encodeURIComponent(modelId)}/field?r=${rankingKey.slice("preset:".length)}`} summary={summary} options={options} current={rankParam(current)} onPick={onPick} pending={needsData && !chosen && !error} error={needsData ? error : ""} retry={retry} infoSnapshot={chosen?.snapshot ?? snapshot} info={info} onInfo={setInfo} probe={mine.probe} />;
 }

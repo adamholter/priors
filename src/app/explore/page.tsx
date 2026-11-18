@@ -12,7 +12,8 @@ import { SiteNav } from "@/components/SiteNav";
 import { SettingsButton } from "@/components/SiteSettings";
 import { encodeIndices, prettyQuery } from "@/lib/url";
 import { rankedCount } from "@/lib/ranked-count";
-import { ExploreCard, type ExploreCardData } from "@/components/explore/ExploreCard";
+import { ExploreCard, FeaturedMixCard, type ExploreCardData, type FeaturedMixData } from "@/components/explore/ExploreCard";
+import { featuredMixes } from "@/lib/featured-mixes";
 import { pageMeta } from "@/lib/site-meta";
 
 export const dynamic = "force-dynamic";
@@ -46,6 +47,12 @@ export default async function Explore() {
     rankedCount(),
   ]);
   const colors = new Map(snapshot?.labs.map((l) => [l.id, l.color]) ?? []);
+  const cardTop = (s: ReturnType<typeof summary>) => s.top.map((r) => ({ name: r.model.name, score: r.score, labId: r.model.labId, base: colors.get(r.model.labId) ?? "#A3A39B" }));
+  const cardMix = (s: ReturnType<typeof summary>) => s.benches.map((b) => ({ name: b.benchmark.shortName ?? b.benchmark.name, share: Math.round(b.share) }));
+  const featured = snapshot ? featuredMixes(snapshot).flatMap((index): FeaturedMixData[] => {
+    const s = summary(snapshot, index);
+    return s.top.length ? [{ name: index.name, href: `/builder?${prettyQuery(encodeIndices([index]))}`, count: s.count, top: cardTop(s), mix: cardMix(s) }] : [];
+  }) : [];
 
   return <main className="min-h-dvh">
     <header className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 sm:px-8 py-2 sm:h-14 border-b hairline">
@@ -67,6 +74,10 @@ export default async function Explore() {
           <Link href="/builder" className="btn-quiet">Publish yours</Link>
         </div>
       </div>
+      {featured.length > 0 && <section className="mb-10" aria-labelledby="featured-mixes">
+        <h2 id="featured-mixes" className="text-[22px] mb-3">Featured</h2>
+        <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">{featured.map((c) => <FeaturedMixCard key={c.name} c={c} />)}</ul>
+      </section>}
       {!pages.length ? <p className="cap py-16 text-center">No published pages yet. Build an index and claim your page to be the first.</p> :
       <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {pages.map((p) => {
@@ -76,8 +87,7 @@ export default async function Explore() {
           const x = p.socials?.map((l) => l.url.match(/^https?:\/\/(?:www\.)?(?:x|twitter)\.com\/@?([A-Za-z0-9_]{1,15})\/?(?:[?#].*)?$/)?.[1]).find(Boolean);
           return <ExploreCard key={p.handle} c={{
             handle: p.handle, name: p.displayName, avatarUrl: p.avatarUrl, when: ago(p.updatedAt), index: index.name ?? "Rankings", others: p.others, more: p.more,
-            count: s?.count ?? 0, mix: (s?.benches ?? []).map((b) => ({ name: b.benchmark.shortName ?? b.benchmark.name, share: Math.round(b.share) })),
-            top: (s?.top ?? []).map((r) => ({ name: r.model.name, score: r.score, labId: r.model.labId, base: colors.get(r.model.labId) ?? "#A3A39B" })),
+            count: s?.count ?? 0, mix: s ? cardMix(s) : [], top: s ? cardTop(s) : [],
             theme: p.theme, x, pageHref: `/${p.handle}`, compareHref: `/compare?a=me&b=@${p.handle}`, remixHref: `/builder?${prettyQuery(encodeIndices([{ ...index, name: `From @${p.handle}` }]))}`,
           }} />;
         })}

@@ -8,6 +8,24 @@ import { track } from "@/lib/analytics";
 import { presetStyle, resolveAccent, resolvePreset } from "@/lib/page-presets";
 import "./explore-card.css";
 
+export interface FeaturedMixData { name: string; href: string; count: number; top: ExploreCardData["top"]; mix: ExploreCardData["mix"] }
+
+/** A starting point on Explore: a ranking anyone can open in the builder and change. */
+export function FeaturedMixCard({ c }: { c: FeaturedMixData }) {
+  const { dark } = useTheme();
+  const preset = resolvePreset(undefined, dark), pal = paletteFor(preset);
+  const lead = c.top[0]?.score || 1, low = c.top[c.top.length - 1]?.score ?? lead, floor = lead - Math.max(10, (lead - low) * 2);
+  return <li className="ex-card ex-featured" style={presetStyle(preset, resolveAccent(undefined, preset)) as CSSProperties} data-theme-preset={preset.id}>
+    <Link className="ex-stretch" href={c.href as "/builder"} aria-label={`Open ${c.name} in the builder`} />
+    <div className="ex-index">{c.name}</div>
+    <ol className="ex-rows">{c.top.map((m, i) => <li key={m.name}>
+      <span className="ex-row-line"><span className="cap">{i + 1}</span><span className="ex-row-name" title={m.name}>{m.name}</span><span className="num">{m.score.toFixed(1)}</span></span>
+      <span className="ex-row-bar"><b style={{ width: `${Math.max(8, (m.score - floor) / (lead - floor || 1) * 100)}%`, background: markColor(m.base, pal, m.labId), opacity: i === 0 ? 1 : 0.55 }} /></span>
+    </li>)}</ol>
+    <p className="cap ex-mix" title={c.mix.map((b) => `${b.name} ${b.share}%`).join(", ")}>{c.count} benchmark{c.count === 1 ? "" : "s"} · {c.mix.slice(0, 3).map((b) => `${b.name} ${b.share}%`).join(", ")}</p>
+  </li>;
+}
+
 export interface ExploreCardData {
   handle: string; name: string; avatarUrl?: string; when: string; index: string; others: string[]; more: number; count: number;
   top: { name: string; score: number; labId: string; base: string }[]; mix: { name: string; share: number }[];

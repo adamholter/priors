@@ -8,6 +8,7 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react
 import type { EChartsOption } from "echarts";
 import type { Benchmark, Snapshot } from "@/data/types";
 import { benchRows, type BenchRow as Row, type ModelView, type ViewBenchmark, type ViewField } from "@/lib/model-view";
+import type { ModelAvailability } from "@/lib/model-availability";
 import { rankParam, type RankingOption } from "@/lib/model-ranking-param";
 import { Wordmark } from "../Wordmark";
 import { SiteNav } from "../SiteNav";
@@ -17,6 +18,7 @@ import { ModelStrengths } from "./ModelStrengths";
 import { ModelDomains } from "./ModelDomains";
 import { FieldStrip, type StripPoint } from "./FieldStrip";
 import { ModelCostSpeed } from "./ModelCostSpeed";
+import { ModelAvailabilitySection } from "./ModelAvailability";
 import { escapeSvg as esc } from "../chart/export-frame";
 import { useNearView } from "../use-near-view";
 
@@ -30,7 +32,7 @@ function fmt(b: Pick<Bench, "unit">, v: number) {
 }
 
 interface Props {
-  view: ModelView; summary?: string;
+  view: ModelView; summary?: string; availability?: ModelAvailability;
   /** Where a server-drawn page gets the rest of its benchmarks. */
   othersUrl: string;
   options: RankingOption[]; current: string; onPick: (param: string) => void;
@@ -41,7 +43,7 @@ interface Props {
   probe: ReactNode;
 }
 
-export function ModelPage({ view, summary, othersUrl, options, current, onPick, pending, error, retry, infoSnapshot, info, onInfo, probe }: Props) {
+export function ModelPage({ view, summary, availability, othersUrl, options, current, onPick, pending, error, retry, infoSnapshot, info, onInfo, probe }: Props) {
   const { model, lab, mine, field, others, strengths, cost, loose, place, models, total, measured, weighted } = view;
   const pal = useChartPalette();
   const labC = markColor(lab?.color ?? "#2F4FB0", pal, lab?.id);
@@ -62,6 +64,7 @@ export function ModelPage({ view, summary, othersUrl, options, current, onPick, 
             <h1 className="text-[44px] leading-[1.05] mt-2">{model.name}</h1>
             {summary && <p className="text-[13.5px] text-ink-2 mt-2 max-w-[70ch]">{summary}</p>}
             <p className="text-[13.5px] text-ink-2 mt-2">Measured on {measured} benchmarks{mine.length > 1 ? ` across ${mine.length} reasoning efforts` : ""}.</p>
+            <Link href={`/models/${encodeURIComponent(modelId)}/compare` as "/"} prefetch={false} className="btn-quiet inline-flex items-center mt-3 max-sm:min-h-[44px]">Compare</Link>
           </div>
           <div className="sm:text-right">
             <label className="cap inline-flex items-center gap-2">Ranked in
@@ -86,6 +89,8 @@ export function ModelPage({ view, summary, othersUrl, options, current, onPick, 
         {view.domains && <ModelDomains data={view.domains} name={model.name} labId={lab?.id} labColors={view.labColors} />}
 
         {mine.length > 0 && <ModelCostSpeed data={cost} modelId={modelId} name={model.name} color={labC} />}
+
+        {availability && <ModelAvailabilitySection data={availability} />}
 
         <section className="grid gap-4">
           <div className="flex items-baseline justify-between border-b hairline pb-2"><h2 className="text-[26px]">This ranking&rsquo;s benchmarks</h2><span className="cap">{inMix.length} of {weighted} measured</span></div>

@@ -107,6 +107,9 @@ When a benchmark one of a visitor's own indices weights has a newer version in t
 - An explicit `theme=` or `scheme=` on `/og` wins over the saved theme.
 - **Readable addresses.** `prettyQuery` in `src/lib/url.ts` writes builder links with `:`, `,` and `=` unescaped and `+` for spaces. The `|` between fields stays escaped, because chat apps cut a link at a bare pipe.
 
+## Featured mixes
+`/explore` opens with a few starting points (`src/lib/featured-mixes.ts`): Artificial Analysis' Intelligence Index, then its Coding, Knowledge work and Science categories rebuilt at AA's own weights. The category scores are Priors', not AA's. A card opens the mix in the builder.
+
 ## Explore cards
 Each card on `/explore` (`src/components/explore/ExploreCard.tsx`) wears its owner's page theme through `resolvePreset`: it follows the visitor's light/dark unless the owner fixed a mode, and single-mode themes stay as picked. The top three show as zoomed podium columns, the benchmark mix is one truncated line, the owner's X link (from `socials`, x.com or twitter.com) is a handle chip, and the footer splits View page | Compare (your ranking against theirs, `/compare?a=me&b=@handle`) | Remix (opens the mix in the builder as a copy). `profiles.explore` returns `theme` and `socials`; run `npx convex deploy` before pushing changes to it.
 
@@ -117,6 +120,9 @@ Each card on `/explore` (`src/components/explore/ExploreCard.tsx`) wears its own
 - **What it says** (`src/lib/compare.ts`, tested): one line, how many of the top `n` are on both lists and the model with the biggest rank gap. "Why they differ" is a sentence about where each side puts its weight and the share of weight on the same benchmarks (`mixLead`), then each ranking's whole mix as one stacked bar. Spearman correlation (`rankCorrelation`) feeds the link-preview text. Ranks are as each side publishes them unless `same=1`. The slope draws a line from each model to its place on the other list; a model off the other top list keeps a stub and its rank there, or a dash when that side does not rank it.
 - **Narrow screens** get the matched table instead of the slope (`.cmp-wide` and `.cmp-narrow`).
 - The page's description for link previews is computed from the same numbers (`generateMetadata` in `src/app/compare/page.tsx`); the image is the default card.
+
+## Model compare
+`/models/<id>/compare?with=<id>` puts two models side by side (`compareView` in `src/lib/model-view.ts`, `src/components/model/ModelCompare.tsx`). Compare at the top of a model page opens it against the model ranked just above, or just below for the leader. It shows the standard ranking's score with cost, time and speed at the ranked effort, who leads on the current benchmarks both took, the By category radar, and those benchmarks by widest gap in place. Each benchmark uses each model's best setting.
 
 ## Short links
 A link over 300 characters (a builder or chart link with long index specs runs 10 KB and more) is too long for chat apps and X to treat as a URL. Every place that copies a page or chart link goes through `copyLink` (`src/lib/short-link.ts`), which swaps a long same-origin link for `/s/<slug>` and copies anything else as is. `shortenUrl` calls the anonymous `shortLinks.create` mutation (`convex/shortLinks.ts`) and falls back to the long link when there is no backend, the call fails, or it takes over 4 seconds, so copying never fails on it. With `ClipboardItem` the copy is handed to the clipboard as a pending blob inside the click, because Safari drops clipboard permission across an await.

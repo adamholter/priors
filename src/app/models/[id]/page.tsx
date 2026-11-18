@@ -5,6 +5,7 @@ import { ModelLoader } from "@/components/model/ModelLoader";
 import { isPreviewBot, isSearchBot, PreviewPage } from "@/lib/link-preview";
 import { defaultConfig } from "@/engine";
 import { defaultPreset, modelView, presetConfig } from "@/lib/model-view";
+import { modelAvailability } from "@/lib/model-availability";
 import { pageMeta } from "@/lib/site-meta";
 import { modelDescription, modelStanding } from "@/lib/og-model";
 
@@ -36,5 +37,5 @@ export default async function Page({ params, searchParams }: { params: Promise<{
   // Everything on the page is in the response, worked out here. The visitor's browser needs the full dataset only for rankings of their own (`ModelLoader`).
   const pick = r === "aa" || r === "general" ? `preset:${r}` : defaultPreset(snapshot, id);
   const standing = await isSearchBot() ? modelStanding(snapshot, id) : null;
-  return <ModelLoader view={modelView(snapshot, id, presetConfig(snapshot, pick), defaultConfig(snapshot))} rankingKey={pick} modelId={id} rank={typeof r === "string" ? r : undefined} summary={standing ? modelDescription(standing) : undefined} />;
+  return <ModelLoader view={modelView(snapshot, id, presetConfig(snapshot, pick), defaultConfig(snapshot))} availability={modelAvailability(snapshot, id)} rankingKey={pick} modelId={id} rank={typeof r === "string" ? r : undefined} summary={standing ? modelDescription(standing) : undefined} />;
 }

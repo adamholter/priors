@@ -8,10 +8,12 @@
  */
 import type { Source, ScrapeResult, RawRow, Benchmark } from "../../../src/data/types";
 import { normalizeLabel } from "../../../src/data/normalize";
+import { openRouterOffers } from "../../../src/data/providers";
 
 const LIST = "https://openrouter.ai/api/v1/models";
 const STATS = "https://openrouter.ai/api/frontend/v1/stats";
 const PAGE = (slug: string) => `https://openrouter.ai/${slug}`;
+const ENDPOINTS = (slug: string) => `https://openrouter.ai/api/v1/models/${slug}/endpoints`;
 
 /** OpenRouter slug author prefix -> our labId. Unmapped authors must land on "other". */
 const AUTHOR_LAB: Record<string, string> = {
@@ -103,21 +105,23 @@ const source: Source = {
     let nextEntry = 0;
     const each = async (t: (typeof entries)[number]) => {
         const q = `permaslug=${encodeURIComponent(t.permaslug)}`;
-        const [up, tps, lat, toolErr] = await Promise.all([
+        const [up, tps, lat, toolErr, listed] = await Promise.all([
           j<{ data?: SeriesPoint[] }>(`${STATS}/uptime-comparison?${q}&timeRange=7d`),
           j<{ data?: SeriesPoint[] }>(`${STATS}/throughput-comparison?perfWorkload=text_generation&${q}&timeRange=3d&variant=standard`),
           j<{ data?: SeriesPoint[] }>(`${STATS}/latency-comparison?perfWorkload=text_generation&${q}&timeRange=3d&variant=standard`),
           j<{ data?: SeriesPoint[] }>(`${STATS}/tool-call-error-rate?${q}&timeRange=3d`),
+          j<{ data?: { endpoints?: Record<string, unknown>[] } }>(ENDPOINTS(t.slug)),
         ]);
+        const offers = openRouterOffers(listed?.data?.endpoints ?? []);
         const url = PAGE(t.slug);
         const mk = (benchmarkId: string, value: number | undefined, extra?: Partial<RawRow>) => {
           if (value == null || !Number.isFinite(value)) return;
           rows.push({ benchmarkId, modelLabel: t.label, value: +value.toFixed(4), sourceUrl: url, ...extra });
         };
         const upData = up?.data ?? [];
-        if (!upData.length && !tps?.data?.length) { unknown.push(t.permaslug); return; }
+        if (!upData.length && !tps?.data?.length && !offers.length) { unknown.push(t.permaslug); return; }
         mk("openrouter-uptime", dailyMean(upData));
-        mk("openrouter-providers", endpointCount(upData.length ? upData : (tps?.data ?? [])));
+        mk("openrouter-providers", endpointCount(upData.length ? upData : (tps?.data ?? [])) || offers.length, offers.length ? { details: { endpoints: offers } } : undefined);
         mk("openrouter-tps", perEndpointMedian(tps?.data ?? []));
         const latMs = perEndpointMedian(lat?.data ?? []);
         mk("openrouter-latency", latMs == null ? undefined : latMs / 1000);

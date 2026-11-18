@@ -25,6 +25,7 @@ import type { Benchmark, BenchmarkCategory, BenchmarkUnit, RawRow, ScrapeContext
 import { fitIndexWeights } from "../aa-weights";
 import { resolveAAIdentity } from "../aa-identity";
 import { pendingPreviews } from "../aa-preview";
+import { aaProviderRows } from "../../../src/data/providers";
 
 const ORIGIN = "https://artificialanalysis.ai";
 const UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0 Safari/537.36";
@@ -319,6 +320,7 @@ const source: Source = {
     };
     const apiDefaults = new Set(await extra<string[]>("/?highlights=default-effort", (j) => Array.isArray(j?.defaultEffortHighlightedIds) ? j.defaultEffortHighlightedIds : undefined) ?? []);
     const endpoints = await extra<EndpointRow[]>("/leaderboards/providers", (j) => Array.isArray(j) && j[0]?.hostApiId && j[0]?.performance ? j : undefined) ?? [];
+    const providersByRelease = aaProviderRows(endpoints as Json[]), providersGiven = new Set<string>();
     raw["default-effort.json"] = JSON.stringify([...apiDefaults]);
     raw["endpoint-error-rates.json"] = JSON.stringify(endpoints.map((e) => ({ slug: e.model?.slug, host: e.host, endpointErrorRate: e.performance?.endpointErrorRate })));
 
@@ -497,7 +499,12 @@ const source: Source = {
       // Speed / latency (model-level median across providers, or first-party)
       const { speed, ttft } = performanceOf(tbl);
       const perfNote = tbl?.performanceDataSource?.type ? `performance source: ${tbl.performanceDataSource.type}` : undefined;
-      if (isNum(speed) && speed > 0) { rows.push({ ...common, benchmarkId: "aa-output-speed", value: speed, sourceUrl: modelUrl, note: perfNote }); bump("aa-output-speed"); }
+      if (isNum(speed) && speed > 0) {
+        // Who serves this release, on its first row only: every effort of a release has the same providers.
+        const release: string | undefined = base.release?.slug ?? tbl?.release?.slug, providers = release && !providersGiven.has(release) ? providersByRelease.get(release) : undefined;
+        if (providers) providersGiven.add(release!);
+        rows.push({ ...common, benchmarkId: "aa-output-speed", value: speed, sourceUrl: modelUrl, note: perfNote, ...(providers ? { details: { providers } } : {}) }); bump("aa-output-speed");
+      }
       if (isNum(ttft) && ttft > 0) { rows.push({ ...common, benchmarkId: "aa-ttft", value: ttft, sourceUrl: modelUrl, note: perfNote }); bump("aa-ttft"); }
       const errors = firstPartyErrorRate(tbl, endpoints);
       if (errors) { rows.push({ ...common, benchmarkId: "aa-endpoint-error-rate", value: errors.percent, sourceUrl: `${modelUrl}/providers`, note: `endpoint: ${errors.endpoint}` }); bump("aa-endpoint-error-rate"); }
