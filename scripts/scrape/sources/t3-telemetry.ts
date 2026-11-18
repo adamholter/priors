@@ -18,7 +18,9 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
-import type { RawRow, ScrapeResult, Source } from "../../../src/data/types";
+import { gunzipSync } from "node:zlib";
+import { normalizeLabel } from "../../../src/data/normalize";
+import type { RawRow, ScrapeResult, Snapshot, Source } from "../../../src/data/types";
 import { T3_MIN_USERS } from "../../../src/data/task-metrics";
 
 export const T3_TURN_TIME_ID = "t3-turn-time";
@@ -27,6 +29,13 @@ const DASHBOARD = "https://slophouse.ineededadomain.com";
 /** The least installs and turns behind a published figure. Low on purpose: every effort of a new model should show; the time chart's Advanced filter raises it. */
 export const MIN_USERS = T3_MIN_USERS, MIN_TURNS = 30;
 const DAYS = 30, CACHE_HOURS = 20, CACHE_MAX_DAYS = 7;
+/**
+ * Between the daily queries, every scrape (15 minutes) runs the same query over the last week and looks only at models the site does
+ * not show yet: just released, or held by scripts/scrape/t3-costs.ts until their cost rises with effort. One enters the day's data once
+ * it has this many turns at this many stated efforts, so a chance fit in a launch's first hour does not go up. Published models keep
+ * their daily figures, so this does not republish the site every 15 minutes.
+ */
+const WATCH_DAYS = 7, WATCH_MIN_TURNS = 1_000, WATCH_MIN_EFFORTS = 3;
 const EFFORTS = new Set(["none", "minimal", "low", "medium", "high", "xhigh", "max"]);
 /** Ids that are not the plain model: provider or region prefixes (`openai.`, `us.anthropic.`), fast and sovereign modes, composites, an effort in a non-Gemini id, and aliases with no version (`opus`). */
 const NOT_PLAIN = /[:[\]"\s/]|^[a-z-]+\.|^fusion-|-(fast|build|turbo|sidekick|ultrafast|sovereign|latest)(-|$)|-(minimal|low|medium|high|xhigh|max)$|^[^0-9]*$/;
@@ -94,12 +103,52 @@ export function parseT3Telemetry(p: T3Payload): Pick<ScrapeResult, "benchmarks" 
   };
 }
 
+/**
+ * The day's payload with last week's rows for models the site lacks. A model with turns older than the week has more in the 30-day
+ * payload than in `week`, and stays as it is: a week's slice would misstate it.
+ */
+export function mergeWatched(day: T3Payload, week: T3Payload["rows"], published: (base: string) => boolean): { payload: T3Payload; added: string[] } {
+  const rows = new Map(day.rows.map((r) => [r[0], r]));
+  const added: string[] = [];
+  for (const row of week) {
+    const [base, total, efforts] = row, known = rows.get(base), stated = efforts.filter(([eff]) => EFFORTS.has(eff));
+    if (!base || NOT_PLAIN.test(base) || published(base) || stated.length < WATCH_MIN_EFFORTS || stated.reduce((a, [, n]) => a + n, 0) < WATCH_MIN_TURNS) continue;
+    if (known && (known[1] > total || JSON.stringify(known) === JSON.stringify(row))) continue;
+    rows.set(base, row);
+    added.push(base);
+  }
+  return { payload: added.length ? { ...day, rows: [...rows.values()] } : day, added };
+}
+
+/** Models with T3 Code rows on the site now, from the last snapshot this checkout built. */
+function publishedModels(): Set<string> {
+  const snapshot = JSON.parse(gunzipSync(readFileSync(path.resolve("data/snapshots/latest.json.gz"))).toString("utf8")) as Snapshot;
+  const modelOf = new Map(snapshot.variants.map((v) => [v.id, v.modelId]));
+  return new Set(snapshot.observations.filter((o) => o.benchmarkId === T3_TURN_TIME_ID).map((o) => modelOf.get(o.variantId) ?? o.variantId.split("@")[0]));
+}
+
 /** Netscape cookie jar (curl -c) to a Cookie header. The value is Adam's session: never logged or written anywhere else. */
 function cookieHeader(jar: string): string {
   return readFileSync(jar, "utf8").split("\n").map((l) => l.replace(/^#HttpOnly_/, "")).filter((l) => l && !l.startsWith("#")).map((l) => l.split("\t")).filter((f) => f.length >= 7).map((f) => `${f[5]}=${f[6].trim()}`).join("; ");
 }
 
 const day = (t: number) => new Date(t).toISOString().slice(0, 10);
+
+/** One aggregate query. The session cookie goes only to the dashboard. */
+async function query(days: number, timeoutMs: number): Promise<T3Payload["rows"]> {
+  const jar = process.env.PRIORS_SLOPHOUSE_JAR ?? path.join(homedir(), "Projects/overnight-2026-10-20/data/b81/.jar");
+  if (!existsSync(jar)) throw new Error("no slophouse session on this machine");
+  const res = await fetch(`${DASHBOARD}/api/query`, {
+    method: "POST", signal: AbortSignal.timeout(timeoutMs),
+    headers: { Cookie: cookieHeader(jar), Origin: DASHBOARD, "Sec-Fetch-Site": "same-origin", "Content-Type": "application/json" },
+    body: JSON.stringify({ sql: T3_SQL, days }),
+  });
+  if (res.status === 401 || res.status === 403) throw new Error(`slophouse session expired (${res.status}); sign in again in a browser and save the cookie jar`);
+  if (!res.ok) throw new Error(`slophouse ${res.status}`);
+  const json = await res.json() as { rows?: T3Payload["rows"]; error?: string };
+  if (!Array.isArray(json.rows)) throw new Error(`slophouse: ${json.error ?? "no rows"}`);
+  return json.rows;
+}
 
 const source: Source = {
   id: "t3-telemetry", name: "T3 Code telemetry (by effort)", url: SITE,
@@ -109,21 +158,19 @@ const source: Source = {
     try { cached = JSON.parse(readFileSync(cacheFile, "utf8")) as T3Payload; } catch { /* first run */ }
     const age = cached ? (Date.parse(ctx.now) - Date.parse(cached.fetchedAt)) / 3_600_000 : Infinity;
     let payload = cached && age < CACHE_HOURS && cached.version === T3_PAYLOAD_VERSION ? cached : undefined;
-    if (!payload) {
-      const jar = process.env.PRIORS_SLOPHOUSE_JAR ?? path.join(homedir(), "Projects/overnight-2026-10-20/data/b81/.jar");
+    if (payload) {
+      // Failing here costs nothing: the day's figures stand and the next scrape looks again.
       try {
-        if (!existsSync(jar)) throw new Error("no slophouse session on this machine");
-        const res = await fetch(`${DASHBOARD}/api/query`, {
-          method: "POST", signal: AbortSignal.timeout(150_000),
-          headers: { Cookie: cookieHeader(jar), Origin: DASHBOARD, "Sec-Fetch-Site": "same-origin", "Content-Type": "application/json" },
-          body: JSON.stringify({ sql: T3_SQL, days: DAYS }),
-        });
-        if (res.status === 401 || res.status === 403) throw new Error(`slophouse session expired (${res.status}); sign in again in a browser and save the cookie jar`);
-        if (!res.ok) throw new Error(`slophouse ${res.status}`);
-        const json = await res.json() as { rows?: T3Payload["rows"]; error?: string };
-        if (!Array.isArray(json.rows)) throw new Error(`slophouse: ${json.error ?? "no rows"}`);
+        const published = publishedModels();
+        const known = (base: string) => { const n = normalizeLabel(base.replace(/(\d)p(\d)/g, "$1.$2")); return n.ok && published.has(n.modelId); };
+        const { payload: merged, added } = mergeWatched(payload, await query(WATCH_DAYS, 90_000), known);
+        if (added.length) { payload = merged; writeFileSync(cacheFile, JSON.stringify(payload)); ctx.log(`T3 telemetry: rechecking ${added.join(", ")}, not on the site yet`); }
+      } catch (e) { ctx.log(`T3 telemetry: new-model check skipped: ${(e as Error).message}`); }
+    } else {
+      try {
+        const rows = await query(DAYS, 150_000);
         const now = Date.parse(ctx.now);
-        payload = { version: T3_PAYLOAD_VERSION, fetchedAt: ctx.now, start: day(now - DAYS * 86_400_000), end: day(now), rows: json.rows };
+        payload = { version: T3_PAYLOAD_VERSION, fetchedAt: ctx.now, start: day(now - DAYS * 86_400_000), end: day(now), rows };
         mkdirSync(path.dirname(cacheFile), { recursive: true });
         writeFileSync(cacheFile, JSON.stringify(payload));
       } catch (e) {
