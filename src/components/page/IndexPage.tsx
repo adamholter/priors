@@ -23,6 +23,7 @@ import { MixPie } from "../MixPie";
 import { benchmarkPath } from "@/lib/benchmark-slug";
 import { pageRef as refForPage, threeDUrl } from "@/lib/compare-ref";
 import { useTripleD } from "@/lib/use-triple-d";
+import { everyVersion } from "@/lib/model-lineage";
 import { Wordmark } from "../Wordmark";
 import { SiteNav } from "../SiteNav";
 import { Rankings } from "../Rankings";
@@ -74,6 +75,7 @@ export function IndexPage({ profile, snapshot, edit, tab: linkedTab, linkedHighl
   const setP = setPState;
   const resetsOn = usePlanResetsOn(), plansPref = useSubscriptionPlansPref(), fresh = useNewModels(snapshot.models);
   const results = useMemo(() => new Map(p.indices.map((i) => [i.id, computeIndex(snapshot, { ...withPlansPref(withResetsPref(i, resetsOn), plansPref), variants: "all" }, PAGE_VIEW)])), [snapshot, p.indices, resetsOn, plansPref]);
+  const versions = useMemo(() => new Map(p.indices.map((i) => [i.id, everyVersion(snapshot, { ...withPlansPref(withResetsPref(i, resetsOn), plansPref), variants: "all" })])), [snapshot, p.indices, resetsOn, plansPref]);
   const { dark: siteDark } = useTheme();
   const preset = resolvePreset(p.theme, siteDark);
   // The visitor's light/dark toggle matters only when the theme has both versions and the owner didn't lock one.
@@ -236,7 +238,7 @@ export function IndexPage({ profile, snapshot, edit, tab: linkedTab, linkedHighl
               <Rankings fresh={fresh} imageTitle={title} anchor={anchorOf(title)} title={heading(s, title, "text-[21px] sm:text-[24px]")} actions={settings("Ranking", rankingMode, "rankingVariants")} ranked={rankingRows(r.ranked, idx)} showEffort={rankingMode === "all"} labs={snapshot.labs} limit={25} selected={selected} onSelect={(x) => setSelected(x?.variant.id ?? null)} />
             </section>
           );
-          if (s.kind === "pareto") return wrap(<section key={s.id} className="chart-panel"><WithView id={`pareto-${s.id}`} owner={s.view} onOwner={editing ? (view) => patchSection(s.id, { view }) : undefined}>{(paretoView, setParetoView) => <ParetoChart formulaInputs={formulaInputs(snapshot, r.ranked, idx.timeSource)} basis={effectiveBasis(idx.costBasis, hasSubscriptionPrices(snapshot))} description={costDescription(costSourceOf(snapshot, idx.costSource), effectiveBasis(idx.costBasis, hasSubscriptionPrices(snapshot)))} anchor={anchorOf(title)} ranked={withSpeedTiers(metricRanked, snapshot, idx.speedTiers, tierPlans, { chart: "cost" })} mode={paretoMode} labs={snapshot.labs} height={440} view={paretoView} onView={setParetoView} title={heading(s, title, "text-[21px] sm:text-[24px]")} actions={(barModels) => {
+          if (s.kind === "pareto") return wrap(<section key={s.id} className="chart-panel"><WithView id={`pareto-${s.id}`} owner={s.view} onOwner={editing ? (view) => patchSection(s.id, { view }) : undefined}>{(paretoView, setParetoView) => <ParetoChart everyVersion={versions.get(idx.id)} formulaInputs={formulaInputs(snapshot, r.ranked, idx.timeSource)} basis={effectiveBasis(idx.costBasis, hasSubscriptionPrices(snapshot))} description={costDescription(costSourceOf(snapshot, idx.costSource), effectiveBasis(idx.costBasis, hasSubscriptionPrices(snapshot)))} anchor={anchorOf(title)} ranked={withSpeedTiers(metricRanked, snapshot, idx.speedTiers, tierPlans, { chart: "cost" })} mode={paretoMode} labs={snapshot.labs} height={440} view={paretoView} onView={setParetoView} title={heading(s, title, "text-[21px] sm:text-[24px]")} actions={(barModels) => {
             const models = barModels?.models ?? pickerModels, excluded = barModels?.excluded ?? excludedIds;
             const onToggleModel = barModels?.onToggleModel ?? toggleModel;
             const onShowAllModels = barModels?.onShowAllModels ?? (() => updateIndex(SHOW_ALL));

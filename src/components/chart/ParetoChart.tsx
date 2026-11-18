@@ -1,5 +1,5 @@
 "use client";
-import { startTransition, useEffect, useOptimistic, useState, type ReactNode } from "react";
+import { startTransition, useEffect, useMemo, useOptimistic, useState, type ReactNode } from "react";
 import { ChartMethod } from "./ChartMethod";
 import { MetricBars } from "./MetricBars";
 import type { Lab } from "@/data/types";
@@ -12,6 +12,8 @@ import { speedTierLegend } from "@/data/speed-tiers";
 import { useBarModelVisibility, type BarModelPicker } from "./bar-model-visibility";
 
 import { linkedLabelScale } from "./label-size";
+import { lineageFinder } from "@/lib/model-lineage";
+import { useModelPathsOn, useShiftHeld } from "@/lib/model-paths-egg";
 
 export function variantLabel(r: RankedVariant) {
   if (r.variant.configuration && r.variant.sourceModel) return r.variant.sourceModel.name;
@@ -22,7 +24,7 @@ export function variantLabel(r: RankedVariant) {
 /** `actions` receives the bar view's model picker plus what chart settings need for the custom formula. */
 export type ParetoSettings = Partial<BarModelPicker> & { formula?: FormulaSettings; defaultScale?: "log" | "linear" };
 
-export function ParetoChart({ ranked, mode = "all", labs, height = 460, title, actions, view: savedView, onView, anchor, description, basis = "subscription", formulaInputs }: { /** Enables the custom formula in Advanced settings. */ formulaInputs?: FormulaInputs; basis?: CostBasis; ranked: RankedVariant[]; mode?: "all" | "best"; labs: Lab[]; height?: number; title?: ReactNode; actions?: ReactNode | ((settings?: ParetoSettings) => ReactNode); view: ScatterView; onView: (view: ScatterView, persist?: boolean) => void; anchor?: string; description?: string }) {
+export function ParetoChart({ everyVersion, ranked, mode = "all", labs, height = 460, title, actions, view: savedView, onView, anchor, description, basis = "subscription", formulaInputs }: { /** Every model including older versions a default view hides, for the path drawn on hover. */ everyVersion?: () => RankedVariant[]; /** Enables the custom formula in Advanced settings. */ formulaInputs?: FormulaInputs; basis?: CostBasis; ranked: RankedVariant[]; mode?: "all" | "best"; labs: Lab[]; height?: number; title?: ReactNode; actions?: ReactNode | ((settings?: ParetoSettings) => ReactNode); view: ScatterView; onView: (view: ScatterView, persist?: boolean) => void; anchor?: string; description?: string }) {
   const [linkedKind, setLinkedKind] = useState<"bars" | "scatter">();
   // Read once: the effect below that mirrors the formula into the URL would otherwise erase a linked one before a remount reads it.
   const [linkedCustom] = useState(() => (typeof window === "undefined" ? undefined : linkedFormula(new URL(window.location.href).searchParams)));
@@ -52,6 +54,14 @@ export function ParetoChart({ ranked, mode = "all", labs, height = 460, title, a
   // Chart settings can swap cost for a custom formula.
   const formula = useFormulaChart(baseChart, savedView, formulaInputs, ranked), view = formula.view;
   const costChart = formula.custom ? { ...formula.custom, xShort: formula.custom.xName, formatValue: undefined } : baseChart;
+  const custom = !!formula.custom;
+  const pathsOn = useModelPathsOn(), shiftHeld = useShiftHeld(), showPaths = pathsOn || shiftHeld;
+  const lineage = useMemo(() => {
+    if (!showPaths || !everyVersion || custom) return undefined;
+    const chart = costChartFor(basis);
+    let find: ReturnType<typeof lineageFinder<ReturnType<typeof chart.points>[number]>> | undefined;
+    return (p: ReturnType<typeof chart.points>[number]) => (find ??= lineageFinder(everyVersion(), chart.points))(p);
+  }, [showPaths, everyVersion, custom, basis]);
   const allPoints = costChart.points(ranked), pts = pickPoints(costChart, ranked, mode);
   const barVisibility = useBarModelVisibility({ metricPoints: allPoints, points: pts, better: costChart.better, ranked });
   const formulaSettings = { formula: formula.settings, defaultScale: formula.defaultScale };
@@ -82,7 +92,7 @@ export function ParetoChart({ ranked, mode = "all", labs, height = 460, title, a
   if (bars) return <MetricBars labelScale={view.labelScale} pts={barVisibility.points} labs={labs} better={costChart.better} xName={subscription ? "Subscription cost per task ($)" : "Cost per task ($)"} formatValue={costChart.formatX} height={height} aria={subscription ? "Subscription cost per task by model" : "Cost per task by model"} title={heading} actions={controls} anchor={anchor} linkParams={linkParams} exportName={subscription ? "Subscription cost per task" : "Cost per task"} />;
   const tierLegend = speedTierLegend(pts.map((p) => p.r), "cost");
   const legend = `Heavy line: best score at each price. Thin lines join one model's effort levels.${subscription ? " Cost uses each model's median subscription plan, or API price with no plan data." : ""}${tierLegend && subscription ? ` ${tierLegend}` : ""}`;
-  return <ScoreScatter legend={legend} pts={pts} labs={labs} better={costChart.better} xName={costChart.xName} xShort={costChart.xShort} scale={costChart.scale} formatX={costChart.formatX} formatValue={costChart.formatValue} height={height} aria={costChart.aria} title={heading} actions={controls} linkParams={linkParams} view={view} anchor={anchor} exportName={subscription ? "Score vs subscription cost per task" : "Score vs cost per task"}
+  return <ScoreScatter lineage={lineage} lineageIdle={pathsOn} lineageOnCard={shiftHeld} legend={legend} pts={pts} labs={labs} better={costChart.better} xName={costChart.xName} xShort={costChart.xShort} scale={costChart.scale} formatX={costChart.formatX} formatValue={costChart.formatValue} height={height} aria={costChart.aria} title={heading} actions={controls} linkParams={linkParams} view={view} anchor={anchor} exportName={subscription ? "Score vs subscription cost per task" : "Score vs cost per task"}
     tooltipExtra={(p) => `${p.r.speed ? ` · ${Math.round(p.r.speed)} tok/s` : ""}${subscription ? ` · ${p.r.costPlan ? p.r.costPlan.ratio === 0 ? p.r.costPlan.plan : `${p.r.costPlan.plan}, ${subscriptionShare(p.r.costPlan.ratio)} of API price` : p.r.speedTier?.apiRates ? "billed at API rates, no plan covers this tier" : "API price, no plan data"}` : ""}`}
     extraRows={(p) => ({ speed_toks: p.r.speed ?? null, coverage: p.r.coverage, ...(subscription ? { subscription_plan: p.r.costPlan?.plan ?? null, share_of_api_price: p.r.costPlan?.ratio ?? null } : {}) })} />;
 }

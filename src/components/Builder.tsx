@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MixAssistant } from "./MixAssistant";
 import { SharedChart } from "./SharedChart";
 import { track } from "@/lib/analytics";
+import { everyVersion } from "@/lib/model-lineage";
 import { HighlightContext } from "./chart/highlight";
 import { SettingsButton } from "./SiteSettings";
 import type { Snapshot } from "@/data/types";
@@ -93,6 +94,8 @@ export function Builder({ snapshot: base, initialIndices }: { snapshot: Snapshot
   useTripleD(active ? threeDUrl({ kind: "index", config: active }) : null);
   const resetsOn = usePlanResetsOn(), plansPref = useSubscriptionPlansPref();
   const result = useMemo(() => computeIndex(snapshot, { ...withPlansPref(withResetsPref(active, resetsOn), plansPref), variants: "all" }, PAGE_VIEW), [snapshot, active, resetsOn, plansPref]);
+  // Every earlier version, for the model paths Easter egg. Worked out only if someone opens it.
+  const versions = useMemo(() => everyVersion(snapshot, { ...withPlansPref(withResetsPref(active, resetsOn), plansPref), variants: "all" }), [snapshot, active, resetsOn, plansPref]);
   const rankingMode = chartVariantMode(active, "ranking"), paretoMode = chartVariantMode(active, "pareto");
   const rankingRows = useMemo(() => rankingRowsOf(result.ranked, active), [result, active]);
   // The mix is the secondary thing: closed on AA's index, open once the weights are the visitor's own or they ask for it.
@@ -252,7 +255,7 @@ export function Builder({ snapshot: base, initialIndices }: { snapshot: Snapshot
               {!mixOpen && <p className="cap mt-1">Want your own ranking? <Link href="/rank" className="underline underline-offset-2 hover:text-ink" transitionTypes={["nav-forward"]}>Rank models</Link> or <button type="button" className="underline underline-offset-2 hover:text-ink" onClick={openMix}>change the mix</button>.</p>}</>} actions={<ChartSettings label="Ranking" efforts={{ value: active.rankingEfforts ?? [...EFFORT_CHOICES], onChange: (rankingEfforts) => update({ ...active, rankingEfforts }), withMode: true }} mode={rankingMode} onChange={(rankingVariants) => update({ ...active, rankingVariants })} {...releaseProps} {...modelPicker} />} onSelect={(r) => { if (r) router.push(`/models/${r.model.id}${isAAWeights(active) ? "?r=aa" : ""}` as "/", { transitionTypes: ["nav-forward"] }); }} ranked={rankingRows} labs={snapshot.labs} showEffort={rankingMode === "all"} />
           </div>
           <div className="builder-cost">
-            <ParetoChart formulaInputs={formulaInputs(snapshot, result.ranked, active.timeSource)} basis={effectiveBasis(active.costBasis, hasSubscriptionPrices(snapshot))} description={costDescription(costSourceOf(snapshot, active.costSource), effectiveBasis(active.costBasis, hasSubscriptionPrices(snapshot)))} anchor="cost" ranked={costRanked} mode={paretoMode} labs={snapshot.labs} view={paretoView} onView={setParetoView} height={phone ? undefined : 620} title={<h2 className="text-[22px]">{effectiveBasis(active.costBasis, hasSubscriptionPrices(snapshot)) === "subscription" ? "Score vs subscription cost per task" : "Score vs cost per task"}</h2>}
+            <ParetoChart everyVersion={versions} formulaInputs={formulaInputs(snapshot, result.ranked, active.timeSource)} basis={effectiveBasis(active.costBasis, hasSubscriptionPrices(snapshot))} description={costDescription(costSourceOf(snapshot, active.costSource), effectiveBasis(active.costBasis, hasSubscriptionPrices(snapshot)))} anchor="cost" ranked={costRanked} mode={paretoMode} labs={snapshot.labs} view={paretoView} onView={setParetoView} height={phone ? undefined : 620} title={<h2 className="text-[22px]">{effectiveBasis(active.costBasis, hasSubscriptionPrices(snapshot)) === "subscription" ? "Score vs subscription cost per task" : "Score vs cost per task"}</h2>}
               actions={(barModels) => <ChartSettings anchor="cost" defaultScale="log" dataSource={{ value: costSourceOf(snapshot, active.costSource), options: taskMetricOptions(snapshot, "cost"), onChange: (costSource) => update({ ...active, costSource }) }} costBasis={hasSubscriptionPrices(snapshot) ? { value: effectiveBasis(active.costBasis), onChange: (basis) => update({ ...active, costBasis: basis === "subscription" ? undefined : basis }) } : undefined} subscriptionPlans={planPicker(snapshot, active, plansPref, (subscriptionPlans) => update({ ...active, subscriptionPlans }))} planResets={planResetsProps(snapshot, active, resetsOn, (p) => update({ ...active, ...p }))} freeTiers={freeTierSettings(snapshot, active.freeTiers, (freeTiers) => update({ ...active, freeTiers }))} planReading={planReadingSettings(snapshot, active.planReading, (planReading) => update({ ...active, planReading }))} speedTiers={speedTiers} label="Pareto" mode={paretoMode} onChange={(paretoVariants) => update({ ...active, paretoVariants })} view={paretoView} onView={setParetoView} {...releaseProps} {...effortProps} {...modelPicker} {...(barModels ?? {})} />} />
           </div>
           <div className="builder-more">

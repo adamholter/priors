@@ -98,3 +98,7 @@ The toolbar toggle switches the panel to `BenchBars.tsx`: one bar chart per benc
 ## Loading the library
 
 ECharts is about 650 KB of script, so `useEChart` imports it the first time a chart mounts, and `BuilderLoader` starts that import early because the builder opens on a chart. Import colors, option builders and other helpers from `chart/theme-tokens.ts` or `chart/echarts.ts`, never `chart/theme.ts`, which pulls in the library (only server cards and the assistant's print view, itself a dynamic import, use it). A chart's effects may run before its instance exists: read `chart.current` with a null check, and put event wiring in `onReady`.
+
+## Model paths
+
+An Easter egg on the cost scatter (`src/lib/model-paths-egg.ts`, lineage in `src/lib/model-lineage.ts`). Typing `iddt` (not in a text field) draws an arrow from each model's predecessor to it until typed again, and never changes the hover card. Holding Shift while hovering shows that model's path and adds its history to the card. A predecessor without a published composite score gets an estimate from the composite's evaluations, marked `~`.

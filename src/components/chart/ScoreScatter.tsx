@@ -5,7 +5,7 @@ import { decodeEditor, encodeEditor, type EditorState } from "@/lib/export-edito
 import { chartLinkUrl } from "@/lib/highlight-link";
 import type { ECharts, EChartsOption } from "echarts";
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import type { Lab } from "@/data/types";
 import { DARK_PALETTE, LIGHT_PALETTE, markColor, useChartPalette, useEChart } from "./echarts";
 import { useChartGrid } from "@/lib/chart-grid-pref";
@@ -27,6 +27,7 @@ import { viewParam } from "@/lib/export-editor";
 import type { FallingDot } from "./GravityLayer";
 import { useChartZoom } from "./ChartZoom";
 import { inBox } from "./chart-zoom";
+import { generationChange, isPlaced, isThinScore } from "@/lib/model-lineage";
 
 const GravityLayer = dynamic(() => import("./GravityLayer"), { ssr: false });
 const ExportEditor = dynamic(() => import("./ExportEditor"), { ssr: false });
@@ -122,7 +123,7 @@ function useKeepOnScreen(ref: RefObject<HTMLElement | null>, rest: number, mark?
 }
 
 /** The selected point's details, pinned to the chart's lower right so it never covers the marks it describes. */
-function PointCard({ point, labs, pal, onFrontier, format, unit, extra, onClose, xLabel, mark }: { mark?: () => { x: number; y: number } | undefined; point: ScatterPoint; labs: Lab[]; pal: ChartPalette; onFrontier: boolean; format: (v: number) => string; unit: string; extra?: string; onClose?: () => void; xLabel?: string }) {
+function PointCard({ history = [], previous, point, labs, pal, onFrontier, format, unit, extra, onClose, xLabel, mark }: { history?: ScatterPoint[]; previous?: ScatterPoint; mark?: () => { x: number; y: number } | undefined; point: ScatterPoint; labs: Lab[]; pal: ChartPalette; onFrontier: boolean; format: (v: number) => string; unit: string; extra?: string; onClose?: () => void; xLabel?: string }) {
   const axis = useScoreAxis();
   const r = point.r, lab = labs.find((l) => l.id === r.model.labId)?.name ?? r.model.labId;
   const effort = r.variant.effort !== "default" && !new RegExp(`\\b${r.variant.effort}\\b`, "i").test(r.model.name) ? r.variant.effort : undefined;
@@ -133,6 +134,7 @@ function PointCard({ point, labs, pal, onFrontier, format, unit, extra, onClose,
   const api = plan && plan.ratio > 0 && r.costUsd != null ? r.costUsd / plan.ratio : undefined;
   const apiPrice = api == null ? undefined : perTask ? format(api).replace(/\/task$/, "") : api >= 1 ? `$${api.toFixed(2)}` : `$${api.toPrecision(2)}`;
   const planName = plan?.plan ?? (extra?.includes("API price, no plan data") ? "API price, no plan data" : undefined);
+  const change = previous ? generationChange(previous, point) : undefined;
   const card = useRef<HTMLDivElement>(null);
   useKeepOnScreen(card, 48, mark);
   return <div ref={card} role="status" aria-label="Selected model" className="absolute right-3 bottom-12 z-10 w-[min(300px,calc(100%-24px))] rounded-[4px] border text-[12px] leading-[1.45] pointer-events-none" style={{ background: pal.tipBg, borderColor: pal.tipBorder, color: pal.ink }}>
@@ -145,11 +147,20 @@ function PointCard({ point, labs, pal, onFrontier, format, unit, extra, onClose,
     </div>
     {planName && <div className="flex items-baseline justify-between gap-3 border-t px-3 py-1.5" style={{ borderColor: pal.hair, color: pal.grey, fontSize: 11 }}><span className="min-w-0">{planName}</span>{apiPrice && <span className="whitespace-nowrap"><span className="font-mono">{apiPrice}</span> at API price</span>}</div>}
     {point.users != null && <div className="border-t px-3 py-1.5" style={{ borderColor: pal.hair, color: pal.grey, fontSize: 11 }}>Based on <span className="font-mono" style={{ color: point.users < 100 ? pal.ink : undefined }}>{point.users.toLocaleString("en-US")}</span> T3 Code {point.users === 1 ? "user" : "users"}{point.turns != null ? `, ${point.turns.toLocaleString("en-US")} turns` : ""}{point.users < 100 ? ". Few users: noisy" : ""}</div>}
+    {change && <div className="border-t px-3 py-1.5" style={{ borderColor: pal.hair, color: pal.grey, fontSize: 11 }}>Since {chartLabel(previous!.r)}: <span className="font-mono" style={{ color: pal.ink }}>{change.score >= 0 ? "+" : ""}{change.score.toFixed(1)}</span> score{change.ratio != null && Math.abs(change.ratio - 1) >= 0.005 ? <>, <span className="font-mono" style={{ color: pal.ink }}>{Math.round(Math.abs(1 - change.ratio) * 100)}%</span> {change.ratio < 1 ? "cheaper" : "more expensive"}</> : null}</div>}
+    {history.length > 0 && <div className="border-t px-3 py-1.5" style={{ borderColor: pal.hair, color: pal.grey, fontSize: 11 }}>
+      <div>{history.slice(-7).map((p) => <span key={p.r.variant.id}>{p.r.variant.effort === r.variant.effort ? modelLabel(p.r) : chartLabel(p.r)} <span className="font-mono" style={{ color: pal.ink }}>{isThinScore(p.r) ? "~" : ""}{axis.format(p.r.score)}</span>{isPlaced(p) ? "" : "*"} → </span>)}<span style={{ color: pal.ink }}>now</span></div>
+      {history.some((p) => isThinScore(p.r)) && <div>~ estimated, this index has little data on it</div>}
+      {history.some((p) => !isPlaced(p)) && <div>* no value on this chart, so not drawn</div>}
+    </div>}
     {r.scoreEstimate && <div className="px-3 pb-2" style={{ color: pal.grey, fontSize: 11 }}>Estimated: the index lacks its evaluations. From AA Progress Index {Math.round(r.scoreEstimate.progress)}, fit on {r.scoreEstimate.pairs} scored efforts (R² {r.scoreEstimate.r2.toFixed(2)}).</div>}
   </div>;
 }
 
 type ScatterProps = { /** One line under the chart saying how to read it. */ legend?: string;
+  /** Earlier versions of a model, drawn as a path into the point under the cursor. */ lineage?: (p: ScatterPoint) => ScatterPoint[];
+  /** With nothing under the cursor, keep the top model's path on show. */ lineageIdle?: boolean;
+  /** Add the model's history to its hover card. */ lineageOnCard?: boolean;
   pts: ScatterPoint[]; labs: Lab[]; better: "lower" | "higher"; xName: string; xShort?: string; xUnit?: string;
   scale?: "linear" | "log" | "time"; formatX: (x: number) => string; formatValue?: (x: number) => string;
   height?: number; aria: string; title?: ReactNode; actions?: ReactNode; view: ScatterView; exportName: string;
@@ -294,6 +305,43 @@ export function ScoreScatter(props: ScatterProps) {
     return pick ? shown.find((p) => p.r.variant.id === pick.r.variant.id) ?? null : null;
   }, [hover, pinned, shown]);
   const zoomable = zoom.enabled;
+  const pathLayer = useRef<SVGSVGElement>(null), pathId = useId().replace(/\W/g, "");
+  const { lineage, lineageIdle, lineageOnCard } = props;
+  const idlePath = useMemo(() => (lineageIdle && lineage ? [...shown].sort((a, b) => b.r.score - a.r.score).find((p) => lineage(p).some(isPlaced)) ?? null : null), [lineageIdle, lineage, shown]);
+  const pathFocus = focus ?? idlePath;
+  const steps = useMemo(() => (pathFocus && lineage ? lineage(pathFocus) : []), [pathFocus, lineage]);
+  useLayoutEffect(() => {
+    const svg = pathLayer.current, c = chart.current;
+    if (!svg) return;
+    svg.replaceChildren();
+    const placed = steps.filter(isPlaced);
+    if (!c || !pathFocus || !placed.length || zoom.dragging) return;
+    const make = (name: string, attrs: Record<string, string | number>) => { const n = document.createElementNS("http://www.w3.org/2000/svg", name); for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, String(v)); return n; };
+    const at = (p: ScatterPoint) => c.convertToPixel({ xAxisIndex: 0, yAxisIndex: 0 }, [p.x, p.r.score]) as number[];
+    const line = [...placed, pathFocus], px = line.map(at);
+    if (px.some(([x, y]) => !Number.isFinite(x) || !Number.isFinite(y))) return;
+    const color = markColor(labs.find((l) => l.id === pathFocus.r.model.labId)?.color, pal, pathFocus.r.model.labId);
+    const box = (c as unknown as { getModel(): { getComponent(n: string): { coordinateSystem: { getRect(): { x: number; y: number; width: number; height: number } } } } }).getModel().getComponent("grid").coordinateSystem.getRect();
+    const clip = make("clipPath", { id: pathId }); clip.append(make("rect", { x: box.x, y: box.y, width: box.width, height: box.height }));
+    const group = make("g", { "clip-path": `url(#${pathId})` });
+    group.append(make("path", { class: "model-path", d: `M${px.map(([x, y]) => `${x} ${y}`).join("L")}`, pathLength: 1, fill: "none", stroke: color, "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round" }));
+    px.slice(1).forEach(([x, y], i) => {
+      const [fx, fy] = px[i], a = Math.atan2(y - fy, x - fx), length = Math.hypot(x - fx, y - fy);
+      if (length < 22) return;
+      const tip = [x - Math.cos(a) * 9, y - Math.sin(a) * 9], side = (t: number) => `${tip[0] - Math.cos(a + t) * 8} ${tip[1] - Math.sin(a + t) * 8}`;
+      group.append(make("polygon", { class: "model-path-mark", points: `${tip[0]} ${tip[1]} ${side(0.5)} ${side(-0.5)}`, fill: color }));
+    });
+    const labels: Element[] = [];
+    placed.forEach((p, i) => {
+      const [x, y] = px[i];
+      group.append(make("circle", { class: "model-path-mark", cx: x, cy: y, r: 4, fill: pal.bg, stroke: color, "stroke-width": 2 }));
+      const right = x > box.x + box.width - 110, label = make("text", { class: "model-path-mark", x: x + (right ? -8 : 8), y: y - 7, "text-anchor": right ? "end" : "start", "font-size": 11, "font-weight": 600, fill: pal.ink });
+      label.textContent = chartLabel(p.r); group.append(label); labels.push(label);
+    });
+    svg.append(clip, group);
+    // A solid backing, so a path label stays readable over the chart's own labels.
+    for (const label of labels) { const b = (label as SVGGraphicsElement).getBBox(); label.before(make("rect", { class: "model-path-mark", x: b.x - 3, y: b.y - 1, width: b.width + 6, height: b.height + 2, rx: 2, fill: pal.bg })); }
+  }, [pathFocus, steps, zoom.dragging, zoomRange, plotW, plotH, labs, pal, pathId, chart]);
   const guides = useMemo(() => {
     const base = guidePoints(shown, highlight);
     return focus && !base.some((p) => p.r.variant.id === focus.r.variant.id) ? [...base, focus] : base;
@@ -421,8 +469,9 @@ export function ScoreScatter(props: ScatterProps) {
         <div ref={ref} role="img" aria-label={aria} data-points={shown.map((p) => p.r.variant.id).sort().join(",")} data-zoomed={zoom.enabled ? String(zoom.zoomed) : undefined} tabIndex={0} onContextMenu={onContextMenu} onKeyDown={context.onKeyDown} style={{ width: "100%", height: expand.expanded ? "100%" : bare ? height : Math.round(height * (pal.size?.height ?? 1)), overflow: "hidden", position: "relative", isolation: "isolate" }} />
         {fall && !!fallen?.size && <GravityLayer key={fall.run} dots={fall.dots} width={fall.width} height={fall.height} floor={fall.floor} left={fall.left} right={fall.right} stroke={pal.bg} />}
         {!pts.length && <p className="cap absolute inset-0 grid place-items-center">No model in this view has this metric.</p>}
+        <svg ref={pathLayer} aria-hidden="true" className="absolute inset-0 z-[5] pointer-events-none" width="100%" height="100%" />
         {zoom.overlay}
-        {focus && !zoom.dragging && <PointCard mark={() => { try { const [x, y] = chart.current?.convertToPixel({ xAxisIndex: 0, yAxisIndex: 0 }, [focus.x, focus.r.score]) as number[]; return Number.isFinite(x) && Number.isFinite(y) ? { x, y } : undefined; } catch { return undefined; } }} point={focus} labs={labs} pal={pal} onFrontier={view.frontier && onFrontierIds.has(focus.r.variant.id)} format={formatValue ?? formatX} unit={xUnit} extra={[tooltipExtra?.(focus), focus.r.speedTier ? ` · ${speedTierNote(focus.r)}` : ""].filter(Boolean).join("") || undefined} xLabel={xShort ?? xName} onClose={pinned && !hover ? () => setPinned(null) : undefined} />}
+        {focus && !zoom.dragging && <PointCard history={lineageOnCard ? steps : undefined} previous={lineageOnCard && steps.at(-1)?.r.variant.effort === focus.r.variant.effort ? steps.at(-1) : undefined} mark={() => { try { const [x, y] = chart.current?.convertToPixel({ xAxisIndex: 0, yAxisIndex: 0 }, [focus.x, focus.r.score]) as number[]; return Number.isFinite(x) && Number.isFinite(y) ? { x, y } : undefined; } catch { return undefined; } }} point={focus} labs={labs} pal={pal} onFrontier={view.frontier && onFrontierIds.has(focus.r.variant.id)} format={formatValue ?? formatX} unit={xUnit} extra={[tooltipExtra?.(focus), focus.r.speedTier ? ` · ${speedTierNote(focus.r)}` : ""].filter(Boolean).join("") || undefined} xLabel={xShort ?? xName} onClose={pinned && !hover ? () => setPinned(null) : undefined} />}
       </div>
       {!bare && (legend || trimmedModels > 0) && <p className="cap mt-1 max-sm:px-4 pr-16">{legend}{legend && trimmedModels > 0 ? " " : ""}{trimmedModels > 0 && <>{trimmedModels} more models under All models in settings.</>}</p>}
       {!bare && zoom.box && <p className="cap mt-1 max-sm:px-4 pr-16" role="status">Zoomed to {formatX(zoom.box.x[0])} to {formatX(zoom.box.x[1])}, {axis.name.toLowerCase()} {axis.format(zoom.box.y[0])} to {axis.format(zoom.box.y[1])}: {new Set(shown.map((p) => p.r.model.id)).size} of {new Set(pts.map((p) => p.r.model.id)).size} models. <button type="button" className="underline hover:text-ink" onClick={zoom.reset}>Show all</button></p>}
