@@ -20,7 +20,7 @@ export function ModelAvailabilitySection({ data }: { data: ModelAvailability }) 
         <ul className="grid gap-3">{plans.map((p) => <li key={p.plan} className="grid gap-1 min-w-0">
           <div className="flex items-baseline gap-2 text-[13px] min-w-0">
             <span className="truncate" title={p.plan}>{p.plan}</span>
-            {p.assumed && <span className="cap shrink-0">assumed</span>}
+            {p.preliminary ? <span className="cap shrink-0" title={`${p.preliminary.short} ${p.preliminary.note}`}>{p.preliminary.label.toLowerCase()}</span> : p.assumed && <span className="cap shrink-0">assumed</span>}
             <span className="cap shrink-0 ml-auto">{p.free ? "" : `${fee(p.feeUsd)}/mo`}</span>
             {p.free ? <span className="num shrink-0 w-[46px] text-right">free</span> : p.ratio ? <span className="num shrink-0 w-[46px] text-right">{multiple(p.ratio)}</span> : <span className="cap shrink-0">not measured</span>}
           </div>

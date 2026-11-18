@@ -1,8 +1,8 @@
-import { currentPlanName, planReadings, subscriptionPlanOptions, subscriptionPrices, type PlanReading, type SubscriptionPrice } from "@/data/subscription";
+import { currentPlanName, planReadings, subscriptionPlanOptions, subscriptionPrices, type PlanCaveat, type PlanReading, type SubscriptionPrice } from "@/data/subscription";
 import type { Snapshot } from "@/data/types";
 
 /** One plan's price for a model: `ratio` is the share of API cost a subscriber pays (0.07 = 7% of API price). */
-export interface PlanPrice { plan: string; feeUsd?: number; ratio: number; confidence: string; /** The share for costs already at today's list price, when `ratio` is adjusted for an Artificial Analysis cost priced at an older one. */ listRatio?: number }
+export interface PlanPrice { plan: string; feeUsd?: number; ratio: number; confidence: string; /** The figure is early and pending more data. */ preliminary?: PlanCaveat; /** The share for costs already at today's list price, when `ratio` is adjusted for an Artificial Analysis cost priced at an older one. */ listRatio?: number }
 export interface PlanPriceModel extends PlanPrice {
   id: string; name: string; lab: string;
   /** This model's slugs on artificialanalysis.ai, one per reasoning effort it lists. */
@@ -11,7 +11,7 @@ export interface PlanPriceModel extends PlanPrice {
   free?: true;
   paid?: PlanPrice;
   /** The model's share on each plan that sells it, by plan name. */
-  plans?: Record<string, { ratio: number; feeUsd?: number; listRatio?: number }>;
+  plans?: Record<string, { ratio: number; feeUsd?: number; listRatio?: number; preliminary?: PlanCaveat }>;
   /** The share read more than one way (Fable 5.2: the shared weekly limit, or only the Fable a plan can buy). The first is `ratio`. */
   readings?: PlanReading[];
 }
@@ -28,7 +28,7 @@ const AA_MODEL = /^https:\/\/artificialanalysis\.ai\/models\/([a-z0-9][a-z0-9._-
 const round = (n: number) => +n.toPrecision(5);
 /** The share to scale an Artificial Analysis cost by: its own when AA priced the cost at another list price than the lab charges today. */
 const listRatio = (p: SubscriptionPrice) => p.aaCostRatio != null && round(p.aaCostRatio) !== round(p.ratio) ? { listRatio: round(p.ratio) } : {};
-const share = (p: SubscriptionPrice): PlanPrice => ({ plan: currentPlanName(p.plan), ...(p.feeUsd != null ? { feeUsd: p.feeUsd } : {}), ratio: round(p.aaCostRatio ?? p.ratio), confidence: p.confidence, ...listRatio(p) });
+const share = (p: SubscriptionPrice): PlanPrice => ({ plan: currentPlanName(p.plan), ...(p.feeUsd != null ? { feeUsd: p.feeUsd } : {}), ratio: round(p.aaCostRatio ?? p.ratio), confidence: p.confidence, ...(p.preliminary ? { preliminary: p.preliminary } : {}), ...listRatio(p) });
 /** A plan's name without the note on a model whose allowance is assumed from another model: that model is still priced on this plan. */
 export const soldAs = (plan: string) => currentPlanName(plan.replace(/\s*\(assumed same as [^)]*\)$/, ""));
 
@@ -58,7 +58,7 @@ export function planPrices(snapshot: Snapshot): PlanPrices {
   for (const lab of options) for (const { plan } of lab.plans) {
     for (const [id, p] of subscriptionPrices(snapshot, { [lab.labId]: plan }, { free: false })) {
       if (labOf.get(id) !== lab.labId || soldAs(p.plan) !== soldAs(plan)) continue;
-      (byPlan.get(id) ?? byPlan.set(id, {}).get(id)!)[currentPlanName(plan)] = { ratio: round(p.aaCostRatio ?? p.ratio), ...(p.feeUsd != null ? { feeUsd: p.feeUsd } : {}), ...listRatio(p) };
+      (byPlan.get(id) ?? byPlan.set(id, {}).get(id)!)[currentPlanName(plan)] = { ratio: round(p.aaCostRatio ?? p.ratio), ...(p.feeUsd != null ? { feeUsd: p.feeUsd } : {}), ...(p.preliminary ? { preliminary: p.preliminary } : {}), ...listRatio(p) };
     }
   }
   const models = snapshot.models.flatMap((m): PlanPriceModel[] => {

@@ -1,6 +1,6 @@
 import { columnsOf, observationsOf } from "@/data/columns";
 import { modelProviders, type ModelProviders } from "@/data/providers";
-import { peakKind, studentBase } from "@/data/subscription";
+import { peakKind, studentBase, type PlanCaveat } from "@/data/subscription";
 import type { Snapshot } from "@/data/types";
 import { computeIndex, defaultConfig, selectVariants } from "@/engine";
 import { planPrices, soldAs, type PlanPriceModel, type PlanPrices } from "./plan-prices";
@@ -8,12 +8,12 @@ import { planPrices, soldAs, type PlanPriceModel, type PlanPrices } from "./plan
 const PLAN_LISTINGS_ID = "plan-listed-models";
 
 /** One subscription that sells a model. `ratio` is the share of API price its subscribers pay, absent when no one has measured it. */
-export interface PlanOffer { plan: string; feeUsd?: number; ratio?: number; free?: true; assumed?: true }
+export interface PlanOffer { plan: string; feeUsd?: number; ratio?: number; free?: true; assumed?: true; preliminary?: PlanCaveat }
 export interface ModelAvailability extends ModelProviders { plans: PlanOffer[] }
 /** A company selling plans. `plans[0]` is its default: a current plan selling its best-ranked models, then the one most models are priced on. */
 export interface SubsidySeller { id: string; name: string; logo: boolean; plans: PlanSubsidy[] }
 /** `multiple` is absent for a model the plan sells but no one has measured. */
-export interface PlanSubsidy { plan: string; feeUsd?: number; median: number; models: { id: string; name: string; lab: string; multiple?: number; assumed?: true }[] }
+export interface PlanSubsidy { plan: string; feeUsd?: number; median: number; models: { id: string; name: string; lab: string; multiple?: number; assumed?: true; preliminary?: PlanCaveat }[] }
 
 const median = (xs: number[]) => { if (!xs.length) return 0; const s = [...xs].sort((a, b) => a - b), m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
 /** Peak-hour and blended rows repeat a plan at other rates, and a student price repeats it at another fee. */
@@ -22,9 +22,9 @@ const listed = (plan: string) => !studentBase(plan) && !["peak", "mixed"].includ
 /** The plans that sell a model, cheapest first. A free tier leads. */
 export function plansOf(m: PlanPriceModel): PlanOffer[] {
   const assumed = /^(assumed|estimated)/.test(m.confidence) ? { assumed: true as const } : {};
-  const paid = new Map(Object.entries(m.plans ?? {}).map(([plan, p]) => [plan, { plan, ...(p.feeUsd != null ? { feeUsd: p.feeUsd } : {}), ratio: p.listRatio ?? p.ratio, ...assumed }]));
+  const paid = new Map(Object.entries(m.plans ?? {}).map(([plan, p]) => [plan, { plan, ...(p.feeUsd != null ? { feeUsd: p.feeUsd } : {}), ratio: p.listRatio ?? p.ratio, ...(p.preliminary ? { preliminary: p.preliminary } : {}), ...assumed }]));
   const own = m.free ? m.paid : m, name = own && soldAs(own.plan);
-  if (own && name && !paid.has(name) && own.ratio > 0) paid.set(name, { plan: name, ...(own.feeUsd != null ? { feeUsd: own.feeUsd } : {}), ratio: own.listRatio ?? own.ratio, ...assumed });
+  if (own && name && !paid.has(name) && own.ratio > 0) paid.set(name, { plan: name, ...(own.feeUsd != null ? { feeUsd: own.feeUsd } : {}), ratio: own.listRatio ?? own.ratio, ...(own.preliminary ? { preliminary: own.preliminary } : {}), ...assumed });
   const rows = sortOffers([...paid.values()].filter((p) => listed(p.plan) && p.ratio > 0));
   return m.free ? [{ plan: soldAs(m.plan), ratio: 0, free: true, ...(m.feeUsd != null ? { feeUsd: m.feeUsd } : {}) }, ...rows] : rows;
 }
@@ -59,7 +59,7 @@ export function planSubsidies(snapshot: Snapshot): PlanSubsidy[] {
     const m = models.get(id);
     if (p.free || !m) continue;
     const row = plans.get(p.plan) ?? plans.set(p.plan, { plan: p.plan, feeUsd: p.feeUsd, models: [] }).get(p.plan)!;
-    row.models.push({ id, name: m.name, lab: m.labId, ...(p.ratio ? { multiple: 1 / p.ratio } : {}), ...(p.assumed ? { assumed: true as const } : {}) });
+    row.models.push({ id, name: m.name, lab: m.labId, ...(p.ratio ? { multiple: 1 / p.ratio } : {}), ...(p.assumed ? { assumed: true as const } : {}), ...(p.preliminary ? { preliminary: p.preliminary } : {}) });
   }
   return [...plans.values()].map((p) => ({ ...p, median: median(p.models.flatMap((m) => m.multiple ?? [])), models: p.models.sort((a, b) => (b.multiple ?? -1) - (a.multiple ?? -1) || a.name.localeCompare(b.name)) })).sort((a, b) => b.median - a.median || a.plan.localeCompare(b.plan));
 }
@@ -68,7 +68,7 @@ export function planSubsidies(snapshot: Snapshot): PlanSubsidy[] {
 const SELLERS: { id: string; name: string; plans: RegExp; lab?: string }[] = [
   { id: "anthropic", name: "Anthropic", plans: /^Claude\b/, lab: "anthropic" }, { id: "openai", name: "OpenAI", plans: /^ChatGPT\b/, lab: "openai" }, { id: "google", name: "Google", plans: /^Google AI\b/, lab: "google" }, { id: "xai", name: "xAI", plans: /^SuperGrok\b/, lab: "xai" },
   { id: "cursor", name: "Cursor", plans: /^Cursor\b/, lab: "cursor" }, { id: "kimi", name: "Kimi", plans: /^Kimi\b/, lab: "moonshot" }, { id: "zhipu", name: "Z.ai", plans: /^GLM\b/, lab: "zhipu" }, { id: "minimax", name: "MiniMax", plans: /^MiniMax\b/, lab: "minimax" },
-  { id: "xiaomi", name: "Xiaomi", plans: /^MiMo\b/, lab: "xiaomi" }, { id: "tencent", name: "Tencent", plans: /^Tencent\b/, lab: "tencent" }, { id: "alibaba", name: "Alibaba", plans: /^(阿里云|Alibaba\b)/, lab: "alibaba" }, { id: "mistral", name: "Mistral", plans: /^Mistral\b/, lab: "mistral" },
+  { id: "xiaomi", name: "Xiaomi", plans: /^MiMo\b/, lab: "xiaomi" }, { id: "tencent", name: "Tencent", plans: /^Tencent\b/, lab: "tencent" }, { id: "alibaba", name: "Alibaba", plans: /^(阿里云|Alibaba\b|Qwen\b)/, lab: "alibaba" }, { id: "mistral", name: "Mistral", plans: /^Mistral\b/, lab: "mistral" },
   { id: "opencode", name: "OpenCode", plans: /^OpenCode\b/ }, { id: "commandcode", name: "Command Code", plans: /^Command Code\b/ }, { id: "factory", name: "Factory", plans: /^Droid\b/ }, { id: "ollama", name: "Ollama", plans: /^Ollama\b/ },
 ];
 /** Plans a new subscriber can no longer buy. */

@@ -415,3 +415,14 @@ describe("time-of-day plan options", () => {
     for (const id of ["a@max", "b@xhigh", "mimo@max"]) expect(by(peak)[id].costUsd).toBe(by(def)[id].costUsd);
   });
 });
+
+describe("preliminary plan figures", () => {
+  const caveat = { label: "Preliminary", short: "From one user's data (@a), pending larger-scale data.", note: "n" };
+  const row = { benchmarkId: SUBSCRIPTION_BENCHMARK, variantId: "q@max", value: 0.02, details: { plan: "Token Plan", feeUsd: 18, confidence: "preliminary", preliminary: caveat, mix: { cache: 0.9, input: 0.05, output: 0.05 }, listPrice: { cached: 0.1, input: 1, output: 2 }, plans: [{ plan: "Token Plan", feeUsd: 18, usdPerMtok: 0.02, confidence: "preliminary", preliminary: caveat }, { plan: "Other", feeUsd: 10, usdPerMtok: 0.1, confidence: "high" }] } };
+  const snap = { models: [{ id: "q", labId: "alibaba" }], variants: [{ id: "q@max", modelId: "q" }], benchmarks: [], observations: [row] } as unknown as Snapshot;
+  it("carries the caveat on the preliminary plan only", () => {
+    expect(subscriptionPrices(snap).get("q")!.preliminary).toEqual(caveat);
+    expect(subscriptionPrices(snap, { alibaba: "Other" }).get("q")!.preliminary).toBeUndefined();
+  });
+});
+

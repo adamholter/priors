@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import source, { parseOpenCodeGo, parseSubscriptions, type Channels, type Conventions, type Points } from "./sources/realapipricing";
-import { blendedApiPrice, SUBSCRIPTION_BENCHMARK } from "../../src/data/subscription";
+import { blendedApiPrice, SUBSCRIPTION_BENCHMARK, type SubscriptionDetails } from "../../src/data/subscription";
 import { BUDGET_PLANS } from "./sources/subscription-overrides";
 
 const conventions: Conventions = {
@@ -183,6 +183,21 @@ describe("Real API Pricing subscriptions", () => {
     expect(rows.filter((r) => r.modelLabel.startsWith("Gemini 4 Argon"))).toHaveLength(1);
     expect(row("Gemini 4 Argon")).toMatchObject({ value: 0.303, details: { plan: "Google AI Pro", confidence: "low", mix: { cache: 0.85, input: 0.145, output: 0.005 } } });
   });
+  it("prices Gemini 4 Neon from Flash's Ultra rows, marked tentative with what it rests on", () => {
+    const flash = (id: string, plan: string, v: number, fee: number) => point(`${id}::gemini-3.8-flash`, plan, "Google", v, { model_display: "Gemini 3.8 Flash", price_usd: fee, workload: "lowCache", confidence: "low" });
+    const neon = parseSubscriptions({ ...payload, points: [...payload.points, flash("google_ai_ultra_5x_us", "Google AI Ultra 5x", 0.0077, 99.99), flash("google_ai_ultra_20x_us", "Google AI Ultra 20x", 0.0039, 199.99)] }, conventions, channels).find((r) => r.modelLabel === "Gemini 4 Neon (xhigh)")!;
+    expect(neon.value).toBeCloseTo(0.0077, 6);
+    expect(neon).toMatchObject({ details: { plan: "Google AI Ultra 5x (assumed same as Flash)", confidence: "tentative", preliminary: { label: "Tentative" } } });
+    expect((neon.details as unknown as { preliminary: { short: string } }).preliminary.short).toMatch(/pending more data/);
+  });
+  it("makes a user's plan usage the model's price, labeled preliminary with credit, and keeps its other plans", () => {
+    const go = point("opencode_go::qwen4-max", "OpenCode Go", "Qwen", 0.09, { model_display: "Qwen4 Max", price_usd: 10, list_price: { cached: 0.075, input: 1.5, output: 4.5, currency: "USD" } });
+    const row = parseSubscriptions({ ...payload, points: [...payload.points, go] }, conventions, channels).find((r) => r.sourceUrl?.includes("SSHCodes"))!, d = row.details as unknown as SubscriptionDetails;
+    expect(row.value / blendedApiPrice(d.listPrice!, d.mix)).toBeCloseTo(18 / 87.76, 6);
+    expect(d).toMatchObject({ plan: "Qwen Token Plan Standard", feeUsd: 18, confidence: "preliminary", preliminary: { label: "Preliminary", credit: "@SSHCodes" } });
+    expect(d.preliminary!.short).toBe("From one user's data (@SSHCodes), pending larger-scale data.");
+    expect(d.plans[0].preliminary?.credit).toBe("@SSHCodes");
+  });
   it("gives Gemini 4 Carbon, sold only on Ultra, Flash's Ultra rows from the shared pool, Ultra 5x by default", () => {
     const flash = (id: string, plan: string, v: number, fee: number) => point(`${id}::gemini-3.8-flash`, plan, "Google", v, { model_display: "Gemini 3.8 Flash", price_usd: fee, workload: "lowCache", confidence: id.includes("ultra") ? "low" : "high" });
     const points = [...payload.points, flash("google_ai_pro_us", "Google AI Pro", 0.0077, 19.99), flash("google_ai_ultra_5x_us", "Google AI Ultra 5x", 0.0077, 99.99), flash("google_ai_ultra_20x_us", "Google AI Ultra 20x", 0.0039, 199.99)];
@@ -287,7 +302,7 @@ describe("Real API Pricing subscriptions", () => {
     const ctx = { fetchText: async (url: string) => JSON.stringify(files[url.split("/").pop()!]) } as unknown as Parameters<typeof source.scrape>[0];
     const r = await source.scrape(ctx);
     expect(r.benchmarks[0]).toMatchObject({ id: SUBSCRIPTION_BENCHMARK, unit: "usd", proxy: true, defaultWeight: 0, eligibleForDefault: false, lastUpdated: "2026-10-08" });
-    expect(r.rows).toHaveLength(8 + 7 + 2 + 1); // Carbon is absent without a Flash Ultra measurement. + Mistral Vibe Pro's rows (four Mistral models, GLM 5.2, GLM 5.3 Flash, DeepSeek V4.1 Flash 1017), Tencent Token Plan's Hy4 and Hy4 preview, Fable 5.2's measured share. Hydrogen is absent without a Flash shared-pool measurement
+    expect(r.rows).toHaveLength(8 + 7 + 2 + 1 + 1); // + the Qwen4-Max plan usage row, added even before a plan row exists. // Carbon is absent without a Flash Ultra measurement. + Mistral Vibe Pro's rows (four Mistral models, GLM 5.2, GLM 5.3 Flash, DeepSeek V4.1 Flash 1017), Tencent Token Plan's Hy4 and Hy4 preview, Fable 5.2's measured share. Hydrogen is absent without a Flash shared-pool measurement
     expect(Object.keys(r.raw)).toEqual(["points.json", "conventions.json", "channel-colors.json"]);
   });
 });

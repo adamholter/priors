@@ -1,4 +1,5 @@
 import type { RawRow } from "../../../src/data/types";
+import type { PlanCaveat } from "../../../src/data/subscription";
 
 /**
  * Subsidy figures read straight from a published plan allowance, for models Real API Pricing does not
@@ -76,6 +77,8 @@ export interface SubsidyAssumption {
   poolRate?: number;
   /** Set once the assumption itself is measured; default "assumed". */
   confidence?: string;
+  /** The figure is early: shown wherever it appears. */
+  preliminary?: PlanCaveat;
   /**
    * This model's own API list price (USD per 1M), when it differs from the other model's and no source lists it yet. With `plans`, the
    * plan's token price (what a dollar of plan buys) is kept and the share of API price is worked out against this price instead.
@@ -107,6 +110,16 @@ export const SUBSIDY_ASSUMPTIONS: SubsidyAssumption[] = [
     modelId: "gemini-4-carbon", label: "Gemini 4 Carbon (max)", sameAs: "gemini-3.8-flash", sameAsName: "Flash", plans: /^Google AI Ultra/, defaultPlan: "Google AI Ultra 5x", poolRate: 3, checked: "2026-11-16",
     note: "Only Google AI Ultra sells Carbon; Ultra 5x by default, the cheaper plan that includes it. Carbon shares Ultra's weekly Gemini pool with Flash, but a dollar of Carbon at its API list price uses about three times as much of it as a dollar of Flash (a community reading of $600 of Flash or $200 of Argon/Carbon a week on Ultra 5x, matched by Priors' own measurement on November 16), so it gets a third of Flash's share of API price on the same plan.",
   },
+  // Neon sits in the same pool. Three clean readings on Adam's Ultra 5x account, November 18 (two input-heavy, one output-heavy), match Flash's rate per list-price
+  // dollar. Other runs that day were disturbed by Gemini jobs sharing the account. One account and few runs, so tentative until a larger measurement lands.
+  {
+    modelId: "gemini-4-neon", label: "Gemini 4 Neon (xhigh)", sameAs: "gemini-3.8-flash", sameAsName: "Flash", plans: /^Google AI Ultra/, defaultPlan: "Google AI Ultra 5x", confidence: "tentative", checked: "2026-11-18",
+    preliminary: {
+      label: "Tentative", short: "Early reading from one account, pending more data.", source: "https://www.testingcatalog.com/google-prepares-to-release-gemini-4-neon-model-on-apis/",
+      note: "Measured on one Google AI Ultra 5x account on November 18, 2026. In three clean runs, two input-heavy and one output-heavy, Gemini 4 Neon used 0.167% of the weekly Gemini pool per dollar of API list price ($3 input, $0.15 cached, $15 output per 1M), the same as Gemini 3.8 Flash: about $600 of API value a week. Other runs were disturbed by work sharing the account.",
+    },
+    note: "Neon shares Ultra's weekly Gemini pool and read at Flash's rate per list-price dollar in three clean runs on one account. Tentative, pending more data.",
+  },
   // Hydrogen shares the Gemini pool with Flash (agy's /quota lists both in "Gemini Models"; Pro's Argon pool is separate) and, measured
   // November 16, uses it at exactly Flash's rate per list-price dollar, so it gets Flash's share of API price on every plan. docs/data.md.
   {
@@ -114,6 +127,58 @@ export const SUBSIDY_ASSUMPTIONS: SubsidyAssumption[] = [
     note: "Hydrogen draws on the same weekly Gemini pool as Gemini 3.8 Flash, and at the same rate per dollar of API list price: measured on November 16, 2026, Hydrogen used 0.165% to 0.166% of the weekly pool per dollar in five clean runs and Flash 0.167% in three, as Google's agy CLI states (\"Quota is consumed proportionally to the cost of the tokens\"). So Hydrogen gets Flash's share of API price on every plan. On Google AI Pro that share comes from three full weeks of Flash measurement (about $123 of API value a week; Real API Pricing issue 54): about 25 times the fee per four weeks.",
   },
 ];
+
+/**
+ * What real subscribers got from a plan: the tokens one person's use came to at API prices, against the fee. One figure per person, plan and model; add a row for
+ * each new data point (another user, another Qwen model) and the estimate follows. `planUsageEstimates` takes the median across people, and every estimate is shown
+ * as preliminary with who it came from, until a larger measurement or a Real API Pricing row replaces it.
+ */
+export interface PlanUsageSample {
+  modelId: string;
+  /** The label the build normalizes when no plan row exists for the model yet. */
+  label: string;
+  plan: string;
+  feeUsd: number;
+  /** API value of the tokens used, at `listPrice`. */
+  apiUsd: number;
+  /** How much of the plan's allowance those tokens used: 1 is all of it. */
+  usedShare: number;
+  listPrice: { cached: number; input: number; output: number };
+  tokens: { cached: number; input: number; output: number };
+  /** Who shared it, as they go by publicly. */
+  by: string;
+  source: string;
+  period: string;
+  checked: string;
+  note?: string;
+}
+
+export const PLAN_USAGE_SAMPLES: PlanUsageSample[] = [
+  // @SSHCodes used all 80,000 credits of the $18 plan with Qwen4-Max in T3 Code, 2,094 responses. 731.6M cached x $0.075 + 15.1M input x $1.50 + 2.26M output x $4.50 per 1M is $87.69
+  // from the rounded counts; his logs give $87.76. Alibaba's plan page confirms $18 and 80,000 credits a month. The cheaper qwen4-max-preview ran until November 25 at a fifth of the credits; his graphic says production Qwen4-Max.
+  {
+    modelId: "qwen-4-max", label: "Qwen 4 Max (max)", plan: "Qwen Token Plan Standard", feeUsd: 18, apiUsd: 87.76, usedShare: 1, listPrice: { cached: 0.075, input: 1.5, output: 4.5 },
+    tokens: { cached: 731.6e6, input: 15.1e6, output: 2.26e6 }, by: "@SSHCodes", source: "https://x.com/SSHCodes/status/2123184045572096137", period: "November 15 to 16, 2026", checked: "2026-11-18",
+    note: "749M tokens over 2,094 responses in T3 Code, 98% of input cached, using all 80,000 of the plan's monthly credits",
+  },
+];
+
+export interface PlanUsageEstimate { modelId: string; label: string; plan: string; feeUsd: number; ratio: number; listPrice: PlanUsageSample["listPrice"]; source: string; checked: string; preliminary: PlanCaveat }
+
+/** One estimate per model and plan: the median person's API value for a full allowance, as a share paid of it. */
+export function planUsageEstimates(samples: PlanUsageSample[] = PLAN_USAGE_SAMPLES): PlanUsageEstimate[] {
+  const groups = new Map<string, PlanUsageSample[]>();
+  for (const s of samples) if (s.apiUsd > 0 && s.usedShare > 0 && s.feeUsd > 0) (groups.get(`${s.modelId}|${s.plan}`) ?? groups.set(`${s.modelId}|${s.plan}`, []).get(`${s.modelId}|${s.plan}`)!).push(s);
+  return [...groups.values()].map((list) => {
+    const multiples = list.map((s) => s.apiUsd / s.usedShare / s.feeUsd).sort((a, b) => a - b), mid = multiples.length >> 1, multiple = multiples.length % 2 ? multiples[mid] : (multiples[mid - 1] + multiples[mid]) / 2;
+    const first = list[0], people = [...new Set(list.map((s) => s.by))], who = people.join(", "), one = people.length === 1, latest = list.map((s) => s.checked).sort().at(-1)!;
+    const about = list.map((s) => `${s.by}: $${s.apiUsd.toFixed(2)} of API value from ${s.usedShare === 1 ? "the full allowance" : `${Math.round(s.usedShare * 100)}% of the allowance`}, ${s.period}${s.note ? ` (${s.note})` : ""}`).join("; ");
+    return {
+      modelId: first.modelId, label: first.label, plan: first.plan, feeUsd: first.feeUsd, ratio: 1 / multiple, listPrice: first.listPrice, source: first.source, checked: latest,
+      preliminary: { label: "Preliminary", short: `From ${one ? "one user's" : `${people.length} users'`} data (${who}), pending larger-scale data.`, note: `${multiple.toFixed(1)} times the fee in API value. ${about}. Results depend on each person's model and cache use.`, credit: who, source: first.source, samples: list.length },
+    };
+  });
+}
 
 /**
  * Plan allowances changed after Real API Pricing measured them. A measurement taken before `until` saw the

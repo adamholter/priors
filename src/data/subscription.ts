@@ -24,6 +24,20 @@ export interface MeasuredTokenMix extends TokenMix {
   byHarness?: Record<string, TokenMix & { tokens: number }>;
 }
 
+/** A subsidy shown before there is enough data to stand behind it: every place that shows the figure says so. */
+export interface PlanCaveat {
+  /** "Preliminary" or "Tentative". */
+  label: string;
+  /** One line for hover cards, saying what it rests on and that more data is pending. */
+  short: string;
+  /** The longer account, for tooltips and the data notes. */
+  note: string;
+  /** Who the data came from, when someone shared it. */
+  credit?: string;
+  source?: string;
+  samples?: number;
+}
+
 export interface SubscriptionDetails {
   plan: string;
   /** Set when the share of API price is known directly (a published plan allowance), instead of derived from `mix` and a list price. */
@@ -47,7 +61,9 @@ export interface SubscriptionDetails {
   paid?: SubscriptionDetails & { value: number };
   /** `listPrice` is the lab's price only until this moment; Artificial Analysis already lists the price that follows. */
   listUntil?: string;
-  plans: { plan: string; feeUsd?: number; usdPerMtok: number; confidence: string }[];
+  /** This figure is early: see `PlanCaveat`. */
+  preliminary?: PlanCaveat;
+  plans: { plan: string; feeUsd?: number; usdPerMtok: number; confidence: string; preliminary?: PlanCaveat }[];
   /** A curated share read two ways; the first is `ratio`. An index picks another with `planReading`. */
   readings?: PlanReading[];
 }
@@ -65,6 +81,8 @@ export interface SubscriptionPrice {
   confidence: string;
   /** The reading this share is, when the row has more than one. */
   reading?: string;
+  /** The figure is early and pending more data. */
+  preliminary?: PlanCaveat;
 }
 
 type Prices = { input: number; output: number; cached?: number; cacheWrite?: number };
@@ -237,7 +255,7 @@ export function subscriptionPrices(snapshot: Snapshot, picks: Record<string, str
     // A curated ratio is taken as is; 0 is a free tier.
     if (typeof d?.ratio === "number" && Number.isFinite(d.ratio) && d.ratio >= 0) {
       const r = d.readings?.length ? d.readings.find((x) => x.id === reading) ?? d.readings[0] : undefined;
-      out.set(modelId, { ratio: r && positive(r.ratio) ? r.ratio : d.ratio, plan: d.plan, feeUsd: d.feeUsd, confidence: d.confidence, ...(r ? { reading: r.id } : {}) });
+      out.set(modelId, { ratio: r && positive(r.ratio) ? r.ratio : d.ratio, plan: d.plan, feeUsd: d.feeUsd, confidence: d.confidence, ...(r ? { reading: r.id } : {}), ...(d.preliminary ? { preliminary: d.preliminary } : {}) });
       continue;
     }
     const want = labOf && chosen[labOf.get(modelId) ?? ""], pick = want !== undefined ? d?.plans?.find((p) => currentPlanName(p.plan) === currentPlanName(want) && positive(p.usdPerMtok)) : undefined;
@@ -247,7 +265,7 @@ export function subscriptionPrices(snapshot: Snapshot, picks: Record<string, str
     if (!d?.mix || !prices) continue;
     const api = blendedApiPrice(prices, d.mix);
     const aaList = d.listUntil ? aaPrices.get(modelId) : undefined, aaCost = aaList ? { aaCostRatio: value / blendedApiPrice(aaList, d.mix) } : {};
-    if (positive(api)) { out.set(modelId, pick ? { ratio: value / api, ...aaCost, plan: planDisplayName(pick.plan), feeUsd: pick.feeUsd, confidence: pick.confidence } : { ratio: value / api, ...aaCost, plan: planDisplayName(d.plan), feeUsd: d.feeUsd, confidence: d.confidence }); mixes.set(modelId, d.mix); }
+    if (positive(api)) { out.set(modelId, pick ? { ratio: value / api, ...aaCost, plan: planDisplayName(pick.plan), feeUsd: pick.feeUsd, confidence: pick.confidence, ...(pick.preliminary ? { preliminary: pick.preliminary } : {}) } : { ratio: value / api, ...aaCost, plan: planDisplayName(d.plan), feeUsd: d.feeUsd, confidence: d.confidence, ...(d.preliminary ? { preliminary: d.preliminary } : {}) }); mixes.set(modelId, d.mix); }
   }
   // A model assumed to match another's subsidy pays that model's share, whatever its own list price (a free tier is not a plan's subsidy).
   // Its label follows the plan the other model is priced at ("Google AI Pro (assumed same as Argon)").
@@ -258,10 +276,10 @@ export function subscriptionPrices(snapshot: Snapshot, picks: Record<string, str
       const want = labOf && chosen[labOf.get(modelId) ?? ""], own = d.plan.replace(/ \(assumed same as .*\)$/, "");
       const p = (want !== undefined ? d.plans.find((x) => currentPlanName(x.plan) === currentPlanName(want)) : undefined) ?? d.plans.find((x) => x.plan === own);
       const prices = d.listPrice ?? aaPrices.get(d.sameAs!), api = p && prices && d.mix ? blendedApiPrice(prices, d.mix) : 0;
-      if (p && positive(p.usdPerMtok) && positive(api)) out.set(modelId, { ratio: (p.usdPerMtok / api) * (d.poolRate ?? 1), plan: d.plan.replace(/^.*?(?= \(assumed same as )/, p.plan), feeUsd: p.feeUsd, confidence: d.confidence });
+      if (p && positive(p.usdPerMtok) && positive(api)) out.set(modelId, { ratio: (p.usdPerMtok / api) * (d.poolRate ?? 1), plan: d.plan.replace(/^.*?(?= \(assumed same as )/, p.plan), feeUsd: p.feeUsd, confidence: d.confidence, ...(d.preliminary ? { preliminary: d.preliminary } : {}) });
       continue;
     }
-    const from = out.get(d.sameAs!); if (positive(from?.ratio)) out.set(modelId, { ratio: from.aaCostRatio ?? from.ratio, plan: d.plan.replace(/^.*?(?= \(assumed same as )/, from.plan), feeUsd: from.feeUsd, confidence: d.confidence });
+    const from = out.get(d.sameAs!); if (positive(from?.ratio)) out.set(modelId, { ratio: from.aaCostRatio ?? from.ratio, plan: d.plan.replace(/^.*?(?= \(assumed same as )/, from.plan), feeUsd: from.feeUsd, confidence: d.confidence , ...(d.preliminary ? { preliminary: d.preliminary } : {}) });
   }
   // A picked student option: the models its offer covers, priced on the plan it discounts, pay the student fee instead.
   for (const [lab, plan] of Object.entries(picks)) {
@@ -288,7 +306,7 @@ export function subscriptionPrices(snapshot: Snapshot, picks: Record<string, str
     if (out.has(modelId) || !(aaPrices.has(modelId) || costed.has(modelId)) || !measured.length) continue;
     const ratio = median(measured.map((id) => out.get(id)!.ratio));
     const nearest = measured.reduce((a, b) => (Math.abs(out.get(b)!.ratio - ratio) < Math.abs(out.get(a)!.ratio - ratio) ? b : a));
-    out.set(modelId, { ...out.get(nearest)!, ratio, confidence: `estimated from the median share of ${measured.join(", ")}` });
+    out.set(modelId, { ...out.get(nearest)!, ratio, confidence: `estimated from the median share of ${measured.join(", ")}`, preliminary: undefined });
   }
   return out;
 }

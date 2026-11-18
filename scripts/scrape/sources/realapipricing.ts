@@ -15,7 +15,7 @@
 import type { Source, ScrapeResult, RawRow } from "../../../src/data/types";
 import { normalizeLabel } from "../../../src/data/normalize";
 import { blendedApiPrice, offPeakOf, planDisplayName, SUBSCRIPTION_BENCHMARK, type SubscriptionDetails, type TokenMix } from "../../../src/data/subscription";
-import { BUDGET_PLANS, LEGACY_PLANS, LIST_PRICES_UNTIL, PLAN_CHANGES, PLAN_MULTIPLES, SUBSIDY_ASSUMPTIONS, SUBSIDY_OVERRIDES } from "./subscription-overrides";
+import { BUDGET_PLANS, LEGACY_PLANS, LIST_PRICES_UNTIL, PLAN_CHANGES, PLAN_MULTIPLES, SUBSIDY_ASSUMPTIONS, SUBSIDY_OVERRIDES, planUsageEstimates } from "./subscription-overrides";
 
 const SITE = "https://realapipricing.com";
 const REPO = "https://github.com/FeiZhuLulu/real-api-pricing";
@@ -155,7 +155,7 @@ export function parseSubscriptions(json: Points, conventions: Conventions, chann
       rows.push({
         benchmarkId: SUBSCRIPTION_BENCHMARK, modelLabel: a.label, value: from.value, sourceUrl: from.sourceUrl, note: `${plan}${d.feeUsd ? `, $${d.feeUsd}/month` : ""}; ${a.confidence ?? "assumed"}; ${a.note}`,
         // A list price held for a stated period is the other model's own, so it stays behind.
-        details: { ...d, ...(d.listUntil ? { listPrice: undefined, listUntil: undefined } : {}), plan, sameAs: a.sameAs, confidence: a.confidence ?? "assumed", dataDate: a.checked, plans: [] } as unknown as Record<string, unknown>,
+        details: { ...d, ...(d.listUntil ? { listPrice: undefined, listUntil: undefined } : {}), plan, sameAs: a.sameAs, confidence: a.confidence ?? "assumed", ...(a.preliminary ? { preliminary: a.preliminary } : {}), dataDate: a.checked, plans: [] } as unknown as Record<string, unknown>,
       });
       continue;
     }
@@ -168,8 +168,17 @@ export function parseSubscriptions(json: Points, conventions: Conventions, chann
     const { free: _f, limited: _l, paid: _p, ratio: _r, source: _s, ...rest } = paid as SubscriptionDetails & { value?: number };
     rows.push({
       benchmarkId: SUBSCRIPTION_BENCHMARK, modelLabel: a.label, value: at.usdPerMtok * (a.poolRate ?? 1), sourceUrl: from.sourceUrl, note: `${plan}, $${at.feeUsd}/month; assumed; ${a.note}`,
-      details: { ...rest, ...(rest.listUntil ? { listPrice: undefined, listUntil: undefined } : {}), ...(a.listPrice ? { listPrice: a.listPrice } : {}), value: undefined, plan, feeUsd: at.feeUsd, sameAs: a.sameAs, ...(a.poolRate ? { poolRate: a.poolRate } : {}), confidence: a.confidence ?? "assumed", dataDate: a.checked, plans } as unknown as Record<string, unknown>,
+      details: { ...rest, ...(rest.listUntil ? { listPrice: undefined, listUntil: undefined } : {}), ...(a.listPrice ? { listPrice: a.listPrice } : {}), value: undefined, plan, feeUsd: at.feeUsd, sameAs: a.sameAs, ...(a.poolRate ? { poolRate: a.poolRate } : {}), confidence: a.confidence ?? "assumed", ...(a.preliminary ? { preliminary: a.preliminary } : {}), dataDate: a.checked, plans } as unknown as Record<string, unknown>,
     });
+  }
+  // What subscribers report getting from a plan: it becomes the model's first-party price, marked preliminary, and its other plans stay listed to pick.
+  for (const e of planUsageEstimates()) {
+    const at = rows.findIndex((r) => idOf(r) === e.modelId), from = at >= 0 ? rows[at] : undefined, row = from?.details as unknown as SubscriptionDetails | undefined, own = row?.free ? row.paid : row;
+    const mix = own?.mix ?? pickMix(conventions.standardTokenMix), listPrice = own?.listPrice ?? e.listPrice, usdPerMtok = e.ratio * blendedApiPrice(listPrice, mix);
+    const entry = { plan: e.plan, feeUsd: e.feeUsd, usdPerMtok, confidence: "preliminary", preliminary: e.preliminary };
+    const details = { ...own, value: undefined, ratio: undefined, sameAs: undefined, poolRate: undefined, readings: undefined, plan: e.plan, feeUsd: e.feeUsd, confidence: "preliminary", mix, listPrice, source: e.source, dataDate: e.checked, preliminary: e.preliminary, plans: [entry, ...(own?.plans ?? []).filter((p) => p.plan !== e.plan)] };
+    const next: RawRow = { ...(from ?? { modelLabel: e.label }), benchmarkId: SUBSCRIPTION_BENCHMARK, value: row?.free ? from!.value : usdPerMtok, sourceUrl: e.source, note: `${e.plan}, $${e.feeUsd}/month; preliminary; ${e.preliminary.short} ${e.preliminary.note}`, details: (row?.free ? { ...row, paid: { ...details, value: usdPerMtok } } : details) as unknown as Record<string, unknown> };
+    if (at >= 0) rows[at] = next; else rows.push(next);
   }
   return rows;
 }
