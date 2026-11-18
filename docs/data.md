@@ -174,6 +174,7 @@ Subscription pricing is the default: `IndexConfig.costBasis` unset means subscri
 
 - **Providers** (`src/data/providers.ts`). The `openrouter` source stores each model's endpoints on its `openrouter-providers` row (`details.endpoints`): one row per provider, the cheapest endpoint that is not a flex, spot or batch tier. The `aa` source stores /leaderboards/providers on the first `aa-output-speed` row of each release (`details.providers`): the standard tier, medians across efforts. `mergeProviders` joins them by company name (`providerKey`). Price comes from OpenRouter when it lists the provider, otherwise from AA. Speed and first token come from AA.
 - **Subscriptions.** `plansOf` reads `planPrices`, so a plan's figure matches the cost charts and `/api/plan-prices`. Peak-hour, mixed-hour and student rows are left out. A share taken from another model is marked assumed.
+- **OpenCode Go.** `parseOpenCodeGo` reads each model's monthly dollar limit per plan from `https://opencode.ai/inference/go/v1/models` and the plan fees from the docs. The share of API price is fee ÷ limit. These rows replace Real API Pricing's Go rows and are listed beside a lab's own plans, without changing the plan the model is priced on by default.
 - **`/subsidies`** (`planSubsidies`) shows every paid plan's API value per dollar, one dot per model. Nothing links to it and it is not in the sitemap.
 
 ### Rank stability

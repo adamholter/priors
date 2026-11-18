@@ -29,7 +29,7 @@ try {
     ["/request", () => page.getByRole("button", { name: "Send", exact: true })],
     ["/benchmarks", () => page.getByRole("heading", { name: "Benchmarks" })],
     ["/subsidies", () => page.getByRole("heading", { name: "Plan subsidies" })],
-    ["/models/claude-opus-5.5/compare", () => page.getByRole("heading", { name: "Benchmarks" })],
+    ["/models/claude-opus-5.5/compare", () => page.getByRole("searchbox").or(page.getByLabel("Search models or labs")).first()],
     ["/benchmarks/methodology", () => page.getByRole("heading", { name: "How benchmark scores work" })],
     ["/privacy", () => page.getByRole("heading").first()],
   ];

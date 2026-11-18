@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { computeIndex, defaultConfig } from "@/engine";
+import { aaComponentWeights } from "@/data/aa-index";
 import { clientSnapshot } from "@/data/client-snapshot";
 import { loadSnapshot } from "@/data/load";
 import { featuredMixes } from "./featured-mixes";
 import { modelAvailability, planSubsidies, plansOf } from "./model-availability";
-import { compareNeighbor, compareView, modelView } from "./model-view";
+import { compareView, modelView } from "./model-view";
 import type { PlanPriceModel } from "./plan-prices";
 import { rankStability } from "./rank-stability";
 
@@ -41,11 +42,25 @@ describe("on today's snapshot", async () => {
     expect(modelAvailability(snapshot, sold.id)?.plans.length).toBeGreaterThan(0);
   });
 
-  it("featured mixes are few and each ranks models; a category is 25 points of AA's index", () => {
+  it("featured mixes are few, each a real mix of benchmarks that ranks a field of models", () => {
     const mixes = featuredMixes(snapshot);
-    expect(mixes.length).toBeGreaterThan(0); expect(mixes.length).toBeLessThanOrEqual(4);
-    for (const mix of mixes) expect(computeIndex(snapshot, { ...mix, variants: "all" }).ranked.length).toBeGreaterThan(0);
-    for (const mix of mixes.slice(1)) expect(Object.values(mix.weights).reduce((n, w) => n + w, 0)).toBe(25);
+    expect(mixes.length).toBe(4);
+    for (const mix of mixes) {
+      expect(Object.keys(mix.weights).length).toBeGreaterThanOrEqual(7);
+      expect(new Set(computeIndex(snapshot, { ...mix, variants: "all" }).ranked.map((r) => r.model.id)).size).toBeGreaterThanOrEqual(20);
+    }
+  });
+
+  it("the Intelligence Index is Artificial Analysis' evaluations at its weights, not its one composite", () => {
+    const [index] = featuredMixes(snapshot);
+    expect(index.weights).toEqual(aaComponentWeights(snapshot));
+    expect(Object.keys(index.weights).some((id) => id.startsWith("aa-intelligence-index"))).toBe(false);
+  });
+
+  it("drops a mix that lost too much of its weight", () => {
+    const names = (benchmarks: typeof snapshot.benchmarks) => featuredMixes({ benchmarks }).map((m) => m.name);
+    expect(names(snapshot.benchmarks.filter((b) => !["aa-frontiercode-2-0"].includes(b.id)))).toContain("Science & reasoning");
+    expect(names(snapshot.benchmarks.filter((b) => !["aa-terminalbench-science", "aa-critpt-v2", "aa-hle-diamond"].includes(b.id)))).not.toContain("Science & reasoning");
   });
 
   it("rank stability repeats exactly and each band holds the median", () => {
@@ -57,7 +72,7 @@ describe("on today's snapshot", async () => {
   it("compares two models from the same numbers as their model pages", () => {
     const [a, b] = ids, view = compareView(snapshot, a, b, config, config), page = modelView(snapshot, a, config, config);
     expect(view.a.score).toBe(page.mine[0].score);
-    expect(view.a.rank).toBe(1); expect(view.b.rank).toBe(2);
+    expect(view.a.rank).toBe(1); expect(view.b?.rank).toBe(2);
     expect(view.benches.length).toBeGreaterThan(0);
     for (const x of view.benches) { expect(x.aRank).toBeLessThanOrEqual(x.of); expect(x.aPlace).toBeGreaterThanOrEqual(0); expect(x.bPlace).toBeLessThanOrEqual(1); }
     const gaps = view.benches.map((x) => Math.abs(x.aPlace - x.bPlace));
@@ -69,8 +84,10 @@ describe("on today's snapshot", async () => {
     for (const o of clientSnapshot(withLists).observations) { expect(o.details?.endpoints).toBeUndefined(); expect(o.details?.providers).toBeUndefined(); }
   });
 
-  it("opens a comparison on the neighbor in the ranking", () => {
-    expect(compareNeighbor(snapshot, ids[0], config)).toBe(ids[1]);
-    expect(compareNeighbor(snapshot, ids[3], config)).toBe(ids[2]);
+  it("with no second model it offers the field and compares nothing", () => {
+    const view = compareView(snapshot, ids[0], undefined, config, config);
+    expect(view.b).toBeUndefined(); expect(view.benches).toEqual([]);
+    expect(view.options.slice(0, 3).map((o) => [o.id, o.rank])).toEqual([[ids[0], 1], [ids[1], 2], [ids[2], 3]]);
+    expect(view.options[0].labName).toBeTruthy();
   });
 });

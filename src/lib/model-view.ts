@@ -235,19 +235,13 @@ export function modelView(snapshot: Snapshot, modelId: string, mix: IndexConfig,
 export interface CompareSide { id: string; name: string; lab?: { id: string; name: string; color?: string }; releaseDate?: string; rank?: number; score?: number; effort?: string; costUsd?: number; tpt?: number; speed?: number; latency?: number; tokens?: number }
 /** A current benchmark both models took, each at its best setting. A place runs from 1 (first of the models measured) to 0 (last). */
 export interface CompareBench extends Pick<Benchmark, "id" | "name" | "category" | "unit" | "higherIsBetter"> { a: number; b: number; aRank: number; bRank: number; aPlace: number; bPlace: number; of: number }
-export interface CompareOption { id: string; name: string; ranked: boolean }
-export interface ModelCompareView { mixName: string; models: number; costBasis: CostBasis; a: CompareSide; b: CompareSide; domains?: ModelDomains; benches: CompareBench[]; options: CompareOption[]; labColors: ModelView["labColors"] }
+export interface CompareOption { id: string; name: string; labId: string; labName: string; rank?: number }
+export interface ModelCompareView { mixName: string; models: number; costBasis: CostBasis; a: CompareSide; b?: CompareSide; domains?: ModelDomains; benches: CompareBench[]; options: CompareOption[]; labColors: ModelView["labColors"] }
 
 const bestPerModel = (ranked: RankedVariant[]) => { const seen = new Set<string>(); return ranked.filter((r) => !seen.has(r.model.id) && !!seen.add(r.model.id)); };
 
-/** Whom a model is compared with first: the model ranked just above it, or just below when it leads, or the leader when it is unranked. */
-export function compareNeighbor(snapshot: Snapshot, modelId: string, mix: IndexConfig): string | undefined {
-  const best = bestPerModel(computeIndex(snapshot, { ...mix, variants: "all" }).ranked), at = best.findIndex((r) => r.model.id === modelId);
-  return (at > 0 ? best[at - 1] : at === 0 ? best[1] : best[0])?.model.id;
-}
-
-/** Two models side by side on one ranking, the benchmarks they share, and each one's standing by category. */
-export function compareView(snapshot: Snapshot, aId: string, bId: string, mix: IndexConfig, costConfig: IndexConfig): ModelCompareView {
+/** Two models side by side on one ranking, the benchmarks they share, and each one's standing by category. Without a second model, what it takes to choose one. */
+export function compareView(snapshot: Snapshot, aId: string, bId: string | undefined, mix: IndexConfig, costConfig: IndexConfig): ModelCompareView {
   const shared = field(snapshot, mix, costConfig), { result, perBench } = shared;
   const loose = shared.loose ??= computeIndex(snapshot, { ...mix, variants: "all", strictness: 0 }), panels = shared.loosePanels ??= panelValues(snapshot, loose.ranked, mix);
   const best = bestPerModel(result.ranked), models = new Map(snapshot.models.map((m) => [m.id, m])), labs = new Map(snapshot.labs.map((l) => [l.id, l]));
@@ -256,23 +250,24 @@ export function compareView(snapshot: Snapshot, aId: string, bId: string, mix: I
     const row = (ranked && loose.ranked.find((r) => r.variant.id === ranked.variant.id)) ?? loose.ranked.find((r) => r.model.id === id);
     return { id, name: m.name, ...(lab ? { lab: { id: lab.id, name: lab.name, color: lab.color } } : {}), releaseDate: m.releaseDate, ...(ranked ? { rank: at + 1, score: ranked.score, effort: ranked.variant.effort } : {}), ...(row ? { costUsd: row.costUsd != null && row.costUsd >= 0 ? row.costUsd : undefined, speed: row.speed && row.speed > 0 ? row.speed : undefined, tpt: panels.tpt(row), latency: panels.latency(row), tokens: panels.tokens(row) } : {}) };
   };
-  const a = side(aId), b = side(bId), table = standing(snapshot, perBench, new Set([...best.map((r) => r.model.id), aId, bId]));
+  const a = side(aId), b = bId ? side(bId) : undefined, table = bId ? standing(snapshot, perBench, new Set([...best.map((r) => r.model.id), aId, bId])) : undefined;
   const older = new Set(snapshot.benchmarks.map((x) => x.versionPolicy?.kind === "fresh" ? x.versionPolicy.supersedes : x.versionPolicy?.kind === "fallback" ? x.versionPolicy.fallbackTo : undefined));
-  const benches = snapshot.benchmarks.flatMap((x): CompareBench[] => {
+  const benches = !bId ? [] : snapshot.benchmarks.flatMap((x): CompareBench[] => {
     if (x.proxy || x.variantOf || x.stoppedPublishing || older.has(x.id) || !categoriesOf(x).some((c) => !NOT_A_DOMAIN.has(c))) return [];
     const first = new Map<string, BenchRow>(); for (const r of perBench.get(x.id) ?? []) if (!first.has(r.modelId)) first.set(r.modelId, r);
-    const order = [...first.keys()], i = order.indexOf(aId), j = order.indexOf(bId);
+    const order = [...first.keys()], i = order.indexOf(aId), j = order.indexOf(bId!);
     if (i < 0 || j < 0 || order.length < 3) return [];
     const place = (n: number) => 1 - n / (order.length - 1);
-    return [{ id: x.id, name: x.shortName ?? x.name, category: x.category, unit: x.unit, higherIsBetter: x.higherIsBetter, a: first.get(aId)!.value, b: first.get(bId)!.value, aRank: i + 1, bRank: j + 1, aPlace: place(i), bPlace: place(j), of: order.length }];
+    return [{ id: x.id, name: x.shortName ?? x.name, category: x.category, unit: x.unit, higherIsBetter: x.higherIsBetter, a: first.get(aId)!.value, b: first.get(bId!)!.value, aRank: i + 1, bRank: j + 1, aPlace: place(i), bPlace: place(j), of: order.length }];
   }).sort((p, q) => Math.abs(q.aPlace - q.bPlace) - Math.abs(p.aPlace - p.bPlace) || p.name.localeCompare(q.name));
   if (!shared.options) {
     const counts = new Map<string, number>(); for (const rows of perBench.values()) for (const id of new Set(rows.map((r) => r.modelId))) counts.set(id, (counts.get(id) ?? 0) + 1);
     const ranked = new Set(best.map((r) => r.model.id)), rest = snapshot.models.filter((m) => !ranked.has(m.id) && (counts.get(m.id) ?? 0) >= 10).sort((p, q) => p.name.localeCompare(q.name));
-    shared.options = [...best.map((r) => ({ id: r.model.id, name: r.model.name, ranked: true })), ...rest.map((m) => ({ id: m.id, name: m.name, ranked: false }))];
+    const lab = (id: string) => ({ labId: id, labName: labs.get(id)?.name ?? id });
+    shared.options = [...best.map((r, i) => ({ id: r.model.id, name: r.model.name, ...lab(r.model.labId), rank: i + 1 })), ...rest.map((m) => ({ id: m.id, name: m.name, ...lab(m.labId) }))];
   }
-  const known = new Set(shared.options.map((o) => o.id)), extra = [a, b].filter((s) => !known.has(s.id)).map((s) => ({ id: s.id, name: s.name, ranked: false }));
-  return { mixName: mix.name, models: best.length, costBasis: effectiveBasis(costConfig.costBasis, hasSubscriptionPrices(snapshot)), a, b, domains: domains(aId, table, { id: bId, name: b.name, labId: b.lab?.id ?? "" }, best.length), benches, options: [...shared.options, ...extra], labColors: Object.fromEntries(snapshot.labs.map((l) => [l.id, l.color])) };
+  const known = new Set(shared.options.map((o) => o.id)), extra = [a, ...(b ? [b] : [])].filter((s) => !known.has(s.id)).map((s) => ({ id: s.id, name: s.name, labId: s.lab?.id ?? "", labName: s.lab?.name ?? "" }));
+  return { mixName: mix.name, models: best.length, costBasis: effectiveBasis(costConfig.costBasis, hasSubscriptionPrices(snapshot)), a, b, domains: table && b ? domains(aId, table, { id: b.id, name: b.name, labId: b.lab?.id ?? "" }, best.length) : undefined, benches, options: [...shared.options, ...extra], labColors: Object.fromEntries(snapshot.labs.map((l) => [l.id, l.color])) };
 }
 
 export const presetConfig = (snapshot: Snapshot, key: string): IndexConfig => key === "preset:aa" ? defaultPriorsMix(snapshot) : defaultConfig(snapshot);
