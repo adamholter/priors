@@ -96,7 +96,9 @@ export function axisTicks(axis: Axis, count = 5): { value: number; u: number; la
       // A narrow log axis gets plain steps too: 1-2-5 would leave one or two marks. Durations step in whole minutes once they reach them.
       const rough = (axis.max - axis.min) / count, power = 10 ** Math.floor(Math.log10(rough)), minutes = [60, 120, 300, 600, 900, 1800, 3600, 7200].find((s) => s >= rough);
       const step = seconds && rough >= 30 && minutes ? minutes : [1, 2, 2.5, 5, 10].map((m) => m * power).find((s) => s >= rough)!;
-      for (let v = Math.ceil(axis.min / step) * step; v <= axis.max + step * 1e-9; v += step) values.push(+v.toPrecision(10));
+      // Counted in whole steps, with a limit: adding a tiny step to a large value may never move it.
+      const first = Math.ceil(axis.min / step), last = Math.floor((axis.max + step * 1e-9) / step);
+      if (step > 0 && axis.max - axis.min > Math.abs(axis.max) * 1e-12 && first + 1 > first && last - first <= count * 4) for (let i = first; i <= last; i++) values.push(+(i * step).toPrecision(10));
     }
   }
   return values.map((value) => ({ value, u: unitOf(axis, value, log), label: axis.meta.format(value) }));

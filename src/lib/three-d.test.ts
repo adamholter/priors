@@ -62,6 +62,10 @@ describe("axisTicks", () => {
   it("marks a narrow time axis in whole minutes", () => {
     expect(axisTicks(axis("time", 190, 1080)).map((t) => t.label)).toEqual(["5 min", "10 min", "15 min"]);
   });
+  it("stops on a range too small to step through", () => {
+    expect(axisTicks(axis("score", 1, 1 + Number.EPSILON))).toEqual([]);
+    expect(axisTicks(axis("score", 50, 50 + 7.105427357601002e-15))).toEqual([]);
+  });
   it("has nothing to mark on an axis with one value", () => { expect(axisTicks(axis("score", 5, 5))).toEqual([]); });
 });
 
