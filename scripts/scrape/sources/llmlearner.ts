@@ -1,6 +1,6 @@
 /**
  * LLMLearner's per-benchmark rankings, for boards with no official live leaderboard. Every row there is a vendor
- * or paper report (the page names the source), so these benchmarks are self-reported.
+ * or paper report (the page names the source, or says it has none), so these benchmarks are self-reported.
  */
 import type { RawRow, Source } from "../../../src/data/types";
 import { effortOf, text } from "./_board";
@@ -8,21 +8,21 @@ import { effortOf, text } from "./_board";
 const BASE = "https://llmlearner.com/rankings";
 export const NL2REPO_ID = "nl2repo-bench";
 
-/** "Anthropic · Max (With Tools)" → lab Anthropic, effort max. Efforts there read "Max", "Extra-High", "Thinking High", "Unspecified Reasoning". */
-function setting(line: string): { lab?: string; effort?: string } {
-  const [lab, rest = ""] = line.split(" · ");
-  const words = rest.replace(/\(.*?\)/g, " ").replace(/\b(thinking|reasoning|mode)\b/gi, " ").replace(/\s+/g, " ").trim();
-  return { lab: lab?.trim() || undefined, effort: effortOf(words) };
-}
+/** A field of a row's details panel: "Provider", "Best setting", "Result source". */
+const rawField = (row: string, name: string) => row.match(new RegExp(`<dt[^>]*>${name}</dt><dd[^>]*>([\\s\\S]*?)</dd>`))?.[1] ?? "";
+const field = (row: string, name: string) => text(rawField(row, name));
+/** Settings read "Max", "Extra-High", "Thinking High", "Thinking" or "Effort not stated". */
+const effortIn = (setting: string) => effortOf(setting.replace(/\(.*?\)/g, " ").replace(/\b(thinking|reasoning|mode|effort not stated)\b/gi, " ").replace(/\s+/g, " ").trim());
 
 export function parseRanking(html: string, benchmarkId: string, page: string): RawRow[] {
   const rows: RawRow[] = [];
-  for (const li of html.split(/<li class="border-b border-ll-line[^>]*>/).slice(1)) {
-    const name = li.match(/<a[^>]*href="\/models\/[^"]*"[^>]*>([^<]+)<\/a>/)?.[1];
-    const line = text(li.match(/<p class="mt-0\.5[^"]*">([\s\S]*?)<\/p>/)?.[1] ?? ""), value = Number(li.match(/<span class="font-num text-lg[^"]*"[^>]*>([\d.]+)<\/span>/)?.[1]);
+  for (const li of html.split(/<li\b[^>]*>/).slice(1)) {
+    if (!li.includes('id="leaderboard-heading-settings-')) continue;
+    const name = li.match(/<a\b[^>]*href="\/models\/[^"]*"[^>]*>([^<]+)<\/a>/)?.[1];
+    const value = Number(li.match(/<span class="font-num text-lg[^"]*"[^>]*>(?:<span class="sr-only">[^<]*<\/span>)?([\d.]+)%?<\/span>/)?.[1]);
     if (!name || !Number.isFinite(value)) continue;
-    const { lab, effort } = setting(line);
-    rows.push({ benchmarkId, modelLabel: text(name), effort, value, labHint: lab, sourceUrl: page, note: `Self-reported: ${line}` });
+    const lab = text(rawField(li, "Provider").match(/^[^<]*/)?.[0] ?? "") || undefined, setting = field(li, "Best setting"), origin = field(li, "Result source");
+    rows.push({ benchmarkId, modelLabel: text(name), effort: effortIn(setting), value, labHint: lab, sourceUrl: page, note: `Reported result (${origin || "source not given"}): ${[lab, setting].filter(Boolean).join(" · ")}` });
   }
   return rows;
 }

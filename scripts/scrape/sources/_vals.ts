@@ -172,8 +172,16 @@ export function parseValsModelCatalog(source: string): Record<string, ValsModelC
   const parseValue = (): unknown => {
     skip();
     const char = source[i];
-    // The bundler now writes strings as template literals (`AWS`).
-    if (char === "'" || char === '"' || char === "`") return parseString();
+    // The bundler now writes strings as template literals (`AWS`), and a long list of strings as `a.b.c`.split(`.`).
+    if (char === "'" || char === '"' || char === "`") {
+      const text = parseString();
+      if (!source.startsWith(".split(", i)) return text;
+      i += ".split(".length;
+      const separator = parseValue();
+      skip();
+      if (typeof separator !== "string" || source[i++] !== ")") throw new Error("Vals AI model catalog: unsupported split call");
+      return text.split(separator);
+    }
     if (char === "{") {
       i++;
       const object: Record<string, unknown> = {};

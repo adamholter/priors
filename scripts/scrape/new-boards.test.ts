@@ -68,10 +68,11 @@ describe("new leaderboards", () => {
     expect(rows[0].ci?.[1]).toBeCloseTo(49.42);
   });
 
-  it("reads LLMLearner ranking rows with the lab and effort from the setting line", () => {
-    const li = (rank: number, name: string, setting: string, score: string) => `<li class="border-b border-ll-line py-4"><span class="w-8 tabular-nums">${rank}</span><a href="/models/x">${name}</a><p class="mt-0.5 break-words">${setting}</p><span class="font-num text-lg leading-7 tabular-nums">${score}</span></li>`;
-    const rows = parseRanking(`${li(1, "Claude Opus 5", "Anthropic · Max (With Tools)", "75.3")}${li(2, "Qwen3.8-Max-0902", "Alibaba · Extra-High (With Tools)", "64.9")}${li(3, "Hy4 Preview", "Tencent · Thinking High (With Tools)", "58.9")}`, "nl2repo-bench", "p");
-    expect(rows.map((r) => [r.modelLabel, r.effort, r.value, r.labHint])).toEqual([["Claude Opus 5", "max", 75.3, "Anthropic"], ["Qwen3.8-Max-0902", "xhigh", 64.9, "Alibaba"], ["Hy4 Preview", "high", 58.9, "Tencent"]]);
+  it("reads LLMLearner rankings: score, lab, the effort in the best setting, and where the result came from", () => {
+    const li = (name: string, score: string, lab: string, setting: string, origin: string) => `<li><div class="grid"><span class="font-num text-[15px]">1</span><a target="_blank" class="text-[15px]" href="/models/x">${name}</a><div class="text-right"><span class="font-num text-lg tabular-nums"><span class="sr-only">Score: </span>${score}%</span></div></div><div id="leaderboard-heading-settings-x" hidden=""><dl><div><dt class="text-xs">Provider</dt><dd>${lab}<span class="ml-2"><span>API only</span></span></dd></div><div><dt class="text-xs">Result source</dt><dd>${origin}</dd></div><div><dt class="text-xs">Best setting</dt><dd>${setting}</dd></div></dl></div></li>`;
+    const rows = parseRanking(`<ol><li class="glance"><a href="/models/x">Top ten entry</a></li></ol>${li("Claude Opus 5", "75.3", "Anthropic", "Max", "Unattributed")}${li("Qwen3.8-Max-0902", "64.9", "Alibaba", "Extra-High", "<a href=\"https://x.test\">Qwen report</a>")}${li("Hy4 Preview", "58.9", "Tencent", "Thinking High", "Paper")}${li("Other", "40", "Lab", "Effort not stated", "Paper")}`, "nl2repo-bench", "p");
+    expect(rows.map((r) => [r.modelLabel, r.effort, r.value, r.labHint])).toEqual([["Claude Opus 5", "max", 75.3, "Anthropic"], ["Qwen3.8-Max-0902", "xhigh", 64.9, "Alibaba"], ["Hy4 Preview", "high", 58.9, "Tencent"], ["Other", undefined, 40, "Lab"]]);
+    expect(rows[1].note).toBe("Reported result (Qwen report): Alibaba · Extra-High");
   });
 
   it("reads ClockBench rows, taking a trailing effort word off the model and skipping the human baselines", () => {

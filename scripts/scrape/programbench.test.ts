@@ -12,17 +12,17 @@ const analysis = gunzipSync(fixture("programbench-analysis.json.gz")).toString("
 const viewModule = gunzipSync(fixture("programbench-view-module.js.gz")).toString("utf8");
 const catalog = gunzipSync(fixture("programbench-model-catalog.js.gz")).toString("utf8");
 
-function context() {
+function context(files: { module?: string; catalog?: string } = {}) {
   const calls: string[] = [];
   const ctx: ScrapeContext = {
     now: "2026-09-23T00:00:00.000Z", log: () => undefined,
     fetchText: async (url) => {
       calls.push(url);
       if (url === source.url) return page;
-      if (url.endsWith("ProgramBenchResultsAnalysis.zTs7IzHv.js")) return moduleText;
+      if (url.endsWith("ProgramBenchResultsAnalysis.zTs7IzHv.js")) return files.module ?? moduleText;
       if (url.endsWith("results_analysis.D_JihatQ.json")) return analysis;
       if (url.endsWith("BenchmarkView.D2TPBjlD.js")) return viewModule;
-      if (url.endsWith("constants.gpz99pa7.js")) return catalog;
+      if (url.endsWith("constants.gpz99pa7.js")) return files.catalog ?? catalog;
       throw new Error("unexpected fetch " + url);
     },
     fetchJson: async () => { throw new Error("fetchJson should not be used"); },
@@ -32,6 +32,14 @@ function context() {
 }
 
 describe("VALS AI ProgramBench source", () => {
+  it("reads the bundle when its strings are template literals", async () => {
+    const backticked = (js: string) => js.replace(/label:"((?:[^"\\\\`$]|\\\\.)*)"/g, "label:`$1`");
+    const analysisModule = moduleText.replace(/["'](\/_astro\/[^"']*results_analysis[^"']*\.json)["']/, "`$1`");
+    expect(analysisModule).not.toBe(moduleText); expect(backticked(catalog)).not.toBe(catalog);
+    const plain = await source.scrape(context().ctx), result = await source.scrape(context({ module: analysisModule, catalog: backticked(catalog) }).ctx);
+    expect(result.rows.map((r) => [r.modelLabel, r.value])).toEqual(plain.rows.map((r) => [r.modelLabel, r.value]));
+  });
+
   it("keeps all models, published metric semantics, provenance, and task-level scores", async () => {
     const { ctx, calls } = context();
     const result = await source.scrape(ctx);

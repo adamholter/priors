@@ -1,5 +1,5 @@
 import type { Benchmark, RawRow, ScrapeResult, Source } from "../../../src/data/types";
-import { findValsCatalogStart, valsConstantsUrl } from "./_vals";
+import { parseValsModelCatalog, valsConstantsUrl } from "./_vals";
 
 const PAGE = "https://www.vals.ai/benchmarks/programbench";
 const ORIGIN = "https://www.vals.ai";
@@ -108,101 +108,15 @@ function findAnalysisModule(html: string): string {
   }
   throw new Error("ProgramBench: task-analysis component URL not found");
 }
-function readCatalogString(source: string, start: number): { value: string; end: number } {
-  if (source[start] !== '"') throw new Error("ProgramBench: malformed model catalog string");
-  let end = start + 1;
-  let escaped = false;
-  for (; end < source.length; end++) {
-    if (escaped) escaped = false;
-    else if (source[end] === "\\") escaped = true;
-    else if (source[end] === '"') break;
-  }
-  if (end >= source.length) throw new Error("ProgramBench: unterminated model catalog string");
-  try { return { value: JSON.parse(source.slice(start, end + 1)) as string, end: end + 1 }; }
-  catch { throw new Error("ProgramBench: invalid model catalog string"); }
-}
-function matchingEnd(source: string, start: number, open: string, close: string): number {
-  let depth = 0;
-  let inString = false;
-  let escaped = false;
-  for (let i = start; i < source.length; i++) {
-    const c = source[i];
-    if (inString) {
-      if (escaped) escaped = false;
-      else if (c === "\\") escaped = true;
-      else if (c === '"') inString = false;
-      continue;
-    }
-    if (c === '"') { inString = true; continue; }
-    if (c === open) depth++;
-    else if (c === close && --depth === 0) return i;
-  }
-  throw new Error("ProgramBench: unterminated model catalog value");
-}
-function topLevelLabel(record: string): string | undefined {
-  let depth = 0;
-  let inString = false;
-  let escaped = false;
-  for (let i = 1; i < record.length - 1; i++) {
-    const c = record[i];
-    if (inString) {
-      if (escaped) escaped = false;
-      else if (c === "\\") escaped = true;
-      else if (c === '"') inString = false;
-      continue;
-    }
-    if (c === '"') { inString = true; continue; }
-    if (c === "{") { depth++; continue; }
-    if (c === "}") { depth--; continue; }
-    if (depth === 0 && record.startsWith("label:", i) && (i === 1 || record[i - 1] === ",")) {
-      let valueStart = i + "label:".length;
-      while (/\s/.test(record[valueStart] ?? "")) valueStart++;
-      return readCatalogString(record, valueStart).value;
-    }
-  }
-  return undefined;
-}
+/** Each model's display label from the shared catalog; a model listed under another key is found through `alternative_keys`. */
 function parseCatalogLabels(catalog: string, modelIds: string[]): Map<string, string> {
-  let i = findValsCatalogStart(catalog);
-  if (catalog[i++] !== "{") throw new Error("ProgramBench: malformed model catalog object");
-  const direct = new Map<string, string>();
-  const aliases = new Map<string, Set<string>>();
-  while (i < catalog.length) {
-    while (/\s|,/.test(catalog[i] ?? "")) i++;
-    if (catalog[i] === "}") break;
-    const key = readCatalogString(catalog, i);
-    i = key.end;
-    while (/\s/.test(catalog[i] ?? "")) i++;
-    if (catalog[i++] !== ":") throw new Error("ProgramBench: malformed model catalog entry");
-    while (/\s/.test(catalog[i] ?? "")) i++;
-    if (catalog[i] !== "{") throw new Error("ProgramBench: model catalog entry is not an object");
-    const end = matchingEnd(catalog, i, "{", "}");
-    const record = catalog.slice(i, end + 1);
-    const label = topLevelLabel(record);
-    if (label) {
-      direct.set(key.value, label);
-      const altAt = record.indexOf("alternative_keys:");
-      if (altAt >= 0) {
-        const listStart = record.indexOf("[", altAt);
-        if (listStart >= 0) {
-          const listEnd = matchingEnd(record, listStart, "[", "]");
-          const altList = record.slice(listStart + 1, listEnd);
-          const aliasesHere = /"((?:\\.|[^"\\])+)"\s*:\s*\{/g;
-          for (const match of altList.matchAll(aliasesHere)) {
-            let alias: string;
-            try { alias = JSON.parse('"' + match[1] + '"') as string; }
-            catch { throw new Error("ProgramBench: invalid alternative model key in VALS catalog"); }
-            const candidates = aliases.get(alias) ?? new Set<string>();
-            candidates.add(label);
-            aliases.set(alias, candidates);
-          }
-        }
-      }
+  const direct = new Map<string, string>(), aliases = new Map<string, Set<string>>();
+  for (const [key, entry] of Object.entries(parseValsModelCatalog(catalog))) {
+    if (typeof entry.label !== "string" || !entry.label) continue;
+    direct.set(key, entry.label);
+    for (const alt of Array.isArray(entry.alternative_keys) ? entry.alternative_keys : []) {
+      for (const alias of typeof alt === "string" ? [alt] : isRecord(alt) ? Object.keys(alt) : []) (aliases.get(alias) ?? aliases.set(alias, new Set()).get(alias)!).add(entry.label);
     }
-    i = end + 1;
-    while (/\s/.test(catalog[i] ?? "")) i++;
-    if (catalog[i] === ",") i++;
-    else if (catalog[i] !== "}") throw new Error("ProgramBench: malformed model catalog boundary");
   }
   const labels = new Map<string, string>();
   for (const id of modelIds) {
@@ -217,7 +131,7 @@ function parseCatalogLabels(catalog: string, modelIds: string[]): Map<string, st
   return labels;
 }
 function findAnalysisJson(moduleText: string): string {
-  const match = moduleText.match(/["'](\/_astro\/[^"']*results_analysis[^"']*\.json)["']/i);
+  const match = moduleText.match(/["'`](\/_astro\/[^"'`]*results_analysis[^"'`]*\.json)["'`]/i);
   if (!match) throw new Error("ProgramBench: task-analysis JSON URL not found in page component");
   return new URL(match[1], PAGE).toString();
 }

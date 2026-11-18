@@ -19,7 +19,8 @@ import { num } from "../harness";
 import { splitLabel } from "./_board";
 
 const REPO = "https://github.com/prinz-ai/prinzbench";
-const README = "https://raw.githubusercontent.com/prinz-ai/prinzbench/main/README.md";
+const RAW = "https://raw.githubusercontent.com/prinz-ai/prinzbench";
+const README = `${RAW}/main/README.md`, README_COMMITS = "https://api.github.com/repos/prinz-ai/prinzbench/commits?path=README.md&per_page=10";
 export const PRINZBENCH_ID = "prinzbench";
 
 const MONTHS = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
@@ -70,12 +71,28 @@ export function parsePrinzbench(md: string): { rows: RawRow[]; outOf: number; up
   return { rows, outOf, updated: updatedOn(block) };
 }
 
+export const hasLeaderboard = (md: string) => /<!--\s*LEADERBOARD_START\s*-->/.test(md);
+
+/**
+ * The README on main, or, when it no longer carries the leaderboard (a November 2026 upload replaced it with another of the
+ * author's documents), the newest earlier version that does, so the published scores stay readable.
+ */
+export async function latestBoard(fetchText: (url: string) => Promise<string>): Promise<{ md: string; commit?: string }> {
+  const md = await fetchText(README);
+  if (hasLeaderboard(md)) return { md };
+  for (const { sha } of JSON.parse(await fetchText(README_COMMITS)) as { sha: string }[]) {
+    const old = await fetchText(`${RAW}/${sha}/README.md`);
+    if (hasLeaderboard(old)) return { md: old, commit: sha.slice(0, 7) };
+  }
+  throw new Error("prinzbench: no recent README has a leaderboard");
+}
+
 const source: Source = {
   id: "prinzbench",
   name: "PrinzBench",
   url: REPO,
   async scrape(ctx): Promise<ScrapeResult> {
-    const md = await ctx.fetchText(README);
+    const { md, commit } = await latestBoard(ctx.fetchText);
     const { rows, outOf, updated } = parsePrinzbench(md);
     return {
       benchmarks: [{
@@ -85,7 +102,7 @@ const source: Source = {
         unit: "score", higherIsBetter: true, category: "knowledge", eligibleForDefault: false, defaultWeight: 0,
       }],
       rows, raw: { "README.md": md },
-      notes: [`${rows.length} rows, updated ${updated ?? "?"}`],
+      notes: [`${rows.length} rows, updated ${updated ?? "?"}${commit ? `; main's README has no leaderboard, read from ${commit}` : ""}`],
     };
   },
 };

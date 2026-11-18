@@ -150,6 +150,13 @@ describe("Vals benchmark source modules", () => {
     expect(entry?.label).toBeUndefined();
   });
 
+  it("reads a list the bundler wrote as a split string", () => {
+    const entry = parseValsModelCatalogEntry('const p={"provider/model-x":{label:`Model X`,dates:`2026-10-01.2026-10-02`.split(`.`),open_source:!1}};', "provider/model-x");
+    expect(entry?.label).toBe("Model X");
+    expect((entry as unknown as { dates: string[] }).dates).toEqual(["2026-10-01", "2026-10-02"]);
+    expect(() => parseValsModelCatalogEntry('const p={"provider/model-x":{label:`a`.replace(`a`)}};', "provider/model-x")).toThrow(/expected comma/);
+  });
+
   it("finds the model catalog whatever the bundler named it", () => {
     for (const name of ["p", "_", "$a1"]) {
       const entry = parseValsModelCatalogEntry(`const ${name}={"provider/model-x":{company:"Provider",label:"Model X",open_source:!1}};export{${name} as C};`, "provider/model-x");

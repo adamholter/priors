@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { normalizeLabel } from "../../src/data/normalize";
-import { PRINZBENCH_ID, parsePrinzbench } from "./sources/prinzbench";
+import { PRINZBENCH_ID, latestBoard, parsePrinzbench } from "./sources/prinzbench";
 
 const md = readFileSync(new URL("./fixtures/prinzbench-readme.md", import.meta.url), "utf8");
 
@@ -31,6 +31,14 @@ describe("prinzbench README leaderboard", () => {
       "gpt-5.6-sol-pro@", "gpt-5.5-pro@", "gpt-5.4@xhigh", "gpt-5.4@", "gpt-5.4@", "claude-fable-5@max",
       "gpt-5.3-codex@high", "aa-muse-spark@", "qwen-3-max@", "claude-sonnet-4.6@",
     ]);
+  });
+
+  it("falls back to the newest README that still has the leaderboard", async () => {
+    const other = "# another document";
+    const fetchText = async (url: string) => url.includes("api.github.com") ? JSON.stringify([{ sha: "aaaaaaa1" }, { sha: "bbbbbbb2" }]) : url.includes("/bbbbbbb2/") ? md : other;
+    await expect(latestBoard(fetchText)).resolves.toEqual({ md, commit: "bbbbbbb" });
+    await expect(latestBoard(async (url) => url.includes("api.github.com") ? "[]" : other)).rejects.toThrow(/no recent README/);
+    await expect(latestBoard(async () => md)).resolves.toEqual({ md });
   });
 
   it("fails visibly when the block or columns change", () => {
