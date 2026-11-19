@@ -1,0 +1,828 @@
+{
+ "id": "bh-cursorbench-4.0",
+ "version": "4.0",
+ "frozenAt": "2026-11-18",
+ "benchmark": {
+  "id": "bh-cursorbench-4.0",
+  "name": "CursorBench v4.0",
+  "shortName": "CursorBench v4.0",
+  "sourceId": "cursorbench",
+  "url": "https://cursor.com/cursorbench",
+  "description": "Ambiguous, multi-file coding tasks taken from real Cursor sessions: editing, refactoring, investigating and following intent. Cursor's own score; it does not publish how tasks are graded. These are the final v4.0 results; the publisher has since moved to a newer version, listed separately.",
+  "unit": "percent",
+  "higherIsBetter": true,
+  "category": "coding",
+  "versionPolicy": {
+   "kind": "fresh"
+  },
+  "defaultWeight": 0,
+  "categories": [
+   "coding",
+   "agentic"
+  ],
+  "version": "4.0"
+ },
+ "rows": [
+  {
+   "value": 60.4,
+   "sourceUrl": "https://cursor.com/cursorbench",
+   "note": "frozen at v4.0",
+   "benchmarkId": "bh-cursorbench-4.0",
+   "modelLabel": "Gemini 4 Carbon",
+   "labHint": "google",
+   "effort": "high"
+  },
+  {
+   "value": 60.1,
+   "sourceUrl": "https://cursor.com/cursorbench",
+   "note": "frozen at v4.0",
+   "benchmarkId": "bh-cursorbench-4.0",
+   "modelLabel": "Gemini 4 Carbon",
+   "labHint": "google",
+   "effort": "medium"
+  },
+  {
+   "value": 60,
+   "sourceUrl": "https://cursor.com/cursorbench",
+   "note": "frozen at v4.0",
+   "benchmarkId": "bh-cursorbench-4.0",
+   "modelLabel": "Fable 5.2",
+   "labHint": "anthropic",
+   "effort": "max"
+  },
+  {
+   "value": 58.6,
+   "sourceUrl": "https://cursor.com/cursorbench",
+   "note": "frozen at v4.0",
+   "benchmarkId": "bh-cursorbench-4.0",
+   "modelLabel": "Gemini 4 Carbon",
+   "labHint": "google",
+   "effort": "low"
+  },
+  {
+   "value": 57.8,
+   "sourceUrl": "https://cursor.com/cursorbench",
+   "note": "frozen at v4.0",
+   "benchmarkId": "bh-cursorbench-4.0",
+   "modelLabel": "Opus 5.5",
+   "labHint": "anthropic",
+   "effort": "max"
+  },
+  {
+   "value": 56.9,
+   "sourceUrl": "https://cursor.com/cursorbench",
+   "note": "frozen at v4.0",
+   "benchmarkId": "bh-cursorbench-4.0",
+   "modelLabel": "Fable 5.2",
+   "labHint": "anthropic",
+   "effort": "high"
+  },
+  {
+   "value": 56.3,
+   "sourceUrl": "https://cursor.com/cursorbench",
+   "note": "frozen at v4.0",
+   "benchmarkId": "bh-cursorbench-4.0",
+   "modelLabel": "Fable 5.2",
+   "labHint": "anthropic",
+   "effort": "xhigh"
+  },
+  {
+   "value": 56,
+   "sourceUrl": "https://cursor.com/cursorbench",
+   "note": "frozen at v4.0",
+   "benchmarkId": "bh-cursorbench-4.0",
+   "modelLabel": "Opus 5.5",
+   "labHint": "anthropic",
+   "effort": "xhigh"
+  },
+  {
+   "value": 56,
+   "sourceUrl": "https://cursor.com/cursorbench",
+   "note": "frozen at v4.0",
+   "benchmarkId": "bh-cursorbench-4.0",
+   "modelLabel": "Opus 5.5",
+   "labHint": "anthropic",
+   "effort": "high"
+  },
+  {
+   "value": 55.5,
+   "sourceUrl": "https://cursor.com/cursorbench",
+   "note": "frozen at v4.0",
+   "benchmarkId": "bh-cursorbench-4.0",
+   "modelLabel": "Sonnet 5.5",
+   "labHint": "anthropic",
+   "effort": "max"
+  },
+  {
+   "value": 54.8,
+   "sourceUrl": "https://cursor.com/cursorbench",
+   "note": "frozen at v4.0",
+   "benchmarkId": "bh-cursorbench-4.0",
+   "modelLabel": "Fable 5.2",
+   "labHint": "anthropic",
+   "effort": "medium"
+  },
+  {
+   "value": 53.2,
+   "sourceUrl": "https://cursor.com/cursorbench",
+   "note": "frozen at v4.0",
+   "benchmarkId": "bh-cursorbench-4.0",
+   "modelLabel": "Fable 5.2",
+   "labHint": "anthropic",
+   "effort": "low"
+  },
+  {
+   "value": 53.1,
+   "sourceUrl": "https://cursor.com/cursorbench",
+   "note": "frozen at v4.0",
+   "benchmarkId": "bh-cursorbench-4.0",
+   "modelLabel": "Sonnet 5.5",
+   "labHint": "anthropic",
+   "effort": "xhigh"
+  },
+  {
+   "value": 52.9,
+   "sourceUrl": "https://cursor.com/cursorbench",
+   "note": "frozen at v4.0",
+   "benchmarkId": "bh-cursorbench-4.0",
+   "modelLabel": "Gemini 4 Argon",
+   "labHint": "google",
+   "effort": "high"
+  },
+  {
+   "value": 52.8,
+   "sourceUrl": "https://cursor.com/cursorbench",
+   "note": "frozen at v4.0",
+   "benchmarkId": "bh-cursorbench-4.0",
+   "modelLabel": "Gemini 4 Argon",
+   "labHint": "google",
+   "effort": "medium"
+  },
+  {
+   "value": 52.5,
+   "sourceUrl": "https://cursor.com/cursorbench",
+   "note": "frozen at v4.0",
+   "benchmarkId": "bh-cursorbench-4.0",
+   "modelLabel": "Opus 5.5",
+   "labHint": "anthropic",
+   "effort": "medium"
+  },
+  {
+   "value": 51.8,
+   "sourceUrl": "https://cursor.com/cursorbench",
+   "note": "frozen at v4.0",
+   "benchmarkId": "bh-cursorbench-4.0",
+   "modelLabel": "Fable 5.1",
+   "labHint": "anthropic",
+   "effort": "max"
+  },
+  {
+   "value": 51.6,
+   "sourceUrl": "https://cursor.com/cursorbench",
+   "note": "frozen at v4.0",
+   "benchmarkId": "bh-cursorbench-4.0",
+   "modelLabel": "Fable 5.1",
+   "labHint": "anthropic",
+   "effort": "xhigh"
+  },
+  {
+   "value": 50.6,
+   "sourceUrl": "https://cursor.com/cursorbench",
+   "note": "frozen at v4.0",
+   "benchmarkId": "bh-cursorbench-4.0",
+   "modelLabel": "Gemini 4 Argon",
+   "labHint": "google",
+   "effort": "low"
+  },
+  {
+   "value": 50.4,
+   "sourceUrl": "https://cursor.com/cursorbench",
+   "note": "frozen at v4.0",
+   "benchmarkId": "bh-cursorbench-4.0",
+   "modelLabel": "Muse Wonder",
+   "labHint": "meta",
+   "effort": "max"
+  },
+  {
+   "value": 49.2,
+   "sourceUrl": "https://cursor.com/cursorbench",
+   "note": "frozen at v4.0",
+   "benchmarkId": "bh-cursorbench-4.0",
+   "modelLabel": "Fable 5.1",
+   "labHint": "anthropic",
+   "effort": "high"
+  },
+  {
+   "value": 48.4,
+   "sourceUrl": "https://cursor.com/cursorbench",
+   "note": "frozen at v4.0",
+   "benchmarkId": "bh-cursorbench-4.0",
+   "modelLabel": "Haiku 5.5",
+   "labHint": "anthropic",
+   "effort": "max"
+  },
+  {
+   "value": 48.2,
+   "sourceUrl": "https://cursor.com/cursorbench",
+   "note": "frozen at v4.0",
+   "benchmarkId": "bh-cursorbench-4.0",
+   "modelLabel": "Muse Wonder",
+   "labHint": "meta",
+   "effort": "xhigh"
+  },
+  {
+   "value": 47.8,
+   "sourceUrl": "https://cursor.com/cursorbench",
+   "note": "frozen at v4.0",
+   "benchmarkId": "bh-cursorbench-4.0",
+   "modelLabel": "Sonnet 5.5",
+   "labHint": "anthropic",
+   "effort": "high"
+  },
+  {
+   "value": 47.7,
+   "sourceUrl": "https://cursor.com/cursorbench",
+   "note": "frozen at v4.0",
+   "benchmarkId": "bh-cursorbench-4.0",
+   "modelLabel": "DeepSeek V4.1 Flash 1017",
+   "labHint": "deepseek",
+   "effort": "max"
+  },
+  {
+   "value": 46.8,
+   "sourceUrl": "https://cursor.com/cursorbench",
+   "note": "frozen at v4.0",
+   "benchmarkId": "bh-cursorbench-4.0",
+   "modelLabel": "Fable 5.1",
+   "labHint": "anthropic",
+   "effort": "medium"
+  },
+  {
+   "value": 46.6,
+   "sourceUrl": "https://cursor.com/cursorbench",
+   "note": "frozen at v4.0",
+   "benchmarkId": "bh-cursorbench-4.0",
+   "modelLabel": "Opus 5",
+   "labHint": "anthropic",
+   "effort": "max"
+  },
+  {
+   "value": 46.3,
+   "sourceUrl": "https://cursor.com/cursorbench",
+   "note": "frozen at v4.0",
+   "benchmarkId": "bh-cursorbench-4.0",
+   "modelLabel": "DeepSeek V4.1 Flash 1017",
+   "labHint": "deepseek",
+   "effort": "medium"
+  },
+  {
+   "value": 46.3,
+   "sourceUrl": "https://cursor.com/cursorbench",
+   "note": "frozen at v4.0",
+   "benchmarkId": "bh-cursorbench-4.0",
+   "modelLabel": "Grok 4.7",
+   "labHint": "xai",
+   "effort": "xhigh"
+  },
+  {
+   "value": 46.1,
+   "sourceUrl": "https://cursor.com/cursorbench",
+   "note": "frozen at v4.0",
+   "benchmarkId": "bh-cursorbench-4.0",
+   "modelLabel": "Muse Wonder",
+   "labHint": "meta",
+   "effort": "high"
+  },
+  {
+   "value": 46.1,
+   "sourceUrl": "https://cursor.com/cursorbench",
+   "note": "frozen at v4.0",
+   "benchmarkId": "bh-cursorbench-4.0",
+   "modelLabel": "Opus 5",
+   "labHint": "anthropic",
+   "effort": "xhigh"
+  },
+  {
+   "value": 45.6,
+   "sourceUrl": "https://cursor.com/cursorbench",
+   "note": "frozen at v4.0",
+   "benchmarkId": "bh-cursorbench-4.0",
+   "modelLabel": "DeepSeek V4.1 Flash 1017",
+   "labHint": "deepseek",
+   "effort": "high"
+  },
+  {
+   "value": 45.2,
+   "sourceUrl": "https://cursor.com/cursorbench",
+   "note": "frozen at v4.0",
+   "benchmarkId": "bh-cursorbench-4.0",
+   "modelLabel": "Muse Wonder",
+   "labHint": "meta",
+   "effort": "medium"
+  },
+  {
+   "value": 45.1,
+   "sourceUrl": "https://cursor.com/cursorbench",
+   "note": "frozen at v4.0",
+   "benchmarkId": "bh-cursorbench-4.0",
+   "modelLabel": "Fable 5.1",
+   "labHint": "anthropic",
+   "effort": "low"
+  },
+  {
+   "value": 44.9,
+   "sourceUrl": "https://cursor.com/cursorbench",
+   "note": "frozen at v4.0",
+   "benchmarkId": "bh-cursorbench-4.0",
+   "modelLabel": "DeepSeek V4.1 Flash 1017",
+   "labHint": "deepseek",
+   "effort": "low"
+  },
+  {
+   "value": 44.7,
+   "sourceUrl": "https://cursor.com/cursorbench",
+   "note": "frozen at v4.0",
+   "benchmarkId": "bh-cursorbench-4.0",
+   "modelLabel": "Opus 5",
+   "labHint": "anthropic",
+   "effort": "high"
+  },
+  {
+   "value": 44.3,
+   "sourceUrl": "https://cursor.com/cursorbench",
+   "note": "frozen at v4.0",
+   "benchmarkId": "bh-cursorbench-4.0",
+   "modelLabel": "Haiku 5.5",
+   "labHint": "anthropic",
+   "effort": "xhigh"
+  },
+  {
+   "value": 43.9,
+   "sourceUrl": "https://cursor.com/cursorbench",
+   "note": "frozen at v4.0",
+   "benchmarkId": "bh-cursorbench-4.0",
+   "modelLabel": "Grok 4.7",
+   "labHint": "xai",
+   "effort": "high"
+  },
+  {
+   "value": 43.7,
+   "sourceUrl": "https://cursor.com/cursorbench",
+   "note": "frozen at v4.0",
+   "benchmarkId": "bh-cursorbench-4.0",
+   "modelLabel": "Opus 5.5",
+   "labHint": "anthropic",
+   "effort": "low"
+  },
+  {
+   "value": 43.3,
+   "sourceUrl": "https://cursor.com/cursorbench",
+   "note": "frozen at v4.0",
+   "benchmarkId": "bh-cursorbench-4.0",
+   "modelLabel": "Opus 5",
+   "labHint": "anthropic",
+   "effort": "medium"
+  },
+  {
+   "value": 42.6,
+   "sourceUrl": "https://cursor.com/cursorbench",
+   "note": "frozen at v4.0",
+   "benchmarkId": "bh-cursorbench-4.0",
+   "modelLabel": "GLM 5.3",
+   "labHint": "zhipu",
+   "effort": "max"
+  },
+  {
+   "value": 42.3,
+   "sourceUrl": "https://cursor.com/cursorbench",
+   "note": "frozen at v4.0",
+   "benchmarkId": "bh-cursorbench-4.0",
+   "modelLabel": "Haiku 5.5",
+   "labHint": "anthropic",
+   "effort": "high"
+  },
+  {
+   "value": 41.7,
+   "sourceUrl": "https://cursor.com/cursorbench",
+   "note": "frozen at v4.0",
+   "benchmarkId": "bh-cursorbench-4.0",
+   "modelLabel": "GPT-5.6 Sol",
+   "labHint": "openai",
+   "effort": "max"
+  },
+  {
+   "value": 41.7,
+   "sourceUrl": "https://cursor.com/cursorbench",
+   "note": "frozen at v4.0",
+   "benchmarkId": "bh-cursorbench-4.0",
+   "modelLabel": "Muse Wonder",
+   "labHint": "meta",
+   "effort": "low"
+  },
+  {
+   "value": 41.6,
+   "sourceUrl": "https://cursor.com/cursorbench",
+   "note": "frozen at v4.0",
+   "benchmarkId": "bh-cursorbench-4.0",
+   "modelLabel": "Grok 4.7",
+   "labHint": "xai",
+   "effort": "medium"
+  },
+  {
+   "value": 41.6,
+   "sourceUrl": "https://cursor.com/cursorbench",
+   "note": "frozen at v4.0",
+   "benchmarkId": "bh-cursorbench-4.0",
+   "modelLabel": "Muse Spark 1.3",
+   "labHint": "meta",
+   "effort": "max"
+  },
+  {
+   "value": 41.4,
+   "sourceUrl": "https://cursor.com/cursorbench",
+   "note": "frozen at v4.0",
+   "benchmarkId": "bh-cursorbench-4.0",
+   "modelLabel": "Grok 4.6",
+   "labHint": "xai",
+   "effort": "xhigh"
+  },
+  {
+   "value": 41.3,
+   "sourceUrl": "https://cursor.com/cursorbench",
+   "note": "frozen at v4.0",
+   "benchmarkId": "bh-cursorbench-4.0",
+   "modelLabel": "GPT-5.6 Terra",
+   "labHint": "openai",
+   "effort": "max"
+  },
+  {
+   "value": 40.7,
+   "sourceUrl": "https://cursor.com/cursorbench",
+   "note": "frozen at v4.0",
+   "benchmarkId": "bh-cursorbench-4.0",
+   "modelLabel": "Opus 5",
+   "labHint": "anthropic",
+   "effort": "low"
+  },
+  {
+   "value": 40.4,
+   "sourceUrl": "https://cursor.com/cursorbench",
+   "note": "frozen at v4.0",
+   "benchmarkId": "bh-cursorbench-4.0",
+   "modelLabel": "Grok 4.6",
+   "labHint": "xai",
+   "effort": "high"
+  },
+  {
+   "value": 39.6,
+   "sourceUrl": "https://cursor.com/cursorbench",
+   "note": "frozen at v4.0",
+   "benchmarkId": "bh-cursorbench-4.0",
+   "modelLabel": "Gemini 3.8 Flash",
+   "labHint": "google",
+   "effort": "high"
+  },
+  {
+   "value": 39.2,
+   "sourceUrl": "https://cursor.com/cursorbench",
+   "note": "frozen at v4.0",
+   "benchmarkId": "bh-cursorbench-4.0",
+   "modelLabel": "Sonnet 5.5",
+   "labHint": "anthropic",
+   "effort": "medium"
+  },
+  {
+   "value": 38,
+   "sourceUrl": "https://cursor.com/cursorbench",
+   "note": "frozen at v4.0",
+   "benchmarkId": "bh-cursorbench-4.0",
+   "modelLabel": "GLM 5.3",
+   "labHint": "zhipu",
+   "effort": "high"
+  },
+  {
+   "value": 37.7,
+   "sourceUrl": "https://cursor.com/cursorbench",
+   "note": "frozen at v4.0",
+   "benchmarkId": "bh-cursorbench-4.0",
+   "modelLabel": "GPT-5.6 Sol",
+   "labHint": "openai",
+   "effort": "xhigh"
+  },
+  {
+   "value": 37.5,
+   "sourceUrl": "https://cursor.com/cursorbench",
+   "note": "frozen at v4.0",
+   "benchmarkId": "bh-cursorbench-4.0",
+   "modelLabel": "Muse Spark 1.3",
+   "labHint": "meta",
+   "effort": "xhigh"
+  },
+  {
+   "value": 37.3,
+   "sourceUrl": "https://cursor.com/cursorbench",
+   "note": "frozen at v4.0",
+   "benchmarkId": "bh-cursorbench-4.0",
+   "modelLabel": "Gemini 3.8 Flash",
+   "labHint": "google",
+   "effort": "medium"
+  },
+  {
+   "value": 36.9,
+   "sourceUrl": "https://cursor.com/cursorbench",
+   "note": "frozen at v4.0",
+   "benchmarkId": "bh-cursorbench-4.0",
+   "modelLabel": "Haiku 5.5",
+   "labHint": "anthropic",
+   "effort": "medium"
+  },
+  {
+   "value": 36.8,
+   "sourceUrl": "https://cursor.com/cursorbench",
+   "note": "frozen at v4.0",
+   "benchmarkId": "bh-cursorbench-4.0",
+   "modelLabel": "GLM 5.3 Flash",
+   "labHint": "zhipu",
+   "effort": "max"
+  },
+  {
+   "value": 36.1,
+   "sourceUrl": "https://cursor.com/cursorbench",
+   "note": "frozen at v4.0",
+   "benchmarkId": "bh-cursorbench-4.0",
+   "modelLabel": "Grok 4.6",
+   "labHint": "xai",
+   "effort": "medium"
+  },
+  {
+   "value": 35.9,
+   "sourceUrl": "https://cursor.com/cursorbench",
+   "note": "frozen at v4.0",
+   "benchmarkId": "bh-cursorbench-4.0",
+   "modelLabel": "GPT-5.6 Luna",
+   "labHint": "openai",
+   "effort": "max"
+  },
+  {
+   "value": 35.8,
+   "sourceUrl": "https://cursor.com/cursorbench",
+   "note": "frozen at v4.0",
+   "benchmarkId": "bh-cursorbench-4.0",
+   "modelLabel": "Sonnet 5.5",
+   "labHint": "anthropic",
+   "effort": "low"
+  },
+  {
+   "value": 35.7,
+   "sourceUrl": "https://cursor.com/cursorbench",
+   "note": "frozen at v4.0",
+   "benchmarkId": "bh-cursorbench-4.0",
+   "modelLabel": "GPT-5.6 Sol",
+   "labHint": "openai",
+   "effort": "high"
+  },
+  {
+   "value": 34.2,
+   "sourceUrl": "https://cursor.com/cursorbench",
+   "note": "frozen at v4.0",
+   "benchmarkId": "bh-cursorbench-4.0",
+   "modelLabel": "Muse Wonder",
+   "labHint": "meta",
+   "effort": "minimal"
+  },
+  {
+   "value": 34.1,
+   "sourceUrl": "https://cursor.com/cursorbench",
+   "note": "frozen at v4.0",
+   "benchmarkId": "bh-cursorbench-4.0",
+   "modelLabel": "Sonnet 5",
+   "labHint": "anthropic",
+   "effort": "max"
+  },
+  {
+   "value": 33.6,
+   "sourceUrl": "https://cursor.com/cursorbench",
+   "note": "frozen at v4.0",
+   "benchmarkId": "bh-cursorbench-4.0",
+   "modelLabel": "GPT-5.6 Terra",
+   "labHint": "openai",
+   "effort": "xhigh"
+  },
+  {
+   "value": 33.4,
+   "sourceUrl": "https://cursor.com/cursorbench",
+   "note": "frozen at v4.0",
+   "benchmarkId": "bh-cursorbench-4.0",
+   "modelLabel": "Grok 4.6",
+   "labHint": "xai",
+   "effort": "low"
+  },
+  {
+   "value": 33.4,
+   "sourceUrl": "https://cursor.com/cursorbench",
+   "note": "frozen at v4.0",
+   "benchmarkId": "bh-cursorbench-4.0",
+   "modelLabel": "Muse Spark 1.3",
+   "labHint": "meta",
+   "effort": "high"
+  },
+  {
+   "value": 33.3,
+   "sourceUrl": "https://cursor.com/cursorbench",
+   "note": "frozen at v4.0",
+   "benchmarkId": "bh-cursorbench-4.0",
+   "modelLabel": "GLM 5.3",
+   "labHint": "zhipu",
+   "effort": "low"
+  },
+  {
+   "value": 33.1,
+   "sourceUrl": "https://cursor.com/cursorbench",
+   "note": "frozen at v4.0",
+   "benchmarkId": "bh-cursorbench-4.0",
+   "modelLabel": "Grok 4.7",
+   "labHint": "xai",
+   "effort": "low"
+  },
+  {
+   "value": 33,
+   "sourceUrl": "https://cursor.com/cursorbench",
+   "note": "frozen at v4.0",
+   "benchmarkId": "bh-cursorbench-4.0",
+   "modelLabel": "GPT-5.6 Luna",
+   "labHint": "openai",
+   "effort": "xhigh"
+  },
+  {
+   "value": 32.6,
+   "sourceUrl": "https://cursor.com/cursorbench",
+   "note": "frozen at v4.0",
+   "benchmarkId": "bh-cursorbench-4.0",
+   "modelLabel": "Muse Spark 1.3",
+   "labHint": "meta",
+   "effort": "medium"
+  },
+  {
+   "value": 32,
+   "sourceUrl": "https://cursor.com/cursorbench",
+   "note": "frozen at v4.0",
+   "benchmarkId": "bh-cursorbench-4.0",
+   "modelLabel": "Sonnet 5",
+   "labHint": "anthropic",
+   "effort": "xhigh"
+  },
+  {
+   "value": 31.1,
+   "sourceUrl": "https://cursor.com/cursorbench",
+   "note": "frozen at v4.0",
+   "benchmarkId": "bh-cursorbench-4.0",
+   "modelLabel": "GLM 5.3 Flash",
+   "labHint": "zhipu",
+   "effort": "high"
+  },
+  {
+   "value": 31.1,
+   "sourceUrl": "https://cursor.com/cursorbench",
+   "note": "frozen at v4.0",
+   "benchmarkId": "bh-cursorbench-4.0",
+   "modelLabel": "GPT-5.6 Sol",
+   "labHint": "openai",
+   "effort": "medium"
+  },
+  {
+   "value": 30.9,
+   "sourceUrl": "https://cursor.com/cursorbench",
+   "note": "frozen at v4.0",
+   "benchmarkId": "bh-cursorbench-4.0",
+   "modelLabel": "Haiku 5.5",
+   "labHint": "anthropic",
+   "effort": "low"
+  },
+  {
+   "value": 30.8,
+   "sourceUrl": "https://cursor.com/cursorbench",
+   "note": "frozen at v4.0",
+   "benchmarkId": "bh-cursorbench-4.0",
+   "modelLabel": "Sonnet 5",
+   "labHint": "anthropic",
+   "effort": "high"
+  },
+  {
+   "value": 30.7,
+   "sourceUrl": "https://cursor.com/cursorbench",
+   "note": "frozen at v4.0",
+   "benchmarkId": "bh-cursorbench-4.0",
+   "modelLabel": "GPT-5.6 Terra",
+   "labHint": "openai",
+   "effort": "high"
+  },
+  {
+   "value": 29.4,
+   "sourceUrl": "https://cursor.com/cursorbench",
+   "note": "frozen at v4.0",
+   "benchmarkId": "bh-cursorbench-4.0",
+   "modelLabel": "GPT-5.6 Luna",
+   "labHint": "openai",
+   "effort": "high"
+  },
+  {
+   "value": 29.3,
+   "sourceUrl": "https://cursor.com/cursorbench",
+   "note": "frozen at v4.0",
+   "benchmarkId": "bh-cursorbench-4.0",
+   "modelLabel": "Muse Spark 1.3",
+   "labHint": "meta",
+   "effort": "low"
+  },
+  {
+   "value": 28,
+   "sourceUrl": "https://cursor.com/cursorbench",
+   "note": "frozen at v4.0",
+   "benchmarkId": "bh-cursorbench-4.0",
+   "modelLabel": "Sonnet 5",
+   "labHint": "anthropic",
+   "effort": "medium"
+  },
+  {
+   "value": 27.7,
+   "sourceUrl": "https://cursor.com/cursorbench",
+   "note": "frozen at v4.0",
+   "benchmarkId": "bh-cursorbench-4.0",
+   "modelLabel": "Composer 2.5",
+   "labHint": "cursor",
+   "effort": "none"
+  },
+  {
+   "value": 27.6,
+   "sourceUrl": "https://cursor.com/cursorbench",
+   "note": "frozen at v4.0",
+   "benchmarkId": "bh-cursorbench-4.0",
+   "modelLabel": "GPT-5.6 Terra",
+   "labHint": "openai",
+   "effort": "medium"
+  },
+  {
+   "value": 26.9,
+   "sourceUrl": "https://cursor.com/cursorbench",
+   "note": "frozen at v4.0",
+   "benchmarkId": "bh-cursorbench-4.0",
+   "modelLabel": "GLM 5.3 Flash",
+   "labHint": "zhipu",
+   "effort": "low"
+  },
+  {
+   "value": 25.2,
+   "sourceUrl": "https://cursor.com/cursorbench",
+   "note": "frozen at v4.0",
+   "benchmarkId": "bh-cursorbench-4.0",
+   "modelLabel": "GPT-5.6 Terra",
+   "labHint": "openai",
+   "effort": "low"
+  },
+  {
+   "value": 24.6,
+   "sourceUrl": "https://cursor.com/cursorbench",
+   "note": "frozen at v4.0",
+   "benchmarkId": "bh-cursorbench-4.0",
+   "modelLabel": "GPT-5.6 Sol",
+   "labHint": "openai",
+   "effort": "low"
+  },
+  {
+   "value": 24.3,
+   "sourceUrl": "https://cursor.com/cursorbench",
+   "note": "frozen at v4.0",
+   "benchmarkId": "bh-cursorbench-4.0",
+   "modelLabel": "Muse Spark 1.3",
+   "labHint": "meta",
+   "effort": "minimal"
+  },
+  {
+   "value": 24.1,
+   "sourceUrl": "https://cursor.com/cursorbench",
+   "note": "frozen at v4.0",
+   "benchmarkId": "bh-cursorbench-4.0",
+   "modelLabel": "Sonnet 5",
+   "labHint": "anthropic",
+   "effort": "low"
+  },
+  {
+   "value": 22.2,
+   "sourceUrl": "https://cursor.com/cursorbench",
+   "note": "frozen at v4.0",
+   "benchmarkId": "bh-cursorbench-4.0",
+   "modelLabel": "GPT-5.6 Luna",
+   "labHint": "openai",
+   "effort": "medium"
+  },
+  {
+   "value": 16,
+   "sourceUrl": "https://cursor.com/cursorbench",
+   "note": "frozen at v4.0",
+   "benchmarkId": "bh-cursorbench-4.0",
+   "modelLabel": "GPT-5.6 Luna",
+   "labHint": "openai",
+   "effort": "low"
+  }
+ ]
+}
