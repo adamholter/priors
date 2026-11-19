@@ -40,6 +40,15 @@ const EFFORTS = new Set(["none", "minimal", "low", "medium", "high", "xhigh", "m
 /** Ids that are not the plain model: provider or region prefixes (`openai.`, `us.anthropic.`), fast and sovereign modes, composites, an effort in a non-Gemini id, and aliases with no version (`opus`). */
 const NOT_PLAIN = /[:[\]"\s/]|^[a-z-]+\.|^fusion-|-(fast|build|turbo|sidekick|ultrafast|sovereign|latest)(-|$)|-(minimal|low|medium|high|xhigh|max)$|^[^0-9]*$/;
 
+/**
+ * Antigravity's own effort for a plain model id, which is all newer T3 Code versions send (older ones sent `gemini-4-neon-high`, with no
+ * token counts). Antigravity resolves the alias itself and logs it (`agy --model gemini-4-neon --log-file …`: "model alias "gemini-4-neon"
+ * resolved to "gemini-4-neon-high"", checked 2026-11-19). Only Neon so far, whose turns were nearly all plain: Carbon, Argon, Hydrogen
+ * and 3.8 Flash resolve to medium, but their published figures still come from explicit efforts alone.
+ */
+export const ANTIGRAVITY_ALIAS_EFFORT: Record<string, string> = { "gemini-4-neon": "high" };
+const aliasSql = (map: Record<string, string>) => `transform(m2, [${Object.keys(map).map((k) => `'${k}'`).join(", ")}], [${Object.values(map).map((v) => `'${v}'`).join(", ")}], '')`;
+
 export const T3_SQL = `SELECT base, sum(n) total, groupArray((eff, n, u, avg_s, med_s, p90_s, out_tok, tok_n, fresh, cached, written, tok_out, tok_u)) efforts FROM (
  SELECT base, eff, count() n, uniq(installId) u, round(avg(durationMs)/1000, 2) avg_s, round(quantileTDigest(0.5)(durationMs)/1000, 2) med_s, round(quantileTDigest(0.9)(durationMs)/1000, 2) p90_s, round(avg(outputTokens)) out_tok,
   countIf(tok) tok_n, round(avgIf(greatest(inputTokens - ifNull(cachedInputTokens, 0) - ifNull(cacheCreationTokens, 0), 0), tok)) fresh,
@@ -47,7 +56,7 @@ export const T3_SQL = `SELECT base, sum(n) total, groupArray((eff, n, u, avg_s, 
  FROM (SELECT replaceRegexpOne(replaceRegexpOne(replaceRegexpOne(model, '\\\\[1m\\\\]$', ''), '^(claude-[a-z]+-[0-9]+)\\\\.([0-9]+)$', '\\\\1-\\\\2'), '^deepseek-v([0-9])([0-9])-', 'deepseek-v\\\\1.\\\\2-') AS m2,
    extract(m2, '^gemini-.+-(minimal|low|medium|high|xhigh)$') AS sfx,
    if(sfx != '', substring(m2, 1, length(m2) - length(sfx) - 1), m2) AS base,
-   if(sfx != '', sfx, effort) AS eff, installId, durationMs, outputTokens, inputTokens, cachedInputTokens, cacheCreationTokens,
+   if(sfx != '', sfx, if(provider = 'antigravity' AND effort = '', ${aliasSql(ANTIGRAVITY_ALIAS_EFFORT)}, effort)) AS eff, installId, durationMs, outputTokens, inputTokens, cachedInputTokens, cacheCreationTokens,
    inputTokens IS NOT NULL AND outputTokens IS NOT NULL AS tok
   FROM events WHERE event = 'provider.turn.completed' AND terminalStatus = 'completed' AND timestamp >= now() - toIntervalDay({days:UInt32}) AND timestamp < now()
    AND position(model, '/') = 0 AND model NOT IN ('', 'default') AND durationMs > 0 AND durationMs < 86400000 AND JSONExtractBool(properties, 'subagent') = 0)
@@ -63,7 +72,7 @@ GROUP BY base ORDER BY total DESC LIMIT 100`;
 type Effort = [eff: string, turns: number, users: number, meanSec: number | null, medianSec: number | null, p90Sec: number | null, outputTokens: number | null,
   tokenTurns?: number, fresh?: number | null, cached?: number | null, written?: number | null, tokenOutput?: number | null, tokenUsers?: number];
 /** Bumped when the query changes, so a cached payload from the old query is refetched instead of served for up to a day. */
-export const T3_PAYLOAD_VERSION = 4;
+export const T3_PAYLOAD_VERSION = 5;
 export type T3Payload = { version?: number; fetchedAt: string; start: string; end: string; rows: [base: string, total: number, efforts: Effort[]][] };
 
 export function parseT3Telemetry(p: T3Payload): Pick<ScrapeResult, "benchmarks" | "rows" | "notes"> {

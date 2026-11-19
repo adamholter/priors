@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { normalizeLabel } from "../../src/data/normalize";
-import { MIN_USERS, T3_TURN_TIME_ID, mergeWatched, parseT3Telemetry, type T3Payload } from "./sources/t3-telemetry";
+import { ANTIGRAVITY_ALIAS_EFFORT, MIN_USERS, T3_PAYLOAD_VERSION, T3_SQL, T3_TURN_TIME_ID, mergeWatched, parseT3Telemetry, type T3Payload } from "./sources/t3-telemetry";
 
 const payload = JSON.parse(readFileSync(path.join(__dirname, "fixtures/t3-telemetry.json"), "utf8")) as T3Payload;
 
@@ -20,6 +20,12 @@ describe("T3 Code telemetry by effort", () => {
   it("leaves turns with no recorded effort out where a model has explicit efforts, and keeps them where it has none", () => {
     expect(of("claude-opus-5-5").every((r) => r.effort)).toBe(true);
     expect(of("composer-2.5")).toEqual([expect.objectContaining({ effortUnstated: true })]);
+  });
+  it("files Antigravity's plain Gemini Neon id under the effort Antigravity runs it at, not as unstated", () => {
+    // Newer T3 Code versions send `gemini-4-neon` with no effort; Antigravity resolves that alias to gemini-4-neon-high.
+    expect(ANTIGRAVITY_ALIAS_EFFORT).toEqual({ "gemini-4-neon": "high" });
+    expect(T3_SQL).toContain("if(provider = 'antigravity' AND effort = '', transform(m2, ['gemini-4-neon'], ['high'], ''), effort)");
+    expect(T3_PAYLOAD_VERSION).toBeGreaterThanOrEqual(5);
   });
   it("carries the average turn's tokens by kind where enough turns have token counts, and none from an older payload", () => {
     const efforts = (tokens: number[] | []) => [["high", 500, 40, 200, 30, 400, 7000, ...tokens]];
