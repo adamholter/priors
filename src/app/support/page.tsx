@@ -13,17 +13,24 @@ export const metadata = pageMeta({ title: "Support Priors", description: "Priors
 const COFFEE = "https://buymeacoffee.com/adamholter";
 const X_URL = "https://x.com/AdamHoltererer";
 
-/** Monthly bills, in dollars, as of November 2026. Vercel is mostly rebuilds, and it grows with traffic. */
+/**
+ * Monthly bills, in dollars, as of November 2026. Vercel is mostly rebuilds, and it grows with traffic. PostHog went to its paid,
+ * usage-billed plan on 2026-11-16 once session replays passed the free 5,000 a month: about 1,350 recordings and 52,000 events a day
+ * (Nov 16 to 18) is about 40,000 recordings ($137 at PostHog's tiers) and 1.6M events ($28) a month.
+ */
 const HOSTING = 70;
 const SMALL = 1.1;
 const CLERK_PRO = 25;
-const BILL = Math.round(HOSTING + SMALL + CLERK_PRO);
+const POSTHOG = 165;
+const BILL = Math.round(HOSTING + SMALL + CLERK_PRO + POSTHOG);
 const COSTS = [
+  { name: "Analytics (PostHog)", usd: POSTHOG, note: "~$165", detail: "Usage stats and session replays, billed by use past the free allowance. Estimated from this month's traffic" },
   { name: "Hosting (Vercel)", usd: HOSTING, note: "$70", detail: "Servers and the work of rebuilding the site" },
   { name: "Sign-in (Clerk Pro)", usd: CLERK_PRO, note: "$25", detail: "Keeps you signed in for months instead of 7 days. Funded by supporters" },
   { name: "Domain and AI assistant", usd: SMALL, note: "$1", detail: "mypriors.com plus about ten cents of AI" },
-  { name: "Database, analytics", usd: 0, note: "Free", detail: "Convex and PostHog, on free plans" },
+  { name: "Database (Convex)", usd: 0, note: "Free", detail: "On Convex's free plan" },
 ];
+const LARGEST = Math.max(...COSTS.map((c) => c.usd));
 
 const XLogo = () => <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" /></svg>;
 
@@ -56,9 +63,9 @@ export default async function SupportPage() {
 <section className="grid gap-6">
           <div className="grid gap-1"><h2 className="text-[28px] text-ink">Where the money goes</h2><p className="text-ink-2">Every line, in full.</p></div>
           <div className="grid gap-4">
-            {COSTS.map((c) => <div key={c.name} className="grid gap-1"><div className="sp-row"><span className="text-ink">{c.name}</span><div className="sp-track"><div className="sp-fill" style={{ width: `${Math.max(c.usd / HOSTING * 100, c.usd ? 1.5 : 0)}%` }} /></div><span className="sp-num">{c.note}</span></div><span className="text-[13.5px] text-ink-2">{c.detail}</span></div>)}
+            {COSTS.map((c) => <div key={c.name} className="grid gap-1"><div className="sp-row"><span className="text-ink">{c.name}</span><div className="sp-track"><div className="sp-fill" style={{ width: `${Math.max(c.usd / LARGEST * 100, c.usd ? 1.5 : 0)}%` }} /></div><span className="sp-num">{c.note}</span></div><span className="text-[13.5px] text-ink-2">{c.detail}</span></div>)}
           </div>
-          <p className="text-[14px] text-ink-2">Hosting grows with traffic, so the bill rises as more people use Priors.</p>
+          <p className="text-[14px] text-ink-2">Hosting and analytics grow with traffic, so the bill rises as more people use Priors.</p>
         </section>
 
 <section className="grid gap-6">
