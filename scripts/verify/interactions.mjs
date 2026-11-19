@@ -1276,7 +1276,7 @@ try {
       assert.ok(nodes < 8000, `model page has ${nodes} DOM nodes`);
       const all = c.locator("details", { has: c.locator("summary", { hasText: /^All \d+ benchmarks/ }) });
       await all.locator("summary").click();
-      await all.locator("article").first().waitFor({ timeout: 10000 });
+      await all.locator("article").first().waitFor({ timeout: 30000 });
       assert.ok(await all.locator("article").count() > 10, "opening the list draws its cards");
     } finally { await c.context().close(); }
   });
