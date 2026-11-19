@@ -31,7 +31,7 @@ export function ChartSettings({ freeTiers, planReading, speedTiers, label, mode,
   costBasis?: { value: CostBasis; onChange: (basis: CostBasis) => void };
   /** Subscription pricing: count limit resets (what each lab gave its subscribers in the last 30 days). Shown in the plans section. */
   planResets?: { value: boolean; onChange: (on: boolean) => void; note?: string; rows?: { lab: string; text: string }[]; fable?: { value: number; onChange: (n: number) => void } };
-  /** Subscription pricing: the plan each lab's models are priced at (`planPicker`). Unpicked labs use each model's median plan, which `median` names. Listed on every cost chart, under API pricing too, where it says how to turn it on. */
+  /** Subscription pricing: the plan each lab's models are priced at (`planPicker`). Unpicked labs use each model's most subsidized plan, which `median` names. Listed on every cost chart, under API pricing too, where it says how to turn it on. */
   subscriptionPlans?: PlanOptions;
   anchor?: string;
   /** Default metric scale, when the chart supports switching to linear. */

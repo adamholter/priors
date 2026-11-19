@@ -100,7 +100,7 @@ export function blendedApiPrice(p: Prices, mix: TokenMix): number {
  * Plans sold at different rates by time of day are measured once per rate, and each rate is its own plan option: GLM Coding's
  * off-peak, mixed and peak rows (Z.ai's peak is Monday to Friday 14:00-18:00 UTC+8, at twice the off-peak credits) and MiMo Token
  * Plan's peak and off-peak rows (00:00-08:00 Beijing time is off-peak at 0.8x the credits). Both peak windows fall in the US night,
- * so a model's default is the off-peak row of its median plan (`scripts/scrape/sources/realapipricing.ts`); the peak and mixed rows
+ * so a model's default is usually an off-peak row, the biggest subsidy (`scripts/scrape/sources/realapipricing.ts`); the peak and mixed rows
  * are options a visitor picks in the lab's plan list. Real API Pricing names them in Chinese (闲时 off-peak, 中间值 mixed, 忙时 peak;
  * 新客 the new-subscriber price, 老客 the existing subscribers' price) or as Day and Night; `planDisplayName` gives the names Priors shows,
  * and links and saved pages that kept an old name still find the plan through `currentPlanName`.
@@ -222,7 +222,7 @@ export function subscriptionPlanOptions(snapshot: Snapshot): { labId: string; pl
  * list prices, so the same share applies to a measured cost per task at any reasoning effort.
  * List prices are the ones the source converted the plan with, falling back to Artificial Analysis
  * for models it has not priced yet. Models without a first-party plan are absent.
- * Each model is priced at its median plan unless `chosen` names a plan for its lab (lab id → plan name)
+ * Each model is priced at its most subsidized plan unless `chosen` names a plan for its lab (lab id → plan name)
  * that the model was measured on; a model without that plan keeps its median one.
  * The share is worked out at the mix the plan's token price was converted with, never a measured one: an allowance
  * spent at list prices gives the same share at any mix, and mixing the two would change the share for no reason.

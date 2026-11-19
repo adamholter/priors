@@ -70,9 +70,8 @@ export interface SubsidyAssumption {
   sameAs: string;
   /** Short name of that model, for the plan label. */
   sameAsName: string;
-  /** Only these of the other model's plans (a model some plans don't sell), priced at `defaultPlan` unless a visitor picks another of them. */
+  /** Only these of the other model's plans (a model some plans don't sell). It is priced at the one with the biggest subsidy unless a visitor picks another. */
   plans?: RegExp;
-  defaultPlan?: string;
   /** How much of the shared pool a list-price dollar of this model uses against one of the other model's (3: a third of its share of API price). Default 1. */
   poolRate?: number;
   /** Set once the assumption itself is measured; default "assumed". */
@@ -94,12 +93,12 @@ export const SUBSIDY_ASSUMPTIONS: SubsidyAssumption[] = [
   // price dropped (input and output 20%, cached input 60%), so the same tokens are a larger share of its new list price; Sol's price is
   // unchanged. A measured row for either replaces this the day it appears.
   {
-    modelId: "gpt-6.2-astra", label: "GPT-6.2 Astra (max)", sameAs: "gpt-6-astra", sameAsName: "GPT-6 Astra", plans: /^ChatGPT /, defaultPlan: "ChatGPT Pro 10x",
+    modelId: "gpt-6.2-astra", label: "GPT-6.2 Astra (max)", sameAs: "gpt-6-astra", sameAsName: "GPT-6 Astra", plans: /^ChatGPT /,
     listPrice: { input: 8, cached: 0.4, output: 40 }, checked: "2026-11-17",
     note: "No plan measurement for GPT-6.2 Astra yet: each ChatGPT plan is assumed to give as many tokens as it does for GPT-6 Astra, priced against GPT-6.2 Astra's lower API list price ($8 input, $0.40 cached, $40 output per 1M, from OpenAI's launch post), so its share of API price is higher than GPT-6 Astra's.",
   },
   {
-    modelId: "gpt-6.2-sol", label: "GPT-6.2 Sol (max)", sameAs: "gpt-6.1-sol", sameAsName: "GPT-6.1 Sol", plans: /^ChatGPT /, defaultPlan: "ChatGPT Pro 10x",
+    modelId: "gpt-6.2-sol", label: "GPT-6.2 Sol (max)", sameAs: "gpt-6.1-sol", sameAsName: "GPT-6.1 Sol", plans: /^ChatGPT /,
     listPrice: { input: 2, cached: 0.1, output: 10 }, checked: "2026-11-17",
     note: "No plan measurement for GPT-6.2 Sol yet: each ChatGPT plan is assumed to give as many tokens as it does for GPT-6.1 Sol, whose API prices GPT-6.2 Sol keeps ($2 input, $0.10 cached, $10 output per 1M).",
   },
@@ -107,13 +106,13 @@ export const SUBSIDY_ASSUMPTIONS: SubsidyAssumption[] = [
   // draws on one shared weekly pool, but not at the same rate per list-price dollar: Flash and Hydrogen use it at exactly the same rate,
   // and Argon and Carbon at about three times that ($600 of Flash or $200 of Argon/Carbon a week on Ultra 5x). Evidence in docs/data.md.
   {
-    modelId: "gemini-4-carbon", label: "Gemini 4 Carbon (max)", sameAs: "gemini-3.8-flash", sameAsName: "Flash", plans: /^Google AI Ultra/, defaultPlan: "Google AI Ultra 5x", poolRate: 3, checked: "2026-11-16",
-    note: "Only Google AI Ultra sells Carbon; Ultra 5x by default, the cheaper plan that includes it. Carbon shares Ultra's weekly Gemini pool with Flash, but a dollar of Carbon at its API list price uses about three times as much of it as a dollar of Flash (a community reading of $600 of Flash or $200 of Argon/Carbon a week on Ultra 5x, matched by Priors' own measurement on November 16), so it gets a third of Flash's share of API price on the same plan.",
+    modelId: "gemini-4-carbon", label: "Gemini 4 Carbon (max)", sameAs: "gemini-3.8-flash", sameAsName: "Flash", plans: /^Google AI Ultra/, poolRate: 3, checked: "2026-11-16",
+    note: "Only Google AI Ultra sells Carbon; Ultra 20x gives the most per dollar. Carbon shares Ultra's weekly Gemini pool with Flash, but a dollar of Carbon at its API list price uses about three times as much of it as a dollar of Flash (a community reading of $600 of Flash or $200 of Argon/Carbon a week on Ultra 5x, matched by Priors' own measurement on November 16), so it gets a third of Flash's share of API price on the same plan.",
   },
   // Neon sits in the same pool. Three clean readings on Adam's Ultra 5x account, November 18 (two input-heavy, one output-heavy), match Flash's rate per list-price
   // dollar. Other runs that day were disturbed by Gemini jobs sharing the account. One account and few runs, so tentative until a larger measurement lands.
   {
-    modelId: "gemini-4-neon", label: "Gemini 4 Neon (xhigh)", sameAs: "gemini-3.8-flash", sameAsName: "Flash", plans: /^Google AI Ultra/, defaultPlan: "Google AI Ultra 5x", confidence: "tentative", checked: "2026-11-18",
+    modelId: "gemini-4-neon", label: "Gemini 4 Neon (xhigh)", sameAs: "gemini-3.8-flash", sameAsName: "Flash", plans: /^Google AI Ultra/, confidence: "tentative", checked: "2026-11-18",
     preliminary: {
       label: "Tentative", short: "Early reading from one account, pending more data.", source: "https://www.testingcatalog.com/google-prepares-to-release-gemini-4-neon-model-on-apis/",
       note: "Measured on one Google AI Ultra 5x account on November 18, 2026. In three clean runs, two input-heavy and one output-heavy, Gemini 4 Neon used 0.167% of the weekly Gemini pool per dollar of API list price ($3 input, $0.15 cached, $15 output per 1M), the same as Gemini 3.8 Flash: about $600 of API value a week. Other runs were disturbed by work sharing the account.",

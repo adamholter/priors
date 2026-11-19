@@ -392,7 +392,7 @@ try {
       await button.scrollIntoViewIfNeeded();
       assert.equal(await p.locator(".chart-method-pop").count(), 0, "closed until asked for");
       await button.click();
-      assert.match(await p.locator(".chart-method-pop").textContent(), /median plan/);
+      assert.match(await p.locator(".chart-method-pop").textContent(), /biggest subsidy/);
       assert.equal(await p.locator(".chart-method-pop a").getAttribute("href"), "/benchmarks/methodology#cost");
       await p.locator("body").click({ position: { x: 5, y: 5 } });
       assert.equal(await p.locator(".chart-method-pop").count(), 0, "a click elsewhere closes it");
@@ -592,11 +592,11 @@ try {
       await chart.locator("svg").waitFor();
       await c.waitForTimeout(500);
       assert.ok(await lines() < before, "gridlines are gone");
-      // A median plan says which plan it is.
+      // The default says which plan it is.
       await menu.getByRole("tab", { name: "Data" }).click();
       await menu.locator("summary", { hasText: "Subscription plans" }).click();
       const median = await menu.getByLabel("OpenAI plan").locator("option").first().textContent();
-      assert.match(median, /^Median: ChatGPT /);
+      assert.match(median, /^Best: /);
       // API pricing keeps the plans in view and says how to use them; picks reset in one click.
       await menu.getByRole("button", { name: "API", exact: true }).click();
       await menu.getByLabel("OpenAI plan").waitFor();
@@ -637,7 +637,7 @@ try {
       assert.equal(await menu.getByRole("group", { name: "Peak hours" }).count(), 0, "no Peak hours toggle");
       const google = menu.getByLabel("Google plan", { exact: true });
       const options = (sel) => sel.locator("option").evaluateAll((os) => os.map((o) => o.textContent));
-      assert.equal(await google.inputValue(), "", "Google starts on its median plan");
+      assert.equal(await google.inputValue(), "", "Google starts on its best plan");
       assert.ok((await options(google)).some((t) => /^Google AI Pro \(Student\)/.test(t)), "Google AI Pro (Student) is a plan option");
       // Every time-of-day plan lists each rate, and the lab's default names its off-peak one.
       const zhipu = menu.locator("select").filter({ has: c.locator("option", { hasText: "GLM Coding" }) }).first();
@@ -660,7 +660,7 @@ try {
       await google.selectOption("");
       await card.waitFor({ state: "detached" });
       await c.waitForTimeout(900);
-      assert.equal(await svg(), svgBefore, "back on the median plan, every label is where it was");
+      assert.equal(await svg(), svgBefore, "back on the best plan, every label is where it was");
     } finally { await c.context().close(); }
   });
 

@@ -5,7 +5,7 @@ import type { Snapshot } from "@/data/types";
 
 /**
  * The visitor's plan per lab for subscription pricing (Advanced → Subscription plans), kept in this browser. Unset, a lab's
- * models are priced at their median plan. Picking a plan on any chart applies it everywhere and on later visits;
+ * models are priced at their most subsidized plan. Picking a plan on any chart applies it everywhere and on later visits;
  * a link's or saved page's choice for a lab wins over the visitor's.
  */
 export const SUBSCRIPTION_PLANS_KEY = "priors:subscription-plans";

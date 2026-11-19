@@ -12,20 +12,20 @@ const withFee = (usd?: number) => usd ? ` · $${usd % 1 ? usd.toFixed(2) : usd}/
 /** A lab's unpicked option says which plan that is: one plan with its fee, or the most common one and how many more. */
 const medianLabel = (l: Lab) => {
   const [top, ...rest] = l.median;
-  if (!top) return "Median plan";
-  if (rest.length) return `Median: ${top.plan} +${rest.length}`;
+  if (!top) return "Best plan";
+  if (rest.length) return `Best: ${top.plan} +${rest.length}`;
   // A long plan name keeps its whole name and leaves the fee to the plan's own option.
-  const full = `Median: ${top.plan}${withFee(l.plans.find((p) => p.plan === top.plan)?.feeUsd)}`;
-  return full.length > 40 ? `Median: ${top.plan}` : full;
+  const full = `Best: ${top.plan}${withFee(l.plans.find((p) => p.plan === top.plan)?.feeUsd)}`;
+  return full.length > 40 ? `Best: ${top.plan}` : full;
 };
 const medianTitle = (l: Lab) => l.median.map((m) => `${m.plan}: ${m.models === 1 ? "1 model" : `${m.models} models`}`).join(", ");
 
 export const picked = ({ labs, value }: PlanOptions) => labs.filter((l) => value[l.labId]).length;
-const planStatus = ({ plans, basis }: Pick<Props, "plans" | "basis">) => basis.value !== "subscription" ? "API pricing" : picked(plans) ? `${picked(plans)} picked` : "Median";
+const planStatus = ({ plans, basis }: Pick<Props, "plans" | "basis">) => basis.value !== "subscription" ? "API pricing" : picked(plans) ? `${picked(plans)} picked` : "Best plan";
 
 function Note({ plans, basis }: Pick<Props, "plans" | "basis">) {
   if (basis.value !== "subscription") return <p className={styles.planNote}><span>Plans only apply to subscription pricing.</span><button type="button" onClick={() => basis.onChange("subscription")}>Use subscription</button></p>;
-  return <p className={styles.planNote}><span>Each model uses its median plan until you pick one.</span>{picked(plans) > 0 && <button type="button" onClick={plans.onReset}>Reset</button>}</p>;
+  return <p className={styles.planNote}><span>Each model uses the plan with its biggest subsidy until you pick one.</span>{picked(plans) > 0 && <button type="button" onClick={plans.onReset}>Reset</button>}</p>;
 }
 
 /** A picked student option: what the offer is, who can claim it, and the lab's own page. */

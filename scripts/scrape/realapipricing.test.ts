@@ -52,11 +52,11 @@ describe("OpenCode Go's limits", () => {
   it("leaves out free models and tiers paid for with your prompts", () => {
     expect(points.some((p) => /muse|beam/.test(p.id))).toBe(false);
   });
-  it("lists Go beside a lab's own plans, without changing the plan the model is priced on", () => {
+  it("lists Go beside a lab's own plans and prices the model on it when it gives the bigger subsidy", () => {
     const own = point("glm_coding_pro::glm-5.3", "GLM Coding Pro", "Zhipu", 0.03, { model_display: "GLM 5.3 (v3)", price_usd: 80, list_price: { cached: 0.26, input: 1.4, output: 4.4, currency: "USD" } });
     const row = parseSubscriptions({ ...payload, points: [own] }, conventions, channels, new Date("2026-11-18T00:00:00Z"), points).find((r) => r.modelLabel === "GLM 5.3")!;
     const details = row.details as unknown as { plan: string; plans: { plan: string }[] };
-    expect(details.plan).toBe("GLM Coding Pro");
+    expect(details.plan).toBe("OpenCode Go");
     expect(details.plans.map((p) => p.plan)).toEqual(expect.arrayContaining(["GLM Coding Pro", "OpenCode Go", "OpenCode Go Plus", "OpenCode Go Teams"]));
   });
   it("drops Real API Pricing's Go rows, including models OpenCode no longer sells", () => {
@@ -94,7 +94,7 @@ describe("Kimi's legacy plans", () => {
     expect(names).toEqual(expect.arrayContaining(["Kimi Moderato, legacy", "Kimi Allegro, legacy", "Kimi Allegretto, legacy", "Kimi Plus"]));
   });
   it("prices the model on a plan you can still buy", () => {
-    expect(d).toMatchObject({ value: 0.0401, details: { plan: "Kimi Pro" } });
+    expect(d).toMatchObject({ value: 0.0339, details: { plan: "Kimi Max" } });
   });
 });
 
@@ -107,15 +107,15 @@ describe("ChatGPT Pro 500", () => {
     expect(plan?.feeUsd).toBe(500);
     expect(plan?.usdPerMtok).toBeCloseTo(0.0325 * 25 / 50, 6);
   });
-  it("does not move the median a model is priced at by default", () => {
-    // Pro 500 falls just above the middle here, so counting it would land the median on it.
+  it("competes with the other plans for the default", () => {
+    // Pro 10x gives the most here, ahead of Pro 500, Pro 20x and Plus.
     const measured = parseSubscriptions({ ...payload, points: [
       point("chatgpt_plus::gpt-6.1-sol", "ChatGPT Plus", "OpenAI", 0.0325, { model_display: "GPT 6.1 Sol", confidence: "high" }),
       point("chatgpt_pro_5x::gpt-6.1-sol", "ChatGPT Pro 10x", "OpenAI", 0.015, { model_display: "GPT 6.1 Sol", price_usd: 100, data_date: "2026-10-30" }),
       point("chatgpt_pro_20x::gpt-6.1-sol", "ChatGPT Pro 20x", "OpenAI", 0.0155, { model_display: "GPT 6.1 Sol", price_usd: 200 }),
     ] }, conventions, channels)[0];
     expect((measured.details as unknown as { plans: { plan: string }[] }).plans.map((p) => p.plan)).toContain("ChatGPT Pro 500");
-    expect(measured).toMatchObject({ value: 0.0155, details: { plan: "ChatGPT Pro 20x" } });
+    expect(measured).toMatchObject({ value: 0.015, details: { plan: "ChatGPT Pro 10x" } });
   });
 });
 
@@ -123,16 +123,20 @@ describe("Real API Pricing subscriptions", () => {
   const rows = parseSubscriptions(payload, conventions, channels);
   const row = (label: string) => rows.find((r) => r.modelLabel === label)!;
   const VIBE = "https://mistral.ai/pricing";
+  it("uses a lab's only low-confidence rows over a surer but smaller reseller subsidy", () => {
+    const got = parseSubscriptions({ ...payload, points: [point("claude_max_5x::claude-sonnet-5.5", "Claude Max 5x", "Anthropic", 0.003, { model_display: "Claude Sonnet 5.5", confidence: "low", list_price: { cached: 0.1, input: 2, output: 10, currency: "USD" } }), point("droid_max::claude-sonnet-5.5", "Droid Max", "Anthropic", 0.04, { model_display: "Claude Sonnet 5.5", price_usd: 200 }), point("thin_plan::claude-sonnet-5.5", "Thin Plan", "Anthropic", 0.001, { model_display: "Claude Sonnet 5.5", confidence: "low" })] }, conventions, channels).find((r) => r.modelLabel === "Claude Sonnet 5.5")!;
+    expect(got).toMatchObject({ value: 0.003, details: { plan: "Claude Max 5x" } });
+  });
   it("labels Max 20x as Ultra, the name it sells under now, at the price Real API Pricing measured", () => {
     expect(row("Claude Fable 5").details).toMatchObject({ plans: expect.arrayContaining([expect.objectContaining({ plan: "Claude Ultra", usdPerMtok: 0.16 })]) });
     expect(JSON.stringify(row("Claude Fable 5").details)).not.toContain("Max 20x");
   });
   const computed = rows.filter((r) => !(r.details as { source?: string; sameAs?: string }).source && !(r.details as { sameAs?: string }).sameAs && r.sourceUrl !== VIBE);
-  it("keeps one row per model on its lab's own plans: no resellers, metered APIs or unmetered promos", () => {
-    expect(computed.map((r) => r.modelLabel)).toEqual(["GPT 5.6 Sol", "Claude Opus 5.5", "Claude Fable 5", "GLM 5.3", "GLM 5.3 FlashX", "Gemini 4 Argon", "Hy4", "Hy4 preview", "Qwen3.7 Max"]);
-    expect(row("GPT 5.6 Sol").details).toMatchObject({ plans: [{ plan: "ChatGPT Pro 20x" }, { plan: "ChatGPT Pro 500" }, { plan: "ChatGPT Pro 10x" }, { plan: "ChatGPT Plus" }] });
+  it("keeps one row per model, with no metered APIs or unmetered promos", () => {
+    expect(computed.map((r) => r.modelLabel)).toEqual(["GPT 5.6 Sol", "Claude Opus 5.5", "Claude Fable 5", "GLM 5.3 FlashX", "Gemini 4 Argon", "Hy4", "Hy4 preview", "Qwen3.7 Max"]);
+    expect(row("GPT 5.6 Sol").details).toMatchObject({ plans: [{ plan: "Cursor Ultra, legacy" }, { plan: "ChatGPT Pro 20x" }, { plan: "ChatGPT Pro 500" }, { plan: "ChatGPT Pro 10x" }, { plan: "ChatGPT Plus" }] });
   });
-  it("marks Cursor's old plans as legacy on its own model, and never prices another lab's model on them", () => {
+  it("marks Cursor's old plans as legacy, lists them on other labs' models, and never prices those models on them", () => {
     const pts = { generatedAt: "x", points: [
       point("cursor_ultra::composer-2.5", "Cursor Ultra", "Cursor", 0.01, { model: "composer-2.5", model_display: "Composer 2.5" }),
       point("cursor_ultra::claude-opus-5.5", "Cursor Ultra", "Anthropic", 0.001, { model: "claude-opus-5.5", model_display: "Claude Opus 5.5" }),
@@ -142,13 +146,13 @@ describe("Real API Pricing subscriptions", () => {
     const named = (label: string) => found.find((r) => r.modelLabel === label)!.details as { plan: string; plans: { plan: string }[] };
     expect(named("Composer 2.5").plan).toBe("Cursor Ultra, legacy");
     expect(named("Claude Opus 5.5").plan).toBe("Claude Ultra");
-    expect(named("Claude Opus 5.5").plans.map((p) => p.plan)).toEqual(["Claude Ultra"]);
+    expect(named("Claude Opus 5.5").plans.map((p) => p.plan).sort()).toEqual(["Claude Ultra", "Cursor Ultra, legacy"]);
   });
   it("prices plans measured before an allowance change at the allowance they sell with now: Pro 100 doubled to 10× Plus, Pro 200 keeps 20×", () => {
     const sol = (row("GPT 5.6 Sol").details as { plans: { plan: string; feeUsd: number; usdPerMtok: number }[] }).plans;
     expect(sol.find((p) => p.plan === "ChatGPT Pro 10x")).toMatchObject({ feeUsd: 100, usdPerMtok: 0.0163 });
     expect(sol.find((p) => p.plan === "ChatGPT Pro 20x")).toMatchObject({ feeUsd: 200, usdPerMtok: 0.0155 });
-    expect(row("GPT 5.6 Sol")).toMatchObject({ value: 0.0163, details: { plan: "ChatGPT Pro 10x" } });
+    expect(row("GPT 5.6 Sol")).toMatchObject({ value: 0.0155, details: { plan: "ChatGPT Pro 20x" } });
     // Measured on or after the change: already the new allowance.
     const fresh = parseSubscriptions({ ...payload, points: payload.points.map((p) => p.id === "chatgpt_pro_5x::gpt-5.6-sol" ? { ...p, data_date: "2026-10-30" } : p) }, conventions, channels);
     expect((fresh.find((r) => r.modelLabel === "GPT 5.6 Sol")!.details as { plans: { plan: string; usdPerMtok: number }[] }).plans.find((p) => p.plan === "ChatGPT Pro 5x")!.usdPerMtok).toBe(0.0326);
@@ -175,9 +179,9 @@ describe("Real API Pricing subscriptions", () => {
     const got = parseSubscriptions({ ...payload, points: [point("google_ai_pro_us::gemini-3.8-flash", "Google AI Pro", "Google", 0.008, { model_display: "Gemini 3.8 Flash", price_usd: 19.99, confidence: "high" })] }, conventions, channels);
     expect((got.find((r) => r.modelLabel === "Gemini 3.8 Flash")!.details as { plans: { plan: string }[] }).plans.some((p) => p.plan === "Google AI Plus")).toBe(false);
   });
-  it("falls back to the best medium-confidence reseller plan when a model has no first-party plan", () => {
+  it("takes the biggest medium-confidence reseller subsidy when a model has no first-party plan", () => {
     expect(row("Qwen3.7 Max")).toMatchObject({ value: 0.04, details: { plan: "Droid Max", confidence: "medium" } });
-    expect(row("Qwen3.7 Max").note).toContain("best of 2 reseller plans");
+    expect(row("Qwen3.7 Max").note).toContain("biggest subsidy of 2 reseller plans");
   });
   it("finds a model whose Priors id differs from the source's slug: Gemini 4 Argon is gemini-4, priced on Google's own plan", () => {
     expect(rows.filter((r) => r.modelLabel.startsWith("Gemini 4 Argon"))).toHaveLength(1);
@@ -186,8 +190,8 @@ describe("Real API Pricing subscriptions", () => {
   it("prices Gemini 4 Neon from Flash's Ultra rows, marked tentative with what it rests on", () => {
     const flash = (id: string, plan: string, v: number, fee: number) => point(`${id}::gemini-3.8-flash`, plan, "Google", v, { model_display: "Gemini 3.8 Flash", price_usd: fee, workload: "lowCache", confidence: "low" });
     const neon = parseSubscriptions({ ...payload, points: [...payload.points, flash("google_ai_ultra_5x_us", "Google AI Ultra 5x", 0.0077, 99.99), flash("google_ai_ultra_20x_us", "Google AI Ultra 20x", 0.0039, 199.99)] }, conventions, channels).find((r) => r.modelLabel === "Gemini 4 Neon (xhigh)")!;
-    expect(neon.value).toBeCloseTo(0.0077, 6);
-    expect(neon).toMatchObject({ details: { plan: "Google AI Ultra 5x (assumed same as Flash)", confidence: "tentative", preliminary: { label: "Tentative" } } });
+    expect(neon.value).toBeCloseTo(0.0039, 6);
+    expect(neon).toMatchObject({ details: { plan: "Google AI Ultra 20x (assumed same as Flash)", confidence: "tentative", preliminary: { label: "Tentative" } } });
     expect((neon.details as unknown as { preliminary: { short: string } }).preliminary.short).toMatch(/pending more data/);
   });
   it("makes a user's plan usage the model's price, labeled preliminary with credit, and keeps its other plans", () => {
@@ -198,12 +202,12 @@ describe("Real API Pricing subscriptions", () => {
     expect(d.preliminary!.short).toBe("From one user's data (@SSHCodes), pending larger-scale data.");
     expect(d.plans[0].preliminary?.credit).toBe("@SSHCodes");
   });
-  it("gives Gemini 4 Carbon, sold only on Ultra, Flash's Ultra rows from the shared pool, Ultra 5x by default", () => {
+  it("gives Gemini 4 Carbon, sold only on Ultra, Flash's Ultra rows from the shared pool, on the plan with the biggest subsidy", () => {
     const flash = (id: string, plan: string, v: number, fee: number) => point(`${id}::gemini-3.8-flash`, plan, "Google", v, { model_display: "Gemini 3.8 Flash", price_usd: fee, workload: "lowCache", confidence: id.includes("ultra") ? "low" : "high" });
     const points = [...payload.points, flash("google_ai_pro_us", "Google AI Pro", 0.0077, 19.99), flash("google_ai_ultra_5x_us", "Google AI Ultra 5x", 0.0077, 99.99), flash("google_ai_ultra_20x_us", "Google AI Ultra 20x", 0.0039, 199.99)];
     const carbon = parseSubscriptions({ ...payload, points }, conventions, channels).find((r) => r.modelLabel === "Gemini 4 Carbon (max)")!;
-    expect(carbon.value).toBeCloseTo(0.0231, 6);
-    expect(carbon).toMatchObject({ details: { plan: "Google AI Ultra 5x (assumed same as Flash)", feeUsd: 99.99, sameAs: "gemini-3.8-flash", poolRate: 3, confidence: "assumed" } });
+    expect(carbon.value).toBeCloseTo(0.0117, 6);
+    expect(carbon).toMatchObject({ details: { plan: "Google AI Ultra 20x (assumed same as Flash)", feeUsd: 199.99, sameAs: "gemini-3.8-flash", poolRate: 3, confidence: "assumed" } });
     const d = carbon.details as unknown as { plans: { plan: string }[]; listPrice?: unknown };
     expect(d.plans.map((p) => p.plan).sort()).toEqual(["Google AI Ultra 20x", "Google AI Ultra 5x"]);
     expect(d.listPrice).toBeUndefined();
@@ -257,8 +261,8 @@ describe("Real API Pricing subscriptions", () => {
     expect(details.readings?.map((r) => r.id)).toEqual(["shared", "own"]);
     expect(details.readings?.[1].ratio).toBeCloseTo(0.0734, 4);
   });
-  it("takes the median plan rather than the cheapest, and low-confidence rows only as a last resort", () => {
-    expect(row("GPT 5.6 Sol")).toMatchObject({ value: 0.0163, details: { plan: "ChatGPT Pro 10x", feeUsd: 100, confidence: "medium" } });
+  it("takes the biggest subsidy, and low-confidence rows only when they are the lab's own and it has nothing surer", () => {
+    expect(row("GPT 5.6 Sol")).toMatchObject({ value: 0.0155, details: { plan: "ChatGPT Pro 20x", feeUsd: 200, confidence: "medium" } });
     expect(row("Claude Opus 5.5")).toMatchObject({ value: 0.0055, details: { plan: "Claude Max 5x", confidence: "high" } });
     expect(row("Claude Fable 5")).toMatchObject({ value: 0.16, details: { confidence: "low" } });
   });
@@ -268,16 +272,16 @@ describe("Real API Pricing subscriptions", () => {
     expect(row("GLM 5.3").details).toMatchObject({ listPrice: { cached: 0.2, input: 1, output: 4 } });
   });
   it("never prices a model from a speed tier that normalizes onto it", () => {
-    expect(row("GLM 5.3").value).toBe(0.03);
+    expect(row("GLM 5.3").value).not.toBe(0.01);
   });
-  it("prices Mistral Vibe Pro's dollar budget at Mistral's API rates: first-party on Mistral's models, a pickable plan beside Z.ai's own for GLM 5.3", () => {
+  it("prices Mistral Vibe Pro's dollar budget at Mistral's API rates: first-party on Mistral's models, and GLM 5.3's price when it beats Z.ai's own plan", () => {
     const vibe = BUDGET_PLANS.find((b) => b.planId === "mistral_vibe_pro")!;
     const at = (model: string) => { const m = vibe.models.find((m) => m.model === model)!; return 14.99 * blendedApiPrice(m, conventions.standardTokenMix) / 315; };
     expect(row("Mistral Medium 3.5")).toMatchObject({ value: at("mistral-medium-3.5"), sourceUrl: VIBE, details: { plan: "Mistral Vibe Pro", feeUsd: 14.99, confidence: "medium", mix: conventions.standardTokenMix } });
-    expect(row("Mistral Medium 3.5").note).toContain("median of 1 first-party plan");
+    expect(row("Mistral Medium 3.5").note).toContain("biggest subsidy of 1 plan");
     // At Mistral's own list price, the share of API price a subscriber pays is fee ÷ budget.
     expect(row("Mistral Medium 3.5").value / blendedApiPrice({ input: 1.5, output: 7.5 }, conventions.standardTokenMix)).toBeCloseTo(14.99 / 315, 10);
-    expect(row("GLM 5.3")).toMatchObject({ value: 0.03, details: { plan: "GLM Coding Pro" } });
+    expect(row("GLM 5.3")).toMatchObject({ value: at("glm-5.3"), details: { plan: "Mistral Vibe Pro" } });
     expect((row("GLM 5.3").details as { plans: { plan: string; usdPerMtok: number }[] }).plans).toContainEqual({ plan: "Mistral Vibe Pro", feeUsd: 14.99, usdPerMtok: at("glm-5.3"), confidence: "medium" });
   });
   it("prices Tencent's Token Plan in credits against Hy4's USD list price, at the promotional rate until it ends, and keeps Hy4 preview apart", () => {
@@ -311,32 +315,27 @@ describe("plans sold by time of day", () => {
   const glm = (id: string, plan: string, real: number, price = 79.37) => point(`${id}::glm-5.3`, plan, "Zhipu", real, { model_display: "GLM 5.3", price_usd: price, confidence: "high", list_price: { cached: 1.6, input: 8, output: 32, currency: "CNY" } });
   const mimo = (id: string, plan: string, real: number, price: number) => point(`${id}::mimo-v2.6-pro`, plan, "Xiaomi", real, { model_display: "MiMo V2.6 Pro", price_usd: price, list_price: { cached: 0.0036, input: 0.435, output: 0.87, currency: "USD" } });
   const ch: Channels = { channels: [...channels.channels, ["mimo", "Xiaomi"]] };
-  it("names each rate as Priors shows it, and keeps a median that is already off-peak", () => {
+  it("names each rate as Priors shows it, and skips a price closed to new customers", () => {
     const rows = parseSubscriptions({ ...payload, points: [
       glm("glm_coding_pro_cn_new_offpeak", "GLM Coding Pro (新客 ¥538) 闲时", 0.0321), glm("glm_coding_pro_cn_new_mid", "GLM Coding Pro (新客 ¥538) 中间值", 0.0428), glm("glm_coding_pro_cn_new_peak", "GLM Coding Pro (新客 ¥538) 忙时", 0.0642),
       glm("glm_coding_pro_cn_old_offpeak", "GLM Coding Pro (老客 ¥149) 闲时", 0.0089, 21.98), glm("glm_coding_pro_cn_old_peak", "GLM Coding Pro (老客 ¥149) 忙时", 0.0178, 21.98),
     ] }, conventions, ch);
     const row = rows.find((r) => r.modelLabel === "GLM 5.3")!, d = row.details as { plan: string; plans: { plan: string }[] };
-    expect(d.plan).toBe("GLM Coding Pro ¥538 (off-peak)");
-    expect(row.value).toBe(0.0321);
+    expect(d.plan).not.toMatch(/existing subscribers/);
     expect(d.plans.map((p) => p.plan)).toEqual(expect.arrayContaining(["GLM Coding Pro ¥538 (peak)", "GLM Coding Pro ¥538 (mixed)", "GLM Coding Pro ¥149, existing subscribers (off-peak)"]));
   });
-  it("moves a peak-rate median to the same plan's off-peak rate, and keeps one that has none", () => {
+  it("picks the off-peak rate that gives the most", () => {
     const pick = (pts: Points["points"]) => parseSubscriptions({ ...payload, points: pts }, conventions, ch).find((r) => r.modelLabel === "MiMo V2.6 Pro")!;
-    // Cheapest first: Max Night, Lite Night, Max Day, Lite Day. The median is Max (Day), priced at Max's Night row instead.
     const four = pick([
       mimo("mimo_token_lite_day", "MiMo Token Plan Lite (Day)", 0.0189, 6), mimo("mimo_token_lite_night", "MiMo Token Plan Lite (Night 0.8x)", 0.0151, 6),
       mimo("mimo_token_max_day", "MiMo Token Plan Max (Day)", 0.01576, 100), mimo("mimo_token_max_night", "MiMo Token Plan Max (Night 0.8x)", 0.01261, 100),
     ]);
     expect((four.details as { plan: string }).plan).toBe("MiMo Token Plan Max (off-peak)");
     expect(four.value).toBe(0.01261);
-    expect(four.note).toMatch(/its off-peak rate/);
-    // Lite Night, Pro Day, Lite Day: the median Pro (Day) has no Night row measured, so it stands.
     const lone = pick([
       mimo("mimo_token_lite_day", "MiMo Token Plan Lite (Day)", 0.0189, 6), mimo("mimo_token_lite_night", "MiMo Token Plan Lite (Night 0.8x)", 0.0151, 6),
       mimo("mimo_token_pro_day", "MiMo Token Plan Pro (Day)", 0.0170, 50),
     ]);
-    expect((lone.details as { plan: string }).plan).toBe("MiMo Token Plan Pro (peak)");
-    expect(lone.note).not.toMatch(/off-peak rate/);
+    expect((lone.details as { plan: string }).plan).toBe("MiMo Token Plan Lite (off-peak)");
   });
 });

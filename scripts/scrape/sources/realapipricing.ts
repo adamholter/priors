@@ -4,12 +4,10 @@
  * monthly tokens. One row per plan × model in `derived/points.json`, each with a confidence grade
  * and the workload convention used to turn a dollar pool into tokens.
  *
- * We publish one model-level proxy: the token price on the model's own lab's plan. A lab usually
- * sells several plans (and scenario variants: off-peak, legacy pricing, annual), so the row is the
- * median first-party plan, not the cheapest — graded "low" rows are used only when nothing better
- * exists. Plans from resellers and harnesses (Cursor, Droid, Command Code, …) are not used: they
- * tie the model to a product. Plans sold as a dollar budget at the seller's API rates (Mistral Vibe)
- * come from `BUDGET_PLANS`. The engine divides this by the API list price at the same workload
+ * We publish one model-level proxy: the token price on the plan that subsidizes the model most, whoever
+ * sells it (Adam, November 18, 2026): the lab's own plans and resellers or harnesses alike (OpenCode Go, Droid, Command
+ * Code, …). Plans no longer sold count only when nothing else is, and graded "low" rows only when nothing better exists.
+ * Plans sold as a dollar budget at the seller's API rates (Mistral Vibe) come from `BUDGET_PLANS`. The engine divides this by the API list price at the same workload
  * to get the share of API cost a subscriber pays (`src/data/subscription.ts`).
  */
 import type { Source, ScrapeResult, RawRow } from "../../../src/data/types";
@@ -70,7 +68,7 @@ export function parseOpenCodeGo(html: string, list: { data?: OpenCodeModel[] }, 
 /** Cheapest tokens first; at the same token price the bigger plan first, so a median among equals lands on the middle plan. */
 const cheaper = (a: Point, b: Point) => a.real_usd_per_mtok - b.real_usd_per_mtok || (b.price_usd ?? 0) - (a.price_usd ?? 0);
 
-/** One row per model: the median first-party subscription, with every first-party plan in details. */
+/** One row per model: the plan with the biggest subsidy, with every plan that sells the model in details. */
 export function parseSubscriptions(json: Points, conventions: Conventions, channels: Channels, now = new Date(), stated: Point[] = []): RawRow[] {
   const budgetOf = (id: string) => BUDGET_PLANS.find((b) => id.startsWith(`${b.planId}::`));
   const channelOf = (id: string) => budgetOf(id)?.channel ?? channels.channels.find(([prefix]) => id.startsWith(prefix))?.[1];
@@ -93,16 +91,34 @@ export function parseSubscriptions(json: Points, conventions: Conventions, chann
   const name = (p: Point) => `${planDisplayName((p.plan_en || p.plan).replace(/\s*\(\d+\/\d+\+\)$/, ""))}${LEGACY_PLANS.some((prefix) => p.id.startsWith(prefix)) ? ", legacy" : ""}`;
   // A budget plan on another lab's model is listed with that model's first-party plans, so it can be picked. OpenCode Go states its limits the same way.
   const sameModel = (a: string, b: string) => squash(PRIORS_IDS[a] ?? a) === squash(PRIORS_IDS[b] ?? b);
-  const hosted = (model: string) => [...resold].filter(([m]) => sameModel(m, model)).flatMap(([, list]) => list).filter((p) => budgetOf(p.id) || (isOpenCodeGo(p.id) && stated.includes(p)));
-  const add = (all: Point[], pick: Point, note: string, extra: Point[] = []) => {
-    const label = all[0].model_display.replace(/\s*\(v\d+\)$/, "");
+  const resellers = (model: string) => [...resold].filter(([m]) => sameModel(m, model)).flatMap(([, list]) => list);
+  const listOf = (all: Point[], p: Point) => {
     const until = LIST_PRICES_UNTIL.find((l) => l.model === all[0].model && now < new Date(l.until));
-    const list = until ? { cached: until.cached, input: until.input, output: until.output, currency: "USD" } : pick.list_price ?? all.find((p) => p.list_price)?.list_price;
+    return { until, list: until ? { cached: until.cached, input: until.input, output: until.output, currency: "USD" } : p.list_price ?? all.find((x) => x.list_price)?.list_price };
+  };
+  /** What a subscriber pays as a share of API price on this plan, at the workload it was measured with. Without a list price, its token price. */
+  const shareOf = (all: Point[], p: Point) => {
+    const { list } = listOf(all, p), rate = list?.currency === "CNY" ? conventions.usdPerCny : 1, api = list ? blendedApiPrice({ cached: list.cached / rate, input: list.input / rate, output: list.output / rate }, mixOf(p.workload)) : 0;
+    return api > 0 ? p.real_usd_per_mtok / api : p.real_usd_per_mtok;
+  };
+  /**
+   * The biggest subsidy among plans on sale. A "low" row counts only when it is the lab's own and the lab has nothing surer, so a thin reseller figure never sets a price
+   * and a well-graded reseller does not push out a lab's only measurements. Plans within half a percent tie: the surer figure, then the lower fee.
+   */
+  const best = (all: Point[], own: Point[] = []) => {
+    const sold = all.filter((p) => !LEGACY_PLANS.some((prefix) => p.id.startsWith(prefix)) && !/existing subscribers/i.test(name(p))), counted = sold.length ? sold : all, ownGraded = own.some((p) => counted.includes(p) && p.confidence !== "low");
+    const kept = counted.filter((p) => p.confidence !== "low" || (own.includes(p) && !ownGraded)), pool = kept.length ? kept : counted;
+    const low = Math.min(...pool.map((p) => shareOf(all, p))), rank = (p: Point) => ["high", "medium", "low"].indexOf(p.confidence);
+    return { count: pool.length, pick: pool.filter((p) => shareOf(all, p) <= low * 1.005).sort((a, b) => rank(a) - rank(b) || (a.price_usd ?? Infinity) - (b.price_usd ?? Infinity) || cheaper(a, b))[0] };
+  };
+  const add = (all: Point[], pick: Point, note: string) => {
+    const label = all[0].model_display.replace(/\s*\(v\d+\)$/, "");
+    const { until, list } = listOf(all, pick);
     const rate = list?.currency === "CNY" ? conventions.usdPerCny : 1;
     const details: SubscriptionDetails = {
       plan: name(pick), feeUsd: pick.price_usd ?? undefined, confidence: pick.confidence, mix: mixOf(pick.workload), dataDate: pick.data_date ?? undefined,
       ...(list ? { listPrice: { cached: list.cached / rate, input: list.input / rate, output: list.output / rate } } : {}), ...(until ? { listUntil: until.until } : {}),
-      plans: [...all, ...extra].sort(cheaper).map((p) => ({ plan: name(p), feeUsd: p.price_usd ?? undefined, usdPerMtok: p.real_usd_per_mtok, confidence: p.confidence })),
+      plans: [...all].sort(cheaper).map((p) => ({ plan: name(p), feeUsd: p.price_usd ?? undefined, usdPerMtok: p.real_usd_per_mtok, confidence: p.confidence })),
     };
     const budget = budgetOf(pick.id);
     rows.push({ benchmarkId: SUBSCRIPTION_BENCHMARK, modelLabel: label, value: pick.real_usd_per_mtok, sourceUrl: budget?.source ?? SITE, note: `${name(pick)}${pick.price_usd ? `, $${pick.price_usd}/month` : ""}; ${pick.confidence} confidence; ${note}${budget ? `; ${budget.note}` : ""}`, details: details as unknown as Record<string, unknown> });
@@ -115,23 +131,17 @@ export function parseSubscriptions(json: Points, conventions: Conventions, chann
     taken.add(n.modelId);
     return true;
   };
-  for (const all of byModel.values()) {
-    if (!claim(all)) continue;
-    // The median is what you could buy today: a legacy plan counts only when the lab sells nothing else.
-    const listed = all.filter((p) => !PLAN_MULTIPLES.some((m) => m.listOnly && p.id.startsWith(`${m.planId}::`))), sold = listed.filter((p) => !LEGACY_PLANS.some((prefix) => p.id.startsWith(prefix)));
-    const counted = sold.length ? sold : listed, graded = counted.filter((p) => p.confidence !== "low");
-    const pool = (graded.length ? graded : counted).sort(cheaper);
-    // A plan sold by time of day is priced at its off-peak rate by default: GLM's and MiMo's peak hours are the US night. Its peak and
-    // mixed rows stay in the plan list for a visitor to pick.
-    const median = pool[Math.floor(pool.length / 2)], off = offPeakOf(name(median), all.map((p) => ({ plan: name(p), p })))?.p;
-    add(all, off ?? median, `median of ${pool.length} first-party plan${pool.length === 1 ? "" : "s"}${off ? ", its off-peak rate" : ""}`, hosted(all[0].model));
+  // Every plan that sells the model competes: a lab's own and any reseller's.
+  for (const own of byModel.values()) {
+    if (!claim(own)) continue;
+    const all = [...own, ...resellers(own[0].model)], { pick, count } = best(all, own);
+    add(all, pick, `biggest subsidy of ${count} plan${count === 1 ? "" : "s"}`);
   }
-  // Models with no first-party plan: the best subsidy a reseller or harness offers (lowest token price,
-  // medium confidence or better). Same list price at every plan, so the cheapest tokens are the biggest subsidy.
+  // Models only resellers or harnesses sell.
   for (const all of resold.values()) {
-    const graded = all.filter((p) => p.confidence !== "low").sort(cheaper);
-    if (!graded.length || !claim(all)) continue;
-    add(all, graded[0], `best of ${graded.length} reseller plan${graded.length === 1 ? "" : "s"} (no first-party plan)`);
+    if (!all.some((p) => p.confidence !== "low") || !claim(all)) continue;
+    const { pick, count } = best(all);
+    add(all, pick, `biggest subsidy of ${count} reseller plan${count === 1 ? "" : "s"}`);
   }
   const idOf = (r: RawRow) => { if (r.identity) return r.identity.modelId; const n = normalizeLabel(r.modelLabel); return n.ok ? n.modelId : undefined; };
   // Curated figures from published plan allowances replace anything computed for the same model.
@@ -160,9 +170,9 @@ export function parseSubscriptions(json: Points, conventions: Conventions, chann
       continue;
     }
     // Only the plans that sell this model, from the other model's paid plans (past its free tier). Their token prices ride along so the
-    // engine prices this model at the plan a visitor picks, `defaultPlan` otherwise.
+    // engine prices this model at the plan a visitor picks, otherwise the one that gives it the most: on a shared rate that is the lowest token price.
     const paid = row.free && row.paid ? row.paid : row, plans = paid.plans.filter((p) => a.plans!.test(p.plan));
-    const at = plans.find((p) => p.plan === a.defaultPlan) ?? plans[0];
+    const graded = plans.filter((p) => p.confidence !== "low"), at = [...(graded.length ? graded : plans)].sort((x, y) => x.usdPerMtok - y.usdPerMtok || (x.feeUsd ?? Infinity) - (y.feeUsd ?? Infinity))[0];
     if (!at) continue;
     const plan = `${at.plan} (assumed same as ${a.sameAsName})`;
     const { free: _f, limited: _l, paid: _p, ratio: _r, source: _s, ...rest } = paid as SubscriptionDetails & { value?: number };
@@ -171,11 +181,13 @@ export function parseSubscriptions(json: Points, conventions: Conventions, chann
       details: { ...rest, ...(rest.listUntil ? { listPrice: undefined, listUntil: undefined } : {}), ...(a.listPrice ? { listPrice: a.listPrice } : {}), value: undefined, plan, feeUsd: at.feeUsd, sameAs: a.sameAs, ...(a.poolRate ? { poolRate: a.poolRate } : {}), confidence: a.confidence ?? "assumed", ...(a.preliminary ? { preliminary: a.preliminary } : {}), dataDate: a.checked, plans } as unknown as Record<string, unknown>,
     });
   }
-  // What subscribers report getting from a plan: it becomes the model's first-party price, marked preliminary, and its other plans stay listed to pick.
+  // What subscribers report getting from a plan joins the model's plans, marked preliminary, and becomes its price when it is the biggest subsidy.
   for (const e of planUsageEstimates()) {
     const at = rows.findIndex((r) => idOf(r) === e.modelId), from = at >= 0 ? rows[at] : undefined, row = from?.details as unknown as SubscriptionDetails | undefined, own = row?.free ? row.paid : row;
     const mix = own?.mix ?? pickMix(conventions.standardTokenMix), listPrice = own?.listPrice ?? e.listPrice, usdPerMtok = e.ratio * blendedApiPrice(listPrice, mix);
     const entry = { plan: e.plan, feeUsd: e.feeUsd, usdPerMtok, confidence: "preliminary", preliminary: e.preliminary };
+    const current = own ? own.ratio ?? (from && !row?.free ? from.value : (own as { value?: number }).value ?? 0) / blendedApiPrice(listPrice, mix) : Infinity;
+    if (own && !(e.ratio < current)) { own.plans = [...(own.plans ?? []).filter((p) => p.plan !== e.plan), entry].sort((a, b) => a.usdPerMtok - b.usdPerMtok); continue; }
     const details = { ...own, value: undefined, ratio: undefined, sameAs: undefined, poolRate: undefined, readings: undefined, plan: e.plan, feeUsd: e.feeUsd, confidence: "preliminary", mix, listPrice, source: e.source, dataDate: e.checked, preliminary: e.preliminary, plans: [entry, ...(own?.plans ?? []).filter((p) => p.plan !== e.plan)] };
     const next: RawRow = { ...(from ?? { modelLabel: e.label }), benchmarkId: SUBSCRIPTION_BENCHMARK, value: row?.free ? from!.value : usdPerMtok, sourceUrl: e.source, note: `${e.plan}, $${e.feeUsd}/month; preliminary; ${e.preliminary.short} ${e.preliminary.note}`, details: (row?.free ? { ...row, paid: { ...details, value: usdPerMtok } } : details) as unknown as Record<string, unknown> };
     if (at >= 0) rows[at] = next; else rows.push(next);
@@ -241,7 +253,7 @@ const source: Source = {
     return {
       benchmarks: [{
         id: SUBSCRIPTION_BENCHMARK, name: "Subscription token price (USD per 1M tokens)", shortName: "Subscription price", sourceId: this.id, url: REPO, lastUpdated: json.generatedAt,
-        description: "Monthly fee ÷ the tokens a subscriber can use in a month on the lab's own plan (median plan), from Real API Pricing's measured allowances and plans sold as a dollar budget at API rates (Mistral Vibe). A lower bound: it assumes the whole allowance is used. Model-level, no reasoning effort; it powers the subscription cost view.",
+        description: "Monthly fee ÷ the tokens a subscriber can use in a month on the plan that subsidizes the model most, from Real API Pricing's measured allowances and plans sold as a dollar budget at API rates (Mistral Vibe). A lower bound: it assumes the whole allowance is used. Model-level, no reasoning effort; it powers the subscription cost view.",
         unit: "usd" as const, higherIsBetter: false, category: "cost" as const, proxy: true, eligibleForDefault: false, defaultWeight: 0,
       }],
       rows,
