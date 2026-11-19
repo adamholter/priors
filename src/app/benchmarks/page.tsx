@@ -6,7 +6,7 @@ import { SiteFooter } from "@/components/SiteFooter";
 import { HeaderAccount } from "@/components/AccountMenu";
 import { SettingsButton } from "@/components/SiteSettings";
 import { BenchmarkDirectory } from "@/components/benchmark/BenchmarkDirectory";
-import { directoryItems } from "@/lib/benchmark-page";
+import { directoryItems, starIds } from "@/lib/benchmark-page";
 import { benchmarkQuality } from "@/onboarding/quality";
 import { benchmarkCommunity } from "@/lib/benchmark-community";
 import { pageMeta } from "@/lib/site-meta";
@@ -15,7 +15,8 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = pageMeta({ title: "Benchmarks", description: "Search every benchmark Priors tracks. Each has its own leaderboard, its published extras, and a cost chart adjusted for subscription plans.", path: "/benchmarks" });
 
 export default async function Page() {
-  const [snapshot, community] = await Promise.all([loadSnapshot(), benchmarkCommunity()]);
+  const snapshot = await loadSnapshot();
+  const community = await benchmarkCommunity(snapshot ? starIds(snapshot) : []);
   const items = snapshot ? directoryItems(snapshot, new Map(benchmarkQuality(snapshot).map((q) => [q.id, q])), community) : [];
   return (
     <main className="min-h-screen">

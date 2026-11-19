@@ -7,14 +7,17 @@ export interface Community { stars: Record<string, number>; uses: Map<string, nu
 const TTL_MS = 60_000;
 let cached: { at: number; value: Promise<Community> } | undefined;
 
-/** Stars and page counts from Convex, kept for a minute per server instance so a benchmark's page does not ask on every view. Empty without Convex or on failure. */
-export function benchmarkCommunity(): Promise<Community> {
+/**
+ * Stars and page counts from Convex, kept for a minute per server instance so a benchmark's page does not ask on every view. Empty
+ * without Convex or on failure. `ids`: the benchmarks to count stars for (the snapshot's), since Convex only answers for ids it is asked about.
+ */
+export function benchmarkCommunity(ids: string[]): Promise<Community> {
   const url = process.env.NEXT_PUBLIC_CONVEX_URL;
   if (!url) return Promise.resolve({ stars: {}, uses: new Map(), pages: [] });
   if (cached && Date.now() - cached.at < TTL_MS) return cached.value;
   const client = new ConvexHttpClient(url);
   const value = Promise.all([
-    client.query(api.benchmarkStars.counts, {}).catch(() => ({} as Record<string, number>)),
+    client.query(api.benchmarkStars.counts, { ids }).catch(() => ({} as Record<string, number>)),
     client.query(api.profiles.explore, {}).catch(() => [] as Community["pages"]),
   ]).then(([stars, pages]) => {
     const uses = new Map<string, number>();

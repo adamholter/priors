@@ -88,6 +88,9 @@ export function directoryItems(snapshot: Snapshot, quality: Map<string, Benchmar
   });
 }
 
+/** The benchmarks that can be starred: every one the directory lists. */
+export const starIds = (snapshot: Snapshot) => snapshot.benchmarks.filter((b) => !b.proxy).map((b) => b.id);
+
 /** One benchmark's quality as its page shows it. */
 export function qualityView(snapshot: Snapshot, benchmarkId: string, community: { stars: Record<string, number>; uses: Map<string, number> }): QualityView | undefined {
   const quality = benchmarkQuality(snapshot).find((q) => q.id === benchmarkId), b = snapshot.benchmarks.find((x) => x.id === benchmarkId);
