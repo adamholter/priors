@@ -165,7 +165,6 @@ header:has(.account-menu > [aria-expanded="true"]) { z-index: 60; }
 @container (max-width: 259px) { .zoom-trail[data-depth="4"] .zoom-mid { display: none; } }
 @container (max-width: 94px) { .zoom-word { display: none; } }
 @container (max-width: 56px) { .zoom-trail nav { visibility: hidden; } }
-.chart-toolbar > :last-child:has(> .zoom-trail) .scale-seg { display: none; }
 .chart-toolbar:has(details[open] > .chart-settings-menu) { z-index: 60; }
 .chart-context-menu { position: fixed; z-index: 80; width: 232px; max-width: calc(100vw - 16px); max-height: calc(100dvh - 16px); overflow-y: auto; background: var(--white); color: var(--ink); border: 1px solid var(--hair); border-radius: 5px; box-shadow: 0 5px 24px var(--shadow); padding: 5px; font: 12.5px var(--font-sans); }
 .chart-context-title { padding: 7px 9px 9px; font-size: 11px; color: var(--grey); overflow-wrap: anywhere; }
