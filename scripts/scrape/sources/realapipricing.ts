@@ -12,8 +12,8 @@
  */
 import type { Source, ScrapeResult, RawRow } from "../../../src/data/types";
 import { normalizeLabel } from "../../../src/data/normalize";
-import { blendedApiPrice, offPeakOf, planDisplayName, SUBSCRIPTION_BENCHMARK, type SubscriptionDetails, type TokenMix } from "../../../src/data/subscription";
-import { BUDGET_PLANS, LEGACY_PLANS, LIST_PRICES_UNTIL, PLAN_CHANGES, PLAN_MULTIPLES, SUBSIDY_ASSUMPTIONS, SUBSIDY_OVERRIDES, planUsageEstimates } from "./subscription-overrides";
+import { blendedApiPrice, offPeakOf, planDisplayName, SUBSCRIPTION_BENCHMARK, type PlanCaveat, type SubscriptionDetails, type TokenMix } from "../../../src/data/subscription";
+import { BUDGET_PLANS, LEGACY_PLANS, type BudgetRates, LIST_PRICES_UNTIL, PLAN_CHANGES, PLAN_MULTIPLES, SUBSIDY_ASSUMPTIONS, SUBSIDY_OVERRIDES, planUsageEstimates } from "./subscription-overrides";
 
 const SITE = "https://realapipricing.com";
 const REPO = "https://github.com/FeiZhuLulu/real-api-pricing";
@@ -23,6 +23,8 @@ type Point = {
   id: string; plan: string; plan_en?: string | null; billing: string; model: string; model_display: string; vendor: string;
   workload?: string; list_price?: { cached: number; input: number; output: number; currency: string } | null;
   price_usd?: number | null; real_usd_per_mtok: number; confidence: string; unmetered?: boolean; data_date?: string | null;
+  /** Set on curated budget points only. */
+  preliminary?: PlanCaveat;
 };
 export type Points = { generatedAt: string; points: Point[] };
 export type Conventions = { usdPerCny: number; standardTokenMix: TokenMix; lowCacheTokenMix: TokenMix; anthropicTokenMix: { cache: number; cacheWrite: number; output: number } };
@@ -116,9 +118,9 @@ export function parseSubscriptions(json: Points, conventions: Conventions, chann
     const { until, list } = listOf(all, pick);
     const rate = list?.currency === "CNY" ? conventions.usdPerCny : 1;
     const details: SubscriptionDetails = {
-      plan: name(pick), feeUsd: pick.price_usd ?? undefined, confidence: pick.confidence, mix: mixOf(pick.workload), dataDate: pick.data_date ?? undefined,
+      plan: name(pick), feeUsd: pick.price_usd ?? undefined, confidence: pick.confidence, mix: mixOf(pick.workload), dataDate: pick.data_date ?? undefined, ...(pick.preliminary ? { preliminary: pick.preliminary } : {}),
       ...(list ? { listPrice: { cached: list.cached / rate, input: list.input / rate, output: list.output / rate } } : {}), ...(until ? { listUntil: until.until } : {}),
-      plans: [...all].sort(cheaper).map((p) => ({ plan: name(p), feeUsd: p.price_usd ?? undefined, usdPerMtok: p.real_usd_per_mtok, confidence: p.confidence })),
+      plans: [...all].sort(cheaper).map((p) => ({ plan: name(p), feeUsd: p.price_usd ?? undefined, usdPerMtok: p.real_usd_per_mtok, confidence: p.confidence, ...(p.preliminary ? { preliminary: p.preliminary } : {}) })),
     };
     const budget = budgetOf(pick.id);
     rows.push({ benchmarkId: SUBSCRIPTION_BENCHMARK, modelLabel: label, value: pick.real_usd_per_mtok, sourceUrl: budget?.source ?? SITE, note: `${name(pick)}${pick.price_usd ? `, $${pick.price_usd}/month` : ""}; ${pick.confidence} confidence; ${note}${budget ? `; ${budget.note}` : ""}`, details: details as unknown as Record<string, unknown> });
@@ -221,13 +223,20 @@ export function withMultiples(points: Point[]): Point[] {
   return out;
 }
 
-/** BUDGET_PLANS as points: fee ÷ the tokens the budget buys at the seller's rate (its promotional rate until that ends), on the standard workload. Without a `list` price, the model's own lab's (or Artificial Analysis') prices the API side. */
+/**
+ * BUDGET_PLANS as points: fee ÷ the tokens the budget buys at the seller's rate (its promotional rate until that ends), on the standard workload. Without a `list` price,
+ * the model's own lab's (or Artificial Analysis') prices the API side. A plan with an `outputBudget` caps output apart: a million tokens then costs the larger share of either cap.
+ */
 export function budgetPoints(conventions: Conventions, now = new Date()): Point[] {
   const mix = pickMix(conventions.standardTokenMix);
+  const perMtok = (b: (typeof BUDGET_PLANS)[number], r: BudgetRates) => b.outputBudget
+    ? b.feeUsd * Math.max(blendedApiPrice({ ...r, output: 0 }, mix) / b.budgetUsd, blendedApiPrice({ input: 0, cached: 0, output: r.output }, mix) / b.outputBudget)
+    : b.feeUsd * blendedApiPrice(r, mix) / b.budgetUsd;
   return BUDGET_PLANS.flatMap((b) => b.models.map((m): Point => ({
     id: `${b.planId}::${m.model}`, plan: b.plan, plan_en: b.plan, billing: "subscription", model: m.model, model_display: m.display, vendor: m.vendor, workload: "standard",
     // On the seller's own model its rates are the list price. Another lab's model keeps that lab's.
-    list_price: m.list ? { ...m.list, currency: "USD" } : m.vendor === b.channel ? { cached: m.cached ?? m.input * 0.1, input: m.input, output: m.output, currency: "USD" } : null, price_usd: b.feeUsd, confidence: b.confidence, data_date: b.checked, real_usd_per_mtok: b.feeUsd * blendedApiPrice(m.promo && now < new Date(m.promo.until) ? m.promo : m, mix) / b.budgetUsd,
+    list_price: m.list ? { ...m.list, currency: "USD" } : m.vendor === b.channel ? { cached: m.cached ?? m.input * 0.1, input: m.input, output: m.output, currency: "USD" } : null, price_usd: b.feeUsd, confidence: b.confidence, data_date: b.checked, real_usd_per_mtok: perMtok(b, m.promo && now < new Date(m.promo.until) ? m.promo : m),
+    ...(m.preliminary ? { preliminary: m.preliminary } : {}),
   })));
 }
 

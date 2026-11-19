@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import source, { parseOpenCodeGo, parseSubscriptions, type Channels, type Conventions, type Points } from "./sources/realapipricing";
+import source, { budgetPoints, parseOpenCodeGo, parseSubscriptions, type Channels, type Conventions, type Points } from "./sources/realapipricing";
 import { blendedApiPrice, SUBSCRIPTION_BENCHMARK, type SubscriptionDetails } from "../../src/data/subscription";
 import { BUDGET_PLANS } from "./sources/subscription-overrides";
 
@@ -296,6 +296,20 @@ describe("Real API Pricing subscriptions", () => {
     expect(share(hy("2026-11-17T04:00:00Z", "Hy4"))).toBeCloseTo(1, 1);
     expect(share(hy("2026-11-20T00:00:00Z", "Hy4 preview"))).toBeLessThan(0.8);
     expect(share(hy("2026-11-30T04:00:00Z", "Hy4 preview"))).toBeCloseTo(1, 1);
+  });
+  it("prices DeepRelay's token allowances by whichever cap runs out first, and marks Vibe's DeepSeek figure preliminary", () => {
+    const pts = budgetPoints(conventions), at = (id: string) => pts.find((p) => p.id === id)!;
+    // 97% cache reads + 2.5% input spend the 500M input cap long before 0.5% output spends the 50M output cap.
+    expect(at("deeprelay_base::deepseek-v4.1-flash-1017").real_usd_per_mtok).toBeCloseTo(0.99 * 0.995 / 500, 12);
+    expect(at("deeprelay_plus::deepseek-v4.1-flash-1017").real_usd_per_mtok).toBeCloseTo(4.99 * 0.995 / 2500, 12);
+    // Output-heavy work hits the output cap instead.
+    const heavy = budgetPoints({ ...conventions, standardTokenMix: { cache: 0.5, input: 0.3, output: 0.2 } });
+    expect(heavy.find((p) => p.id === "deeprelay_base::deepseek-v4.1-flash-1017")!.real_usd_per_mtok).toBeCloseTo(0.99 * 0.2 / 50, 12);
+    const ds = parseSubscriptions(payload, conventions, channels).find((r) => r.modelLabel === "DeepSeek V4.1 Flash 1017")!, plans = (ds.details as unknown as SubscriptionDetails).plans;
+    expect(plans.map((p) => p.plan)).toEqual(expect.arrayContaining(["Mistral Vibe Pro", "DeepRelay Base", "DeepRelay Plus"]));
+    expect(plans.find((p) => p.plan === "Mistral Vibe Pro")!.preliminary?.label).toBe("Preliminary");
+    expect(plans.find((p) => p.plan === "DeepRelay Base")!.preliminary).toBeUndefined();
+    expect((row("Mistral Medium 3.5").details as unknown as SubscriptionDetails).preliminary).toBeUndefined();
   });
   it("makes Vibe Pro the reseller fallback only when it beats the others, and gives way to a Real API Pricing measurement of it", () => {
     const glm52 = (extra: Points["points"]) => parseSubscriptions({ ...payload, points: [...payload.points, ...extra] }, conventions, channels).find((r) => r.modelLabel === "GLM 5.2")!;

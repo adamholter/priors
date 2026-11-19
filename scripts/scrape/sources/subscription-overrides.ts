@@ -366,6 +366,11 @@ export interface BudgetPlan {
   feeUsd: number;
   /** Dollars of usage a month, at the models' rates. */
   budgetUsd: number;
+  /**
+   * A separate monthly output allowance, in the unit of `budgetUsd`, for plans that cap input and output apart (DeepRelay: 500M input
+   * and 50M output tokens). Input and cache reads then spend `budgetUsd` and output spends this; whichever runs out first sets the tokens.
+   */
+  outputBudget?: number;
   confidence: "high" | "medium" | "low";
   source: string;
   checked: string;
@@ -380,6 +385,8 @@ export interface BudgetPlan {
 export interface BudgetRates { input: number; cached?: number; output: number }
 export interface BudgetModel extends BudgetRates {
   model: string; display: string; vendor: string;
+  /** The figure for this model rests on something the seller does not publish: shown wherever it appears. */
+  preliminary?: PlanCaveat;
   list?: { input: number; cached: number; output: number };
   promo?: BudgetRates & { until: string };
 }
@@ -409,7 +416,21 @@ export const BUDGET_PLANS: BudgetPlan[] = [
       { model: "glm-5.3", display: "GLM 5.3", vendor: "Zhipu", input: 1.4, cached: 0.14, output: 4.4 },
       { model: "glm-5.2", display: "GLM 5.2", vendor: "Zhipu", input: 1.4, cached: 0.14, output: 4.4 },
       { model: "glm-5.3-flash", display: "GLM 5.3 Flash", vendor: "Zhipu", input: 0.15, cached: 0.03, output: 0.5 },
-      { model: "deepseek-v4.1-flash-1017", display: "DeepSeek V4.1 Flash 1017", vendor: "DeepSeek", input: 0.3, cached: 0.007, output: 1.2 },
+      {
+        model: "deepseek-v4.1-flash-1017", display: "DeepSeek V4.1 Flash 1017", vendor: "DeepSeek", input: 0.3, cached: 0.007, output: 1.2,
+        preliminary: {
+          label: "Preliminary", short: "Mistral does not publish the $300 Vibe budget (two reports on X), and DeepSeek on Vibe may hit the cache less often than DeepSeek's own API, which buys fewer tokens. Pending a measurement.",
+          note: "$300 a month of Vibe usage plus $15 of API credits, at Mistral's rates for DeepSeek V4.1 Flash 1017. The budget is what Pro accounts show, not a published figure: SSHCodes (29 October 2026) and @yuhasbeentaken (19 November 2026), who warns that cache hit rates on Vibe can be much worse than on DeepSeek's own API. The standard workload assumes 97% cache reads; fewer hits spend the budget faster.",
+          sources: [{ by: "SSHCodes", counted: true }, { by: "@yuhasbeentaken", url: "https://x.com/yuhasbeentaken/status/2123398659093995885", counted: true }],
+        },
+      },
     ],
   },
+  // DeepRelay sells DeepSeek V4.1 Flash 1017 (and Kimi K3, GLM 5.3 and GLM 5.3 Flash at usage factors, not listed here) as token
+  // allowances, input and output capped apart. Cached input counts as input. Checked on deeprelay.ai/pricing, 2026-11-19.
+  ...([["Base", 0.99, 1], ["Plus", 4.99, 5]] as const).map(([tier, feeUsd, n]): BudgetPlan => ({
+    planId: `deeprelay_${tier.toLowerCase()}`, plan: `DeepRelay ${tier}`, channel: "DeepRelay", feeUsd, budgetUsd: 500 * n, outputBudget: 50 * n, confidence: "medium", source: "https://deeprelay.ai/pricing", checked: "2026-11-19",
+    note: `${500 * n}M input and ${50 * n}M output tokens a month (${125 * n}M and ${12.5 * n}M per rolling 7 days, which a month's use stays under), from deeprelay.ai/pricing. Cached input counts as input at the model's usage factor (1 for DeepSeek V4.1 Flash 1017), so on the standard workload, 97% cache reads, the input cap runs out first. Past a cap calls continue at pay-as-you-go rates. Budgets and rates here are in millions of tokens.`,
+    models: [{ model: "deepseek-v4.1-flash-1017", display: "DeepSeek V4.1 Flash 1017", vendor: "DeepSeek", input: 1, cached: 1, output: 1 }],
+  })),
 ];
