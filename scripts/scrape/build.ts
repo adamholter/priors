@@ -20,6 +20,7 @@ import { fetchSpeedTiers } from "./speed-tiers";
 import { labelCollisions, swallowedTiers } from "./label-collisions";
 import { applyLaunchClaims } from "./launch-claims";
 import { applyT3Costs } from "./t3-costs";
+import { withCommonDefaults } from "../../src/data/plan-defaults";
 import { applyVersionSplits, loadFrozen, saveFrozen } from "./version-splits";
 import { fetchFreeTiers } from "./free-tiers";
 import { applyFreeTiers, carriedFreeTiers } from "../../src/data/free-tier";
@@ -391,6 +392,8 @@ async function main() {
   snap = canonicalizeSnapshot(snap);
   // T3 Code turns priced at today's list prices: T3's ClickHouse rows per effort where they carry tokens, else Slopalytics' model-level rows.
   { const t3 = applyT3Costs(snap); if (t3.priced.length) console.log(`T3_COSTS priced ${t3.priced.length} models at list price${t3.perEffort ? ` (${t3.perEffort} model-efforts from T3's ClickHouse)` : " (Slopalytics, model-level)"}`); if (t3.held.length) console.log(`T3_COSTS held ${t3.held.join(", ")}: new, and cost per turn does not yet rise with effort`); }
+  // Each model's default subscription plan: the best simple, common one (src/data/plan-defaults.ts), not the single biggest subsidy.
+  { const d = withCommonDefaults(snap); snap = d.snapshot; console.log(`PLAN_DEFAULTS moved ${d.moved} models to their best common plan${d.dropped.length ? `; ${d.dropped.length} sold only on Command Code priced at the API (${d.dropped.join(", ")})` : ""}`); }
   // Plain-language descriptions and categories, over whatever each source said.
   const catalogued = applyCatalog(snap.benchmarks);
   snap.benchmarks = catalogued.benchmarks;

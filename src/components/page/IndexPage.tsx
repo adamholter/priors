@@ -1,6 +1,6 @@
 "use client";
 import { planResetsProps, usePlanResetsOn, withResetsPref } from "@/lib/plan-resets-pref";
-import { planPicker, useSubscriptionPlansPref, withPlansPref } from "@/lib/subscription-plans-pref";
+import { planPicker, useAdjustedSnapshot, useSubscriptionPlansPref, withPlansPref } from "@/lib/subscription-plans-pref";
 import Link from "next/link";
 import { HeaderAccount } from "@/components/AccountMenu";
 import type { ProfileTheme, Section } from "../../../convex/validators";
@@ -68,7 +68,8 @@ export function VisitorBanner({ name, surface }: { name: string; surface: string
   </div>;
 }
 
-export function IndexPage({ profile, snapshot, edit, tab: linkedTab, linkedHighlight, linkedView }: { profile: Profile; snapshot: Snapshot; edit: boolean; /** The index a link opens on (`hi`: an id or a name slug). */ tab?: string; /** The id of the index whose display settings came from the link (`hv`: hidden models and so on). */ linkedView?: string; /** The id of the index whose selection came from the link (`hl`) rather than the saved page. */ linkedHighlight?: string; }) {
+export function IndexPage({ profile, snapshot: base, edit, tab: linkedTab, linkedHighlight, linkedView }: { profile: Profile; snapshot: Snapshot; edit: boolean; /** The index a link opens on (`hi`: an id or a name slug). */ tab?: string; /** The id of the index whose display settings came from the link (`hv`: hidden models and so on). */ linkedView?: string; /** The id of the index whose selection came from the link (`hl`) rather than the saved page. */ linkedHighlight?: string; }) {
+  const snapshot = useAdjustedSnapshot(base);
   const [p, setPState] = useState(() => tidyProfile(profile));
   const [prevProfile, setPrevProfile] = useState(profile);
   if (profile !== prevProfile) { setPrevProfile(profile); setPState(tidyProfile(profile)); }

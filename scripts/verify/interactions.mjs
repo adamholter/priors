@@ -392,7 +392,7 @@ try {
       await button.scrollIntoViewIfNeeded();
       assert.equal(await p.locator(".chart-method-pop").count(), 0, "closed until asked for");
       await button.click();
-      assert.match(await p.locator(".chart-method-pop").textContent(), /biggest subsidy/);
+      assert.match(await p.locator(".chart-method-pop").textContent(), /best common plan/);
       assert.equal(await p.locator(".chart-method-pop a").getAttribute("href"), "/benchmarks/methodology#cost");
       await p.locator("body").click({ position: { x: 5, y: 5 } });
       assert.equal(await p.locator(".chart-method-pop").count(), 0, "a click elsewhere closes it");
@@ -592,22 +592,22 @@ try {
       await chart.locator("svg").waitFor();
       await c.waitForTimeout(500);
       assert.ok(await lines() < before, "gridlines are gone");
-      // The default says which plan it is.
+      // Each lab's row names the plan it is on.
       await menu.getByRole("tab", { name: "Data" }).click();
       await menu.locator("summary", { hasText: "Subscription plans" }).click();
-      const median = await menu.getByLabel("OpenAI plan").locator("option").first().textContent();
-      assert.match(median, /^Best: /);
+      const openaiRow = menu.locator(".pp-lab[data-lab='openai'] .pp-head");
+      assert.match(await openaiRow.getAttribute("aria-label"), /^OpenAI plan: ChatGPT /);
       // API pricing keeps the plans in view and says how to use them; picks reset in one click.
       await menu.getByRole("button", { name: "API", exact: true }).click();
-      await menu.getByLabel("OpenAI plan").waitFor();
-      assert.equal(await menu.getByLabel("OpenAI plan").isDisabled(), true);
+      await openaiRow.click();
+      const openaiPlans = menu.getByRole("radiogroup", { name: "OpenAI plan" });
+      assert.equal(await openaiPlans.getByRole("radio").first().isDisabled(), true);
       await menu.getByRole("button", { name: "Use subscription" }).click();
-      const openai = menu.getByLabel("OpenAI plan");
-      await openai.selectOption({ index: 1 });
+      await openaiPlans.locator("[role=radio][aria-checked=false]").first().click();
       await c.waitForFunction(() => localStorage.getItem("priors:subscription-plans")?.includes("openai"));
       await menu.getByRole("button", { name: "Reset" }).click();
       await c.waitForFunction(() => !localStorage.getItem("priors:subscription-plans"));
-      assert.equal(await openai.inputValue(), "");
+      assert.match(await openaiPlans.locator("[role=radio][aria-checked=true]").innerText(), /default/, "back on the lab's default plan");
       await c.reload({ waitUntil: "domcontentloaded" });
       await chart.locator("svg text").first().waitFor({ timeout: 30000 });
       await c.waitForTimeout(500);
@@ -635,19 +635,19 @@ try {
       await c.waitForTimeout(500);
       assert.equal(await menu.getByRole("group", { name: "Plan prices" }).count(), 0, "no Regular/Student toggle");
       assert.equal(await menu.getByRole("group", { name: "Peak hours" }).count(), 0, "no Peak hours toggle");
-      const google = menu.getByLabel("Google plan", { exact: true });
-      const options = (sel) => sel.locator("option").evaluateAll((os) => os.map((o) => o.textContent));
-      assert.equal(await google.inputValue(), "", "Google starts on its best plan");
-      assert.ok((await options(google)).some((t) => /^Google AI Pro \(Student\)/.test(t)), "Google AI Pro (Student) is a plan option");
-      // Every time-of-day plan lists each rate, and the lab's default names its off-peak one.
-      const zhipu = menu.locator("select").filter({ has: c.locator("option", { hasText: "GLM Coding" }) }).first();
-      const glm = await options(zhipu);
-      for (const rate of ["(off-peak)", "(mixed)", "(peak)"]) assert.ok(glm.some((t) => t.includes(rate)), `GLM Coding lists its ${rate} option`);
-      const medians = await zhipu.getAttribute("title");
-      // Z.ai's models default to their best-subsidized plan, often a reseller's; when that is a GLM Coding plan, it is the off-peak one.
-      assert.ok(medians, "the Z.ai picker names each model's default plan");
-      for (const p of medians.match(/GLM Coding [^:,]*/g) ?? []) assert.match(p, /\(off-peak\)$/, `a GLM Coding default is off-peak: ${medians}`);
-      assert.doesNotMatch(medians, /\((peak|mixed)\)/, "no model defaults to a peak or mixed option");
+      // A lab's row opens to its plans: one radio each, the biggest subsidy first, the lab's default plans marked.
+      const plansOf = (lab) => menu.locator(`.pp-lab[data-lab='${lab}'] [role=radiogroup]`);
+      const open = async (lab) => { if (!(await plansOf(lab).isVisible())) await menu.locator(`.pp-lab[data-lab='${lab}'] .pp-head`).click(); return plansOf(lab); };
+      const names = (group) => group.getByRole("radio").evaluateAll((rs) => rs.map((r) => ({ name: r.querySelector(".pp-label")?.textContent ?? "", on: r.getAttribute("aria-checked") === "true" })));
+      const google = await open("google");
+      assert.equal(await c.evaluate(() => localStorage.getItem("priors:subscription-plans")), null, "Google starts on its default plan");
+      assert.ok((await names(google)).some((r) => /^Google AI Pro \(Student\)/.test(r.name)), "Google AI Pro (Student) is a plan option");
+      // Every time-of-day plan lists each rate, and a GLM Coding plan a model defaults to is the off-peak one.
+      const glm = await names(await open("zhipu"));
+      for (const rate of ["(off-peak)", "(mixed)", "(peak)"]) assert.ok(glm.some((r) => r.name.startsWith("GLM Coding") && r.name.includes(rate)), `GLM Coding lists its ${rate} option`);
+      const defaults = await plansOf("zhipu").locator("[role=radio]:has(small)").evaluateAll((rs) => rs.map((r) => r.querySelector(".pp-label")?.textContent ?? ""));
+      assert.ok(defaults.length, "the lab's default plans are marked");
+      assert.deepEqual(defaults.filter((d) => /\((peak|mixed)\)/.test(d)), [], `no model defaults to a peak or mixed option: ${defaults}`);
       const svgBefore = await svg(), rankBefore = await rank();
       assert.ok(await labelX("Gemini 4 Hydrogen") != null, "the cost chart labels Gemini 4 Hydrogen");
       // Pixels are no measure here: a free model adds a "free" column and rescales the axis. Read the cost off the mark's card instead.
@@ -665,26 +665,69 @@ try {
       const reopen = async () => {
         if (!(await menu.isVisible())) await picker.locator("summary[aria-label='Pareto settings']").click();
         await menu.getByRole("tab", { name: "Data" }).click();
-        if (!(await google.isVisible())) await menu.locator("summary", { hasText: "Subscription plans" }).click();
+        if (!(await menu.locator(".pp-lab[data-lab='google']").isVisible())) await menu.locator("summary", { hasText: "Subscription plans" }).click();
+        return open("google");
       };
-      const hydrogenBefore = await costOf("Gemini 4 Hydrogen");
-      assert.match(hydrogenBefore ?? "", /per task[\s\S]*Google AI Pro/, `Hydrogen's card shows its cost on Google AI Pro: ${hydrogenBefore}`);
-      await reopen();
-      await google.selectOption({ label: (await options(google)).find((t) => /^Google AI Pro \(Student\)/.test(t)) });
+      const pick = async (re) => { const g = await reopen(); await g.getByRole("radio").filter({ has: c.locator(".pp-label", { hasText: re }) }).first().click(); };
+      // The regular plan the student offer discounts, then the offer itself: the models it leaves out keep the regular price.
+      await pick(/^Google AI Pro$/);
+      await c.waitForTimeout(900);
+      const hydrogenRegular = await costOf("Gemini 4 Hydrogen");
+      assert.match(hydrogenRegular ?? "", /per task[\s\S]*Google AI Pro/, `Hydrogen's card shows its cost on Google AI Pro: ${hydrogenRegular}`);
+      await pick(/^Google AI Pro \(Student\)/);
       const card = menu.getByLabel("Student offer");
       await card.waitFor();
       assert.match(await card.innerText(), /Free for 12 months, then \$19.99\/mo[\s\S]*Students at a US college/);
       assert.match(await card.locator("a").getAttribute("href"), /^https:\/\/(gemini\.google|blog\.google)\//, "links the official page");
       await c.waitForTimeout(900);
-      const hydrogenAfter = await costOf("Gemini 4 Hydrogen");
-      assert.equal(hydrogenAfter, hydrogenBefore, "Hydrogen keeps its paid price (not in the free trial)");
+      assert.equal(await costOf("Gemini 4 Hydrogen"), hydrogenRegular, "Hydrogen keeps its paid price (not in the free trial)");
       assert.match(await costOf("Gemini 3.8 Flash") ?? "", /free[\s\S]*Google AI Pro \(Student\)/, "Gemini 3.8 Flash is free on the student plan");
       assert.equal(await rank(), rankBefore, "the ranking is unchanged");
       await reopen();
-      await google.selectOption("");
+      await menu.getByRole("button", { name: "Back to the default" }).click();
       await card.waitFor({ state: "detached" });
       await c.waitForTimeout(900);
-      assert.equal(await svg(), svgBefore, "back on the best plan, every label is where it was");
+      assert.equal(await svg(), svgBefore, "back on the default plan, every label is where it was");
+    } finally { await c.context().close(); }
+  });
+
+  await check("chart agent: every chart's settings end in the agent bar; it shows it is working, applies the change and lists a data adjustment", async () => {
+    const c = await (await browser.newContext({ viewport: { width: 1440, height: 1000 } })).newPage();
+    try {
+      // The model call is stubbed: the browser's side is what is checked (the bar, the working state, applying changes).
+      let release;
+      const gate = new Promise((r) => { release = r; });
+      await c.route("**/api/chart-agent", async (route) => { await gate; await route.fulfill({ json: { reply: "Made the names bigger and added your credits.", changes: { view: { labelScale: 2 }, dataOverrides: [{ kind: "subsidy", factor: 1.5, lab: "openai", note: "Bonus OpenAI credits" }] } } }); });
+      await c.goto(`${BASE}/builder`, { waitUntil: "domcontentloaded" });
+      await c.locator(".ranking-list [data-k]").first().waitFor({ timeout: 30000 });
+      const settings = c.locator("details[name=chart-settings]");
+      assert.ok(await settings.count() >= 3, "several charts have settings");
+      for (const label of ["Pareto settings", "Time per task settings"]) {
+        const d = c.locator("details", { has: c.locator(`summary[aria-label='${label}']`) }).first();
+        if (!(await d.count())) continue;
+        await d.scrollIntoViewIfNeeded(); await d.locator(`summary[aria-label='${label}']`).click();
+        const menu = d.locator(".chart-settings-menu");
+        for (const tab of ["Data", "Display"]) { const t = menu.getByRole("tab", { name: tab }); if (await t.count()) { await t.click(); assert.ok(await menu.locator(".cc-pill input").isVisible(), `${label}: the agent bar shows on ${tab}`); } }
+        await menu.getByRole("button", { name: "Close chart settings" }).click();
+      }
+      const d = c.locator("details", { has: c.locator("summary[aria-label='Pareto settings']") }).first();
+      await d.locator("summary[aria-label='Pareto settings']").click();
+      const menu = d.locator(".chart-settings-menu");
+      await menu.getByRole("tab", { name: "Display" }).click();
+      assert.equal(await menu.getByLabel(/label size$/).getAttribute("max"), "200", "name size goes to 200% outside full screen");
+      assert.ok(await menu.getByLabel(/dot size$/).isVisible() && await menu.getByLabel(/line width$/).isVisible(), "dot size and line width sliders");
+      await menu.locator(".cc-pill input").fill("bigger names, and I have bonus OpenAI credits");
+      await menu.getByRole("button", { name: "Send" }).click();
+      await menu.getByRole("button", { name: "Working" }).waitFor();
+      assert.ok(await menu.locator(".cc-root[data-busy] .cc-dots").isVisible(), "the send button shows the working dots");
+      release();
+      await menu.locator(".cc-reply").waitFor();
+      assert.match(await menu.locator(".cc-reply").innerText(), /bigger/);
+      assert.equal(await menu.getByLabel(/label size$/).inputValue(), "200", "the view change is applied");
+      assert.match(await menu.locator(".cc-adjustments").innerText(), /Bonus OpenAI credits/);
+      assert.match(await c.evaluate(() => localStorage.getItem("priors:plan-adjustments") ?? ""), /"factor":1.5/);
+      await menu.getByRole("button", { name: "Remove: Bonus OpenAI credits" }).click();
+      await c.waitForFunction(() => !localStorage.getItem("priors:plan-adjustments"));
     } finally { await c.context().close(); }
   });
 

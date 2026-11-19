@@ -95,7 +95,9 @@ describe("student offers", () => {
     const cost = (r: typeof before, re: RegExp) => r.ranked.find((x) => re.test(x.model.id) && x.costUsd != null);
     expect(cost(before, /^gemini-3\.8-flash$/)!.costUsd).toBeGreaterThan(0);
     expect(cost(after, /^gemini-3\.8-flash$/)!.costUsd).toBe(0);
-    expect(cost(after, /hydrogen/)!.costUsd).toBe(cost(before, /hydrogen/)!.costUsd);
+    // Models the free year leaves out are priced on the regular plan it discounts (which need not be the lab's default).
+    const regular = computeIndex(snapshot, { ...config, subscriptionPlans: { google: "Google AI Pro" } }, PAGE_VIEW);
+    expect(cost(after, /hydrogen/)!.costUsd).toBe(cost(regular, /hydrogen/)!.costUsd);
     expect(after.ranked.filter((x) => x.costUsd !== before.ranked.find((y) => y.variant.id === x.variant.id)!.costUsd).every((x) => x.model.labId === "google")).toBe(true);
   });
 

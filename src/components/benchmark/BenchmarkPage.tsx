@@ -2,7 +2,7 @@
 import { categoryNames } from "@/data/categories";
 import { breaksFor } from "@/data/series-breaks";
 import { planResetsProps, usePlanResetsOn, withResetsPref } from "@/lib/plan-resets-pref";
-import { planPicker, useSubscriptionPlansPref, withPlansPref } from "@/lib/subscription-plans-pref";
+import { planPicker, useAdjustedSnapshot, useSubscriptionPlansPref, withPlansPref } from "@/lib/subscription-plans-pref";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Benchmark, Observation, Snapshot } from "@/data/types";
@@ -36,7 +36,8 @@ const fmt = formatBenchValue;
 const usd = (v: number) => v === 0 ? "free" : `$${v >= 10 ? v.toFixed(0) : v >= 1 ? v.toFixed(2) : v.toFixed(v >= 0.1 ? 2 : 3)}`;
 
 /** One benchmark on its own: who leads it, and what each result costs, priced the way a subscriber pays when the lab has a plan. */
-export function BenchmarkPage({ snapshot, benchmarkId, models, relatives, initial }: { snapshot: Snapshot; benchmarkId: string; models: number; relatives: { family: { id: string; label: string }[]; familyLabel?: string; versions: { id: string; label: string }[] }; /** Settings from a copied link. */ initial?: IndexConfig }) {
+export function BenchmarkPage({ snapshot: base, benchmarkId, models, relatives, initial }: { snapshot: Snapshot; benchmarkId: string; models: number; relatives: { family: { id: string; label: string }[]; familyLabel?: string; versions: { id: string; label: string }[] }; /** Settings from a copied link. */ initial?: IndexConfig }) {
+  const snapshot = useAdjustedSnapshot(base);
   const b = snapshot.benchmarks.find((x) => x.id === benchmarkId)!;
   const [config, setConfig] = useState<IndexConfig>(() => initial ?? benchmarkIndex(snapshot, benchmarkId));
   const patch = useCallback((p: Partial<IndexConfig>) => setConfig((c) => ({ ...c, ...p })), []);

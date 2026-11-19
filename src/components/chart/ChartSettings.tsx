@@ -11,7 +11,9 @@ import type { ScatterView } from "./ScoreScatter";
 import { labelScale } from "./label-size";
 import { chartLinkUrl } from "@/lib/highlight-link";
 import { FormulaEditor, type FormulaSettings } from "./formula-chart";
-import { PlanSection, type PlanOptions } from "./PlanPicker";
+import { PlanReadingSwitch, PlanSection, type PlanOptions } from "./PlanPicker";
+import { ChartComposer, type ChartChanges } from "./ChartComposer";
+import { usePlanAdjustments } from "@/lib/subscription-plans-pref";
 import { useChartPalette } from "./palette-context";
 import { setChartGridPref, useChartGrid } from "@/lib/chart-grid-pref";
 import styles from "./ChartSettings.module.css";
@@ -31,7 +33,7 @@ export function ChartSettings({ freeTiers, planReading, speedTiers, label, mode,
   costBasis?: { value: CostBasis; onChange: (basis: CostBasis) => void };
   /** Subscription pricing: count limit resets (what each lab gave its subscribers in the last 30 days). Shown in the plans section. */
   planResets?: { value: boolean; onChange: (on: boolean) => void; note?: string; rows?: { lab: string; text: string }[]; fable?: { value: number; onChange: (n: number) => void } };
-  /** Subscription pricing: the plan each lab's models are priced at (`planPicker`). Unpicked labs use each model's most subsidized plan, which `median` names. Listed on every cost chart, under API pricing too, where it says how to turn it on. */
+  /** Subscription pricing: the plan each lab's models are priced at (`planPicker`). Unpicked labs use each model's default plan (its best common plan, `src/data/plan-defaults.ts`), which `median` names. Listed on every cost chart, under API pricing too, where it says how to turn it on. */
   subscriptionPlans?: PlanOptions;
   anchor?: string;
   /** Default metric scale, when the chart supports switching to linear. */
@@ -60,6 +62,9 @@ export function ChartSettings({ freeTiers, planReading, speedTiers, label, mode,
   const id = useId(), root = useRef<HTMLDetailsElement>(null), trigger = useRef<HTMLElement>(null);
   const [open, setOpen] = useState(false), [tab, setTab] = useState<"models" | "data" | "display">(models.length && onToggleModel ? "models" : "data"), [query, setQuery] = useState(""), [formulaOpen, setFormulaOpen] = useState(false);
   const pal = useChartPalette(), gridOn = useChartGrid(pal);
+  const adjustments = usePlanAdjustments();
+  const [fullscreen, setFullscreen] = useState(false);
+  useEffect(() => { if (open) setFullscreen(!!root.current?.closest(".chart-expanded")); }, [open]);
   const [placement, setPlacement] = useState({ height: 620, above: false });
   useEffect(() => {
     if (!open) return;
@@ -120,11 +125,8 @@ export function ChartSettings({ freeTiers, planReading, speedTiers, label, mode,
       : `${free.generous} models are free in real volume today and cost nothing here.${free.limited ? ` ${free.limited} more are free only rate-limited, too little to count by default.` : ""}`}</p>
   </div>;
   const reading = costBasis?.value === "subscription" ? planReading : undefined, readingDefault = reading && reading.value === reading.options[0].id;
-  const readingRow = reading && <div className={styles.checks}>
-    <div className={`${styles.row} ${styles.stack}`}><span id={`${id}-reading-label`}>{reading.models.map((m) => m.name).join(", ")} plan rate</span><div className={styles.choice} role="group" aria-labelledby={`${id}-reading-label`}>{reading.options.map((r) => <button key={r.id} type="button" aria-pressed={reading.value === r.id} onClick={() => reading.onChange(r.id)}>{r.name}</button>)}</div></div>
-    <dl className={styles.readingRows}>{reading.options.map((r) => <div key={r.id}><dt>{r.name}{r.id === reading.options[0].id ? " (default)" : ""}</dt><dd>{r.note}</dd></div>)}</dl>
-  </div>;
-  const planSection = plans && costBasis && <PlanSection id={id} plans={plans} basis={costBasis} extra={[resets?.value && "resets on", free && free.value === "off" && "no free tiers", free && free.value === "limited" && "rate-limited free tiers", reading && !readingDefault && reading.options.find((r) => r.id === reading.value)?.name.toLowerCase()].filter(Boolean).join(", ") || undefined}>{readingRow}{freeRow}{resetsRow}</PlanSection>;
+  const readingRow = reading && <PlanReadingSwitch reading={reading} />;
+  const planSection = plans && costBasis && <PlanSection id={id} plans={plans} basis={costBasis} reading={reading} extra={[resets?.value && "resets on", free && free.value === "off" && "no free tiers", free && free.value === "limited" && "rate-limited free tiers", reading && !readingDefault && reading.options.find((r) => r.id === reading.value)?.name.toLowerCase()].filter(Boolean).join(", ") || undefined}>{freeRow}{resetsRow}</PlanSection>;
   const formulaSection = formula && view && onView && <details className={styles.sub} open={formulaOpen} onToggle={e => setFormulaOpen(e.currentTarget.open)}>
     <summary className="disclosure">Custom formula<span className={view.formula?.trim() ? styles.formulaOn : undefined}>{view.formula?.trim() || "Off"}</span></summary>
     {formulaOpen && <FormulaEditor id={id} label={label} formula={formula} view={view} onView={onView} />}
@@ -165,7 +167,7 @@ export function ChartSettings({ freeTiers, planReading, speedTiers, label, mode,
       {check("Background grid", gridOn, on => setChartGridPref(on, pal))}
     </div>
     {scatter && <div className={styles.labels}><div><label htmlFor={`${id}-density`}>Model names</label><span>{scatter.view.density === 0 ? "Frontier only" : scatter.view.density === 1 ? "All" : `${Math.round(scatter.view.density * 100)}%`}</span></div><input aria-label={`${label} label density`} id={`${id}-density`} type="range" min={0} max={100} step={5} value={Math.round(scatter.view.density * 100)} onChange={e => scatter.onView({ ...scatter.view, density: +e.target.value / 100 })} /></div>}
-    <div className={styles.labels}><div><label htmlFor={`${id}-label-size`}>Name size</label><span>{Math.round(labelScale(view.labelScale) * 100)}%</span></div><input aria-label={`${label} label size`} id={`${id}-label-size`} type="range" min={75} max={175} step={5} value={Math.round(labelScale(view.labelScale) * 100)} onChange={e => {
+    <div className={styles.labels}><div><label htmlFor={`${id}-label-size`}>Name size</label><span>{Math.round(labelScale(view.labelScale) * 100)}%</span></div><input aria-label={`${label} label size`} id={`${id}-label-size`} type="range" min={75} max={fullscreen ? 300 : 200} step={5} value={Math.round(labelScale(view.labelScale) * 100)} onChange={e => {
       const ls = +e.target.value;
       onView({ ...view, labelScale: ls / 100 });
       if (anchor) {
@@ -173,7 +175,40 @@ export function ChartSettings({ freeTiers, planReading, speedTiers, label, mode,
         window.history.replaceState(window.history.state, "", url.toString());
       }
     }} /></div>
+    {scatter && ([["dotScale", "Dot size", `${label} dot size`], ["lineScale", "Line width", `${label} line width`]] as const).map(([key, name, aria]) => { const v = Math.round((scatter.view[key] ?? 1) * 100); return <div key={key} className={styles.labels}><div><label htmlFor={`${id}-${key}`}>{name}</label><span>{v}%</span></div><input aria-label={aria} id={`${id}-${key}`} type="range" min={50} max={fullscreen ? 300 : 200} step={10} value={v} onChange={e => scatter.onView({ ...scatter.view, [key]: +e.target.value / 100 })} /></div>; })}
   </>;
+  /** The composer's view of this chart: its settings and the data it can change, as plain lines for the agent. */
+  const agentContext = () => {
+    const lines = [`Chart: ${label}${fullscreen ? " (full screen)" : ""}`];
+    if (view) lines.push(`View: ${JSON.stringify({ kind: view.kind ?? "scatter", labelScale: view.labelScale ?? 1, dotScale: view.dotScale ?? 1, lineScale: view.lineScale ?? 1, density: view.density, frontier: view.frontier, links: view.links, scale: view.scale ?? defaultScale, allModels: !!view.allModels, paretoOnly: !!view.paretoOnly })}`);
+    lines.push(`Showing: ${mode === "all" ? "all efforts" : "best effort per model"}${efforts ? `; efforts on: ${efforts.value.join(", ")}` : ""}${releasedAfter !== undefined ? `; released after: ${releasedAfter || "all time"}` : ""}`);
+    if (costBasis) lines.push(`Pricing: ${costBasis.value}`);
+    if (dataSource) lines.push(`Data source: ${dataSource.value} (options: ${dataSource.options.map((o) => o.id).join(", ")})`);
+    if (freeTiers) lines.push(`Free tiers: ${freeTiers.value}`);
+    if (planResets) lines.push(`Limit resets counted: ${planResets.value}`);
+    if (planReading) lines.push(`Plan reading for ${planReading.models.map((m) => m.name).join(", ")}: ${planReading.value} (options: ${planReading.options.map((o) => `${o.id} = ${o.name}`).join(", ")})`);
+    if (subscriptionPlans) lines.push("Plans by lab (id: plan · fee · API value per dollar ≈ API value a month; * = picked):", ...subscriptionPlans.labs.map((l) => `- ${l.labId} (${l.name}), now ${subscriptionPlans.value[l.labId] ? `${subscriptionPlans.value[l.labId]}*` : l.median.map((m) => m.plan).join(" / ") || "none"}: ${l.plans.map((p) => { const m = p.multiple; return `${p.plan}${p.feeUsd ? ` · $${p.feeUsd}/mo` : ""}${m ? ` · ${m.toFixed(1)}x ≈ $${Math.round(m * (p.feeUsd ?? 0)).toLocaleString("en-US")}/mo` : ""}`; }).join("; ")}`));
+    if (models.length) lines.push(`Models (id | name | lab | shown): ${models.map((m) => `${m.id} | ${m.name} | ${m.lab ?? ""} | ${excluded?.has(m.id) ? "hidden" : "shown"}`).join("; ")}`);
+    if (adjustments.length) lines.push(`Data adjustments already on: ${JSON.stringify(adjustments)}`);
+    return lines.join("\n");
+  };
+  const applyAgent = (c: ChartChanges) => {
+    if (c.view && view && onView) { const clamp = (v: number | undefined, lo: number, hi: number) => v == null ? undefined : Math.min(hi, Math.max(lo, v)); const next = { ...view, ...c.view }; onView({ ...next, labelScale: clamp(next.labelScale, 0.75, 3), dotScale: clamp(next.dotScale, 0.5, 3), lineScale: clamp(next.lineScale, 0.5, 3), density: clamp(next.density, 0, 1) ?? view.density, ...(c.view.frontier !== undefined ? { frontierChosen: true } : {}), ...(c.view.kind ? { kindChosen: true } : {}) }); }
+    const st = c.settings ?? {};
+    if (st.costBasis && costBasis) costBasis.onChange(st.costBasis);
+    if (st.efforts && efforts) efforts.onChange(EFFORT_CHOICES.filter((e) => st.efforts!.includes(e)));
+    if (st.mode) onChange(st.mode);
+    if (st.releasedAfter !== undefined && onChangeReleased) onChangeReleased(st.releasedAfter);
+    if (st.dataSource && dataSource?.options.some((o) => o.id === st.dataSource)) dataSource.onChange(st.dataSource as TaskMetricSource);
+    if (st.freeTiers && freeTiers) freeTiers.onChange(st.freeTiers);
+    if (st.planResets !== undefined && planResets) planResets.onChange(st.planResets);
+    if (st.planReading && planReading?.options.some((o) => o.id === st.planReading)) planReading.onChange(st.planReading);
+    for (const p of c.plans ?? []) subscriptionPlans?.onChange(p.lab, p.plan ?? undefined);
+    const known = new Set(models.map((m) => m.id));
+    if (c.models?.showOnly?.length && onShowOnly) onShowOnly(c.models.showOnly.filter((m) => known.has(m)));
+    for (const m of c.models?.hide ?? []) if (known.has(m) && !excluded?.has(m)) onToggleModel?.(m);
+    for (const m of c.models?.show ?? []) if (known.has(m) && excluded?.has(m)) onToggleModel?.(m);
+  };
   const tabs = [hasModels && { id: "models" as const, name: "Models" }, { id: "data" as const, name: "Data" }, displayPanel && { id: "display" as const, name: "Display" }].filter((t): t is { id: "models" | "data" | "display"; name: string } => !!t);
   const tabKey = (event: KeyboardEvent, current: number) => {
     const next = event.key === "ArrowRight" ? (current + 1) % tabs.length : event.key === "ArrowLeft" ? (current - 1 + tabs.length) % tabs.length : event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1 : -1;
@@ -190,6 +225,7 @@ export function ChartSettings({ freeTiers, planReading, speedTiers, label, mode,
         {tabs.map((t, i) => <button key={t.id} id={`${id}-${t.id}-tab`} role="tab" type="button" aria-selected={tab === t.id} aria-controls={`${id}-${t.id}-panel`} tabIndex={tab === t.id ? 0 : -1} onKeyDown={e => tabKey(e, i)} onClick={() => setTab(t.id)}>{t.name}</button>)}
       </div>}
       <div className={styles.body} role={tabs.length > 1 ? "tabpanel" : "region"} id={`${id}-${tab}-panel`} aria-labelledby={tabs.length > 1 ? `${id}-${tab}-tab` : undefined} aria-label={tabs.length > 1 ? undefined : `${label} settings`}>{tab === "models" && hasModels ? modelPanel : tab === "display" && displayPanel ? displayPanel : dataPanel}</div>
+      <ChartComposer label={label} context={agentContext} apply={applyAgent} />
     </div>}
   </details>;
 }

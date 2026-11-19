@@ -1,6 +1,6 @@
 "use client";
 import { planResetsProps, usePlanResetsOn, withResetsPref } from "@/lib/plan-resets-pref";
-import { planPicker, useSubscriptionPlansPref, withPlansPref } from "@/lib/subscription-plans-pref";
+import { planPicker, useAdjustedSnapshot, useSubscriptionPlansPref, withPlansPref } from "@/lib/subscription-plans-pref";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MixAssistant } from "./MixAssistant";
 import { SharedChart } from "./SharedChart";
@@ -64,7 +64,9 @@ export function Builder({ snapshot: base, initialIndices }: { snapshot: Snapshot
   const [live, setLive] = useState({ base, snapshot: base });
   const sourceSnapshot = live.base === base ? live.snapshot : base;
   const receiveSnapshot = useCallback((s: Snapshot) => setLive({ base, snapshot: s }), [base]);
-  const snapshot = useMemo(() => mergeImports(sourceSnapshot, local).snapshot, [sourceSnapshot, local]);
+  const merged = useMemo(() => mergeImports(sourceSnapshot, local).snapshot, [sourceSnapshot, local]);
+  // The visitor's plan adjustments (bonus credits and the like, from a chart's settings agent) price every chart.
+  const snapshot = useAdjustedSnapshot(merged);
   // URL is the source of truth for anonymous builds; multiple `i` params = multiple indices.
   const { value: indices, set: setIndices, load: loadIndices, undo, canUndo } = useUndoable<IndexConfig[]>(() => (initialIndices.length ? withoutPristineDefault(initialIndices) : [aaIndexMix(base)]));
   // Restore the last edited indices when the URL carries none, and persist

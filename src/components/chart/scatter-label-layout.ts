@@ -19,7 +19,8 @@ export function scatterLabelLayout(width: () => number | undefined, height: () =
     // came through at 100%). Scale it up to the configured font size, which is known. The canvas also measures text with a
     // fallback font that is a few percent narrower than the web font, so the reserve is a little wider than the text.
     const want = (fontPx?.[index] ?? 0) * 1.13, grow = want > r.height ? want / r.height : 1;
-    const tw = r.width * grow * 1.08, th = Math.max(r.height, want);
+    // Above about twice the default size the stale box underestimates more, so the reserve widens with it.
+    const tw = r.width * grow * (grow > 1.6 ? 1.16 : 1.08), th = Math.max(r.height, want);
     const reserve = tw + 12, tall = th + 8;
     const own = { x: p.rect.x + p.rect.width / 2, y: p.rect.y + p.rect.height / 2 };
     // Other marks, not this one (it sits within a few pixels of its own center).

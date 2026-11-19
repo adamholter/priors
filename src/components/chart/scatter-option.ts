@@ -10,7 +10,7 @@ import { labelScale } from "./label-size";
 import { logTicks, type ZoomBox } from "./chart-zoom";
 
 export interface ScatterPoint { /** Users and turns behind a real-use measurement (T3 Code). */ users?: number; turns?: number; x: number; r: RankedVariant; /** untransformed value for tooltips/export when x is transformed */ raw?: number; /** Costs nothing: drawn on the "free" line left of the cheapest paid point. */ free?: boolean }
-export interface ScatterView { labelScale?: number; scale?: "log" | "linear"; density: number; frontier: boolean; links: boolean; /** The user explicitly toggled the frontier rather than saving an old default. */ frontierChosen?: boolean; /** Dashed axis guides for highlighted efforts (default on). */ guides?: boolean; kind?: "scatter" | "bars"; /** The user picked `kind` (vs. the chart default). */ kindChosen?: boolean; /** Advanced: a custom formula that replaces the chart's metric (src/lib/formula.ts), and which direction is better. */ formula?: string; formulaBetter?: "higher" | "lower"; /** Every model on the chart, instead of the frontier and current flagships (src/lib/chart-focus.ts). */ allModels?: boolean; /** Advanced: only the models on the Pareto frontier, as the chart's pricing draws it (so API and subscription pricing can differ). */ paretoOnly?: boolean; /** Advanced: hide real-use points (T3 Code) resting on fewer users than this. */ minUsers?: number }
+export interface ScatterView { labelScale?: number; /** Lab: dot and line size multipliers (1 = default). */ dotScale?: number; lineScale?: number; scale?: "log" | "linear"; density: number; frontier: boolean; links: boolean; /** The user explicitly toggled the frontier rather than saving an old default. */ frontierChosen?: boolean; /** Dashed axis guides for highlighted efforts (default on). */ guides?: boolean; kind?: "scatter" | "bars"; /** The user picked `kind` (vs. the chart default). */ kindChosen?: boolean; /** Advanced: a custom formula that replaces the chart's metric (src/lib/formula.ts), and which direction is better. */ formula?: string; formulaBetter?: "higher" | "lower"; /** Every model on the chart, instead of the frontier and current flagships (src/lib/chart-focus.ts). */ allModels?: boolean; /** Advanced: only the models on the Pareto frontier, as the chart's pricing draws it (so API and subscription pricing can differ). */ paretoOnly?: boolean; /** Advanced: hide real-use points (T3 Code) resting on fewer users than this. */ minUsers?: number }
 /**
  * Emphasis for chosen models. `items` are model ids (feature that model's best effort) or variant ids
  * (feature exactly that effort); a model may have several featured efforts. Everything else recedes
@@ -30,6 +30,8 @@ export function featuredPoints(pts: ScatterPoint[], items: string[]): ScatterPoi
 }
 /** Models touched by a highlight (a variant item highlights its whole model). */
 export const highlightedModels = (items: string[]) => new Set(items.flatMap((it) => tierModelIds(it.split("@")[0])));
+/** Dot size and line width multipliers: 0.5 to 3, unset at the default. */
+export const markScale = (v: unknown) => typeof v === "number" && Number.isFinite(v) && v !== 1 ? Math.max(0.5, Math.min(3, v)) : undefined;
 export const DEFAULT_VIEW: ScatterView = { density: 0.45, frontier: true, links: true, kind: "scatter" };
 
 /** Preserve explicit choices while letting a changed chart default replace old implicit saves. */
@@ -37,6 +39,7 @@ export function restoreScatterView(kind: "bars" | "scatter" = "scatter", frontie
   return {
     ...DEFAULT_VIEW, ...saved,
     labelScale: saved?.labelScale == null ? undefined : labelScale(saved.labelScale),
+    dotScale: markScale(saved?.dotScale), lineScale: markScale(saved?.lineScale),
     scale: saved?.scale === "log" || saved?.scale === "linear" ? saved.scale : undefined,
     kind: saved?.kindChosen || saved?.kind === "bars" ? saved.kind : kind,
     frontier: !frontier && !saved?.frontierChosen ? false : saved?.frontier ?? frontier,
@@ -120,7 +123,7 @@ export function scatterOption({ pts, labs, better, xName, xShort, xUnit = "", sc
   zoom?: { range: ZoomBox; context: ScatterPoint[] };
 }): EChartsOption {
   const frontier = frontierOf(zoom?.context ?? pts, better);
-  const t = textSize(pal), m = markSize(pal), fontScale = labelScale(view.labelScale) * t;
+  const t = textSize(pal), m = markSize(pal) * (markScale(view.dotScale) ?? 1), lw = markScale(view.lineScale) ?? 1, fontScale = labelScale(view.labelScale) * t;
   const color = new Map(labs.map((l) => [l.id, markColor(l.color, pal, l.id)]));
   const onFrontier = new Set(frontier.map((p) => p.r.variant.id));
   const labeled = pickLabels(pts, better, narrow ? view.density ** 2 : view.density);
@@ -163,8 +166,8 @@ export function scatterOption({ pts, labs, better, xName, xShort, xUnit = "", sc
   } : dots;
   const marks = drawOrder.map((p) => ({ name: chartLabel(p.r), value: [p.x, p.r.score], id: p.r.variant.id, extra: p, ...markOf(p) }));
   const series: EChartsOption["series"] = [
-    ...links.map((v) => { const mine = hl.has(v[0].r.model.id), c = color.get(v[0].r.model.labId); return { type: "line" as const, id: `link-${v[0].r.model.id}`, data: v.map((p) => ({ id: p.r.variant.id, value: [p.x, p.r.score] })), showSymbol: false, lineStyle: { color: on && !mine ? dimColor(c, pal) : c, width: mine ? 2 : 1, opacity: mine ? 1 : on ? 0.25 : pal.dark ? 0.45 : 0.35 }, silent: true, animationDuration: 500, z: mine ? 4 : 1 }; }),
-    ...(view.frontier && frontier.length > 1 ? [{ type: "line" as const, id: "frontier", data: frontier.map((p) => ({ id: p.r.variant.id, value: [p.x, p.r.score] })), showSymbol: false, lineStyle: { color: pal.style?.frontierColor ?? pal.ink, width: pal.style?.frontier === "dotted" ? 1.6 : 1.4, type: (pal.style?.frontier === "dotted" ? [2, 3] : "solid") as number[] | "solid", opacity: on ? 0.3 : 1 }, silent: true, animationDuration: 500, z: 2 }] : []),
+    ...links.map((v) => { const mine = hl.has(v[0].r.model.id), c = color.get(v[0].r.model.labId); return { type: "line" as const, id: `link-${v[0].r.model.id}`, data: v.map((p) => ({ id: p.r.variant.id, value: [p.x, p.r.score] })), showSymbol: false, lineStyle: { color: on && !mine ? dimColor(c, pal) : c, width: (mine ? 2 : 1) * lw, opacity: mine ? 1 : on ? 0.25 : pal.dark ? 0.45 : 0.35 }, silent: true, animationDuration: 500, z: mine ? 4 : 1 }; }),
+    ...(view.frontier && frontier.length > 1 ? [{ type: "line" as const, id: "frontier", data: frontier.map((p) => ({ id: p.r.variant.id, value: [p.x, p.r.score] })), showSymbol: false, lineStyle: { color: pal.style?.frontierColor ?? pal.ink, width: (pal.style?.frontier === "dotted" ? 1.6 : 1.4) * lw, type: (pal.style?.frontier === "dotted" ? [2, 3] : "solid") as number[] | "solid", opacity: on ? 0.3 : 1 }, silent: true, animationDuration: 500, z: 2 }] : []),
     {
       // Keep marks and their label backgrounds above highlighted effort links (z: 4).
       type: "scatter", id: "marks", z: 5,

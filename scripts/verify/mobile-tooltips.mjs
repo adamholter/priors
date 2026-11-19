@@ -89,10 +89,10 @@ for (const [pname, profile] of Object.entries(PROFILES)) for (const scheme of ["
     const menu = details.locator(".chart-settings-menu");
     await menu.getByRole("tab", { name: "Data" }).tap();
     await menu.locator("summary", { hasText: "Subscription plans" }).tap();
-    const google = menu.getByLabel("Google plan", { exact: true });
-    const student = (await google.locator("option").evaluateAll((os) => os.map((o) => o.textContent))).find((t) => /^Google AI Pro \(Student\)/.test(t));
-    assert.ok(student, "Google AI Pro (Student) is a plan option");
-    await google.selectOption({ label: student });
+    await menu.locator(".pp-lab[data-lab='google'] .pp-head").tap();
+    const student = menu.getByRole("radiogroup", { name: "Google plan" }).getByRole("radio").filter({ has: p.locator(".pp-label", { hasText: /^Google AI Pro \(Student\)/ }) }).first();
+    assert.ok(await student.count(), "Google AI Pro (Student) is a plan option");
+    await student.tap();
     await menu.getByLabel("Student offer").waitFor();
     await shot("student-menu");
     const mr = await menu.evaluate((el) => { const r = el.getBoundingClientRect(); return { left: r.left, right: r.right, top: 0, bottom: 0 }; });
