@@ -35,8 +35,8 @@ export interface LaunchClaim {
  * v5.0.1 (its cost is AA's cost per Intelligence Index task, to the cent for Opus 5.5, Fable 5.2, GPT-6 Astra and GPT-6.1 Sol),
  * Harvey LAB-AA v1.1, and the text's AA-3D Elo (Fable 5.2's 1,271 matches AA) and AA-AnalystAgent (62.5%, AA's own measure; both at max,
  * as AA runs these models). Left out: Terminal-Bench-Science 0.1 and FrontierCode 2.0 (OpenAI's reference scores differ from every board
- * here, so another harness), AutomationBench 1.0.6 (Zapier's board already lists both, at the same numbers), Vals Science Index v1 and
- * BenchCAD 2.1 Core (not tracked), and the internal or untracked ones (GDPval v2, LifeVal, SecureSWE, PatchBench, ExploitBench, DeepBinary).
+ * here, so another harness), AutomationBench 1.0.6 and BenchCAD 2.1 Core (their own boards already list these, at the same numbers), Vals Science
+ * Index v1 (not tracked), and the internal or untracked ones (GDPval v2, LifeVal, SecureSWE, PatchBench, ExploitBench, DeepBinary).
  * The post loaded only through a reader (openai.com served it as an error page); the numbers are the charts' own data.
  */
 const BLOG_62 = "https://openai.com/index/introducing-gpt-6-2-astra-sol/";
