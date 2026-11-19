@@ -57,14 +57,20 @@ describe("checking for models the site does not show yet", () => {
     expect(added).toEqual(["new-1", "held-1"]);
     expect(payload.rows.find((r) => r[0] === "held-1")?.[1]).toBe(1200);
   });
-  it("leaves published models and anything with turns older than the week alone", () => {
-    const old = row("old-1", ["low", 5000], ["high", 5000], ["max", 5000]), shown = row("shown-1", ["low", 10], ["high", 10], ["max", 10]);
+  it("leaves published models that have not grown fast, and anything with turns older than the week, alone", () => {
+    const old = row("old-1", ["low", 5000], ["high", 5000], ["max", 5000]), shown = row("shown-1", ["low", 350], ["high", 350], ["max", 350]);
     const start = day(old, shown);
     const { payload, added } = mergeWatched(start, [row("old-1", ...enough), row("shown-1", ...enough)], (b) => b === "shown-1");
     expect(added).toEqual([]);
     expect(payload).toBe(start);
   });
   it("waits for enough turns at enough efforts", () => {
+    // A published model days old: refreshed once the week holds a quarter more turns than the day's query, not before.
+    const young = day(row("young-1", ...enough));
+    expect(mergeWatched(young, [row("young-1", ["low", 450], ["high", 450], ["max", 450])], () => true).added).toEqual([]);
+    const grown = mergeWatched(young, [row("young-1", ["low", 600], ["high", 600], ["max", 600])], () => true);
+    expect(grown.added).toEqual(["young-1"]);
+    expect(grown.payload.rows.find((r) => r[0] === "young-1")?.[1]).toBe(1800);
     expect(mergeWatched(day(), [row("thin-1", ["low", 100], ["high", 100], ["max", 100])], () => false).added).toEqual([]);
     expect(mergeWatched(day(), [row("two-1", ["low", 800], ["high", 800])], () => false).added).toEqual([]);
     expect(mergeWatched(day(), [row("unstated-1", ["", 5000], ["low", 400], ["high", 400])], () => false).added).toEqual([]);

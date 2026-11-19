@@ -32,10 +32,12 @@ const DAYS = 30, CACHE_HOURS = 20, CACHE_MAX_DAYS = 7;
 /**
  * Between the daily queries, every scrape (15 minutes) runs the same query over the last week and looks only at models the site does
  * not show yet: just released, or held by scripts/scrape/t3-costs.ts until their cost rises with effort. One enters the day's data once
- * it has this many turns at this many stated efforts, so a chance fit in a launch's first hour does not go up. Published models keep
- * their daily figures, so this does not republish the site every 15 minutes.
+ * it has this many turns at this many stated efforts, so a chance fit in a launch's first hour does not go up. A published model keeps
+ * its daily figures unless the week holds WATCH_GROWTH times the day's turns: only a model days old grows that fast in under a day
+ * (Gemini 4 Neon doubled between the morning query and the evening, November 19), and then the week is its whole history. Each
+ * refresh raises the bar, so this does not republish the site every 15 minutes.
  */
-const WATCH_DAYS = 7, WATCH_MIN_TURNS = 1_000, WATCH_MIN_EFFORTS = 3;
+const WATCH_DAYS = 7, WATCH_MIN_TURNS = 1_000, WATCH_MIN_EFFORTS = 3, WATCH_GROWTH = 1.25;
 const EFFORTS = new Set(["none", "minimal", "low", "medium", "high", "xhigh", "max"]);
 /** Ids that are not the plain model: provider or region prefixes (`openai.`, `us.anthropic.`), fast and sovereign modes, composites, an effort in a non-Gemini id, and aliases with no version (`opus`). */
 const NOT_PLAIN = /[:[\]"\s/]|^[a-z-]+\.|^fusion-|-(fast|build|turbo|sidekick|ultrafast|sovereign|latest)(-|$)|-(minimal|low|medium|high|xhigh|max)$|^[^0-9]*$/;
@@ -113,16 +115,17 @@ export function parseT3Telemetry(p: T3Payload): Pick<ScrapeResult, "benchmarks" 
 }
 
 /**
- * The day's payload with last week's rows for models the site lacks. A model with turns older than the week has more in the 30-day
- * payload than in `week`, and stays as it is: a week's slice would misstate it.
+ * The day's payload with last week's rows for models the site lacks, and for published ones whose week already holds WATCH_GROWTH times
+ * the day's turns. A model with turns older than the week has more in the 30-day payload than in `week`, and stays as it is: a week's
+ * slice would misstate it.
  */
 export function mergeWatched(day: T3Payload, week: T3Payload["rows"], published: (base: string) => boolean): { payload: T3Payload; added: string[] } {
   const rows = new Map(day.rows.map((r) => [r[0], r]));
   const added: string[] = [];
   for (const row of week) {
     const [base, total, efforts] = row, known = rows.get(base), stated = efforts.filter(([eff]) => EFFORTS.has(eff));
-    if (!base || NOT_PLAIN.test(base) || published(base) || stated.length < WATCH_MIN_EFFORTS || stated.reduce((a, [, n]) => a + n, 0) < WATCH_MIN_TURNS) continue;
-    if (known && (known[1] > total || JSON.stringify(known) === JSON.stringify(row))) continue;
+    if (!base || NOT_PLAIN.test(base) || stated.length < WATCH_MIN_EFFORTS || stated.reduce((a, [, n]) => a + n, 0) < WATCH_MIN_TURNS) continue;
+    if (published(base) ? !known || total < WATCH_GROWTH * known[1] : known && (known[1] > total || JSON.stringify(known) === JSON.stringify(row))) continue;
     rows.set(base, row);
     added.push(base);
   }
