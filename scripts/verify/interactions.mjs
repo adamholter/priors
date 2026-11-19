@@ -644,19 +644,43 @@ try {
       const glm = await options(zhipu);
       for (const rate of ["(off-peak)", "(mixed)", "(peak)"]) assert.ok(glm.some((t) => t.includes(rate)), `GLM Coding lists its ${rate} option`);
       const medians = await zhipu.getAttribute("title");
-      assert.match(medians, /GLM Coding Pro ¥538 \(off-peak\)/, `GLM-5.3 defaults to GLM Coding Pro off-peak: ${medians}`);
+      // Z.ai's models default to their best-subsidized plan, often a reseller's; when that is a GLM Coding plan, it is the off-peak one.
+      assert.ok(medians, "the Z.ai picker names each model's default plan");
+      for (const p of medians.match(/GLM Coding [^:,]*/g) ?? []) assert.match(p, /\(off-peak\)$/, `a GLM Coding default is off-peak: ${medians}`);
       assert.doesNotMatch(medians, /\((peak|mixed)\)/, "no model defaults to a peak or mixed option");
-      const svgBefore = await svg(), xBefore = await labelX("Gemini 4 Hydrogen"), rankBefore = await rank();
-      assert.ok(xBefore != null, "the cost chart labels Gemini 4 Hydrogen");
+      const svgBefore = await svg(), rankBefore = await rank();
+      assert.ok(await labelX("Gemini 4 Hydrogen") != null, "the cost chart labels Gemini 4 Hydrogen");
+      // Pixels are no measure here: a free model adds a "free" column and rescales the axis. Read the cost off the mark's card instead.
+      const point = c.getByRole("status", { name: "Selected model" });
+      const costOf = async (name) => {
+        await c.keyboard.press("Escape"); // The open menu covers the chart.
+        for (let tries = 0; tries < 5; tries++) {
+          const r = await chart.locator("svg text", { hasText: name }).first().boundingBox();
+          await c.mouse.move(r.x + r.width / 2, r.y + r.height / 2, { steps: 4 });
+          if (await point.waitFor({ timeout: 1500 }).then(() => true, () => false)) { const t = await point.innerText(); await c.mouse.move(0, 0); return t; }
+          await c.mouse.move(0, 0);
+        }
+        return null;
+      };
+      const reopen = async () => {
+        if (!(await menu.isVisible())) await picker.locator("summary[aria-label='Pareto settings']").click();
+        await menu.getByRole("tab", { name: "Data" }).click();
+        if (!(await google.isVisible())) await menu.locator("summary", { hasText: "Subscription plans" }).click();
+      };
+      const hydrogenBefore = await costOf("Gemini 4 Hydrogen");
+      assert.match(hydrogenBefore ?? "", /per task[\s\S]*Google AI Pro/, `Hydrogen's card shows its cost on Google AI Pro: ${hydrogenBefore}`);
+      await reopen();
       await google.selectOption({ label: (await options(google)).find((t) => /^Google AI Pro \(Student\)/.test(t)) });
       const card = menu.getByLabel("Student offer");
       await card.waitFor();
       assert.match(await card.innerText(), /Free for 12 months, then \$19.99\/mo[\s\S]*Students at a US college/);
       assert.match(await card.locator("a").getAttribute("href"), /^https:\/\/(gemini\.google|blog\.google)\//, "links the official page");
       await c.waitForTimeout(900);
-      const xAfter = await labelX("Gemini 4 Hydrogen");
-      assert.ok(xAfter != null && Math.abs(xAfter - xBefore) < 4, `Hydrogen keeps its paid price (not in the free trial): ${xBefore} -> ${xAfter}`);
+      const hydrogenAfter = await costOf("Gemini 4 Hydrogen");
+      assert.equal(hydrogenAfter, hydrogenBefore, "Hydrogen keeps its paid price (not in the free trial)");
+      assert.match(await costOf("Gemini 3.8 Flash") ?? "", /free[\s\S]*Google AI Pro \(Student\)/, "Gemini 3.8 Flash is free on the student plan");
       assert.equal(await rank(), rankBefore, "the ranking is unchanged");
+      await reopen();
       await google.selectOption("");
       await card.waitFor({ state: "detached" });
       await c.waitForTimeout(900);

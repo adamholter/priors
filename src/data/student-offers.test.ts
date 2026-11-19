@@ -74,7 +74,11 @@ describe("student offers", () => {
     // The free year is a trial in Antigravity: Hydrogen and Argon are not in it, so they keep the paid price.
     for (const id of [hydrogen, argon]) if (id) expect(student.get(id), id).toEqual(regular.get(id));
     for (const [id, p] of regular) if (id !== flash) expect(student.get(id), id).toEqual(p);
-    const mistral = [...subscriptionPrices(snapshot)].find(([, p]) => p.plan === "Mistral Vibe Pro");
+    // The offer covers Mistral's own models: another lab's model a Mistral plan also sells keeps its price.
+    const labOf = new Map(snapshot.models.map((m) => [m.id, m.labId])), prices = [...subscriptionPrices(snapshot)];
+    const mistral = prices.find(([id, p]) => p.plan === "Mistral Vibe Pro" && labOf.get(id) === "mistral");
+    const other = prices.find(([id, p]) => p.plan === "Mistral Vibe Pro" && labOf.get(id) !== "mistral");
+    if (other) expect(subscriptionPrices(snapshot, { mistral: "Mistral Vibe Pro (Student)" }).get(other[0])).toEqual(other[1]);
     if (mistral) {
       const picked = subscriptionPrices(snapshot, { mistral: "Mistral Vibe Pro (Student)" }).get(mistral[0])!;
       expect(picked.ratio).toBeCloseTo(mistral[1].ratio * 5.99 / 14.99, 12);

@@ -51,8 +51,11 @@ describe("on today's snapshot", async () => {
     const ultra = ["Google AI Ultra 5x", "Google AI Ultra 20x"], listed = { ...snapshot, observations: [...snapshot.observations, row("claude-opus-5.5", ["Google AI Pro", ...ultra]), row("gemini-4-carbon", ultra)] };
     const opus = modelAvailability(listed, "claude-opus-5.5")!.plans.find((p) => p.plan === "Google AI Ultra 5x")!;
     expect(opus.ratio).toBeUndefined(); expect(opus.feeUsd).toBeGreaterThan(0);
-    const google = subsidySellers(listed).find((s) => s.id === "google")!, plan = google.plans[0];
-    expect(plan.plan).toBe("Google AI Ultra 5x");
+    // Google opens on the plan selling its best-ranked model that any Google plan sells (each model sits on its best-subsidized plan).
+    const google = subsidySellers(listed).find((s) => s.id === "google")!, onGoogle = new Set(google.plans.flatMap((p) => p.models.map((m) => m.id)));
+    const best = ranked.find((r) => r.model.labId === "google" && onGoogle.has(r.model.id))!.model.id;
+    expect(google.plans[0].models.some((m) => m.id === best), best).toBe(true);
+    const plan = google.plans.find((p) => p.plan === "Google AI Ultra 5x")!;
     expect(plan.models.find((m) => m.id === "gemini-4-carbon")?.multiple).toBeGreaterThan(0);
     expect(plan.models.at(-1)!.multiple).toBeUndefined();
     expect(plan.models.some((m) => m.id === "claude-opus-5.5")).toBe(true);
