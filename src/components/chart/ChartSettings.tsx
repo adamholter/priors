@@ -7,6 +7,7 @@ import type { TaskMetricSource } from "@/data/task-metrics";
 import { useLightDismiss } from "@/lib/useLightDismiss";
 import { EFFORT_CHOICES } from "@/engine";
 import { isHighlighted, toggleModel, useHighlight } from "./highlight";
+import { readChart } from "./chart-reading";
 import type { ScatterView } from "./ScoreScatter";
 import { labelScale } from "./label-size";
 import { chartLinkUrl } from "@/lib/highlight-link";
@@ -177,23 +178,34 @@ export function ChartSettings({ freeTiers, planReading, speedTiers, label, mode,
     }} /></div>
     {scatter && ([["dotScale", "Dot size", `${label} dot size`], ["lineScale", "Line width", `${label} line width`]] as const).map(([key, name, aria]) => { const v = Math.round((scatter.view[key] ?? 1) * 100); return <div key={key} className={styles.labels}><div><label htmlFor={`${id}-${key}`}>{name}</label><span>{v}%</span></div><input aria-label={aria} id={`${id}-${key}`} type="range" min={50} max={fullscreen ? 300 : 200} step={10} value={v} onChange={e => scatter.onView({ ...scatter.view, [key]: +e.target.value / 100 })} /></div>; })}
   </>;
-  /** The composer's view of this chart: its settings and the data it can change, as plain lines for the agent. */
-  const agentContext = () => {
-    const lines = [`Chart: ${label}${fullscreen ? " (full screen)" : ""}`];
-    if (view) lines.push(`View: ${JSON.stringify({ kind: view.kind ?? "scatter", labelScale: view.labelScale ?? 1, dotScale: view.dotScale ?? 1, lineScale: view.lineScale ?? 1, density: view.density, frontier: view.frontier, links: view.links, scale: view.scale ?? defaultScale, allModels: !!view.allModels, paretoOnly: !!view.paretoOnly })}`);
-    lines.push(`Showing: ${mode === "all" ? "all efforts" : "best effort per model"}${efforts ? `; efforts on: ${efforts.value.join(", ")}` : ""}${releasedAfter !== undefined ? `; released after: ${releasedAfter || "all time"}` : ""}`);
+  /** The composer's view of this chart: what it draws right now (read from the page), every setting, and the data it can change. */
+  const agentContext = async () => {
+    const lines = [`Chart: ${label}${fullscreen ? " (full screen)" : ""}`, await readChart(root.current)];
+    if (view) lines.push(`View: ${JSON.stringify({ kind: view.kind ?? "scatter", labelScale: view.labelScale ?? 1, dotScale: view.dotScale ?? 1, lineScale: view.lineScale ?? 1, density: view.density, frontier: view.frontier, links: view.links, guides: view.guides !== false, scale: view.scale ?? defaultScale, allModels: !!view.allModels, paretoOnly: !!view.paretoOnly, formula: view.formula || "", formulaBetter: view.formulaBetter ?? "higher" })}; background grid: ${gridOn ? "on" : "off"}`);
+    lines.push(`Showing: ${mode === "all" ? "all efforts" : "best effort per model"}${efforts ? `; efforts on: ${efforts.value.join(", ") || "none"} (of ${EFFORT_CHOICES.join(", ")})` : ""}${releasedAfter !== undefined ? `; released after: ${releasedAfter || "all time"}` : onChangeReleased ? "; released: last 6 months (default)" : ""}`);
     if (costBasis) lines.push(`Pricing: ${costBasis.value}`);
-    if (dataSource) lines.push(`Data source: ${dataSource.value} (options: ${dataSource.options.map((o) => o.id).join(", ")})`);
-    if (freeTiers) lines.push(`Free tiers: ${freeTiers.value}`);
-    if (planResets) lines.push(`Limit resets counted: ${planResets.value}`);
-    if (planReading) lines.push(`Plan reading for ${planReading.models.map((m) => m.name).join(", ")}: ${planReading.value} (options: ${planReading.options.map((o) => `${o.id} = ${o.name}`).join(", ")})`);
+    if (dataSource) lines.push(`Data source: ${dataSource.value} (options: ${dataSource.options.map((o) => `${o.id} = ${o.name}, ${o.modelCount} models`).join("; ")})`);
+    if (minUsers) lines.push(`Minimum T3 Code users per point: ${minUsers.value ?? `any (data floor ${minUsers.floor})`}`);
+    if (speedTiers) lines.push(`Speed tiers on: ${speedTiers.value.join(", ")} (available: ${speedTiers.rows.map((r) => `${r.tier} = ${r.name}: ${r.text}`).join("; ")})`);
+    if (freeTiers) lines.push(`Free tiers: ${freeTiers.value} (${freeTiers.generous} models free in real volume, ${freeTiers.limited} more only rate-limited)`);
+    if (planResets) lines.push(`Limit resets counted: ${planResets.value}${planResets.rows?.length ? ` (${planResets.rows.map((r) => `${r.lab}: ${r.text}`).join("; ")})` : ""}`);
+    if (planReading) lines.push(`Plan reading for ${planReading.models.map((m) => m.name).join(", ")}: ${planReading.value} (options: ${planReading.options.map((o) => `${o.id} = ${o.name}: ${o.note}`).join("; ")})`);
     if (subscriptionPlans) lines.push("Plans by lab (id: plan · fee · API value per dollar ≈ API value a month; * = picked):", ...subscriptionPlans.labs.map((l) => `- ${l.labId} (${l.name}), now ${subscriptionPlans.value[l.labId] ? `${subscriptionPlans.value[l.labId]}*` : l.median.map((m) => m.plan).join(" / ") || "none"}: ${l.plans.map((p) => { const m = p.multiple; return `${p.plan}${p.feeUsd ? ` · $${p.feeUsd}/mo` : ""}${m ? ` · ${m.toFixed(1)}x ≈ $${Math.round(m * (p.feeUsd ?? 0)).toLocaleString("en-US")}/mo` : ""}`; }).join("; ")}`));
-    if (models.length) lines.push(`Models (id | name | lab | shown): ${models.map((m) => `${m.id} | ${m.name} | ${m.lab ?? ""} | ${excluded?.has(m.id) ? "hidden" : "shown"}`).join("; ")}`);
+    if (formula) { try { lines.push(`Formula variables: ${JSON.stringify(formula.variables()).slice(0, 3000)}`); } catch { /* no variables */ } }
+    if (hl) lines.push(`Highlighted: ${hl.items.length ? hl.items.join(", ") : "none"}`);
+    if (models.length) lines.push(`Models in the Models list (id | name | lab | shown or hidden): ${models.map((m) => `${m.id} | ${m.name} | ${m.lab ?? ""} | ${excluded?.has(m.id) ? "hidden" : "shown"}`).join("; ")}`);
     if (adjustments.length) lines.push(`Data adjustments already on: ${JSON.stringify(adjustments)}`);
-    return lines.join("\n");
+    return lines.filter(Boolean).join("\n");
   };
   const applyAgent = (c: ChartChanges) => {
-    if (c.view && view && onView) { const clamp = (v: number | undefined, lo: number, hi: number) => v == null ? undefined : Math.min(hi, Math.max(lo, v)); const next = { ...view, ...c.view }; onView({ ...next, labelScale: clamp(next.labelScale, 0.75, 3), dotScale: clamp(next.dotScale, 0.5, 3), lineScale: clamp(next.lineScale, 0.5, 3), density: clamp(next.density, 0, 1) ?? view.density, ...(c.view.frontier !== undefined ? { frontierChosen: true } : {}), ...(c.view.kind ? { kindChosen: true } : {}) }); }
+    if (c.view && view && onView) {
+      const clamp = (v: number | undefined, lo: number, hi: number) => v == null ? undefined : Math.min(hi, Math.max(lo, v));
+      const { formula: f, ...rest } = c.view, next = { ...view, ...rest };
+      // A formula applies only when this chart offers one and it checks out; "" clears it.
+      const formulaOk = f !== undefined && formula && (f.trim() === "" || !("error" in formula.check(f.trim())));
+      onView({ ...next, ...(formulaOk ? { formula: f!.trim() } : {}), labelScale: clamp(next.labelScale, 0.75, 3), dotScale: clamp(next.dotScale, 0.5, 3), lineScale: clamp(next.lineScale, 0.5, 3), density: clamp(next.density, 0, 1) ?? view.density, ...(c.view.frontier !== undefined ? { frontierChosen: true } : {}), ...(c.view.kind ? { kindChosen: true } : {}) });
+    }
+    if (c.grid !== undefined && c.grid !== gridOn) setChartGridPref(c.grid, pal);
     const st = c.settings ?? {};
     if (st.costBasis && costBasis) costBasis.onChange(st.costBasis);
     if (st.efforts && efforts) efforts.onChange(EFFORT_CHOICES.filter((e) => st.efforts!.includes(e)));
@@ -203,11 +215,20 @@ export function ChartSettings({ freeTiers, planReading, speedTiers, label, mode,
     if (st.freeTiers && freeTiers) freeTiers.onChange(st.freeTiers);
     if (st.planResets !== undefined && planResets) planResets.onChange(st.planResets);
     if (st.planReading && planReading?.options.some((o) => o.id === st.planReading)) planReading.onChange(st.planReading);
+    if (st.minUsers !== undefined && minUsers) minUsers.onChange(st.minUsers == null || st.minUsers <= minUsers.floor ? undefined : Math.round(st.minUsers));
+    if (st.speedTiers !== undefined && speedTiers) { const ok = (st.speedTiers ?? []).filter((t) => t === "standard" || speedTiers.rows.some((r) => r.tier === t)); speedTiers.onChange(!ok.length || (ok.length === 1 && ok[0] === "standard") ? undefined : ok); }
     for (const p of c.plans ?? []) subscriptionPlans?.onChange(p.lab, p.plan ?? undefined);
     const known = new Set(models.map((m) => m.id));
     if (c.models?.showOnly?.length && onShowOnly) onShowOnly(c.models.showOnly.filter((m) => known.has(m)));
     for (const m of c.models?.hide ?? []) if (known.has(m) && !excluded?.has(m)) onToggleModel?.(m);
     for (const m of c.models?.show ?? []) if (known.has(m) && excluded?.has(m)) onToggleModel?.(m);
+    if (c.highlight && hl) {
+      const items = (c.highlight.models ?? []).filter(Boolean), has = (it: string) => hl.items.includes(it);
+      const next = c.highlight.mode === "clear" ? [] : c.highlight.mode === "set" ? items : c.highlight.mode === "add" ? [...hl.items, ...items.filter((it) => !has(it))] : hl.items.filter((it) => !items.includes(it) && !items.includes(it.split("@")[0]));
+      // A highlighted model that is hidden comes back, as starring it in the Models list does.
+      for (const it of next) { const m = it.split("@")[0]; if (excluded?.has(m)) onToggleModel?.(m); }
+      hl.set(next);
+    }
   };
   const tabs = [hasModels && { id: "models" as const, name: "Models" }, { id: "data" as const, name: "Data" }, displayPanel && { id: "display" as const, name: "Display" }].filter((t): t is { id: "models" | "data" | "display"; name: string } => !!t);
   const tabKey = (event: KeyboardEvent, current: number) => {

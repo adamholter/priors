@@ -744,7 +744,8 @@ try {
       // The model call is stubbed: the browser's side is what is checked (the bar, the working state, applying changes).
       let release;
       const gate = new Promise((r) => { release = r; });
-      await c.route("**/api/chart-agent", async (route) => { await gate; await route.fulfill({ json: { reply: "Made the names bigger and added your credits.", changes: { view: { labelScale: 2 }, dataOverrides: [{ kind: "subsidy", factor: 1.5, lab: "openai", note: "Bonus OpenAI credits" }] } } }); });
+      const sent = [];
+      await c.route("**/api/chart-agent", async (route) => { sent.push(route.request().postDataJSON()); await gate; await route.fulfill({ json: sent.length > 1 ? { reply: "Dots are bigger too.", changes: { view: { dotScale: 1.5 } } } : { reply: "Made the names bigger and added your credits.", changes: { view: { labelScale: 2 }, dataOverrides: [{ kind: "subsidy", factor: 1.5, lab: "openai", note: "Bonus OpenAI credits" }] } } }); });
       await c.goto(`${BASE}/builder`, { waitUntil: "domcontentloaded" });
       await c.locator(".ranking-list [data-k]").first().waitFor({ timeout: 30000 });
       const settings = c.locator("details[name=chart-settings]");
@@ -767,9 +768,22 @@ try {
       await menu.getByRole("button", { name: "Send" }).click();
       await menu.getByRole("button", { name: "Working" }).waitFor();
       assert.ok(await menu.locator(".cc-root[data-busy] .cc-dots").isVisible(), "the send button shows the working dots");
+      // The agent sees what the chart draws: its axes and every plotted point, read from the page, not just the settings.
+      for (let i = 0; !sent.length && i < 100; i++) await c.waitForTimeout(100);
+      await import("node:fs").then((fs) => process.env.CHART_AGENT_CONTEXT_OUT && fs.writeFileSync(process.env.CHART_AGENT_CONTEXT_OUT, sent[0].context));
+      assert.match(sent[0].context, /Plotted \(x, y\):/, "the context carries the plotted points");
+      assert.match(sent[0].context, /scatter .*\(\d+ points\): [^;]+ \[[^\]]+@[a-z]+\] \(/, "each point has its name, variant id and values");
+      assert.match(sent[0].context, /Visible text on the chart card: /);
+      assert.ok(!/Ask for a change/.test(sent[0].context.split("Plotted")[0]), "the settings menu's own text is left out");
       release();
-      await menu.locator(".cc-reply").waitFor();
-      assert.match(await menu.locator(".cc-reply").innerText(), /bigger/);
+      await menu.locator(".cc-turn.is-assistant").waitFor();
+      assert.match(await menu.locator(".cc-turn.is-assistant").last().innerText(), /bigger/);
+      assert.match(await menu.locator(".cc-turn.is-user").first().innerText(), /bonus OpenAI credits/, "the conversation shows what was asked");
+      // A follow-up carries the conversation so far.
+      await menu.locator(".cc-pill input").fill("and the dots too");
+      await menu.getByRole("button", { name: "Send" }).click();
+      await menu.locator(".cc-turn.is-assistant").nth(1).waitFor();
+      assert.deepEqual(sent[1].history.map((t) => t.role), ["user", "assistant"], "the follow-up sends the earlier turns");
       assert.equal(await menu.getByLabel(/label size$/).inputValue(), "200", "the view change is applied");
       assert.match(await menu.locator(".cc-adjustments").innerText(), /Bonus OpenAI credits/);
       assert.match(await c.evaluate(() => localStorage.getItem("priors:plan-adjustments") ?? ""), /"factor":1.5/);
