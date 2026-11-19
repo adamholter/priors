@@ -21,6 +21,9 @@ import { labelCollisions, swallowedTiers } from "./label-collisions";
 import { applyLaunchClaims } from "./launch-claims";
 import { applyT3Costs } from "./t3-costs";
 import { withCommonDefaults } from "../../src/data/plan-defaults";
+import { newModelStats, withToday } from "../../src/data/new-models";
+import { decodeHistoryArchive, HISTORY_ARCHIVE } from "../../src/lib/history-archive";
+import { inferredObservation } from "../../src/engine";
 import { applyVersionSplits, loadFrozen, saveFrozen } from "./version-splits";
 import { fetchFreeTiers } from "./free-tiers";
 import { applyFreeTiers, carriedFreeTiers } from "../../src/data/free-tier";
@@ -408,6 +411,14 @@ async function main() {
   snap.models = weights.models;
   console.log(`OPEN_WEIGHTS ${weights.models.filter((m) => m.openWeights === true).length} open, ${weights.models.filter((m) => m.openWeights === false).length} closed, ${weights.unknown.length} unknown`);
   await mkdir(SNAP_DIR, { recursive: true });
+  // How quickly each benchmark adds new models (src/data/new-models.ts): first-seen dates from the history the last build wrote, plus today's rows.
+  // Without that file (a fresh checkout) nothing is measured and the quality score falls back to coverage of today's top models.
+  try {
+    const archive = decodeHistoryArchive(await readFile(path.join(SNAP_DIR, HISTORY_ARCHIVE)));
+    const stats = newModelStats(snap, withToday(archive.firstSeen(), snap, inferredObservation), archive.dates[0]);
+    snap.benchmarks = snap.benchmarks.map((b) => { const { newModels: _old, ...rest } = b, s = stats.get(b.id); return s ? { ...rest, newModels: s } : rest; });
+    console.log(`NEW_MODELS measured on ${stats.size} of ${snap.benchmarks.length} benchmarks`);
+  } catch (e) { console.log(`NEW_MODELS skipped: ${e instanceof Error ? e.message : String(e)}`); }
   const json = JSON.stringify(snap);
   // gz only: ~130 KB/day committed to the repo is the backup and the time-travel archive.
   const gz = gzipSync(json);

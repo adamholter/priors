@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { computeIndex } from "@/engine";
 import { loadSnapshot } from "@/data/load";
 import { subscriptionPrices } from "@/data/subscription";
+import { benchmarkQuality } from "@/onboarding/quality";
 import { benchmarkIndex, benchmarkSnapshot, benchmarkView, directoryItems, hasOwnCost } from "./benchmark-page";
 
 describe("benchmark pages", async () => {
@@ -14,8 +15,13 @@ describe("benchmark pages", async () => {
     const fake = (higherIsBetter: boolean) => ({ ...snap, benchmarks: [{ ...benchmark, id: "t", proxy: undefined, higherIsBetter }], observations: [
       { ...row, variantId: variant(a), value: 10 }, { ...row, variantId: variant(b), value: 20 }, { ...row, variantId: variant(a), value: 99, details: { priorsEstimate: true } },
     ] });
-    expect(directoryItems(fake(true), new Map(), [])[0].leader?.name).toBe(b.name);
-    expect(directoryItems(fake(false), new Map(), [])[0].leader?.name).toBe(a.name);
+    const nobody = { stars: {}, uses: new Map<string, number>() };
+    expect(directoryItems(fake(true), new Map(), nobody)[0].leader?.name).toBe(b.name);
+    expect(directoryItems(fake(false), new Map(), nobody)[0].leader?.name).toBe(a.name);
+    // Stars and the parts of the quality score ride along with each row.
+    const starred = directoryItems(fake(true), new Map(benchmarkQuality(fake(true)).map((q) => [q.id, q])), { stars: { t: 3 }, uses: new Map([["t", 2]]) })[0];
+    expect(starred).toMatchObject({ stars: 3, uses: 2, testSet: "unknown" });
+    expect(Object.keys(starred.factors).sort()).toEqual(["breadth", "frontier", "objectivity", "recency", "saturation", "testSet"]);
   });
 
   it("ranks the same from the trimmed snapshot as from the full one", () => {

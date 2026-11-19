@@ -120,6 +120,8 @@ export interface HistoryArchive {
   dates: string[];
   /** A walker for one request. `flags` are today's open-weights signals. `frame` is valid until the next call: read it before any await. */
   walk(flags: Map<string, boolean>): { frame(date: string): HistoryFrame | undefined };
+  /** Per benchmark, the first archived date each model had a published (not estimated) score, on any effort. One pass over the patches. */
+  firstSeen(): Map<string, Map<string, string>>;
 }
 
 export function decodeHistoryArchive(file: Buffer): HistoryArchive {
@@ -164,6 +166,17 @@ export function decodeHistoryArchive(file: Buffer): HistoryArchive {
   const index = new Map(dates.map((date, i) => [date, i]));
   return {
     dates,
+    firstSeen() {
+      const seen = new Map<string, Map<string, string>>();
+      for (let d = 0; d < dates.length; d++) for (let i = patchStart[d]; i < patchStart[d + 1]; i++) {
+        const row = patchRow[i];
+        if (row < 0 || !(flags[row] & ROW_COUNTED)) continue;
+        const slot = patchSlot[i], bench = benchIds[slot % nb], model = variantIds[(slot - (slot % nb)) / nb].split("@")[0];
+        const models = seen.get(bench) ?? seen.set(bench, new Map()).get(bench)!;
+        if (!models.has(model)) models.set(model, dates[d]);
+      }
+      return seen;
+    },
     walk(signals) {
       // applyOpenWeights: the source metadata, then today's signals, then the family rules, then what the snapshot said.
       const finals = models.map((m, i): Model => { const open = m.aaOpen ?? signals.get(m.id) ?? families[i]; return { ...m, reasoning: false, aliases: [], ...(open !== undefined ? { openWeights: open } : {}) }; });

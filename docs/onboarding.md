@@ -47,7 +47,14 @@ fitScore   = clamp(100 − wrong − thin − complexity, 0, 100)
 
 A 14-model lineup with 4 benchmarks and wide gaps: perfect → 100; swapping #1↔#2 → ~75; #7↔#8 → ~90; #13↔#14 → ~93; perfect with 12 benchmarks → 95; perfect with hair-thin gaps → ~97.5. Mistakes near the top cost the most, thin margins and extra benchmarks cost a little. An incomplete search explicitly reports "No matching configuration found" and shows the disagreements. It is a bounded heuristic search, not a proof that no mix exists.
 
-**Benchmark quality** (`src/onboarding/quality.ts`): `0.25·coverage + 0.25·recency + 0.30·headroom + 0.20·objectivity + (preferred ? 15 : 0) − (superseded ? 25 : 0)`, clamped 0–100, where `coverage = 100·min(1, modelsMeasured/40)`. Unknown release dates receive neutral recency; the scorer uses benchmark release dates, never scrape dates, and deduplicates effort variants. Verified dates link to publisher sources.
+**Benchmark quality** (`src/onboarding/quality.ts`): six parts, each 0 to 100, weighted by `QUALITY_WEIGHTS` (headroom 25%, test set 20%, recency 15%, grading 15%, new models 15%, breadth 10%), then `QUALITY_ADJUST` points (+15 preferred, −25 superseded, −20 results older than the current frontier), clamped 0 to 100. `benchmarkQuality` returns the score with `factors` (each part's score, weight, points and a sentence on what it rests on for that benchmark) and `adjustments`; the directory, a benchmark's page and the methodology page all read those, so none can drift from the math.
+- **Headroom**: room left above the top quarter of models (75%) and the spread between best and worst (25%), one score per model.
+- **Test set** (since 2026-11-19): whether the scored tasks are public, from `src/data/benchmark-facts.ts`. `TEST_SET_SCORE`: private 100, partly private 70, public 30, unknown 50. A set whose questions are replaced on a schedule (`refreshed`) uses `REFRESHED_SCORE` (public 65, partly private 85). Before this a fully public benchmark was not docked at all (Terminal-Bench 4 on Artificial Analysis sat at 100).
+- **Recency**: the benchmark's release date, never a scrape date. `RELEASES` (checked by hand) wins; otherwise the researched date in benchmark-facts (`dateConfidence` "researched"); unknown is 50.
+- **Grading**: hand-set `OBJECTIVITY` where given; otherwise `GRADING_SCORE` by the researched grading method (automatic 85, mixed 70, model judge 60, human judges 55, votes 40), minus 10 when labs report their own scores; otherwise the old guess from unit and description.
+- **New models**: `benchmark.newModels.score` when the snapshot build measured it (`src/data/new-models.ts`, docs/data.md "New-model speed"); otherwise the share of the 10 default lineup models it has measured.
+- **Breadth**: `100·min(1, modelsMeasured/40)`.
+Stars and the count of published pages using a benchmark are not part of quality. They lift the directory's recommended order (`src/lib/benchmark-recommended.ts`).
 
 `PREFERRED`: DeepSWE 1.1, Terminal-Bench 4, ARC-AGI-3, SimpleBench, BullshitBench v2, Humanity's Last Exam, AA-Omniscience, FrontierMath Tier 4 v2. `SUPERSEDED`: Terminal-Bench v2.1, ARC-AGI-1/2, DeepSWE 1, MATH-500.
 

@@ -9,6 +9,7 @@
  */
 
 import type * as agentBudget from "../agentBudget.js";
+import type * as benchmarkStars from "../benchmarkStars.js";
 import type * as crons from "../crons.js";
 import type * as dev from "../dev.js";
 import type * as http from "../http.js";
@@ -28,6 +29,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   agentBudget: typeof agentBudget;
+  benchmarkStars: typeof benchmarkStars;
   crons: typeof crons;
   dev: typeof dev;
   http: typeof http;

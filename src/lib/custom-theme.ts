@@ -266,5 +266,5 @@ VALIDATE (optional): POST the JSON to https://mypriors.com/api/theme (Content-Ty
 EXAMPLE:
 ${JSON.stringify(EXAMPLE_THEME, null, 2)}
 
-Save the result as my-theme.json. I will upload it in Priors → Settings → Theme → Explore themes → Bring your own theme.`;
+Save the result as my-theme.json. I will upload it at mypriors.com/settings → Explore themes → Bring your own theme.`;
 }

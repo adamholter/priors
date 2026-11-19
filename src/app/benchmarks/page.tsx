@@ -1,6 +1,4 @@
 import type { Metadata } from "next";
-import { ConvexHttpClient } from "convex/browser";
-import { api } from "../../../convex/_generated/api";
 import { loadSnapshot } from "@/data/load";
 import { Wordmark } from "@/components/Wordmark";
 import { SiteNav } from "@/components/SiteNav";
@@ -9,19 +7,16 @@ import { HeaderAccount } from "@/components/AccountMenu";
 import { SettingsButton } from "@/components/SiteSettings";
 import { BenchmarkDirectory } from "@/components/benchmark/BenchmarkDirectory";
 import { directoryItems } from "@/lib/benchmark-page";
-import { qualityOf } from "@/agent/solver";
+import { benchmarkQuality } from "@/onboarding/quality";
+import { benchmarkCommunity } from "@/lib/benchmark-community";
 import { pageMeta } from "@/lib/site-meta";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = pageMeta({ title: "Benchmarks", description: "Search every benchmark Priors tracks. Each has its own leaderboard, its published extras, and a cost chart adjusted for subscription plans.", path: "/benchmarks" });
 
 export default async function Page() {
-  const convex = process.env.NEXT_PUBLIC_CONVEX_URL;
-  const [snapshot, pages] = await Promise.all([
-    loadSnapshot(),
-    convex ? new ConvexHttpClient(convex).query(api.profiles.explore, {}).catch(() => []) : Promise.resolve([]),
-  ]);
-  const items = snapshot ? directoryItems(snapshot, qualityOf(snapshot), pages) : [];
+  const [snapshot, community] = await Promise.all([loadSnapshot(), benchmarkCommunity()]);
+  const items = snapshot ? directoryItems(snapshot, new Map(benchmarkQuality(snapshot).map((q) => [q.id, q])), community) : [];
   return (
     <main className="min-h-screen">
       <header className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 sm:px-8 py-2 sm:h-14 border-b hairline"><div className="flex items-center gap-5"><Wordmark /><span className="max-sm:hidden"><SiteNav /></span></div><span className="ml-auto flex items-center gap-2"><HeaderAccount /><SettingsButton /></span></header>

@@ -1,0 +1,5 @@
+/* The star on a benchmark (BenchmarkStar.tsx). */
+.bench-star{display:inline-flex;align-items:center;gap:5px;padding:4px 8px;border:1px solid var(--hair);border-radius:6px;background:none;color:var(--ink-2);font-size:12.5px;line-height:1;cursor:pointer}
+.bench-star:hover{color:var(--ink);border-color:var(--hair-3)}
+.bench-star.is-on{color:var(--indigo);border-color:var(--indigo)}
+.bench-star:disabled{cursor:default;opacity:.6}

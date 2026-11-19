@@ -17,6 +17,8 @@ import { benchmarkIndex, benchmarkView, hasOwnCost } from "@/lib/benchmark-page"
 import { SiteFooter } from "../SiteFooter";
 import { HeaderAccount } from "../AccountMenu";
 import { SettingsButton } from "../SiteSettings";
+import { BenchmarkStar, BenchmarkStars } from "./BenchmarkStar";
+import { QualityPanel, type QualityView } from "./QualityPanel";
 import { Wordmark } from "../Wordmark";
 import { SiteNav } from "../SiteNav";
 import { Rankings } from "../Rankings";
@@ -36,7 +38,7 @@ const fmt = formatBenchValue;
 const usd = (v: number) => v === 0 ? "free" : `$${v >= 10 ? v.toFixed(0) : v >= 1 ? v.toFixed(2) : v.toFixed(v >= 0.1 ? 2 : 3)}`;
 
 /** One benchmark on its own: who leads it, and what each result costs, priced the way a subscriber pays when the lab has a plan. */
-export function BenchmarkPage({ snapshot: base, benchmarkId, models, relatives, initial }: { snapshot: Snapshot; benchmarkId: string; models: number; relatives: { family: { id: string; label: string }[]; familyLabel?: string; versions: { id: string; label: string }[] }; /** Settings from a copied link. */ initial?: IndexConfig }) {
+export function BenchmarkPage({ snapshot: base, benchmarkId, models, relatives, initial, quality }: { snapshot: Snapshot; benchmarkId: string; models: number; relatives: { family: { id: string; label: string }[]; familyLabel?: string; versions: { id: string; label: string }[] }; /** Settings from a copied link. */ initial?: IndexConfig; /** The benchmark's quality score, its parts and its stars, from the server. Absent for token-price proxies. */ quality?: QualityView }) {
   const snapshot = useAdjustedSnapshot(base);
   const b = snapshot.benchmarks.find((x) => x.id === benchmarkId)!;
   const [config, setConfig] = useState<IndexConfig>(() => initial ?? benchmarkIndex(snapshot, benchmarkId));
@@ -100,17 +102,18 @@ export function BenchmarkPage({ snapshot: base, benchmarkId, models, relatives, 
   return (
     <main className="min-h-screen">
       <header className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 sm:px-8 py-2 sm:h-14 border-b hairline"><div className="flex items-center gap-5"><Wordmark /><span className="max-sm:hidden"><SiteNav /></span></div><span className="ml-auto flex items-center gap-2"><HeaderAccount /><SettingsButton /></span><span className="sm:hidden w-full"><SiteNav /></span></header>
-      <HighlightContext.Provider value={highlightState}><ScoreAxisContext.Provider value={plotRaw ? axis : { ...INDEX_SCORE_AXIS, name: "Score (Priors scale)" }}>
+      <BenchmarkStars><HighlightContext.Provider value={highlightState}><ScoreAxisContext.Provider value={plotRaw ? axis : { ...INDEX_SCORE_AXIS, name: "Score (Priors scale)" }}>
         <div className="max-w-[1100px] mx-auto px-5 sm:px-8 py-10 grid gap-12">
           <section className="grid gap-2">
             <p className="cap"><Link href={"/benchmarks" as "/"} className="hover:text-ink">Benchmarks</Link> · {categoryNames(b)}</p>
-            <h1 className="text-[34px] sm:text-[44px] leading-[1.05]">{b.name}</h1>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2"><h1 className="text-[34px] sm:text-[44px] leading-[1.05]">{b.name}</h1>{quality && <BenchmarkStar id={benchmarkId} name={b.name} count={quality.stars} label />}</div>
             <p className="text-[15px] text-ink-2 max-w-[68ch]">{b.description}</p>
             {breaksFor([benchmarkId]).map((x) => <p key={x.date} data-series-break={x.date} className="text-[13px] text-ink-2 max-w-[68ch]">{x.note} <a href={x.url} target="_blank" rel="noreferrer" className="underline underline-offset-2 hover:text-ink">Their method</a></p>)}
             {b.stoppedPublishing && <p data-stopped-publishing className="text-[13px] text-ink-2 max-w-[68ch]">Not current: the last update was {b.stoppedPublishing}, while the publisher&rsquo;s other boards kept updating.</p>}
             {b.notice && <p data-benchmark-notice className="text-[13px] text-ink-2 max-w-[68ch]">{b.notice}</p>}
             {b.effortBasis && <p data-effort-basis className="text-[13px] text-ink-2 max-w-[68ch]">Each row is the model&rsquo;s best measured setting, not one reasoning effort: the publisher keeps each model&rsquo;s best score across settings.</p>}
             <div className="mt-2"><Relatives current={benchmarkId} family={relatives.family} familyLabel={relatives.familyLabel} versions={relatives.versions} /></div>
+            {quality && <p className="text-[13px] text-ink-2" data-quality-summary><a href="#quality" className="underline decoration-dotted underline-offset-2 hover:text-ink">Quality {quality.quality.score} of 100</a>{quality.quality.factors.filter((f) => f.id === "testSet" || f.id === "frontier").map((f) => <span key={f.id}> · {f.detail.split(". ")[0].replace(/\.$/, "")}</span>)}</p>}
             <p className="cap">{models} models · {result.ranked.length} results{b.lastUpdated ? ` · updated ${b.lastUpdated}` : ` · data as of ${snapshot.date}`}{host && <> · <a href={b.url} target="_blank" rel="noreferrer" className="hover:text-ink underline decoration-dotted">{host} ↗</a></>}</p>
           </section>
 
@@ -118,6 +121,8 @@ export function BenchmarkPage({ snapshot: base, benchmarkId, models, relatives, 
             <Rankings anchor="rankings" imageTitle={b.name} format={(r) => { const v = published(r); return v != null ? fmt(b, v) : r.score.toFixed(1); }} title={title("Leaderboard")} ranked={rows} labs={snapshot.labs} showEffort={rankingMode === "all" && !b.effortBasis} limit={25}
               actions={<ChartSettings label="Ranking" efforts={{ value: config.rankingEfforts ?? [...EFFORT_CHOICES], onChange: (rankingEfforts) => patch({ rankingEfforts }), withMode: true }} mode={rankingMode} onChange={(rankingVariants) => patch({ rankingVariants })} {...releaseProps} {...modelPicker} />} />
           </section>
+
+          {quality && <QualityPanel view={quality} />}
 
           {hasCost && <section className="chart-panel">
             <ParetoChart formulaInputs={formulaInputs(snapshot, result.ranked, config.timeSource)} anchor="cost" basis={basis} description={`${b.name} · measured cost per task${basis === "subscription" ? ", then priced by subscription where plan data exists (Real API Pricing, full allowance used)" : ""}`} ranked={plotted} mode={paretoMode} labs={snapshot.labs} height={440} view={paretoView} onView={setParetoView}
@@ -157,7 +162,7 @@ export function BenchmarkPage({ snapshot: base, benchmarkId, models, relatives, 
             {table.length > 30 && <button type="button" className="btn-quiet justify-self-start" onClick={() => setAllRows((v) => !v)}>{allRows ? "Show fewer" : `Show all ${table.length}`}</button>}
           </section>
         </div>
-      </ScoreAxisContext.Provider></HighlightContext.Provider>
+      </ScoreAxisContext.Provider></HighlightContext.Provider></BenchmarkStars>
       <SiteFooter />
     </main>
   );

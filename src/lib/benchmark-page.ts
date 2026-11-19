@@ -2,6 +2,9 @@ import { clientSnapshot } from "@/data/client-snapshot";
 import { CODEX_LIMITS_BENCHMARK, listPrices, SUBSCRIPTION_BENCHMARK, T3_USAGE_BENCHMARK } from "@/data/subscription";
 import type { Snapshot } from "@/data/types";
 import type { DirectoryItem } from "@/components/benchmark/BenchmarkDirectory";
+import type { QualityView } from "@/components/benchmark/QualityPanel";
+import { factsOf } from "@/data/benchmark-facts";
+import { benchmarkQuality, type BenchmarkQuality } from "@/onboarding/quality";
 import { DEFAULT_CUTOFF, inferredObservation, type IndexConfig, type ViewOptions } from "@/engine";
 
 /**
@@ -55,10 +58,10 @@ export function benchmarkIndex(snapshot: Snapshot, benchmarkId: string): IndexCo
 export const benchmarkView = (snapshot: Snapshot, benchmarkId: string): ViewOptions => ({ ...(hasOwnCost(snapshot, benchmarkId) ? { costBenchmark: benchmarkId } : {}) });
 
 /**
- * The /benchmarks directory: every measured benchmark with its model count, quality (the onboarding's score: recency,
- * saturation, objectivity, frontier coverage), how many published pages weight it and the model on top. Proxies (token prices) stay out.
+ * The /benchmarks directory: every measured benchmark with its model count, quality (the onboarding's score) and each part of it,
+ * whether its test set is public, its stars, how many published pages weight it and the model on top. Proxies (token prices) stay out.
  */
-export function directoryItems(snapshot: Snapshot, quality: Map<string, number>, pages: { indices: { weights: Record<string, number> }[] }[]): DirectoryItem[] {
+export function directoryItems(snapshot: Snapshot, quality: Map<string, BenchmarkQuality>, community: { stars: Record<string, number>; uses: Map<string, number> }): DirectoryItem[] {
   const models = new Map<string, Set<string>>(), best = new Map<string, { value: number; modelId: string }>();
   const higher = new Map(snapshot.benchmarks.map((b) => [b.id, b.higherIsBetter]));
   for (const o of snapshot.observations) if (!inferredObservation(o)) {
@@ -68,16 +71,25 @@ export function directoryItems(snapshot: Snapshot, quality: Map<string, number>,
   }
   const modelById = new Map(snapshot.models.map((m) => [m.id, m])), labColor = new Map(snapshot.labs.map((l) => [l.id, l.color]));
   const leaderOf = (id: string) => { const m = modelById.get(best.get(id)?.modelId ?? ""); return m ? { leader: { name: m.name, labId: m.labId, color: labColor.get(m.labId) ?? "" } } : {}; };
-  const uses = new Map<string, number>();
-  for (const p of pages) for (const id of new Set(p.indices.flatMap((i) => Object.entries(i.weights).filter(([, w]) => w > 0).map(([k]) => k)))) uses.set(id, (uses.get(id) ?? 0) + 1);
   const superseded = new Set(snapshot.benchmarks.map((b) => b.versionPolicy?.kind === "fresh" ? b.versionPolicy.supersedes : b.versionPolicy?.kind === "fallback" ? b.versionPolicy.fallbackTo : undefined));
   const listed = snapshot.benchmarks.filter((b) => models.has(b.id) && !b.proxy);
   const splits = new Map<string, number>();
   for (const b of listed) if (b.variantOf) splits.set(b.variantOf, (splits.get(b.variantOf) ?? 0) + 1);
   const host = (u: string) => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch { return ""; } };
-  return listed.map((b) => ({
-    id: b.id, name: b.name, shortName: b.shortName, sourceId: b.sourceId, category: b.category, ...(b.categories ? { categories: b.categories } : {}), description: b.description, host: host(b.url),
-    models: models.get(b.id)!.size, quality: quality.get(b.id) ?? 50, uses: uses.get(b.id) ?? 0, lastUpdated: b.lastUpdated, ...leaderOf(b.id),
-    ...(superseded.has(b.id) || b.stoppedPublishing ? { superseded: true } : {}), ...(b.variantOf ? { variantOf: b.variantOf } : {}), ...(splits.get(b.id) ? { splits: splits.get(b.id) } : {}),
-  }));
+  return listed.map((b) => {
+    const q = quality.get(b.id);
+    return {
+      id: b.id, name: b.name, shortName: b.shortName, sourceId: b.sourceId, category: b.category, ...(b.categories ? { categories: b.categories } : {}), description: b.description, host: host(b.url),
+      models: models.get(b.id)!.size, quality: q?.score ?? 50, uses: community.uses.get(b.id) ?? 0, stars: community.stars[b.id] ?? 0, lastUpdated: b.lastUpdated, ...leaderOf(b.id),
+      testSet: q?.testSet ?? "unknown", factors: Object.fromEntries((q?.factors ?? []).map((f) => [f.id, f.score])) as DirectoryItem["factors"],
+      ...(b.newModels?.medianDays != null ? { addDays: b.newModels.medianDays } : {}), ...(q?.releaseDate ? { released: q.releaseDate } : {}),
+      ...(superseded.has(b.id) || b.stoppedPublishing ? { superseded: true } : {}), ...(b.variantOf ? { variantOf: b.variantOf } : {}), ...(splits.get(b.id) ? { splits: splits.get(b.id) } : {}),
+    };
+  });
+}
+
+/** One benchmark's quality as its page shows it. */
+export function qualityView(snapshot: Snapshot, benchmarkId: string, community: { stars: Record<string, number>; uses: Map<string, number> }): QualityView | undefined {
+  const quality = benchmarkQuality(snapshot).find((q) => q.id === benchmarkId), b = snapshot.benchmarks.find((x) => x.id === benchmarkId);
+  return quality && b ? { quality, facts: factsOf(b), stars: community.stars[benchmarkId] ?? 0, uses: community.uses.get(benchmarkId) ?? 0 } : undefined;
 }

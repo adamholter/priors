@@ -2,7 +2,8 @@ import { notFound, redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { loadSnapshot } from "@/data/load";
 import { BenchmarkPage } from "@/components/benchmark/BenchmarkPage";
-import { benchmarkIndex, benchmarkSnapshot, benchmarkView } from "@/lib/benchmark-page";
+import { benchmarkIndex, benchmarkSnapshot, benchmarkView, qualityView } from "@/lib/benchmark-page";
+import { benchmarkCommunity } from "@/lib/benchmark-community";
 import { benchmarkPath, resolveBenchmark } from "@/lib/benchmark-slug";
 import { benchmarkMetrics, benchmarkRelatives } from "@/lib/benchmark-metrics";
 import { isPreviewBot, PreviewPage } from "@/lib/link-preview";
@@ -72,5 +73,7 @@ export default async function Page({ params, searchParams }: { params: Promise<{
   const linked = decodeIndices(query)[0];
   const base = benchmarkIndex(small, b.id);
   const initial = linked ? { ...linked, id: base.id, name: base.name, weights: base.weights, required: base.required, strictness: base.strictness, estimateMissing: false } : undefined;
-  return <BenchmarkPage snapshot={small} benchmarkId={b.id} models={count} relatives={benchmarkRelatives(snapshot, b)} initial={initial} />;
+  // The quality score needs the full data (every benchmark's rows and the default lineup), so it is worked out here.
+  const quality = qualityView(snapshot, b.id, await benchmarkCommunity());
+  return <BenchmarkPage snapshot={small} benchmarkId={b.id} models={count} relatives={benchmarkRelatives(snapshot, b)} initial={initial} quality={b.proxy ? undefined : quality} />;
 }

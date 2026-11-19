@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Benchmark, Snapshot } from "../data/types";
-import { benchmarkQuality } from "./quality";
+import { benchmarkQuality, QUALITY_WEIGHTS, REFRESHED_SCORE, TEST_SET_SCORE } from "./quality";
 
 const benchmark = (id: string, name = id): Benchmark => ({
   id, name, sourceId: "test", url: "https://example.com", description: "Test benchmark",
@@ -54,11 +54,38 @@ describe("benchmarkQuality", () => {
     expect(result.find((x) => x.id === "terminalbench-4")!.score).toBeGreaterThan(result.find((x) => x.id === "aa-terminalbench-v2-1")!.score);
   });
 
-  it("adds the +15 preferred-benchmark contribution", () => {
+  it("adds the +15 preferred-benchmark contribution on top of the six weighted parts", () => {
     const q = benchmarkQuality(snapshot([benchmark("deepswe-1.1")], [["deepswe-1.1", "a@low", 40], ["deepswe-1.1", "b@low", 60]]))[0];
     expect(q.preferred).toBe(true);
-    const base = Math.round(0.15 * q.coverage + 0.15 * q.frontierCoverage + 0.2 * q.recency + 0.3 * q.saturation + 0.2 * q.objectivity);
-    expect(q.score).toBe(Math.min(100, base + 15));
+    expect(q.factors.map((f) => f.id)).toEqual(["saturation", "testSet", "recency", "objectivity", "frontier", "breadth"]);
+    expect(q.factors.reduce((sum, f) => sum + f.weight, 0)).toBeCloseTo(1, 10);
+    const base = q.factors.reduce((sum, f) => sum + f.score * f.weight, 0);
+    expect(q.adjustments).toEqual([expect.objectContaining({ id: "preferred", points: 15 })]);
+    expect(q.score).toBe(Math.min(100, Math.round(base + 15)));
+    // What a breakdown shows adds up to the score.
+    expect(Math.abs(q.factors.reduce((sum, f) => sum + f.points, 0) + 15 - q.score)).toBeLessThan(1.5);
+  });
+
+  it("docks a public test set against a private one, and less when its questions are replaced on a schedule", () => {
+    // Facts come from src/data/benchmark-facts.ts: Terminal-Bench 4 is public, CritPt v2 private, AA-Omniscience partly private.
+    const ids = ["aa-terminalbench-v4-0", "aa-critpt-v2", "aa-omniscience", "no-facts-yet"];
+    const result = benchmarkQuality(snapshot(ids.map((id) => benchmark(id)), ids.flatMap((id) => [[id, "a@low", 40], [id, "b@low", 60]] as Array<[string, string, number]>)));
+    const part = (id: string) => result.find((x) => x.id === id)!;
+    expect(part("aa-terminalbench-v4-0")).toMatchObject({ testSet: "public", testSetScore: TEST_SET_SCORE.public });
+    expect(part("aa-critpt-v2")).toMatchObject({ testSet: "private", testSetScore: TEST_SET_SCORE.private });
+    expect(part("aa-omniscience")).toMatchObject({ testSet: "partial", testSetScore: TEST_SET_SCORE.partial });
+    expect(part("no-facts-yet")).toMatchObject({ testSet: "unknown", testSetScore: TEST_SET_SCORE.unknown });
+    expect(part("aa-critpt-v2").factors.find((f) => f.id === "testSet")!.points - part("aa-terminalbench-v4-0").factors.find((f) => f.id === "testSet")!.points).toBeCloseTo((TEST_SET_SCORE.private - TEST_SET_SCORE.public) * QUALITY_WEIGHTS.testSet, 5);
+    expect(REFRESHED_SCORE.public).toBeGreaterThan(TEST_SET_SCORE.public);
+  });
+
+  it("scores how quickly a benchmark adds new models from the snapshot's measurement, else from today's lineup", () => {
+    const measured = { ...benchmark("quick"), newModels: { of: 10, added: 9, medianDays: 2, score: 88 } };
+    const result = benchmarkQuality(snapshot([measured, benchmark("untimed")], [["quick", "a@low", 40], ["quick", "b@low", 60], ["untimed", "a@low", 40], ["untimed", "b@low", 60]]));
+    const quick = result.find((x) => x.id === "quick")!.factors.find((f) => f.id === "frontier")!;
+    expect(quick.score).toBe(88);
+    expect(quick.detail).toMatch(/Scored 9 of the 10 notable models .* typically 2 days after release/);
+    expect(result.find((x) => x.id === "untimed")!.factors.find((f) => f.id === "frontier")!.detail).not.toMatch(/notable models/);
   });
 
   it("downweights publisher results that predate the September 22 frontier releases", () => {

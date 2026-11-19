@@ -32,13 +32,15 @@ try {
     ["/models/claude-opus-5.5/compare", () => page.getByRole("searchbox").or(page.getByLabel("Search models or labs")).first()],
     ["/benchmarks/methodology", () => page.getByRole("heading", { name: "How benchmark scores work" })],
     ["/privacy", () => page.getByRole("heading").first()],
+    ["/settings", () => page.getByRole("heading", { name: "Settings", exact: true })],
   ];
   for (const [path, landmark] of routes) {
     const res = await page.goto(BASE + path, { waitUntil: "domcontentloaded" });
     assert.equal(res.status(), 200, `${path} status`);
     await landmark().waitFor({ timeout: 30000 });
-    // Every header carries the same settings gear (theme and mode), published pages included.
-    assert.ok(await page.getByRole("button", { name: "Settings", exact: true }).first().isVisible(), `${path} has the settings gear`);
+    // Every header carries the same light/dark button, published pages included. Themes are on /settings, in no menu.
+    assert.ok(await page.locator("[data-theme-toggle]").first().isVisible(), `${path} has the light/dark button`);
+    assert.equal(await page.getByRole("button", { name: "Settings", exact: true }).count(), 0, `${path} has no settings gear`);
   }
 
   // A model page, reached the way a visitor does.

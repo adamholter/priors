@@ -19,6 +19,7 @@ import { formulaInputs, pickPoints, speedChart } from "@/lib/metrics";
 import { encodeIndices, PAGE_KEY, pageRef, prettyQuery } from "@/lib/url";
 import { ShareCards } from "../ShareCards";
 import { BuilderIcon, CompareIcon } from "../compare/icons";
+import { IconSettings } from "@tabler/icons-react";
 import { MixPie } from "../MixPie";
 import { benchmarkPath } from "@/lib/benchmark-slug";
 import { pageRef as refForPage, threeDUrl } from "@/lib/compare-ref";
@@ -164,6 +165,8 @@ export function IndexPage({ profile, snapshot: base, edit, tab: linkedTab, linke
   const [editing, setEditing] = useState(false);
   useEffect(() => { if (edit && isOwner) { const id = requestAnimationFrame(() => setEditing(true)); return () => cancelAnimationFrame(id); } }, [edit, isOwner]);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  // The owner's gear: page settings live in the editor's drawer, so it starts editing and opens it (through the same reload a linked view needs).
+  const openSettings = () => { if (!editing) toggleEditing(); setSettingsOpen(true); };
   const [saveState, setSaveState] = useState<SaveState>("saved");
   const [history, setHistory] = useState<Profile[]>([]);
   const change = useCallback((next: Profile) => { setHistory((h) => [...h.slice(-49), p]); setP(next); }, [p, setP]);
@@ -269,6 +272,7 @@ export function IndexPage({ profile, snapshot: base, edit, tab: linkedTab, linke
             ? null
             : <Link href={builderHref as "/"} onClick={() => track("remix_clicked", { from: "profile", handle: p.handle })} className="btn inline-flex items-center gap-2" title={`Open @${p.handle}'s mix in the builder as your own copy`}><RemixIcon />Remix</Link>}
           {isOwner && <button type="button" className="btn" onClick={toggleEditing}>{editing ? "Done editing" : "Edit page"}</button>}
+          {isOwner && <button type="button" className="icon-btn" aria-label="Page settings" data-tip="Page settings" onClick={openSettings}><IconSettings size={18} stroke={1.5} aria-hidden="true" /></button>}
           <HeaderAccount />
           <SettingsButton support={false} pageNote={settingsNote} />
         </div>
@@ -282,6 +286,7 @@ export function IndexPage({ profile, snapshot: base, edit, tab: linkedTab, linke
             <Link href="/explore" className="btn-quiet text-center">Explore rankings</Link>
             <Link href="/rank" className="btn-quiet text-center">Rank models</Link>
             {isOwner && <button type="button" className="btn text-center" onClick={toggleEditing}>{editing ? "Done editing" : "Edit page"}</button>}
+            {isOwner && <button type="button" className="btn-quiet text-center" onClick={openSettings}>Page settings</button>}
           </MobileMenu>
         </div>
       </header>
@@ -291,7 +296,7 @@ export function IndexPage({ profile, snapshot: base, edit, tab: linkedTab, linke
         <span className="edit-bar-title">Editing your page</span>
         <span className="edit-bar-status" role="status">{saveState === "saving" ? "Saving…" : saveState === "dirty" ? "Unsaved changes" : saveState === "error" ? "Couldn’t save. Retrying on your next change." : "All changes saved"}</span>
         <button type="button" className="btn-quiet" disabled={!history.length} onClick={undo}>Undo</button>
-        <button type="button" className="btn-quiet" onClick={() => setSettingsOpen(true)}>Theme & settings</button>
+        <button type="button" className="btn-quiet" onClick={() => setSettingsOpen(true)}>Settings</button>
         <button type="button" className="btn" onClick={() => { setEditing(false); setSettingsOpen(false); }}>Done</button>
       </div>}
       <PageSettings profile={p} set={(patch) => change({ ...p, ...patch })} open={editing && settingsOpen} onClose={() => setSettingsOpen(false)} />

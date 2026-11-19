@@ -11,7 +11,14 @@
 .bench-rail button[aria-pressed=true] .cap{color:var(--indigo)}
 
 /* One grid for the header and every row, so each value sits under its own label. */
-.bench-head,.bench-dir .bench-row{display:grid;grid-template-columns:minmax(0,1fr) 148px 62px 58px 104px;column-gap:14px}
+.bench-head,.bench-dir .bench-row{display:grid;grid-template-columns:minmax(0,1fr) 148px 62px 58px 104px 46px;column-gap:14px}
+/* Quality factors: the six parts of the score take the place of top model, models and mixes. */
+.bench-dir[data-view=factors] .bench-head,.bench-dir[data-view=factors] .bench-row{grid-template-columns:minmax(0,1fr) 62px 96px 58px 58px 78px 58px 104px 46px;column-gap:12px}
+.bench-li{position:relative}
+.bench-star-cell{position:absolute;right:0;top:50%;transform:translateY(-50%);display:flex;justify-content:flex-end;width:46px}
+.bench-test.is-private{color:var(--ink)}
+.bench-test.is-unknown{color:var(--grey)}
+.bench-factor .num{color:var(--ink)}
 .bench-head{align-items:end;padding-bottom:7px;border-bottom:1px solid var(--hair)}
 .bench-head .bench-tip{cursor:help}
 .bench-dir .bench-row{align-items:center;padding:11px 0}
@@ -56,7 +63,9 @@ svg.bench-inline,.bench-trophy{display:none}
   svg.bench-inline,.bench-trophy{display:block;color:var(--grey)}
   .bench-quality-word{margin-right:5px}
   .bench-cell{font-size:12px}
-  .bench-cell:empty,.bench-none{display:none}
+  .bench-cell:empty,.bench-none,.bench-star-space{display:none}
+  .bench-star-cell{top:8px;transform:none}
+  .bench-main{padding-right:52px}
   .bench-leader{max-width:100%}
 }
 @media (max-width:800px){
@@ -64,3 +73,7 @@ svg.bench-inline,.bench-trophy{display:none}
   .bench-rail{position:static;display:flex;overflow-x:auto;gap:4px}
   .bench-rail button{grid-template-columns:auto auto auto;white-space:nowrap}
 }
+
+/* In the directory the star is quiet until hovered. */
+.bench-star-cell .bench-star{border-color:transparent;padding:4px 5px}
+.bench-star-cell .bench-star:hover{border-color:var(--hair)}

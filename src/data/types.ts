@@ -70,6 +70,8 @@ export interface Benchmark {
   lastUpdated?: string; // YYYY-MM-DD; distinct from benchmark release and scrape dates
   /** YYYY-MM-DD: the last date the publisher updated this while its sibling boards kept going. The rows are its final values, not current ones. */
   stoppedPublishing?: string;
+  /** How quickly it has scored new models since Priors began watching it (`src/data/new-models.ts`), set by the snapshot build. Absent with too few new models to tell. */
+  newModels?: { of: number; added: number; medianDays?: number; score: number };
   /** A line the board page shows under the description about results it does not have yet (models the publisher has not run this way). */
   notice?: string;
   /** Fixed source-defined scale; independent of which models the user filters. */

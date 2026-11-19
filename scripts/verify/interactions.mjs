@@ -464,17 +464,70 @@ try {
   });
 
   sharedPage = true; // from here to `sharedPage = false`, checks share the builder `page` and run in order in shard 0
-  await check("site settings opens as a named modal and Escape restores focus", async () => {
-    const trigger = page.getByRole("button", { name: "Settings", exact: true });
-    await trigger.focus();
-    await trigger.click();
-    const dialog = page.getByRole("dialog", { name: "Settings" });
-    await dialog.waitFor();
-    assert.equal(await dialog.getAttribute("aria-modal"), "true");
-    assert.equal(await page.evaluate(() => document.activeElement?.getAttribute("aria-label")), "Close settings");
-    await page.keyboard.press("Escape");
-    await dialog.waitFor({ state: "detached" }).catch(async () => assert.equal(await dialog.isVisible(), false));
-    assert.equal(await trigger.evaluate((el) => el === document.activeElement), true);
+  await check("the header's light/dark button switches the site and remembers it; there is no settings gear", async () => {
+    const c = await (await browser.newContext({ viewport: { width: 1440, height: 1000 }, colorScheme: "light" })).newPage();
+    try {
+      await c.goto(`${BASE}/builder`, { waitUntil: "domcontentloaded" });
+      await c.locator(".ranking-list [data-k]").first().waitFor({ timeout: 30000 });
+      assert.equal(await c.getByRole("button", { name: "Settings", exact: true }).count(), 0, "no gear in the header");
+      const toggle = c.locator("[data-theme-toggle]").first();
+      assert.equal(await toggle.getAttribute("aria-label"), "Switch to dark mode");
+      assert.equal(await toggle.locator("svg:visible").count(), 1, "one icon shows");
+      await toggle.click();
+      await c.waitForFunction(() => document.documentElement.dataset.theme === "dark");
+      assert.equal(await c.evaluate(() => localStorage.getItem("priors:theme")), "dark");
+      assert.equal(await toggle.getAttribute("aria-label"), "Switch to light mode");
+      await c.reload({ waitUntil: "domcontentloaded" });
+      await c.waitForFunction(() => document.documentElement.dataset.theme === "dark");
+      await c.locator("[data-theme-toggle]").first().click();
+      await c.waitForFunction(() => document.documentElement.dataset.theme === "light");
+    } finally { await c.context().close(); }
+  });
+
+  await check("a benchmark's page shows its quality score, every part behind it, and a star that sends a signed-out visitor to sign in", async () => {
+    const c = await (await browser.newContext({ viewport: { width: 1440, height: 1000 } })).newPage();
+    try {
+      await c.goto(`${BASE}/benchmarks/aa-terminalbench-v4-0`, { waitUntil: "domcontentloaded" });
+      const panel = c.locator("[data-quality-panel]");
+      await panel.waitFor({ timeout: 30000 });
+      assert.deepEqual(await panel.locator("[data-factor]").evaluateAll((rows) => rows.map((r) => r.getAttribute("data-factor"))), ["saturation", "testSet", "recency", "objectivity", "frontier", "breadth"], "the six parts, in the methodology's order");
+      const score = Number(await panel.locator("[data-quality-score]").innerText());
+      assert.ok(score > 0 && score <= 100, "a 0 to 100 score");
+      assert.match(await c.locator("[data-quality-summary]").innerText(), new RegExp(`Quality ${score} of 100`), "the summary under the title carries the same score");
+      assert.match(await panel.locator("[data-factor=testSet]").innerText(), /test set/i, "the test-set part says whether it is public");
+      // Each part is 0 to 100 and the points shown add up to the score, with the added and taken-away lines, within rounding and the 0 to 100 cap.
+      const points = await panel.locator(".quality-points").evaluateAll((cells) => cells.map((x) => Number((x.textContent.split("·").pop() ?? "").replace("−", "-").replace("+", "").trim())));
+      const sum = points.reduce((a, b) => a + b, 0);
+      assert.ok(Math.abs(Math.min(100, Math.max(0, sum)) - score) <= 1.5, `the lines add up to the score (${sum.toFixed(1)} vs ${score})`);
+      const star = c.locator("[data-benchmark-star='aa-terminalbench-v4-0']").first();
+      assert.equal(await star.getAttribute("href"), "/sign-in", "signed out, the star leads to sign-in");
+      assert.match(await star.innerText(), /Star/);
+    } finally { await c.context().close(); }
+  });
+
+  await check("the benchmark directory lists the parts of quality as columns and sorts by them", async () => {
+    const c = await (await browser.newContext({ viewport: { width: 1440, height: 1000 } })).newPage();
+    try {
+      await c.goto(`${BASE}/benchmarks`, { waitUntil: "domcontentloaded" });
+      await c.locator(".bench-row").first().waitFor({ timeout: 30000 });
+      assert.equal(await c.locator(".bench-row").first().locator("[data-factor]").count(), 0, "the overview keeps top model, models and mixes");
+      assert.ok(await c.locator(".bench-li").first().locator("[data-benchmark-star]").isVisible(), "every row has a star");
+      // A click before hydration does nothing, so click until the columns switch.
+      for (let tries = 0; tries < 20 && !(await c.locator(".bench-dir[data-view=factors]").count()); tries++) { await c.getByRole("group", { name: "Columns" }).getByRole("button", { name: "Quality factors" }).click(); await c.waitForTimeout(250); }
+      await c.locator(".bench-dir[data-view=factors]").waitFor({ timeout: 5000 });
+      const head = (await c.locator(".bench-head").innerText()).toLowerCase();
+      for (const name of ["headroom", "test set", "recency", "grading", "new models", "breadth", "quality", "stars"]) assert.ok(head.includes(name), `a ${name} column`);
+      const first = c.locator(".bench-row").first();
+      assert.equal(await first.locator("[data-factor]").count(), 6, "six parts per row");
+      assert.match(await first.locator("[data-factor=testSet]").innerText(), /Private|Partly private|Public|Unknown/);
+      await c.getByLabel("Sort").selectOption("testSet");
+      await c.waitForFunction(() => /Private/.test(document.querySelector(".bench-row [data-factor=testSet]")?.textContent ?? ""), null, { timeout: 5000 });
+      assert.match(await c.locator(".bench-row").first().locator("[data-factor=testSet]").innerText(), /Private/, "private test sets sort first");
+      await c.getByLabel("Sort").selectOption("saturation");
+      await c.waitForTimeout(300);
+      const headroom = await c.locator(".bench-row [data-factor=saturation] .num").evaluateAll((cells) => cells.slice(0, 12).map((x) => Number(x.textContent)));
+      assert.deepEqual(headroom, [...headroom].sort((a, b) => b - a), "most headroom first");
+    } finally { await c.context().close(); }
   });
 
   await check("Explore themes opens the library and applying a library theme restyles the site", async () => {
@@ -484,8 +537,10 @@ try {
       await c.locator(".ranking-list [data-k]").first().waitFor({ timeout: 30000 });
       const bg = () => c.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--bone").trim() + getComputedStyle(document.documentElement).backgroundColor);
       const before = await bg();
-      await c.getByRole("button", { name: "Settings", exact: true }).click();
-      const settings = c.getByRole("dialog", { name: "Settings" });
+      // Themes are an advanced setting now: on /settings, which no menu links to.
+      await c.goto(`${BASE}/settings`, { waitUntil: "domcontentloaded" });
+      const settings = c.locator(".settings-panel");
+      await settings.waitFor();
       assert.equal(await settings.locator(".settings-themes:not(.theme-library-grid) .theme-swatch").count(), 8, "the default picker keeps its eight themes");
       await settings.getByRole("button", { name: "Explore themes" }).click();
       const library = c.getByRole("dialog", { name: "Explore themes" });
@@ -510,8 +565,8 @@ try {
     try {
       await c.goto(`${BASE}/builder`, { waitUntil: "domcontentloaded" });
       await c.locator(".ranking-list [data-k]").first().waitFor({ timeout: 30000 });
-      await c.getByRole("button", { name: "Settings", exact: true }).click();
-      await c.getByRole("dialog", { name: "Settings" }).getByRole("button", { name: "Explore themes" }).click();
+      await c.goto(`${BASE}/settings`, { waitUntil: "domcontentloaded" });
+      await c.locator(".settings-panel").getByRole("button", { name: "Explore themes" }).click();
       const library = c.getByRole("dialog", { name: "Explore themes" });
       await library.waitFor();
       await library.locator("[data-theme-library-mode]").getByRole("button", { name: "Dark", exact: true }).click();
@@ -1854,9 +1909,10 @@ try {
       await v.reload({ waitUntil: "domcontentloaded" });
       await v.waitForTimeout(800);
       assert.equal(await notice.count(), 0, "off survives a reload");
-      await v.getByRole("button", { name: "Settings" }).first().click();
+      await v.goto(`${BASE}/settings`, { waitUntil: "domcontentloaded" });
       await v.getByRole("group", { name: "Update notices" }).getByRole("button", { name: "On" }).click();
       assert.equal(await v.evaluate(() => localStorage.getItem("priors:version-notices")), null);
+      await v.goto(`${BASE}/builder`, { waitUntil: "domcontentloaded" });
       await notice.waitFor({ timeout: 10000 });
     } finally { await ctx.close(); }
   });

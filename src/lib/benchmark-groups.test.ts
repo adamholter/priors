@@ -4,7 +4,7 @@ import type { BenchmarkQuality } from "@/onboarding/quality";
 import { groupBySource, isOldOrNiche, sourceFamily, tierBenchmarks } from "./benchmark-groups";
 
 const bench = (id: string, sourceId = "x"): Benchmark => ({ id, name: id, sourceId, url: "", description: "", unit: "percent", higherIsBetter: true, category: "reasoning" });
-const q = (id: string, over: Partial<BenchmarkQuality> = {}): BenchmarkQuality => ({ id, name: id, score: 60, recency: 0, saturation: 0, objectivity: 0, preferred: false, dateConfidence: "unknown", reason: "", sourceUrl: "", coverage: 100, frontierCoverage: 0, frontierMeasured: 6, frontierTotal: 10, staleFrontier: false, ...over });
+const q = (id: string, over: Partial<BenchmarkQuality> = {}): BenchmarkQuality => ({ id, name: id, score: 60, recency: 0, saturation: 0, objectivity: 0, testSet: "unknown", testSetScore: 50, factors: [], adjustments: [], preferred: false, dateConfidence: "unknown", reason: "", sourceUrl: "", coverage: 100, frontierCoverage: 0, frontierMeasured: 6, frontierTotal: 10, staleFrontier: false, ...over });
 
 describe("tierBenchmarks", () => {
   it("sets apart what no top model has run, what scores poorly, what predates the era and what is superseded or archived", () => {

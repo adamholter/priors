@@ -5,6 +5,9 @@ import {
   IconBolt, IconBook2, IconBrain, IconBriefcase, IconChartPie, IconChess, IconCode, IconCube, IconDots, IconEye, IconFileText, IconFlask, IconHistory, IconLanguage, IconMathFunction, IconMoodSmile, IconPalette,
   IconReceipt, IconRepeat, IconRobot, IconSearch, IconShieldCheck, IconStack2, IconThumbUp, IconTrophy, IconUsers, IconWorld,
 } from "@tabler/icons-react";
+import { QUALITY_FACTORS, type QualityFactorId } from "@/onboarding/quality";
+import type { TestSet } from "@/data/benchmark-facts";
+import { BenchmarkStar, BenchmarkStars } from "./BenchmarkStar";
 import type { Benchmark } from "@/data/types";
 import { categoriesOf, categoryBlurb, categoryName, categoryOrder } from "@/data/categories";
 import { searchBenchmarks } from "@/lib/benchmark-search";
@@ -17,6 +20,10 @@ import "./benchmarks.css";
 export interface DirectoryItem {
   id: string; name: string; shortName?: string; sourceId: string; category: Benchmark["category"]; categories?: Benchmark["category"][]; description: string; host: string;
   models: number; quality: number; uses: number; lastUpdated?: string;
+  /** People who starred it. */
+  stars: number;
+  /** Each part of the quality score, 0 to 100 (`QUALITY_FACTORS`), and what two of them rest on: whether the test set is public, the release date, and the typical days it takes to score a new model. */
+  factors: Partial<Record<QualityFactorId, number>>; testSet: TestSet | "unknown"; released?: string; addDays?: number;
   /** The model with the best score the publisher reports on this board, older models included. */
   leader?: { name: string; labId: string; color: string };
   /** An older version of a benchmark that has a newer one. */
@@ -35,21 +42,31 @@ const TIP = {
   leader: "The model with the best score this benchmark reports, older models included.",
   models: "How many models the publisher has measured here. Priors' estimates don't count.",
   uses: "How many published Priors pages give this benchmark weight.",
-  quality: "How useful this benchmark is for telling current models apart, from 0 to 100. See How scores work.",
+  quality: "How useful this benchmark is for telling current models apart, from 0 to 100. Quality factors shows its parts.",
+  stars: "People who starred it. Sign in to add yours. Stars lift a benchmark in the recommended order.",
 };
 
-type Sort = "recommended" | "uses" | "quality" | "models" | "updated" | "name";
-const SORTS: { id: Sort; name: string }[] = [
-  { id: "recommended", name: "Recommended" }, { id: "uses", name: "Most used in mixes" }, { id: "quality", name: "Quality" },
+const TEST_SET_NAME: Record<DirectoryItem["testSet"], string> = { private: "Private", partial: "Partly private", public: "Public", unknown: "Unknown" };
+const FACTOR_TIP = Object.fromEntries(QUALITY_FACTORS.map((f) => [f.id, f.how])) as Record<QualityFactorId, string>;
+const factor = (x: DirectoryItem, id: QualityFactorId) => x.factors[id] ?? -1;
+
+type Sort = "recommended" | "uses" | "stars" | "quality" | "models" | "updated" | "name" | QualityFactorId;
+const SORTS: { id: Sort; name: string; factors?: true }[] = [
+  { id: "recommended", name: "Recommended" }, { id: "uses", name: "Most used in mixes" }, { id: "stars", name: "Most starred" }, { id: "quality", name: "Quality" },
   { id: "models", name: "Most models" }, { id: "updated", name: "Recently updated" }, { id: "name", name: "A to Z" },
+  { id: "saturation", name: "Most headroom", factors: true }, { id: "testSet", name: "Private test sets first", factors: true }, { id: "recency", name: "Newest benchmarks", factors: true },
+  { id: "objectivity", name: "Most objective grading", factors: true }, { id: "frontier", name: "Adds new models fastest", factors: true }, { id: "breadth", name: "Broadest", factors: true },
 ];
+const byFactor = (id: QualityFactorId) => (a: DirectoryItem, b: DirectoryItem) => factor(b, id) - factor(a, id) || b.quality - a.quality;
 const compare: Record<Sort, (a: DirectoryItem, b: DirectoryItem) => number> = {
   recommended: (a, b) => recommendedScore(b) - recommendedScore(a),
   uses: (a, b) => b.uses - a.uses || b.quality - a.quality,
+  stars: (a, b) => b.stars - a.stars || recommendedScore(b) - recommendedScore(a),
   quality: (a, b) => b.quality - a.quality,
   models: (a, b) => b.models - a.models,
   updated: (a, b) => (b.lastUpdated ?? "").localeCompare(a.lastUpdated ?? ""),
   name: (a, b) => a.name.localeCompare(b.name),
+  saturation: byFactor("saturation"), testSet: byFactor("testSet"), recency: byFactor("recency"), objectivity: byFactor("objectivity"), frontier: byFactor("frontier"), breadth: byFactor("breadth"),
 };
 const title = categoryName;
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
@@ -60,6 +77,8 @@ export function BenchmarkDirectory({ items }: { items: DirectoryItem[] }) {
   const [category, setCategory] = useState("all");
   const [sort, setSort] = useState<Sort>("recommended");
   const [everything, setEverything] = useState(false);
+  // "factors": the columns are the six parts of the quality score instead of top model, models and mixes.
+  const [view, setView] = useState<"overview" | "factors">("overview");
   const input = useRef<HTMLInputElement>(null);
   // "/" jumps to search from anywhere on the page.
   useEffect(() => {
@@ -89,7 +108,7 @@ export function BenchmarkDirectory({ items }: { items: DirectoryItem[] }) {
   const choose = (c: string) => setCategory(c);
 
   return (
-    <div className="bench-dir grid gap-8">
+    <BenchmarkStars><div className="bench-dir grid gap-8" data-view={view}>
       <DirSprite />
       <div className="bench-totals" aria-label="Directory totals">
         <span><IconStack2 size={16} stroke={1.5} aria-hidden />{plural(base.length, "benchmark")}</span>
@@ -110,6 +129,7 @@ export function BenchmarkDirectory({ items }: { items: DirectoryItem[] }) {
             </div>
             <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
               {!searching && <label className="cap flex items-center gap-2">Sort<select className="inp !w-auto !py-1 !text-[12.5px] normal-case" value={sort} onChange={(e) => setSort(e.target.value as Sort)}>{SORTS.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>}
+              <div className="seg" role="group" aria-label="Columns">{(["overview", "factors"] as const).map((v) => <button key={v} type="button" className="!px-2.5 !py-1 text-[12px]" aria-pressed={view === v} onClick={() => setView(v)}>{v === "overview" ? "Overview" : "Quality factors"}</button>)}</div>
               {!searching && <label className="cap flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={everything} onChange={(e) => setEverything(e.target.checked)} />Older versions and sub-boards</label>}
               <Link href="/benchmarks/methodology" className="cap underline decoration-dotted underline-offset-2 hover:text-ink">How scores work</Link>
               <span className="cap ml-auto" role="status">{searching ? plural(found.length, "match", "matches") : plural(found.length, "benchmark")}</span>
@@ -118,16 +138,19 @@ export function BenchmarkDirectory({ items }: { items: DirectoryItem[] }) {
           {shown.length ? <div className="min-w-0">
             <div className="bench-head cap" aria-hidden="true">
               <span>Benchmark</span>
-              <Tip text={TIP.leader}><IconTrophy size={13} stroke={1.6} aria-hidden />Top model</Tip>
-              <Tip text={TIP.models} end><IconCube size={13} stroke={1.6} aria-hidden />Models</Tip>
-              <Tip text={TIP.uses} end><IconUsers size={13} stroke={1.6} aria-hidden />Mixes</Tip>
+              {view === "overview" ? <>
+                <Tip text={TIP.leader}><IconTrophy size={13} stroke={1.6} aria-hidden />Top model</Tip>
+                <Tip text={TIP.models} end><IconCube size={13} stroke={1.6} aria-hidden />Models</Tip>
+                <Tip text={TIP.uses} end><IconUsers size={13} stroke={1.6} aria-hidden />Mixes</Tip>
+              </> : QUALITY_FACTORS.map((f) => <Tip key={f.id} text={f.how} end>{f.name}</Tip>)}
               <Tip text={TIP.quality} end>Quality</Tip>
+              <Tip text={TIP.stars} end>Stars</Tip>
             </div>
-            <ul className="grid">{shown.map((x) => <Row key={x.id} x={x} showCategory={category === "all"} />)}</ul>
+            <ul className="grid">{shown.map((x) => <Row key={x.id} x={x} showCategory={category === "all"} view={view} />)}</ul>
           </div> : <p className="cap py-6">Nothing matches &ldquo;{q}&rdquo;. Try a word for what you want measured, such as coding, math or agents.</p>}
         </div>
       </div>
-    </div>
+    </div></BenchmarkStars>
   );
 }
 
@@ -170,10 +193,20 @@ function Favicon({ host }: { host: string }) {
   return <img className="bench-fav" src={`https://www.google.com/s2/favicons?domain=${encodeURIComponent(host)}&sz=32`} alt="" width={14} height={14} loading="lazy" onError={() => setOk(false)} />;
 }
 
-function Row({ x, showCategory }: { x: DirectoryItem; showCategory?: boolean }) {
+/** One part of the quality score in a row: its 0 to 100 score, or for the test set the word. */
+function Factor({ x, id }: { x: DirectoryItem; id: QualityFactorId }) {
+  const name = QUALITY_FACTORS.find((f) => f.id === id)!.name, score = x.factors[id];
+  const text = id === "testSet" ? TEST_SET_NAME[x.testSet] : score == null ? "" : String(score);
+  const tip = id === "testSet" ? `${TEST_SET_NAME[x.testSet]} test set, scored ${score ?? 50} of 100.`
+    : id === "frontier" && x.addDays != null ? `${score} of 100. Typically scores a new model ${x.addDays === 0 ? "on release day" : `${x.addDays} day${x.addDays === 1 ? "" : "s"} after release`}.`
+    : id === "recency" && x.released ? `${score} of 100. Released ${x.released}.` : `${score ?? ""} of 100. ${FACTOR_TIP[id]}`;
+  return <span className={`bench-cell bench-num bench-factor ${id === "testSet" ? `bench-test is-${x.testSet}` : ""}`} data-factor={id}><Tip text={tip} end><span className="bench-word">{name}: </span><span className={id === "testSet" ? "" : "num"}>{text}</span></Tip></span>;
+}
+
+function Row({ x, showCategory, view }: { x: DirectoryItem; showCategory?: boolean; view: "overview" | "factors" }) {
   const lab = useLabColor(), main = categoriesOf(x)[0], icon = CATEGORY_ICON[main] ? main : "other";
   return (
-    <li className="border-b hairline last:border-b-0">
+    <li className="bench-li border-b hairline last:border-b-0">
       <Link href={benchmarkPath(x.id) as "/"} className="bench-row group">
         <span className="bench-main">
           {showCategory && <Tip text={categoriesOf(x).map(categoryName).join(" · ")} className="bench-cat"><Use k={`cat-${icon}`} size={16} /></Tip>}
@@ -187,11 +220,16 @@ function Row({ x, showCategory }: { x: DirectoryItem; showCategory?: boolean }) 
             {x.host && <span className="bench-host cap"><Favicon host={x.host} />{x.host}</span>}
           </span>
         </span>
-        <span className="bench-cell bench-leader">{x.leader && <Tip text={TIP.leader}><Use k="trophy" className="bench-trophy" size={13} /><i style={{ background: lab(x.leader.labId, x.leader.color) }} /><span className="truncate"><span className="bench-word">Top model: </span>{x.leader.name}</span></Tip>}</span>
-        <span className="bench-cell bench-num"><Tip text={TIP.models} end><Use k="cube" className="bench-inline" size={13} /><span className="num">{x.models}</span><span className="bench-word"> {x.models === 1 ? "model" : "models"}</span></Tip></span>
-        <span className={`bench-cell bench-num ${x.uses ? "" : "bench-none"}`}><Tip text={TIP.uses} end><Use k="users" className="bench-inline" size={13} /><span className="num">{x.uses || <><span aria-hidden="true">–</span><span className="bench-word">0</span></>}</span><span className="bench-word"> {x.uses === 1 ? "mix" : "mixes"}</span></Tip></span>
+        {view === "overview" ? <>
+          <span className="bench-cell bench-leader">{x.leader && <Tip text={TIP.leader}><Use k="trophy" className="bench-trophy" size={13} /><i style={{ background: lab(x.leader.labId, x.leader.color) }} /><span className="truncate"><span className="bench-word">Top model: </span>{x.leader.name}</span></Tip>}</span>
+          <span className="bench-cell bench-num"><Tip text={TIP.models} end><Use k="cube" className="bench-inline" size={13} /><span className="num">{x.models}</span><span className="bench-word"> {x.models === 1 ? "model" : "models"}</span></Tip></span>
+          <span className={`bench-cell bench-num ${x.uses ? "" : "bench-none"}`}><Tip text={TIP.uses} end><Use k="users" className="bench-inline" size={13} /><span className="num">{x.uses || <><span aria-hidden="true">–</span><span className="bench-word">0</span></>}</span><span className="bench-word"> {x.uses === 1 ? "mix" : "mixes"}</span></Tip></span>
+        </> : QUALITY_FACTORS.map((f) => <Factor key={f.id} x={x} id={f.id} />)}
         <span className="bench-cell bench-q"><Tip text={`Quality ${Math.round(x.quality)} of 100. ${TIP.quality}`} end><Quality v={x.quality} /></Tip></span>
+        {/* The star's own column: the button sits over it, outside the link (a button cannot go inside one). */}
+        <span className="bench-star-space" aria-hidden="true" />
       </Link>
+      <span className="bench-star-cell"><BenchmarkStar id={x.id} name={x.name} count={x.stars} /></span>
     </li>
   );
 }

@@ -18,7 +18,7 @@ import { authEnabled } from "@/app/providers";
 
 /**
  * Page settings drawer, opened from the edit bar. Everything on the page itself is edited inline;
- * this holds what has no place on the page: theme, share card, photo/banner/links and agent access.
+ * this holds what has no place on the page: share card, photo/banner/links, agent access and, under Advanced, the page's theme.
  * Changes apply live and autosave with the rest of the page.
  */
 export function PageSettings({ profile, set, open, onClose }: { profile: Profile; set: (patch: Partial<Profile>) => void; open: boolean; onClose: () => void }) {
@@ -39,13 +39,6 @@ export function PageSettings({ profile, set, open, onClose }: { profile: Profile
   return createPortal(
     <aside className="page-editor fixed top-0 right-0 bottom-0 w-[400px] max-w-full bg-white border-l hairline overflow-auto p-5 grid gap-7 content-start text-[13px] z-50 shadow-[-24px_0_60px_-30px_var(--shadow)]" aria-label="Page settings">
       <div className="flex items-center justify-between gap-3 sticky -top-5 -mx-5 -mt-5 px-5 py-4 bg-white border-b hairline z-10"><h2 className="text-[22px]">Page settings</h2><button type="button" className="btn-quiet" onClick={onClose}>Done</button></div>
-
-      <Group title="Theme">
-        <div className="grid grid-cols-2 gap-2">{THEME_CHOICES.map((t) => <ThemeSwatch key={t.id} theme={t} selected={family.id === t.id} onClick={() => setTheme(t)} />)}</div>
-        <ExploreThemes selectedId={family.library ? family.id : undefined} onPick={setTheme} modeControl={lightDark && <div className="theme-mode-row"><span className="theme-mode-label">Light and dark</span>{lightDark}</div>} />
-        {lightDark && <Field label="Light and dark">{lightDark}</Field>}
-        <Field label="Accent"><div className="flex flex-wrap items-center gap-1.5">{[chosen.accent, ...ACCENTS.filter((a) => a !== chosen.accent)].slice(0, 9).map((a) => <button key={a} type="button" aria-label={`Accent ${a}`} aria-pressed={(profile.theme?.accent ?? chosen.accent) === a} onClick={() => set({ theme: { ...profile.theme, accent: a === chosen.accent ? undefined : a } })} className={`w-6 h-6 rounded-full ${(profile.theme?.accent ?? chosen.accent) === a ? "ring-2 ring-offset-2 ring-ink" : ""}`} style={{ background: a }} />)}</div></Field>
-      </Group>
 
       <Group title="Share card">
         <p className="text-ink-2">Used when your page link is shared and as the default when you share a card. It follows your page theme.</p>
@@ -75,6 +68,19 @@ export function PageSettings({ profile, set, open, onClose }: { profile: Profile
         <p className="text-ink-2">Weights and benchmarks are edited in the builder; saving there updates this page.</p>
         <a className="btn-quiet inline-block w-fit" href={`/builder?${prettyQuery(encodeIndices(profile.indices.map((i) => ({ ...i, page: pageRef(profile.handle, i.id, pageKey) })), true))}`} onClick={() => { try { sessionStorage.setItem(PAGE_KEY, pageKey); } catch { /* storage can be disabled */ } }}>Open in builder</a>
       </Group>
+
+      {/* Themes are advanced: closed until someone looks for them. A page's saved theme keeps working either way. */}
+      <details className="page-advanced" data-advanced-settings>
+        <summary className="disclosure text-[16px] border-b hairline pb-1.5">Advanced</summary>
+        <div className="grid gap-3.5 pt-4">
+          <span className="cap">Page theme</span>
+        <div className="grid grid-cols-2 gap-2">{THEME_CHOICES.map((t) => <ThemeSwatch key={t.id} theme={t} selected={family.id === t.id} onClick={() => setTheme(t)} />)}</div>
+          <ExploreThemes selectedId={family.library ? family.id : undefined} onPick={setTheme} modeControl={lightDark && <div className="theme-mode-row"><span className="theme-mode-label">Light and dark</span>{lightDark}</div>} />
+          {lightDark && <Field label="Light and dark">{lightDark}</Field>}
+          <Field label="Accent"><div className="flex flex-wrap items-center gap-1.5">{[chosen.accent, ...ACCENTS.filter((a) => a !== chosen.accent)].slice(0, 9).map((a) => <button key={a} type="button" aria-label={`Accent ${a}`} aria-pressed={(profile.theme?.accent ?? chosen.accent) === a} onClick={() => set({ theme: { ...profile.theme, accent: a === chosen.accent ? undefined : a } })} className={`w-6 h-6 rounded-full ${(profile.theme?.accent ?? chosen.accent) === a ? "ring-2 ring-offset-2 ring-ink" : ""}`} style={{ background: a }} />)}</div></Field>
+          <Field label="This device"><Link href="/settings" className="btn-quiet inline-block w-fit">Site theme and update notices</Link></Field>
+        </div>
+      </details>
 
       {authEnabled && <DeletePage handle={profile.handle} />}
     </aside>, document.body);

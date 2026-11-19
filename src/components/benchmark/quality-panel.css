@@ -1,0 +1,16 @@
+/* A benchmark page's quality panel (QualityPanel.tsx): one line per factor. */
+.quality-rows{display:grid;grid-template-columns:max-content 150px max-content minmax(0,1fr);column-gap:16px;font-size:13px}
+.quality-row{display:grid;grid-template-columns:subgrid;grid-column:1/-1;align-items:start;line-height:1.5;padding:8px 0;border-top:1px solid var(--hair)}
+.quality-row:first-child{border-top:0}
+.quality-name{color:var(--ink)}
+.quality-bar{position:relative;display:flex;align-items:center;gap:8px;height:19.5px}
+.quality-bar i{display:block;height:6px;border-radius:2px;background:var(--indigo);min-width:2px;max-width:calc(100% - 34px)}
+.quality-bar b{font-weight:400;color:var(--ink)}
+.quality-points{white-space:nowrap}
+.quality-detail{color:var(--ink-2);line-height:1.5}
+@media (max-width:760px){
+  .quality-rows{grid-template-columns:minmax(0,1fr) max-content}
+  .quality-row{row-gap:4px}
+  .quality-bar{grid-column:1/-1;order:3}
+  .quality-detail{grid-column:1/-1;order:4}
+}

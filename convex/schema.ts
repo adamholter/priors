@@ -63,6 +63,11 @@ export default defineSchema({
     createdAt: v.number(),
   }).index("by_slug", ["slug"]).index("by_hash", ["hash"]).index("by_created", ["createdAt"]),
 
+  /** One row per signed-in account per benchmark it starred (benchmarkStars.ts). `userId` is the Clerk subject, so starring needs no page. */
+  benchmarkStars: defineTable({ userId: v.string(), benchmarkId: v.string(), createdAt: v.number() }).index("by_user", ["userId", "benchmarkId"]).index("by_benchmark", ["benchmarkId"]),
+  /** Stars per benchmark, kept in step by the toggle so the directory reads a few hundred small rows, not every star. */
+  benchmarkStarCounts: defineTable({ benchmarkId: v.string(), count: v.number() }).index("by_benchmark", ["benchmarkId"]),
+
   /** Requests for a benchmark or a feature, sent from `/request` and read only with `REQUESTS_TOKEN` (requests.ts). */
   requests: defineTable(request).index("by_created", ["createdAt"]).index("by_client", ["client", "createdAt"]),
   /** Files attached to requests, uploaded through `POST /request-file` (http.ts). */
