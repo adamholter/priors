@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 import type { Lab } from "../../data/types";
 import { modelLabel } from "../../lib/metrics";
 import { MONO_STATIC, SANS_STATIC, markColor, markFill, markSize, textSize, type ChartPalette, type MarkFill } from "./theme-tokens";
@@ -36,11 +36,13 @@ export interface ScaleMorphProps {
   fromPixels?: Map<string, [number, number]>;
   /** Optional: where ECharts draws each mark on the ending scale (variant id to CSS px). t = 1 lands on these. */
   toPixels?: Map<string, [number, number]>;
-  /** Called once, after the final frame is painted. The parent unmounts the layer here. */
+  /** Called once, after the final frame has faded out. The parent unmounts the layer here. */
   onDone: () => void;
 }
 
 const DURATION_MS = 900;
+/** How long the finished layer takes to fade out over the chart. */
+const FADE_MS = 160;
 /** Fraction of the run over which the handoff to the ECharts pixels blends in at each end. */
 const EDGE = 0.06;
 const EPS = 1e-6;
@@ -108,7 +110,8 @@ export default function ScaleMorphLayer(props: ScaleMorphProps) {
     doneRef.current = props.onDone;
   }, [props.onDone]);
 
-  useEffect(() => {
+  // A layout effect: the first frame is on the canvas before the browser paints, so the chart underneath never shows through.
+  useLayoutEffect(() => {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
       doneRef.current();
       return;
@@ -282,12 +285,18 @@ export default function ScaleMorphLayer(props: ScaleMorphProps) {
     };
 
     render(0);
-    let frame = 0, start: number | null = null;
+    let frame = 0, start: number | null = null, faded = false;
     const tick = (now: number) => {
       start ??= now;
       const t = Math.min(1, (now - start) / DURATION_MS);
-      render(t);
-      if (t < 1) frame = requestAnimationFrame(tick);
+      if (t < 1) { render(t); frame = requestAnimationFrame(tick); return; }
+      // The last frame has every mark on the chart's own pixel. It then fades over the chart, so tick and label
+      // differences between this layer and the chart dissolve rather than swap in one frame.
+      if (!faded) render(1);
+      const k = Math.min(1, (now - start - DURATION_MS) / FADE_MS);
+      faded = true;
+      cv.style.opacity = String(1 - k);
+      if (k < 1) frame = requestAnimationFrame(tick);
       else doneRef.current();
     };
     frame = requestAnimationFrame(tick);

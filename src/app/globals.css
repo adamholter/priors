@@ -187,7 +187,6 @@ header:has(.account-menu > [aria-expanded="true"]) { z-index: 60; }
 .seg > button + button { border-left: 1px solid var(--hair); }
 .seg > button:hover { color: var(--ink); }
 .seg > button[aria-pressed="true"] { background: var(--bone); color: var(--ink); }
-.scale-seg > button { font-size: 11.5px; line-height: 1; padding: 5px 7px; }
 .bench-dialog { margin: auto; width: min(620px, calc(100vw - 24px)); max-height: 88dvh; overflow: auto; padding: 0; background: var(--bone); color: var(--ink); border: 1px solid var(--hair); border-radius: 7px; box-shadow: 0 22px 100px var(--shadow); }
 .bench-dialog::backdrop { background: var(--backdrop); backdrop-filter: blur(3px); }
 .bench-dialog[open] { animation: bench-in .2s cubic-bezier(.16,1,.3,1) both; }

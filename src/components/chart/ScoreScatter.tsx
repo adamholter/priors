@@ -6,6 +6,7 @@ import { chartLinkUrl } from "@/lib/highlight-link";
 import type { ECharts, EChartsOption } from "echarts";
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
+import { flushSync } from "react-dom";
 import type { Lab } from "@/data/types";
 import { DARK_PALETTE, LIGHT_PALETTE, markColor, useChartPalette, useEChart } from "./echarts";
 import { useChartGrid } from "@/lib/chart-grid-pref";
@@ -25,13 +26,12 @@ import { FORMULA_MAX } from "@/lib/formula";
 import { focusPoints } from "@/lib/chart-focus";
 import { viewParam } from "@/lib/export-editor";
 import type { FallingDot } from "./GravityLayer";
-import type { ScaleMorphProps } from "./ScaleMorphLayer";
+import ScaleMorphLayer, { type ScaleMorphProps } from "./ScaleMorphLayer";
 import { useChartZoom } from "./ChartZoom";
 import { inBox } from "./chart-zoom";
 import { generationChange, isPlaced, isThinScore } from "@/lib/model-lineage";
 
 const GravityLayer = dynamic(() => import("./GravityLayer"), { ssr: false });
-const ScaleMorphLayer = dynamic(() => import("./ScaleMorphLayer"), { ssr: false });
 const ExportEditor = dynamic(() => import("./ExportEditor"), { ssr: false });
 
 export { chartLabel };
@@ -160,20 +160,20 @@ function PointCard({ history = [], previous, point, labs, pal, onFrontier, forma
   </div>;
 }
 
-type ScatterProps = { /** One line under the chart saying how to read it. */ legend?: string;
+type ScatterProps = {
   /** Earlier versions of a model, drawn as a path into the point under the cursor. */ lineage?: (p: ScatterPoint) => ScatterPoint[];
   /** With nothing under the cursor, keep the top model's path on show. */ lineageIdle?: boolean;
   /** Add the model's history to its hover card. */ lineageOnCard?: boolean;
   pts: ScatterPoint[]; labs: Lab[]; better: "lower" | "higher"; xName: string; xShort?: string; xUnit?: string;
   scale?: "linear" | "log" | "time"; formatX: (x: number) => string; formatValue?: (x: number) => string;
-  height?: number; aria: string; title?: ReactNode; actions?: ReactNode; footerAction?: ReactNode; view: ScatterView; exportName: string;
+  height?: number; aria: string; title?: ReactNode; actions?: ReactNode; view: ScatterView; exportName: string;
   extraRows?: (p: ScatterPoint) => ExportRow; tooltipExtra?: (p: ScatterPoint) => string; anchor?: string; linkParams?: ChartLinkParams;
   /** The screenshot editor's own copy: the plot only, no toolbar or link, sized by its container. */ bare?: boolean; chartRef?: { current: ECharts | null };
 };
 
 export function ScoreScatter(props: ScatterProps) {
   const axis = useScoreAxis();
-  const { pts: chartPoints, labs, better, xName: baseXName, xShort: baseXShort, xUnit = "", scale: defaultScale = "linear", formatX, formatValue, height = 420, aria, title, actions, footerAction, view, exportName, extraRows, tooltipExtra, anchor, linkParams, bare, chartRef, legend } = props;
+  const { pts: chartPoints, labs, better, xName: baseXName, xShort: baseXShort, xUnit = "", scale: defaultScale = "linear", formatX, formatValue, height = 420, aria, title, actions, view, exportName, extraRows, tooltipExtra, anchor, linkParams, bare, chartRef } = props;
   const scale = defaultScale === "time" ? "time" : view.scale ?? defaultScale;
   const xName = scale === "linear" ? baseXName.replace(/, log| \(log\)/g, "") : baseXName;
   const xShort = scale === "linear" ? baseXShort?.replace(/, log| \(log\)/g, "") : baseXShort;
@@ -429,6 +429,8 @@ export function ScoreScatter(props: ScatterProps) {
   const [scaleMorph, setScaleMorph] = useState<(Omit<ScaleMorphProps, "onDone"> & { run: number }) | null>(null);
   const lastLayout = useRef<{ scale: "log" | "linear"; pixels: Map<string, [number, number]>; xExtent: [number, number]; yExtent: [number, number]; grid: { x: number; y: number; width: number; height: number }; width: number; height: number } | null>(null);
   const prevScaleRef = useRef(scale);
+  /** The settled layout on the scale just left, held until the chart has drawn the new one. */
+  const pendingMorph = useRef<typeof lastLayout.current>(null);
 
   // Snapshot ECharts layout whenever the chart settles, and smoothly Box-Cox morph whenever Log <-> Linear flips.
   useEffect(() => {
@@ -457,16 +459,29 @@ export function ScoreScatter(props: ScatterProps) {
     const prevScale = prevScaleRef.current;
     prevScaleRef.current = scale;
     const snap = lastLayout.current;
-    if (!bare && !zoom.dragging && (prevScale === "log" || prevScale === "linear") && (scale === "log" || scale === "linear") && prevScale !== scale && snap && snap.scale === prevScale && shown.length > 0) {
-      const next = readChart(chart.current);
-      if (next && next.width > 0 && next.height > 0) {
-        const xLog = prevScale === "log" ? snap.xExtent : next.xExtent;
-        const xLin = prevScale === "linear" ? snap.xExtent : next.xExtent;
+    if (prevScale !== scale) pendingMorph.current = !bare && !zoom.dragging && (prevScale === "log" || prevScale === "linear") && (scale === "log" || scale === "linear") && snap && snap.scale === prevScale && shown.length > 0 ? snap : null;
+    const save = () => {
+      if (scale !== "log" && scale !== "linear") return;
+      const cur = readChart(chart.current);
+      if (cur && cur.pixels.size > 0) lastLayout.current = { scale, ...cur };
+    };
+    // `useEChart` applies a new option in an animation frame it asks for before this one, so only in this frame is the chart on the
+    // new scale. Reading it any earlier gives the old layout as the morph's destination, and the marks end back where they began.
+    const settle = () => {
+      const from = pendingMorph.current;
+      pendingMorph.current = null;
+      const next = from && from.scale !== scale && (scale === "log" || scale === "linear") ? readChart(chart.current) : null;
+      // A destination that matches the origin means the chart has not moved: nothing to glide, and nothing to snap back to.
+      const moved = !!from && !!next && [...next.pixels].some(([id, to]) => { const at = from.pixels.get(id); return !!at && Math.abs(at[0] - to[0]) > 0.5; });
+      if (from && next && moved && next.width > 0 && next.height > 0) {
+        const xLog = from.scale === "log" ? from.xExtent : next.xExtent;
+        const xLin = from.scale === "linear" ? from.xExtent : next.xExtent;
         const morphFrontier = zoom.zoomed ? frontierOf(shown, better) : frontier;
-        setScaleMorph((cur) => ({
+        // Committed before this frame paints: the layer covers the chart from its first frame, so the chart's own jump never shows.
+        flushSync(() => setScaleMorph((cur) => ({
           run: (cur?.run ?? 0) + 1,
-          fromScale: prevScale,
-          toScale: scale,
+          fromScale: from.scale,
+          toScale: scale as "log" | "linear",
           pts: shown,
           frontier: morphFrontier,
           labs,
@@ -486,17 +501,13 @@ export function ScoreScatter(props: ScatterProps) {
           xMaxLog: Math.max(1e-5, xLog[1]),
           xMinLin: xLin[0],
           xMaxLin: xLin[1],
-          fromPixels: snap.pixels,
+          fromPixels: from.pixels,
           toPixels: next.pixels,
-        }));
+        })));
       }
-    }
-    const save = () => {
-      if (scale !== "log" && scale !== "linear") return;
-      const cur = readChart(chart.current);
-      if (cur && cur.pixels.size > 0) lastLayout.current = { scale, ...cur };
+      save();
     };
-    const frame = requestAnimationFrame(save);
+    const frame = requestAnimationFrame(settle);
     const c = chart.current;
     c?.on("finished", save);
     return () => { cancelAnimationFrame(frame); c?.off("finished", save); };
@@ -552,10 +563,7 @@ export function ScoreScatter(props: ScatterProps) {
         {zoom.overlay}
         {focus && !zoom.dragging && <PointCard history={lineageOnCard ? steps : undefined} previous={lineageOnCard && steps.at(-1)?.r.variant.effort === focus.r.variant.effort ? steps.at(-1) : undefined} mark={() => { try { const [x, y] = chart.current?.convertToPixel({ xAxisIndex: 0, yAxisIndex: 0 }, [focus.x, focus.r.score]) as number[]; return Number.isFinite(x) && Number.isFinite(y) ? { x, y } : undefined; } catch { return undefined; } }} point={focus} labs={labs} pal={pal} onFrontier={view.frontier && onFrontierIds.has(focus.r.variant.id)} format={formatValue ?? formatX} unit={xUnit} extra={[tooltipExtra?.(focus), focus.r.speedTier ? ` · ${speedTierNote(focus.r)}` : ""].filter(Boolean).join("") || undefined} xLabel={xShort ?? xName} onClose={pinned && !hover ? () => setPinned(null) : undefined} />}
       </div>
-      {!bare && (legend || trimmedModels > 0 || footerAction) && <div className="flex items-start justify-between gap-3 mt-1 max-sm:px-4">
-        <p className={`cap min-w-0 ${footerAction ? "" : "pr-16"}`}>{legend}{legend && trimmedModels > 0 ? " " : ""}{trimmedModels > 0 && <>{trimmedModels} more models under All models in settings.</>}</p>
-        {footerAction && <div className="shrink-0">{footerAction}</div>}
-      </div>}
+      {!bare && trimmedModels > 0 && <p className="cap mt-1 max-sm:px-4 pr-16">{trimmedModels} more models under All models in settings.</p>}
       {!bare && zoom.box && <p className="cap mt-1 max-sm:px-4 pr-16" role="status">Zoomed to {formatX(zoom.box.x[0])} to {formatX(zoom.box.x[1])}, {axis.name.toLowerCase()} {axis.format(zoom.box.y[0])} to {axis.format(zoom.box.y[1])}: {new Set(shown.map((p) => p.r.model.id)).size} of {new Set(pts.map((p) => p.r.model.id)).size} models. <button type="button" className="underline hover:text-ink" onClick={zoom.reset}>Show all</button></p>}
       {!bare && <ChartContextMenu exportControl={exportControl} state={context.menu} close={context.close} name={exportName} points={pts} visibility={visibility} chart={chart} wrap={wrapRef} expanded={expand.expanded} anchor={anchor} />}
       {editor && <ExportEditor name={exportName} initial={editor} viewOnly={editor.viewOnly} defaultScale={defaultScale === "log" ? "log" : "linear"} base={view} showScale={defaultScale !== "time"} onClose={closeEditor}

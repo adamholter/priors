@@ -391,11 +391,58 @@ try {
       const button = p.getByRole("button", { name: "How this cost is worked out" });
       await button.scrollIntoViewIfNeeded();
       assert.equal(await p.locator(".chart-method-pop").count(), 0, "closed until asked for");
+      // How to read the lines is in here, not printed under the chart (Adam, 2026-11-19: charts go on stream).
+      assert.equal(await p.getByText(/Heavy line: best score/).count(), 0, "no reading note under the chart");
+      assert.equal(await p.getByRole("group", { name: "X-axis mode" }).count(), 0, "Log and Linear are in Display settings only");
       await button.click();
       assert.match(await p.locator(".chart-method-pop").textContent(), /best common plan/);
+      assert.match(await p.locator(".chart-method-pop").textContent(), /Heavy line: best score at each price/);
       assert.equal(await p.locator(".chart-method-pop a").getAttribute("href"), "/benchmarks/methodology#cost");
       await p.locator("body").click({ position: { x: 5, y: 5 } });
       assert.equal(await p.locator(".chart-method-pop").count(), 0, "a click elsewhere closes it");
+      // A metric's description is behind its own icon, and opening it leaves the panel as it was.
+      const panel = p.locator("details.gallery-panel", { has: p.locator(".gallery-title", { hasText: "Release date" }) }).first();
+      await panel.scrollIntoViewIfNeeded();
+      assert.equal(await panel.locator("summary .cap").count(), 0, "no description beside the title");
+      const open = await panel.evaluate((d) => d.open);
+      await panel.getByRole("button", { name: "How release date is worked out" }).click();
+      assert.match(await panel.locator(".chart-method-pop").textContent(), /When each model shipped\./);
+      assert.equal(await panel.evaluate((d) => d.open), open, "the icon does not open or close the panel");
+    } finally { await context.close(); }
+  });
+
+  await check("switching Log to Linear glides the marks to the new scale and ends there", async () => {
+    const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+    const p = await context.newPage();
+    try {
+      await p.goto(`${BASE}/builder`, { waitUntil: "domcontentloaded" });
+      await p.waitForFunction(() => document.querySelector('[role="img"][aria-label*="cost per task"] svg text'), null, { timeout: 30000 });
+      await p.waitForTimeout(1200);
+      const picker = p.locator("details", { has: p.locator("summary[aria-label='Pareto settings']") }).first();
+      await picker.locator("summary[aria-label='Pareto settings']").click();
+      const menu = picker.locator(".chart-settings-menu");
+      await menu.getByRole("tab", { name: "Display" }).click();
+      // Every animation frame while the layer is up: where its lab-colored marks sit, as their mean x. The bug (2026-11-19) read the
+      // chart's layout before it had switched scale, so the marks ended back where they began.
+      await p.evaluate(() => {
+        const log = (window.__morph = []);
+        const sample = () => {
+          const c = document.querySelector("canvas[aria-hidden]");
+          if (c && c.width) {
+            const d = c.getContext("2d").getImageData(0, 0, c.width, c.height).data;
+            let sum = 0, n = 0;
+            for (let i = 0; i < d.length; i += 4) if (Math.max(d[i], d[i + 1], d[i + 2]) - Math.min(d[i], d[i + 1], d[i + 2]) > 70) { sum += (i / 4) % c.width; n++; }
+            if (n) log.push(sum / n);
+          } else if (log.length) return;
+          requestAnimationFrame(sample);
+        };
+        requestAnimationFrame(sample);
+      });
+      await menu.getByRole("group", { name: "Scale" }).getByRole("button", { name: /linear/i }).click();
+      await p.waitForFunction(() => window.__morph.length > 10 && !document.querySelector("canvas[aria-hidden]"), null, { timeout: 5000 });
+      const xs = await p.evaluate(() => window.__morph), far = Math.max(...xs.map((x) => Math.abs(x - xs[0]))), end = Math.abs(xs.at(-1) - xs[0]);
+      assert.ok(far > 40, `the marks move (${far.toFixed(0)}px at most)`);
+      assert.ok(end > far * 0.9, `the last frame is the new scale, not the first frame again (${end.toFixed(0)}px from the start, ${far.toFixed(0)}px at most)`);
     } finally { await context.close(); }
   });
 

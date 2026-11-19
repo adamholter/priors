@@ -76,7 +76,8 @@ for (const [pname, profile] of Object.entries(PROFILES)) for (const scheme of ["
       await shot(`${id}-info`);
       const pop = root.locator(".chart-method-pop");
       inView(await pop.evaluate((el) => { const r = el.getBoundingClientRect(); return { left: r.left, right: r.right, top: r.top, bottom: r.bottom }; }), vw, vh, "popover");
-      await p.touchscreen.tap(vw / 2, vh - 160); await p.waitForTimeout(300);
+      // In the page gutter: a tap mid-page can land on a More metrics title and close the panel the next chart is in.
+      await p.touchscreen.tap(3, vh - 160); await p.waitForTimeout(300);
       assert.equal(await pop.count(), 0, "popover still open");
     });
   }

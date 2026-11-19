@@ -11,6 +11,7 @@ import { useBarModelVisibility } from "../chart/bar-model-visibility";
 import { MetricScatter } from "../chart/MetricScatter";
 import { SpeedChart } from "../chart/SpeedChart";
 import { ChartSettings } from "../chart/ChartSettings";
+import { ChartMethod } from "../chart/ChartMethod";
 import { toOwnerView, useScatterView, type OwnerView } from "../chart/ScoreScatter";
 import type { GalleryMetric } from "../../../convex/validators";
 import { arrangeMetrics } from "@/lib/gallery-layout";
@@ -60,10 +61,11 @@ export function MetricGallery({ tiers, ranked, estimated, mode = "all", snapshot
         </span>;
         const scatterBody = p.id === "strengths"
           ? <div id={anchor} className="scroll-mt-20"><StrengthsRadar ranked={radar!.ranked} benchmarks={radar!.benchmarks} labs={labs} snapshot={snapshot} config={radar!.config} /></div>
-          : chart && <GalleryChart tierLegend={tierable(p.id, chart.speed, timeSource) && tiers ? speedTierLegend(tiers.ranked, "speed") : undefined} speedTiers={tierable(p.id, chart.speed, timeSource) ? tiers?.settings : undefined} tiered={tierable(p.id, chart.speed, timeSource) ? tiers?.ranked : undefined} inputs={inputs} id={p.id} anchor={anchor} title={p.title} chart={chart.chart} speed={chart.speed} ranked={ranked} defaultMode={mode} labs={labs} settings={settings} owner={p.entry?.view} onOwner={editing ? (view) => patch(p.id, { view }) : undefined} dataSource={p.id === "tpt" && onTimeSourceChange ? { value: timeSource, options: taskMetricOptions(snapshot, "time"), onChange: onTimeSourceChange } : undefined} />;
+          : chart && <GalleryChart speedTiers={tierable(p.id, chart.speed, timeSource) ? tiers?.settings : undefined} tiered={tierable(p.id, chart.speed, timeSource) ? tiers?.ranked : undefined} inputs={inputs} id={p.id} anchor={anchor} title={p.title} chart={chart.chart} speed={chart.speed} ranked={ranked} defaultMode={mode} labs={labs} settings={settings} owner={p.entry?.view} onOwner={editing ? (view) => patch(p.id, { view }) : undefined} dataSource={p.id === "tpt" && onTimeSourceChange ? { value: timeSource, options: taskMetricOptions(snapshot, "time"), onChange: onTimeSourceChange } : undefined} />;
         // Usage opens as daily share over time (the Slopalytics view); the score-against-usage chart stays one click away.
         const body = p.id === "usage" && usageData(snapshot) ? <UsageGallery snapshot={snapshot} labs={labs} scatter={scatterBody} /> : scatterBody;
-        return <Panel key={`${p.id}-${editing ? "edit" : p.open}`} anchor={anchor} title={p.title} desc={p.desc} defaultOpen={p.open && !p.hidden} dim={editing && p.hidden} tools={tools}>{body}</Panel>;
+        const tierLegend = chart && tierable(p.id, chart.speed, timeSource) && tiers ? speedTierLegend(tiers.ranked, "speed") : "";
+        return <Panel key={`${p.id}-${editing ? "edit" : p.open}`} anchor={anchor} title={p.title} desc={tierLegend ? `${p.desc}. ${tierLegend}` : p.desc} defaultOpen={p.open && !p.hidden} dim={editing && p.hidden} tools={tools}>{body}</Panel>;
       })}
     </div>
   );
@@ -83,7 +85,7 @@ function UsageGallery({ snapshot, labs, scatter }: { snapshot: Snapshot; labs: L
 }
 
 /** One gallery chart with its own effort mode and display settings; shared index filters pass through. */
-export function GalleryChart({ id, anchor, title, chart, speed, ranked: indexRanked, tiered, tierLegend, speedTiers, defaultMode, labs, settings, dataSource, owner, onOwner, inputs }: { tiered?: RankedVariant[]; tierLegend?: string; speedTiers?: SharedSettings["speedTiers"]; inputs: FormulaInputs; id: string; anchor: string; title: string; chart?: MetricChart; speed?: boolean; ranked: RankedVariant[]; defaultMode: "all" | "best"; labs: Lab[]; settings?: SharedSettings; dataSource?: React.ComponentProps<typeof ChartSettings>["dataSource"]; owner?: OwnerView; onOwner?: (view: OwnerView) => void }) {
+export function GalleryChart({ id, anchor, title, chart, speed, ranked: indexRanked, tiered, speedTiers, defaultMode, labs, settings, dataSource, owner, onOwner, inputs }: { tiered?: RankedVariant[]; speedTiers?: SharedSettings["speedTiers"]; inputs: FormulaInputs; id: string; anchor: string; title: string; chart?: MetricChart; speed?: boolean; ranked: RankedVariant[]; defaultMode: "all" | "best"; labs: Lab[]; settings?: SharedSettings; dataSource?: React.ComponentProps<typeof ChartSettings>["dataSource"]; owner?: OwnerView; onOwner?: (view: OwnerView) => void }) {
   const ranked = tiered ?? indexRanked;
   const [modeState, setModeState] = useState<"all" | "best">(owner?.mode ?? defaultMode);
   const mode = onOwner ? owner?.mode ?? defaultMode : modeState;
@@ -149,8 +151,8 @@ export function GalleryChart({ id, anchor, title, chart, speed, ranked: indexRan
     return <MetricScatter pts={pts} labs={labs} better={metric.better} xLabel="" xName={metric.xName} scale={metric.scale} formatX={metric.formatX} aria={metric.aria} view={view} title={caption} actions={actions} exportName={name} anchor={anchor} linkParams={linkParams} />;
   }
   if (bars) return <MetricBars labelScale={view.labelScale} pts={barVisibility.points} labs={labs} better={metric.better} xName={metric.xName} formatValue={metric.formatValue ?? metric.formatX} zoomAxis={metric.zoomAxis} aria={metric.aria.replace("Index score versus", "By model:")} actions={actions} exportName={title} anchor={anchor} linkParams={linkParams} />;
-  if (speed) return <SpeedChart legend={tierLegend} pts={pts} labs={labs} view={view} actions={actions} anchor={anchor} linkParams={linkParams} />;
-  return <MetricScatter legend={tierLegend} pts={pts} labs={labs} better={metric.better} xLabel={metric.xLabel} xName={metric.xName} scale={metric.scale} formatX={metric.formatX} formatValue={metric.formatValue} aria={metric.aria} view={view} actions={actions} exportName={title} anchor={anchor} linkParams={linkParams} />;
+  if (speed) return <SpeedChart pts={pts} labs={labs} view={view} actions={actions} anchor={anchor} linkParams={linkParams} />;
+  return <MetricScatter pts={pts} labs={labs} better={metric.better} xLabel={metric.xLabel} xName={metric.xName} scale={metric.scale} formatX={metric.formatX} formatValue={metric.formatValue} aria={metric.aria} view={view} actions={actions} exportName={title} anchor={anchor} linkParams={linkParams} />;
 }
 
 export function Panel({ anchor, title, desc, defaultOpen, dim, tools, children }: { anchor: string; title: string; desc: string; defaultOpen?: boolean; dim?: boolean; tools?: React.ReactNode; children: React.ReactNode }) {
@@ -162,7 +164,8 @@ export function Panel({ anchor, title, desc, defaultOpen, dim, tools, children }
     <details className={`gallery-panel border-b hairline ${dim ? "is-dim" : ""}`} open={open} onToggle={(e) => { const o = e.currentTarget.open; setOpen(o); if (o) setMounted(true); }}>
       <summary className="disclosure flex flex-wrap items-baseline gap-x-4 gap-y-0.5 py-3.5 pr-6 relative select-none">
         <span className="gallery-title text-[15px] font-medium whitespace-nowrap">{title}</span>
-        <span className="cap text-grey">{desc}</span>
+        {/* What the metric is and where it comes from: behind the info icon, so the list reads as titles. The click must not toggle the panel. */}
+        {desc && <span className="self-center" onClick={(e) => e.preventDefault()}><ChartMethod name={title.toLowerCase()}><span>{desc.charAt(0).toUpperCase() + desc.slice(1)}{/[.!?]$/.test(desc) ? "" : "."}</span></ChartMethod></span>}
         {tools}
       </summary>
       {mounted && <div className="pb-6">{children}</div>}
