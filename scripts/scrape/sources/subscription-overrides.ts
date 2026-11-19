@@ -157,27 +157,33 @@ const QWEN_38_MAX = { ...QWEN_STANDARD, modelId: "qwen-3.8-max", label: "Qwen 3.
 const NEON_BASE = {
   modelId: "gemini-4-neon", label: "Gemini 4 Neon (xhigh)", listPrice: { cached: 0.15, input: 3, output: 15 }, checked: "2026-11-18",
   priceSource: "https://www.testingcatalog.com/google-prepares-to-release-gemini-4-neon-model-on-apis/",
-  caveat: "Uncached probes at reported $3/$15 API rates; 4-week monthly pool.",
+  caveat: "At reported $3/$15 API rates; 4-week monthly pool.",
 };
 
 export const PLAN_USAGE_SAMPLES: PlanUsageSample[] = [
-  // Gemini 4 Neon: three isolated agy CLI probes across Google AI Pro, Ultra 5x, and Ultra 20x (November 18, 2026). Every account ran a
-  // Gemini 3.8 Flash control on the same pool and matched 1.00x per list-price dollar ($105/wk on Pro, $600/wk on Ultra 5x, $2,400/wk on Ultra 20x).
+  // Gemini 4 Neon: isolated agy CLI probes across Google AI Pro, Ultra 5x, and Ultra 20x plus real ~95%-cached Pro usage (@Bolmercl),
+  // November 18, 2026. Every probe ran a Gemini 3.8 Flash control on the same pool and matched 1.00x per list-price dollar ($105/wk on Pro,
+  // also confirmed by two more Pro Flash controls from Pacote and an agy 1.5.12 run; $600/wk on Ultra 5x; $2,400/wk on Ultra 20x).
   // Weekly pool deltas are divided by 4 to match Real API Pricing's 4-week monthly convention.
   {
     ...NEON_BASE, plan: "Google AI Pro", feeUsd: 19.99, apiUsd: 0.110001, usedShare: 0.001048 / 4,
     tokens: { cached: 0, input: 36_432, output: 47 }, by: "Ash", period: "November 18, 2026",
-    note: "single gemini-4-neon-medium probe in agy CLI, 0.1048% of the weekly Gemini pool ($105/week, $30/5h); a Gemini 3.8 Flash control on the same account read $105/week (1.00x parity)",
+    note: "uncached gemini-4-neon-medium probe in agy CLI, 0.1048% of the weekly Gemini pool ($105/week, $30/5h); a Gemini 3.8 Flash control on the same account read $105/week (1.00x parity), also matched by two more Pro Flash controls ($105.0/week from Pacote and an agy 1.5.12 run)",
+  },
+  {
+    ...NEON_BASE, plan: "Google AI Pro", feeUsd: 19.99, apiUsd: 33.70, usedShare: (0.71 * (33.70 / 72.91)) / 4,
+    tokens: { cached: 88_260_400, input: 4_469_422, output: 470_178 }, by: "@Bolmercl", period: "November 18, 2026",
+    note: "real-world 94.7%-cached usage (93.2M Neon tokens for $33.70 plus $39.21 of Gemini 4 Hydrogen, $72.91 combined across 71% of the weekly Gemini pool = $102.7/week; uncached input/output split inferred from $0.36/1M blended rate)",
   },
   {
     ...NEON_BASE, plan: "Google AI Ultra 5x", feeUsd: 99.99, apiUsd: 0.317547, usedShare: 0.0005292892456054688 / 4,
     tokens: { cached: 0, input: 105_609, output: 48 }, by: "Adam", period: "November 18, 2026",
-    note: "clean gemini-4-neon-medium probe in agy CLI, 0.0529% of the weekly Gemini pool ($600/week, $150/5h; a repeat probe read $544/week and an output-heavy run also matched Flash); a Gemini 3.8 Flash control read $600/week (1.00x parity)",
+    note: "uncached gemini-4-neon-medium probe in agy CLI, 0.0529% of the weekly Gemini pool ($600/week, $150/5h; a repeat probe read $544/week and an output-heavy run also matched Flash); a Gemini 3.8 Flash control read $600/week (1.00x parity)",
   },
   {
     ...NEON_BASE, plan: "Google AI Ultra 20x", feeUsd: 199.99, apiUsd: 0.12798, usedShare: 0.0000532865524292 / 4,
     tokens: { cached: 0, input: 42_440, output: 44 }, by: "Pyrmi", period: "November 18, 2026",
-    note: "single gemini-4-neon-high probe in agy CLI, 0.00533% of the weekly Gemini pool ($2,402/week, $600/5h); a Gemini 3.8 Flash control on the same account read $2,397/week (1.00x parity)",
+    note: "uncached gemini-4-neon-high probe in agy CLI, 0.00533% of the weekly Gemini pool ($2,402/week, $600/5h); a Gemini 3.8 Flash control on the same account read $2,397/week (1.00x parity)",
   },
   // @SSHCodes used all 80,000 credits of the $18 plan with Qwen4-Max in T3 Code, 2,094 responses. 731.6M cached x $0.075 + 15.1M input x $1.50 + 2.26M output x $4.50 per 1M is $87.69
   // from the rounded counts; his logs give $87.76. Alibaba's plan page confirms $18 and 80,000 credits a month.

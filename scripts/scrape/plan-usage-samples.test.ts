@@ -13,14 +13,15 @@ describe("plan usage samples", () => {
   it("matches each sample's tokens at its list prices", () => {
     for (const { tokens: t, listPrice: p, apiUsd, by } of PLAN_USAGE_SAMPLES) expect(Math.abs((t.cached * p.cached + t.input * p.input + (t.cacheWrite ?? 0) * (p.cacheWrite ?? 0) + t.output * p.output) / 1e6 / apiUsd - 1), by).toBeLessThan(0.002);
   });
-  it("prices Gemini 4 Neon across Google AI Pro, Ultra 5x, and Ultra 20x from direct probes", () => {
+  it("prices Gemini 4 Neon across Google AI Pro, Ultra 5x, and Ultra 20x from direct readings", () => {
     const pro = estimate("gemini-4-neon", "Google AI Pro");
     const u5 = estimate("gemini-4-neon", "Google AI Ultra 5x");
     const u20 = estimate("gemini-4-neon", "Google AI Ultra 20x");
-    expect(1 / pro.ratio).toBeCloseTo(21.0, 1);
+    expect(1 / pro.ratio).toBeCloseTo(20.8, 1);
     expect(1 / u5.ratio).toBeCloseTo(24.0, 1);
     expect(1 / u20.ratio).toBeCloseTo(48.0, 1);
-    expect(pro.preliminary.sources).toEqual([{ by: "Ash", counted: true }]);
+    expect(pro.preliminary.label).toBe("Preliminary, 2 users");
+    expect(pro.preliminary.sources).toEqual([{ by: "Ash", counted: true }, { by: "@Bolmercl", counted: true }]);
     expect(u5.preliminary.sources).toEqual([{ by: "Adam", counted: true }]);
     expect(u20.preliminary.sources).toEqual([{ by: "Pyrmi", counted: true }]);
   });
