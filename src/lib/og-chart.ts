@@ -9,7 +9,7 @@ import { echarts, themeFor, paletteFor, markColor, DARK_PALETTE, SANS_STATIC, MO
 import { scatterOption, DEFAULT_VIEW, frontierOf, guidePoints, type Highlight, type ScatterPoint, type ScatterView } from "../components/chart/scatter-option";
 import { clampSize, decodeEditor, readViewParam, type EditorView } from "./export-editor";
 import { barsOption, defaultBarModels, filterBarModels, selectBars } from "../components/chart/bars-option";
-import { FRAME_H, FRAME_W, frameSvg, previewCanvas } from "../components/chart/export-frame";
+import { FRAME_H, FRAME_W, frameSvg, previewCanvas, type ImagePlace } from "../components/chart/export-frame";
 import { answerHeight, answerOption } from "../components/chart/answer-option";
 import type { AnswerChart } from "./answer-chart";
 import { effectiveBasis } from "../data/subscription";
@@ -194,7 +194,7 @@ export async function renderChartPng(spec: ChartSpec, labs: Lab[], pal: ChartPal
 
 /** The size and look a chart link was copied with: the screenshot editor's (`xe`), else the plain link's plot size (`xs`). */
 /** `trim`: crop the blank band on the right, as the toolbar PNG export does (the editor's export keeps its exact size). */
-export interface LinkFrame { w: number; h: number; view?: EditorView; heading?: string; theme?: string; trim?: boolean }
+export interface LinkFrame { w: number; h: number; view?: EditorView; heading?: string; theme?: string; trim?: boolean; place?: ImagePlace }
 /** A theme's chart fonts as the server can draw them: the bundled file for a font it has (DM Sans, Switzer), else Inter and JetBrains Mono. */
 const BUNDLED = ["DM Sans", "Switzer", "Source Serif 4", "JetBrains Mono", "Inter"];
 function staticFonts(pal: ChartPalette) {
@@ -207,7 +207,7 @@ export const framedSize = (f?: LinkFrame) => { if (!f) return { width: 1200, hei
 export function linkFrame(q: URLSearchParams): LinkFrame | undefined {
   if (!q.get("c")) return undefined;
   const xe = decodeEditor(q.get("xe"));
-  if (xe) return { w: xe.w, h: xe.h, view: { ...xe.view, grid: readViewParam(q.get("xv"))?.grid }, heading: xe.heading ?? xe.title, theme: xe.theme };
+  if (xe) return { w: xe.w, h: xe.h, view: { ...xe.view, grid: readViewParam(q.get("xv"))?.grid }, heading: xe.heading ?? xe.title, theme: xe.theme, place: xe.place };
   // Only the screenshot editor chooses a shape. A plain link is the standard card, whatever screen it was copied on; `xs` is links copied before that.
   const m = q.get("xs")?.match(/^(\d{2,4})x(\d{2,4})$/);
   const view = readViewParam(q.get("xv"));
@@ -222,7 +222,7 @@ export function linkFrame(q: URLSearchParams): LinkFrame | undefined {
  */
 export async function renderFramedPng(spec: ChartSpec, labs: Lab[], pal: ChartPalette, frame: LinkFrame): Promise<Buffer | null> {
   if (!spec.pts.length) return renderChartPng(spec, labs, pal);
-  const { w, h } = frame, over = frame.view ?? {};
+  const w = frame.w + (frame.place?.pw ?? 0), h = frame.h + (frame.place?.ph ?? 0), over = frame.view ?? {};
   // As the page draws it with "Only Pareto-optimal models" on: the frontier of the shown points only.
   if (over.paretoOnly) spec = { ...spec, pts: frontierOf(spec.pts, spec.chart.better) };
   const view: ScatterView = { ...DEFAULT_VIEW, labelScale: spec.labelScale, frontier: spec.chart.defaultFrontier ?? DEFAULT_VIEW.frontier };
@@ -254,8 +254,8 @@ export async function renderFramedPng(spec: ChartSpec, labs: Lab[], pal: ChartPa
     if (right && next < w) svg = svg.replace(/<svg[^>]*>/, (open) => open.replace(/width="[\d.]+"/, `width="${next}"`).replace(/viewBox="[^"]*"/, `viewBox="0 0 ${next} ${h}"`));
   }
   chart.dispose();
-  const framed = frameSvg(svg, frame.heading ?? spec.title, undefined, { bg: pal.bg, ink: pal.ink, grey: pal.grey });
-  const { width, height, y } = previewCanvas(w + FRAME_W, h + FRAME_H), x = (width - Number(framed.match(/width="([\d.]+)/)?.[1] ?? w + FRAME_W)) / 2;
+  const framed = frameSvg(svg, frame.heading ?? spec.title, undefined, { bg: pal.bg, ink: pal.ink, grey: pal.grey }, frame.place ? { place: frame.place } : undefined);
+  const { width, height, y } = previewCanvas(frame.w + FRAME_W, frame.h + FRAME_H), x = (width - Number(framed.match(/width="([\d.]+)/)?.[1] ?? frame.w + FRAME_W)) / 2;
   return rasterize(`<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><rect width="${width}" height="${height}" fill="${pal.bg}"/>${framed.replace("<svg", `<svg x="${x}" y="${y}"`)}</svg>`, pal.bg);
 }
 

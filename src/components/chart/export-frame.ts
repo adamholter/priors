@@ -5,6 +5,14 @@ export function escapeSvg(value: string) {
 /** What frameSvg adds around a plot: padding on each side, then padding, title band and footer. */
 export const FRAME_W = 64, FRAME_H = 88;
 
+/** Where the image's parts sit when someone has moved them: offsets from the standard layout, the plot's change in size, and text sizes. */
+export interface ImagePlace { tx?: number; ty?: number; ts?: number; px?: number; py?: number; pw?: number; ph?: number; fx?: number; fy?: number; fs?: number }
+/** The image and its parts, from the plot as drawn. Text is placed by its baseline. */
+export function placeGeometry(plotW: number, plotH: number, p: ImagePlace = {}) {
+  const ts = p.ts ?? 24, fs = p.fs ?? 11, W = Math.round(plotW - (p.pw ?? 0) + FRAME_W), H = Math.round(plotH - (p.ph ?? 0) + FRAME_H);
+  return { W, H, plot: { x: 32 + (p.px ?? 0), y: 54 + (p.py ?? 0) }, title: { x: 32 + (p.tx ?? 0), y: 46 + (p.ty ?? 0) + (ts - 24) * 14 / 24, size: ts }, foot: { x: 32 + (p.fx ?? 0), y: H - 16 + (p.fy ?? 0), size: fs } };
+}
+
 /**
  * The link-preview canvas for an image: X crops every card to 1.91:1 and prints its title over the bottom 12%, so the
  * image sits whole inside that shape, above that band, and the theme's background fills the rest.
@@ -21,17 +29,17 @@ export function previewCanvas(w: number, h: number) {
  * axis label. `footer: "right"` moves the source line to the bottom-right (link-preview cards
  * overlay a title pill at bottom-left).
  */
-export function frameSvg(raw: string, title: string, date?: string, pal: { bg: string; ink: string; grey: string } = { bg: "#FBFBF9", ink: "#1A1A1A", grey: "#8A8A80" }, opts?: { footer?: "left" | "right" }) {
+export function frameSvg(raw: string, title: string, date?: string, pal: { bg: string; ink: string; grey: string } = { bg: "#FBFBF9", ink: "#1A1A1A", grey: "#8A8A80" }, opts?: { footer?: "left" | "right"; place?: ImagePlace }) {
   const open = raw.match(/<svg[^>]*>/)?.[0] ?? "";
   const w = Number(open.match(/width="([\d.]+)/)?.[1] ?? 800), h = Number(open.match(/height="([\d.]+)/)?.[1] ?? 400);
-  const pad = 32, foot = 34, W = Math.round(w + pad * 2), H = Math.round(h + pad + 22 + foot);
-  const inner = raw.replace(/^<\?xml[^>]*>\s*/, "").replace(/<svg/, `<svg x="${pad}" y="${pad + 22}"`);
-  const footerX = opts?.footer === "right" ? W - pad : pad;
+  const pad = 32, g = placeGeometry(w, h, opts?.place), { W, H } = g;
+  const inner = raw.replace(/^<\?xml[^>]*>\s*/, "").replace(/<svg/, `<svg x="${g.plot.x}" y="${g.plot.y}"`);
+  const footerX = opts?.footer === "right" ? W - pad : g.foot.x;
   const anchor = opts?.footer === "right" ? ` text-anchor="end"` : "";
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}"><rect width="${W}" height="${H}" fill="${pal.bg}"/>`
-    + `<text x="${pad}" y="${pad + 14}" font-family="Newsreader, Georgia, serif" font-size="24" fill="${pal.ink}">${escapeSvg(title)}</text>`
+    + `<text x="${g.title.x}" y="${g.title.y}" font-family="Newsreader, Georgia, serif" font-size="${g.title.size}" fill="${pal.ink}">${escapeSvg(title)}</text>`
     + inner
-    + `<text x="${footerX}" y="${H - 16}"${anchor} font-family="JetBrains Mono, Menlo, monospace" font-size="11" fill="${pal.grey}">mypriors.com${date ? ` · ${escapeSvg(date)}` : ""}</text></svg>`;
+    + `<text x="${footerX}" y="${g.foot.y}"${anchor} font-family="JetBrains Mono, Menlo, monospace" font-size="${g.foot.size}" fill="${pal.grey}">mypriors.com${date ? ` · ${escapeSvg(date)}` : ""}</text></svg>`;
 }
 
 /**

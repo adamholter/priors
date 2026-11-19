@@ -1,9 +1,10 @@
-import { FRAME_H, FRAME_W } from "../components/chart/export-frame";
+import { FRAME_H, FRAME_W, type ImagePlace } from "../components/chart/export-frame";
 
 /** What a screenshot link remembers: crop size, theme, title and the chart settings it overrides. Carried in `xe`. */
 export interface EditorView { scale?: "log" | "linear"; frontier?: boolean; links?: boolean; guides?: boolean; density?: number; labelScale?: number; allModels?: boolean; grid?: boolean; paretoOnly?: boolean }
 /** `heading` is the title as drawn (custom title, else the chart name), so a link preview prints exactly what the image did. */
-export interface EditorState { w: number; h: number; ratio?: string; theme?: string; title?: string; heading?: string; view?: EditorView }
+export interface EditorState { w: number; h: number; ratio?: string; theme?: string; title?: string; heading?: string; view?: EditorView; /** Parts of the image that were moved or resized. */ place?: ImagePlace }
+const PLACE_KEYS = ["tx", "ty", "ts", "px", "py", "pw", "ph", "fx", "fy", "fs"] as const;
 
 export const EDITOR_RATIOS: { id: string; label: string; r?: number }[] = [
   { id: "free", label: "Free" }, { id: "16:9", label: "16:9", r: 16 / 9 }, { id: "3:2", label: "3:2", r: 3 / 2 }, { id: "4:3", label: "4:3", r: 4 / 3 },
@@ -33,6 +34,7 @@ export function encodeEditor(s: EditorState): string {
   const v = s.view ?? {};
   const out: Record<string, unknown> = { w: s.w, h: s.h, r: s.ratio && s.ratio !== "free" ? s.ratio : undefined, t: s.theme, ti: s.title || undefined, hd: s.heading && s.heading !== s.title ? s.heading : undefined, am: v.allModels ? 1 : undefined, po: v.paretoOnly ? 1 : undefined,
     sc: v.scale, fr: v.frontier == null ? undefined : +v.frontier, ln: v.links == null ? undefined : +v.links, gd: v.guides == null ? undefined : +v.guides, de: v.density, ls: v.labelScale };
+  if (s.place && PLACE_KEYS.some((k) => s.place![k] != null)) out.pl = PLACE_KEYS.map((k) => s.place![k] == null ? null : Math.round(s.place![k]! * 10) / 10);
   for (const k of Object.keys(out)) if (out[k] === undefined) delete out[k];
   return btoa(unescape(encodeURIComponent(JSON.stringify(out)))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
@@ -52,9 +54,10 @@ export function decodeEditor(raw: string | null | undefined): EditorState | null
     if (o.gd != null) view.guides = !!o.gd;
     if (o.am) view.allModels = true;
     if (o.po) view.paretoOnly = true;
+    const place: ImagePlace = {}; if (Array.isArray(o.pl)) PLACE_KEYS.forEach((k, i) => { const v = num((o.pl as unknown[])[i], k === "ts" ? 10 : k === "fs" ? 8 : -EDITOR_MAX, k === "ts" ? 120 : k === "fs" ? 48 : EDITOR_MAX); if (v != null) place[k] = v; });
     const de = num(o.de, 0, 1), ls = num(o.ls, 0.75, 1.75);
     if (de != null) view.density = de;
     if (ls != null) view.labelScale = ls;
-    return { w, h, ratio: typeof o.r === "string" && ratioOf(o.r) ? o.r : undefined, theme: typeof o.t === "string" ? o.t.slice(0, o.t.startsWith("u.") ? 8000 : 24) : undefined, title: typeof o.ti === "string" ? o.ti.slice(0, 120) : undefined, heading: typeof o.hd === "string" ? o.hd.slice(0, 120) : typeof o.ti === "string" ? o.ti.slice(0, 120) : undefined, view };
+    return { w, h, ratio: typeof o.r === "string" && ratioOf(o.r) ? o.r : undefined, theme: typeof o.t === "string" ? o.t.slice(0, o.t.startsWith("u.") ? 8000 : 24) : undefined, title: typeof o.ti === "string" ? o.ti.slice(0, 120) : undefined, heading: typeof o.hd === "string" ? o.hd.slice(0, 120) : typeof o.ti === "string" ? o.ti.slice(0, 120) : undefined, view, ...(Object.keys(place).length ? { place } : {}) };
   } catch { return null; }
 }

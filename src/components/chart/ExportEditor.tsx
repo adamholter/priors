@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import type { ECharts } from "echarts";
 import { IconCheck, IconLink, IconX } from "@tabler/icons-react";
 import { PAGE_PRESETS, THEME_CHOICES, themeById } from "@/lib/page-presets";
@@ -9,6 +9,8 @@ import { ChartPaletteContext, paletteFor, useChartPalette } from "./echarts";
 import { ChartExport } from "./ChartExport";
 import type { ScatterView } from "./scatter-option";
 import { copyLink } from "@/lib/short-link";
+import CanvasEditor from "./CanvasEditor";
+import { FRAME_H, FRAME_W, placeGeometry } from "./export-frame";
 
 const THEMES = [{ id: "site", name: "Current page" }, ...[...THEME_CHOICES, PAGE_PRESETS.find((p) => p.id === "night")!].map((p) => ({ id: p.id, name: p.name }))];
 
@@ -16,8 +18,8 @@ const THEMES = [{ id: "site", name: "Current page" }, ...[...THEME_CHOICES, PAGE
  * The screenshot editor: the chart at the size of the image, resizable by dragging its corner or by ratio, with its own
  * theme, title and chart settings. Everything it holds goes into the link (`xe`), so the link opens this modal over the same page.
  */
-export default function ExportEditor({ name, initial, base, showScale, onClose, link, plot, viewOnly = false, defaultScale = "linear", controls = "scatter" }: {
-  name: string; initial: EditorState; base: ScatterView; showScale: boolean; onClose: () => void;
+function ClassicEditor({ name, initial, base, showScale, onClose, link, plot, viewOnly = false, defaultScale = "linear", controls = "scatter", labBar, report, onEditCanvas }: {
+  name: string; initial: EditorState; base: ScatterView; showScale: boolean; onClose: () => void; labBar?: ReactNode; report?: (state: EditorState) => void; onEditCanvas?: () => void;
   /** Which chart settings the editor offers: a scatter's, or only the label size for the leaderboard's rows. */ controls?: "scatter" | "rows";
   /** The chart's own scale when the view sets none. */ defaultScale?: "log" | "linear";
   /** Opened from a shared link: show the image as it was made, full screen, with Edit to change it. */
@@ -53,10 +55,11 @@ export default function ExportEditor({ name, initial, base, showScale, onClose, 
   for (const [k, v] of Object.entries(over)) if (v !== undefined) (view as unknown as Record<string, unknown>)[k] = v;
   const set = (patch: EditorView) => setOver((o) => ({ ...o, ...patch }));
   // The link records the whole view as drawn (not only what was changed here) and the heading, so its preview can redraw this exact image.
-  const state = (): EditorState => ({ ...size, ratio, theme: theme === "site" ? undefined : theme, title: title.trim() || undefined, heading: title.trim() || name,
+  const state = (): EditorState => ({ place: initial.place, ...size, ratio, theme: theme === "site" ? undefined : theme, title: title.trim() || undefined, heading: title.trim() || name,
     view: { scale: showScale ? view.scale : undefined, frontier: !!view.frontier, links: !!view.links, guides: view.guides !== false, density: view.density, labelScale: view.labelScale, allModels: view.allModels || undefined, paretoOnly: view.paretoOnly || undefined } });
 
   useEffect(() => { const d = dialog.current; if (d && !d.open) d.showModal(); }, []);
+  useEffect(() => { report?.(state()); });
 
   const lock = ratioOf(ratio);
   const resize = (w: number, h?: number) => setSize(lock ? sizeForRatio(w, lock) : clampSize(w, h ?? size.h));
@@ -75,7 +78,14 @@ export default function ExportEditor({ name, initial, base, showScale, onClose, 
   };
 
   const heading = title.trim() || name;
-  const cardEl = (
+  const place = initial.place, plotW = size.w + (place?.pw ?? 0), plotH = size.h + (place?.ph ?? 0), geo = viewing && place ? placeGeometry(plotW, plotH, place) : undefined;
+  const cardEl = geo ? (
+    <div ref={card} className="xe-card" style={{ position: "relative", overflow: "hidden", flexShrink: 0, padding: 0, width: size.w + FRAME_W, height: size.h + FRAME_H, background: pal.bg, color: pal.ink, transform: `scale(${fit})`, transformOrigin: "top center" }}>
+      <div style={{ position: "absolute", left: geo.plot.x, top: geo.plot.y, width: plotW, height: plotH }} data-testid="xe-box">{plot(view, plotH, chartRef, { width: plotW, svg: provided })}</div>
+      <div style={{ position: "absolute", whiteSpace: "nowrap", left: geo.title.x, top: geo.title.y - geo.title.size * 5 / 6, fontSize: geo.title.size, lineHeight: `${geo.title.size * 13 / 12}px`, fontFamily: "Newsreader, Georgia, serif" }}>{heading}</div>
+      <div style={{ position: "absolute", whiteSpace: "nowrap", left: geo.foot.x, top: geo.foot.y - geo.foot.size * 8 / 11, fontSize: geo.foot.size, lineHeight: `${geo.foot.size * 14 / 11}px`, fontFamily: "JetBrains Mono, Menlo, monospace", color: pal.grey }}>mypriors.com</div>
+    </div>
+  ) : (
     <div ref={card} className="xe-card" style={{ background: pal.bg, color: pal.ink, ...(viewing ? { transform: `scale(${fit})`, transformOrigin: "top center" } : {}) }}>
       <div className="xe-title" style={{ fontFamily: "Newsreader, Georgia, serif", color: pal.ink }}>{heading}</div>
       <div className="xe-box" style={{ width: size.w, height: size.h }} data-testid="xe-box">
@@ -89,8 +99,8 @@ export default function ExportEditor({ name, initial, base, showScale, onClose, 
     <div className="xe-viewer-bar">
       <span className="cap">{heading}</span>
       <span className="flex items-center gap-2">
-        <ChartPaletteContext.Provider value={pal}><ChartExport name={name} title={heading} frame trim={false} getSvg={getSvg} /></ChartPaletteContext.Provider>
-        <button type="button" className="xe-copy" onClick={() => setViewing(false)}>Edit</button>
+        <ChartPaletteContext.Provider value={pal}><ChartExport name={name} title={heading} frame trim={false} place={place} getSvg={getSvg} /></ChartPaletteContext.Provider>
+        <button type="button" className="xe-copy" onClick={() => onEditCanvas ? onEditCanvas() : setViewing(false)}>Edit</button>
         <button type="button" className="xe-copy" onClick={onClose} aria-label="Close">Close</button>
       </span>
     </div>
@@ -98,8 +108,9 @@ export default function ExportEditor({ name, initial, base, showScale, onClose, 
   </dialog>;
   return <dialog ref={dialog} className="xe" aria-label={`Edit ${name} screenshot`} onClose={onClose} onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
     <ChartPaletteContext.Provider value={pal}>
-      <div className="xe-stage">{cardEl}</div>
+      <div className="xe-stage" style={labBar ? { paddingTop: 52 } : undefined}>{cardEl}</div>
     </ChartPaletteContext.Provider>
+    {labBar && <div className="xe-labbar">{labBar}</div>}
     <aside className="xe-side">
       <header><h2>Edit screenshot</h2><button type="button" onClick={onClose} aria-label="Close editor"><IconX size={16} aria-hidden="true" /></button></header>
       <section>
@@ -132,4 +143,14 @@ export default function ExportEditor({ name, initial, base, showScale, onClose, 
       </footer>
     </aside>
   </dialog>;
+}
+
+type EditorProps = Parameters<typeof ClassicEditor>[0];
+
+/** The screenshot editor (`CanvasEditor`). A shared link first shows the finished image full screen, and Edit opens the editor on it. */
+export default function ExportEditor(props: EditorProps) {
+  const [viewing, setViewing] = useState(!!props.viewOnly), latest = useRef(props.initial), [start, setStart] = useState(props.initial);
+  const report = useCallback((s: EditorState) => { latest.current = { ...s, place: s.place ?? latest.current.place }; }, []);
+  if (viewing) return <ClassicEditor key="viewer" {...props} viewOnly report={report} onEditCanvas={() => { setStart(latest.current); setViewing(false); }} />;
+  return <CanvasEditor key="canvas" {...props} initial={start} report={report} />;
 }

@@ -2,7 +2,7 @@
 import { track } from "@/lib/analytics";
 import { useImperativeHandle, useState, type Ref } from "react";
 import { useChartPalette } from "./echarts";
-import { escapeSvg, frameSvg, trimRight } from "./export-frame";
+import { escapeSvg, frameSvg, trimRight, type ImagePlace } from "./export-frame";
 import { embedFonts } from "./embed-fonts";
 import { IconBrush } from "@tabler/icons-react";
 
@@ -22,7 +22,7 @@ function toCsv(rows: ExportRow[]) {
 }
 
 /** Export control: PNG is the primary button, a chevron opens the full format menu (PNG, SVG, CSV, JSON). */
-export function ChartExport({ name, title, trim = true, onEdit, getSvg, getRows, getHtml, frame, className = "", ref }: { name: string; /** Heading drawn in the framed image (default: `name`). */ title?: string; /** Crop blank space off the right of PNG and SVG exports (default on). */ trim?: boolean; /** Opens the screenshot editor; shows a brush beside PNG. */ onEdit?: () => void; getSvg: () => string | undefined; getRows?: () => ExportRow[]; getHtml?: () => string; frame?: boolean; className?: string; ref?: Ref<ChartExportHandle> }) {
+export function ChartExport({ name, title, trim = true, onEdit, getSvg, getRows, getHtml, frame, place, className = "", ref }: { /** Moved or resized parts of the framed image. */ place?: ImagePlace; name: string; /** Heading drawn in the framed image (default: `name`). */ title?: string; /** Crop blank space off the right of PNG and SVG exports (default on). */ trim?: boolean; /** Opens the screenshot editor; shows a brush beside PNG. */ onEdit?: () => void; getSvg: () => string | undefined; getRows?: () => ExportRow[]; getHtml?: () => string; frame?: boolean; className?: string; ref?: Ref<ChartExportHandle> }) {
   const pal = useChartPalette();
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState(false);
@@ -50,7 +50,7 @@ export function ChartExport({ name, title, trim = true, onEdit, getSvg, getRows,
       // Exports cannot inherit the page's CSS variables.
       const clean0 = raw.replace(/var\(--font-[a-z0-9-]+\),?\s*/g, "");
       const clean = trim ? trimRight(clean0) : clean0;
-      const svg = await embedFonts(frame ? frameSvg(clean, title || name, undefined, pal) : clean);
+      const svg = await embedFonts(frame ? frameSvg(clean, title || name, undefined, pal, place ? { place } : undefined) : clean);
       let blob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
       if (format === "png") {
         const source = URL.createObjectURL(blob);

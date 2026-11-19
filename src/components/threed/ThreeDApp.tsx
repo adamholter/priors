@@ -19,7 +19,7 @@ import { loadPage } from "../compare/load-page";
 import { SidePicker, type Sources } from "../compare/SidePicker";
 import { useMyRankings } from "../my-rankings";
 import { useLightDismiss } from "@/lib/useLightDismiss";
-import { Scene3D, type LabelMode, type ViewPreset } from "./Scene3D";
+import { Scene3D, type LabelMode, type Look, type ViewPreset } from "./Scene3D";
 import { AxisIcon, CAMERA_ICONS, MeasureIcon, TOGGLE_ICONS } from "./icons";
 import "../compare/compare.css";
 import "./threed.css";
@@ -32,6 +32,7 @@ const VIEWS = {
 } as const;
 type ViewKey = keyof typeof VIEWS;
 const MIN_ROWS = 8;
+const LOOKS: { id: Look; label: string }[] = [{ id: "stems", label: "Stems" }, { id: "points", label: "Points" }, { id: "surface", label: "Frontier" }, { id: "flat", label: "Flat" }, { id: "full", label: "Everything" }];
 const short = (label = "") => label.replace(/\s*\(.*\)\s*$/, "");
 
 /** `/3d`: one ranking as a 3D chart (score, time per task and cost per task by default) with the best corner marked. */
@@ -46,7 +47,7 @@ export function ThreeDApp({ initial, wantMine, axes: axesParam, published }: { i
 
   const [axes, setAxes] = useState<[string, string, string]>(() => { const p = axesParam?.split(".") ?? []; return p.length === 3 ? [p[0], p[1], p[2]] : ["time", "score", "cost"]; });
   const [allEfforts, setAllEfforts] = useState(false);
-  const [viewKey, setViewKey] = useState<ViewKey>("perspective");
+  const [viewKey, setViewKey] = useState<ViewKey>("perspective"), [look, setLook] = useState<Look>("stems"), full = look === "full";
   const [nonce, setNonce] = useState(0);
   const [labels, setLabels] = useState<LabelMode>("key");
   const [dropLines, setDropLines] = useState(true), [frontier, setFrontier] = useState(true), [spin, setSpin] = useState(false);
@@ -77,7 +78,8 @@ export function ThreeDApp({ initial, wantMine, axes: axesParam, published }: { i
   const colorOf = useCallback((p: Point3) => labColors.get(p.r.model.labId) ?? pal.grey, [labColors, pal]);
   const nameOf = useCallback((p: Point3) => chartLabel(p.r), []);
   const scenePal = useMemo(() => ({ ink: pal.ink, grey: pal.grey, hair: pal.hair, bg: pal.tipBg }), [pal]);
-  const view = useMemo<ViewPreset>(() => ({ ortho: VIEWS[viewKey].ortho, dir: [...VIEWS[viewKey].dir] as [number, number, number], nonce }), [viewKey, nonce]);
+  const shownView = look === "flat" ? "top" : full ? viewKey : "perspective";
+  const view = useMemo<ViewPreset>(() => ({ ortho: VIEWS[shownView].ortho, dir: [...VIEWS[shownView].dir] as [number, number, number], nonce }), [shownView, nonce]);
   const byId = useMemo(() => new Map((placed?.points ?? []).map((p) => [p.id, p])), [placed]);
   const nearest = useMemo(() => [...(placed?.points ?? [])].sort((a, b) => a.gap - b.gap).slice(0, 6), [placed]);
   const inZone = useMemo(() => (placed?.points ?? []).filter((p) => p.inZone).length, [placed]);
@@ -103,7 +105,7 @@ export function ThreeDApp({ initial, wantMine, axes: axesParam, published }: { i
     </header>
     <div className="max-w-[1280px] mx-auto px-4 sm:px-8 py-8 grid gap-5">
       <div className="flex flex-wrap items-end justify-between gap-4">
-        <div><h1 className="text-[36px] leading-tight">3D</h1><p className="text-[13.5px] text-ink-2 mt-1 max-w-[62ch]">Every model as a point, with the better end of each axis at the best corner. Each point is projected onto the floor and back walls so you can read it against the grid. The green surface is the Pareto frontier: every model under it is beaten on all three by a model on it. Hover a point to trace its values.</p></div>
+        <div><h1 className="text-[36px] leading-tight">3D</h1><div className="seg t3d-looks mt-2" role="group" aria-label="Chart style">{LOOKS.map((l) => <button key={l.id} type="button" aria-pressed={look === l.id} onClick={() => setLook(l.id)}>{l.label}</button>)}</div>{full && <p className="text-[13.5px] text-ink-2 mt-2 max-w-[62ch]">Every model as a point, with the better end of each axis at the best corner. Each point is projected onto the floor and back walls so you can read it against the grid. The green surface is the Pareto frontier: every model under it is beaten on all three by a model on it. Hover a point to trace its values.</p>}</div>
         <div className="w-full sm:w-[360px]"><SidePicker tone="a" label="Ranking" value={choice} sources={sources} onPick={(c) => { setPicked(c); setSelected(null); }} /></div>
       </div>
       {loading ? <div role="status" aria-busy={!error} className="grid gap-4"><div className="load-bar h-[480px] w-full" />
@@ -113,18 +115,19 @@ export function ThreeDApp({ initial, wantMine, axes: axesParam, published }: { i
           <div className="t3d-stage">
             <div className="t3d-bar t3d-bar-top">
               <AxisPanel axes={usable} options={options} onPick={setAxis} onRotate={() => setAxes([usable[2], usable[0], usable[1]])} />
-              <div className="t3d-tools" role="group" aria-label="Camera">
+              {full && <div className="t3d-tools" role="group" aria-label="Camera">
                 {(Object.keys(VIEWS) as ViewKey[]).map((k) => <button key={k} type="button" className="t3d-tool" aria-pressed={viewKey === k} data-tip={VIEWS[k].label} aria-label={VIEWS[k].label} onClick={() => { setViewKey(k); setNonce((n) => n + 1); }}>{CAMERA_ICONS[k]}</button>)}
-              </div>
+              </div>}
             </div>
             <div className="t3d-canvas">
-              <Scene3D points={placed.points} axes={placed.axes} zone={placed.zone} titles={titles} palette={scenePal} colorOf={colorOf} nameOf={nameOf} view={view} labels={labels} dropLines={dropLines} frontier={frontier} autoRotate={spin} selected={selected} onSelect={setSelected} onHover={setHover} />
+              <Scene3D points={placed.points} axes={placed.axes} zone={placed.zone} titles={titles} palette={scenePal} colorOf={colorOf} nameOf={nameOf} view={view} look={look} labels={full ? labels : "key"} dropLines={full ? dropLines : true} frontier={full ? frontier : true} autoRotate={full && spin} selected={selected} onSelect={setSelected} onHover={setHover} />
               {tip && hover && <div role="status" className="t3d-tip" style={{ left: hover.x + 14, top: hover.y + 14 }}>
                 <div className="font-semibold">{nameOf(tip)}</div>
                 {([0, 1, 2] as const).map((i) => <div key={i} className="flex justify-between gap-4 text-ink-2"><span>{titles[i]}</span><span className="num text-ink">{fmt(tip, i)}</span></div>)}
               </div>}
             </div>
-            <div className="t3d-bar t3d-bar-bottom">
+            {!full && <p className="cap t3d-note">{look === "flat" ? `Bigger dot: higher ${titles[1]}. ` : ""}Better is toward the green marker.</p>}
+            {full && <div className="t3d-bar t3d-bar-bottom">
               <p className="cap t3d-hint">Drag to orbit · scroll to zoom · right-drag to pan</p>
               <div className="t3d-tools t3d-tools-bottom" role="group" aria-label="Display">
                 <button type="button" className="t3d-tool" aria-pressed={labels !== "none"} data-tip={labels === "key" ? "Key labels (click for all)" : labels === "all" ? "All labels (click for none)" : "No labels (click for key)"} aria-label="Cycle labels" onClick={() => setLabels(labelModes[(labelModes.indexOf(labels) + 1) % 3])}>{TOGGLE_ICONS.labels}</button>
@@ -134,7 +137,7 @@ export function ThreeDApp({ initial, wantMine, axes: axesParam, published }: { i
                 <button type="button" className="t3d-tool" aria-pressed={spin} data-tip="Auto-rotate" aria-label="Auto-rotate" onClick={() => setSpin((v) => !v)}>{TOGGLE_ICONS.spin}</button>
                 <button type="button" className="t3d-tool" data-tip="Reset camera" aria-label="Reset camera" onClick={() => setNonce((n) => n + 1)}>{TOGGLE_ICONS.reset}</button>
               </div>
-            </div>
+            </div>}
           </div>
           <aside className="grid content-start gap-5 text-[13px]">
             {sel && <section className="grid gap-1.5 rounded-lg border hairline p-4" style={{ background: "var(--white)" }} aria-label="Selected model">

@@ -7,6 +7,8 @@ import { axisTicks, frontierSurface, type Axis, type Point3 } from "@/lib/three-
 export interface ScenePalette { ink: string; grey: string; hair: string; bg: string }
 export type ViewPreset = { ortho: boolean; dir: [number, number, number]; nonce: number };
 export type LabelMode = "key" | "all" | "none";
+/** How much of the chart is drawn. `full` is the complete view; the rest each keep one way of reading the third dimension. */
+export type Look = "stems" | "points" | "surface" | "flat" | "full";
 
 export interface SceneProps {
   points: Point3[];
@@ -17,6 +19,7 @@ export interface SceneProps {
   colorOf: (p: Point3) => string;
   nameOf: (p: Point3) => string;
   view: ViewPreset;
+  look: Look;
   labels: LabelMode;
   dropLines: boolean;
   frontier: boolean;
@@ -109,15 +112,16 @@ export function Scene3D(props: SceneProps) {
         const hotId = p.selected ?? hoverId, hotAnchor = hotId ? anchors.find((a) => a.id === hotId) : undefined;
         if (paths) {
           paths.visible = !!hotAnchor;
-          pathDots.forEach((d) => { d.visible = !!hotAnchor; });
+          pathDots.forEach((d, i) => { d.visible = !!hotAnchor && p.look !== "flat" && (p.look === "full" || i === 1); });
           if (hotAnchor) {
-            const v = hotAnchor.v, ends = [[back[0], v.y, v.z], [v.x, back[1], v.z], [v.x, v.y, back[2]]], pos = paths.geometry.getAttribute("position") as T.BufferAttribute;
+            const v = hotAnchor.v, wallsOn = p.look === "full", ends = [wallsOn ? [back[0], v.y, v.z] : [v.x, v.y, v.z], p.look === "flat" ? [v.x, v.y, v.z] : [v.x, back[1], v.z], wallsOn ? [v.x, v.y, back[2]] : [v.x, v.y, v.z]], pos = paths.geometry.getAttribute("position") as T.BufferAttribute;
             ends.forEach((e, i) => { pos.setXYZ(i * 2, v.x, v.y, v.z); pos.setXYZ(i * 2 + 1, e[0], e[1], e[2]); pathDots[i].position.set(e[0], e[1], e[2]); });
             pos.needsUpdate = true;
           }
         }
         renderer.render(scene, camera);
         for (const s of statics) {
+          if (p.look === "flat" && s.axis === 1) { s.node.style.visibility = "hidden"; continue; }
           if (s.chip && !hotAnchor) { s.node.style.visibility = "hidden"; continue; }
           if (s.axis != null) s.v.copy(at(s.axis, s.u == null ? 0 : world(s.u), edges[s.axis]));
           const q = project(s.v);
@@ -178,7 +182,7 @@ export function Scene3D(props: SceneProps) {
         controls?.dispose();
         controls = new OrbitControls(camera, dom);
         controls.enableDamping = !reduced; controls.dampingFactor = 0.12; controls.minDistance = 6; controls.maxDistance = 45; controls.zoomSpeed = 0.8; controls.maxPolarAngle = Math.PI / 2;
-        controls.autoRotateSpeed = 0.8; controls.autoRotate = latest.current.autoRotate;
+        controls.autoRotateSpeed = 0.8; controls.autoRotate = latest.current.autoRotate; controls.enableRotate = latest.current.look !== "flat";
         controls.addEventListener("change", request);
         controls.addEventListener("start", () => { intro = null; animating = performance.now() + 60_000; request(); });
         controls.addEventListener("end", () => { animating = performance.now() + 900; request(); });
@@ -187,12 +191,12 @@ export function Scene3D(props: SceneProps) {
         const v = latest.current.view;
         camera = v.ortho ? ortho : persp;
         makeControls();
-        if (camera === ortho) { ortho.zoom = 1; ortho.updateProjectionMatrix(); }
+        if (camera === ortho) { ortho.zoom = latest.current.look === "flat" ? 1.5 : 1; ortho.updateProjectionMatrix(); }
         const flat = v.dir[0] === 0 && v.dir[2] === 0;
         const aspect = (el.clientWidth || 600) / (el.clientHeight || 500);
-        camera.position.set(...v.dir).normalize().multiplyScalar(v.ortho ? 26 : Math.min(44, 22 / Math.min(1, aspect * 1.05)));
+        camera.position.set(...v.dir).normalize().multiplyScalar(v.ortho ? 26 : Math.min(44, (latest.current.look === "full" ? 22 : 21) / Math.min(1, aspect * 1.05)));
         camera.up.set(0, flat ? 0 : 1, flat ? -1 : 0);
-        const aim = v.ortho ? 0 : -0.5; camera.position.y += aim; camera.lookAt(0, aim, 0); controls.target.set(0, aim, 0); controls.update();
+        const aim = v.ortho ? 0 : latest.current.look === "full" ? -0.5 : -1.2; camera.position.y += aim; camera.lookAt(0, aim, 0); controls.target.set(0, aim, 0); controls.update();
         animating = performance.now() + 50;
         if (!v.ortho && !introPlayed && !reduced) { introPlayed = true; intro = { from: performance.now(), end: camera.position.clone() }; animating = performance.now() + INTRO_MS + 100; }
         request();
@@ -232,13 +236,14 @@ export function Scene3D(props: SceneProps) {
         const placed = p.points.map((q) => ({ q, color: p.colorOf(q), pos: new THREE.Vector3(world(q.pos[0]), world(q.pos[1]), world(q.pos[2])) }));
 
         // A wall: a faint panel, its grid at the round values of the two axes in its plane, and every model's position projected onto it.
-        const wall = (axis: 0 | 1 | 2, at: number) => {
+        const wall = (axis: 0 | 1 | 2, at: number, marks = true) => {
           const group = new THREE.Group(), [a, b] = ([0, 1, 2] as const).filter((x) => x !== axis) as [0 | 1 | 2, 0 | 1 | 2], grid: T.Vector3[] = [];
           const panelShape = new THREE.PlaneGeometry(SIZE, SIZE); if (axis === 0) panelShape.rotateY(Math.PI / 2); if (axis === 1) panelShape.rotateX(-Math.PI / 2);
           const panel = new THREE.Mesh(panelShape, new THREE.MeshBasicMaterial({ color: grey, transparent: true, opacity: axis === 1 ? 0.09 : 0.05, depthWrite: false, side: THREE.DoubleSide }));
           panel.position.setComponent(axis, at); panel.renderOrder = -6; group.add(panel);
           for (const [run, across] of [[a, b], [b, a]] as const) for (const u of [...ticks[run].map((t) => world(t.u)), -HALF, HALF]) grid.push(onCube({ [axis]: at, [run]: u, [across]: -HALF }), onCube({ [axis]: at, [run]: u, [across]: HALF }));
           group.add(segments(grid, grey, 0.3, -5));
+          if (!marks) { content.add(group); return group; }
           const dot = new THREE.CircleGeometry(1, 16); if (axis === 0) dot.rotateY(Math.PI / 2); if (axis === 1) dot.rotateX(-Math.PI / 2);
           const shadows = new THREE.InstancedMesh(dot, new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.8, depthWrite: false, side: THREE.DoubleSide }), placed.length), m = new THREE.Matrix4();
           placed.forEach(({ q, color, pos }, i) => {
@@ -249,8 +254,8 @@ export function Scene3D(props: SceneProps) {
           shadows.renderOrder = -4; group.add(shadows); drops.push(shadows); content.add(group);
           return group;
         };
-        wall(1, -HALF);
-        for (const axis of [0, 2] as const) for (const side of [-1, 1] as const) walls.push({ axis, side, group: wall(axis, side * HALF) });
+        wall(1, -HALF, p.look === "full" || p.look === "points" || p.look === "stems");
+        if (p.look === "full") for (const axis of [0, 2] as const) for (const side of [-1, 1] as const) walls.push({ axis, side, group: wall(axis, side * HALF) });
 
         // The three axes, each with an arrowhead at its better end.
         axisLines = [0, 1, 2].map(() => line(new THREE.Vector3(), new THREE.Vector3(1, 0, 0), ink, 0.65));
@@ -259,6 +264,7 @@ export function Scene3D(props: SceneProps) {
           const m = new THREE.Mesh(new THREE.ConeGeometry(0.14, 0.42, 14), new THREE.MeshBasicMaterial({ color: ink }));
           m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3().setComponent(i, 1)); content.add(m); return m;
         });
+        if (p.look === "flat") { axisLines[1].visible = false; arrows[1].visible = false; }
         const titles: typeof statics = [], chips: typeof statics = [], marks: typeof statics = [];
         for (let i = 0; i < 3; i++) {
           const axis = p.axes[i], n = tag(`<b>${esc(p.titles[i])}</b><i>${axis.meta.better === "lower" ? "lower" : "higher"} is better</i>`, "t3d-title");
@@ -268,7 +274,7 @@ export function Scene3D(props: SceneProps) {
         }
 
         // The frontier as one layer: a depth pass first, so the colour pass and the outline show only its nearest face and the steps stay readable.
-        const { faces, edges: outline } = frontierSurface(p.points);
+        const { faces, edges: outline } = p.look === "full" || p.look === "surface" ? frontierSurface(p.points) : { faces: [], edges: [] }, solid = p.look === "surface" ? 1.8 : 1;
         const wv = (c: [number, number, number]) => [world(c[0]), world(c[1]), world(c[2])];
         for (const axis of [0, 1, 2] as const) {
           const quads = faces.filter((f) => f.axis === axis);
@@ -278,11 +284,11 @@ export function Scene3D(props: SceneProps) {
           const geo = new THREE.BufferGeometry(); geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
           const offset = { polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1, side: THREE.DoubleSide };
           const depth = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ ...offset, transparent: true, colorWrite: false, depthWrite: true }));
-          const skin = new THREE.Mesh(geo.clone(), new THREE.MeshBasicMaterial({ ...offset, color: good, transparent: true, opacity: axis === 1 ? 0.2 : axis === 0 ? 0.07 : 0.11, depthWrite: false, depthFunc: THREE.LessEqualDepth }));
+          const skin = new THREE.Mesh(geo.clone(), new THREE.MeshBasicMaterial({ ...offset, color: good, transparent: true, opacity: (axis === 1 ? 0.2 : axis === 0 ? 0.07 : 0.11) * solid, depthWrite: false, depthFunc: THREE.LessEqualDepth }));
           depth.renderOrder = 2; skin.renderOrder = 3; content.add(depth, skin); surface.push(depth, skin);
         }
         if (outline.length) {
-          const lines = segments(outline.flatMap(([a, b]) => [new THREE.Vector3(...(wv(a) as [number, number, number])), new THREE.Vector3(...(wv(b) as [number, number, number]))]), good, 0.5, 4);
+          const lines = segments(outline.flatMap(([a, b]) => [new THREE.Vector3(...(wv(a) as [number, number, number])), new THREE.Vector3(...(wv(b) as [number, number, number]))]), good, p.look === "surface" ? 0.85 : 0.5, 4);
           content.add(lines); surface.push(lines);
         }
         const star = new THREE.Mesh(new THREE.OctahedronGeometry(0.2), new THREE.MeshBasicMaterial({ color: good })); star.position.set(HALF, HALF, HALF); content.add(star);
@@ -293,17 +299,19 @@ export function Scene3D(props: SceneProps) {
         const byScore = [...p.points].sort((a, b) => b.r.score - a.r.score);
         keyIds = new Set([...p.points.filter((q) => q.frontier).map((q) => q.id), ...byScore.slice(0, 3).map((q) => q.id)]);
         order = [...byScore].sort((a, b) => Number(keyIds.has(b.id)) - Number(keyIds.has(a.id)) || Number(b.frontier) - Number(a.frontier) || b.r.score - a.r.score).map((q) => q.id);
-        const floorLines: T.Vector3[] = [], sphere = new THREE.SphereGeometry(1, 24, 16);
+        const floorLines: T.Vector3[] = [], stemPts: T.Vector3[] = [], stemColors: number[] = [], sphere = new THREE.SphereGeometry(1, 24, 16);
         for (const { q, color, pos } of placed) {
           // Solid, so a nearer point hides a farther one. Frontier models are large and ringed; the rest are small and muted.
-          const r = q.frontier ? 0.25 : 0.14, tint = q.frontier ? new THREE.Color(color) : new THREE.Color(color).lerp(paper, 0.5);
+          const r = p.look === "flat" ? 0.1 + 0.46 * q.pos[1] ** 2 : p.look === "surface" && !q.frontier ? 0.08 : q.frontier ? 0.25 : p.look === "full" ? 0.14 : 0.11, tint = q.frontier ? new THREE.Color(color) : new THREE.Color(color).lerp(paper, 0.5);
           const mesh = new THREE.Mesh(sphere.clone(), new THREE.MeshLambertMaterial({ color: tint })); mesh.scale.setScalar(r); mesh.position.copy(pos); mesh.userData.r = r; content.add(mesh); pickables.push({ mesh, id: q.id });
-          if (q.frontier) { const halo = new THREE.Mesh(sphere.clone(), new THREE.MeshBasicMaterial({ color: bg, side: THREE.BackSide })); halo.scale.setScalar(1.28); mesh.add(halo); floorLines.push(pos, new THREE.Vector3(pos.x, -HALF, pos.z)); }
+          if (q.frontier) { const halo = new THREE.Mesh(sphere.clone(), new THREE.MeshBasicMaterial({ color: bg, side: THREE.BackSide })); halo.scale.setScalar(1.28); mesh.add(halo); if (p.look === "full") floorLines.push(pos, new THREE.Vector3(pos.x, -HALF, pos.z)); }
+          if (p.look === "stems" || (p.look === "surface" && q.frontier)) { stemPts.push(pos, new THREE.Vector3(pos.x, -HALF, pos.z)); const c = new THREE.Color(q.frontier ? color : grey).lerp(paper, q.frontier ? 0.05 : 0.45); stemColors.push(c.r, c.g, c.b, c.r, c.g, c.b); }
           const n = tag(esc(p.nameOf(q)), q.frontier ? "t3d-name" : "t3d-name t3d-under"); n.style.visibility = "hidden";
           anchors.push({ id: q.id, v: pos, node: n, ...sizeOf(n) });
         }
         sphere.dispose();
         if (floorLines.length) { const d = segments(floorLines, grey, 0.42, -3); drops.push(d); content.add(d); }
+        if (stemPts.length) { const geo = new THREE.BufferGeometry().setFromPoints(stemPts); geo.setAttribute("color", new THREE.Float32BufferAttribute(stemColors, 3)); const stems = new THREE.LineSegments(geo, new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.85 })); drops.push(stems); content.add(stems); }
         // The picked or hovered model's three paths to the walls.
         paths = segments(Array.from({ length: 6 }, () => new THREE.Vector3()), ink, 0.8, 9); (paths.material as T.Material).depthTest = false; paths.frustumCulled = false; paths.visible = false; content.add(paths);
         pathDots = [0, 1, 2].map(() => { const d = new THREE.Mesh(new THREE.SphereGeometry(0.09, 12, 8), new THREE.MeshBasicMaterial({ color: ink })); d.visible = false; content.add(d); return d; });
@@ -359,7 +367,7 @@ export function Scene3D(props: SceneProps) {
     return () => { disposed = true; cleanup(); };
   }, []);
 
-  useEffect(() => { api.current?.rebuild(); }, [props.points, props.axes, props.zone, props.titles, props.palette, props.colorOf, props.nameOf]);
+  useEffect(() => { api.current?.rebuild(); }, [props.points, props.axes, props.zone, props.titles, props.palette, props.colorOf, props.nameOf, props.look]);
   useEffect(() => { api.current?.refresh(); }, [props.labels, props.dropLines, props.frontier, props.autoRotate, props.selected]);
   useEffect(() => { api.current?.snap(); }, [props.view]);
   return failed ? <p role="alert" className="p-6 text-[13.5px] text-ink-2">This browser could not start WebGL, which the 3D chart needs.</p> : <div ref={host} className="t3d-host" />;

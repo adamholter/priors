@@ -802,41 +802,60 @@ try {
     assert.ok(bbox.x > box.x + box.width / 2 && bbox.y > box.y + box.height / 2, "the card sits in the lower right, not beside the mark");
   });
 
-  await check("screenshot editor: brush opens it, ratio resizes live, the link opens the image full screen and Edit reopens the editor", async () => {
+  await check("screenshot editor: brush opens it, a shape resizes the image, the title moves, and the link opens the image full screen with Edit reopening the editor", async () => {
     const group = page.locator('[role="group"][aria-label="Export Time per task"]').first();
     await group.scrollIntoViewIfNeeded();
     await group.hover();
     await page.waitForTimeout(250); // The brush slides open.
     await group.getByRole("button", { name: /Edit .* screenshot/ }).click();
-    const box = page.getByTestId("xe-box");
-    await box.waitFor({ timeout: 10000 });
-    await page.getByRole("button", { name: "1:1", exact: true }).click();
-    await page.waitForTimeout(600);
-    const b = await box.boundingBox();
-    assert.ok(Math.abs(b.width + 64 - b.height - 88) < 2, `1:1 makes the image square, got a ${b.width}x${b.height} plot`);
-    await page.locator("dialog.xe input[type=text]").fill("Link test");
+    const card = page.locator("dialog.xs .xs-card");
+    await page.getByTestId("xe-box").waitFor({ timeout: 10000 });
+    await page.locator(".xs-shapes").getByRole("button", { name: "1:1", exact: true }).click();
+    await page.waitForTimeout(900); // The image springs to its new shape.
+    const b = await card.boundingBox();
+    assert.ok(Math.abs(b.width - b.height) < 3, `1:1 makes the image square, got ${b.width}x${b.height}`);
+    // Click the title to select it, type in the bar, then drag it: the move is part of the image and its link.
+    const title = page.locator("dialog.xs .xs-title");
+    const tb = await title.boundingBox();
+    await page.mouse.click(tb.x + tb.width / 2, tb.y + tb.height / 2); // The stage takes the pointer and finds what is under it.
+    await page.locator('.xs-bar input[aria-label="Title"]').fill("Link test");
+    await page.locator('.xs-bar input[aria-label="Title"]').press("Tab");
+    const t0 = await title.boundingBox();
+    await page.mouse.move(t0.x + t0.width / 2, t0.y + t0.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(t0.x + t0.width / 2 + 30, t0.y + t0.height / 2 + 20, { steps: 8 });
+    await page.mouse.move(t0.x + t0.width / 2 + 60, t0.y + t0.height / 2 + 40, { steps: 8 });
+    await page.mouse.up();
+    await page.waitForTimeout(300);
+    const t1 = await title.boundingBox();
+    assert.ok(t1.x - t0.x > 20 && t1.y - t0.y > 10, `dragging the title moves it (${t0.x},${t0.y} to ${t1.x},${t1.y})`);
     await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
-    await page.locator(".xe-copy").click();
+    await page.locator("dialog.xs .xe-copy").click();
     let link = "";
     for (let i = 0; i < 40 && !link; i++) { link = await page.evaluate(() => navigator.clipboard.readText()); if (!link) await page.waitForTimeout(150); }
     // Long links are copied as /s/<slug> short links; the redirect must land on the full editor state.
     const full = /\/s\/[A-Za-z0-9]+$/.test(link) ? (await fetch(link, { redirect: "manual" })).headers.get("location") ?? "" : link;
     assert.ok(full.includes("xe=") && full.includes("c=time-per-task"), `the link carries the editor state (${link} -> ${full.slice(0, 80)})`);
+    const xe = JSON.parse(Buffer.from(new URL(full, BASE).searchParams.get("xe").replace(/-/g, "+").replace(/_/g, "/"), "base64").toString());
+    assert.ok(Array.isArray(xe.pl) && xe.pl[0] > 20 && xe.pl[1] > 10, `the link keeps where the title was moved (${JSON.stringify(xe.pl)})`);
     const other = await page.context().newPage();
     await other.goto(link, { waitUntil: "domcontentloaded" });
     // A shared editor link shows the image full screen as made, not the editor; Edit opens the editor with its settings.
     await other.locator("dialog.xe-viewer[open]").waitFor({ timeout: 15000 });
-    assert.ok(await other.locator("dialog.xe-viewer .xe-title").innerText() === "Link test", "the title survives the link");
-    const ob = await other.getByTestId("xe-box").boundingBox();
-    assert.ok(Math.abs(ob.width / ob.height - b.width / b.height) < 0.02, "the crop survives the link");
+    assert.ok((await other.locator("dialog.xe-viewer .xe-card").innerText()).includes("Link test"), "the title survives the link");
+    const oc = await other.locator("dialog.xe-viewer .xe-card").boundingBox();
+    assert.ok(Math.abs(oc.width / oc.height - 1) < 0.02, `the shape survives the link (${oc.width}x${oc.height})`);
     await other.getByRole("button", { name: "Edit", exact: true }).click();
-    assert.equal(await other.locator("dialog.xe input[type=text]").inputValue(), "Link test", "Edit opens the editor with the link's title");
+    await other.locator("dialog.xs .xs-title").waitFor();
+    assert.equal(await other.locator("dialog.xs .xs-title").innerText(), "Link test", "Edit opens the editor with the link's title");
     await other.keyboard.press("Escape");
     await other.waitForTimeout(400);
     assert.ok(!other.url().includes("xe="), "closing drops the editor from the address");
     assert.equal(await other.locator('[role="group"][aria-label="Export Time per task"]').count(), 1, "the page is still there");
     await other.close();
+    await page.keyboard.press("Escape"); // First Escape drops the selection, the second closes.
     await page.keyboard.press("Escape");
+    await page.locator("dialog.xs").waitFor({ state: "detached", timeout: 5000 });
   });
 
   await check("screenshot editor on the leaderboard: the brush opens it with a short animation, and a taller image holds more models", async () => {
@@ -849,18 +868,15 @@ try {
     await shot.waitFor({ timeout: 10000 });
     assert.equal(await page.locator("dialog.xe").evaluate((d) => getComputedStyle(d).animationName), "chart-pop", "the editor rises into place instead of popping up");
     const rows = () => shot.locator('svg rect[rx="2"]').count().then((n) => n / 2);
-    const height = page.locator("dialog.xe input[type=number]").nth(1);
-    await height.fill("236");
-    await page.waitForTimeout(300);
+    const shape = (r) => page.locator(".xs-shapes").getByRole("button", { name: r, exact: true }).click().then(() => page.waitForTimeout(1200));
+    await shape("16:9");
     const few = await rows();
-    await height.fill("596");
-    await page.waitForTimeout(300);
+    await shape("9:16");
     const many = await rows();
     assert.ok(few >= 1 && many > few, `a taller image shows more models (${few} then ${many})`);
     const size = await shot.locator("svg").evaluate((el) => [el.getAttribute("width"), el.getAttribute("height")]);
-    assert.equal(size[1], "596", "the image is exactly the height asked for");
-    assert.ok((await page.locator("dialog.xe .xe-title").innerText()).length > 0, "the image carries the leaderboard's name");
-    const [dl] = await Promise.all([page.waitForEvent("download"), page.locator("dialog.xe footer").getByRole("button", { name: /Download .* as PNG/ }).click()]);
+    assert.ok((await page.locator("dialog.xs .xs-title").innerText()).length > 0, "the image carries the leaderboard's name");
+    const [dl] = await Promise.all([page.waitForEvent("download"), page.locator("dialog.xs .xs-actions").getByRole("button", { name: /Download .* as PNG/ }).click()]);
     const png = await (await import("node:fs/promises")).readFile(await dl.path());
     assert.equal(png.readUInt32BE(16), (Number(size[0]) + 64) * 3, "the PNG is the image plus its frame, at 3x");
     await page.keyboard.press("Escape");
@@ -1179,7 +1195,13 @@ try {
       const list = c.getByRole("region", { name: "Closest to the best corner" }).locator("li");
       await list.first().waitFor({ timeout: 30000 });
       assert.equal(await list.count(), 6, "six models listed");
-      // The frontier surface is on by default and its count is in the side panel.
+      // It opens on the Stems style, with no camera or display toolbars; Everything brings them back.
+      const style = c.getByRole("group", { name: "Chart style" });
+      assert.equal(await style.getByRole("button", { name: "Stems" }).getAttribute("aria-pressed"), "true", "Stems is the default style");
+      assert.equal(await c.getByRole("button", { name: "Pareto frontier" }).count(), 0, "the simple styles have no display toolbar");
+      await style.getByRole("button", { name: "Flat" }).click();
+      await style.getByRole("button", { name: "Everything" }).click();
+      // The frontier surface is on in the full view and its count is in the side panel.
       assert.match(await c.getByRole("region", { name: "Closest to the best corner" }).innerText(), /\d+ on the frontier/);
       assert.equal(await c.getByRole("button", { name: "Pareto frontier" }).getAttribute("aria-pressed"), "true");
       await c.getByRole("button", { name: /^Across axis: Time per task/ }).waitFor();

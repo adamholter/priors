@@ -50,3 +50,5 @@
 }
 /* Models under the frontier: their names step back, unless hovered or picked. */
 .t3d-under:not(.t3d-hot) { color: var(--grey); font-weight: 400; }
+.t3d-looks > button { padding: 5px 11px; font-size: 13px; }
+.t3d-note { padding: 8px 14px; border-top: 1px solid var(--hair-2); }
