@@ -437,7 +437,7 @@ export function ScoreScatter(props: ScatterProps) {
     const readChart = (c: ECharts | null) => {
       if (!c || c.isDisposed()) return null;
       try {
-        const model = (c as unknown as { getModel: () => { getComponent: (t: string, i: number) => { coordinateSystem?: { getRect: () => { x: number; y: number; width: number; height: number } }; axis?: { scale?: { getExtent: () => [number, number] } } } | undefined } }).getModel();
+        const model = (c as unknown as { getModel: () => { getComponent: (t: string, i: number) => { coordinateSystem?: { getRect: () => { x: number; y: number; width: number; height: number } }; axis?: { type?: string; scale?: { getExtent: () => [number, number] } } } | undefined } }).getModel();
         const rect = model.getComponent("grid", 0)?.coordinateSystem?.getRect();
         const xExtRaw = model.getComponent("xAxis", 0)?.axis?.scale?.getExtent();
         const yExt = model.getComponent("yAxis", 0)?.axis?.scale?.getExtent();
@@ -453,13 +453,19 @@ export function ScoreScatter(props: ScatterProps) {
           const px = c.convertToPixel({ seriesId: "marks" }, [p.x, p.r.score]) as unknown as number[] | undefined;
           if (px && Number.isFinite(px[0]) && Number.isFinite(px[1])) pixels.set(p.r.variant.id, [px[0], px[1]]);
         }
-        return { pixels, xExtent: xExt, yExtent: [yExt[0], yExt[1]] as [number, number], grid: rect, width: c.getWidth(), height: c.getHeight() };
+        return { pixels, xExtent: xExt, yExtent: [yExt[0], yExt[1]] as [number, number], grid: rect, width: c.getWidth(), height: c.getHeight(), onLog: model.getComponent("xAxis", 0)?.axis?.type === "log" };
       } catch { return null; }
     };
     const prevScale = prevScaleRef.current;
     prevScaleRef.current = scale;
     const snap = lastLayout.current;
-    if (prevScale !== scale) pendingMorph.current = !bare && !zoom.dragging && (prevScale === "log" || prevScale === "linear") && (scale === "log" || scale === "linear") && snap && snap.scale === prevScale && shown.length > 0 ? snap : null;
+    if (prevScale !== scale) {
+      const able = !bare && !zoom.dragging && (prevScale === "log" || prevScale === "linear") && (scale === "log" || scale === "linear") && shown.length > 0;
+      // The chart is still on the scale just left (its option lands next frame), so this is where every mark starts. The saved layout
+      // is the fallback: it is missing until something redraws the chart after it first loads, which made the first switch jump.
+      const live = able ? readChart(chart.current) : null;
+      pendingMorph.current = !able ? null : live && live.pixels.size > 0 && live.onLog === (prevScale === "log") ? { scale: prevScale as "log" | "linear", ...live } : snap && snap.scale === prevScale ? snap : null;
+    }
     const save = () => {
       if (scale !== "log" && scale !== "linear") return;
       const cur = readChart(chart.current);
@@ -467,10 +473,13 @@ export function ScoreScatter(props: ScatterProps) {
     };
     // `useEChart` applies a new option in an animation frame it asks for before this one, so only in this frame is the chart on the
     // new scale. Reading it any earlier gives the old layout as the morph's destination, and the marks end back where they began.
+    let waited = 0;
     const settle = () => {
       const from = pendingMorph.current;
-      pendingMorph.current = null;
       const next = from && from.scale !== scale && (scale === "log" || scale === "linear") ? readChart(chart.current) : null;
+      // The option can land a frame or two after the scale changes. Until the chart's own axis is on the new scale there is no destination to read.
+      if (from && next && next.onLog !== (scale === "log") && waited++ < 30) { frame = requestAnimationFrame(settle); return; }
+      pendingMorph.current = null;
       // A destination that matches the origin means the chart has not moved: nothing to glide, and nothing to snap back to.
       const moved = !!from && !!next && [...next.pixels].some(([id, to]) => { const at = from.pixels.get(id); return !!at && Math.abs(at[0] - to[0]) > 0.5; });
       if (from && next && moved && next.width > 0 && next.height > 0) {
@@ -507,7 +516,7 @@ export function ScoreScatter(props: ScatterProps) {
       }
       save();
     };
-    const frame = requestAnimationFrame(settle);
+    let frame = requestAnimationFrame(settle);
     const c = chart.current;
     c?.on("finished", save);
     return () => { cancelAnimationFrame(frame); c?.off("finished", save); };
