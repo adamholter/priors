@@ -31,6 +31,7 @@ import { SiteNav } from "./SiteNav";
 import { IndexTabs } from "./IndexTabs";
 import { REFERENCE_ID, REFERENCE_LABEL, indexNote, isAAWeights, isPristineDefault, restorable, withoutPristineDefault } from "@/lib/default-index";
 import { CalculationSettings } from "./CalculationSettings";
+import { methodScoreAxis, ScoreAxisContext } from "./chart/score-axis";
 import { ChartSettings } from "./chart/ChartSettings";
 import { HeaderAuth } from "./HeaderAuth";
 import { mergeImports } from "@/lib/import-merge";
@@ -190,7 +191,8 @@ export function Builder({ snapshot: base, initialIndices }: { snapshot: Snapshot
       try {
         if (plain) { localStorage.removeItem("priors:indices"); return; }
         localStorage.setItem("priors:indices", JSON.stringify(p.getAll("i")));
-        const encoded = encodeIndex({ ...active, onlyModels: undefined, excludeModels: undefined });
+        // The saved mix seeds the ranking flow and model pages, which score with the weighted average: the method stays with the builder and its links.
+        const encoded = encodeIndex({ ...active, onlyModels: undefined, excludeModels: undefined, scoring: undefined });
         if (encoded.length <= 2048) document.cookie = `${PRIORS_MIX_COOKIE}=${encodeURIComponent(encoded)}; Path=/; Max-Age=31536000; SameSite=Lax${location.protocol === "https:" ? "; Secure" : ""}`;
       } catch { /* ignore */ }
     }, 150);
@@ -199,6 +201,7 @@ export function Builder({ snapshot: base, initialIndices }: { snapshot: Snapshot
 
   const update = useCallback((c: IndexConfig) => setIndices((list) => list.map((i) => (i.id === c.id ? c : i))), [setIndices]);
   const phone = usePhone(), fresh = useNewModels(snapshot.models);
+  const scoreAxis = useMemo(() => methodScoreAxis(active.scoring), [active.scoring]);
   const mixEmpty = !Object.values(active.weights).some((w) => w > 0);
   const highlightState = useMemo(() => ({ items: active.highlight ?? [], set: (h: string[]) => update({ ...active, highlight: h.length ? h : undefined }), models: pickerModels, linkIndices: [active, ...indices.filter((i) => i.id !== active.id)], curated: active.excludeModels !== undefined || active.onlyModels !== undefined }), [active, indices, update, pickerModels]);
   // The + copies the index you are viewing (weights, filters, highlights), so a variation never starts from a blank mix.
@@ -230,7 +233,7 @@ export function Builder({ snapshot: base, initialIndices }: { snapshot: Snapshot
         <div className="col-start-3 row-start-1 shrink-0"><SettingsButton /></div>
       </header>
 
-      <HighlightContext.Provider value={highlightState}>
+      <HighlightContext.Provider value={highlightState}><ScoreAxisContext.Provider value={scoreAxis}>
       <main className={`builder-main grid grid-cols-1 ${mixOpen ? "lg:grid-cols-[360px_minmax(0,1fr)]" : "mix-closed"} gap-10 px-4 sm:px-8 pt-5 lg:pt-8 pb-8 max-w-[1500px] items-start`}>
         {/* Stays mounted while closed: the calculation settings hold the check for newer data. */}
         <aside id="mix" aria-label="Index controls" className={mixOpen ? "builder-aside scroll-mt-4 relative z-30 flex flex-col gap-5 min-h-0 lg:sticky lg:top-[88px] lg:h-[calc(100dvh-120px)]" : "contents"}>
@@ -268,7 +271,7 @@ export function Builder({ snapshot: base, initialIndices }: { snapshot: Snapshot
         {removalToast}
       </main>
       <SiteFooter />
-      </HighlightContext.Provider>
+      </ScoreAxisContext.Provider></HighlightContext.Provider>
       <SharedChart highlight={active.highlight} onHighlight={(items) => update({ ...active, highlight: items.length ? items : undefined })} />
       <MixAssistant config={active} onApply={update} date={snapshot.date} />
       {notices && <VersionNotices benchmarks={snapshot.benchmarks} builder={notices} page={OWN_PAGE} />}

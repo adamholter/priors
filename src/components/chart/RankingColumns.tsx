@@ -2,7 +2,7 @@
 import type { EChartsOption } from "echarts";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Lab } from "@/data/types";
-import type { RankedVariant } from "@/engine";
+import { scoreBarBase, scoringLabel, type RankedVariant } from "@/engine";
 import { variantLabel } from "./ParetoChart";
 import { markColor, useChartPalette, useEChart } from "./echarts";
 import { CONTAIN_AXIS_LABELS, dimColor, markFill, markSize, textSize } from "./theme-tokens";
@@ -43,8 +43,8 @@ export function RankingColumns({ rows, labs, showEffort, selected, onSelect, get
     return {
       grid: { left, right: 8, top: 24, bottom: 130 * t, ...CONTAIN_AXIS_LABELS },
       xAxis: { type: "category", data: rows.map((r, i) => label(showEffort ? variantLabel(r) : r.model.name, i)), axisLabel: { rotate: upright ? 90 : 45, interval: 0, fontSize: 11 * t, color: pal.ink2, fontFamily: pal.fonts?.sans ?? "var(--font-inter), Inter, sans-serif", width: 150 * t, overflow: "truncate" }, axisTick: { show: false }, axisLine: { show: false } },
-      yAxis: { type: "value", min: 0 },
-      tooltip: { trigger: "item", confine: true, formatter: (p: unknown) => { const r = rows[(p as { dataIndex: number }).dataIndex]; return r ? `<div style="font-weight:600">${r.variant.sourceModel?.name ?? variantLabel(r)}</div><div style="font-family:var(--font-jetbrains);margin-top:4px">#${r.rank} · index ${r.score.toFixed(1)}</div>` : ""; } },
+      yAxis: { type: "value", min: scoreBarBase(rows[0]) },
+      tooltip: { trigger: "item", confine: true, formatter: (p: unknown) => { const r = rows[(p as { dataIndex: number }).dataIndex]; return r ? `<div style="font-weight:600">${r.variant.sourceModel?.name ?? variantLabel(r)}</div><div style="font-family:var(--font-jetbrains);margin-top:4px">#${r.rank} · ${r.method ? scoringLabel(r.method.method) : "index"} ${r.score.toFixed(1)}</div>` : ""; } },
       series: [{
         type: "bar", id: "rank", barMaxWidth: 36 * markSize(pal), barCategoryGap: "28%",
         data: rows.map((r) => { const c = color.get(r.model.labId) ?? "#A3A39B", dim = on && r.variant.id !== selected; return { value: r.score, itemStyle: { color: dim ? dimColor(c, pal) : markFill(c, pal), opacity: dim ? 0.6 : 1, borderRadius: [pal.style?.barRadius ?? 2, pal.style?.barRadius ?? 2, 0, 0] }, label: dim ? { color: pal.ink, opacity: 0.75, textBorderWidth: 0 } : undefined }; }),

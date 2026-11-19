@@ -54,7 +54,7 @@ addEventListener("resize",()=>chart.resize());
 }
 
 export type ScatterSpec = {
-  title: string; date?: string; labelScale?: number; grid?: boolean; xName: string; scale: "linear" | "log" | "time"; unit: { prefix: string; suffix: string }; yMin: number; yMax: number;
+  title: string; date?: string; labelScale?: number; grid?: boolean; xName: string; scale: "linear" | "log" | "time"; unit: { prefix: string; suffix: string }; yMin: number; yMax: number; /** The score axis's name, when it is not the plain index score. */ yName?: string;
   highlight: string[]; guides: boolean;
   points: { v: [number, number]; c: string; d: string; dc: string; dd: string; m: string; id: string; e: string; h: boolean; a: boolean; g: boolean; gx?: string; n: string; /** The standing label; `n` shows on hover. */ l?: string; s: boolean; f: boolean; t: string }[];
   frontier: [number, number][]; links: { m: string; h: boolean; c: string; d: string; dc: string; dd: string; p: [number, number][] }[];
@@ -86,7 +86,7 @@ const order=[...S.points].sort((a,b)=>Number(a.h)-Number(b.h));
 const scatterLabels=(${scatterLabelLayout.toString()})(()=>chart.getWidth(),()=>chart.getHeight(),order.map(p=>active?(p.a||(p.h&&p.e!=="default")):p.s),()=>{try{return order.map((p)=>{const q=chart.convertToPixel({xAxisIndex:0,yAxisIndex:0},p.v);return{x:q[0],y:q[1]}})}catch(e){return undefined}});
 chart.setOption({textStyle:{fontFamily:"Inter,system-ui,sans-serif",color:P.ink},grid:{left:48,right:130,top:30,bottom:44,...CONTAIN},tooltip:{...tip,trigger:"item",formatter:(p)=>p.data&&p.data.t||""},
 xAxis:{...axis,type:S.scale==="linear"?"value":S.scale,scale:S.scale==="linear",name:S.xName,nameLocation:"end",nameGap:8,nameTextStyle:{color:GREY,fontSize:11,align:"right",verticalAlign:"top",padding:[26,0,0,0]},axisLabel:{...axis.axisLabel,hideOverlap:true,showMinLabel:S.scale==="linear",showMaxLabel:S.scale==="linear",...(S.scale==="time"?{}:{formatter:fmt})},...(S.scale==="log"?{min:(e)=>e.min/1.5,max:(e)=>e.max*1.8}:{})},
-yAxis:{...axis,type:"value",name:"Index score",min:S.yMin,max:S.yMax,nameTextStyle:{color:GREY,fontSize:11,align:"left",padding:[0,0,0,-30]}},
+yAxis:{...axis,type:"value",name:S.yName||"Index score",min:S.yMin,max:S.yMax,nameTextStyle:{color:GREY,fontSize:11,align:"left",padding:[0,0,0,-30]}},
 series:[...S.links.map((l)=>({type:"line",data:l.p,showSymbol:false,silent:true,lineStyle:{color:active&&!l.h?dim(l):lab(l),width:l.h?2:1,opacity:l.h?1:active ? .25 : D ? .45 : .35},z:l.h?4:1})),
 ...(S.frontier.length>1?[{type:"line",data:S.frontier,showSymbol:false,silent:true,lineStyle:{color:P.ink,width:1.4,opacity:active ? .3 : 1},z:2}]:[]),
 {type:"scatter",id:"marks",z:5,data:order.map((p)=>({value:p.v,name:p.n,id:p.id,t:p.t,symbolSize:active?(p.a?12:9):(p.f?11:9),itemStyle:{color:active&&!p.h?dim(p):lab(p),borderColor:active?(p.h?P.ink:P.bg):(p.f?P.ink:P.bg),borderWidth:active?(p.h?(p.a?1.8:1.2):1):(p.f?1.5:1.5),opacity:active&&!p.h?(D ? .55 : .6):(active||p.s||p.f?1:.8)},label:active?(p.a?{show:true,formatter:p.n,fontWeight:600,color:P.ink}:{show:p.h&&p.e!=="default",formatter:p.e.toUpperCase(),fontSize:9*fontScale,color:P.grey,backgroundColor:"transparent",textBorderColor:P.bg,textBorderWidth:3,distance:5}):{show:p.s,formatter:p.l??p.n}})),

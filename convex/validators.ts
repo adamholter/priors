@@ -38,6 +38,8 @@ export const indexConfig = v.object({
   releasedAfter: v.optional(v.string()),
   highlight: v.optional(v.array(v.string())),
   focus: v.optional(v.union(v.literal("capabilities"), v.literal("knowledge"), v.literal("problem-solving"), v.literal("general"))),
+  /** Scoring method. Absent on every index saved before it existed, and on any index using the default: the weighted average. */
+  scoring: v.optional(v.union(v.literal("irt"), v.literal("eci"))),
 });
 
 /**

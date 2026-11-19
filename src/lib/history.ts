@@ -43,7 +43,8 @@ export async function computeHistory(config: IndexConfig, mode: "fixed" | "adapt
     const established = ids.filter((id) => count(id) >= MIN_MODELS);
     const weights = mode === "adapting" && established.length ? Object.fromEntries(established.map((id) => [id, config.weights[id]])) : config.weights;
     const required = (config.required ?? []).filter((id) => weights[id] !== undefined);
-    const result = rankScores(c, { ...config, weights, required, variants: "all" });
+    // Always the weighted average: a fit a day is slow over this many days, and a fitted scale is relative to each day's models, so its numbers would not compare across days.
+    const result = rankScores(c, { ...config, scoring: undefined, weights, required, variants: "all" });
     const ranked = rankingRows(result, config).filter((r) => Number.isFinite(r.score));
     const best: { open?: number; closed?: number } = {};
     for (const r of ranked) {

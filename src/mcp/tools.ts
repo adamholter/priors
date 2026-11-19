@@ -2,7 +2,7 @@ import { categoriesOf, normalizeCategory } from "@/data/categories";
 import { api } from "../../convex/_generated/api";
 import { TOOL_SPECS, runTool, type ToolContext } from "@/agent/tools";
 import { resolveBenchmark, resolveModel, resolveLab, norm } from "@/agent/resolve";
-import { computeIndex, defaultConfig, defaultReleasedAfter, PAGE_VIEW, rankingRows, strictnessOf, chartVariantMode, type IndexConfig, type IndexResult, type RankedVariant } from "@/engine";
+import { computeIndex, defaultConfig, defaultReleasedAfter, PAGE_VIEW, rankingRows, scoringLabel, strictnessOf, chartVariantMode, type IndexConfig, type IndexResult, type RankedVariant } from "@/engine";
 import { DataView } from "@/agent/data";
 import { chartLink } from "@/lib/answer-chart";
 import { effectiveBasis, planReadings } from "@/data/subscription";
@@ -57,6 +57,7 @@ function settingsOut(s: Snapshot, config: IndexConfig, res?: IndexResult) {
     excludeModels: config.excludeModels,
     olderVersionsHidden: res?.autoHidden.length ? res.autoHidden.map((id) => s.models.find((m) => m.id === id)?.name ?? id) : undefined,
     olderVersionsNote: res?.autoHidden.length ? "Older versions of a newer model are left out of an index nobody has curated, as the site does. Pass excludeModels: [] to show them." : undefined,
+    ...(config.scoring ? { scoring: config.scoring, scoringNote: `Index scores here are ${scoringLabel(config.scoring)} scores, not the weighted average: ${config.scoring === "irt" ? "the index score a model of the fitted ability is expected to average on this mix, still 0 to 100" : "a fitted capability on Epoch's open-ended ECI scale, not 0 to 100, and not Epoch's own index"}. Each has a likely range. See https://mypriors.com/methods/scoring.` } : {}),
     costBasis: effectiveBasis(config.costBasis),
     planResets: config.planResets === true ? "counted" : "not counted",
     ...(config.planResets === true ? { fableResets: config.fableResets ?? 1 } : {}),

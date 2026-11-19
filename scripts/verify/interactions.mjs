@@ -1969,6 +1969,74 @@ try {
     } finally { await ctx.close(); }
   });
 
+  await check("scoring method: hidden until Calculation settings is opened, changes the ranking, labels it, and survives the link", async () => {
+    const ctx = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+    const p = await ctx.newPage();
+    p.on("pageerror", (e) => errors.push(`${p.url()}: ${e.message}`));
+    const rows = (pg) => pg.locator(".ranking-list [data-k]").evaluateAll((els) => els.map((el) => el.getAttribute("aria-label")));
+    const ready = (pg) => pg.locator(".ranking-list [data-k]").first().waitFor({ timeout: 30000 });
+    const choose = async (pg, name) => {
+      await pg.getByRole("button", { name: "Calculation settings", exact: true }).click();
+      await pg.getByRole("radio", { name }).check();
+      await pg.getByRole("button", { name: "Close calculation settings" }).click();
+    };
+    try {
+      // The explanation page links the default mix under each method; the same mix without a method is the starting point.
+      await p.goto(`${BASE}/methods/scoring`, { waitUntil: "domcontentloaded" });
+      const linked = await p.locator("#today a", { hasText: "IRT ability" }).getAttribute("href");
+      assert.match(linked, /score=irt/, "the explanation page links a mix scored by IRT ability");
+      assert.equal(await p.locator("#today tbody tr").count(), 10, "it shows the top 10 under each method");
+      const plain = linked.replace(/(%7C|\|)score=irt/, "");
+      assert.doesNotMatch(plain, /score=/);
+      await p.goto(`${BASE}${plain}`, { waitUntil: "domcontentloaded" });
+      await ready(p);
+      const average = await rows(p);
+      assert.equal(await p.locator("[data-scoring]").count(), 0, "the default ranking carries no method label");
+      for (const text of ["Scoring method", "IRT ability", "ECI-style"]) for (const el of await p.getByText(text, { exact: true }).all()) assert.equal(await el.isVisible(), false, `"${text}" shows only once Calculation settings is opened`);
+      await p.getByRole("button", { name: "Calculation settings", exact: true }).click();
+      assert.equal(await p.getByRole("radio", { name: /Weighted average/ }).isChecked(), true, "the weighted average is the default");
+      assert.equal(await p.getByRole("radio").count(), 3, "three methods");
+      assert.equal(await p.getByRole("link", { name: "How the methods differ" }).getAttribute("href"), "/methods/scoring");
+      await p.getByRole("radio", { name: /IRT ability/ }).check();
+      await p.getByRole("button", { name: "Close calculation settings" }).click();
+      // The ranking changes and says what its scores now are.
+      await p.locator('[data-scoring="irt"]').waitFor({ timeout: 15000 });
+      assert.match(await p.locator('[data-scoring="irt"]').innerText(), /IRT ability/);
+      const irt = await rows(p);
+      assert.equal(irt.length, average.length, "the same number of rows");
+      assert.notDeepEqual(irt, average, "IRT ability changed the scores");
+      // The list shows the top 20, each model at its best effort, so a few names near the cut change; most stay.
+      const names = (list) => new Set(list.map((r) => r.replace(/, [\d.]+$/, "")));
+      assert.ok([...names(irt)].filter((n) => names(average).has(n)).length >= irt.length / 2, "most of the same models are still on top");
+      assert.match(await p.locator(".ranking-list [data-k]").first().getAttribute("title"), /IRT ability [\d.]+, likely [\d.]+ to [\d.]+/, "a row says its likely range on hover");
+      await p.waitForFunction(() => location.search.includes("score=irt"), null, { timeout: 5000 });
+      // The link alone, in a browser that has never seen the page, gives the same method and the same scores.
+      const link = p.url(), fresh = await browser.newContext({ viewport: { width: 1440, height: 1000 } }), q = await fresh.newPage();
+      try {
+        await q.goto(link, { waitUntil: "domcontentloaded" });
+        await ready(q);
+        await q.locator('[data-scoring="irt"]').waitFor({ timeout: 15000 });
+        assert.deepEqual(await rows(q), irt, "the link reproduces the IRT ranking");
+        await q.getByRole("button", { name: "Calculation settings", exact: true }).click();
+        assert.equal(await q.getByRole("radio", { name: /IRT ability/ }).isChecked(), true, "the link carries the method");
+      } finally { await fresh.close(); }
+      // Share cards follow the link: the card for the method differs from the average's, and both render.
+      const card = async (url) => { const res = await fetch(`${BASE}/og${new URL(url, BASE).search}`); assert.equal(res.status, 200); assert.match(res.headers.get("content-type") ?? "", /image\/png/); return Buffer.from(await res.arrayBuffer()); };
+      assert.equal((await card(link)).equals(await card(`${BASE}${plain}`)), false, "the share card of an IRT ranking is not the average's card");
+      // ECI-style: its own label, and scores off the 0 to 100 scale.
+      await choose(p, /ECI-style/);
+      await p.locator('[data-scoring="eci"]').waitFor({ timeout: 15000 });
+      assert.match(await p.locator('[data-scoring="eci"]').innerText(), /ECI-style/);
+      const top = Number((await rows(p))[0].match(/, ([\d.]+)$/)[1]);
+      assert.ok(top > 100, `an ECI-style top score is above 100 (${top})`);
+      await p.waitForFunction(() => location.search.includes("score=eci"), null, { timeout: 5000 });
+      // Back to the default: no label, no key in the link, the scores it started with.
+      await choose(p, /Weighted average/);
+      await p.waitForFunction(() => !document.querySelector("[data-scoring]") && !location.search.includes("score="), null, { timeout: 5000 });
+      assert.deepEqual(await rows(p), average, "the weighted average is back, unchanged");
+    } finally { await ctx.close(); }
+  });
+
   assert.deepEqual(failures, [], `${failures.length} of ${failures.length + checks.length} checks failed`);
   assert.deepEqual(errors, [], "no page errors");
   console.log(`PASS interactions${SHARD_N > 1 ? ` shard ${SHARD_I}/${SHARD_N}` : ""}: ${checks.length} checks\n  ${checks.join("\n  ")}`);

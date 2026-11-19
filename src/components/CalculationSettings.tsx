@@ -4,6 +4,7 @@ import type { Snapshot } from "@/data/types";
 import { strictnessOf, type IndexConfig, type IndexResult } from "@/engine";
 import { AA_METHODOLOGY_URL } from "@/data/aa-index";
 import { ModelDetail } from "./ModelDetail";
+import { ScoringMethodChoice } from "./ScoringMethodChoice";
 
 
 export function CalculationSettings({ trigger = true, config, result, snapshot, onChange, children }: { /** Shows the button. The rest stays mounted without it, for the check for newer data. */ trigger?: boolean; config: IndexConfig; result: IndexResult; snapshot: Snapshot; onChange: (config: IndexConfig) => void; children?: ReactNode }) {
@@ -37,7 +38,8 @@ export function CalculationSettings({ trigger = true, config, result, snapshot, 
           <button className="btn-quiet" aria-label="Close calculation settings" onClick={() => dialog.current?.close()}>Close</button>
         </div>
         <div className="grid gap-6 text-[13px] text-ink-2">
-          <section className="grid gap-3">
+          <ScoringMethodChoice config={config} onChange={onChange} />
+          <section className="grid gap-3 border-t hairline pt-5">
             <h3 className="text-lg text-ink">Missing data</h3>
             <label className="grid gap-1.5 max-w-sm">Effort estimates
               <select aria-label="Effort estimates" className="inp" value={config.effortMatching === "strict" ? "strict" : "calibrated"} onChange={(e) => onChange({ ...config, effortMatching: e.target.value as "calibrated" | "strict" })}>

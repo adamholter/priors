@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { readRuntimeFile } from "./runtime-files";
 import { ImageResponse } from "next/og";
 import type { Snapshot } from "@/data/types";
-import { chartVariantMode, computeIndex, PAGE_VIEW, rankingRows, selectVariants, type IndexConfig, type RankedVariant } from "@/engine";
+import { chartVariantMode, computeIndex, PAGE_VIEW, rankingRows, scoringLabel, selectVariants, type IndexConfig, type RankedVariant } from "@/engine";
 import { isShareDesign, type ShareDesign } from "@/lib/share-designs";
 import { effectiveBasis } from "@/data/subscription";
 import { chartLabel, costChart, modelLabel, type MetricPoint } from "@/lib/metrics";
@@ -75,7 +75,7 @@ export async function renderShareCard(snapshot: Snapshot,index:IndexConfig,who:{
  }
  return new ImageResponse(<Frame c={c}>{body}</Frame>,{width:1200,height:630,fonts:[{name:"Newsreader",data:serif,weight:400},{name:"Inter",data:s4,weight:400},{name:"Inter",data:s5,weight:500},{name:"Inter",data:s6,weight:600},{name:"JetBrains Mono",data:m4,weight:400},{name:"JetBrains Mono",data:m5,weight:500}]});
 }
-function Frame({c,children}:{c:Ctx;children:ReactNode}){return <div style={{width:1200,height:630,background:c.bg,color:c.ink,display:"flex",position:"relative",fontFamily:"Inter",overflow:"hidden"}}>{children}<div style={{position:"absolute",left:58,bottom:36,fontFamily:"JetBrains Mono",fontSize:15,color:c.muted,display:"flex"}}>{`mypriors.com · ${c.date}`}</div><div style={{position:"absolute",right:50,bottom:32,fontFamily:"Newsreader",fontSize:36,display:"flex"}}><span>pr</span><span style={{color:c.accent}}>i</span><span>ors</span></div></div>}
+function Frame({c,children}:{c:Ctx;children:ReactNode}){return <div style={{width:1200,height:630,background:c.bg,color:c.ink,display:"flex",position:"relative",fontFamily:"Inter",overflow:"hidden"}}>{children}<div style={{position:"absolute",left:58,bottom:36,fontFamily:"JetBrains Mono",fontSize:15,color:c.muted,display:"flex"}}>{`mypriors.com · ${c.date}${c.index.scoring?` · ${scoringLabel(c.index.scoring)}`:""}`}</div><div style={{position:"absolute",right:50,bottom:32,fontFamily:"Newsreader",fontSize:36,display:"flex"}}><span>pr</span><span style={{color:c.accent}}>i</span><span>ors</span></div></div>}
 function Identity({c}:{c:Ctx}){return <div style={{display:"flex",alignItems:"center",gap:11}}>{c.who.avatarUrl&&<img src={c.who.avatarUrl} width="42" height="42" style={{width:42,height:42,objectFit:"cover",flexShrink:0,borderRadius:21,border:`1px solid ${c.line}`}} alt=""/>}<div style={{display:"flex",flexDirection:"column"}}><span style={{fontSize:18,fontWeight:500}}>{c.who.name}</span>{c.who.handle&&<span style={{fontSize:12,color:c.muted,fontFamily:"JetBrains Mono"}}>{`mypriors.com/${c.who.handle}`}</span>}</div></div>}
 function Header({c,center=false}:{c:Ctx;center?:boolean}){return <div style={{display:"flex",flexDirection:"column",alignItems:center?"center":"flex-start"}}><Identity c={c}/><div style={{fontFamily:"Newsreader",fontSize:60,lineHeight:1.05,marginTop:21,textAlign:center?"center":"left"}}>{c.index.name}</div></div>}
 function Label({c,x,size=26}:{c:Ctx;x:RankedVariant;size?:number}){return <div style={{display:"flex",flexDirection:"column",gap:5,minWidth:0}}><span style={{fontSize:size,lineHeight:1.1}}>{x.model.name}</span>{effort(c,x)&&<span style={{fontFamily:"JetBrains Mono",fontSize:Math.max(14,size-9),color:c.muted}}>{effort(c,x)}</span>}</div>}

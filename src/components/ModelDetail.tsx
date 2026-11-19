@@ -1,7 +1,7 @@
 "use client";
 import { costChart } from "@/lib/metrics";
 import type { Snapshot } from "@/data/types";
-import type { IndexResult, RankedVariant } from "@/engine";
+import { scoringLabel, type IndexResult, type RankedVariant } from "@/engine";
 import Link from "next/link";
 import { variantLabel } from "./chart/ParetoChart";
 import { peerNote } from "@/lib/peer-note";
@@ -41,7 +41,12 @@ export function ModelDetail({ r, snapshot, result, onClose }: { r: RankedVariant
           })}
         </div>
         <div className="grid gap-1 content-start">
-          <div className="flex justify-between"><span className="text-grey">Index score</span><span className="num">{r.score.toFixed(1)}</span></div>
+          <div className="flex justify-between"><span className="text-grey">{r.method ? scoringLabel(r.method.method) : "Index score"}</span><span className="num">{r.score.toFixed(1)}</span></div>
+          {r.method && <>
+            <div className="flex justify-between"><span className="text-grey">Likely range (95%)</span><span className="num">{r.method.range[0].toFixed(1)} to {r.method.range[1].toFixed(1)}</span></div>
+            <div className="flex justify-between"><span className="text-grey">Benchmarks it rests on</span><span className="num">{r.method.used} of {result.benchmarks.length}</span></div>
+            <div className="flex justify-between"><span className="text-grey">Weighted average, for comparison</span><span className="num">{r.method.average.toFixed(1)}</span></div>
+          </>}
           <div className="flex justify-between"><span className="text-grey">Measured share of weight</span><span className="num">{Math.round(r.measuredShare * 100)}%</span></div>
           {r.costUsd != null && <div className="flex justify-between"><span className="text-grey">{r.costPlan ? "Subscription cost per task" : "Cost per task"}</span><span className="num">{costChart.formatX(r.costUsd)} <span className="cap">{r.costPlan ? r.costPlan.plan : r.costSource === "aa-cost-to-run-index" ? "AA" : ""}</span></span></div>}
           {r.speed && <div className="flex justify-between"><span className="text-grey">Output speed</span><span className="num">{Math.round(r.speed)} tok/s</span></div>}

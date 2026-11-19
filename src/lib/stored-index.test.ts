@@ -21,6 +21,12 @@ describe("stored index configs", () => {
     const decoded = decodeIndex(encodeIndex(maximal), "i0")!;
     for (const c of [defaultConfig(snapshot), decoded, maximal, { ...defaultConfig(snapshot), focus: "capabilities" as const }]) expect(unknownKeys(c)).toEqual([]);
   });
+  it("stores the scoring method, and stores nothing for an index that never had one", () => {
+    expect(storableIndex({ ...maximal, scoring: "irt" })).toEqual({ ...maximal, scoring: "irt" });
+    expect(unknownKeys(decodeIndex(encodeIndex({ ...maximal, scoring: "eci" }), "i0")!)).toEqual([]);
+    expect("scoring" in storableIndex(maximal)).toBe(false);
+    expect("scoring" in storableIndex({ ...maximal, scoring: undefined })).toBe(false);
+  });
   it("round-trips every stored field and drops transient keys before a write", () => {
     expect(storableIndex(maximal)).toEqual(maximal);
     const withTransient = { ...maximal, draft: true, view: { x: 1 } } as unknown as IndexConfig;

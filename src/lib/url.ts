@@ -1,7 +1,7 @@
 import { isCostBasis } from "../data/subscription";
 import { isTaskMetricSource } from "../data/task-metrics";
 import { isSpeedTierChoice } from "../data/speed-tiers";
-import { DEFAULT_CUTOFF, EFFORT_CHOICES, type IndexConfig } from "../engine";
+import { DEFAULT_CUTOFF, EFFORT_CHOICES, isScoringMethod, type IndexConfig } from "../engine";
 import { FOCUS_IDS, type FocusId } from "../data/types";
 
 /**
@@ -54,6 +54,8 @@ export function encodeIndex(c: FromPage, keepPage = false): string {
   if (c.subscriptionPlans && Object.keys(c.subscriptionPlans).length) parts.push(`plans=${Object.entries(c.subscriptionPlans).sort(([a], [b]) => a.localeCompare(b)).map(([lab, plan]) => `${lab}:${encodeURIComponent(plan)}`).join(",")}`);
   if (c.timeSource) parts.push(`timesrc=${c.timeSource}`);
   if (c.focus) parts.push(`focus=${c.focus}`);
+  // The scoring method: absent is the weighted average, so links made before it existed read the same.
+  if (isScoringMethod(c.scoring)) parts.push(`score=${c.scoring}`);
   if (c.highlight?.length) parts.push(`hl=${c.highlight.join(",")}`);
   if (keepPage && c.page) parts.push(`page=${c.page}`);
   return parts.join("|");
@@ -112,6 +114,7 @@ export function decodeIndex(s: string, id: string): IndexConfig | null {
     else if (k === "plans") { const plans = Object.fromEntries(v.split(",").flatMap((e) => { const at = e.indexOf(":"); if (at < 1) return []; try { return [[e.slice(0, at), decodeURIComponent(e.slice(at + 1))]]; } catch { return []; } }).filter(([, plan]) => plan)); if (Object.keys(plans).length) c.subscriptionPlans = plans; }
     else if (k === "timesrc" && isTaskMetricSource(v)) c.timeSource = v;
     else if (k === "focus" && FOCUS_IDS.includes(v as FocusId)) c.focus = v as FocusId;
+    else if (k === "score" && isScoringMethod(v)) c.scoring = v;
     else if (k === "hl") c.highlight = v.split(",").filter(Boolean).slice(0, 12);
     else if (k === "page" && v) (c as FromPage).page = v;
   }

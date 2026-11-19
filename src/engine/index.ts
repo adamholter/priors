@@ -6,6 +6,9 @@ import { costSourceOf, taskMetricData, taskMetricDescription, type TaskMetricSou
 import type { Benchmark, FocusId, Model, Observation, Snapshot, SpeedTierId, Variant } from "../data/types";
 import { columnsOf, DEFAULT_RANK, effortLocked, ROW_FLAGS, type Columns, type EstimationRoute } from "../data/columns";
 import { AA_V5_WEIGHTS, aaComponentWeights } from "../data/aa-index";
+import { methodScorer, type MethodScore, type ScoringMethod } from "./scoring";
+
+export { barShare, EPOCH_ECI, isScoringMethod, scoreBarBase, SCORING_LABELS, SCORING_METHODS, scoringLabel, scoringNote, type MethodScore, type ScoringMethod } from "./scoring";
 
 /* ------------------------------------------------------------------ */
 /* Config                                                              */
@@ -59,6 +62,12 @@ export interface IndexConfig {
   highlight?: string[];
   /** Onboarding focus preset that produced this index; ranking ignores it. */
   focus?: FocusId;
+  /**
+   * What the score is. Unset: the weighted average of the mix's scores. "irt": the model's ability under an item response
+   * fit, shown as the index score it is expected to average (0 to 100). "eci": an ECI-style capability on Epoch's open-ended
+   * scale. See ./scoring.ts. The same models are ranked either way.
+   */
+  scoring?: ScoringMethod;
 }
 
 export const DEFAULT_CUTOFF = 5;
@@ -177,6 +186,8 @@ export interface RankedVariant {
   rank: number;
   /** Not ranked: the index could not score this model, so its score is estimated (see `progressEstimates`). */
   scoreEstimate?: ScoreEstimate;
+  /** Set when `score` comes from a scoring method other than the weighted average (`IndexConfig.scoring`): its interval, and the average it replaced. */
+  method?: MethodScore;
   /** A chart row for this model on a speed tier (`src/data/speed-tiers.ts`), not a row the index ranked. */
   speedTier?: AppliedSpeedTier;
 }
@@ -527,6 +538,9 @@ function rankVariants(c: Columns, config: IndexConfig, shares: IndexResult["benc
     }
   }
 
+  // A scoring method other than the average fits its curves once, over the pool. The default path never gets here.
+  const scoreBy = config.scoring && P ? methodScorer(config.scoring, { c, P, S, pooled, shareBench, shareOf, cell, norm, observed }) : undefined;
+
   // Peer estimates. A missing cell has no observed value and no panel score of its own (either would have resolved), so what a
   // target shares with a peer does not depend on which benchmark is missing: it is worked out once per target.
   const window = 365 - strictness * 2.75, needShared = strictness >= 75 ? 3 : strictness >= 50 ? 2 : 1, needObserved = strictness >= 50 ? 2 : 1, minPanel = strictness >= 75 ? 10 : 8;
@@ -697,7 +711,9 @@ function rankVariants(c: Columns, config: IndexConfig, shares: IndexResult["benc
     if (den <= 0) continue;
     const model = models[vModel[pos]];
     const coverage = Math.min(1, Math.round(covered * 1e4) / 1e6);
-    if (!detail) { ranked.push({ variant: v, model, score: num / den, coverage, measuredShare, values, onFrontier: false, rank: 0 }); continue; }
+    let score = num / den, method: MethodScore | undefined;
+    if (scoreBy) { const m = scoreBy(pp); method = { method: config.scoring!, average: score, range: m.range, theta: m.theta, se: m.se, used: m.used }; score = m.score; }
+    if (!detail) { ranked.push({ variant: v, model, score, coverage, measuredShare, values, onFrontier: false, rank: 0, ...(method ? { method } : {}) }); continue; }
     const measuredCost = detail.costData.get(v.id);
     // Preserve AA's mix-weighted cost when every selected benchmark publishes it.
     let weightedAaCost: number | undefined;
@@ -719,7 +735,7 @@ function rankVariants(c: Columns, config: IndexConfig, shares: IndexResult["benc
     const plan = listed && boost > 1 ? { ...listed, ratio: listed.ratio / boost, ...(listed.aaCostRatio ? { aaCostRatio: listed.aaCostRatio / boost } : {}) } : listed;
     if (cost && plan) { cost.usd *= (!view.costBenchmark && detail.costSource === "aa" ? plan.aaCostRatio : undefined) ?? plan.ratio; cost.source += plan.ratio === 0 ? ` · free on ${plan.plan}` : ` · ${plan.plan}, ${subscriptionShare(plan.ratio)} of API price at full use${reset && boost > 1 ? `, with ${reset.resets} limit resets in 30 days${reset.banked ? ` (${reset.banked} banked)` : ""}` : ""}`; }
     const speedRow = speedBench === undefined ? -1 : at[vi * nb + speedBench];
-    ranked.push({ variant: v, model, score: num / den, coverage, measuredShare, values, mixedEfforts: values.some((value) => value.estimateKind === "effort"), costUsd: cost?.usd, costSource: cost?.source, costPlan: plan || undefined, speed: speedRow >= 0 && value[speedRow] > 0 ? value[speedRow] : undefined, onFrontier: false, rank: 0 });
+    ranked.push({ variant: v, model, score, ...(method ? { method } : {}), coverage, measuredShare, values, mixedEfforts: values.some((value) => value.estimateKind === "effort"), costUsd: cost?.usd, costSource: cost?.source, costPlan: plan || undefined, speed: speedRow >= 0 && value[speedRow] > 0 ? value[speedRow] : undefined, onFrontier: false, rank: 0 });
   }
   return ranked;
 }

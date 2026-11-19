@@ -1,5 +1,6 @@
 "use client";
-import { useScoreAxis } from "./score-axis";
+import { INDEX_SCORE_AXIS, useScoreAxis } from "./score-axis";
+import { scoreRange } from "./score-scale";
 import { ChartExport, type ExportRow, type ChartExportHandle } from "./ChartExport";
 import { decodeEditor, encodeEditor, type EditorState } from "@/lib/export-editor";
 import { chartLinkUrl } from "@/lib/highlight-link";
@@ -532,7 +533,7 @@ export function ScoreScatter(props: ScatterProps) {
     for (const p of pts) (byModel.get(p.r.model.id) ?? byModel.set(p.r.model.id, []).get(p.r.model.id)!).push(p);
     return scatterHtml({
       title: exportName, grid, xName, scale, unit: unitOf(formatX), highlight: items, guides: view.guides !== false, labelScale: labelScale(view.labelScale),
-      yMin: Math.max(0, Math.floor((Math.min(...ys, 100) - 6) / 5) * 5), yMax: Math.min(100, Math.ceil((Math.max(...ys, 0) + 4) / 5) * 5),
+      yMin: scoreRange(ys, axis.fit)[0], yMax: scoreRange(ys, axis.fit)[1], ...(axis.name !== INDEX_SCORE_AXIS.name ? { yName: axis.name } : {}),
       points: [...pts].sort((a, b) => (labelPriority.get(a.r.variant.id) ?? Infinity) - (labelPriority.get(b.r.variant.id) ?? Infinity)).map((p) => {
         const light = markColor(color.get(p.r.model.labId), LIGHT_PALETTE, p.r.model.labId), dark = markColor(color.get(p.r.model.labId), DARK_PALETTE, p.r.model.labId);
         return { v: [p.x, p.r.score], c: light, d: dark, dc: dimColor(light, LIGHT_PALETTE), dd: dimColor(dark, DARK_PALETTE),

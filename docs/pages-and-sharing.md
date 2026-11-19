@@ -9,6 +9,7 @@
 | `/builder` | The data page: rankings and charts, with the mix panel closed until the weights are the visitor's own or they open it. The first rows come in the HTML (`rankingPreview`). State lives in the URL, except the untouched default, which needs none. |
 | `/[handle]` | A published page. |
 | `/explore` | Published pages. |
+| `/methods/scoring` | What the three scoring methods do (weighted average, IRT ability, ECI-style), when they differ, their limits, and the default mix's top 10 under each, computed on load. Linked from Calculation settings and from the method label on a ranking. |
 | `/compare` | Two rankings side by side. See Compare below. |
 | `/3d` | One ranking as a 3D chart. See 3D below. |
 | `/models/[id]`, `/model-finder` | One model's results (Strengths: a radar against the index leader and field median, and where it sits on each benchmark; Cost and speed: index score against cost per task by effort, and field strips for cost, time per task, output speed, time to first token and output tokens, naming any it lacks; per-benchmark cards plot score against cost, or the field's spread when cost is unknown); a guided model picker. |
@@ -90,7 +91,7 @@ When a benchmark one of a visitor's own indices weights has a newer version in t
 
 ## Share cards
 
-- `src/lib/og.tsx` draws all 13 designs listed in `src/lib/share-designs.ts`. "Leaderboard" (`board`) is the default; `qr` embeds a QR code. Every footer reads `mypriors.com · <date>`.
+- `src/lib/og.tsx` draws all 13 designs listed in `src/lib/share-designs.ts`. "Leaderboard" (`board`) is the default; `qr` embeds a QR code. Every footer reads `mypriors.com · <date>`, plus the scoring method when the index uses one other than the weighted average (`mypriors.com · <date> · ECI-style`). A chart card names it on the score axis instead.
 - `/og` takes an index (`i=`), `design`, `date`, `theme` (a preset id), `scheme` (`light` or `dark`), `handle`, and `c` for a single chart.
 - Chart cards are real ECharts renders: `src/lib/og-chart.ts` builds the same option the page uses and rasterizes it with resvg.
 - Dark cards (`SCHEMES` in `og.tsx`) use dark-tuned lab colors, dark text inside bars, an indigo spotlight panel, and a QR code on a light tile.

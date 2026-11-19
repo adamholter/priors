@@ -1,4 +1,4 @@
-import { defaultConfig } from "../engine";
+import { defaultConfig, type IndexConfig } from "../engine";
 import type { Snapshot } from "../data/types";
 import { describe, expect, it } from "vitest";
 import { decodeIndex, decodeIndices, encodeIndex, encodeIndices, pageIndexId, pageRef, prettyQuery, type FromPage } from "./url";
@@ -106,5 +106,41 @@ describe("effort and visibility codec", () => {
   it("round-trips an explicit empty exclusion, which means show everything", () => {
     expect(decodeIndex(encodeIndex({ ...base(), excludeModels: [] }), "x")!.excludeModels).toEqual([]);
     expect(decodeIndex(encodeIndex(base()), "x")!.excludeModels).toBeUndefined();
+  });
+});
+
+describe("scoring method", () => {
+  const base: IndexConfig = { id: "i0", name: "Mine", weights: { "deepswe-1.1": 40, simplebench: 60 }, required: [], cutoff: 5, estimateMissing: true, variants: "all", strictness: 50 };
+  it("round-trips IRT and ECI, and writes nothing for the weighted average", () => {
+    for (const scoring of ["irt", "eci"] as const) {
+      const encoded = encodeIndex({ ...base, scoring });
+      expect(encoded).toContain(`score=${scoring}`);
+      expect(decodeIndex(encoded, "i0")).toEqual({ ...base, scoring });
+    }
+    expect(encodeIndex(base)).not.toContain("score=");
+    expect(encodeIndex({ ...base, scoring: undefined })).toBe(encodeIndex(base));
+  });
+  it("reads every link made before the method existed exactly as before: no method, so the weighted average", () => {
+    // Links as the site wrote them before this field existed, old key spellings included, each with what the decoder on
+    // main returned for it the day the field was added.
+    const old: [string, IndexConfig][] = [
+      ["General%20frontier|frontierswe-v2:25,terminalbench-4:25,deepswe-1.1:10|req=deepswe-1.1|cut=5|est=1|var=all",
+        { id: "i0", name: "General frontier", weights: { "frontierswe-v2": 25, "terminalbench-4": 25, "deepswe-1.1": 10 }, required: ["deepswe-1.1"], cutoff: 5, estimateMissing: true, variants: "all" }],
+      ["Mine|deepswe-1.1:40,simplebench:60|strict=70|bars=all|pareto=best|eff=high,max|reff=max|est=0|var=best|effort=strict|labs=openai|ex=gpt-5.5|after=|costsrc=terminalbench-4|costbasis=api|resets=on|free=off|plans=openai:ChatGPT%20Pro|timesrc=aa|focus=knowledge|hl=claude-opus-5",
+        { id: "i0", name: "Mine", weights: { "deepswe-1.1": 40, simplebench: 60 }, required: [], cutoff: 5, estimateMissing: false, variants: "best", strictness: 70, rankingVariants: "all", paretoVariants: "best", efforts: ["high", "max"], rankingEfforts: ["max"], effortMatching: "strict", labs: ["openai"], excludeModels: ["gpt-5.5"], releasedAfter: "", costSource: "terminalbench-4", costBasis: "api", planResets: true, freeTiers: false, subscriptionPlans: { openai: "ChatGPT Pro" }, timeSource: "aa", focus: "knowledge", highlight: ["claude-opus-5"] }],
+      ["Artificial Analysis Index v5.0|aa-intelligence-index-v5.0:100|strict=50|var=best",
+        { id: "i0", name: "Artificial Analysis Index v5.0", weights: { "aa-intelligence-index-v5.0": 100 }, required: [], cutoff: 5, estimateMissing: true, variants: "best", strictness: 50 }],
+      ["x|real-index:hle:10,real-index:scicode:5|opt=real-index:hle",
+        { id: "i0", name: "x", weights: { "aa-humanitys-last-exam": 10, "aa-scicode": 5 }, required: [], cutoff: 5, estimateMissing: true, variants: "all", strictness: 50, optional: ["aa-humanitys-last-exam"] }],
+    ];
+    for (const [link, was] of old) {
+      const decoded = decodeIndex(link, "i0")!;
+      expect(decoded).toEqual(was);
+      expect(Object.keys(decoded)).toEqual(Object.keys(was));
+      expect(encodeIndex(decoded)).not.toContain("score=");
+    }
+  });
+  it("ignores a method it does not know", () => {
+    for (const bad of ["score=average", "score=", "score=IRT", "score=elo"]) expect("scoring" in decodeIndex(`Mine|simplebench:60|${bad}`, "i0")!).toBe(false);
   });
 });

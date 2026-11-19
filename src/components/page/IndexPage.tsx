@@ -47,6 +47,7 @@ import { hiddenIds, toggleVisibility, SHOW_ALL } from "@/lib/model-visibility";
 import { anchorOf } from "../chart/ChartLink";
 import { ChartPaletteContext, markColor, paletteFor } from "../chart/echarts";
 import { HighlightContext } from "../chart/highlight";
+import { methodScoreAxis, ScoreAxisContext } from "../chart/score-axis";
 import { setHighlightParams, viewParam } from "@/lib/highlight-link";
 import "./page-themes.css";
 import { VIA_KEY } from "@/lib/share";
@@ -232,10 +233,10 @@ export function IndexPage({ profile, snapshot: base, edit, tab: linkedTab, linke
           const excludedIds = hiddenIds(idx, pickerIds, r.autoHidden);
           const toggleModel = (id: string) => updateIndex(toggleVisibility(idx, id, pickerIds, r.autoHidden));
           const modelPicker = { models: pickerModels, excluded: excludedIds, onToggleModel: toggleModel, onShowAllModels: () => updateIndex(SHOW_ALL), onHideAllModels: () => updateIndex({ excludeModels: pickerIds, onlyModels: undefined }), onShowOnly: (ids: string[]) => updateIndex({ excludeModels: pickerIds.filter((id) => !ids.includes(id)), onlyModels: undefined }) };
-          const wrap = (el: React.ReactNode) => <HighlightContext.Provider key={s.id} value={{ items: idx.highlight ?? [], indexId: tabKey(p.indices, idx), view: viewParam(idx, savedViews.get(idx.id)), set: (h) => {
+          const wrap = (inner: React.ReactNode) => { const el = idx.scoring ? <ScoreAxisContext.Provider value={methodScoreAxis(idx.scoring)}>{inner}</ScoreAxisContext.Provider> : inner; return <HighlightContext.Provider key={s.id} value={{ items: idx.highlight ?? [], indexId: tabKey(p.indices, idx), view: viewParam(idx, savedViews.get(idx.id)), set: (h) => {
             updateIndex({ highlight: h.length ? h : undefined });
             window.history.replaceState(null, "", setHighlightParams(new URL(window.location.href), tabKey(p.indices, idx), h).toString());
-          }, models: pickerModels, curated: idx.excludeModels !== undefined || idx.onlyModels !== undefined }}>{el}</HighlightContext.Provider>;
+          }, models: pickerModels, curated: idx.excludeModels !== undefined || idx.onlyModels !== undefined }}>{el}</HighlightContext.Provider>; };
           if (s.kind === "gallery") return wrap(<section key={s.id} className="chart-panel">{heading(s, title, "text-[21px] sm:text-[24px] mb-1")}{!editing && <p className="cap mb-3">More metrics · expand a row</p>}<MetricGallery tiers={{ ranked: speedRanked, settings: speedTiers }} layout={s.metrics} editing={editing} onLayout={(metrics) => patchSection(s.id, { metrics })} timeSource={idx.timeSource} onTimeSourceChange={(timeSource) => updateIndex({ timeSource })} ranked={metricRanked} estimated={filterEfforts(r.estimated, idx.efforts)} mode={paretoMode} snapshot={snapshot} labs={snapshot.labs} benchmarks={r.benchmarks} config={idx} settings={{ releasedAfter: idx.releasedAfter, onChangeReleased: (v) => updateIndex({ releasedAfter: v }), ...effortProps, ...modelPicker }} /></section>);
           const settings = (label: string, mode: "all" | "best", key: "rankingVariants" | "paretoVariants") => <ChartSettings label={label} efforts={{ value: idx.rankingEfforts ?? [...EFFORT_CHOICES], onChange: (rankingEfforts) => updateIndex({ rankingEfforts }), withMode: true }} mode={mode} onChange={(v) => updateIndex({ [key]: v })} releasedAfter={idx.releasedAfter} onChangeReleased={(v) => updateIndex({ releasedAfter: v })} models={pickerModels} excluded={excludedIds} onToggleModel={toggleModel} onShowAllModels={() => updateIndex(SHOW_ALL)} onHideAllModels={() => updateIndex({ excludeModels: pickerIds, onlyModels: undefined })} onShowOnly={modelPicker.onShowOnly} />;
           if (s.kind === "rankings") return wrap(

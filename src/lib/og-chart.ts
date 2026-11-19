@@ -19,7 +19,7 @@ import { presetOf, themeById, type PagePreset } from "./page-presets";
 import { EMPTY_HIDDEN, visiblePoints, type ChartHidden } from "../components/chart/chart-visibility";
 
 import { labelScale as normalizeLabelScale } from "../components/chart/label-size";
-import type { ScoreAxis } from "../components/chart/score-scale";
+import { methodScoreAxis, type ScoreAxis } from "../components/chart/score-scale";
 import { focusPoints } from "./chart-focus";
 
 export interface ChartSpec {
@@ -43,7 +43,8 @@ export interface ChartSpec {
  */
 export function scatterSpec(snapshot: Snapshot, ranked: RankedVariant[], index: IndexConfig, c: string | undefined, cm?: string, cs?: string, hidden: ChartHidden = EMPTY_HIDDEN, labelScale?: number, allModels = false, estimated: RankedVariant[] = []): ChartSpec | null {
   // The page draws its cost, time and speed charts from the efforts the index shows; the card must start from the same set.
-  const from = (chart: MetricChart, title: string, hasTitle: boolean, rows = ranked) => metricSpec(chart, rows, index, title, hasTitle, { cm, cs, hidden, labelScale, allModels });
+  // A scoring method other than the average names the score axis, and ECI-style fits it to the data (no 0 to 100 frame).
+  const from = (chart: MetricChart, title: string, hasTitle: boolean, rows = ranked) => metricSpec(chart, rows, index, title, hasTitle, { cm, cs, hidden, labelScale, allModels, ...(index.scoring ? { axis: methodScoreAxis(index.scoring) } : {}) });
   if (c === "cost") return from(costChartFor(effectiveBasis(index.costBasis)), effectiveBasis(index.costBasis) === "subscription" ? "Score vs subscription cost per task" : "Score vs cost per task", true, withSpeedTiers(ranked, snapshot, index.speedTiers, index.subscriptionPlans, { chart: "cost" }));
   const ck = chartKind(snapshot, ranked, c, timeSourceOf(snapshot, index.timeSource), filterEfforts(estimated, index.efforts));
   if (ck?.kind !== "metric") return null;

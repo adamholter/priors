@@ -31,6 +31,7 @@ try {
     ["/subsidies", () => page.getByRole("heading", { name: "Plan subsidies" })],
     ["/models/claude-opus-5.5/compare", () => page.getByRole("searchbox").or(page.getByLabel("Search models or labs")).first()],
     ["/benchmarks/methodology", () => page.getByRole("heading", { name: "How benchmark scores work" })],
+    ["/methods/scoring", () => page.getByRole("heading", { name: "Scoring methods", exact: true })],
     ["/privacy", () => page.getByRole("heading").first()],
     ["/settings", () => page.getByRole("heading", { name: "Settings", exact: true })],
   ];
