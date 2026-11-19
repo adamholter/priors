@@ -67,10 +67,20 @@ export function ParetoChart({ everyVersion, ranked, mode = "all", labs, height =
   const formulaSettings = { formula: formula.settings, defaultScale: formula.defaultScale };
   const scatterActions = typeof actions === "function" ? actions(formulaSettings) : actions;
   const barActions = typeof actions === "function" ? actions({ ...barVisibility.picker, ...formulaSettings }) : actions;
+  const activeScale = view.scale ?? costChart.scale;
+  const scaleToggle = !shownBars && costChart.scale !== "time" && (
+    <div className="seg scale-seg" role="group" aria-label="X-axis mode">
+      {(["log", "linear"] as const).map((s) => (
+        <button key={s} type="button" aria-pressed={activeScale === s} onClick={() => onView({ ...savedView, scale: s })}>
+          {s === "log" ? "Log" : "Linear"}
+        </button>
+      ))}
+    </div>
+  );
   const controls = <><div className="seg" role="group" aria-label="Cost chart type">
     <button type="button" aria-pressed={!shownBars} title="Score vs cost" onClick={() => changeKind("scatter")}><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><circle cx="4" cy="11" r="1.6" /><circle cx="8" cy="6" r="1.6" /><circle cx="12.5" cy="4" r="1.6" /><circle cx="10" cy="10" r="1.6" /></svg></button>
     <button type="button" aria-pressed={shownBars} title="Bar chart" onClick={() => changeKind("bars")}><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><rect x="2" y="3" width="3" height="11" /><rect x="6.5" y="6" width="3" height="8" /><rect x="11" y="9" width="3" height="5" /></svg></button>
-  </div>{bars ? barActions : scatterActions}</>;
+  </div>{scaleToggle}{bars ? barActions : scatterActions}</>;
   const linkParams = { cv: bars ? "bars" as const : undefined, cs: !bars ? view.scale : undefined, extra: formula.link };
   useEffect(() => {
     if (!anchor) return;

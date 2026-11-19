@@ -1,7 +1,7 @@
 "use client";
-import { useMemo, useState, type PointerEvent, type KeyboardEvent } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type PointerEvent, type KeyboardEvent } from "react";
 import Link from "next/link";
-import { affordableModels, type ModelFinderData } from "@/lib/model-finder";
+import { affordableModels, type ModelFinderData, type ModelFinderVariant } from "@/lib/model-finder";
 import { useTheme } from "@/components/Theme";
 import { markColor, DARK_PALETTE, LIGHT_PALETTE } from "@/components/chart/theme-tokens";
 import styles from "./ModelFinder.module.css";
@@ -9,8 +9,85 @@ import styles from "./ModelFinder.module.css";
 const money = (value: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: value < .01 ? 3 : 2, maximumFractionDigits: value < .01 ? 3 : 2 }).format(value);
 export const budgetAt = (position: number) => position >= 100 ? null : .005 * Math.pow(2000, position / 99);
 const angleAt = (value: number, max: number) => -100 + value / max * 200;
+const SPRING = { stiffness: 280, damping: 22 };
+const RIM_RADIUS = 56.5;
+const PIP_RADIUS = 48.5;
 
-function Dial({ label, value, max, text, onChange }: { label: string; value: number; max: number; text: string; onChange: (value: number) => void }) {
+/** Point on the dial at `degrees` from 12 o'clock, clockwise. */
+const polar = (degrees: number, radius: number): [number, number] => {
+  const radians = degrees * Math.PI / 180;
+  return [60 + radius * Math.sin(radians), 60 - radius * Math.cos(radians)];
+};
+const arcPath = (from: number, to: number, radius: number) => {
+  if (to - from < .5) return "";
+  const [x0, y0] = polar(from, radius);
+  const [x1, y1] = polar(to, radius);
+  return `M${x0.toFixed(2)} ${y0.toFixed(2)}A${radius} ${radius} 0 ${to - from > 180 ? 1 : 0} 1 ${x1.toFixed(2)} ${y1.toFixed(2)}`;
+};
+/** Budget dial angle at which a variant's cost first becomes affordable (inverse of budgetAt). */
+const unlockAngle = (cost: number) => -100 + Math.max(0, Math.min(99, 99 * Math.log(cost / .005) / Math.log(2000))) / 100 * 200;
+/** Variants that raise the best score as cost rises. Each is the cheapest model that beats everything cheaper. */
+function paretoFrontier(variants: ModelFinderVariant[]) {
+  let best = -Infinity;
+  return [...variants]
+    .sort((a, b) => a.costUsd - b.costUsd || b.score - a.score)
+    .filter(variant => { if (variant.score <= best) return false; best = variant.score; return true; });
+}
+
+/** Spring-driven angle: stiffness 280, damping 22, instant under reduced motion. */
+function useSpringAngle(target: number) {
+  const [angle, setAngle] = useState(target);
+  const spring = useRef({ x: target, v: 0, target, frame: 0, last: 0 });
+  const reduced = typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  useEffect(() => {
+    const s = spring.current;
+    s.target = target;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      cancelAnimationFrame(s.frame); s.frame = 0; s.x = target; s.v = 0; s.last = 0;
+      return;
+    }
+    if (s.frame || (s.x === target && s.v === 0)) return;
+    const step = (now: number) => {
+      const dt = s.last ? Math.min(1 / 30, (now - s.last) / 1000) : 1 / 60;
+      s.last = now;
+      s.v += (-SPRING.stiffness * (s.x - s.target) - SPRING.damping * s.v) * dt;
+      s.x += s.v * dt;
+      if (Math.abs(s.x - s.target) < .02 && Math.abs(s.v) < .05) {
+        s.x = s.target; s.v = 0; s.frame = 0; s.last = 0;
+        setAngle(s.x);
+        return;
+      }
+      setAngle(s.x);
+      s.frame = requestAnimationFrame(step);
+    };
+    s.frame = requestAnimationFrame(step);
+  }, [target]);
+  useEffect(() => () => cancelAnimationFrame(spring.current.frame), []);
+  return reduced ? target : angle;
+}
+
+/** Keeps rows that just left the list mounted for a moment so they fade out instead of popping. */
+function useLeavingRows(rows: ModelFinderVariant[]) {
+  const previous = useRef(rows);
+  const [leaving, setLeaving] = useState<{ row: ModelFinderVariant; index: number }[]>([]);
+  useEffect(() => {
+    const ids = new Set(rows.map(row => row.modelId));
+    const gone = previous.current.map((row, index) => ({ row, index })).filter(({ row }) => !ids.has(row.modelId));
+    previous.current = rows;
+    if (!gone.length) return;
+    const goneIds = new Set(gone.map(({ row }) => row.modelId));
+    setLeaving(list => [...list.filter(({ row }) => !ids.has(row.modelId) && !goneIds.has(row.modelId)), ...gone]);
+    gone.forEach(({ row }) => setTimeout(() => setLeaving(list => list.filter(item => item.row.modelId !== row.modelId)), 340));
+  }, [rows]);
+  return leaving.filter(({ row }) => !rows.some(current => current.modelId === row.modelId));
+}
+
+interface Pip { id: string; angle: number; color: string; affordable: boolean; current: boolean }
+
+function Dial({ label, value, max, text, onChange, detents, pips }: { label: string; value: number; max: number; text: string; onChange: (value: number) => void; detents?: number; pips?: Pip[] }) {
+  const uid = useId().replace(/:/g, "");
+  const needle = useSpringAngle(angleAt(value, max));
+  const arcEnd = Math.max(-100, Math.min(100, needle));
   const move = (event: PointerEvent<HTMLDivElement>) => {
     const rect = event.currentTarget.getBoundingClientRect();
     const angle = Math.atan2(event.clientX - rect.left - rect.width / 2, -(event.clientY - rect.top - rect.height / 2)) * 180 / Math.PI;
@@ -21,13 +98,29 @@ function Dial({ label, value, max, text, onChange }: { label: string; value: num
     const next = ["ArrowRight", "ArrowUp", "PageUp"].includes(event.key) ? value + step : ["ArrowLeft", "ArrowDown", "PageDown"].includes(event.key) ? value - step : event.key === "Home" ? 0 : event.key === "End" ? max : undefined;
     if (next != null) { event.preventDefault(); onChange(Math.max(0, Math.min(max, next))); }
   };
+  const ticks = detents != null
+    ? Array.from({ length: detents }, (_, i) => <line key={i} x1="60" y1="15" x2="60" y2={i === value ? 24 : 20} transform={`rotate(${angleAt(i, max)} 60 60)`} className={i === value ? styles.detentActive : styles.detent} />)
+    : Array.from({ length: 15 }, (_, i) => <line key={i} x1="60" y1="16.5" x2="60" y2={i % 7 === 0 ? 23.5 : 20} transform={`rotate(${-100 + i / 14 * 200} 60 60)`} className={styles.tick} />);
   return <div className={styles.control}>
     <div className={styles.dial} role="slider" tabIndex={0} aria-label={label} aria-valuemin={0} aria-valuemax={max} aria-valuenow={value} aria-valuetext={text} onKeyDown={key}
       onPointerDown={event => { event.currentTarget.focus(); event.currentTarget.setPointerCapture(event.pointerId); move(event); }} onPointerMove={event => { if (event.currentTarget.hasPointerCapture(event.pointerId)) move(event); }} onPointerUp={event => { if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); }}>
       <svg viewBox="0 0 120 120" aria-hidden="true">
-        <circle cx="60" cy="60" r="53" className={styles.face} />
-        {Array.from({ length: 15 }, (_, i) => <line key={i} x1="60" y1="12" x2="60" y2={i % 7 === 0 ? 21 : 17} transform={`rotate(${-100 + i / 14 * 200} 60 60)`} className={styles.tick} />)}
-        <g style={{ transform: `rotate(${angleAt(value, max)}deg)`, transformOrigin: "60px 60px" }} className={styles.needle}><path d="M57 63 L60 23 L63 63 Z" /><circle cx="60" cy="60" r="7" /></g>
+        <defs>
+          <filter id={`${uid}-shadow`} x="-40%" y="-40%" width="180%" height="180%"><feDropShadow dx="0" dy="1" stdDeviation="0.9" style={{ floodColor: "var(--ink)", floodOpacity: .16 }} /></filter>
+        </defs>
+        <circle cx="60" cy="60" r="54" className={styles.face} />
+        <circle cx="60" cy="60" r="51.5" className={styles.bezel} />
+        {ticks}
+        {pips?.map(pip => {
+          const [x, y] = polar(pip.angle, PIP_RADIUS);
+          return pip.current
+            ? <g key={pip.id} className={styles.pipCurrent}><circle cx={x} cy={y} r="2.7" fill="none" stroke={pip.color} strokeWidth=".85" /><circle cx={x} cy={y} r="1.65" fill={pip.color} /></g>
+            : <circle key={pip.id} cx={x} cy={y} r="1.25" fill={pip.color} className={styles.pip} opacity={pip.affordable ? .95 : .32} />;
+        })}
+        <path d={arcPath(-100, arcEnd, RIM_RADIUS)} className={styles.arc} />
+        <g filter={`url(#${uid}-shadow)`}>
+          <g style={{ transform: `rotate(${needle}deg)`, transformOrigin: "60px 60px" }} className={styles.needle}><path d="M57 63 L60 25 L63 63 Z" /><circle cx="60" cy="60" r="6.8" /><circle cx="60" cy="60" r="2.2" className={styles.hub} /></g>
+        </g>
       </svg>
     </div>
     <span className={styles.controlLabel}>{label}</span>
@@ -38,7 +131,7 @@ function Dial({ label, value, max, text, onChange }: { label: string; value: num
 
 export function ModelFinder({ data, initialGroup = "overall", initialBudget = 100, initialMix }: { data: ModelFinderData; initialGroup?: string; initialBudget?: number; initialMix?: string }) {
   const { dark } = useTheme();
-  const colorOf = (row: ModelFinderData["groups"][number]["mixes"][number]["variants"][number]) => markColor(row.color, dark ? DARK_PALETTE : LIGHT_PALETTE, row.labId);
+  const colorOf = (row: ModelFinderVariant) => markColor(row.color, dark ? DARK_PALETTE : LIGHT_PALETTE, row.labId);
   const [groupId, setGroupId] = useState(initialGroup);
   const [budgetPosition, setBudgetPosition] = useState(initialBudget);
   const [mixId, setMixId] = useState(initialMix);
@@ -48,7 +141,12 @@ export function ModelFinder({ data, initialGroup = "overall", initialBudget = 10
   const mix = group.mixes.find(item => item.id === mixId) ?? group.mixes[0];
   const budget = budgetAt(budgetPosition);
   const models = useMemo(() => affordableModels(mix.variants, budget), [mix.variants, budget]);
-  const rows = expanded ? models : models.slice(0, 12);
+  const rows = useMemo(() => expanded ? models : models.slice(0, 12), [expanded, models]);
+  const leaving = useLeavingRows(rows);
+  const frontier = useMemo(() => paretoFrontier(mix.variants), [mix.variants]);
+  const affordableFrontier = frontier.filter(variant => budget == null || variant.costUsd <= budget);
+  const topUnlock = affordableFrontier[affordableFrontier.length - 1];
+  const pips: Pip[] = frontier.map(variant => ({ id: variant.id, angle: unlockAngle(variant.costUsd), color: colorOf(variant), affordable: budget == null || variant.costUsd <= budget, current: variant === topUnlock }));
   const syncUrl = (nextGroup: string, nextBudget: number, nextMix?: string) => {
     const url = new URL(location.href);
     url.searchParams.set("use", nextGroup);
@@ -59,21 +157,23 @@ export function ModelFinder({ data, initialGroup = "overall", initialBudget = 10
   const changeBudget = (value: number) => { setBudgetPosition(value); syncUrl(group.id, value, mixId); };
   const changeGroup = (position: number) => { const id = data.groups[position].id; setGroupId(id); setMixId(undefined); setExpanded(false); syncUrl(id, budgetPosition); };
   const changeMix = (id: string) => { setMixId(id); setExpanded(false); syncUrl(group.id, budgetPosition, id); };
+  const rowView = (row: ModelFinderVariant, index: number, gone: boolean) => <div role={gone ? "presentation" : "listitem"} aria-hidden={gone || undefined} className={[styles.row, index === 0 && !gone ? styles.top : "", gone ? styles.leaving : ""].filter(Boolean).join(" ")} key={`${gone ? "out" : "in"}-${row.modelId}`} data-model={row.modelId} data-cost={row.costUsd} style={{ transform: `translateY(${index * 44}px)` }}>
+    <Link className={styles.model} href={`/models/${row.modelId}` as "/"} title={`${row.name}, ${row.effort}, ${row.labName}`} tabIndex={gone ? -1 : undefined}><span className={styles.lab} aria-hidden="true" style={{ color: colorOf(row) }}>{row.labName.slice(0, 2)}</span><span>{row.name}<small>{row.effort === "default" ? "" : row.effort}</small></span></Link>
+    <div className={styles.score} aria-label={`Index score ${row.score.toFixed(1)}`} title={`${Math.round(row.measuredShare * 100)}% of benchmark weight measured`}><div className={styles.bar} style={{ width: `${Math.max(2, row.score)}%`, background: colorOf(row) }}><span>{row.score.toFixed(1)}</span></div></div>
+    <span className={styles.cost} title={row.costSource ?? "Measured task cost"}>{money(row.costUsd)}</span>
+  </div>;
   return <section className={styles.card} aria-label="Model finder">
     <div className={styles.heading}><h1>Model finder</h1><p>{mix.name} · Strictness 50</p></div>
     <div className={styles.dials}>
-      <Dial label="Budget per task" max={100} value={budgetPosition} text={budget == null ? "No limit" : money(budget)} onChange={changeBudget} />
-      <Dial label="Optimize for" max={data.groups.length - 1} value={groupPosition} text={group.label} onChange={changeGroup} />
+      <Dial label="Budget per task" max={100} value={budgetPosition} text={budget == null ? "No limit" : money(budget)} onChange={changeBudget} pips={pips} />
+      <Dial label="Optimize for" max={data.groups.length - 1} value={groupPosition} text={group.label} onChange={changeGroup} detents={data.groups.length} />
     </div>
     <div className={styles.useCases} role="group" aria-label="Use case">{data.groups.map((item, position) => <button key={item.id} type="button" aria-pressed={item.id === group.id} onClick={() => changeGroup(position)}>{item.label}</button>)}</div>
     <div className={styles.divider} />
     <div className={styles.tableHeading}><span>Model</span><span>{group.label} index</span><span>Cost / task</span></div>
     <div className={styles.rows} role="list" aria-label={`${group.label} models within budget`} style={{ height: rows.length * 44 }}>
-      {rows.map((row, index) => <div role="listitem" className={styles.row} key={row.modelId} data-model={row.modelId} data-cost={row.costUsd} style={{ transform: `translateY(${index * 44}px)` }}>
-        <Link className={styles.model} href={`/models/${row.modelId}` as "/"} title={`${row.name}, ${row.effort}, ${row.labName}`}><span className={styles.lab} aria-hidden="true" style={{ color: colorOf(row) }}>{row.labName.slice(0, 2)}</span><span>{row.name}<small>{row.effort === "default" ? "" : row.effort}</small></span></Link>
-        <div className={styles.score} aria-label={`Index score ${row.score.toFixed(1)}`} title={`${Math.round(row.measuredShare * 100)}% of benchmark weight measured`}><div className={styles.bar} style={{ width: `${Math.max(2, row.score)}%`, background: colorOf(row) }}><span>{row.score.toFixed(1)}</span></div></div>
-        <span className={styles.cost} title={row.costSource ?? "Measured task cost"}>{money(row.costUsd)}</span>
-      </div>)}
+      {rows.map((row, index) => rowView(row, index, false))}
+      {leaving.map(({ row, index }) => rowView(row, index, true))}
     </div>
     {!rows.length && <p className={styles.empty}>No measured model fits this budget. Turn the budget dial up.</p>}
     {models.length > 12 && <button className={styles.showMore} type="button" onClick={() => setExpanded(!expanded)}>{expanded ? "Show top 12" : `Show all ${models.length} models`}</button>}

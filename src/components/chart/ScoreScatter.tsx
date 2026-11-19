@@ -25,11 +25,13 @@ import { FORMULA_MAX } from "@/lib/formula";
 import { focusPoints } from "@/lib/chart-focus";
 import { viewParam } from "@/lib/export-editor";
 import type { FallingDot } from "./GravityLayer";
+import type { ScaleMorphProps } from "./ScaleMorphLayer";
 import { useChartZoom } from "./ChartZoom";
 import { inBox } from "./chart-zoom";
 import { generationChange, isPlaced, isThinScore } from "@/lib/model-lineage";
 
 const GravityLayer = dynamic(() => import("./GravityLayer"), { ssr: false });
+const ScaleMorphLayer = dynamic(() => import("./ScaleMorphLayer"), { ssr: false });
 const ExportEditor = dynamic(() => import("./ExportEditor"), { ssr: false });
 
 export { chartLabel };
@@ -424,6 +426,81 @@ export function ScoreScatter(props: ScatterProps) {
     }); });
     return () => { cancelAnimationFrame(first); cancelAnimationFrame(second); };
   }, [fallen, pts, frontier, better, labs, pal, chart, plotW, plotH, scale]);
+  const [scaleMorph, setScaleMorph] = useState<(Omit<ScaleMorphProps, "onDone"> & { run: number }) | null>(null);
+  const lastLayout = useRef<{ scale: "log" | "linear"; pixels: Map<string, [number, number]>; xExtent: [number, number]; yExtent: [number, number]; grid: { x: number; y: number; width: number; height: number }; width: number; height: number } | null>(null);
+  const prevScaleRef = useRef(scale);
+
+  // Snapshot ECharts layout whenever the chart settles, and smoothly Box-Cox morph whenever Log <-> Linear flips.
+  useEffect(() => {
+    const readChart = (c: ECharts | null) => {
+      if (!c || c.isDisposed()) return null;
+      try {
+        const model = (c as unknown as { getModel: () => { getComponent: (t: string, i: number) => { coordinateSystem?: { getRect: () => { x: number; y: number; width: number; height: number } }; axis?: { scale?: { getExtent: () => [number, number] } } } | undefined } }).getModel();
+        const rect = model.getComponent("grid", 0)?.coordinateSystem?.getRect();
+        const xExtRaw = model.getComponent("xAxis", 0)?.axis?.scale?.getExtent();
+        const yExt = model.getComponent("yAxis", 0)?.axis?.scale?.getExtent();
+        if (!rect || !xExtRaw || !yExt) return null;
+        const leftData = c.convertFromPixel({ xAxisIndex: 0, yAxisIndex: 0 }, [rect.x, rect.y + rect.height / 2]) as number[] | undefined;
+        const rightData = c.convertFromPixel({ xAxisIndex: 0, yAxisIndex: 0 }, [rect.x + rect.width, rect.y + rect.height / 2]) as number[] | undefined;
+        const xExt: [number, number] =
+          leftData && rightData && Number.isFinite(leftData[0]) && Number.isFinite(rightData[0]) && rightData[0] > leftData[0]
+            ? [leftData[0], rightData[0]]
+            : [xExtRaw[0], xExtRaw[1]];
+        const pixels = new Map<string, [number, number]>();
+        for (const p of shown) {
+          const px = c.convertToPixel({ seriesId: "marks" }, [p.x, p.r.score]) as unknown as number[] | undefined;
+          if (px && Number.isFinite(px[0]) && Number.isFinite(px[1])) pixels.set(p.r.variant.id, [px[0], px[1]]);
+        }
+        return { pixels, xExtent: xExt, yExtent: [yExt[0], yExt[1]] as [number, number], grid: rect, width: c.getWidth(), height: c.getHeight() };
+      } catch { return null; }
+    };
+    const prevScale = prevScaleRef.current;
+    prevScaleRef.current = scale;
+    const snap = lastLayout.current;
+    if (!bare && !zoom.dragging && (prevScale === "log" || prevScale === "linear") && (scale === "log" || scale === "linear") && prevScale !== scale && snap && snap.scale === prevScale && shown.length > 0) {
+      const next = readChart(chart.current);
+      if (next && next.width > 0 && next.height > 0) {
+        const xLog = prevScale === "log" ? snap.xExtent : next.xExtent;
+        const xLin = prevScale === "linear" ? snap.xExtent : next.xExtent;
+        const morphFrontier = zoom.zoomed ? frontierOf(shown, better) : frontier;
+        setScaleMorph((cur) => ({
+          run: (cur?.run ?? 0) + 1,
+          fromScale: prevScale,
+          toScale: scale,
+          pts: shown,
+          frontier: morphFrontier,
+          labs,
+          pal,
+          better,
+          xName,
+          formatX,
+          showLinks: view.links,
+          showFrontier: view.frontier,
+          labeledIds: pickLabels(shown, better, view.density),
+          width: next.width,
+          height: next.height,
+          grid: next.grid,
+          yMin: next.yExtent[0],
+          yMax: next.yExtent[1],
+          xMinLog: Math.max(1e-6, xLog[0]),
+          xMaxLog: Math.max(1e-5, xLog[1]),
+          xMinLin: xLin[0],
+          xMaxLin: xLin[1],
+          fromPixels: snap.pixels,
+          toPixels: next.pixels,
+        }));
+      }
+    }
+    const save = () => {
+      if (scale !== "log" && scale !== "linear") return;
+      const cur = readChart(chart.current);
+      if (cur && cur.pixels.size > 0) lastLayout.current = { scale, ...cur };
+    };
+    const frame = requestAnimationFrame(save);
+    const c = chart.current;
+    c?.on("finished", save);
+    return () => { cancelAnimationFrame(frame); c?.off("finished", save); };
+  }, [scale, bare, zoom.dragging, zoom.zoomed, shown, frontier, labs, pal, better, xName, formatX, view.links, view.frontier, view.density, chart, option]);
   const expand = useChartExpand(exportName);
   const onFrontierIds = useMemo(() => new Set(frontier.map((p) => p.r.variant.id)), [frontier]);
   const getHtml = () => {
@@ -468,6 +545,7 @@ export function ScoreScatter(props: ScatterProps) {
       </div>}
       <div className={`relative ${expand.expanded ? "flex-1 min-h-0" : ""}`} style={zoom.surface}>
         <div ref={ref} role="img" aria-label={aria} data-points={shown.map((p) => p.r.variant.id).sort().join(",")} data-zoomed={zoom.enabled ? String(zoom.zoomed) : undefined} tabIndex={0} onContextMenu={onContextMenu} onKeyDown={context.onKeyDown} style={{ width: "100%", height: expand.expanded ? "100%" : bare ? height : Math.round(height * (pal.size?.height ?? 1)), overflow: "hidden", position: "relative", isolation: "isolate" }} />
+        {scaleMorph && <ScaleMorphLayer key={scaleMorph.run} {...scaleMorph} onDone={() => setScaleMorph(null)} />}
         {fall && !!fallen?.size && <GravityLayer key={fall.run} dots={fall.dots} width={fall.width} height={fall.height} floor={fall.floor} left={fall.left} right={fall.right} stroke={pal.bg} />}
         {!pts.length && <p className="cap absolute inset-0 grid place-items-center">No model in this view has this metric.</p>}
         <svg ref={pathLayer} aria-hidden="true" className="absolute inset-0 z-[5] pointer-events-none" width="100%" height="100%" />

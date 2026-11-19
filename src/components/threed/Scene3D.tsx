@@ -29,26 +29,79 @@ export interface SceneProps {
   onHover: (hit: { id: string; x: number; y: number } | null) => void;
 }
 
-const SIZE = 10, HALF = SIZE / 2;
+const SIZE = 10, HALF = SIZE / 2, ORTHO_DIST = 26;
 const world = (u: number) => (u - 0.5) * SIZE;
 const KEY_LABELS = 16, ALL_LABELS = 90, FOV = 50, INTRO_MS = 1500, INTRO_TURN = 0.55;
+const FLIGHT_MS = 650, MORPH_MS = 550;
 const ease = (t: number) => 1 - (1 - t) ** 3;
+
+/** Matte architectural shader for the frontier staircase: top steps hold the brand colour, sides lift toward paper,
+ * grazing edges catch a subtle Fresnel accent, and a faint world grid plus elevation contours run across each face. */
+const WALL_VERT = `
+varying vec3 vNormal;
+varying vec3 vWorldPos;
+varying vec3 vViewDir;
+void main() {
+  vec4 wp = modelMatrix * vec4(position, 1.0);
+  vWorldPos = wp.xyz;
+  vNormal = normalize(mat3(modelMatrix) * normal);
+  vViewDir = normalize(cameraPosition - wp.xyz);
+  gl_Position = projectionMatrix * viewMatrix * wp;
+}`;
+
+const WALL_FRAG = `
+uniform vec3 uColor;
+uniform vec3 uBg;
+uniform vec3 uLine;
+uniform vec3 uLight;
+uniform float uAlpha;
+uniform float uFade;
+uniform float uGrid;
+varying vec3 vNormal;
+varying vec3 vWorldPos;
+varying vec3 vViewDir;
+void main() {
+  vec3 n = normalize(vNormal);
+  vec3 v = normalize(vViewDir);
+  vec3 nf = dot(n, v) < 0.0 ? -n : n;
+  float top = step(0.5, abs(n.y));
+  float lit = clamp(dot(nf, uLight), 0.0, 1.0);
+  float graze = pow(1.0 - clamp(dot(nf, v), 0.0, 1.0), 3.0);
+  vec3 col = mix(mix(uColor, uBg, 0.2), uColor, top);
+  col *= 0.94 + 0.1 * lit;
+  col = mix(col, uColor, 0.5 * graze);
+  vec3 p = vWorldPos / uGrid;
+  vec3 g = abs(fract(p - 0.5) - 0.5) / max(fwidth(p), vec3(1e-5)) + abs(n) * 1000.0;
+  float grid = 1.0 - clamp(min(min(g.x, g.y), g.z), 0.0, 1.0);
+  float q = vWorldPos.y / (uGrid * 2.5);
+  float contour = (1.0 - clamp(abs(fract(q - 0.5) - 0.5) / max(fwidth(q), 1e-5), 0.0, 1.0)) * (1.0 - top);
+  vec3 ink = mix(col, uLine, 0.22 * grid + 0.16 * contour);
+  float a = uAlpha * (0.85 + 0.15 * top) + 0.16 * graze + 0.08 * grid + 0.06 * contour;
+  gl_FragColor = vec4(ink, clamp(a * uFade, 0.0, 1.0));
+  #include <colorspace_fragment>
+}`;
 
 interface Box { x: number; y: number; w: number; h: number; owner?: string }
 const hit = (a: Box, b: Box, pad = 3) => a.x < b.x + b.w + pad && a.x + a.w + pad > b.x && a.y < b.y + b.h + pad && a.y + a.h + pad > b.y;
+/** One model's live 3D state during axis morphs. */
+interface PointNode { id: string; from: T.Vector3; to: T.Vector3; pos: T.Vector3; mesh: T.Mesh; shadowR: number; idx: number; floorIdx: number; stemIdx: number }
+/** A smooth camera flight: direction slerps along the shortest arc while distance, up vector and aim target ease alongside it. */
+interface Flight { t0: number; dur: number; ortho: boolean; flatZoom: boolean; dir0: T.Vector3; dir1: T.Vector3; up0: T.Vector3; up1: T.Vector3; q: T.Quaternion; d0: number; d1: number; aim0: number; aim1: number }
+interface WallShadow { mesh: T.InstancedMesh; axis: 0 | 1 | 2; at: number }
 
 /**
  * The 3D scatter: a cube with the better end of every axis at the far corner, built to be read rather than admired. What the research on
  * 3D scatterplots supports is used here: a real perspective, grid walls behind the data that follow the camera, each point projected onto the
  * floor and both back walls, drop lines, solid points so nearer ones hide farther ones, and motion when the chart opens. The Pareto frontier
- * is one translucent layer (`frontierSurface`, depth-tested so only its nearest face shows). Hovering or picking a model draws its three paths
- * to the walls and marks its values on the axes. Drawn on demand. Labels are HTML on top of the canvas, placed so none covers another.
+ * is one shaded translucent layer (`frontierSurface`, depth-tested so only its nearest face shows). View switches fly smoothly between angles,
+ * axis changes morph each model from its previous position, and hovering or picking a model draws its three paths to the walls and marks its
+ * values on the axes. Drawn on demand. Labels are HTML on top of the canvas, placed so none covers another.
  */
 export function Scene3D(props: SceneProps) {
   const host = useRef<HTMLDivElement>(null);
   const latest = useRef(props);
   useEffect(() => { latest.current = props; });
-  const api = useRef<{ rebuild: () => void; snap: () => void; refresh: () => void } | null>(null);
+  const api = useRef<{ rebuild: () => void; snap: (instant?: boolean) => void; refresh: () => void } | null>(null);
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
@@ -72,26 +125,33 @@ export function Scene3D(props: SceneProps) {
       // Soft light so the points read as round objects; everything else is flat.
       const sun = new THREE.DirectionalLight(0xffffff, 1.1); sun.position.set(4, 10, 6);
       scene.add(new THREE.HemisphereLight(0xffffff, 0xd8d8d8, 2.35), sun);
+      const UP = new THREE.Vector3(0, 1, 0);
       const persp = new THREE.PerspectiveCamera(FOV, 1, 0.1, 200), ortho = new THREE.OrthographicCamera(-1, 1, 1, -1, -100, 200);
-      let camera: T.PerspectiveCamera | T.OrthographicCamera = persp, controls: Orbit;
+      let camera: T.PerspectiveCamera | T.OrthographicCamera = persp;
+      const controls: Orbit = new OrbitControls(camera, dom);
       let pickables: { mesh: T.Mesh; id: string }[] = [];
       let drops: T.Object3D[] = [], surface: T.Object3D[] = [];
+      let surfaceMats: { mat: T.ShaderMaterial | T.LineBasicMaterial; base: number }[] = [];
       let anchors: { id: string; v: T.Vector3; node: HTMLElement; w: number; h: number }[] = [];
       let statics: { v: T.Vector3; node: HTMLElement; out: number; w: number; h: number; axis?: number; u?: number; tick?: boolean; chip?: boolean }[] = [];
       let axisLines: T.Line[] = [], arrows: T.Mesh[] = [], walls: { axis: 0 | 2; side: -1 | 1; group: T.Group }[] = [];
+      let wallShadows: WallShadow[] = [];
+      let floorLineObj: T.LineSegments | null = null, stemLineObj: T.LineSegments | null = null;
       let paths: T.LineSegments | null = null, pathDots: T.Mesh[] = [];
+      let nodes = new Map<string, PointNode>(), prevPositions = new Map<string, T.Vector3>(), lastSig = "";
       let intro: { from: number; end: T.Vector3 } | null = null, introPlayed = false;
+      let flight: Flight | null = null, morph: { t0: number; fade: boolean } | null = null;
       let order: string[] = [], keyIds = new Set<string>();
       let hoverId: string | null = null, raf = 0, animating = 0;
       const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
       const center = new THREE.Vector3();
+      const tmpMat = new THREE.Matrix4(), tmpVec = new THREE.Vector3();
 
       const project = (v: T.Vector3) => {
         const p = v.clone().project(camera), w = el.clientWidth, h = el.clientHeight;
         return { x: (p.x * 0.5 + 0.5) * w, y: (-p.y * 0.5 + 0.5) * h, ok: p.z > -1 && p.z < 1 };
       };
       const sizeOf = (n: HTMLElement) => ({ w: n.offsetWidth || 40, h: n.offsetHeight || 16 });
-
       const place = (n: HTMLElement, x: number, y: number) => { n.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`; };
 
       /** Walls and axes follow the camera, then fixed labels go down first and point labels take the free spots, in priority order. */
@@ -146,7 +206,8 @@ export function Scene3D(props: SceneProps) {
           const s = screen.get(id); if (!s) continue;
           const isHot = hot.includes(id), { a } = s;
           if (!s.ok || (!isHot && (shown >= cap || (p.labels === "key" && !keyIds.has(id)))) || s.x < -20 || s.x > w + 20 || s.y < -20 || s.y > h + 20) { a.node.style.visibility = "hidden"; continue; }
-          const spots: [number, number][] = [[s.x + 11, s.y - a.h / 2], [s.x - 11 - a.w, s.y - a.h / 2], [s.x - a.w / 2, s.y - 12 - a.h], [s.x - a.w / 2, s.y + 12]];
+          const pad = isHot ? 15 : 11;
+          const spots: [number, number][] = [[s.x + pad, s.y - a.h / 2], [s.x - pad - a.w, s.y - a.h / 2], [s.x - a.w / 2, s.y - (pad + 1) - a.h], [s.x - a.w / 2, s.y + pad + 1]];
           const free = spots.find(([x, y]) => x > 2 && y > 2 && x + a.w < w - 2 && y + a.h < h - 2 && !taken.some((t) => t.owner !== id && hit({ x, y, w: a.w, h: a.h }, t)));
           const spot = free ?? (isHot ? spots[0] : undefined);
           if (!spot) { a.node.style.visibility = "hidden"; continue; }
@@ -155,18 +216,118 @@ export function Scene3D(props: SceneProps) {
         }
       };
 
+      const tanHalf = () => Math.tan(THREE.MathUtils.degToRad(persp.fov) / 2);
+      const distOf = () => (camera === ortho ? ortho.top / (ortho.zoom * tanHalf()) : camera.position.distanceTo(controls.target));
+      const targetDist = () => {
+        const aspect = (el.clientWidth || 600) / (el.clientHeight || 500);
+        return Math.min(44, (latest.current.look === "full" ? 22 : 21) / Math.min(1, aspect * 1.05));
+      };
+      const pose = (dir: T.Vector3, up: T.Vector3, d: number, aim: number, flatZoom = false) => {
+        camera.up.copy(up);
+        controls.target.set(0, aim, 0);
+        if (camera === ortho) {
+          camera.position.copy(dir).multiplyScalar(ORTHO_DIST);
+          camera.position.y += aim;
+          ortho.zoom = flatZoom ? 1.5 : ortho.top / (d * tanHalf());
+        } else {
+          camera.position.copy(dir).multiplyScalar(d);
+          camera.position.y += aim;
+        }
+        camera.lookAt(0, aim, 0);
+        camera.updateProjectionMatrix();
+      };
+      const bind = (cam: T.PerspectiveCamera | T.OrthographicCamera) => { camera = cam; controls.object = cam; };
+      const syncUp = () => {
+        const c = controls as unknown as { _quat?: T.Quaternion; _quatInverse?: T.Quaternion };
+        if (c._quat) { c._quat.setFromUnitVectors(camera.up, UP); c._quatInverse?.copy(c._quat).invert(); }
+      };
+      const fadeSurfaces = (k: number) => {
+        for (const { mat, base } of surfaceMats) {
+          if (mat instanceof THREE.ShaderMaterial) mat.uniforms.uFade.value = k;
+          else mat.opacity = base * k;
+        }
+      };
+
+      const stepFlight = (now: number) => {
+        const f = flight; if (!f) return false;
+        const k = f.dur ? Math.min(1, (now - f.t0) / f.dur) : 1, e = ease(k);
+        if (k >= 1) {
+          flight = null;
+          bind(f.ortho ? ortho : persp);
+          pose(f.dir1, f.up1, f.d1, f.aim1, f.flatZoom);
+          syncUp();
+          refresh();
+          return false;
+        }
+        const dir = f.dir0.clone().applyQuaternion(new THREE.Quaternion().slerp(f.q, e));
+        const up = f.up0.clone().lerp(f.up1, e).normalize();
+        const d = f.d0 + (f.d1 - f.d0) * e;
+        const aim = f.aim0 + (f.aim1 - f.aim0) * e;
+        pose(dir, up, d, aim, false);
+        syncUp();
+        return true;
+      };
+
+      const cancelFlight = () => {
+        const f = flight; if (!f) return;
+        const d = distOf(), aim = controls.target.y;
+        const dir = camera.position.clone().sub(controls.target).normalize(), up = camera.up.clone();
+        flight = null;
+        bind(f.ortho ? ortho : persp);
+        pose(dir, up, d, aim, f.flatZoom);
+        syncUp();
+        refresh();
+      };
+
+      const placeNode = (n: PointNode) => {
+        n.mesh.position.copy(n.pos);
+        if (n.floorIdx >= 0 && floorLineObj) {
+          const attr = floorLineObj.geometry.getAttribute("position") as T.BufferAttribute;
+          attr.setXYZ(n.floorIdx * 2, n.pos.x, n.pos.y, n.pos.z);
+          attr.setXYZ(n.floorIdx * 2 + 1, n.pos.x, -HALF, n.pos.z);
+        }
+        if (n.stemIdx >= 0 && stemLineObj) {
+          const attr = stemLineObj.geometry.getAttribute("position") as T.BufferAttribute;
+          attr.setXYZ(n.stemIdx * 2, n.pos.x, n.pos.y, n.pos.z);
+          attr.setXYZ(n.stemIdx * 2 + 1, n.pos.x, -HALF, n.pos.z);
+        }
+        for (const ws of wallShadows) {
+          tmpVec.copy(n.pos);
+          tmpVec.setComponent(ws.axis, ws.at - Math.sign(ws.at) * 0.02);
+          ws.mesh.setMatrixAt(n.idx, tmpMat.makeScale(n.shadowR, n.shadowR, n.shadowR).setPosition(tmpVec));
+        }
+      };
+
+      const flushMorphBuffers = () => {
+        if (floorLineObj) (floorLineObj.geometry.getAttribute("position") as T.BufferAttribute).needsUpdate = true;
+        if (stemLineObj) (stemLineObj.geometry.getAttribute("position") as T.BufferAttribute).needsUpdate = true;
+        for (const ws of wallShadows) ws.mesh.instanceMatrix.needsUpdate = true;
+      };
+
+      const stepMorph = (now: number) => {
+        const m = morph; if (!m) return false;
+        const k = Math.min(1, (now - m.t0) / MORPH_MS), e = ease(k);
+        for (const n of nodes.values()) { n.pos.lerpVectors(n.from, n.to, e); placeNode(n); }
+        flushMorphBuffers();
+        if (m.fade) fadeSurfaces(ease(Math.max(0, (k - 0.5) * 2)));
+        if (k >= 1) { morph = null; fadeSurfaces(1); return false; }
+        return true;
+      };
+
       const frame = () => {
         raf = 0;
-        if (animating > performance.now()) raf = requestAnimationFrame(frame);
+        const now = performance.now();
+        const flying = stepFlight(now), morphing = stepMorph(now);
         // The chart turns into place when it opens: motion is the depth cue people read best.
-        if (intro) {
-          const k = Math.min(1, (performance.now() - intro.from) / INTRO_MS);
-          camera.position.copy(intro.end).applyAxisAngle(new THREE.Vector3(0, 1, 0), (1 - ease(k)) * INTRO_TURN);
+        if (intro && !flying) {
+          const k = Math.min(1, (now - intro.from) / INTRO_MS);
+          const off = intro.end.clone().sub(controls.target).applyAxisAngle(UP, (1 - ease(k)) * INTRO_TURN);
+          camera.position.copy(controls.target).add(off);
           if (k >= 1) intro = null;
         }
-        controls.update();
+        if (!flying) controls.update();
         layout();
-        if (latest.current.autoRotate && !raf) raf = requestAnimationFrame(frame);
+        if (!raf && (flying || morphing || intro || animating > now || latest.current.autoRotate)) raf = requestAnimationFrame(frame);
       };
       const request = () => { if (!raf) raf = requestAnimationFrame(frame); };
 
@@ -178,27 +339,34 @@ export function Scene3D(props: SceneProps) {
         request();
       };
 
-      const makeControls = () => {
-        controls?.dispose();
-        controls = new OrbitControls(camera, dom);
-        controls.enableDamping = !reduced; controls.dampingFactor = 0.12; controls.minDistance = 6; controls.maxDistance = 45; controls.zoomSpeed = 0.8; controls.maxPolarAngle = Math.PI / 2;
-        controls.autoRotateSpeed = 0.8; controls.autoRotate = latest.current.autoRotate; controls.enableRotate = latest.current.look !== "flat";
-        controls.addEventListener("change", request);
-        controls.addEventListener("start", () => { intro = null; animating = performance.now() + 60_000; request(); });
-        controls.addEventListener("end", () => { animating = performance.now() + 900; request(); });
-      };
-      const snap = () => {
-        const v = latest.current.view;
-        camera = v.ortho ? ortho : persp;
-        makeControls();
-        if (camera === ortho) { ortho.zoom = latest.current.look === "flat" ? 1.5 : 1; ortho.updateProjectionMatrix(); }
+      controls.enableDamping = !reduced; controls.dampingFactor = 0.12; controls.minDistance = 6; controls.maxDistance = 45; controls.zoomSpeed = 0.8; controls.maxPolarAngle = Math.PI / 2;
+      controls.autoRotateSpeed = 0.8;
+      controls.addEventListener("change", request);
+      controls.addEventListener("start", () => { intro = null; cancelFlight(); animating = performance.now() + 60_000; request(); });
+      controls.addEventListener("end", () => { animating = performance.now() + 900; request(); });
+
+      const snap = (instant = false) => {
+        const p = latest.current, v = p.view;
         const flat = v.dir[0] === 0 && v.dir[2] === 0;
-        const aspect = (el.clientWidth || 600) / (el.clientHeight || 500);
-        camera.position.set(...v.dir).normalize().multiplyScalar(v.ortho ? 26 : Math.min(44, (latest.current.look === "full" ? 22 : 21) / Math.min(1, aspect * 1.05)));
-        camera.up.set(0, flat ? 0 : 1, flat ? -1 : 0);
-        const aim = v.ortho ? 0 : latest.current.look === "full" ? -0.5 : -1.2; camera.position.y += aim; camera.lookAt(0, aim, 0); controls.target.set(0, aim, 0); controls.update();
-        animating = performance.now() + 50;
-        if (!v.ortho && !introPlayed && !reduced) { introPlayed = true; intro = { from: performance.now(), end: camera.position.clone() }; animating = performance.now() + INTRO_MS + 100; }
+        const flatZoom = v.ortho && p.look === "flat";
+        const dir1 = new THREE.Vector3(...v.dir).normalize();
+        const up1 = new THREE.Vector3(0, flat ? 0 : 1, flat ? -1 : 0);
+        const aim1 = v.ortho ? 0 : p.look === "full" ? -0.5 : -1.2;
+        const d1 = targetDist();
+        const curOff = camera.position.clone().sub(controls.target);
+        const dir0 = curOff.lengthSq() > 1e-6 ? curOff.normalize() : dir1.clone();
+        const dur = instant || reduced ? 0 : FLIGHT_MS;
+        intro = null;
+        flight = { t0: performance.now(), dur, ortho: v.ortho, flatZoom, dir0, dir1, up0: camera.up.clone(), up1, q: new THREE.Quaternion().setFromUnitVectors(dir0, dir1), d0: instant ? d1 : distOf(), d1, aim0: instant ? aim1 : controls.target.y, aim1 };
+        controls.autoRotate = false;
+        if (!dur) {
+          stepFlight(performance.now());
+          if (!v.ortho && !introPlayed && !reduced) {
+            introPlayed = true;
+            intro = { from: performance.now(), end: camera.position.clone() };
+            animating = performance.now() + INTRO_MS + 100;
+          }
+        }
         request();
       };
 
@@ -212,7 +380,8 @@ export function Scene3D(props: SceneProps) {
           });
         }
         overlay.replaceChildren();
-        pickables = []; drops = []; surface = []; anchors = []; statics = []; axisLines = []; arrows = []; walls = []; paths = null; pathDots = []; order = []; keyIds = new Set();
+        pickables = []; drops = []; surface = []; surfaceMats = []; anchors = []; statics = []; axisLines = []; arrows = []; walls = []; wallShadows = [];
+        floorLineObj = null; stemLineObj = null; paths = null; pathDots = []; order = []; keyIds = new Set(); nodes = new Map(); morph = null;
       };
 
       const line = (a: T.Vector3, b: T.Vector3, color: string, opacity = 1) =>
@@ -222,18 +391,26 @@ export function Scene3D(props: SceneProps) {
 
       /** A point on the cube from the axis values given, for the walls and their grids. */
       const onCube = (vals: Partial<Record<0 | 1 | 2, number>>) => new THREE.Vector3(vals[0] ?? 0, vals[1] ?? 0, vals[2] ?? 0);
-      const segments = (pts: T.Vector3[], color: string, opacity: number, order = -4) => {
+      const segments = (pts: T.Vector3[], color: string, opacity: number, renderOrd = -4) => {
         const l = new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color, transparent: true, opacity, depthWrite: false }));
-        l.renderOrder = order; return l;
+        l.renderOrder = renderOrd; return l;
       };
 
       const rebuild = () => {
         const p = latest.current;
+        prevPositions = new Map([...nodes].map(([id, n]) => [id, n.pos.clone()] as [string, T.Vector3]));
+        const sig = p.points.map((q) => `${q.id}${q.pos.join(",")}`).join("|");
+        const moved = prevPositions.size > 0 && sig !== lastSig;
+        lastSig = sig;
         clear();
         const { ink, grey, bg } = p.palette, paper = new THREE.Color(bg);
         const good = getComputedStyle(document.documentElement).getPropertyValue("--good").trim() || ink;
         const ticks = p.axes.map((a) => axisTicks(a, 5));
-        const placed = p.points.map((q) => ({ q, color: p.colorOf(q), pos: new THREE.Vector3(world(q.pos[0]), world(q.pos[1]), world(q.pos[2])) }));
+        const placed = p.points.map((q) => {
+          const to = new THREE.Vector3(world(q.pos[0]), world(q.pos[1]), world(q.pos[2]));
+          const from = moved ? (prevPositions.get(q.id) ?? to.clone()) : to.clone();
+          return { q, color: p.colorOf(q), from, to, pos: from.clone(), shadowR: q.frontier ? 0.13 : 0.075 };
+        });
 
         // A wall: a faint panel, its grid at the round values of the two axes in its plane, and every model's position projected onto it.
         const wall = (axis: 0 | 1 | 2, at: number, marks = true) => {
@@ -246,12 +423,12 @@ export function Scene3D(props: SceneProps) {
           if (!marks) { content.add(group); return group; }
           const dot = new THREE.CircleGeometry(1, 16); if (axis === 0) dot.rotateY(Math.PI / 2); if (axis === 1) dot.rotateX(-Math.PI / 2);
           const shadows = new THREE.InstancedMesh(dot, new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.8, depthWrite: false, side: THREE.DoubleSide }), placed.length), m = new THREE.Matrix4();
-          placed.forEach(({ q, color, pos }, i) => {
-            const v = pos.clone(), r = q.frontier ? 0.13 : 0.075; v.setComponent(axis, at - Math.sign(at) * 0.02);
-            shadows.setMatrixAt(i, m.makeScale(r, r, r).setPosition(v));
+          placed.forEach(({ q, color, pos, shadowR }, i) => {
+            const v = pos.clone(); v.setComponent(axis, at - Math.sign(at) * 0.02);
+            shadows.setMatrixAt(i, m.makeScale(shadowR, shadowR, shadowR).setPosition(v));
             shadows.setColorAt(i, new THREE.Color(q.frontier ? color : grey).lerp(paper, q.frontier ? 0.35 : 0.55));
           });
-          shadows.renderOrder = -4; group.add(shadows); drops.push(shadows); content.add(group);
+          shadows.renderOrder = -4; group.add(shadows); drops.push(shadows); wallShadows.push({ mesh: shadows, axis, at }); content.add(group);
           return group;
         };
         wall(1, -HALF, p.look === "full" || p.look === "points" || p.look === "stems");
@@ -273,23 +450,44 @@ export function Scene3D(props: SceneProps) {
           for (const t of ticks[i]) { const m = tag(esc(t.label), "t3d-tick"); marks.push({ v: new THREE.Vector3(), node: m, out: 7, axis: i, u: t.u, tick: true, ...sizeOf(m) }); }
         }
 
-        // The frontier as one layer: a depth pass first, so the colour pass and the outline show only its nearest face and the steps stay readable.
+        // The frontier as one shaded layer: a depth pass first, so the shaded pass and outline show only its nearest face.
         const { faces, edges: outline } = p.look === "full" || p.look === "surface" ? frontierSurface(p.points) : { faces: [], edges: [] }, solid = p.look === "surface" ? 1.8 : 1;
         const wv = (c: [number, number, number]) => [world(c[0]), world(c[1]), world(c[2])];
         for (const axis of [0, 1, 2] as const) {
           const quads = faces.filter((f) => f.axis === axis);
           if (!quads.length) continue;
-          const pos = new Float32Array(quads.length * 18);
-          quads.forEach((f, q) => { const [a, b, c, d] = f.corners.map(wv); pos.set([...a, ...b, ...c, ...a, ...c, ...d], q * 18); });
-          const geo = new THREE.BufferGeometry(); geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+          const pos = new Float32Array(quads.length * 18), nrm = new Float32Array(quads.length * 18);
+          quads.forEach((f, q) => {
+            const [a, b, c, d] = f.corners.map(wv); pos.set([...a, ...b, ...c, ...a, ...c, ...d], q * 18);
+            for (let v = 0; v < 6; v++) nrm[q * 18 + v * 3 + axis] = 1;
+          });
+          const geo = new THREE.BufferGeometry(); geo.setAttribute("position", new THREE.BufferAttribute(pos, 3)); geo.setAttribute("normal", new THREE.BufferAttribute(nrm, 3));
           const offset = { polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1, side: THREE.DoubleSide };
           const depth = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ ...offset, transparent: true, colorWrite: false, depthWrite: true }));
-          const skin = new THREE.Mesh(geo.clone(), new THREE.MeshBasicMaterial({ ...offset, color: good, transparent: true, opacity: (axis === 1 ? 0.2 : axis === 0 ? 0.07 : 0.11) * solid, depthWrite: false, depthFunc: THREE.LessEqualDepth }));
-          depth.renderOrder = 2; skin.renderOrder = 3; content.add(depth, skin); surface.push(depth, skin);
+          const skinMat = new THREE.ShaderMaterial({
+            ...offset,
+            uniforms: {
+              uColor: { value: new THREE.Color(good) },
+              uBg: { value: new THREE.Color(bg) },
+              uLine: { value: new THREE.Color(grey) },
+              uLight: { value: new THREE.Vector3(-0.45, 0.8, 0.4).normalize() },
+              uAlpha: { value: (axis === 1 ? 0.2 : axis === 0 ? 0.07 : 0.11) * solid },
+              uFade: { value: 1 },
+              uGrid: { value: 1 },
+            },
+            vertexShader: WALL_VERT,
+            fragmentShader: WALL_FRAG,
+            transparent: true,
+            depthWrite: false,
+            depthFunc: THREE.LessEqualDepth,
+          });
+          const skin = new THREE.Mesh(geo.clone(), skinMat);
+          depth.renderOrder = 2; skin.renderOrder = 3; content.add(depth, skin); surface.push(depth, skin); surfaceMats.push({ mat: skinMat, base: 1 });
         }
         if (outline.length) {
-          const lines = segments(outline.flatMap(([a, b]) => [new THREE.Vector3(...(wv(a) as [number, number, number])), new THREE.Vector3(...(wv(b) as [number, number, number]))]), good, p.look === "surface" ? 0.85 : 0.5, 4);
-          content.add(lines); surface.push(lines);
+          const outAlpha = p.look === "surface" ? 0.85 : 0.5;
+          const lines = segments(outline.flatMap(([a, b]) => [new THREE.Vector3(...(wv(a) as [number, number, number])), new THREE.Vector3(...(wv(b) as [number, number, number]))]), good, outAlpha, 4);
+          content.add(lines); surface.push(lines); surfaceMats.push({ mat: lines.material as T.LineBasicMaterial, base: outAlpha });
         }
         const star = new THREE.Mesh(new THREE.OctahedronGeometry(0.2), new THREE.MeshBasicMaterial({ color: good })); star.position.set(HALF, HALF, HALF); content.add(star);
         const corner = tag("Best corner", "t3d-corner"); corner.style.color = good;
@@ -300,21 +498,38 @@ export function Scene3D(props: SceneProps) {
         keyIds = new Set([...p.points.filter((q) => q.frontier).map((q) => q.id), ...byScore.slice(0, 3).map((q) => q.id)]);
         order = [...byScore].sort((a, b) => Number(keyIds.has(b.id)) - Number(keyIds.has(a.id)) || Number(b.frontier) - Number(a.frontier) || b.r.score - a.r.score).map((q) => q.id);
         const floorLines: T.Vector3[] = [], stemPts: T.Vector3[] = [], stemColors: number[] = [], sphere = new THREE.SphereGeometry(1, 24, 16);
-        for (const { q, color, pos } of placed) {
+        placed.forEach(({ q, color, from, to, pos, shadowR }, idx) => {
           // Solid, so a nearer point hides a farther one. Frontier models are large and ringed; the rest are small and muted.
           const r = p.look === "flat" ? 0.1 + 0.46 * q.pos[1] ** 2 : p.look === "surface" && !q.frontier ? 0.08 : q.frontier ? 0.25 : p.look === "full" ? 0.14 : 0.11, tint = q.frontier ? new THREE.Color(color) : new THREE.Color(color).lerp(paper, 0.5);
           const mesh = new THREE.Mesh(sphere.clone(), new THREE.MeshLambertMaterial({ color: tint })); mesh.scale.setScalar(r); mesh.position.copy(pos); mesh.userData.r = r; content.add(mesh); pickables.push({ mesh, id: q.id });
-          if (q.frontier) { const halo = new THREE.Mesh(sphere.clone(), new THREE.MeshBasicMaterial({ color: bg, side: THREE.BackSide })); halo.scale.setScalar(1.28); mesh.add(halo); if (p.look === "full") floorLines.push(pos, new THREE.Vector3(pos.x, -HALF, pos.z)); }
-          if (p.look === "stems" || (p.look === "surface" && q.frontier)) { stemPts.push(pos, new THREE.Vector3(pos.x, -HALF, pos.z)); const c = new THREE.Color(q.frontier ? color : grey).lerp(paper, q.frontier ? 0.05 : 0.45); stemColors.push(c.r, c.g, c.b, c.r, c.g, c.b); }
+          let floorIdx = -1, stemIdx = -1;
+          if (q.frontier) {
+            const halo = new THREE.Mesh(sphere.clone(), new THREE.MeshBasicMaterial({ color: bg, side: THREE.BackSide })); halo.scale.setScalar(1.28); mesh.add(halo);
+            if (p.look === "full") { floorIdx = floorLines.length / 2; floorLines.push(pos.clone(), new THREE.Vector3(pos.x, -HALF, pos.z)); }
+          }
+          if (p.look === "stems" || (p.look === "surface" && q.frontier)) {
+            stemIdx = stemPts.length / 2;
+            stemPts.push(pos.clone(), new THREE.Vector3(pos.x, -HALF, pos.z));
+            const c = new THREE.Color(q.frontier ? color : grey).lerp(paper, q.frontier ? 0.05 : 0.45);
+            stemColors.push(c.r, c.g, c.b, c.r, c.g, c.b);
+          }
+          const node: PointNode = { id: q.id, from, to, pos, mesh, shadowR, idx, floorIdx, stemIdx };
+          nodes.set(q.id, node);
           const n = tag(esc(p.nameOf(q)), q.frontier ? "t3d-name" : "t3d-name t3d-under"); n.style.visibility = "hidden";
-          anchors.push({ id: q.id, v: pos, node: n, ...sizeOf(n) });
-        }
+          anchors.push({ id: q.id, v: node.pos, node: n, ...sizeOf(n) });
+        });
         sphere.dispose();
-        if (floorLines.length) { const d = segments(floorLines, grey, 0.42, -3); drops.push(d); content.add(d); }
-        if (stemPts.length) { const geo = new THREE.BufferGeometry().setFromPoints(stemPts); geo.setAttribute("color", new THREE.Float32BufferAttribute(stemColors, 3)); const stems = new THREE.LineSegments(geo, new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.85 })); drops.push(stems); content.add(stems); }
+        if (floorLines.length) { floorLineObj = segments(floorLines, grey, 0.42, -3); floorLineObj.frustumCulled = false; drops.push(floorLineObj); content.add(floorLineObj); }
+        if (stemPts.length) {
+          const geo = new THREE.BufferGeometry().setFromPoints(stemPts); geo.setAttribute("color", new THREE.Float32BufferAttribute(stemColors, 3));
+          stemLineObj = new THREE.LineSegments(geo, new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.85 }));
+          stemLineObj.frustumCulled = false; drops.push(stemLineObj); content.add(stemLineObj);
+        }
         // The picked or hovered model's three paths to the walls.
         paths = segments(Array.from({ length: 6 }, () => new THREE.Vector3()), ink, 0.8, 9); (paths.material as T.Material).depthTest = false; paths.frustumCulled = false; paths.visible = false; content.add(paths);
         pathDots = [0, 1, 2].map(() => { const d = new THREE.Mesh(new THREE.SphereGeometry(0.09, 12, 8), new THREE.MeshBasicMaterial({ color: ink })); d.visible = false; content.add(d); return d; });
+        morph = !reduced && moved ? { t0: performance.now(), fade: true } : null;
+        fadeSurfaces(morph?.fade ? 0 : 1);
         refresh();
       };
 
@@ -322,10 +537,11 @@ export function Scene3D(props: SceneProps) {
         const p = latest.current, hotId = p.selected ?? hoverId, hotPoint = hotId ? p.points.find((q) => q.id === hotId) : undefined;
         for (const d of drops) d.visible = p.dropLines;
         for (const s of surface) s.visible = p.frontier;
-        for (const { mesh, id } of pickables) mesh.scale.setScalar((mesh.userData.r as number) * (id === p.selected ? 1.6 : id === hoverId ? 1.3 : 1));
+        for (const { mesh, id } of pickables) mesh.scale.setScalar((mesh.userData.r as number) * (id === p.selected ? 1.45 : id === hoverId ? 1.28 : 1));
         // The picked model's values, on the axes they belong to.
         if (hotPoint) for (const s of statics) if (s.chip && s.axis != null) { s.u = hotPoint.pos[s.axis]; s.node.textContent = p.axes[s.axis].meta.format(hotPoint.raw[s.axis]); Object.assign(s, sizeOf(s.node)); }
-        controls.autoRotate = p.autoRotate && !p.selected && !hoverId;
+        controls.enableRotate = p.look !== "flat";
+        controls.autoRotate = p.autoRotate && !p.selected && !hoverId && !flight;
         request();
       };
 
@@ -354,7 +570,7 @@ export function Scene3D(props: SceneProps) {
       dom.addEventListener("pointermove", onMove); dom.addEventListener("pointerdown", onDown); dom.addEventListener("pointerup", onUp); dom.addEventListener("pointerleave", onLeave);
 
       const ro = new ResizeObserver(size); ro.observe(el);
-      makeControls(); size(); snap(); rebuild();
+      size(); snap(true); rebuild();
       // Fonts arrive after the first layout: measure the labels again once they have.
       void document.fonts?.ready.then(() => { for (const a of anchors) Object.assign(a, sizeOf(a.node)); for (const s of statics) Object.assign(s, sizeOf(s.node)); request(); });
       api.current = { rebuild, snap, refresh };

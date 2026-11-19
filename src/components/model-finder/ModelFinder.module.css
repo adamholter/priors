@@ -7,9 +7,16 @@
 .dial:active { cursor: grabbing; }
 .dial:focus-visible { outline: 2px solid var(--indigo); outline-offset: 5px; }
 .dial svg { display: block; width: 100%; height: 100%; }
-.face { fill: var(--bone); stroke: var(--hair-3); stroke-width: 1.7; }
+.face { fill: var(--bone); stroke: var(--hair-3); stroke-width: 1.1; }
+.bezel { fill: none; stroke: var(--hair); stroke-width: .6; }
 .tick { stroke: var(--grey); stroke-width: 1; }
-.needle { fill: var(--ink-2); transition: transform 140ms ease-out; }
+.detent { stroke: var(--hair-3); stroke-width: 1.3; stroke-linecap: round; }
+.detentActive { stroke: var(--indigo); stroke-width: 1.9; stroke-linecap: round; }
+.arc { fill: none; stroke: var(--indigo); stroke-width: 2.2; stroke-linecap: round; }
+.pip { transition: opacity 250ms ease; }
+.pipCurrent { opacity: .95; }
+.needle { fill: var(--ink-2); }
+.hub { fill: var(--bone); opacity: .4; }
 .controlLabel { font-size: 12px; margin-top: 8px; }
 .controlValue { font-size: 17px; color: var(--indigo); font-weight: 500; margin-top: 2px; min-height: 26px; }
 .steps { display: flex; gap: 12px; }
@@ -24,7 +31,12 @@
 .tableHeading { color: var(--grey); font-size: 10px; margin: 0 0 12px; }
 .tableHeading > :last-child { text-align: right; }
 .rows { position: relative; overflow: hidden; contain: paint; transition: height 350ms ease; }
-.row { position: absolute; left: 0; top: 0; width: 100%; height: 44px; transition: transform 450ms cubic-bezier(.2,.7,.2,1); }
+.row { position: absolute; left: 0; top: 0; width: 100%; height: 44px; transition: transform 450ms cubic-bezier(.2,.7,.2,1); animation: rowIn 380ms ease-out both; }
+.row.leaving { animation: rowOut 340ms ease-in both; pointer-events: none; }
+.row.top .bar { box-shadow: 0 0 0 1.5px var(--white), 0 0 0 2.5px var(--indigo); }
+.row.top .cost { color: var(--indigo); font-weight: 500; }
+@keyframes rowIn { from { opacity: 0; } }
+@keyframes rowOut { to { opacity: 0; } }
 .model { display: flex; align-items: center; gap: 9px; min-width: 0; font-size: 12px; }
 .model > span:last-child { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .model small { color: var(--grey); font-size: 10px; margin-left: 5px; }
@@ -32,7 +44,7 @@
 .score { height: 23px; position: relative; display: flex; align-items: center; }
 .bar { min-width: 32px; position: relative; height: 100%; border-radius: 2px; transition: width 450ms ease, background 350ms ease; }
 .bar > span { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); text-shadow: 0 1px 2px #0008; font-size: 10px; font-variant-numeric: tabular-nums; color: white; }
-.cost { justify-self: end; font-size: 10px; font-variant-numeric: tabular-nums; background: var(--bone); padding: 4px 8px; border-radius: 14px; }
+.cost { justify-self: end; font-size: 11px; font-family: var(--mono); font-variant-numeric: tabular-nums; color: var(--ink-2); transition: color 350ms ease; }
 .showMore { display: block; margin: 16px auto 0; font-size: 12px; color: var(--grey); }
 .empty { padding: 28px 0; color: var(--grey); font-size: 13px; text-align: center; }
 .evidence { margin-top: 24px; border-top: 1px solid var(--hair); font-size: 12px; }
@@ -64,6 +76,6 @@
  .cost { font-size: 9px; padding: 4px 5px; }
  .evidence summary > span { display: block; margin: 3px 0 0 14px; }
 }
-@media(prefers-reduced-motion:reduce) { .needle, .row, .bar, .rows { transition: none; } }
+@media(prefers-reduced-motion:reduce) { .row, .bar, .rows, .cost, .pip { transition: none; } .row, .row.leaving { animation: none; } .row.leaving { opacity: 0; } }
 
 :global(html[data-theme="dark"]) .bar > span { color: #141413; text-shadow: none; }
