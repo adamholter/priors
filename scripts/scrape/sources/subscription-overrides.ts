@@ -161,9 +161,9 @@ const NEON_BASE = {
 };
 
 export const PLAN_USAGE_SAMPLES: PlanUsageSample[] = [
-  // Gemini 4 Neon: isolated agy CLI probes across Google AI Pro, Ultra 5x, and Ultra 20x plus real ~95%-cached Pro usage (@Bolmercl),
+  // Gemini 4 Neon: isolated agy CLI probes on Google AI Pro and Ultra 20x plus real ~95%-cached Pro usage (@Bolmercl),
   // November 18, 2026. Every probe ran a Gemini 3.8 Flash control on the same pool and matched 1.00x per list-price dollar ($105/wk on Pro,
-  // also confirmed by two more Pro Flash controls from Pacote and an agy 1.5.12 run; $600/wk on Ultra 5x; $2,400/wk on Ultra 20x).
+  // also confirmed by two more Pro Flash controls from Pacote and an agy 1.5.12 run; $2,400/wk on Ultra 20x). Ultra 5x is extrapolated from 20x below.
   // Weekly pool deltas are divided by 4 to match Real API Pricing's 4-week monthly convention.
   {
     ...NEON_BASE, plan: "Google AI Pro", feeUsd: 19.99, apiUsd: 0.110001, usedShare: 0.001048 / 4,
@@ -174,11 +174,6 @@ export const PLAN_USAGE_SAMPLES: PlanUsageSample[] = [
     ...NEON_BASE, plan: "Google AI Pro", feeUsd: 19.99, apiUsd: 33.70, usedShare: (0.71 * (33.70 / 72.91)) / 4,
     tokens: { cached: 88_260_400, input: 4_469_422, output: 470_178 }, by: "@Bolmercl", period: "November 18, 2026",
     note: "real-world 94.7%-cached usage (93.2M Neon tokens for $33.70 plus $39.21 of Gemini 4 Hydrogen, $72.91 combined across 71% of the weekly Gemini pool = $102.7/week; uncached input/output split inferred from $0.36/1M blended rate)",
-  },
-  {
-    ...NEON_BASE, plan: "Google AI Ultra 5x", feeUsd: 99.99, apiUsd: 0.317547, usedShare: 0.0005292892456054688 / 4,
-    tokens: { cached: 0, input: 105_609, output: 48 }, by: "Adam", period: "November 18, 2026",
-    note: "uncached gemini-4-neon-medium probe in agy CLI, 0.0529% of the weekly Gemini pool ($600/week, $150/5h; a repeat probe read $544/week and an output-heavy run also matched Flash); a Gemini 3.8 Flash control read $600/week (1.00x parity)",
   },
   {
     ...NEON_BASE, plan: "Google AI Ultra 20x", feeUsd: 199.99, apiUsd: 0.12798, usedShare: 0.0000532865524292 / 4,
@@ -215,14 +210,38 @@ export const PLAN_USAGE_CONTEXT: PlanUsageContext[] = [
   },
 ];
 
+/** A preliminary plan figure scaled from another measured plan on the same model when no direct sample exists yet. */
+export interface PlanUsageExtrapolation {
+  modelId: string;
+  fromPlan: string;
+  plan: string;
+  feeUsd: number;
+  /** Allowance as a share of `fromPlan`'s (0.25 = 4x less usage). */
+  usageFactor: number;
+  label: string;
+  note: string;
+}
+
+export const PLAN_USAGE_EXTRAPOLATIONS: PlanUsageExtrapolation[] = [
+  {
+    modelId: "gemini-4-neon",
+    fromPlan: "Google AI Ultra 20x",
+    plan: "Google AI Ultra 5x",
+    feeUsd: 99.99,
+    usageFactor: 0.25,
+    label: "Extrapolated from 20x plan",
+    note: "assumes 4x less usage than Google AI Ultra 20x at half the fee (half the subsidy)",
+  },
+];
+
 export interface PlanUsageEstimate { modelId: string; label: string; plan: string; feeUsd: number; ratio: number; listPrice: PlanUsageSample["listPrice"]; source: string; checked: string; preliminary: PlanCaveat }
 
 const times = (n: number) => `${n.toFixed(1)} times`;
 /** One estimate per model and plan: the median person's API value for a full allowance, as a share paid of it. */
-export function planUsageEstimates(samples: PlanUsageSample[] = PLAN_USAGE_SAMPLES, context: PlanUsageContext[] = PLAN_USAGE_CONTEXT): PlanUsageEstimate[] {
+export function planUsageEstimates(samples: PlanUsageSample[] = PLAN_USAGE_SAMPLES, context: PlanUsageContext[] = PLAN_USAGE_CONTEXT, extrapolations: PlanUsageExtrapolation[] = PLAN_USAGE_EXTRAPOLATIONS): PlanUsageEstimate[] {
   const groups = new Map<string, PlanUsageSample[]>(), key = (s: { modelId: string; plan: string }) => `${s.modelId}|${s.plan}`;
   for (const s of samples) if (s.apiUsd > 0 && s.usedShare > 0 && s.feeUsd > 0) (groups.get(key(s)) ?? groups.set(key(s), []).get(key(s))!).push(s);
-  return [...groups.values()].map((list) => {
+  const estimates: PlanUsageEstimate[] = [...groups.values()].map((list) => {
     const value = (s: PlanUsageSample) => s.apiUsd / s.usedShare / s.feeUsd, multiples = list.map(value).sort((a, b) => a - b), mid = multiples.length >> 1, multiple = multiples.length % 2 ? multiples[mid] : (multiples[mid - 1] + multiples[mid]) / 2;
     const first = list[0], people = [...new Set(list.map((s) => s.by))], who = people.join(", "), n = people.length, latest = list.map((s) => s.checked).sort().at(-1)!, caveat = [...new Set(list.flatMap((s) => s.caveat ?? []))].join(" "), related = context.filter((c) => key(c) === key(first));
     const source = first.source ?? first.priceSource ?? "";
@@ -237,6 +256,24 @@ export function planUsageEstimates(samples: PlanUsageSample[] = PLAN_USAGE_SAMPL
       },
     };
   });
+  for (const x of extrapolations) {
+    if (estimates.some((e) => e.modelId === x.modelId && e.plan === x.plan)) continue;
+    const base = estimates.find((e) => e.modelId === x.modelId && e.plan === x.fromPlan);
+    if (!base) continue;
+    const ratio = base.ratio * (x.feeUsd / base.feeUsd) / x.usageFactor, multiple = 1 / ratio;
+    const baseCaveat = [...new Set((groups.get(key({ modelId: x.modelId, plan: x.fromPlan })) ?? []).flatMap((s) => s.caveat ?? []))].join(" ");
+    estimates.push({
+      modelId: base.modelId, label: base.label, plan: x.plan, feeUsd: x.feeUsd, ratio, listPrice: base.listPrice, source: base.source, checked: base.checked,
+      preliminary: {
+        label: x.label,
+        short: `${x.label}${base.preliminary.credit ? ` (${base.preliminary.credit})` : ""}; ${x.note}.${baseCaveat ? ` ${baseCaveat}` : ""} Pending direct data.`,
+        note: `${times(multiple)} the fee in API value, ${x.label.toLowerCase()} (${x.note}). Base reading on ${x.fromPlan}: ${base.preliminary.note}`,
+        ...(base.preliminary.credit ? { credit: base.preliminary.credit } : {}),
+        ...(base.source ? { source: base.source } : {}),
+      },
+    });
+  }
+  return estimates;
 }
 
 /**

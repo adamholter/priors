@@ -187,12 +187,13 @@ describe("Real API Pricing subscriptions", () => {
     expect(rows.filter((r) => r.modelLabel.startsWith("Gemini 4 Argon"))).toHaveLength(1);
     expect(row("Gemini 4 Argon")).toMatchObject({ value: 0.303, details: { plan: "Google AI Pro", confidence: "low", mix: { cache: 0.85, input: 0.145, output: 0.005 } } });
   });
-  it("prices Gemini 4 Neon directly from preliminary user probes across Pro, Ultra 5x, and Ultra 20x, defaulting to Ultra 20x", () => {
+  it("prices Gemini 4 Neon from preliminary user readings on Pro and Ultra 20x and extrapolates Ultra 5x, defaulting to Ultra 20x", () => {
     const neon = parseSubscriptions(payload, conventions, channels).find((r) => r.modelLabel === "Gemini 4 Neon (xhigh)")!;
     const d = neon.details as unknown as SubscriptionDetails;
     expect(d).toMatchObject({ plan: "Google AI Ultra 20x", feeUsd: 199.99, confidence: "preliminary", preliminary: { label: "Preliminary, 1 user", credit: "Pyrmi" } });
     expect(1 / (neon.value / blendedApiPrice(d.listPrice!, d.mix))).toBeCloseTo(48.0, 1);
     expect(d.plans.map((p) => p.plan)).toEqual(["Google AI Ultra 20x", "Google AI Ultra 5x", "Google AI Pro"]);
+    expect(d.plans.find((p) => p.plan === "Google AI Ultra 5x")!.preliminary!.label).toBe("Extrapolated from 20x plan");
     expect(d.preliminary!.short).toMatch(/pending larger-scale data/i);
   });
   it("makes a user's plan usage the model's price, labeled preliminary with credit, and keeps its other plans", () => {
