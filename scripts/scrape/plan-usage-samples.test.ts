@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { planUsageEstimates, PLAN_USAGE_SAMPLES, type PlanUsageSample } from "./sources/subscription-overrides";
 
-const base = PLAN_USAGE_SAMPLES[0], sample = (extra: Partial<PlanUsageSample>): PlanUsageSample => ({ ...base, ...extra });
+const base = PLAN_USAGE_SAMPLES.find((s) => s.modelId === "qwen-4-max")!, sample = (extra: Partial<PlanUsageSample>): PlanUsageSample => ({ ...base, ...extra });
 
 describe("plan usage samples", () => {
-  const estimate = (id: string) => planUsageEstimates().find((e) => e.modelId === id)!;
+  const estimate = (id: string, plan?: string) => planUsageEstimates().find((e) => e.modelId === id && (!plan || e.plan === plan))!;
   it("turns one user's full allowance into the share of API price paid", () => {
     const e = estimate("qwen-4-max");
     expect(1 / e.ratio).toBeCloseTo(87.76 / 18, 6);
@@ -12,6 +12,17 @@ describe("plan usage samples", () => {
   });
   it("matches each sample's tokens at its list prices", () => {
     for (const { tokens: t, listPrice: p, apiUsd, by } of PLAN_USAGE_SAMPLES) expect(Math.abs((t.cached * p.cached + t.input * p.input + (t.cacheWrite ?? 0) * (p.cacheWrite ?? 0) + t.output * p.output) / 1e6 / apiUsd - 1), by).toBeLessThan(0.002);
+  });
+  it("prices Gemini 4 Neon across Google AI Pro, Ultra 5x, and Ultra 20x from direct probes", () => {
+    const pro = estimate("gemini-4-neon", "Google AI Pro");
+    const u5 = estimate("gemini-4-neon", "Google AI Ultra 5x");
+    const u20 = estimate("gemini-4-neon", "Google AI Ultra 20x");
+    expect(1 / pro.ratio).toBeCloseTo(21.0, 1);
+    expect(1 / u5.ratio).toBeCloseTo(24.0, 1);
+    expect(1 / u20.ratio).toBeCloseTo(48.0, 1);
+    expect(pro.preliminary.sources).toEqual([{ by: "Ash", counted: true }]);
+    expect(u5.preliminary.sources).toEqual([{ by: "Adam", counted: true }]);
+    expect(u20.preliminary.sources).toEqual([{ by: "Pyrmi", counted: true }]);
   });
   it("takes Qwen3.8-Max's median user, says the usage was rescaled and links everyone", () => {
     const e = estimate("qwen-3.8-max");

@@ -109,16 +109,6 @@ export const SUBSIDY_ASSUMPTIONS: SubsidyAssumption[] = [
     modelId: "gemini-4-carbon", label: "Gemini 4 Carbon (max)", sameAs: "gemini-3.8-flash", sameAsName: "Flash", plans: /^Google AI Ultra/, poolRate: 3, checked: "2026-11-16",
     note: "Only Google AI Ultra sells Carbon; Ultra 20x gives the most per dollar. Carbon shares Ultra's weekly Gemini pool with Flash, but a dollar of Carbon at its API list price uses about three times as much of it as a dollar of Flash (a community reading of $600 of Flash or $200 of Argon/Carbon a week on Ultra 5x, matched by Priors' own measurement on November 16), so it gets a third of Flash's share of API price on the same plan.",
   },
-  // Neon sits in the same pool. Three clean readings on Adam's Ultra 5x account, November 18 (two input-heavy, one output-heavy), match Flash's rate per list-price
-  // dollar. Other runs that day were disturbed by Gemini jobs sharing the account. One account and few runs, so tentative until a larger measurement lands.
-  {
-    modelId: "gemini-4-neon", label: "Gemini 4 Neon (xhigh)", sameAs: "gemini-3.8-flash", sameAsName: "Flash", plans: /^Google AI Ultra/, confidence: "tentative", checked: "2026-11-18",
-    preliminary: {
-      label: "Tentative", short: "Early reading from one account, pending more data.", source: "https://www.testingcatalog.com/google-prepares-to-release-gemini-4-neon-model-on-apis/",
-      note: "Measured on one Google AI Ultra 5x account on November 18, 2026. In three clean runs, two input-heavy and one output-heavy, Gemini 4 Neon used 0.167% of the weekly Gemini pool per dollar of API list price ($3 input, $0.15 cached, $15 output per 1M), the same as Gemini 3.8 Flash: about $600 of API value a week. Other runs were disturbed by work sharing the account.",
-    },
-    note: "Neon shares Ultra's weekly Gemini pool and read at Flash's rate per list-price dollar in three clean runs on one account. Tentative, pending more data.",
-  },
   // Hydrogen shares the Gemini pool with Flash (agy's /quota lists both in "Gemini Models"; Pro's Argon pool is separate) and, measured
   // November 16, uses it at exactly Flash's rate per list-price dollar, so it gets Flash's share of API price on every plan. docs/data.md.
   {
@@ -146,7 +136,10 @@ export interface PlanUsageSample {
   tokens: { cached: number; input: number; output: number; cacheWrite?: number };
   /** Who shared it, as they go by publicly. */
   by: string;
-  source: string;
+  /** Public post URL, omitted for data shared privately. */
+  source?: string;
+  /** Reference URL for reported API rates when `source` is omitted. */
+  priceSource?: string;
   period: string;
   checked: string;
   /** Part of the usage could not be read, so the true figure is at least this. */
@@ -161,8 +154,31 @@ export interface PlanUsageContext { modelId: string; plan: string; by: string; s
 
 const QWEN_STANDARD = { plan: "Qwen Token Plan Standard", feeUsd: 18, checked: "2026-11-18" }, STANDARD_CREDITS = 80_000;
 const QWEN_38_MAX = { ...QWEN_STANDARD, modelId: "qwen-3.8-max", label: "Qwen 3.8 Max (max)", listPrice: { cached: 0.25, input: 2, output: 6, cacheWrite: 2.5 }, caveat: "Usage from August 2026, rescaled to today's quotas." };
+const NEON_BASE = {
+  modelId: "gemini-4-neon", label: "Gemini 4 Neon (xhigh)", listPrice: { cached: 0.15, input: 3, output: 15 }, checked: "2026-11-18",
+  priceSource: "https://www.testingcatalog.com/google-prepares-to-release-gemini-4-neon-model-on-apis/",
+  caveat: "Uncached probes at reported $3/$15 API rates; 4-week monthly pool.",
+};
 
 export const PLAN_USAGE_SAMPLES: PlanUsageSample[] = [
+  // Gemini 4 Neon: three isolated agy CLI probes across Google AI Pro, Ultra 5x, and Ultra 20x (November 18, 2026). Every account ran a
+  // Gemini 3.8 Flash control on the same pool and matched 1.00x per list-price dollar ($105/wk on Pro, $600/wk on Ultra 5x, $2,400/wk on Ultra 20x).
+  // Weekly pool deltas are divided by 4 to match Real API Pricing's 4-week monthly convention.
+  {
+    ...NEON_BASE, plan: "Google AI Pro", feeUsd: 19.99, apiUsd: 0.110001, usedShare: 0.001048 / 4,
+    tokens: { cached: 0, input: 36_432, output: 47 }, by: "Ash", period: "November 18, 2026",
+    note: "single gemini-4-neon-medium probe in agy CLI, 0.1048% of the weekly Gemini pool ($105/week, $30/5h); a Gemini 3.8 Flash control on the same account read $105/week (1.00x parity)",
+  },
+  {
+    ...NEON_BASE, plan: "Google AI Ultra 5x", feeUsd: 99.99, apiUsd: 0.317547, usedShare: 0.0005292892456054688 / 4,
+    tokens: { cached: 0, input: 105_609, output: 48 }, by: "Adam", period: "November 18, 2026",
+    note: "clean gemini-4-neon-medium probe in agy CLI, 0.0529% of the weekly Gemini pool ($600/week, $150/5h; a repeat probe read $544/week and an output-heavy run also matched Flash); a Gemini 3.8 Flash control read $600/week (1.00x parity)",
+  },
+  {
+    ...NEON_BASE, plan: "Google AI Ultra 20x", feeUsd: 199.99, apiUsd: 0.12798, usedShare: 0.0000532865524292 / 4,
+    tokens: { cached: 0, input: 42_440, output: 44 }, by: "Pyrmi", period: "November 18, 2026",
+    note: "single gemini-4-neon-high probe in agy CLI, 0.00533% of the weekly Gemini pool ($2,402/week, $600/5h); a Gemini 3.8 Flash control on the same account read $2,397/week (1.00x parity)",
+  },
   // @SSHCodes used all 80,000 credits of the $18 plan with Qwen4-Max in T3 Code, 2,094 responses. 731.6M cached x $0.075 + 15.1M input x $1.50 + 2.26M output x $4.50 per 1M is $87.69
   // from the rounded counts; his logs give $87.76. Alibaba's plan page confirms $18 and 80,000 credits a month.
   {
@@ -203,14 +219,15 @@ export function planUsageEstimates(samples: PlanUsageSample[] = PLAN_USAGE_SAMPL
   return [...groups.values()].map((list) => {
     const value = (s: PlanUsageSample) => s.apiUsd / s.usedShare / s.feeUsd, multiples = list.map(value).sort((a, b) => a - b), mid = multiples.length >> 1, multiple = multiples.length % 2 ? multiples[mid] : (multiples[mid - 1] + multiples[mid]) / 2;
     const first = list[0], people = [...new Set(list.map((s) => s.by))], who = people.join(", "), n = people.length, latest = list.map((s) => s.checked).sort().at(-1)!, caveat = [...new Set(list.flatMap((s) => s.caveat ?? []))].join(" "), related = context.filter((c) => key(c) === key(first));
+    const source = first.source ?? first.priceSource ?? "";
     const base = `From ${n === 1 ? "one user's" : `${n} users'`} data (${who})`;
     const about = list.map((s) => `${s.by}: ${s.atLeast ? "at least " : ""}${times(value(s))}, ${s.period}${s.note ? ` (${s.note})` : ""}`).join("; ");
     return {
-      modelId: first.modelId, label: first.label, plan: first.plan, feeUsd: first.feeUsd, ratio: 1 / multiple, listPrice: first.listPrice, source: first.source, checked: latest,
+      modelId: first.modelId, label: first.label, plan: first.plan, feeUsd: first.feeUsd, ratio: 1 / multiple, listPrice: first.listPrice, source, checked: latest,
       preliminary: {
         label: `Preliminary, ${n} user${n === 1 ? "" : "s"}`, short: caveat ? `${base}. ${caveat} Pending larger-scale data.` : `${base}, pending larger-scale data.`,
         note: `${times(multiple)} the fee in API value${n > 1 ? `, the median of ${n} users` : ""}. ${about}. Results depend on each person's cache use.${related.length ? ` ${related.map((c) => c.note).join(" ")}` : ""}`,
-        credit: who, source: first.source, samples: n, sources: [...list.map((s) => ({ by: s.by, url: s.source, counted: true })), ...related.map((c) => ({ by: c.by, url: c.source, counted: false }))],
+        credit: who, ...(source ? { source } : {}), samples: n, sources: [...list.map((s) => ({ by: s.by, ...(s.source ? { url: s.source } : {}), counted: true })), ...related.map((c) => ({ by: c.by, url: c.source, counted: false }))],
       },
     };
   });

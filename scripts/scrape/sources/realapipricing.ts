@@ -188,8 +188,8 @@ export function parseSubscriptions(json: Points, conventions: Conventions, chann
     const entry = { plan: e.plan, feeUsd: e.feeUsd, usdPerMtok, confidence: "preliminary", preliminary: e.preliminary };
     const current = own ? own.ratio ?? (from && !row?.free ? from.value : (own as { value?: number }).value ?? 0) / blendedApiPrice(listPrice, mix) : Infinity;
     if (own && !(e.ratio < current)) { own.plans = [...(own.plans ?? []).filter((p) => p.plan !== e.plan), entry].sort((a, b) => a.usdPerMtok - b.usdPerMtok); continue; }
-    const details = { ...own, value: undefined, ratio: undefined, sameAs: undefined, poolRate: undefined, readings: undefined, plan: e.plan, feeUsd: e.feeUsd, confidence: "preliminary", mix, listPrice, source: e.source, dataDate: e.checked, preliminary: e.preliminary, plans: [entry, ...(own?.plans ?? []).filter((p) => p.plan !== e.plan)] };
-    const next: RawRow = { ...(from ?? { modelLabel: e.label }), benchmarkId: SUBSCRIPTION_BENCHMARK, value: row?.free ? from!.value : usdPerMtok, sourceUrl: e.source, note: `${e.plan}, $${e.feeUsd}/month; preliminary; ${e.preliminary.short} ${e.preliminary.note}`, details: (row?.free ? { ...row, paid: { ...details, value: usdPerMtok } } : details) as unknown as Record<string, unknown> };
+    const details = { ...own, value: undefined, ratio: undefined, sameAs: undefined, poolRate: undefined, readings: undefined, plan: e.plan, feeUsd: e.feeUsd, confidence: "preliminary", mix, listPrice, source: e.source || SITE, dataDate: e.checked, preliminary: e.preliminary, plans: [entry, ...(own?.plans ?? []).filter((p) => p.plan !== e.plan)].sort((a, b) => a.usdPerMtok - b.usdPerMtok) };
+    const next: RawRow = { ...(from ?? { modelLabel: e.label }), benchmarkId: SUBSCRIPTION_BENCHMARK, value: row?.free ? from!.value : usdPerMtok, sourceUrl: e.source || SITE, note: `${e.plan}, $${e.feeUsd}/month; preliminary; ${e.preliminary.short} ${e.preliminary.note}`, details: (row?.free ? { ...row, paid: { ...details, value: usdPerMtok } } : details) as unknown as Record<string, unknown> };
     if (at >= 0) rows[at] = next; else rows.push(next);
   }
   return rows;
