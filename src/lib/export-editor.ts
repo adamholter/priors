@@ -55,6 +55,9 @@ export function decodeEditor(raw: string | null | undefined): EditorState | null
     if (o.am) view.allModels = true;
     if (o.po) view.paretoOnly = true;
     const place: ImagePlace = {}; if (Array.isArray(o.pl)) PLACE_KEYS.forEach((k, i) => { const v = num((o.pl as unknown[])[i], k === "ts" ? 10 : k === "fs" ? 8 : -EDITOR_MAX, k === "ts" ? 120 : k === "fs" ? 48 : EDITOR_MAX); if (v != null) place[k] = v; });
+    // The plot is the crop plus pw and ph: keep that sum inside the editor's limits, so a link cannot ask for a larger render.
+    if (place.pw != null) place.pw = Math.min(EDITOR_MAX - w, Math.max(EDITOR_MIN.w - w, place.pw));
+    if (place.ph != null) place.ph = Math.min(EDITOR_MAX - h, Math.max(EDITOR_MIN.h - h, place.ph));
     const de = num(o.de, 0, 1), ls = num(o.ls, 0.75, 1.75);
     if (de != null) view.density = de;
     if (ls != null) view.labelScale = ls;

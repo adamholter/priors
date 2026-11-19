@@ -7,7 +7,7 @@ import type { RankedVariant, IndexConfig } from "../engine";
 import { chartVariantMode, filterEfforts } from "../engine";
 import { echarts, themeFor, paletteFor, markColor, DARK_PALETTE, SANS_STATIC, MONO_STATIC, type ChartPalette } from "../components/chart/theme";
 import { scatterOption, DEFAULT_VIEW, frontierOf, guidePoints, type Highlight, type ScatterPoint, type ScatterView } from "../components/chart/scatter-option";
-import { clampSize, decodeEditor, readViewParam, type EditorView } from "./export-editor";
+import { EDITOR_MAX, EDITOR_MIN, clampSize, decodeEditor, readViewParam, type EditorView } from "./export-editor";
 import { barsOption, defaultBarModels, filterBarModels, selectBars } from "../components/chart/bars-option";
 import { FRAME_H, FRAME_W, frameSvg, previewCanvas, type ImagePlace } from "../components/chart/export-frame";
 import { answerHeight, answerOption } from "../components/chart/answer-option";
@@ -222,7 +222,7 @@ export function linkFrame(q: URLSearchParams): LinkFrame | undefined {
  */
 export async function renderFramedPng(spec: ChartSpec, labs: Lab[], pal: ChartPalette, frame: LinkFrame): Promise<Buffer | null> {
   if (!spec.pts.length) return renderChartPng(spec, labs, pal);
-  const w = frame.w + (frame.place?.pw ?? 0), h = frame.h + (frame.place?.ph ?? 0), over = frame.view ?? {};
+  const w = Math.min(EDITOR_MAX, Math.max(EDITOR_MIN.w, frame.w + (frame.place?.pw ?? 0))), h = Math.min(EDITOR_MAX, Math.max(EDITOR_MIN.h, frame.h + (frame.place?.ph ?? 0))), over = frame.view ?? {};
   // As the page draws it with "Only Pareto-optimal models" on: the frontier of the shown points only.
   if (over.paretoOnly) spec = { ...spec, pts: frontierOf(spec.pts, spec.chart.better) };
   const view: ScatterView = { ...DEFAULT_VIEW, labelScale: spec.labelScale, frontier: spec.chart.defaultFrontier ?? DEFAULT_VIEW.frontier };

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { decodeEditor, encodeEditor, clampSize, ratioOf, readViewParam, sizeForRatio, viewParam } from "./export-editor";
+import { EDITOR_MAX, EDITOR_MIN, decodeEditor, encodeEditor, clampSize, ratioOf, readViewParam, sizeForRatio, viewParam } from "./export-editor";
 import { FRAME_H, FRAME_W, previewCanvas } from "../components/chart/export-frame";
 
 describe("plain link view", () => {
@@ -54,5 +54,17 @@ describe("image shape", () => {
       expect(c.y).toBeGreaterThanOrEqual(0);
       expect(c.height - c.y - h).toBeGreaterThanOrEqual(c.height * 0.12 - 1);
     }
+  });
+});
+
+describe("screenshot link limits", () => {
+  it("keeps a moved chart's size inside the editor's limits, so a link cannot ask for a larger render", () => {
+    const raw = btoa(JSON.stringify({ w: 2400, h: 2400, pl: [0, 0, null, 0, 0, 2400, 2400, 0, 0, null] })).replace(/=+$/, "");
+    const s = decodeEditor(raw)!;
+    expect(s.w + s.place!.pw!).toBeLessThanOrEqual(EDITOR_MAX);
+    expect(s.h + s.place!.ph!).toBeLessThanOrEqual(EDITOR_MAX);
+    const small = decodeEditor(btoa(JSON.stringify({ w: 400, h: 300, pl: [0, 0, null, 0, 0, -2400, -2400, 0, 0, null] })).replace(/=+$/, ""))!;
+    expect(small.w + small.place!.pw!).toBe(EDITOR_MIN.w);
+    expect(small.h + small.place!.ph!).toBe(EDITOR_MIN.h);
   });
 });
