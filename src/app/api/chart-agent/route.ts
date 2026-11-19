@@ -15,7 +15,8 @@ const body = z.object({
   context: z.string().min(1).max(120_000),
   history: z.array(z.object({ role: z.enum(["user", "assistant"]), content: z.string().max(4000) })).max(16).optional(),
 });
-const MAX_OUTPUT = 4000, MAX_STEPS = 5;
+/** MAX_STEPS per route, and MAX_CALLS across routes: one request never makes more model calls than this, whatever fails. */
+const MAX_OUTPUT = 4000, MAX_STEPS = 5, MAX_CALLS = 6;
 const TOOLS = [LOOKUP_TOOL, CHART_AGENT_TOOL];
 
 /**
@@ -36,14 +37,16 @@ export async function POST(req: Request) {
   if (!gate.ok) return Response.json({ error: gate.reason === "user-limit" ? "You've used today's agent requests. They reset at midnight UTC." : "The agent has reached today's usage limit. It resets at midnight UTC." }, { status: 429 });
   const messages: Msg[] = chartAgentMessages(parsed.data.context, parsed.data.message, parsed.data.history);
   const looked: string[] = [];
+  let calls = 0;
   for (const route of routes) {
-    for (let step = 0; step < MAX_STEPS; step++) {
+    for (let step = 0; step < MAX_STEPS && calls < MAX_CALLS; step++) {
       const estimate = worstCase(route.model, JSON.stringify(messages).length, MAX_OUTPUT);
       if (!(await convex.mutation(api.agentBudget.reserve, { secret, estimateUsd: estimate, pool: route.pool }))) break;
+      calls++;
       let spent = estimate, out;
       try {
         // The last step may only answer.
-        out = await callModel(route, { messages, tools: step === MAX_STEPS - 1 ? [CHART_AGENT_TOOL] : TOOLS, maxTokens: MAX_OUTPUT, signal: req.signal, referer: new URL(req.url).origin });
+        out = await callModel(route, { messages, tools: step === MAX_STEPS - 1 || calls === MAX_CALLS ? [CHART_AGENT_TOOL] : TOOLS, maxTokens: MAX_OUTPUT, signal: req.signal, referer: new URL(req.url).origin });
         spent = out.usd;
       } catch (e) {
         if (e instanceof ModelError && e.usd !== undefined) spent = e.usd;
@@ -53,14 +56,14 @@ export async function POST(req: Request) {
         await convex.mutation(api.agentBudget.settle, { secret, userId, estimateUsd: estimate, actualUsd: spent, pool: route.pool });
       }
       if (out.refused) break;
-      const calls = out.tool_calls ?? [], final = calls.find((c) => c.function.name === "apply_changes");
-      if (final || !calls.length) {
+      const toolCalls = out.tool_calls ?? [], final = toolCalls.find((c) => c.function.name === "apply_changes");
+      if (final || !toolCalls.length) {
         let changes: Record<string, unknown> = {};
         try { changes = final ? JSON.parse(final.function.arguments || "{}") : {}; } catch { changes = {}; }
         return Response.json({ reply: (changes.reply as string | undefined) ?? out.content ?? "No change.", changes, looked });
       }
-      messages.push({ role: "assistant", content: out.content, tool_calls: calls, ...(out.raw ? { raw: out.raw } : {}) });
-      for (const c of calls) {
+      messages.push({ role: "assistant", content: out.content, tool_calls: toolCalls, ...(out.raw ? { raw: out.raw } : {}) });
+      for (const c of toolCalls) {
         let result: string;
         if (c.function.name === "lookup_model") {
           let args: { models?: unknown; benchmarks?: unknown } = {};
