@@ -14,6 +14,9 @@ while read -r f; do
     # Model label rules reach the site through the next scrape's data, so they ride along with the next real deploy.
     src/data/normalize.ts|src/data/normalize.test.ts|src/data/model-labels.ts|src/data/model-labels.test.ts|src/engine/fixtures/expected.json) ;;
     src/data/catalog/*.test.ts) ;;
+    LICENSE) ;;
+    # A package.json change that only touches the license field cannot change the site.
+    package.json) git diff -U0 "$prev" HEAD -- "$f" | grep -E '^[-+][^-+]' | grep -qvE '^[-+][[:space:]]*"license":' && exit 1 ;;
     src/data/catalog/*) git diff -U0 "$prev" HEAD -- "$f" | grep -qE '^-[^-]' && exit 1 ;;
     *) exit 1 ;;
   esac
