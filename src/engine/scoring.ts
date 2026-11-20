@@ -57,7 +57,13 @@ export interface ScoringInput {
   /** Per cell: non-zero when the cell has a score, its 0 to 100 value, and that value again only where it was measured at the variant's own effort (NaN otherwise). */
   cell: Uint8Array; norm: Float64Array; observed: Float64Array;
 }
-export type Scorer = (pp: number) => { score: number; range: [number, number]; theta: number; se: number; used: number };
+/**
+ * What a method fitted, for drawing it (`/methods/scoring`): each mix benchmark's curve, in share order, on the fit's own scale
+ * (expected score = floor + (1 - floor) * sigmoid(slope * (x - difficulty))), and the straight line from that scale to the score's.
+ * ECI-style: score = shift + scale * capability. IRT ability has no such line (scale 1, shift 0): its score is the mix's expected average.
+ */
+export interface ScoringFit { method: ScoringMethod; curves: { benchmarkId: string; slope: number; difficulty: number; floor: number; share: number }[]; scale: number; shift: number }
+export type Scorer = ((pp: number) => { score: number; range: [number, number]; theta: number; se: number; used: number }) & { fit: ScoringFit };
 
 /** Fewest pool scores a benchmark outside the mix needs to join the IRT fit. */
 const IRT_MIN_ITEM = 8;
@@ -139,7 +145,8 @@ function irtScorer({ c, P, S, pooled, shareBench, shareOf, cell, norm, observed 
   for (let s = 0; s < S; s++) wt[s] *= S / Math.max(1e-12, total);
   /** The index score a model of ability `th` is expected to average on the mix. */
   const expected = (th: number) => { let t = 0; for (let s = 0; s < S; s++) t += shareOf[s] * irtExpected(fit, s, th); return t / shareSum * 100; };
-  return (pp) => {
+  const curves = Array.from({ length: S }, (_, s) => ({ benchmarkId: c.benchIds[shareBench[s]], slope: fit.a[s], difficulty: fit.b[s], floor: fit.floor[s], share: shareOf[s] / shareSum }));
+  return Object.assign((pp: number) => {
     // Newton steps on the weighted quasi-log-likelihood plus the prior. Fewer than `IRT_PRIOR_SCORES` scores behind the
     // starting ability: the prior is the pool's (sd 1), so thin data cannot look sure of itself.
     const mu = fit.theta[pp], prec = 1 / (fit.count[pp] >= IRT_PRIOR_SCORES ? IRT_PRIOR_SD : 1) ** 2, t0 = pp * S;
@@ -160,8 +167,8 @@ function irtScorer({ c, P, S, pooled, shareBench, shareOf, cell, norm, observed 
     }
     // Sandwich variance of a weighted estimate: (sum w^2 I / phi + prior) / (sum w I / phi + prior)^2.
     const se = Math.sqrt((h2 / fit.dispersion + prec) / (h * h));
-    return { score: expected(th), range: [expected(th - Z95 * se), expected(th + Z95 * se)], theta: th, se, used };
-  };
+    return { score: expected(th), range: [expected(th - Z95 * se), expected(th + Z95 * se)] as [number, number], theta: th, se, used };
+  }, { fit: { method: "irt" as const, curves, scale: 1, shift: 0 } });
 }
 
 /**
@@ -184,10 +191,11 @@ function eciScorer({ c, P, S, pooled, shareBench, shareOf, cell, norm }: Scoring
   const cells = { n: P, k: S, I: Int32Array.from(I), J: Int32Array.from(J), Y: Float64Array.from(Y), w };
   const fit = cached<EciFit>("eci", [cells.I, cells.J, cells.Y, w, Int32Array.of(P, S)], () => fitEci(cells));
   const { scale, shift } = eciScale(c, P, pooled, fit);
-  return (pp) => {
+  const curves = Array.from({ length: S }, (_, s) => ({ benchmarkId: c.benchIds[shareBench[s]], slope: fit.slope[s], difficulty: fit.difficulty[s], floor: IRT_FLOORS[c.benchIds[shareBench[s]]] ?? 0, share: shareOf[s] / shareSum }));
+  return Object.assign((pp: number) => {
     const score = shift + scale * fit.capability[pp], half = Z95 * fit.se[pp] * scale;
-    return { score, range: [score - half, score + half], theta: fit.capability[pp], se: fit.se[pp], used: fit.count[pp] };
-  };
+    return { score, range: [score - half, score + half] as [number, number], theta: fit.capability[pp], se: fit.se[pp], used: fit.count[pp] };
+  }, { fit: { method: "eci" as const, curves, scale, shift } });
 }
 
 /** The linear map from fitted capability to the ECI scale, and whether Epoch's index set it. */

@@ -6,9 +6,9 @@ import { costSourceOf, taskMetricData, taskMetricDescription, type TaskMetricSou
 import type { Benchmark, FocusId, Model, Observation, Snapshot, SpeedTierId, Variant } from "../data/types";
 import { columnsOf, DEFAULT_RANK, effortLocked, ROW_FLAGS, type Columns, type EstimationRoute } from "../data/columns";
 import { AA_V5_WEIGHTS, aaComponentWeights } from "../data/aa-index";
-import { methodScorer, type MethodScore, type ScoringMethod } from "./scoring";
+import { methodScorer, type MethodScore, type ScoringFit, type ScoringMethod } from "./scoring";
 
-export { barShare, EPOCH_ECI, isScoringMethod, scoreBarBase, SCORING_LABELS, SCORING_METHODS, scoringLabel, scoringNote, type MethodScore, type ScoringMethod } from "./scoring";
+export { barShare, EPOCH_ECI, isScoringMethod, scoreBarBase, SCORING_LABELS, SCORING_METHODS, scoringLabel, scoringNote, type MethodScore, type ScoringFit, type ScoringMethod } from "./scoring";
 
 /* ------------------------------------------------------------------ */
 /* Config                                                              */
@@ -216,6 +216,8 @@ export interface IndexResult {
   autoHidden: string[];
   /** Models left out for coverage, with a score estimated from AA's Progress Index: the release-date chart draws them, nothing ranks them. A default view drops superseded ones as it does for `ranked`. */
   estimated: RankedVariant[];
+  /** The curves behind the scores, when the index uses a scoring method other than the weighted average. */
+  fit?: ScoringFit;
 }
 
 /* ------------------------------------------------------------------ */
@@ -367,7 +369,7 @@ export function computeIndex(snapshot: Snapshot, config: IndexConfig, view: View
   // Estimates never change which ranked models a view drops; they only go when a newer version replaces them.
   if (!curated && estimated.length) { const gone = supersededModelIds([...out, ...estimated], keep); estimated = estimated.filter((r) => !gone.has(r.model.id)); }
   if (!curated && superseded.size) { out = out.filter((r) => !superseded.has(r.model.id)); out.forEach((r, i) => (r.rank = i + 1)); }
-  return { config, benchmarks: shares, ranked: out, excluded, candidateModelIds: detail.candidateModelIds, autoHidden: curated ? [] : [...superseded], estimated };
+  return { config, benchmarks: shares, ranked: out, excluded, candidateModelIds: detail.candidateModelIds, autoHidden: curated ? [] : [...superseded], estimated, ...(detail.fit ? { fit: detail.fit } : {}) };
 }
 
 /** Scores alone, for a walk over many dates: rows carry no per-benchmark values, costs or exclusions. The same arithmetic as `computeIndex`. */
@@ -404,6 +406,7 @@ interface Detail {
   resetBoosts?: ReturnType<typeof planResetBoosts>;
   excluded: IndexResult["excluded"];
   candidateModelIds: string[];
+  fit?: ScoringFit;
 }
 
 // A resolved value's state, per cell (pool position × share).
@@ -540,6 +543,7 @@ function rankVariants(c: Columns, config: IndexConfig, shares: IndexResult["benc
 
   // A scoring method other than the average fits its curves once, over the pool. The default path never gets here.
   const scoreBy = config.scoring && P ? methodScorer(config.scoring, { c, P, S, pooled, shareBench, shareOf, cell, norm, observed }) : undefined;
+  if (scoreBy && detail) detail.fit = scoreBy.fit;
 
   // Peer estimates. A missing cell has no observed value and no panel score of its own (either would have resolved), so what a
   // target shares with a peer does not depend on which benchmark is missing: it is worked out once per target.

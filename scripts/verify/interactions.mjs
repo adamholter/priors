@@ -1986,6 +1986,18 @@ try {
       const linked = await p.locator("#today a", { hasText: "IRT ability" }).getAttribute("href");
       assert.match(linked, /score=irt/, "the explanation page links a mix scored by IRT ability");
       assert.equal(await p.locator("#today tbody tr").count(), 10, "it shows the top 10 under each method");
+      // Its figures are drawn from the day's fits: the average's parts, the step sizes, both sets of curves with real scores, and the ability curve.
+      assert.equal(await p.locator("figure.mfig").count(), 5, "five figures");
+      assert.ok(await p.locator("#irt figure.mfig svg:visible circle.dot").count() > 60, "the IRT curves carry the models' scores");
+      assert.equal(await p.locator("#eci figure.mfig svg:visible circle.mark").count(), 10, "the ECI-style figure lists the top 10 with ranges");
+      const slider = p.locator("#irt input[type=range]:visible"), read = () => p.locator("#irt .mfig-read:visible").innerText();
+      const before = await read();
+      await slider.focus();
+      for (let i = 0; i < 30; i++) await p.keyboard.press("ArrowRight");
+      await p.waitForFunction((was) => [...document.querySelectorAll("#irt .mfig-read")].some((el) => el.checkVisibility() && el.innerText !== was), before, { timeout: 15000 });
+      const score = (t) => Number(t.match(/IRT ability score\s+([\d.]+)/)[1]);
+      assert.ok(score(await read()) > score(before), "dragging ability up raises the score read off the curve");
+      assert.ok(score(await read()) <= 100, "and the score stays within 100");
       const plain = linked.replace(/(%7C|\|)score=irt/, "");
       assert.doesNotMatch(plain, /score=/);
       await p.goto(`${BASE}${plain}`, { waitUntil: "domcontentloaded" });

@@ -59,6 +59,17 @@ describe.each(METHODS)("scoring: %s", (method) => {
     expect(result.ranked.map((r) => r.rank)).toEqual(result.ranked.map((_, i) => i + 1));
     for (let i = 1; i < result.ranked.length; i++) expect(result.ranked[i - 1].score).toBeGreaterThanOrEqual(result.ranked[i].score);
   });
+  it("hands over the curves its scores came from, one per mix benchmark, and they reproduce every score", () => {
+    const fit = result.fit!;
+    expect(fit.method).toBe(method);
+    expect(fit.curves.map((c) => c.benchmarkId).sort()).toEqual(result.benchmarks.map((b) => b.benchmark.id).sort());
+    expect(fit.curves.reduce((t, c) => t + c.share, 0)).toBeCloseTo(1, 9);
+    expect(fit.curves.every((c) => c.slope > 0 && Number.isFinite(c.difficulty) && c.floor >= 0 && c.floor < 1)).toBe(true);
+    const expected = (x: number) => fit.curves.reduce((t, c) => t + c.share * 100 * (c.floor + (1 - c.floor) / (1 + Math.exp(-c.slope * (x - c.difficulty)))), 0);
+    // IRT ability is the mix's expected average at the fitted ability; an ECI-style score is a straight line of the capability.
+    for (const r of result.ranked) expect(r.score).toBeCloseTo(method === "irt" ? expected(r.method!.theta) : fit.shift + fit.scale * r.method!.theta, 6);
+    expect(average.fit).toBeUndefined();
+  });
   it("keeps the average's broad order without copying it", () => {
     const averages = new Map(average.ranked.map((r) => [r.variant.id, r.score]));
     expect(spearman(result.ranked.map((r) => r.score), result.ranked.map((r) => averages.get(r.variant.id)!))).toBeGreaterThan(0.95);

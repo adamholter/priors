@@ -1,0 +1,47 @@
+/* Figures on /methods/scoring. Colors are the site tokens, so light, dark and site themes follow. */
+.mfig { display: grid; gap: 10px; margin: 4px 0 6px; padding-top: 16px; border-top: 1px solid var(--hair); }
+.mfig figcaption { display: grid; gap: 2px; font-size: 13px; line-height: 1.55; }
+.mfig figcaption b { font-weight: 500; font-size: 14px; color: var(--ink); }
+.mfig svg { display: block; width: 100%; height: auto; overflow: visible; }
+.mfig text { font-family: var(--font-sans); font-size: 11px; fill: var(--grey); }
+.mfig text.n, .mfig tspan.n { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.mfig text.ink { fill: var(--ink); }
+.mfig text.accent { fill: var(--indigo); }
+/* Not `.grid`: Tailwind's layout class would pick this up on a wrapper and stroke its text. */
+.mfig .gridline { stroke: var(--hair); stroke-width: 1; }
+.mfig .axis { stroke: var(--grey); stroke-width: 1; }
+.mfig .guide { stroke: var(--grey); stroke-width: 1; stroke-dasharray: 3 3; fill: none; }
+.mfig .faint { stroke: color-mix(in srgb, var(--grey) 38%, transparent); stroke-width: 1; fill: none; }
+.mfig .curve { fill: none; stroke-width: 2.2; stroke-linecap: round; }
+.mfig .ink-line { stroke: var(--ink); }
+.mfig .c0 { stroke: var(--indigo); } .mfig .c1 { stroke: var(--warn); } .mfig .c2 { stroke: var(--good); }
+.mfig .d0 { fill: var(--indigo); } .mfig .d1 { fill: var(--warn); } .mfig .d2 { fill: var(--good); }
+.mfig .dot { fill-opacity: .5; }
+.mfig .mark { fill: var(--ink); }
+.mfig .knob { stroke: var(--bone); stroke-width: 2; }
+.mfig .ring { fill: none; stroke: var(--grey); stroke-width: 1.4; }
+.mfig .halo { paint-order: stroke; stroke: var(--bone); stroke-width: 4px; stroke-linejoin: round; }
+
+.mfig-key { display: flex; flex-wrap: wrap; gap: 4px 18px; font-size: 12.5px; line-height: 1.5; }
+.mfig-key span { display: inline-flex; align-items: baseline; gap: 7px; }
+.mfig-key i { flex: none; width: 14px; height: 3px; border-radius: 2px; transform: translateY(-3px); }
+.mfig-key .k0 { background: var(--indigo); } .mfig-key .k1 { background: var(--warn); } .mfig-key .k2 { background: var(--good); }
+.mfig-key .kf { background: color-mix(in srgb, var(--grey) 50%, transparent); } .mfig-key .kink { background: var(--ink); }
+.mfig-key .kring { width: 9px; height: 9px; border-radius: 50%; border: 1.4px solid var(--grey); transform: translateY(1px); }
+.mfig-key em { font-style: normal; color: var(--grey); font-family: var(--font-mono); font-size: 11.5px; }
+
+/* The weighted average, benchmark by benchmark: a track as long as the weight, filled to the score. */
+.mfig-avg { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1.6fr) auto auto; gap: 7px 14px; align-items: center; font-size: 12.5px; line-height: 1.35; }
+.mfig-avg .track { display: block; height: 8px; border-radius: 2px; background: color-mix(in srgb, var(--grey) 20%, transparent); overflow: hidden; }
+.mfig-avg .track i { display: block; height: 100%; background: var(--indigo); }
+.mfig-avg .calc { color: var(--grey); text-align: right; }
+.mfig-avg .add { color: var(--ink); text-align: right; }
+.mfig-avg .name { color: var(--ink); overflow-wrap: anywhere; }
+.mfig-avg .total { grid-column: 1 / -1; display: flex; justify-content: space-between; gap: 12px; padding-top: 8px; border-top: 1px solid var(--hair); color: var(--ink); }
+@media (max-width: 639px) { .mfig-avg { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) auto; } .mfig-avg .calc { display: none; } }
+
+/* The slider under the ability curve: its track lines up with the plot's x axis. */
+.mfig-slide input[type="range"] { display: block; accent-color: var(--indigo); height: 22px; margin-top: -4px; }
+.mfig-read { display: flex; flex-wrap: wrap; gap: 6px 26px; font-size: 12.5px; line-height: 1.4; }
+.mfig-read span { display: grid; }
+.mfig-read b { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-weight: 500; font-size: 17px; color: var(--ink); }
