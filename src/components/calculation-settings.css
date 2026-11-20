@@ -1,0 +1,80 @@
+/* Calculation settings: a dialog with four tabs. The Settings tab is one screen: a label column and a control column. */
+.calc-dialog { --calc-top: max(12px, 7dvh); margin: var(--calc-top) auto auto; width: min(900px, calc(100vw - 24px)); max-height: calc(100dvh - 2 * var(--calc-top)); overflow: auto; overscroll-behavior: contain; padding: 0 26px 26px; background: var(--bone); color: var(--ink-2); border: 1px solid var(--hair); border-radius: 7px; box-shadow: 0 22px 100px var(--shadow); font: 13px/1.5 var(--font-sans); }
+.calc-dialog::backdrop { background: var(--backdrop); backdrop-filter: blur(3px); }
+.calc-dialog[open] { animation: bench-in .2s cubic-bezier(.16,1,.3,1) both; }
+@media (prefers-reduced-motion: reduce) { .calc-dialog[open] { animation: none; } }
+/* The title and tabs stay put while a long tab scrolls under them, and the dialog hangs from a fixed top so switching tabs moves nothing. */
+.calc-top { position: sticky; top: 0; z-index: 2; padding: 22px 0 12px; margin-bottom: -12px; background: var(--bone); }
+.calc-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 14px; }
+.calc-head h2 { font-size: 24px; margin: 0; color: var(--ink); }
+.calc-close { display: grid; place-items: center; width: 32px; height: 32px; margin-right: -7px; border-radius: 4px; color: var(--grey); }
+.calc-close:hover { color: var(--ink); background: var(--hair); }
+
+.calc-tabs { display: flex; width: fit-content; max-width: 100%; padding: 3px; gap: 3px; border: 1px solid var(--hair); border-radius: 4px; }
+.calc-tabs button { display: inline-flex; align-items: baseline; gap: 6px; padding: 5px 12px; border-radius: 2px; color: var(--grey); font-size: 12.5px; white-space: nowrap; }
+.calc-tabs button:hover { color: var(--ink); }
+.calc-tabs button[aria-selected="true"] { background: var(--white); color: var(--ink); box-shadow: 0 1px 3px var(--shadow); }
+.calc-tabs button .num { font-size: 11px; color: var(--grey); }
+
+.calc-rows { display: grid; gap: 24px; padding-top: 24px; }
+.calc-rows[hidden], .calc-panel[hidden] { display: none; }
+.calc-row { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 8px 28px; align-items: start; }
+.calc-label { display: grid; gap: 3px; }
+.calc-label > span { color: var(--ink); font-weight: 500; }
+.calc-label > small, .calc-label > a { font-size: 12px; color: var(--grey); }
+.calc-label > a { width: fit-content; text-decoration: underline; text-underline-offset: 2px; }
+.calc-label > a:hover { color: var(--ink); }
+
+.calc-methods { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.calc-method { display: grid; gap: 3px; align-content: start; padding: 10px 12px 11px; border: 1px solid var(--hair); border-radius: 5px; background: var(--white); cursor: pointer; }
+.calc-method > span { display: flex; align-items: center; gap: 7px; color: var(--ink); }
+.calc-method > small { font-size: 12px; line-height: 1.4; color: var(--ink-2); }
+.calc-method:hover { border-color: var(--hair-3); }
+.calc-method:has(input:checked) { border-color: var(--indigo); box-shadow: inset 0 0 0 1px var(--indigo); }
+
+.calc-check { display: flex; align-items: center; gap: 6px; min-height: 24px; }
+.calc-check > label { display: flex; align-items: center; gap: 8px; color: var(--ink); cursor: pointer; }
+.calc-info { flex: none; display: grid; place-items: center; width: 24px; height: 24px; border-radius: 4px; color: var(--grey); }
+.calc-info:hover, .calc-info[aria-expanded="true"] { color: var(--indigo); }
+.calc-how { max-width: 68ch; margin: 0 0 6px; padding: 9px 12px; border-radius: 5px; background: var(--white); border: 1px solid var(--hair); font-size: 12.5px; }
+.calc-note { font-size: 12px; color: var(--grey); }
+.calc-note button, button.calc-note { text-decoration: underline; text-underline-offset: 2px; }
+.calc-note button:hover, button.calc-note:hover { color: var(--ink); }
+.calc-strict { flex: 1; display: flex; align-items: center; gap: 10px; max-width: 420px; font-size: 12px; color: var(--grey); }
+.calc-strict > input { flex: 1; min-width: 0; }
+.calc-strict > output { width: 3ch; text-align: right; font-size: 13px; color: var(--ink); }
+
+.calc-chips { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; max-width: 100%; }
+.calc-chip { display: flex; align-items: center; gap: 7px; max-width: 100%; padding: 5px 10px 5px 8px; border: 1px solid var(--hair); border-radius: 4px; background: var(--white); color: var(--ink-2); font-size: 12.5px; cursor: pointer; }
+.calc-chip > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.calc-chip:hover { border-color: var(--hair-3); }
+.calc-chip:has(input:checked) { border-color: var(--indigo); background: var(--indigo-soft); color: var(--ink); }
+
+.calc-panel { display: grid; gap: 16px; padding-top: 22px; align-content: start; }
+.calc-panel h3 { font: 500 13px var(--font-sans); color: var(--ink); margin: 0; }
+.calc-excluded { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 28px; color: var(--ink); }
+.calc-excluded span { display: block; font-size: 12px; color: var(--grey); }
+.calc-sources { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px 24px; font-size: 12px; color: var(--ink-2); }
+.calc-sources > :not(div) { grid-column: 1 / -1; width: fit-content; }
+.calc-sources > div { align-content: start; overflow-wrap: anywhere; }
+
+@media (min-width: 720px) {
+  /* The four tabs keep one height, so the dialog does not jump when you switch. */
+  .calc-dialog { min-height: min(560px, calc(100dvh - 2 * var(--calc-top))); }
+}
+@media (max-width: 719px) {
+  .calc-dialog { padding: 0 16px 22px; }
+  .calc-top { padding-top: 16px; }
+  .calc-tabs { width: 100%; }
+  .calc-tabs button { flex: 1; justify-content: center; padding: 8px 4px; }
+  .calc-row { grid-template-columns: minmax(0, 1fr); }
+  .calc-methods { grid-template-columns: minmax(0, 1fr); gap: 6px; }
+  .calc-excluded, .calc-sources { grid-template-columns: minmax(0, 1fr); }
+  .calc-strict { max-width: none; }
+}
+@media (pointer: coarse) {
+  .calc-check { min-height: 44px; }
+  .calc-info, .calc-close { width: 44px; height: 44px; }
+  .calc-chip { min-height: 44px; }
+  .calc-tabs button { min-height: 40px; align-items: center; }
+}

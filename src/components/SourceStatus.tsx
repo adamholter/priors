@@ -3,7 +3,8 @@ import { useEffect, useState } from "react";
 import { readCoreSnapshot } from "@/data/packed-snapshot";
 import type { Snapshot } from "@/data/types";
 
-export function SourceStatus({ snapshot, onSnapshot }: { snapshot: Snapshot; onSnapshot: (s: Snapshot) => void }) {
+/** `open` draws the list without its disclosure, for a place that is already about sources (Calculation settings, Sources tab). */
+export function SourceStatus({ snapshot, onSnapshot, open }: { snapshot: Snapshot; onSnapshot: (s: Snapshot) => void; open?: boolean }) {
   const [canRefresh, setCanRefresh] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -42,10 +43,7 @@ export function SourceStatus({ snapshot, onSnapshot }: { snapshot: Snapshot; onS
     } catch (e) { setError(e instanceof Error ? e.message : "Refresh failed."); }
     finally { setBusy(false); }
   };
-  return (
-    <details className="mt-4 text-[12px] text-ink-2">
-      <summary className="disclosure disclosure-inline cap">Sources · {checked || snapshot.date}</summary>
-      <div className="grid gap-2 mt-3">
+  const list = <div className={open ? "calc-sources" : "grid gap-2 mt-3"}>
         {canRefresh && <button className="btn-quiet" disabled={busy} onClick={refresh}>{busy ? "Scraping live sources…" : "Refresh sources"}</button>}
         <p className="cap">Local scrapers check the source sites. Open pages check for new snapshots every minute.</p>
         {error && <p role="alert">{error}</p>}
@@ -54,7 +52,12 @@ export function SourceStatus({ snapshot, onSnapshot }: { snapshot: Snapshot; onS
           <span className="cap">Fetched {s.fetchedAt.replace("T", " ").slice(0, 19)} UTC{s.unknownLabels.length ? ` · ${s.unknownLabels.length} unmatched labels` : ""}</span>
           {s.error && <span role="alert">Refresh failed; any retained scores are from an earlier run.</span>}
         </div>)}
-      </div>
+      </div>;
+  if (open) return <section className="grid gap-2"><h3>Sources · {checked || snapshot.date}</h3>{list}</section>;
+  return (
+    <details className="mt-4 text-[12px] text-ink-2">
+      <summary className="disclosure disclosure-inline cap">Sources · {checked || snapshot.date}</summary>
+      {list}
     </details>
   );
 }

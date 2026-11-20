@@ -58,3 +58,7 @@ Below 1024px the builder is one column in this order: ranking (top 10, then Show
 - Controls whose change redraws charts (model checkboxes, the cost chart's scatter and bars switch) use `useOptimistic` and `startTransition`: the control answers now and the charts follow.
 
 **Disclosures and dropdowns.** A collapsible section's summary takes `.disclosure` (`.disclosure-inline` when it sits in running text): one drawn chevron on the right, never a text glyph or the browser marker. Every `<select>` gets the same chevron from `globals.css`, and long values end in an ellipsis clear of it.
+
+## Calculation settings
+
+The mix's Calculation settings dialog (`CalculationSettings.tsx`, `calculation-settings.css`; redesigned 2026-11-20 after Adam called the long scrolling version confusing) has four tabs. **Settings** holds every setting on one screen with no scrolling at desktop and tablet widths: a label column and a control column, the scoring method as three cards, two checkboxes for missing scores, the strictness slider with one live sentence, and one checkbox chip per benchmark for Required. Each long explanation sits behind its info button, one open at a time. **Breakdown** is one model's calculation, **Left out** lists the variants the settings exclude (its count is on the tab and changes as you move strictness), and **Sources** has the Artificial Analysis note and the source list. The dialog hangs from a fixed top and its title and tabs stick, so switching tabs moves nothing. All four panels stay mounted (the Sources panel checks for newer data).

@@ -247,7 +247,7 @@ export function Builder({ snapshot: base, initialIndices }: { snapshot: Snapshot
             <p className="cap mt-3">Or <Link href="/rank" className="underline underline-offset-2 hover:text-ink" transitionTypes={["nav-forward"]}>rank a few models</Link> and let Priors fit the weights.</p>
             </>}
             <CalculationSettings trigger={mixOpen} config={active} result={result} snapshot={snapshot} onChange={update}>
-              <SourceStatus snapshot={sourceSnapshot} onSnapshot={receiveSnapshot} />
+              <SourceStatus snapshot={sourceSnapshot} onSnapshot={receiveSnapshot} open />
             </CalculationSettings>
           </section>
         </aside>

@@ -2037,6 +2037,54 @@ try {
     } finally { await ctx.close(); }
   });
 
+  await check("calculation settings: four tabs, the settings fit one screen, and strictness changes how many are left out", async () => {
+    const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+    const p = await ctx.newPage();
+    p.on("pageerror", (e) => errors.push(`${p.url()}: ${e.message}`));
+    try {
+      await p.goto(`${BASE}/methods/scoring`, { waitUntil: "domcontentloaded" });
+      const mix = (await p.locator("#today a", { hasText: "IRT ability" }).getAttribute("href")).replace(/(%7C|\|)score=irt/, "");
+      await p.goto(`${BASE}${mix}`, { waitUntil: "domcontentloaded" });
+      await p.locator(".ranking-list [data-k]").first().waitFor({ timeout: 30000 });
+      await p.getByRole("button", { name: "Calculation settings", exact: true }).click();
+      const dialog = p.locator("dialog.calc-dialog");
+      assert.deepEqual(await p.getByRole("tab").evaluateAll((els) => els.map((el) => el.firstChild.textContent)), ["Settings", "Breakdown", "Left out", "Sources"]);
+      assert.equal(await p.getByRole("tab", { selected: true }).innerText(), "Settings", "it opens on the settings");
+      // Every setting is on screen at once: the dialog does not scroll, up or sideways.
+      assert.deepEqual(await dialog.evaluate((d) => [d.scrollHeight <= d.clientHeight + 1, d.scrollWidth <= d.clientWidth + 1]), [true, true], "the settings fit without scrolling");
+      for (const name of ["Effort estimates", "Estimate a missing benchmark from similar models", "Strictness"]) assert.equal(await p.getByLabel(name, { exact: true }).isVisible(), true, `${name} is on the first screen`);
+      const chips = p.getByRole("group", { name: "Required benchmarks" }).getByRole("checkbox");
+      assert.ok(await chips.count() >= 3, "one checkbox per benchmark in the mix");
+      // An explanation opens from its info button, one at a time.
+      await p.getByRole("button", { name: "How strictness works" }).click();
+      assert.equal(await p.getByText("At 100, nothing is estimated.").isVisible(), true);
+      await p.getByRole("button", { name: "How effort estimates work" }).click();
+      assert.equal(await p.getByText("At 100, nothing is estimated.").count(), 0, "opening one explanation closes the other");
+      // The Left out tab counts what the settings exclude, live.
+      const leftOut = async () => Number(await p.locator("[data-left-out]").getAttribute("data-left-out"));
+      const at50 = await leftOut();
+      await p.getByRole("slider", { name: "Strictness" }).fill("90");
+      await p.waitForFunction((n) => Number(document.querySelector("[data-left-out]")?.getAttribute("data-left-out")) > n, at50, { timeout: 15000 });
+      await p.getByRole("button", { name: "Reset to 50" }).click();
+      await p.waitForFunction((n) => Number(document.querySelector("[data-left-out]")?.getAttribute("data-left-out")) === n, at50, { timeout: 15000 });
+      // Requiring a benchmark marks its row in the mix.
+      await chips.first().check();
+      assert.equal(await p.getByRole("button", { name: "Clear required benchmarks" }).isVisible(), true);
+      // Arrow keys move between tabs, and the top of the dialog stays where it is.
+      const top = (await dialog.boundingBox()).y;
+      await p.getByRole("tab", { name: "Settings" }).focus();
+      await p.keyboard.press("ArrowRight");
+      assert.equal(await p.getByRole("combobox", { name: "Inspect model calculation" }).isVisible(), true, "Breakdown shows one model's calculation");
+      await p.keyboard.press("ArrowRight");
+      assert.equal(await dialog.locator(".calc-excluded li").count(), await leftOut(), "Left out lists every excluded variant");
+      await p.keyboard.press("ArrowRight");
+      assert.equal(await p.getByRole("link", { name: "Artificial Analysis methodology" }).isVisible(), true);
+      assert.equal((await dialog.boundingBox()).y, top, "switching tabs does not move the dialog");
+      await p.keyboard.press("Escape");
+      await p.getByText("required", { exact: true }).first().waitFor({ timeout: 5000 });
+    } finally { await ctx.close(); }
+  });
+
   assert.deepEqual(failures, [], `${failures.length} of ${failures.length + checks.length} checks failed`);
   assert.deepEqual(errors, [], "no page errors");
   console.log(`PASS interactions${SHARD_N > 1 ? ` shard ${SHARD_I}/${SHARD_N}` : ""}: ${checks.length} checks\n  ${checks.join("\n  ")}`);
