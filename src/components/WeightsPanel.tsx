@@ -6,6 +6,7 @@ import type { IndexConfig, IndexResult } from "@/engine";
 import Link from "next/link";
 
 import { useLightDismiss } from "@/lib/useLightDismiss";
+import { fromSlider, SLIDER_MAX, SLIDER_TOP, sliderUnit, toSlider } from "@/lib/mix-slider";
 import { searchBenchmarks } from "@/lib/benchmark-search";
 import { BenchmarkInfo, InfoIcon } from "./BenchmarkInfo";
 import { useLabColor } from "./chart/echarts";
@@ -34,13 +35,15 @@ export function WeightsPanel({ snapshot, config, onChange }: { snapshot: Snapsho
   const total = active.reduce((a, b) => a + config.weights[b.id], 0) || 1;
   const shareOf = (id: string) => (config.weights[id] / total) * 100;
   const isRequired = (id: string) => config.required.includes(id);
-  /** Slider position is the benchmark's share of the index — a fixed 0–70%
-   *  range that behaves identically regardless of the raw weight scale. */
-  const setShare = (id: string, s: number) => {
-    const others = total - config.weights[id];
-    const w = s <= 0 ? 0 : others > 0 ? +(s / (100 - s) * others).toFixed(1) : 10;
-    setW(id, w);
-  };
+  // A slider is its own benchmark's weight (`mix-slider.ts`), so moving one leaves the other thumbs where they are and only the
+  // percentages change. The scale is set when the mix opens and then kept: it is set again for another index or an emptied mix, and
+  // grows only when a weight from elsewhere (undo, the assistant, a link) no longer fits on the track.
+  const [scale, setScale] = useState(() => ({ id: config.id, unit: sliderUnit(config.weights) }));
+  const fresh = scale.id !== config.id || !active.length;
+  const unit = fresh ? sliderUnit(config.weights) : Math.max(scale.unit, ...active.map((b) => config.weights[b.id] / SLIDER_TOP));
+  if (scale.id !== config.id || scale.unit !== unit) setScale({ id: config.id, unit });
+  /** A benchmark joins the mix at the middle of its slider. */
+  const added = Number(unit.toPrecision(4));
   const set = (patch: Partial<IndexConfig>) => onChange({ ...config, ...patch });
   const setW = (id: string, w: number) => set({ weights: { ...config.weights, [id]: w } });
   const counts = useMemo(() => { const m = new Map<string, Set<string>>(); for (const o of snapshot.observations) (m.get(o.benchmarkId) ?? m.set(o.benchmarkId, new Set()).get(o.benchmarkId)!).add(o.variantId.split("@")[0]); return m; }, [snapshot]);
@@ -83,8 +86,8 @@ export function WeightsPanel({ snapshot, config, onChange }: { snapshot: Snapsho
   const row = (b: Benchmark) => <BenchRow key={b.id} b={b} on={config.weights[b.id] > 0} models={coverage(b.id)} fresh={recent === b.id} leader={leaders.get(b.id)} labColor={labs.get(leaders.get(b.id)?.labId ?? "")} gear={gear(b, "add")} onToggle={() => toggle(b.id)} onInfo={() => setInfo(b.id)} />;
   const groups = terms.length ? { "Best matches": matches } : matches.reduce<Record<string, Benchmark[]>>((acc, b) => ((acc[normalizeCategory(b.category)] ??= []).push(b), acc), {});
   // Adding keeps the list open and the query intact: people often add several while browsing.
-  const toggle = (id: string) => { const on = config.weights[id] > 0; setW(id, on ? 0 : 10); setRecent(on ? null : id); };
-  const addBenchmark = (id: string) => { setW(id, 10); setRecent(id); };
+  const toggle = (id: string) => { const on = config.weights[id] > 0; setW(id, on ? 0 : added); setRecent(on ? null : id); };
+  const addBenchmark = (id: string) => { setW(id, added); setRecent(id); };
   /** Rank on another cut of the same benchmark: it takes the weight (and the required or optional mark) of the one it replaces. */
   const swap = (from: string, to: string) => {
     if (from === to) return;
@@ -107,7 +110,7 @@ export function WeightsPanel({ snapshot, config, onChange }: { snapshot: Snapsho
                 <span className="flex items-center gap-1 min-w-0"><LeaderDot leader={leaders.get(b.id)} color={labs.get(leaders.get(b.id)?.labId ?? "")} /><span className="truncate text-[13px] max-lg:whitespace-normal max-lg:overflow-visible" title={b.description}>{b.name}</span><InfoIcon name={b.name} onClick={() => setInfo(b.id)} />{gear(b, "swap")}{req && <span className="cap shrink-0" title="Models without a measured score here are not ranked. Change this in Calculation settings.">required</span>}</span>
                 <span className="flex items-center shrink-0"><span className="num text-right text-[12.5px] w-9">{share.toFixed(0)}%</span><button type="button" onClick={() => setW(b.id, 0)} className="bench-remove hit" aria-label={`Remove ${b.name}`} title={`Remove ${b.name}`}>×</button></span>
               </div>
-              <input type="range" min={0} max={Math.max(70, Math.ceil(share))} step={1} value={Math.round(share)} onChange={(e) => setShare(b.id, +e.target.value)} className="w-full h-[3px]" aria-label={`${b.name} weight`} />
+              <input type="range" min={0} max={SLIDER_MAX} step={1} value={Math.round(toSlider(config.weights[b.id], unit))} onChange={(e) => setW(b.id, fromSlider(+e.target.value, unit))} className="w-full h-[3px]" aria-label={`${b.name} weight`} aria-valuetext={`${share.toFixed(0)}% of the mix`} />
             </div>
           );
         })}
@@ -162,7 +165,7 @@ export function WeightsPanel({ snapshot, config, onChange }: { snapshot: Snapsho
         )}
       </div>
 
-      <BenchmarkInfo snapshot={snapshot} benchmarkId={info} inMix={!!info && config.weights[info] > 0} onAdd={(id) => setW(id, 10)} onClose={() => setInfo(null)} />
+      <BenchmarkInfo snapshot={snapshot} benchmarkId={info} inMix={!!info && config.weights[info] > 0} onAdd={(id) => setW(id, added)} onClose={() => setInfo(null)} />
     </div>
   );
 }

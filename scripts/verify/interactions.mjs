@@ -2097,6 +2097,49 @@ try {
     } finally { await ctx.close(); }
   });
 
+  await check("mix sliders: moving one leaves the other thumbs where they are, and only the percentages change", async () => {
+    const ctx = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+    const p = await ctx.newPage();
+    p.on("pageerror", (e) => errors.push(`${p.url()}: ${e.message}`));
+    try {
+      await p.goto(`${BASE}/methods/scoring`, { waitUntil: "domcontentloaded" });
+      const mix = (await p.locator("#today a", { hasText: "IRT ability" }).getAttribute("href")).replace(/(%7C|\|)score=irt/, "");
+      await p.goto(`${BASE}${mix}`, { waitUntil: "domcontentloaded" });
+      await p.locator(".ranking-list [data-k]").first().waitFor({ timeout: 30000 });
+      const sliders = p.locator('input[type=range][aria-label$=" weight"]');
+      await sliders.first().waitFor({ timeout: 15000 });
+      // Each row: where its thumb is, and the percent beside its name.
+      const read = () => sliders.evaluateAll((els) => els.map((el) => ({ at: Number(el.value), pct: parseFloat(el.parentElement.querySelector(".num").textContent) })));
+      const before = await read(), top = () => p.locator(".ranking-list [data-k]").evaluateAll((els) => els.map((el) => el.getAttribute("aria-label")));
+      assert.ok(before.length >= 4, "the mix has several benchmarks");
+      const ranking = await top();
+      await sliders.first().fill("100");
+      await p.waitForFunction((was) => parseFloat(document.querySelector('input[type=range][aria-label$=" weight"]').parentElement.querySelector(".num").textContent) > was, before[0].pct, { timeout: 10000 });
+      const after = await read();
+      assert.equal(after[0].at, 100, "the moved slider is where it was put");
+      assert.deepEqual(after.slice(1).map((r) => r.at), before.slice(1).map((r) => r.at), "no other thumb moved");
+      assert.ok(after.slice(1).every((r, i) => r.pct <= before[i + 1].pct), "every other benchmark's percent fell or held");
+      assert.ok(after.slice(1).some((r, i) => r.pct < before[i + 1].pct), "the other percents changed");
+      assert.ok(Math.abs(after.reduce((a, r) => a + r.pct, 0) - 100) <= after.length / 2 + 1, "the percents still add up to 100");
+      await p.waitForFunction((was) => JSON.stringify([...document.querySelectorAll(".ranking-list [data-k]")].map((el) => el.getAttribute("aria-label"))) !== was, JSON.stringify(ranking), { timeout: 15000 });
+      // Lowering it again: still only its own thumb moves, and the keyboard steps one at a time.
+      await sliders.first().fill("20");
+      await sliders.nth(1).focus(); await p.keyboard.press("ArrowRight");
+      await p.waitForTimeout(300);
+      const last = await read();
+      assert.equal(last[0].at, 20);
+      assert.equal(last[1].at, before[1].at + 1, "an arrow key moves a slider one step");
+      assert.deepEqual(last.slice(2).map((r) => r.at), before.slice(2).map((r) => r.at), "the rest stay put");
+      // A benchmark that joins the mix lands mid-track and moves nobody.
+      await p.getByRole("searchbox", { name: "Add a benchmark" }).fill("simplebench");
+      await p.keyboard.press("Enter");
+      await p.waitForFunction((n) => document.querySelectorAll('input[type=range][aria-label$=" weight"]').length === n + 1, before.length, { timeout: 10000 });
+      const joined = await read();
+      assert.equal(joined.at(-1).at, 50, "the new benchmark sits in the middle of its slider");
+      assert.deepEqual(joined.slice(0, -1).map((r) => r.at), last.map((r) => r.at), "adding one moved no thumb");
+    } finally { await ctx.close(); }
+  });
+
   assert.deepEqual(failures, [], `${failures.length} of ${failures.length + checks.length} checks failed`);
   assert.deepEqual(errors, [], "no page errors");
   console.log(`PASS interactions${SHARD_N > 1 ? ` shard ${SHARD_I}/${SHARD_N}` : ""}: ${checks.length} checks\n  ${checks.join("\n  ")}`);
