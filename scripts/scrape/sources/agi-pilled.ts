@@ -15,16 +15,21 @@ const dataSchema = z.object({
     score: z.number().finite().nonnegative(),
     ci: z.tuple([z.number().finite(), z.number().finite()]),
     n: z.number().int().positive(),
+    /** Runs per milestone. `n` also counts runs on a milestone that is not scored yet. */
+    cells: z.record(z.string(), z.object({ n: z.number().int().nonnegative() })).optional(),
   })).min(1),
 });
 
 export function parseAgiPilled(json: unknown): ScrapeResult {
   const d = dataSchema.parse(json);
   const scored = d.score_events ?? d.events;
-  const runsPerMilestone = d.models[0].n / scored.length;
-  if (!Number.isInteger(runsPerMilestone) || d.models.some(m => m.n !== d.models[0].n)) {
+  // Every model needs the same number of runs on every scored milestone.
+  const runs = d.models.flatMap(m => m.cells ? scored.map(e => m.cells?.[e]?.n ?? 0) : [m.n / scored.length]);
+  const runsPerMilestone = runs[0];
+  if (!Number.isInteger(runsPerMilestone) || runsPerMilestone < 1 || runs.some(n => n !== runsPerMilestone)) {
     throw new Error("AGI-Pilled: incomplete or unequal response coverage");
   }
+  const responses = runsPerMilestone * scored.length;
   const ids = new Set<string>();
   for (const m of d.models) {
     if (ids.has(m.id) || m.ci[0] < 0 || m.ci[0] > m.score || m.ci[1] < m.score) {
@@ -41,8 +46,8 @@ export function parseAgiPilled(json: unknown): ScrapeResult {
     rows: d.models.map((m, i) => ({
       benchmarkId: AGI_PILLED_ID, modelLabel: m.name, effort: m.effort,
       value: m.score, ci: m.ci, rank: i + 1, sourceUrl: AGI_PILLED_URL,
-      details: { sourceSettingId: m.id, scoreUnit: "years after 2026", scoredResponses: m.n, milestones: scored.length, neverSentinel: d.never_sentinel },
-      note: `90% bootstrap confidence interval; ${m.n} scored responses; lower = more AGI-pilled`,
+      details: { sourceSettingId: m.id, scoreUnit: "years after 2026", scoredResponses: responses, milestones: scored.length, neverSentinel: d.never_sentinel },
+      note: `90% bootstrap confidence interval; ${responses} scored responses; lower = more AGI-pilled`,
     })),
     raw: { "data.json": JSON.stringify(json) },
   };

@@ -40,6 +40,12 @@ describe("Adam's published benchmarks", () => {
   it("counts runs over the scored milestones when a new one is listed but not yet scored", () => {
     const d = { ...agi(), events: [...agi().events, "grh_lean"], score_events: agi().events };
     expect(parseAgiPilled(d).rows[0].details).toMatchObject({ milestones: 8, scoredResponses: 40 });
+    // Mid-run, some models already have runs on the unscored milestone: their n is higher, their scored cells match.
+    const cells = (extra: number) => Object.fromEntries([...agi().events.map(e => [e, { n: 5 }]), ["grh_lean", { n: extra }]]);
+    const mid = { ...d, models: [{ ...d.models[0], n: 45, cells: cells(5) }, { ...d.models[1], cells: cells(0) }] };
+    expect(parseAgiPilled(mid).rows.map(r => r.details?.scoredResponses)).toEqual([40, 40]);
+    mid.models[1].cells.erdos = { n: 4 };
+    expect(() => parseAgiPilled(mid)).toThrow(/unequal response coverage/);
   });
 
   it("rejects malformed or ambiguous AGI results instead of dropping rows", () => {
