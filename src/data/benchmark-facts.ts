@@ -390,7 +390,10 @@ const RESEARCHED: Record<string, BenchmarkFacts> = {
 // GENERATED-END
 
 /** Hand corrections, which win over the researched table. */
-const OVERRIDES: Record<string, BenchmarkFacts> = {};
+const OVERRIDES: Record<string, BenchmarkFacts> = {
+  // Added 2026-11-20 by hand: the six prompts are shown in the launch video, and the author grades every app himself.
+  "kingbench-4": { test: "public", testNote: "The six build prompts are shown in AICodeKing's launch video; the author runs each model in its coding tool and grades every app himself, out of 10.", testUrl: "https://www.youtube.com/watch?v=cAIvhxVx0kU", released: "2026-10-10", grading: "human-judge" },
+};
 
 export const BENCHMARK_FACTS: Record<string, BenchmarkFacts> = { ...RESEARCHED, ...Object.fromEntries(Object.entries(OVERRIDES).map(([id, f]) => [id, { ...RESEARCHED[id], ...f }])) };
 
