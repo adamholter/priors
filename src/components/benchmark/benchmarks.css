@@ -24,6 +24,8 @@
 .bench-dir .bench-row{align-items:center;padding:11px 0}
 /* Off-screen rows skip layout and paint (and their compositor tiles) until they near the viewport. */
 .bench-dir ul > li{content-visibility:auto;contain-intrinsic-size:auto 74px}
+/* That skipping clips anything drawn outside the row, so the hovered or focused row (on screen anyway) drops it: its tooltip shows whole, above its neighbors. */
+.bench-dir ul > li:is(:hover,:focus-within){content-visibility:visible;z-index:3}
 .bench-main{display:flex;align-items:flex-start;gap:11px;min-width:0}
 .bench-main>span:last-child{flex:1}
 .bench-cat{flex-shrink:0;width:28px;height:28px;margin-top:-2px;border-radius:6px;background:var(--hair-2);color:var(--ink-2)}

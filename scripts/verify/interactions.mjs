@@ -520,6 +520,9 @@ try {
       await c.locator(".bench-row").first().waitFor({ timeout: 30000 });
       assert.equal(await c.locator(".bench-row").first().locator("[data-factor]").count(), 0, "the overview keeps top model, models and mixes");
       assert.ok(await c.locator(".bench-li").first().locator("[data-benchmark-star]").isVisible(), "every row has a star");
+      // Rows skip painting off screen (content-visibility), which also clips a row's tooltip: the hovered row must draw it whole.
+      await c.locator(".bench-row").first().locator(".bench-q .bench-tip").hover();
+      assert.equal(await c.locator(".bench-li").first().evaluate((li) => getComputedStyle(li).contentVisibility), "visible", "the hovered row does not clip its tooltip");
       // A click before hydration does nothing, so click until the columns switch.
       for (let tries = 0; tries < 20 && !(await c.locator(".bench-dir[data-view=factors]").count()); tries++) { await c.getByRole("group", { name: "Columns" }).getByRole("button", { name: "Quality factors" }).click(); await c.waitForTimeout(250); }
       await c.locator(".bench-dir[data-view=factors]").waitFor({ timeout: 5000 });
