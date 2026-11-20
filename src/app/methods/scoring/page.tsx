@@ -5,9 +5,9 @@ import { SiteFooter } from "@/components/SiteFooter";
 import { SiteNav } from "@/components/SiteNav";
 import { Wordmark } from "@/components/Wordmark";
 import { HeaderAccount } from "@/components/AccountMenu";
-import { AbilityCurve } from "@/components/methods/AbilityCurve";
-import { mixAt, type FigCurve } from "@/components/methods/figure-math";
-import { AverageFigure, Both, CurveKey, CurvesFigure, Figure, pickThree, StepsFigure } from "@/components/methods/ScoringFigures";
+import { curveAt, mixAt, type FigCurve } from "@/components/methods/figure-math";
+import { TwoScales } from "@/components/methods/TwoScales";
+import { AbilitySteps, AverageFigure, Both, CurveKey, CurvesFigure, Figure, pickThree, StepsFigure } from "@/components/methods/ScoringFigures";
 import { computeIndex, defaultConfig, EPOCH_ECI, selectVariants, type RankedVariant, type ScoringFit, type ScoringMethod } from "@/engine";
 import { encodeIndices, prettyQuery } from "@/lib/url";
 import { pageMeta } from "@/lib/site-meta";
@@ -48,6 +48,10 @@ export default async function Page() {
   // Drawn only when the parts shown add up to the score shown.
   const adds = leader && parts.length === A.shares.length && Math.abs(parts.reduce((t, p) => t + p.share * p.value, 0) - leader.score) < 0.06;
   const figures = irtCurves.length > 0 && eciCurves.length > 0 && irt.length > 0 && eci.length > 0;
+  // One model, worked through: the IRT leader's ability read off every curve, and the same model under ECI-style.
+  const star = irt[0], starAbility = star?.method?.theta ?? 0, starEci = star && E.best.find((r) => r.variant.id === star.variant.id);
+  const steps = star ? irtCurves.map((curve) => { const v = star.values.find((b) => b.benchmarkId === curve.id); return { curve, reading: curveAt(curve, starAbility), actual: v && !v.estimated ? v.value : undefined }; }) : [];
+  const line = E.fit ? { scale: E.fit.scale, shift: E.fit.shift } : { scale: 1, shift: 0 };
   const far = figures ? hardest(eciCurves) : undefined;
   const open = (scoring: ScoringMethod) => (config ? `/builder?${prettyQuery(encodeIndices([{ ...config, name: "General frontier", scoring }]))}` : "/builder");
   return (
@@ -77,11 +81,17 @@ export default async function Page() {
             <CurveKey curves={irtCurves} picked={picked} fmt={(v) => v.toFixed(2)} others={irtCurves.length - picked.length} />
             <Both draw={(w) => <CurvesFigure w={w} curves={irtCurves} picked={picked} points={scoresOn(I.best, (r) => r.method?.theta ?? 0)} x={irtX} xTitle="Ability (0 is the middle of the models Priors tracks)" top={irtTop} label={`Fitted curves of score against ability for the ${irtCurves.length} benchmarks of the mix, with each model's score on three of them.`} />} />
           </Figure>}
-          <p>The score shown is the index score a model of that ability would be expected to average on your mix. So it stays on the 0 to 100 scale and reads like the default score.</p>
-          {figures && <Figure title="From ability back to a 0 to 100 score" note="The thick line is the score a model of each ability is expected to average on this mix: the benchmark curves above, weighted. IRT ability reports the height, which flattens as it nears 100. An ECI-style score reports how far along the bottom a model sits, which has no limit. Drag to move a model along the curve.">
-            <Both draw={(w) => <AbilityCurve w={w} curves={irtCurves} models={I.best.map((r) => ({ name: label(r), x: r.method?.theta ?? 0, y: r.score }))} x={[irtX[0], Math.ceil(ceiling * 10) / 10]} />} />
+          <h3 className="text-[17px] text-ink mt-2">How an ability becomes a 0 to 100 score</h3>
+          <p>An ability is a position along the bottom of that chart: a number like {starAbility.toFixed(2)}, with no top or bottom of its own. Priors does not stretch or rescale it onto 0 to 100. It turns it back into benchmark scores, in two steps.</p>
+          <ol className="grid gap-1 list-decimal pl-5">
+            <li>Read every benchmark&rsquo;s curve at the model&rsquo;s ability. That gives the score the curve expects from a model that able.</li>
+            <li>Average those expected scores with your weights. This is the same sum the weighted average does, on expected scores instead of real ones.</li>
+          </ol>
+          {figures && star && <Figure title={`${label(star)}, step by step`} note={`Its fitted ability is ${starAbility.toFixed(2)}. Each small chart is one benchmark's curve from the chart above. The dot is where the curve is read, and the ring is the score the model really got.`}>
+            <AbilitySteps rows={steps} ability={starAbility} x={[irtX[0], Math.max(irtX[1], starAbility + 0.8)]} score={star.score} average={steps.every((r) => r.actual != null) ? star.method?.average : undefined} />
           </Figure>}
-          <p>Your weights still decide what counts. A benchmark&rsquo;s weight is its share of the pull on ability, so a steep benchmark does not pull harder than its weight says.</p>
+          <p>That is why the score cannot leave 0 to 100. Every reading is a benchmark score, so it lies between 0 and 100, and an average of them does too. A score of 100 would mean the curves expect full marks on every benchmark in the mix. It is also why the score reads like the default one: it is the same weighted average, with each real score replaced by what the model&rsquo;s ability predicts. The likely range is converted the same way, by reading the curves at both ends of the ability&rsquo;s range.</p>
+          <p>Your weights also decide how the ability itself is found. A benchmark&rsquo;s weight is its share of the pull on ability, so a steep benchmark does not pull harder than its weight says.</p>
           <p><b className="font-medium text-ink">When it differs.</b> A model that does well on hard benchmarks and loses a few points on easy ones moves up. A model whose average is carried by one unusual result moves down, because one ability cannot explain an outlier. Nothing is filled in: a benchmark a model never ran is left to its curve.</p>
           <p><b className="font-medium text-ink">Limits.</b> One ability per model is a simplification, so a model that is strong at one kind of task and weak at another is described less well. The ability starts from how the model does across every benchmark Priors has, not only your mix, so on a mix of one or two benchmarks it follows them less closely than the average does. Each score has a likely range, and the ranges of neighbouring models usually overlap.</p>
         </section>
@@ -105,6 +115,23 @@ export default async function Page() {
           <p><b className="font-medium text-ink">When it differs.</b> In the same direction as IRT ability: results on hard benchmarks count for more than the same number of points on easy ones. Unlike IRT it uses your mix alone, and it reports capability itself, so the numbers are not 0 to 100.</p>
           <p><b className="font-medium text-ink">Limits.</b> Epoch says of its own index that a score means little by itself and is for comparing models. That holds here too. A model with scores near zero on everything gets a very low number with a very wide range. With one benchmark in the mix it can only repeat that benchmark&rsquo;s order.</p>
         </section>
+
+        {figures && star && <section id="scales" className="grid gap-3 scroll-mt-6">
+          <h2 className="text-[22px] text-ink">Why one stops at 100 and the other does not</h2>
+          <p>Both methods begin the same way: a fit that places every model at a position on one axis. They differ in what they report from that position.</p>
+          <ul className="grid gap-1 list-disc pl-5">
+            <li><b className="font-medium text-ink">IRT ability reports a predicted score.</b> It reads the benchmark curves at the model&rsquo;s position and averages them. Every curve flattens as it nears 100, so the score does too.</li>
+            <li><b className="font-medium text-ink">ECI-style reports the position itself.</b> It puts the position through a straight line onto Epoch&rsquo;s scale. A straight line never flattens, so the score has no ceiling.</li>
+          </ul>
+          <div className="mfig-sum" data-worked>
+            <div><b>IRT ability</b><span>{label(star)} sits at {starAbility.toFixed(2)}. The curves read there, weighted: <code>{star.score.toFixed(1)}</code></span></div>
+            {starEci?.method && <div><b>ECI-style</b><span>Its own fit puts the same model at {starEci.method.theta.toFixed(3)}. On the line: <code>{line.shift.toFixed(2)} + {line.scale.toFixed(2)} × {starEci.method.theta.toFixed(3)} = {starEci.score.toFixed(1)}</code></span></div>}
+          </div>
+          <Figure title="Move a model up the axis" note="Top: the score the curves expect on this mix at each position, which is what IRT ability reports. Bottom: the straight line ECI-style uses. Drag to the right. The top reading closes in on 100 while the bottom one keeps climbing at the same rate.">
+            <Both draw={(w) => <TwoScales w={w} curves={irtCurves} irt={I.best.map((r) => ({ name: label(r), x: r.method?.theta ?? 0, y: r.score }))} eci={E.best.map((r) => ({ name: label(r), x: r.method?.theta ?? 0, y: r.score }))} scale={line.scale} shift={line.shift} x={[irtX[0], Math.ceil(ceiling * 10) / 10]} />} />
+          </Figure>
+          <p>So the same gap between two strong models shows in full on the ECI-style scale and shrinks on the IRT ability scale as the mix gets closer to solved. Neither is more correct. A 0 to 100 score says how much of this mix a model is expected to get. An open scale keeps separating models after that, though with wider ranges, because a nearly solved benchmark says little about how much further a model could go.</p>
+        </section>}
 
         {average.length > 0 && <section id="today" className="grid gap-3 scroll-mt-6">
           <h2 className="text-[22px] text-ink">The same mix, three ways</h2>

@@ -1986,18 +1986,22 @@ try {
       const linked = await p.locator("#today a", { hasText: "IRT ability" }).getAttribute("href");
       assert.match(linked, /score=irt/, "the explanation page links a mix scored by IRT ability");
       assert.equal(await p.locator("#today tbody tr").count(), 10, "it shows the top 10 under each method");
-      // Its figures are drawn from the day's fits: the average's parts, the step sizes, both sets of curves with real scores, and the ability curve.
-      assert.equal(await p.locator("figure.mfig").count(), 5, "five figures");
+      // Its figures are drawn from the day's fits: the average's parts, the step sizes, both sets of curves with real scores, one model worked through, and the two scales.
+      assert.equal(await p.locator("figure.mfig").count(), 6, "six figures");
       assert.ok(await p.locator("#irt figure.mfig svg:visible circle.dot").count() > 60, "the IRT curves carry the models' scores");
       assert.equal(await p.locator("#eci figure.mfig svg:visible circle.mark").count(), 10, "the ECI-style figure lists the top 10 with ranges");
-      const slider = p.locator("#irt input[type=range]:visible"), read = () => p.locator("#irt .mfig-read:visible").innerText();
-      const before = await read();
-      await slider.focus();
-      for (let i = 0; i < 30; i++) await p.keyboard.press("ArrowRight");
-      await p.waitForFunction((was) => [...document.querySelectorAll("#irt .mfig-read")].some((el) => el.checkVisibility() && el.innerText !== was), before, { timeout: 15000 });
-      const score = (t) => Number(t.match(/IRT ability score\s+([\d.]+)/)[1]);
-      assert.ok(score(await read()) > score(before), "dragging ability up raises the score read off the curve");
-      assert.ok(score(await read()) <= 100, "and the score stays within 100");
+      // How an ability becomes a 0 to 100 score: the curve readings times their weights add up to the score shown.
+      const worked = await p.locator("#irt .mfig-steps").evaluate((el) => ({ adds: [...el.querySelectorAll(".add")].map((x) => Number(x.textContent)), total: Number(el.querySelector(".total .num").textContent) }));
+      assert.ok(worked.adds.length >= 2 && Math.abs(worked.adds.reduce((a, b) => a + b, 0) - worked.total) < 0.15, `the worked example adds up (${worked.adds.reduce((a, b) => a + b, 0).toFixed(2)} vs ${worked.total})`);
+      assert.match(await p.locator("#scales [data-worked]").innerText(), /[\d.]+ \+ [\d.]+ × -?[\d.]+ = [\d.]+/, "the ECI-style line is written out with the model's numbers");
+      // One slider, two readings: the IRT ability score closes in on 100, the ECI-style score keeps climbing.
+      const slider = p.locator("#scales input[type=range]:visible"), read = async (which) => Number((await p.locator(`#scales .mfig-read:visible [data-read="${which}"] b`).innerText()));
+      const before = { irt: await read("irt"), eci: await read("eci") };
+      await slider.fill(await slider.getAttribute("max"));
+      await p.waitForFunction((was) => [...document.querySelectorAll('#scales .mfig-read [data-read="irt"] b')].some((el) => el.checkVisibility() && Number(el.textContent) !== was), before.irt, { timeout: 15000 });
+      const after = { irt: await read("irt"), eci: await read("eci") };
+      assert.ok(after.irt > before.irt && after.irt <= 100, `moving up raises the IRT ability score but never past 100 (${before.irt} to ${after.irt})`);
+      assert.ok(after.eci - before.eci > after.irt - before.irt, `the ECI-style score climbs further over the same move (${before.eci} to ${after.eci})`);
       const plain = linked.replace(/(%7C|\|)score=irt/, "");
       assert.doesNotMatch(plain, /score=/);
       await p.goto(`${BASE}${plain}`, { waitUntil: "domcontentloaded" });

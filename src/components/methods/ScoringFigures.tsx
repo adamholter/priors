@@ -33,9 +33,38 @@ export function AverageFigure({ parts, score }: { parts: { name: string; share: 
       <span className="name">{p.name}{p.estimated && <span className="text-grey"> (estimate)</span>}</span>
       <span><span className="track" style={{ width: `${p.share / widest * 100}%` }}><i style={{ width: `${Math.max(0, Math.min(100, p.value))}%` }} /></span></span>
       <span className="calc num">{p.value.toFixed(1)} × {(p.share * 100).toFixed(0)}%</span>
-      <span className="add num">{(p.share * p.value).toFixed(1)}</span>
+      <span className="add num">{(p.share * p.value).toFixed(2)}</span>
     </div>)}
     <div className="total"><span>Added up</span><span className="num">{score.toFixed(1)}</span></div>
+  </div>;
+}
+
+export interface StepRow { curve: FigCurve; /** What the curve reads at the model's ability, and the score the model really got (absent when it was never measured). */ reading: number; actual?: number }
+
+/**
+ * How an ability becomes an IRT ability score, for one model: each benchmark's curve read at the ability, then those readings
+ * averaged with the mix's weights. The last line is the same sum on the real scores, which is the weighted average.
+ */
+export function AbilitySteps({ rows, ability, x, score, average }: { rows: StepRow[]; ability: number; x: [number, number]; score: number; average?: number }) {
+  const f = frame(150, 42, x, [0, 100], { l: 3, r: 3, t: 5, b: 5 });
+  return <div className="mfig-steps">
+    <div className="contents head"><span /><span>Its curve, read at {ability.toFixed(2)}</span><span>Curve says</span><span className="got">Really got</span><span className="wt">Weight</span><span>Adds</span></div>
+    {[...rows].sort((a, b) => b.curve.share * b.reading - a.curve.share * a.reading).map((r) => <div key={r.curve.id} className="contents">
+      <span className="name">{r.curve.name}</span>
+      <svg viewBox="0 0 150 42" aria-hidden="true">
+        <line className="gridline" x1={3} x2={147} y1={f.sy(0)} y2={f.sy(0)} /><line className="gridline" x1={3} x2={147} y1={f.sy(100)} y2={f.sy(100)} />
+        <path className="curve ink-line" style={{ strokeWidth: 1.5 }} d={f.line((v) => curveAt(r.curve, v))} />
+        <line className="guide" x1={f.sx(ability)} x2={f.sx(ability)} y1={f.sy(100)} y2={f.sy(0)} />
+        {r.actual != null && <circle className="ring" cx={f.sx(ability)} cy={f.sy(r.actual)} r={3.6} />}
+        <circle className="d0 knob" style={{ strokeWidth: 1.5 }} cx={f.sx(ability)} cy={f.sy(r.reading)} r={4} />
+      </svg>
+      <span className="says num">{r.reading.toFixed(1)}<span className="wt-inline"> × {(r.curve.share * 100).toFixed(0)}%</span></span>
+      <span className="got num">{r.actual != null ? r.actual.toFixed(1) : "none"}</span>
+      <span className="wt num">× {(r.curve.share * 100).toFixed(0)}%</span>
+      <span className="add num">{(r.curve.share * r.reading).toFixed(2)}</span>
+    </div>)}
+    <div className="total"><span>Added up: the IRT ability score</span><span className="num">{score.toFixed(1)}</span></div>
+    {average != null && <div className="total sub"><span>The same sum on the scores it really got: the weighted average</span><span className="num">{average.toFixed(1)}</span></div>}
   </div>;
 }
 

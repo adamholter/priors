@@ -7,6 +7,7 @@
 .mfig text.n, .mfig tspan.n { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 .mfig text.ink { fill: var(--ink); }
 .mfig text.accent { fill: var(--indigo); }
+.mfig text.warm { fill: var(--warn); }
 /* Not `.grid`: Tailwind's layout class would pick this up on a wrapper and stroke its text. */
 .mfig .gridline { stroke: var(--hair); stroke-width: 1; }
 .mfig .axis { stroke: var(--grey); stroke-width: 1; }
@@ -42,6 +43,34 @@
 
 /* The slider under the ability curve: its track lines up with the plot's x axis. */
 .mfig-slide input[type="range"] { display: block; accent-color: var(--indigo); height: 22px; margin-top: -4px; }
-.mfig-read { display: flex; flex-wrap: wrap; gap: 6px 26px; font-size: 12.5px; line-height: 1.4; }
+.mfig-read { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 6px 26px; font-size: 12.5px; line-height: 1.4; }
 .mfig-read span { display: grid; }
+.mfig-read em { font-style: normal; color: var(--grey); }
+.mfig-read [data-read="irt"] b { color: var(--indigo); } .mfig-read [data-read="eci"] b { color: var(--warn); }
 .mfig-read b { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-weight: 500; font-size: 17px; color: var(--ink); }
+
+/* One model's ability turned into its score: a row per benchmark, the curve with its reading, then the weighted sum. */
+.mfig-steps { display: grid; grid-template-columns: minmax(0, 1.2fr) 132px auto auto auto auto; gap: 5px 14px; align-items: center; font-size: 12.5px; line-height: 1.35; }
+.mfig-steps .head span { font-family: var(--font-mono); font-size: 11px; color: var(--grey); text-align: right; padding-bottom: 2px; }
+.mfig-steps .head span:nth-child(2) { text-align: left; }
+.mfig-steps .name { color: var(--ink); overflow-wrap: anywhere; }
+.mfig-steps .says { color: var(--indigo); text-align: right; }
+.mfig-steps .got, .mfig-steps .wt { color: var(--grey); text-align: right; }
+.mfig-steps .add { color: var(--ink); text-align: right; }
+.mfig-steps .wt-inline { display: none; color: var(--grey); }
+.mfig-steps .total { grid-column: 1 / -1; display: flex; justify-content: space-between; gap: 12px; padding-top: 8px; border-top: 1px solid var(--hair); color: var(--ink); }
+.mfig-steps .total.sub { padding-top: 0; border-top: 0; color: inherit; }
+@media (max-width: 639px) {
+  .mfig-steps { grid-template-columns: minmax(0, 1fr) 76px auto auto; gap: 5px 10px; }
+  .mfig-steps .got, .mfig-steps .wt { display: none; }
+  .mfig-steps .wt-inline { display: inline; }
+  .mfig-steps .head span:nth-child(2) { visibility: hidden; }
+}
+
+/* The method's two formulas for one model, set as numbers. */
+.mfig-sum { display: grid; gap: 6px; font-size: 13px; line-height: 1.5; }
+.mfig-sum div { display: grid; grid-template-columns: 7.5em minmax(0, 1fr); gap: 12px; padding: 7px 0; border-bottom: 1px solid var(--hair); }
+.mfig-sum div:first-child { border-top: 1px solid var(--hair); }
+.mfig-sum b { font-weight: 500; color: var(--ink); }
+.mfig-sum code { font-family: var(--font-mono); font-size: 12px; color: var(--ink); overflow-wrap: anywhere; }
+@media (max-width: 639px) { .mfig-sum div { grid-template-columns: 1fr; gap: 2px; } }
