@@ -19,6 +19,8 @@ describe("Vals RSI Index parser", () => {
   });
   it("rejects page/data date drift, unknown model IDs, invalid scores, and stale date formats", () => {
     expect(() => parseRsiData(dataJs, catalogJs, "<p>Updated 9/20/2026</p>")).toThrow(/dates differ/);
+    // The alias map of strings declared before the catalog is not the catalog.
+    expect(parseRsiData(dataJs, catalogJs.replace("const p=", 'var a={"fireworks/kimi-k3":`kimi/kimi-k3`},p='), pageHtml).rows.length).toBe(parseRsiData(dataJs, catalogJs, pageHtml).rows.length);
     expect(() => parseRsiData(dataJs.replace("openai/gpt-6-luna", "openai/future"), catalogJs, pageHtml)).toThrow(/uncatalogued model/);
     expect(() => parseRsiData(dataJs.replace("accuracy:37.13", "accuracy:137"), catalogJs, pageHtml)).toThrow(/invalid score/);
     expect(() => parseRsiData(dataJs.replace("updated:\"2026-09-21\"", "updated:\"yesterday\""), catalogJs, pageHtml)).toThrow(/update date/);

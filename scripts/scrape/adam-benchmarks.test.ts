@@ -37,6 +37,11 @@ describe("Adam's published benchmarks", () => {
     expect(r.rows.every(row => row.costUsd === undefined)).toBe(true);
   });
 
+  it("counts runs over the scored milestones when a new one is listed but not yet scored", () => {
+    const d = { ...agi(), events: [...agi().events, "grh_lean"], score_events: agi().events };
+    expect(parseAgiPilled(d).rows[0].details).toMatchObject({ milestones: 8, scoredResponses: 40 });
+  });
+
   it("rejects malformed or ambiguous AGI results instead of dropping rows", () => {
     expect(() => parseAgiPilled({})).toThrow();
     const d = agi();

@@ -36,6 +36,11 @@ describe("Frontier Design Benchmark", () => {
     expect(readDesignRubric(`(function () {\n  const DATA = ${JSON.stringify(rubric)};\n  const x = {};\n})();`).models).toHaveLength(4);
     expect(() => readDesignRubric("nothing here")).toThrow(/rubric file changed/);
   });
+  it("reads the minified object-literal files the site ships now", () => {
+    const minify = (v: unknown) => JSON.stringify(v).replace(/"([A-Za-z_$][\w$]*)":/g, "$1:").replace(/:true\b/g, ":!0").replace(/:false\b/g, ":!1");
+    expect(readDesignBoard(`window.FDB_OURS=${minify(board)};`).board.overall.votes).toBe(100);
+    expect(readDesignRubric(`(function(){const fe=${minify(rubric)};const e={a:1};})();`).models).toEqual(rubric.models);
+  });
   it("resolves the names the site uses", () => {
     for (const r of of(FRONTIER_DESIGN_ID)) expect(normalizeLabel(r.modelLabel, r.labHint).ok, r.modelLabel).toBe(true);
   });

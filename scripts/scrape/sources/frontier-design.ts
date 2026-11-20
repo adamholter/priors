@@ -7,6 +7,7 @@
  * high-speed, higher-priced serving of GLM-5.3: its scores count for GLM-5.3, but its cost is not GLM-5.3's.
  */
 import type { Benchmark, RawRow, ScrapeResult, Source } from "../../../src/data/types";
+import { findJsObject } from "../js-literal";
 
 export const FRONTIER_DESIGN_ID = "frontier-design";
 const ORIGIN = "https://www.contralabs.com/frontierdesign", SITE = "https://contralabs.com/frontierdesign/leaderboard";
@@ -16,20 +17,18 @@ export type DesignBoard = { designers?: string; board: { overall: { votes?: numb
 type Scored = { id: string; name: string; reference?: boolean; rubric?: number | null; clanker?: number | null; rollouts?: number; landing_pages?: number };
 export type DesignRubric = { meta: { source?: string; n_tasks?: number }; models: Scored[] };
 
-/** `window.FDB_OURS = {...};` holds plain JSON. */
+/** `window.FDB_OURS = {...};`, written as a minified object literal (it was plain JSON until November 2026). */
 export function readDesignBoard(js: string): DesignBoard {
-  const start = js.indexOf("{"), end = js.lastIndexOf("}");
-  if (!/window\.FDB_OURS\s*=/.test(js) || start < 0 || end < start) throw new Error("Frontier Design: data file changed");
-  const data = JSON.parse(js.slice(start, end + 1)) as DesignBoard;
-  if (!data.board?.overall?.standings?.length) throw new Error("Frontier Design: no standings");
+  if (!/window\.FDB_OURS\s*=/.test(js)) throw new Error("Frontier Design: data file changed");
+  const data = findJsObject(js, ["board"]) as DesignBoard | undefined;
+  if (!data?.board?.overall?.standings?.length) throw new Error("Frontier Design: no standings");
   return data;
 }
 
-/** The scorecard is one JSON line inside the script: `const DATA = {...};`. */
+/** The scorecard is an object literal inside the script, found by its `meta` and `models` keys (once `const DATA = {...};`). */
 export function readDesignRubric(js: string): DesignRubric {
-  const json = js.match(/^\s*const DATA = (\{.*\});\s*$/m)?.[1];
-  if (!json) throw new Error("Frontier Design: rubric file changed");
-  const data = JSON.parse(json) as DesignRubric;
+  const data = findJsObject(js, ["meta", "models"]) as DesignRubric | undefined;
+  if (!data) throw new Error("Frontier Design: rubric file changed");
   if (!data.models?.length) throw new Error("Frontier Design: no rubric scores");
   return data;
 }

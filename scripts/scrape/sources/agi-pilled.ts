@@ -8,6 +8,8 @@ const dataSchema = z.object({
   now: z.number().int(),
   never_sentinel: z.number().positive(),
   events: z.array(z.string()).min(1),
+  /** The milestones in the score. A milestone added to `events` is not scored until every model has its runs. */
+  score_events: z.array(z.string()).min(1).optional(),
   models: z.array(z.object({
     id: z.string().min(1), name: z.string().min(1), effort,
     score: z.number().finite().nonnegative(),
@@ -18,7 +20,8 @@ const dataSchema = z.object({
 
 export function parseAgiPilled(json: unknown): ScrapeResult {
   const d = dataSchema.parse(json);
-  const runsPerMilestone = d.models[0].n / d.events.length;
+  const scored = d.score_events ?? d.events;
+  const runsPerMilestone = d.models[0].n / scored.length;
   if (!Number.isInteger(runsPerMilestone) || d.models.some(m => m.n !== d.models[0].n)) {
     throw new Error("AGI-Pilled: incomplete or unequal response coverage");
   }
@@ -32,13 +35,13 @@ export function parseAgiPilled(json: unknown): ScrapeResult {
   return {
     benchmarks: [{
       id: AGI_PILLED_ID, name: "AGI-Pilled Bench", sourceId: "agi-pilled", url: AGI_PILLED_URL,
-      description: `Median forecast in years after ${d.now} for ${d.events.length} AI milestones. Lower means more AGI-pilled. ${runsPerMilestone} runs per milestone; the IMO control is excluded.`,
+      description: `Median forecast in years after ${d.now} for ${scored.length} AI milestones. Lower means more AGI-pilled. ${runsPerMilestone} runs per milestone; the IMO control is excluded.`,
       unit: "count", higherIsBetter: false, category: "other", defaultWeight: 0, eligibleForDefault: false,
     }],
     rows: d.models.map((m, i) => ({
       benchmarkId: AGI_PILLED_ID, modelLabel: m.name, effort: m.effort,
       value: m.score, ci: m.ci, rank: i + 1, sourceUrl: AGI_PILLED_URL,
-      details: { sourceSettingId: m.id, scoreUnit: "years after 2026", scoredResponses: m.n, milestones: d.events.length, neverSentinel: d.never_sentinel },
+      details: { sourceSettingId: m.id, scoreUnit: "years after 2026", scoredResponses: m.n, milestones: scored.length, neverSentinel: d.never_sentinel },
       note: `90% bootstrap confidence interval; ${m.n} scored responses; lower = more AGI-pilled`,
     })),
     raw: { "data.json": JSON.stringify(json) },

@@ -73,13 +73,13 @@ function validDate(value: unknown): value is string {
   const date = new Date(`${value}T00:00:00.000Z`);
   return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value;
 }
-/** The model catalog is the object literal keyed "provider/model"; the bundler renames its constant between deploys (`p`, `_`, ...). */
+/** The model catalog is the object literal keyed "provider/model" with an object per model (an alias map of strings sits beside it); the bundler renames its constant between deploys (`p`, `_`, ...). */
 function catalogBinding(ast: ts.SourceFile): ts.Expression {
   for (const statement of ast.statements) {
     if (!ts.isVariableStatement(statement)) continue;
     for (const d of statement.declarationList.declarations) {
       const init = d.initializer;
-      if (init && ts.isObjectLiteralExpression(init) && init.properties.some((p) => ts.isPropertyAssignment(p) && /^[^/]+\/[^/]+$/.test(propName(p.name) ?? ""))) return init;
+      if (init && ts.isObjectLiteralExpression(init) && init.properties.some((p) => ts.isPropertyAssignment(p) && ts.isObjectLiteralExpression(p.initializer) && /^[^/]+\/[^/]+$/.test(propName(p.name) ?? ""))) return init;
     }
   }
   throw new Error("VALS RSI: model catalog binding missing");

@@ -123,7 +123,8 @@ function astroComponentUrl(html: string, componentName: string): string {
  * deploys (`p`, `_`, ...), so it is found by shape: a map of "provider/model" keys to records.
  */
 export function findValsCatalogStart(source: string): number {
-  const declaration = /(?:const|let|var)\s+[\w$]+\s*=\s*(?=\{\s*["']?[^"':{}\s]+\/[^"':{}\s]+["']?\s*:\s*\{)/.exec(source);
+  // The catalog may be a later binding in a shared declaration (`var e={alias map},t={catalog}`), so a comma counts as a start too.
+  const declaration = /(?:(?:const|let|var)\s+|,\s*)[\w$]+\s*=\s*(?=\{\s*["'`]?[^"'`:{}\s]+\/[^"'`:{}\s]+["'`]?\s*:\s*\{)/.exec(source);
   if (!declaration) throw new Error("Vals AI model catalog: model object missing");
   return declaration.index + declaration[0].length;
 }

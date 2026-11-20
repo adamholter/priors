@@ -56,6 +56,9 @@ describe("Vals AI Astro benchmark payload", () => {
     });
     expect(parseValsModelCatalogEntry(catalogFixture, "openai/gpt-6-astra-old")).toMatchObject({ label: "GPT-6 Astra" });
     expect(() => parseValsModelCatalog("export default {};")).toThrow(/model object missing/);
+    // Since November 2026 an alias map of strings is declared first, in the same `var`.
+    const withAliases = catalogFixture.replace("const p=", 'var e={"fireworks/kimi-k3":`kimi/kimi-k3`},p=');
+    expect(Object.keys(parseValsModelCatalog(withAliases))).toEqual(["openai/gpt-6-astra", "anthropic/claude-opus-5-5"]);
   });
 
   it("emits every overall score with source update and metric provenance", async () => {
