@@ -393,6 +393,8 @@ const RESEARCHED: Record<string, BenchmarkFacts> = {
 const OVERRIDES: Record<string, BenchmarkFacts> = {
   // Added 2026-11-20 by hand: the six prompts are shown in the launch video, and the author grades every app himself.
   "kingbench-4": { test: "public", testNote: "The six build prompts are shown in AICodeKing's launch video; the author runs each model in its coding tool and grades every app himself, out of 10.", testUrl: "https://www.youtube.com/watch?v=cAIvhxVx0kU", released: "2026-10-10", grading: "human-judge" },
+  // Added 2026-11-20 by hand: the method page says the 14 tasks were built for the benchmark and publishes none; it does not say who the two graders are.
+  "corpo-index": { test: "private", testNote: "The 14 consulting-style tasks were built for the benchmark and are not published; the method page describes them but shows none.", testUrl: "https://local-bench.ai/method/", released: "2026-10-17" },
 };
 
 export const BENCHMARK_FACTS: Record<string, BenchmarkFacts> = { ...RESEARCHED, ...Object.fromEntries(Object.entries(OVERRIDES).map(([id, f]) => [id, { ...RESEARCHED[id], ...f }])) };

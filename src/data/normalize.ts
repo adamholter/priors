@@ -309,6 +309,8 @@ export function normalizeLabel(label: string, effortHint?: string): Normalized |
   };
   // Hy4 preview and final Hy4 are different models, with different weights and scores, so "preview" is not noise here.
   if (/\bhy[\s-]*4[\s-]*preview\b/.test(cleaned)) return { ok: true, modelId: "hy-4-preview", modelName: "Hy4 preview", labId: "tencent", effort, reasoningFamily: true, cleaned };
+  // Hy4 Flash (2026-11-16) is Tencent's cheaper, smaller Hy4, not Hy4 with a speed setting, so "flash" is not noise here either.
+  if (/\bhy[\s-]*4[\s-]*flash\b/.test(cleaned)) return { ok: true, modelId: "hy-4-flash", modelName: "Hy4 Flash", labId: "tencent", effort, reasoningFamily: true, cleaned };
   // o1-preview (Sept 2024) and o1 (Dec 2024) are different models with different scores, so "preview" is not noise here either.
   if (/\bo1[\s-]*preview\b/.test(cleaned)) return { ok: true, modelId: "o1-preview", modelName: "o1-preview", labId: "openai", effort, reasoningFamily: true, cleaned };
   // StepFun's Step 5 Preview keeps the id Artificial Analysis gave it (no StepFun lab entry yet), so other boards join AA's rows.
