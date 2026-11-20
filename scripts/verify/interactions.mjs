@@ -490,13 +490,21 @@ try {
       await c.goto(`${BASE}/benchmarks/aa-terminalbench-v4-0`, { waitUntil: "domcontentloaded" });
       const panel = c.locator("[data-quality-panel]");
       await panel.waitFor({ timeout: 30000 });
-      assert.deepEqual(await panel.locator("[data-factor]").evaluateAll((rows) => rows.map((r) => r.getAttribute("data-factor"))), ["saturation", "testSet", "recency", "objectivity", "frontier", "breadth"], "the six parts, in the methodology's order");
+      assert.deepEqual(await panel.locator("[data-factor]").evaluateAll((rows) => rows.map((r) => r.getAttribute("data-factor"))), ["saturation", "testSet", "recency", "objectivity", "frontier", "efforts", "breadth"], "the seven parts, in the methodology's order");
       const score = Number(await panel.locator("[data-quality-score]").innerText());
       assert.ok(score > 0 && score <= 100, "a 0 to 100 score");
       assert.match(await c.locator("[data-quality-summary]").innerText(), new RegExp(`Quality ${score} of 100`), "the summary under the title carries the same score");
-      assert.match(await panel.locator("[data-factor=testSet]").innerText(), /test set/i, "the test-set part says whether it is public");
-      // Each part is 0 to 100 and the points shown add up to the score, with the added and taken-away lines, within rounding and the 0 to 100 cap.
-      const points = await panel.locator(".quality-points").evaluateAll((cells) => cells.map((x) => Number((x.textContent.split("·").pop() ?? "").replace("−", "-").replace("+", "").trim())));
+      assert.match(await panel.locator("[data-factor=testSet]").innerText(), /Public|Private|Partly private|Unknown/, "the test-set card says whether it is public");
+      // Every card answers in a few words and shows its score on a ring out of 100.
+      for (const card of await panel.locator("[data-factor]").all()) {
+        assert.ok((await card.locator(".quality-summary").innerText()).length > 0, "a short answer");
+        assert.match(await card.locator(".quality-dial").getAttribute("aria-label"), / \d+ of 100$/);
+      }
+      // The working-out stays closed until asked for; its points add up to the score, with the added and taken-away lines, within rounding and the 0 to 100 cap.
+      assert.equal(await panel.locator(".quality-more dl").isVisible(), false, "the methodology is out of the way");
+      await panel.getByText("How each part was worked out").click();
+      const points = await panel.locator(".quality-more dt .cap").evaluateAll((cells) => cells.map((x) => Number((x.textContent.split("·").pop() ?? "").replace("−", "-").replace("+", "").trim())));
+      points.push(...await panel.locator("[data-adjust] b").evaluateAll((cells) => cells.map((x) => Number(x.textContent.replace("−", "-").replace("+", "")))));
       const sum = points.reduce((a, b) => a + b, 0);
       assert.ok(Math.abs(Math.min(100, Math.max(0, sum)) - score) <= 1.5, `the lines add up to the score (${sum.toFixed(1)} vs ${score})`);
       const star = c.locator("[data-benchmark-star='aa-terminalbench-v4-0']").first();
@@ -516,9 +524,9 @@ try {
       for (let tries = 0; tries < 20 && !(await c.locator(".bench-dir[data-view=factors]").count()); tries++) { await c.getByRole("group", { name: "Columns" }).getByRole("button", { name: "Quality factors" }).click(); await c.waitForTimeout(250); }
       await c.locator(".bench-dir[data-view=factors]").waitFor({ timeout: 5000 });
       const head = (await c.locator(".bench-head").innerText()).toLowerCase();
-      for (const name of ["headroom", "test set", "recency", "grading", "new models", "breadth", "quality", "stars"]) assert.ok(head.includes(name), `a ${name} column`);
+      for (const name of ["headroom", "test set", "recency", "grading", "new models", "efforts", "breadth", "quality", "stars"]) assert.ok(head.includes(name), `a ${name} column`);
       const first = c.locator(".bench-row").first();
-      assert.equal(await first.locator("[data-factor]").count(), 6, "six parts per row");
+      assert.equal(await first.locator("[data-factor]").count(), 7, "seven parts per row");
       assert.match(await first.locator("[data-factor=testSet]").innerText(), /Private|Partly private|Public|Unknown/);
       await c.getByLabel("Sort").selectOption("testSet");
       await c.waitForFunction(() => /Private/.test(document.querySelector(".bench-row [data-factor=testSet]")?.textContent ?? ""), null, { timeout: 5000 });

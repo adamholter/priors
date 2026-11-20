@@ -1,16 +1,29 @@
-/* A benchmark page's quality panel (QualityPanel.tsx): one line per factor. */
-.quality-rows{display:grid;grid-template-columns:max-content 150px max-content minmax(0,1fr);column-gap:16px;font-size:13px}
-.quality-row{display:grid;grid-template-columns:subgrid;grid-column:1/-1;align-items:start;line-height:1.5;padding:8px 0;border-top:1px solid var(--hair)}
-.quality-row:first-child{border-top:0}
-.quality-name{color:var(--ink)}
-.quality-bar{position:relative;display:flex;align-items:center;gap:8px;height:19.5px}
-.quality-bar i{display:block;height:6px;border-radius:2px;background:var(--indigo);min-width:2px;max-width:calc(100% - 34px)}
-.quality-bar b{font-weight:400;color:var(--ink)}
-.quality-points{white-space:nowrap}
-.quality-detail{color:var(--ink-2);line-height:1.5}
-@media (max-width:760px){
-  .quality-rows{grid-template-columns:minmax(0,1fr) max-content}
-  .quality-row{row-gap:4px}
-  .quality-bar{grid-column:1/-1;order:3}
-  .quality-detail{grid-column:1/-1;order:4}
-}
+/* A benchmark page's quality panel (QualityPanel.tsx): the overall dial, then one card per part of the score. */
+.quality-head{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:4px 16px;padding-bottom:8px;border-bottom:1px solid var(--hair)}
+
+.quality-dial{position:relative;display:inline-grid;place-items:center;flex:none}
+.quality-dial svg{position:absolute;inset:0}
+.quality-dial-track,.quality-dial-arc{fill:none;stroke-width:5}
+.quality-dial-track{stroke:var(--hair)}
+.quality-dial-arc{stroke:var(--indigo);stroke-linecap:round}
+.quality-dial b{position:relative;font-weight:400;font-size:15px;color:var(--ink)}
+.is-total .quality-dial b{font-size:18px}
+.is-total{border-color:color-mix(in srgb,var(--indigo) 35%,var(--hair))}
+.is-total .quality-summary{font-size:15px}
+.quality-ask b{font-weight:400;color:var(--ink)}
+
+.quality-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px}
+.quality-card{display:grid;gap:10px;align-content:start;padding:12px 14px 14px;border:1px solid var(--hair);border-radius:6px;background:var(--white)}
+.quality-card-top{display:flex;align-items:center;gap:8px;min-width:0}
+.quality-icon{display:grid;place-items:center;flex:none;width:28px;height:28px;border-radius:6px;background:var(--indigo-soft);color:var(--indigo)}
+.quality-name{font-size:13.5px;font-weight:500;color:var(--ink)}
+.quality-share{margin-left:auto;cursor:help}
+.quality-card-body{display:flex;align-items:center;gap:12px;min-width:0}
+.quality-summary{font-size:14px;line-height:1.3;color:var(--ink)}
+.quality-ask{margin-top:3px;font-size:12px;line-height:1.35;color:var(--grey)}
+
+
+.quality-more dl{display:grid;gap:10px;margin:12px 0;max-width:72ch;font-size:13px}
+.quality-more dt{color:var(--ink)}
+.quality-more dd{color:var(--ink-2);line-height:1.5}
+@media (max-width:520px){.quality-grid{grid-template-columns:minmax(0,1fr);gap:8px}.quality-card{gap:8px;padding:10px 12px 12px}}

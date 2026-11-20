@@ -55,7 +55,7 @@ const SORTS: { id: Sort; name: string; factors?: true }[] = [
   { id: "recommended", name: "Recommended" }, { id: "uses", name: "Most used in mixes" }, { id: "stars", name: "Most starred" }, { id: "quality", name: "Quality" },
   { id: "models", name: "Most models" }, { id: "updated", name: "Recently updated" }, { id: "name", name: "A to Z" },
   { id: "saturation", name: "Most headroom", factors: true }, { id: "testSet", name: "Private test sets first", factors: true }, { id: "recency", name: "Newest benchmarks", factors: true },
-  { id: "objectivity", name: "Most objective grading", factors: true }, { id: "frontier", name: "Adds new models fastest", factors: true }, { id: "breadth", name: "Broadest", factors: true },
+  { id: "objectivity", name: "Most objective grading", factors: true }, { id: "frontier", name: "Adds new models fastest", factors: true }, { id: "efforts", name: "Tests several efforts", factors: true }, { id: "breadth", name: "Broadest", factors: true },
 ];
 const byFactor = (id: QualityFactorId) => (a: DirectoryItem, b: DirectoryItem) => factor(b, id) - factor(a, id) || b.quality - a.quality;
 const compare: Record<Sort, (a: DirectoryItem, b: DirectoryItem) => number> = {
@@ -66,7 +66,7 @@ const compare: Record<Sort, (a: DirectoryItem, b: DirectoryItem) => number> = {
   models: (a, b) => b.models - a.models,
   updated: (a, b) => (b.lastUpdated ?? "").localeCompare(a.lastUpdated ?? ""),
   name: (a, b) => a.name.localeCompare(b.name),
-  saturation: byFactor("saturation"), testSet: byFactor("testSet"), recency: byFactor("recency"), objectivity: byFactor("objectivity"), frontier: byFactor("frontier"), breadth: byFactor("breadth"),
+  saturation: byFactor("saturation"), testSet: byFactor("testSet"), recency: byFactor("recency"), objectivity: byFactor("objectivity"), frontier: byFactor("frontier"), efforts: byFactor("efforts"), breadth: byFactor("breadth"),
 };
 const title = categoryName;
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
@@ -77,7 +77,7 @@ export function BenchmarkDirectory({ items }: { items: DirectoryItem[] }) {
   const [category, setCategory] = useState("all");
   const [sort, setSort] = useState<Sort>("recommended");
   const [everything, setEverything] = useState(false);
-  // "factors": the columns are the six parts of the quality score instead of top model, models and mixes.
+  // "factors": the columns are the parts of the quality score instead of top model, models and mixes.
   const [view, setView] = useState<"overview" | "factors">("overview");
   const input = useRef<HTMLInputElement>(null);
   // "/" jumps to search from anywhere on the page.

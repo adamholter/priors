@@ -10,7 +10,8 @@ export const PREFERRED = ["deepswe-1.1", "aa-terminalbench-v4-0", "arc-agi-3", "
 
 export const FRONTIER_RELEASE_DATE = "2026-09-22";
 /** The score's recipe: shares of each 0-100 part, then points added or taken away. The methodology page and every breakdown read these. */
-export const QUALITY_WEIGHTS = { saturation: 0.25, testSet: 0.2, recency: 0.15, objectivity: 0.15, frontier: 0.15, breadth: 0.1 } as const;
+// Efforts joined on 2026-11-20 (Adam: a model tested at several reasoning efforts tells more), taking 5 points from Headroom and 5 from Breadth.
+export const QUALITY_WEIGHTS = { saturation: 0.2, testSet: 0.2, recency: 0.15, objectivity: 0.15, frontier: 0.15, efforts: 0.1, breadth: 0.05 } as const;
 export const QUALITY_ADJUST = { preferred: 15, superseded: -25, staleFrontier: -20 } as const;
 /** What a test set's openness scores: a public set can be trained on, a private one cannot. Unknown is neutral. */
 export const TEST_SET_SCORE = { private: 100, partial: 70, public: 30, unknown: 50 } as const;
@@ -20,14 +21,20 @@ export const REFRESHED_SCORE = { private: 100, partial: 85, public: 65, unknown:
 export const GRADING_SCORE = { automatic: 85, mixed: 70, "llm-judge": 60, "human-judge": 55, "human-votes": 40 } as const;
 export const SELF_REPORTED = -10;
 export type QualityFactorId = keyof typeof QUALITY_WEIGHTS;
-/** Display order and names: the same in the directory, a benchmark's page and the methodology page. */
-export const QUALITY_FACTORS: { id: QualityFactorId; name: string; how: string }[] = [
-  { id: "saturation", name: "Headroom", how: "Room left at the top and spread between models. A benchmark near its ceiling, or where every model scores the same, tells little." },
-  { id: "testSet", name: "Test set", how: `Whether the scored tasks are public. Private scores ${TEST_SET_SCORE.private}, partly private ${TEST_SET_SCORE.partial}, public ${TEST_SET_SCORE.public}, unknown ${TEST_SET_SCORE.unknown}. A set whose questions are replaced on a schedule scores higher (public ${REFRESHED_SCORE.public}, partly private ${REFRESHED_SCORE.partial}).` },
-  { id: "recency", name: "Recency", how: "How recently the benchmark was released. Full credit for 90 days, then falling to zero by about two years. Unknown dates score 50." },
-  { id: "objectivity", name: "Grading", how: `How objective the grading is: exact answers and tests score high (${GRADING_SCORE.automatic}), model judges ${GRADING_SCORE["llm-judge"]}, human judges ${GRADING_SCORE["human-judge"]}, votes ${GRADING_SCORE["human-votes"]}. Scores the labs report themselves lose ${-SELF_REPORTED}. A few are set by hand.` },
-  { id: "frontier", name: "New models", how: `How quickly it scores new models, measured from Priors' daily history: full credit for a model scored within ${FAST_DAYS} days of release, none after ${SLOW_DAYS} or never, with widely tested models counting most. Where too few new models have come out to tell, the share of today's 10 default lineup models it has measured.` },
-  { id: "breadth", name: "Breadth", how: "How many models it has measured in all, with full credit at 40." },
+/** Efforts: full credit when this share (percent) of multi-effort models is measured at two or more efforts. */
+export const EFFORTS_FULL_AT = 50;
+/**
+ * Display order and names: the same in the directory, a benchmark's page and the methodology page. `ask` is the question each part
+ * answers, the line a benchmark page shows under its name.
+ */
+export const QUALITY_FACTORS: { id: QualityFactorId; name: string; ask: string; how: string }[] = [
+  { id: "saturation", name: "Headroom", ask: "Can top models still improve on it?", how: "Room left at the top and spread between models. A benchmark near its ceiling, or where every model scores the same, tells little." },
+  { id: "testSet", name: "Test set", ask: "Could labs train on the questions?", how: `Whether the scored tasks are public. Private scores ${TEST_SET_SCORE.private}, partly private ${TEST_SET_SCORE.partial}, public ${TEST_SET_SCORE.public}, unknown ${TEST_SET_SCORE.unknown}. A set whose questions are replaced on a schedule scores higher (public ${REFRESHED_SCORE.public}, partly private ${REFRESHED_SCORE.partial}).` },
+  { id: "recency", name: "Recency", ask: "How new is it?", how: "How recently the benchmark was released. Full credit for 90 days, then falling to zero by about two years. Unknown dates score 50." },
+  { id: "objectivity", name: "Grading", ask: "How are answers scored?", how: `How objective the grading is: exact answers and tests score high (${GRADING_SCORE.automatic}), model judges ${GRADING_SCORE["llm-judge"]}, human judges ${GRADING_SCORE["human-judge"]}, votes ${GRADING_SCORE["human-votes"]}. Scores the labs report themselves lose ${-SELF_REPORTED}. A few are set by hand.` },
+  { id: "frontier", name: "New models", ask: "How fast does it test new releases?", how: `How quickly it scores new models, measured from Priors' daily history: full credit for a model scored within ${FAST_DAYS} days of release, none after ${SLOW_DAYS} or never, with widely tested models counting most. Where too few new models have come out to tell, the share of today's 10 default lineup models it has measured.` },
+  { id: "efforts", name: "Efforts", ask: "Does it test each model at several reasoning efforts?", how: `Of the models it measured that come in more than one reasoning effort, the share it measured at two or more. Full credit at ${EFFORTS_FULL_AT}%; a benchmark with too few such models scores 50.` },
+  { id: "breadth", name: "Breadth", ask: "How many models has it measured?", how: "How many models it has measured in all, with full credit at 40." },
 ];
 export const BREADTH_FULL_AT = 40;
 
@@ -35,8 +42,11 @@ export const BREADTH_FULL_AT = 40;
 export const NOT_SERIOUS = new Set(["khalilbench"]);
 export const SUPERSEDED = new Set(["aa-terminalbench-v2-1", "terminalbench-4", "arc-agi-1", "arc-agi-2", "deepswe-1", "aa-math-500", "aa-humanitys-last-exam"]);
 
-/** One weighted part of the score, as shown: its 0-100 score, its share, the points it adds, and what it rests on for this benchmark. */
-export interface QualityFactor { id: QualityFactorId; name: string; score: number; weight: number; points: number; detail: string }
+/**
+ * One weighted part of the score, as shown: its 0-100 score, its share, the points it adds, a few words that answer its question for
+ * this benchmark (`summary`, "Public", "16 models") and the sentence it rests on (`detail`).
+ */
+export interface QualityFactor { id: QualityFactorId; name: string; score: number; weight: number; points: number; summary: string; detail: string }
 export interface QualityAdjustment { id: keyof typeof QUALITY_ADJUST; label: string; points: number }
 
 export interface BenchmarkQuality {
@@ -182,7 +192,26 @@ function normalizedValue(benchmark: Benchmark, value: number): number | undefine
   return undefined;
 }
 
-type QualityRow = { modelId: string; value: number };
+type QualityRow = { modelId: string; value: number; effort?: string };
+
+/** The mean normalized score of the top quarter of models, one score per model, or undefined when the unit cannot be normalized. */
+function topQuarter(benchmark: Benchmark, rows: QualityRow[]): number | undefined {
+  const byModel = new Map<string, number>();
+  for (const row of rows) { const v = normalizedValue(benchmark, row.value); if (v != null) byModel.set(row.modelId, Math.max(v, byModel.get(row.modelId) ?? -Infinity)); }
+  const scores = [...byModel.values()].sort((a, b) => a - b), top = scores.slice(Math.floor(scores.length * 0.75));
+  return top.length ? top.reduce((a, b) => a + b, 0) / top.length : undefined;
+}
+
+/** Reasoning efforts, as opposed to a model's one unnamed setting ("default"). */
+const isEffort = (e?: string) => !!e && e !== "default";
+
+/** Of the measured models that come in several efforts anywhere in Priors, how many this benchmark measured at two or more. */
+function effortsCoverage(rows: QualityRow[], multiEffort: Set<string>): { models: number; several: number; score: number } {
+  const seen = new Map<string, Set<string>>();
+  for (const r of rows) if (multiEffort.has(r.modelId)) { const s = seen.get(r.modelId) ?? new Set(); if (isEffort(r.effort)) s.add(r.effort!); seen.set(r.modelId, s); }
+  const several = [...seen.values()].filter((s) => s.size > 1).length;
+  return { models: seen.size, several, score: seen.size < 3 ? 50 : rounded((100 * several / seen.size) * (100 / EFFORTS_FULL_AT)) };
+}
 
 function saturationScore(benchmark: Benchmark, rows: QualityRow[]): number {
   // Multiple effort/config rows for one model must not make the benchmark look more saturated.
@@ -216,6 +245,8 @@ function objectivityScore(benchmark: Benchmark): number {
 }
 
 const GRADING_WORDS = { automatic: "Graded automatically (exact answers, tests or a programmatic check)", mixed: "Graded partly automatically and partly by judges", "llm-judge": "Graded by a model judge", "human-judge": "Graded by human judges", "human-votes": "Ranked by people's votes" } as const;
+const GRADING_SHORT = { automatic: "Checked automatically", mixed: "Partly automatic", "llm-judge": "A model judges", "human-judge": "People judge", "human-votes": "People vote" } as const;
+const TEST_SET_NAME = { private: "Private", partial: "Partly private", public: "Public", unknown: "Unknown" } as const;
 const TEST_SET_WORDS = { private: "Private test set", partial: "Partly private test set", public: "Public test set", unknown: "Not known whether the test set is public" } as const;
 /** A researched date may be a month: the 15th stands in for the day. */
 const fullDate = (d?: string) => !d ? undefined : /^\d{4}-\d{2}$/.test(d) ? `${d}-15` : /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : undefined;
@@ -245,10 +276,15 @@ export function affinity(q: BenchmarkQuality, focus: Focus, benchmark: Benchmark
 
 export function benchmarkQuality(snapshot: Snapshot, cohort: string[] = defaultLineup(snapshot, 10)): BenchmarkQuality[] {
   const variantModels = new Map(snapshot.variants.map((variant) => [variant.id, variant.modelId]));
+  const variantEfforts = new Map(snapshot.variants.map((variant) => [variant.id, variant.effort]));
+  // Models that come in more than one reasoning effort somewhere in Priors: the ones a benchmark could test at several.
+  const effortsOf = new Map<string, Set<string>>();
+  for (const v of snapshot.variants) if (isEffort(v.effort)) (effortsOf.get(v.modelId) ?? effortsOf.set(v.modelId, new Set()).get(v.modelId)!).add(v.effort!);
+  const multiEffort = new Set([...effortsOf].filter(([, s]) => s.size > 1).map(([id]) => id));
   const rowsByBenchmark = new Map<string, QualityRow[]>();
   for (const observation of snapshot.observations) {
     const rows = rowsByBenchmark.get(observation.benchmarkId) ?? [];
-    rows.push({ modelId: variantModels.get(observation.variantId) ?? observation.variantId.split("@")[0], value: observation.value });
+    rows.push({ modelId: variantModels.get(observation.variantId) ?? observation.variantId.split("@")[0], value: observation.value, effort: variantEfforts.get(observation.variantId) ?? observation.variantId.split("@")[1] });
     rowsByBenchmark.set(observation.benchmarkId, rows);
   }
   const llms = new Set(snapshot.models.filter((model) => model.kind === "llm").map((model) => model.id));
@@ -271,15 +307,27 @@ export function benchmarkQuality(snapshot: Snapshot, cohort: string[] = defaultL
     const staleFrontier = snapshot.date >= FRONTIER_RELEASE_DATE && !!benchmark.lastUpdated && benchmark.lastUpdated < FRONTIER_RELEASE_DATE;
     const serious = !NOT_SERIOUS.has(benchmark.id);
     const dateConfidence = verified ? "verified" as const : researched ? "researched" as const : "unknown" as const;
+    const efforts = effortsCoverage(rows, multiEffort), top = topQuarter(benchmark, rows);
+    const released = releaseDate ? new Date(`${releaseDate}T12:00:00Z`) : undefined, ageDays = released ? Math.round((Date.parse(snapshot.date) - released.getTime()) / 86_400_000) : undefined;
+    const summaries: Record<QualityFactorId, string> = {
+      saturation: top != null ? `Top models average ${Math.round(top)} of 100` : saturation >= 70 ? "Plenty of room" : saturation >= 40 ? "Some room left" : "Little room left",
+      testSet: `${TEST_SET_NAME[testSet]}${facts.refreshed ? ", refreshed" : ""}`,
+      recency: released ? `${ageDays != null && ageDays < 60 ? `${Math.max(0, ageDays)} days old` : ageDays != null && ageDays < 730 ? `${Math.round(ageDays / 30.4)} months old` : `${Math.round((ageDays ?? 0) / 365)} years old`}` : "Release date unknown",
+      objectivity: OBJECTIVITY[benchmark.id] != null ? (objectivity >= 85 ? "Exact answers or tests" : objectivity >= 70 ? "Mostly checked automatically" : "Partly judged") : facts.grading ? GRADING_SHORT[facts.grading] : "Not researched",
+      frontier: added ? `${added.added} of ${added.of} new models${added.medianDays != null ? `, ${added.medianDays === 0 ? "same day" : `~${added.medianDays}d`}` : ""}` : frontier.total ? `${frontier.measured} of ${frontier.total} top models` : `${measured} models`,
+      efforts: efforts.models < 3 ? "Too few models to tell" : efforts.several ? `${efforts.several} of ${efforts.models} models at 2+ efforts` : "One effort per model",
+      breadth: `${measured} model${measured === 1 ? "" : "s"}`,
+    };
     const details: Record<QualityFactorId, [score: number, detail: string]> = {
       saturation: [saturation, "From the spread of published scores and the room left above the top quarter of models, one score per model."],
       testSet: [testSetScore, `${TEST_SET_WORDS[testSet]}${facts.refreshed ? ", with questions replaced on a schedule" : ""}.${facts.testNote ? ` ${facts.testNote}` : ""}`],
       recency: [recency, releaseDate ? `Released ${facts.released && !verified && /^\d{4}-\d{2}$/.test(facts.released) ? facts.released : releaseDate}${dateConfidence === "researched" ? " (from the publisher's pages, not yet checked by hand)" : ""}.` : "Release date not known, so recency is held at 50."],
       objectivity: [objectivity, OBJECTIVITY[benchmark.id] != null ? "Set by hand from how answers are graded." : facts.grading ? `${GRADING_WORDS[facts.grading]}${facts.selfReported ? "; labs report their own scores" : ""}.` : "Judged from its unit and description; the grading method has not been researched."],
       frontier: [frontierScore, added ? `Scored ${added.added} of the ${added.of} notable models released since Priors began watching it${added.medianDays != null ? `, typically ${added.medianDays === 0 ? "on release day" : `${added.medianDays} day${added.medianDays === 1 ? "" : "s"} after release`}` : ""}.` : frontier.total ? `Has measured ${frontier.measured} of today's ${frontier.total} default lineup models. Too few new models to time how quickly it adds them.` : `${measured} models measured.`],
+      efforts: [efforts.score, efforts.models < 3 ? "Fewer than three of its models come in more than one reasoning effort, so this is held at 50." : `Measured ${efforts.several} of the ${efforts.models} models that come in more than one reasoning effort at two or more of them.`],
       breadth: [coverage, `${measured} model${measured === 1 ? "" : "s"} measured.`],
     };
-    const factors: QualityFactor[] = QUALITY_FACTORS.map(({ id, name }) => ({ id, name, score: details[id][0], weight: QUALITY_WEIGHTS[id], points: Math.round(details[id][0] * QUALITY_WEIGHTS[id] * 10) / 10, detail: details[id][1] }));
+    const factors: QualityFactor[] = QUALITY_FACTORS.map(({ id, name }) => ({ id, name, score: details[id][0], weight: QUALITY_WEIGHTS[id], points: Math.round(details[id][0] * QUALITY_WEIGHTS[id] * 10) / 10, summary: summaries[id], detail: details[id][1] }));
     const adjustments: QualityAdjustment[] = [
       ...(preferred ? [{ id: "preferred" as const, label: "A benchmark Priors prefers", points: QUALITY_ADJUST.preferred }] : []),
       ...(superseded ? [{ id: "superseded" as const, label: "An older version with a replacement", points: QUALITY_ADJUST.superseded }] : []),

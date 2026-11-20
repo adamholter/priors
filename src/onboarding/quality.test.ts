@@ -54,10 +54,10 @@ describe("benchmarkQuality", () => {
     expect(result.find((x) => x.id === "terminalbench-4")!.score).toBeGreaterThan(result.find((x) => x.id === "aa-terminalbench-v2-1")!.score);
   });
 
-  it("adds the +15 preferred-benchmark contribution on top of the six weighted parts", () => {
+  it("adds the +15 preferred-benchmark contribution on top of the seven weighted parts", () => {
     const q = benchmarkQuality(snapshot([benchmark("deepswe-1.1")], [["deepswe-1.1", "a@low", 40], ["deepswe-1.1", "b@low", 60]]))[0];
     expect(q.preferred).toBe(true);
-    expect(q.factors.map((f) => f.id)).toEqual(["saturation", "testSet", "recency", "objectivity", "frontier", "breadth"]);
+    expect(q.factors.map((f) => f.id)).toEqual(["saturation", "testSet", "recency", "objectivity", "frontier", "efforts", "breadth"]);
     expect(q.factors.reduce((sum, f) => sum + f.weight, 0)).toBeCloseTo(1, 10);
     const base = q.factors.reduce((sum, f) => sum + f.score * f.weight, 0);
     expect(q.adjustments).toEqual([expect.objectContaining({ id: "preferred", points: 15 })]);
@@ -139,3 +139,27 @@ describe("a benchmark its publisher stopped updating", () => {
   });
 });
 
+
+describe("efforts", () => {
+  const snap = (rows: [model: string, effort: string][], extra: [model: string, effort: string][] = []): Snapshot => ({
+    date: "2026-11-20", generatedAt: "2026-11-20T00:00:00Z", sources: [], labs: [],
+    models: ["a", "b", "c", "d"].map((id) => ({ id, name: id, labId: "x", kind: "llm" })),
+    variants: [...rows, ...extra].map(([m, e]) => ({ id: `${m}@${e}`, modelId: m, effort: e })),
+    benchmarks: [{ id: "bench", name: "Bench", sourceId: "s", url: "", description: "", unit: "percent", higherIsBetter: true, category: "coding" }, { id: "other", name: "Other", sourceId: "s", url: "", description: "", unit: "percent", higherIsBetter: true, category: "coding" }],
+    observations: [...rows.map(([m, e]) => ({ benchmarkId: "bench", variantId: `${m}@${e}`, value: 50 })), ...extra.map(([m, e]) => ({ benchmarkId: "other", variantId: `${m}@${e}`, value: 50 }))],
+  }) as unknown as Snapshot;
+  const effortsOf = (s: Snapshot) => benchmarkQuality(s, []).find((q) => q.id === "bench")!.factors.find((f) => f.id === "efforts")!;
+
+  it("scores the share of multi-effort models measured at two or more efforts, full at half", () => {
+    // a and b measured at two efforts here; c and d only at one here, though they have others elsewhere.
+    const f = effortsOf(snap([["a", "low"], ["a", "high"], ["b", "low"], ["b", "high"], ["c", "high"], ["d", "high"]], [["c", "low"], ["d", "low"]]));
+    expect(f.score).toBe(100);
+    expect(f.summary).toBe("2 of 4 models at 2+ efforts");
+    const one = effortsOf(snap([["a", "high"], ["b", "high"], ["c", "high"], ["d", "high"]], [["a", "low"], ["b", "low"], ["c", "low"], ["d", "low"]]));
+    expect([one.score, one.summary]).toEqual([0, "One effort per model"]);
+  });
+  it("does not count a model's unnamed default setting as a second effort, and holds at 50 with too few models", () => {
+    const f = effortsOf(snap([["a", "default"], ["a", "high"], ["b", "default"], ["b", "high"]], [["a", "low"], ["b", "low"]]));
+    expect([f.score, f.summary]).toEqual([50, "Too few models to tell"]);
+  });
+});

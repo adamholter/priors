@@ -12,8 +12,8 @@
 
 /* One grid for the header and every row, so each value sits under its own label. */
 .bench-head,.bench-dir .bench-row{display:grid;grid-template-columns:minmax(0,1fr) 148px 62px 58px 104px 46px;column-gap:14px}
-/* Quality factors: the six parts of the score take the place of top model, models and mixes. */
-.bench-dir[data-view=factors] .bench-head,.bench-dir[data-view=factors] .bench-row{grid-template-columns:minmax(0,1fr) 62px 96px 58px 58px 78px 58px 104px 46px;column-gap:12px}
+/* Quality factors: the parts of the score take the place of top model, models and mixes. */
+.bench-dir[data-view=factors] .bench-head,.bench-dir[data-view=factors] .bench-row{grid-template-columns:minmax(0,1fr) 62px 96px 58px 58px 78px 54px 58px 104px 46px;column-gap:12px}
 .bench-li{position:relative}
 .bench-star-cell{position:absolute;right:0;top:50%;transform:translateY(-50%);display:flex;justify-content:flex-end;width:46px}
 .bench-test.is-private{color:var(--ink)}

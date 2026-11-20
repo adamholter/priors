@@ -21,7 +21,7 @@ describe("benchmark pages", async () => {
     // Stars and the parts of the quality score ride along with each row.
     const starred = directoryItems(fake(true), new Map(benchmarkQuality(fake(true)).map((q) => [q.id, q])), { stars: { t: 3 }, uses: new Map([["t", 2]]) })[0];
     expect(starred).toMatchObject({ stars: 3, uses: 2, testSet: "unknown" });
-    expect(Object.keys(starred.factors).sort()).toEqual(["breadth", "frontier", "objectivity", "recency", "saturation", "testSet"]);
+    expect(Object.keys(starred.factors).sort()).toEqual(["breadth", "efforts", "frontier", "objectivity", "recency", "saturation", "testSet"]);
   });
 
   it("ranks the same from the trimmed snapshot as from the full one", () => {
