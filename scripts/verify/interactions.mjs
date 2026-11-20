@@ -2107,7 +2107,8 @@ try {
       await p.keyboard.press("ArrowRight");
       assert.equal(await p.getByRole("combobox", { name: "Inspect model calculation" }).isVisible(), true, "Breakdown shows one model's calculation");
       await p.keyboard.press("ArrowRight");
-      assert.equal(await dialog.locator(".calc-excluded li").count(), await leftOut(), "Left out lists every excluded variant");
+      assert.equal(await dialog.locator(".left-out li [data-efforts]").evaluateAll((els) => els.reduce((n, el) => n + el.getAttribute("data-efforts").split(", ").length, 0)), await leftOut(), "Left out lists every excluded variant, a model's efforts together");
+      assert.ok(await dialog.locator(".left-out li .lab-logo").count() > 0, "each row shows its lab");
       await p.keyboard.press("ArrowRight");
       assert.equal(await p.getByRole("link", { name: "Artificial Analysis methodology" }).isVisible(), true);
       assert.equal((await dialog.boundingBox()).y, top, "switching tabs does not move the dialog");

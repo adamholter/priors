@@ -1,0 +1,20 @@
+/* One model's breakdown in Calculation settings (ModelDetail.tsx): a row per benchmark with its 0 to 100 bar. */
+.md-rows { display: grid; grid-template-columns: minmax(0, 1fr) 60px minmax(90px, 130px) 36px; column-gap: 14px; row-gap: 0; align-content: start; }
+.md-rows > .cap { padding-bottom: 4px; border-bottom: 1px solid var(--hair); }
+.md-row { display: grid; grid-template-columns: subgrid; grid-column: 1 / -1; align-items: start; padding: 6px 0; border-bottom: 1px solid var(--hair); }
+.md-row > .num, .md-bar { line-height: 18px; }
+.md-note { display: block; margin-top: 1px; font-size: 11.5px; color: var(--indigo); }
+.md-note details { display: inline; margin-left: 4px; color: var(--grey); }
+.md-note summary { display: inline; cursor: pointer; text-decoration: underline dotted; text-underline-offset: 2px; list-style: none; }
+.md-note summary::-webkit-details-marker { display: none; }
+.md-note details[open] > span { display: block; margin-top: 3px; line-height: 1.45; }
+.md-bar { position: relative; display: flex; align-items: center; gap: 8px; height: 18px; }
+.md-bar i { display: block; flex: none; height: 5px; border-radius: 2px; background: var(--ink-2); max-width: calc(100% - 38px); }
+.md-row[data-estimated] .md-bar i { background: repeating-linear-gradient(-45deg, var(--indigo) 0 3px, color-mix(in srgb, var(--indigo) 45%, transparent) 3px 6px); }
+.md-bar b { font-weight: 400; font-size: 12px; color: var(--ink); }
+/* Phones: the name takes its own line, then source, bar and share under it. */
+@media (max-width: 719px) {
+  .md-rows { grid-template-columns: 52px minmax(0, 1fr) 34px; column-gap: 10px; }
+  .md-rows > .cap { display: none; }
+  .md-row > span:first-child { grid-column: 1 / -1; margin-bottom: 2px; }
+}

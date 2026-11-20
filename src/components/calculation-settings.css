@@ -52,8 +52,16 @@
 
 .calc-panel { display: grid; gap: 16px; padding-top: 22px; align-content: start; }
 .calc-panel h3 { font: 500 13px var(--font-sans); color: var(--ink); margin: 0; }
-.calc-excluded { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 28px; color: var(--ink); }
-.calc-excluded span { display: block; font-size: 12px; color: var(--grey); }
+.calc-panel h3 .cap { margin-left: 8px; font-weight: 400; }
+.left-out { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2px 28px; }
+.left-out li { display: grid; grid-template-columns: minmax(0, 1fr) 120px 34px; align-items: center; gap: 10px; min-height: 30px; padding: 3px 0; border-bottom: 1px solid var(--hair); color: var(--ink); }
+[data-left-out-reason="required"] .left-out li { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.left-out-name { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 13px; }
+.left-out-bar { position: relative; height: 6px; border-radius: 3px; background: var(--hair); }
+.left-out-bar i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 3px; background: var(--indigo); }
+.left-out-bar b { position: absolute; top: -4px; bottom: -4px; width: 2px; margin-left: -1px; background: var(--ink); }
+.left-out-pct { text-align: right; font-size: 12px; color: var(--ink-2); }
+.left-out-missing { font-size: 12px; color: var(--ink-2); }
 .calc-sources { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px 24px; font-size: 12px; color: var(--ink-2); }
 .calc-sources > :not(div) { grid-column: 1 / -1; width: fit-content; }
 .calc-sources > div { align-content: start; overflow-wrap: anywhere; }
@@ -69,7 +77,8 @@
   .calc-tabs button { flex: 1; justify-content: center; padding: 8px 4px; }
   .calc-row { grid-template-columns: minmax(0, 1fr); }
   .calc-methods { grid-template-columns: minmax(0, 1fr); gap: 6px; }
-  .calc-excluded, .calc-sources { grid-template-columns: minmax(0, 1fr); }
+  .left-out, .calc-sources { grid-template-columns: minmax(0, 1fr); }
+  .left-out li { grid-template-columns: minmax(0, 1fr) 56px 34px; gap: 8px; }
   .calc-strict { max-width: none; }
 }
 @media (pointer: coarse) {

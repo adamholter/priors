@@ -6,6 +6,7 @@ import { strictnessOf, type IndexConfig, type IndexResult } from "@/engine";
 import { AA_METHODOLOGY_URL } from "@/data/aa-index";
 import { ModelDetail } from "./ModelDetail";
 import { ScoringMethodChoice } from "./ScoringMethodChoice";
+import { LeftOut } from "./LeftOut";
 import "./calculation-settings.css";
 
 const DEFAULT_STRICTNESS = 50;
@@ -116,9 +117,7 @@ export function CalculationSettings({ trigger = true, config, result, snapshot, 
         </div>
 
         <div {...panel("excluded")} className="calc-panel">
-          {result.excluded.length
-            ? <ul className="calc-excluded">{result.excluded.map((r) => <li key={r.variant.id}>{r.model.name} · {r.variant.effort}<span>{r.reason === "coverage" ? `${Math.round(r.measuredShare * 100)}% of the mix measured, needs ${strictness}%` : `No score on ${r.missing.map((b) => snapshot.benchmarks.find((x) => x.id === b)?.name ?? b).join(", ")}`}</span></li>)}</ul>
-            : <p>Every model with data on this mix is ranked.</p>}
+          <LeftOut excluded={result.excluded} snapshot={snapshot} strictness={strictness} />
         </div>
 
         <div {...panel("sources")} className="calc-panel">

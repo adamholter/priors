@@ -483,3 +483,7 @@ select:not([multiple], .rl-m-compare select) { appearance: none; text-overflow: 
 @keyframes model-path-draw { to { stroke-dashoffset: 0; } }
 @keyframes model-path-show { to { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .model-path, .model-path-mark { animation: none; stroke-dashoffset: 0; opacity: 1; } }
+
+/* A lab's logo beside a model name (LabLogo.tsx). */
+.lab-logo{flex:none;display:inline-grid;place-items:center;border-radius:4px;object-fit:contain}
+.lab-letter{color:#fff;font:600 10px/1 var(--font-sans)}
