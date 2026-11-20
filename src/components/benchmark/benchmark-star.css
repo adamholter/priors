@@ -3,3 +3,5 @@
 .bench-star:hover{color:var(--ink);border-color:var(--hair-3)}
 .bench-star.is-on{color:var(--indigo);border-color:var(--indigo)}
 .bench-star:disabled{cursor:default;opacity:.6}
+/* Beside a quiet button (the info dialog): the same height and corners. */
+.bench-star.is-button{padding:6px 10px;border-radius:4px;line-height:1.5}

@@ -4,8 +4,8 @@
  * directory's recommended order); signed out, the star leads to sign-in and back. Convex is only touched for a signed-in visitor.
  */
 import Link from "next/link";
-import { useConvexAuth, useMutation, useQuery } from "convex/react";
-import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
+import { useConvex, useConvexAuth, useMutation, useQuery } from "convex/react";
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { IconStar, IconStarFilled } from "@tabler/icons-react";
 import { api } from "../../../convex/_generated/api";
 import { authEnabled, convexEnabled } from "@/app/providers";
@@ -61,4 +61,21 @@ export function BenchmarkStar({ id, name, count, label, className = "" }: { id: 
   const cls = `bench-star ${on ? "is-on" : ""} ${className}`;
   if (!stars) return <Link href="/sign-in" prefetch={false} className={cls} data-benchmark-star={id} aria-label={`Sign in to star ${name}${shown ? `, ${shown} star${shown === 1 ? "" : "s"}` : ""}`} title="Sign in to star this benchmark" onClick={stashReturn}>{body}</Link>;
   return <button type="button" className={cls} data-benchmark-star={id} aria-pressed={on} aria-label={`${on ? "Unstar" : "Star"} ${name}${shown ? `, ${shown} star${shown === 1 ? "" : "s"}` : ""}`} title={on ? "Remove your star" : "Star this benchmark"} disabled={!stars.ready} onClick={(e) => { e.preventDefault(); e.stopPropagation(); void stars.toggle(id); }}>{body}</button>;
+}
+
+/** A star with its own count and its own stars subscription, for a place outside a page that already has them (the info dialog). */
+export function StandaloneBenchmarkStar({ id, name }: { id: string; name: string }) {
+  return <BenchmarkStars>{convexEnabled ? <CountedStar id={id} name={name} /> : <BenchmarkStar id={id} name={name} count={0} label className="is-button" />}</BenchmarkStars>;
+}
+
+/** The count is fetched once, not subscribed to, and a failed fetch shows 0: a count must never take the page down with it. */
+function CountedStar({ id, name }: { id: string; name: string }) {
+  const convex = useConvex();
+  const [count, setCount] = useState<{ id: string; n: number } | null>(null);
+  useEffect(() => {
+    let live = true;
+    convex.query(api.benchmarkStars.counts, { ids: [id] }).then((c) => { if (live) setCount({ id, n: c[id] ?? 0 }); }, () => { if (live) setCount({ id, n: 0 }); });
+    return () => { live = false; };
+  }, [convex, id]);
+  return <BenchmarkStar key={count?.id === id ? "counted" : "counting"} id={id} name={name} count={count?.id === id ? count.n : 0} label className="is-button" />;
 }

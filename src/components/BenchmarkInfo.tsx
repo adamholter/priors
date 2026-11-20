@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef } from "react";
 import type { Benchmark, Snapshot } from "@/data/types";
 import { benchmarkPath } from "@/lib/benchmark-slug";
 import { useLabColor } from "./chart/echarts";
+import { StandaloneBenchmarkStar } from "./benchmark/BenchmarkStar";
 
 const UNIT: Record<string, string> = { percent: "Percent", elo: "Elo rating", score: "Score", usd: "US dollars", seconds: "Seconds", count: "Count" };
 
@@ -78,6 +79,7 @@ export function BenchmarkInfo({ snapshot, benchmarkId, inMix, onAdd, onClose }: 
       <div className="flex flex-wrap items-center justify-between gap-3 mt-6 pt-4 border-t hairline">
         <span className="flex flex-wrap items-center gap-x-5 gap-y-2">
           <Link href={benchmarkPath(b.id) as "/"} transitionTypes={["nav-forward"]} className="btn-quiet">Open in Priors</Link>
+          <StandaloneBenchmarkStar id={b.id} name={b.name} />
           {b.url && <a href={b.url} target="_blank" rel="noreferrer" className="text-[13px] text-indigo hover:underline">View on {data.host || "the source"} ↗</a>}
         </span>
         {onAdd && (inMix ? <span className="cap">In your mix</span> : <button type="button" className="btn-quiet" onClick={() => { onAdd(b.id); ref.current?.close(); }}>Add to your mix</button>)}

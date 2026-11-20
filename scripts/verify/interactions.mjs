@@ -1792,12 +1792,16 @@ try {
     } finally { await c.context().close(); }
   });
 
-  await check("a benchmark's info modal opens that benchmark in Priors", async () => {
+  await check("a benchmark's info modal can star it and opens that benchmark in Priors", async () => {
     const c = await browser.newPage({ viewport: { width: 1280, height: 900 } });
     try {
       await c.goto(`${BASE}/builder`, { waitUntil: "networkidle" });
       await c.getByRole("button", { name: "change the mix" }).click({ timeout: 30000 });
       await c.getByRole("button", { name: /^About / }).first().click();
+      // Signed out, the star is there and leads to sign-in, like the one on the benchmark's page.
+      const star = c.getByRole("dialog").locator("[data-benchmark-star]");
+      assert.equal(await star.getAttribute("href"), "/sign-in");
+      assert.match(await star.innerText(), /Star/);
       const link = c.getByRole("dialog").getByRole("link", { name: "Open in Priors" });
       const href = await link.getAttribute("href");
       assert.match(href, /^\/benchmarks\/./);
