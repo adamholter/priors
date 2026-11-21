@@ -9,7 +9,7 @@ if (!dir) { console.error("usage: node scripts/research/benchmark-facts.mjs <dir
 const files = readdirSync(dir).filter((f) => /^batch-\d+(\.verified)?\.json$/.test(f)).sort();
 const batches = new Map();
 for (const f of files) { const n = f.match(/^batch-(\d+)/)[1]; if (!batches.has(n) || f.includes("verified")) batches.set(n, f); }
-const TEST = new Set(["public", "partial", "private"]), GRADING = new Set(["automatic", "llm-judge", "human-judge", "human-votes", "mixed"]);
+const TEST = new Set(["public", "partial", "private"]), GRADING = new Set(["automatic", "llm-judge", "human-judge", "author-judge", "human-votes", "mixed"]);
 const today = new Date().toISOString().slice(0, 10);
 const clean = (s) => String(s ?? "").replace(/\s+/g, " ").trim();
 const facts = {}, skipped = [];

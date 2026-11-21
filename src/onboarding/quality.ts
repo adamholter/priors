@@ -18,7 +18,7 @@ export const TEST_SET_SCORE = { private: 100, partial: 70, public: 30, unknown: 
 /** A set that keeps replacing its questions resists training on the old ones, whatever is public. */
 export const REFRESHED_SCORE = { private: 100, partial: 85, public: 65, unknown: 65 } as const;
 /** Grading by method, where no hand-assigned objectivity exists. Self-reported scores lose `SELF_REPORTED`. */
-export const GRADING_SCORE = { automatic: 85, mixed: 70, "llm-judge": 60, "human-judge": 55, "human-votes": 40 } as const;
+export const GRADING_SCORE = { automatic: 85, mixed: 70, "llm-judge": 60, "human-judge": 55, "author-judge": 50, "human-votes": 40 } as const;
 export const SELF_REPORTED = -10;
 export type QualityFactorId = keyof typeof QUALITY_WEIGHTS;
 /** Efforts: full credit when this share (percent) of multi-effort models is measured at two or more efforts. */
@@ -31,7 +31,7 @@ export const QUALITY_FACTORS: { id: QualityFactorId; name: string; ask: string; 
   { id: "saturation", name: "Headroom", ask: "Can top models still improve on it?", how: "Room left at the top and spread between models. A benchmark near its ceiling, or where every model scores the same, tells little." },
   { id: "testSet", name: "Test set", ask: "Could labs train on the questions?", how: `Whether the scored tasks are public. Private scores ${TEST_SET_SCORE.private}, partly private ${TEST_SET_SCORE.partial}, public ${TEST_SET_SCORE.public}, unknown ${TEST_SET_SCORE.unknown}. A set whose questions are replaced on a schedule scores higher (public ${REFRESHED_SCORE.public}, partly private ${REFRESHED_SCORE.partial}).` },
   { id: "recency", name: "Recency", ask: "How new is it?", how: "How recently the benchmark was released. Full credit for 90 days, then falling to zero by about two years. Unknown dates score 50." },
-  { id: "objectivity", name: "Grading", ask: "How are answers scored?", how: `How objective the grading is: exact answers and tests score high (${GRADING_SCORE.automatic}), model judges ${GRADING_SCORE["llm-judge"]}, human judges ${GRADING_SCORE["human-judge"]}, votes ${GRADING_SCORE["human-votes"]}. Scores the labs report themselves lose ${-SELF_REPORTED}. A few are set by hand.` },
+  { id: "objectivity", name: "Grading", ask: "How are answers scored?", how: `How objective the grading is: exact answers and tests score high (${GRADING_SCORE.automatic}), model judges ${GRADING_SCORE["llm-judge"]}, a panel of people ${GRADING_SCORE["human-judge"]}, one person alone ${GRADING_SCORE["author-judge"]}, votes ${GRADING_SCORE["human-votes"]}. Scores the labs report themselves lose ${-SELF_REPORTED}. A few are set by hand.` },
   { id: "frontier", name: "New models", ask: "How fast does it test new releases?", how: `How quickly it scores new models, measured from Priors' daily history: full credit for a model scored within ${FAST_DAYS} days of release, none after ${SLOW_DAYS} or never, with widely tested models counting most. Where too few new models have come out to tell, the share of today's 10 default lineup models it has measured.` },
   { id: "efforts", name: "Efforts", ask: "Does it test each model at several reasoning efforts?", how: `Of the models it measured that come in more than one reasoning effort, the share it measured at two or more. Full credit at ${EFFORTS_FULL_AT}%; a benchmark with too few such models scores 50.` },
   { id: "breadth", name: "Breadth", ask: "How many models has it measured?", how: "How many models it has measured in all, with full credit at 40." },
@@ -244,8 +244,8 @@ function objectivityScore(benchmark: Benchmark): number {
   return benchmark.unit === "percent" ? 80 : 65;
 }
 
-const GRADING_WORDS = { automatic: "Graded automatically (exact answers, tests or a programmatic check)", mixed: "Graded partly automatically and partly by judges", "llm-judge": "Graded by a model judge", "human-judge": "Graded by human judges", "human-votes": "Ranked by people's votes" } as const;
-const GRADING_SHORT = { automatic: "Checked automatically", mixed: "Partly automatic", "llm-judge": "A model judges", "human-judge": "People judge", "human-votes": "People vote" } as const;
+const GRADING_WORDS = { automatic: "Graded automatically (exact answers, tests or a programmatic check)", mixed: "Graded partly automatically and partly by judges", "llm-judge": "Graded by a model judge", "human-judge": "Graded by a panel of people", "author-judge": "Graded by hand by one person, the benchmark's author", "human-votes": "Ranked by people's votes" } as const;
+const GRADING_SHORT = { automatic: "Checked automatically", mixed: "Partly automatic", "llm-judge": "A model judges", "human-judge": "People judge", "author-judge": "One person judges", "human-votes": "People vote" } as const;
 const TEST_SET_NAME = { private: "Private", partial: "Partly private", public: "Public", unknown: "Unknown" } as const;
 const TEST_SET_WORDS = { private: "Private test set", partial: "Partly private test set", public: "Public test set", unknown: "Not known whether the test set is public" } as const;
 /** A researched date may be a month: the 15th stands in for the day. */

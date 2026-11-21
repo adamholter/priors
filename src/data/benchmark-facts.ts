@@ -10,7 +10,8 @@
  */
 import type { Benchmark } from "./types";
 export type TestSet = "public" | "partial" | "private";
-export type Grading = "automatic" | "llm-judge" | "human-judge" | "human-votes" | "mixed";
+/** "human-judge" is a panel (hired raters, experts, several people); "author-judge" is one person grading by hand, usually the benchmark's author. */
+export type Grading = "automatic" | "llm-judge" | "human-judge" | "author-judge" | "human-votes" | "mixed";
 export interface BenchmarkFacts {
   test?: TestSet;
   /** One plain sentence: what is public and what is hidden. */
@@ -395,7 +396,7 @@ const RESEARCHED: Record<string, BenchmarkFacts> = {
 /** Hand corrections, which win over the researched table. */
 const OVERRIDES: Record<string, BenchmarkFacts> = {
   // Added 2026-11-20 by hand: the six prompts are shown in the launch video, and the author grades every app himself.
-  "kingbench-4": { test: "public", testNote: "The six build prompts are shown in AICodeKing's launch video; the author runs each model in its coding tool and grades every app himself, out of 10.", testUrl: "https://www.youtube.com/watch?v=cAIvhxVx0kU", released: "2026-10-10", grading: "human-judge" },
+  "kingbench-4": { test: "public", testNote: "The six build prompts are shown in AICodeKing's launch video; the author runs each model in its coding tool and grades every app himself, out of 10.", testUrl: "https://www.youtube.com/watch?v=cAIvhxVx0kU", released: "2026-10-10", grading: "author-judge" },
   // Added 2026-11-21 by hand (reported by the GameFeel author): v1.5.2 went up on 2026-11-19 (repo commit "v1.5.2: RE combined from five
   // parts"). Reverse-Evaluation is scored by a formula against ground-truth answer keys (README, "How it is graded"), so it is automatic.
   gamefeel: { gradingNote: "Coding answers are checked against answer keys (Opus 5.5 only rules on formatting slips and near misses, never on quality); game feel, ideas, visuals and audio are rated by people." },
@@ -405,6 +406,18 @@ const OVERRIDES: Record<string, BenchmarkFacts> = {
   "gamefeel-re-v1.5.1": { gradingNote: "Each rating is scored against a ground-truth answer key by a formula (rating error, ranking and separation); no model judges." },
   "gamefeel-v1.5.2": { test: "private", testNote: "The 12 game projects are unpublished, so the scored content is hidden; only the CSV of scores is public.", testUrl: "https://github.com/kodasdream/gamefeel-benchmark", released: "2026-11-19", grading: "mixed", gradingNote: "Coding answers are checked against answer keys (Opus 5.5 only rules on formatting slips and near misses, never on quality); game feel, ideas, visuals and audio are rated by people." },
   "gamefeel-re-v1.5.2": { test: "private", testNote: "The reverse-evaluation items and answer keys are unpublished: over 8,000 tasks from the unpublished games (748 in a semi-private subset), plus a released-games part rating changes to commercial games such as Balatro, weighted 2 of 13.", testUrl: "https://github.com/kodasdream/gamefeel-benchmark", released: "2026-11-19", grading: "automatic", gradingNote: "Each rating is scored against a ground-truth answer key by a formula (rating error, ranking and separation); no model judges." },
+  // Corrected 2026-11-21 by hand, from a sweep of every human-graded, mixed, voted and unresearched board against its own pages.
+  // One person grades: the author (Prinzbench's README; LLM2014's README calls it a personal project with derivations checked) or one named judge.
+  prinzbench: { grading: "author-judge" },
+  "llm2014-logic": { grading: "author-judge" },
+  khalilbench: { grading: "author-judge", gradingNote: "Every verdict is given by hand by one person, @kamkmgamer." },
+  // A model judge or jury does the grading; people only wrote tasks or rubrics.
+  ...Object.fromEntries(["aa-personality-conviction", "aa-personality-expressiveness", "aa-personality-imagination", "aa-personality-informativeness", "aa-personality-organization", "aa-personality-slop", "aa-personality-transparency", "aa-personality-warmth", "vals-web-search-index", "vals-finance-agent-v2", "vals-case-law-v2", "vals-voice-code-bench", "swe-atlas-qna", "humanitys-sixth-sense", "bh-japanese-rp-bench-tegnike-2"].map((id) => [id, { grading: "llm-judge" } as BenchmarkFacts])),
+  // Checked by a program: a referee process scores the KSP missions; UGI Writing is built from text metrics; time to first token is measured.
+  "vals-time-horizon-ksp": { grading: "automatic" },
+  "bh-ugi-writing": { grading: "automatic" },
+  "aa-ttft": { grading: "automatic" },
+  hearingbench: { grading: "mixed", gradingNote: "Word and sentence clips are scored by rule; the other tiers are read and scored by Claude Opus 5.5." },
   // Added 2026-11-20 by hand: the method page says the 14 tasks were built for the benchmark and publishes none; it does not say who the two graders are.
   "corpo-index": { test: "private", testNote: "The 14 consulting-style tasks were built for the benchmark and are not published; the method page describes them but shows none.", testUrl: "https://local-bench.ai/method/", released: "2026-10-17" },
 };
