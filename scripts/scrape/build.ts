@@ -430,6 +430,9 @@ async function main() {
 
   console.log(`\nsnapshot ${date}: ${snap.models.length} models, ${snap.variants.length} variants, ${snap.benchmarks.length} benchmarks, ${snap.observations.length} observations, ${(json.length / 1024).toFixed(0)} KB (${(gzipSync(json).length / 1024).toFixed(0)} KB gz)`);
   for (const r of runs) console.log(`  ${r.status.padEnd(7)} ${r.sourceId.padEnd(16)} rows=${r.rowCount} unknown=${r.unknownLabels.length}${r.unknownLabels.length ? " [" + r.unknownLabels.slice(0, 6).join(" | ") + (r.unknownLabels.length > 6 ? " …" : "") + "]" : ""}${r.error ? " " + r.error : ""}`);
+  // One line per name no rule matched, written where daily-scrape.sh asks, so it can announce new ones: a new model under a new name is
+  // dropped until normalize.ts knows it. A file rather than the log, which would gain about 1,500 lines a run.
+  if (process.env.PRIORS_UNKNOWN_FILE) await writeFile(process.env.PRIORS_UNKNOWN_FILE, runs.flatMap((r) => r.unknownLabels.map((l) => `UNKNOWN_LABEL ${r.sourceId} "${l.replace(/"/g, "'")}"\n`)).join(""));
 
   // What /api/history reads. It only saves time: a failure here leaves the site reading the dated snapshots.
   try { await writeHistoryArchive(); } catch (e) { console.log(`HISTORY_ARCHIVE failed: ${e instanceof Error ? e.message : String(e)}`); }

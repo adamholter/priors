@@ -135,6 +135,7 @@ point_site() {
 LOCKDIR=${TMPDIR:-/tmp}/priors-scrape.lock
 trap '[ "$(cat "$LOCKDIR/pid" 2>/dev/null)" = "$$" ] && rm -rf "$LOCKDIR"' EXIT
 LOG=$(mktemp "${TMPDIR:-/tmp}/priors-scrape.XXXXXX") || exit 1
+export PRIORS_UNKNOWN_FILE; PRIORS_UNKNOWN_FILE=$(mktemp "${TMPDIR:-/tmp}/priors-unknown.XXXXXX") || exit 1
 # Library fits run in worker processes here and on this ssh host when it answers (scripts/scrape/library-fits.ts); empty = local only.
 export PRIORS_FIT_REMOTE=${PRIORS_FIT_REMOTE-adams-linux}
 SECONDS=0
@@ -165,6 +166,18 @@ grep -E '^MERGED_LABELS ' "$LOG" | sort -u | while IFS= read -r line; do
     notify "Possible merged model: ${item//\"/}"
   fi
 done
+# Names no rule matched are dropped. The first run records today's as a baseline; after that, new ones are announced together, once.
+if ! grep -qxF "UNKNOWN_LABELS_BASELINE" "$ANNOUNCED" 2>/dev/null; then
+  { sort -u "$PRIORS_UNKNOWN_FILE"; echo "UNKNOWN_LABELS_BASELINE"; } >> "$ANNOUNCED" 2>/dev/null
+fi
+NEW_UNKNOWN=$(sort -u "$PRIORS_UNKNOWN_FILE" | grep -vxF -f "$ANNOUNCED" 2>/dev/null)
+rm -f "$PRIORS_UNKNOWN_FILE"
+if [ -n "$NEW_UNKNOWN" ]; then
+  printf '%s\n' "$NEW_UNKNOWN" >> "$ANNOUNCED" 2>/dev/null
+  count=$(printf '%s\n' "$NEW_UNKNOWN" | wc -l | tr -d ' ')
+  first=$(printf '%s\n' "$NEW_UNKNOWN" | head -3 | sed 's/^UNKNOWN_LABEL //; s/"//g' | paste -sd ';' -)
+  notify "Priors: $count new unmatched model name$([ "$count" = 1 ] || echo s), dropped until normalize.ts knows them: ${first}"
+fi
 # One notification per change in the set of failing sources, not one every 15 minutes while a source stays broken.
 FAILED_NOW=$(grep -E '^[[:space:]]*failed[[:space:]]' "$LOG" | awk '{print $2}' | sort | tr '\n' ' ')
 FAILED_FILE="${PRIORS_FAILED_FILE:-$HOME/priors/logs/failing-sources.txt}"
