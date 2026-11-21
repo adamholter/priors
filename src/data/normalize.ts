@@ -69,6 +69,9 @@ const FAMILIES: { re: RegExp; id: (m: RegExpMatchArray) => string; name: (m: Reg
   { re: /\bgemini[\s-]*(\d+(?:\.\d+)?)[\s-]*(pro|flash[\s-]*lite|flash|ultra)\b/, id: (m) => `gemini-${m[1]}-${m[2].replace(/\s+/g, "-")}`, name: (m) => `Gemini ${m[1]} ${m[2].replace(/\b\w/g, (c) => c.toUpperCase()).replace(/\s+/g, " ")}`, lab: "google", reasoning: true },
   // Gemini 4's codenamed tiers (chemical elements) are distinct models (like GPT's Sol/Terra). Argon was the first, so it keeps the bare id.
   { re: /\bgemini[\s-]*(\d+(?:\.\d+)?)[\s-]*(carbon|hydrogen|helium|lithium|nitrogen|oxygen|neon|krypton|xenon)\b/, id: (m) => `gemini-${m[1]}-${m[2]}`, name: (m) => `Gemini ${m[1]} ${cap(m[2])}`, lab: "google", reasoning: true },
+  // Some boards drop the version ("Gemini Neon"); only Gemini 4 has element tiers, so the bare tier is Gemini 4's.
+  { re: /\bgemini[\s-]*(carbon|hydrogen|neon)\b/, id: (m) => `gemini-4-${m[1]}`, name: (m) => `Gemini 4 ${cap(m[1])}`, lab: "google", reasoning: true },
+  { re: /\bgemini[\s-]*argon\b/, id: () => "gemini-4", name: () => "Gemini 4 Argon", lab: "google", reasoning: true },
   { re: /\bgemini[\s-]*(\d+(?:\.\d+)?)\b/, id: (m) => `gemini-${m[1]}`, name: (m) => `Gemini ${m[1]}${m[1] === "4" ? " Argon" : ""}`, lab: "google", reasoning: true },
   // xAI
   { re: /\bgrok[\s-]*build[\s-]*(\d+(?:\.\d+)?)?\b/, id: (m) => `grok-build${m[1] ? "-" + m[1] : ""}`, name: (m) => `Grok Build${m[1] ? " " + m[1] : ""}`, lab: "xai", reasoning: true },

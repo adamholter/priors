@@ -61,4 +61,10 @@ describe("Scale Humanity's Sixth Sense", () => {
     }
     expect(() => parseHssEntries(page([{ model: "GPT-6-Astra (max)", score: 53.6, confidenceInterval_upper: -1 }]))).toThrow(/interval schema/);
   });
+  it("reads the harness-tagged names Scale uses since November: the harness to the note, the trailing word as effort", () => {
+    const rows = parseHssEntries(page([{ model: "Muse Spark Open (one-pass-agent) max", score: 30 }, { model: "GPT 6.2 Astra (one-pass-agent) xhigh", score: 50 }, { model: "Nemotron 3.5 Super VL (one-pass-agent) max", score: 10 }]));
+    expect(rows.map((r) => [r.modelLabel, r.effort])).toEqual([["Muse Spark Open", "max"], ["GPT 6.2 Astra", "xhigh"], ["Nemotron 3.5 Super VL", "max"]]);
+    expect(rows[0].note).toContain("harness: one-pass-agent");
+    expect(rows.map((r) => normalizeLabel(r.modelLabel, r.effort))).toMatchObject([{ modelId: "aa-muse-spark-open", effort: "max" }, { modelId: "gpt-6.2-astra", effort: "xhigh" }, { modelId: "aa-nemotron-3-5-super-vl", effort: "max" }]);
+  });
 });

@@ -25,10 +25,14 @@ export function parseHssEntries(html: string): RawRow[] {
     if (typeof entry?.model !== "string" || !entry.model.trim()
       || typeof entry.score !== "number" || !Number.isFinite(entry.score)
       || entry.score < 0 || entry.score > 100) throw new Error("HSS leaderboard entry schema changed");
-    const label = entry.model.replace(/\s+/g, " ").trim();
+    let label = entry.model.replace(/\s+/g, " ").trim();
     if (/^humans?(?:\s|$|\()/i.test(label)) continue;
-    // Keep model names such as Qwen3.8-Max intact; only parentheses specify effort.
-    const effort = label.match(/\((none|minimal|low|medium|high|xhigh|max)\)\s*$/i)?.[1]?.toLowerCase();
+    // Keep model names such as Qwen3.8-Max intact; only parentheses specify effort. Since November Scale also names the harness,
+    // "Muse Spark Open (one-pass-agent) max": the harness goes to the note and the trailing word is the effort.
+    let harness: string | undefined;
+    let effort = label.match(/\((none|minimal|low|medium|high|xhigh|max)\)\s*$/i)?.[1]?.toLowerCase();
+    const tagged = !effort && label.match(/^(.*?)\s*\(([^)]*agent[^)]*)\)\s*(none|minimal|low|medium|high|xhigh|max)?$/i);
+    if (tagged) { label = tagged[1]; harness = tagged[2]; effort = tagged[3]?.toLowerCase(); }
     const halfWidth = entry.confidenceInterval_upper;
     if (halfWidth != null && (typeof halfWidth !== "number" || !Number.isFinite(halfWidth) || halfWidth < 0)) {
       throw new Error("HSS confidence interval schema changed");
@@ -37,7 +41,7 @@ export function parseHssEntries(html: string): RawRow[] {
       benchmarkId: HSS_ID, modelLabel: label, effort, value: entry.score,
       ci: halfWidth == null ? undefined : [entry.score - halfWidth, entry.score + halfWidth],
       rank: entry.rank, labHint: entry.company, sourceUrl: HSS_PAGE,
-      note: [label, entry.contaminationMessage].filter(Boolean).join(" · "),
+      note: [entry.model.replace(/\s+/g, " ").trim(), harness && `harness: ${harness}`, entry.contaminationMessage].filter(Boolean).join(" · "),
     });
   }
   if (!rows.length) throw new Error("HSS returned no active model results");

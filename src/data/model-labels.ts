@@ -8,6 +8,9 @@ export interface LabeledModel { id: string; name: string; lab: string; reasoning
 
 export const LABELED_MODELS: LabeledModel[] = [
   // Models no other source names yet.
+  // Microsoft AI's coding models (Nov 17, 2026), first scored on Ramp's SWE-bench through GitHub Copilot.
+  { id: "mai-code-2-flash", name: "MAI Code 2 Flash", lab: "microsoft", reasoning: true, releaseDate: "2026-11-17", labels: ["MAI Code 2 Flash", "mai-code-2-flash", "MAI-Code-2-Flash", "microsoft/mai-code-2-flash"] },
+  { id: "mai-code-2", name: "MAI Code 2", lab: "microsoft", reasoning: true, releaseDate: "2026-11-17", labels: ["MAI Code 2", "mai-code-2", "MAI-Code-2", "microsoft/mai-code-2"] },
   { id: "ember-1", name: "Ember-1", lab: "fireworks", reasoning: true, releaseDate: "2026-09-22", labels: ["Ember-1", "fireworks/ember-1"] },
   { id: "gpt-daybreak-blue", name: "Daybreak Blue", lab: "openai", reasoning: true, releaseDate: "2026-08-10", labels: ["Daybreak Blue"] },
   { id: "glm-legal", name: "GLM Legal", lab: "zhipu", reasoning: true, releaseDate: "2026-10-12", labels: ["GLM Legal"] },

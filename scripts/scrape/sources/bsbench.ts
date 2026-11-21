@@ -2,7 +2,9 @@
  * BullshitBench v2 (BSBench, Peter Gostev). Measures whether a model calls out nonsense prompts.
  * Public viewer: petergpt.github.io/bullshit-benchmark/viewer/index.v2.html, backed by data files in
  * the GitHub repo. We read `data/v2/latest/leaderboard.csv` (one row per model x reasoning level) and
- * `aggregate_summary.json` (per-technique breakdown). Value = detection ("green") rate, in percent.
+ * `aggregate_summary.json` (per-technique breakdown). Value = clear pushback ("green") rate in percent, over the answers that
+ * were not refusals: the viewer's own rule ("Scores, rankings and averages always exclude refusals"). The CSV's green_rate counts
+ * refusals as misses, which put models that refuse some prompts (Opus 5, Opus 5.5) several points below the published board.
  */
 import type { Source, ScrapeResult, RawRow } from "../../../src/data/types";
 
@@ -20,6 +22,14 @@ function parseCsv(text: string): Record<string, string>[] {
     cells.push(cur);
     return Object.fromEntries(headers.map((h, i) => [h, cells[i] ?? ""]));
   });
+}
+
+/** Clear pushback over non-refused answers (0 to 1), as the viewer ranks; the CSV's green_rate when the counts are missing. */
+export function clearRate(r: Record<string, string>): number | undefined {
+  const clear = parseFloat(r.score_2), total = parseFloat(r.nonsense_count), refused = parseFloat(r.refusal_count) || 0;
+  if (Number.isFinite(clear) && Number.isFinite(total) && total - refused > 0) return clear / (total - refused);
+  const green = parseFloat(r.green_rate);
+  return Number.isFinite(green) ? green : undefined;
 }
 
 interface AggRow { model: string; technique_breakdown?: Record<string, number>; avg_score?: number; detection_rate_score_2?: number }
@@ -42,8 +52,8 @@ const source: Source = {
 
     const rows: RawRow[] = [];
     for (const r of recs) {
-      const green = parseFloat(r.green_rate);
-      if (!Number.isFinite(green)) continue;
+      const green = clearRate(r);
+      if (green === undefined) continue;
       const m = r.model.match(/^(.*?)(?:@reasoning=([^@]+))?$/);
       const base = (m?.[1] ?? r.model).trim();
       const reasoning = (m?.[2] ?? r.reasoning ?? "").trim();
@@ -53,7 +63,7 @@ const source: Source = {
         // pass the published reasoning level through verbatim ("none"/"minimal"/"default"/"high"/...);
         // the central EFFORT_WORDS map decides how to bucket it.
         effort: reasoning || undefined,
-        value: green * 100,
+        value: Math.round(green * 1000) / 10,
         rank: parseInt(r.rank, 10) || undefined,
         sourceUrl: VIEWER,
         labHint: r.org || undefined,
@@ -64,7 +74,7 @@ const source: Source = {
     return {
       benchmarks: [{
         id: "bsbench-v2", name: "BullshitBench v2", shortName: "BSBench", sourceId: this.id, url: VIEWER,
-        description: "Share of 100 nonsense prompts (software, finance, legal, medical, physics) where the model clearly calls out the nonsense instead of confidently answering; 3-judge panel, mean aggregation. Reported per reasoning level.",
+        description: "Share of 100 nonsense prompts (software, finance, legal, medical, physics) where the model clearly calls out the nonsense instead of confidently answering, over the prompts it did not refuse; 3-judge panel, mean aggregation. Reported per reasoning level.",
         unit: "percent", higherIsBetter: true, category: "reasoning", eligibleForDefault: true, defaultWeight: 10,
         advanced: techniques.map((t) => ({ id: t, name: t.replace(/_/g, " ") })),
       }],
