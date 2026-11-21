@@ -163,3 +163,14 @@ describe("efforts", () => {
     expect([f.score, f.summary]).toEqual([50, "Too few models to tell"]);
   });
 });
+
+describe("facts for a new version", () => {
+  it("come from the board it supersedes, keeping test set and grading but not the old release date", async () => {
+    const { factsOf } = await import("@/data/benchmark-facts");
+    const facts = factsOf({ id: "gamefeel-re-v9", versionPolicy: { kind: "fresh", supersedes: "gamefeel-re" } });
+    expect(facts).toMatchObject({ test: "private", grading: "automatic" });
+    expect(facts.released).toBeUndefined();
+    expect(factsOf({ id: "gamefeel-re-v1.5.2" })).toMatchObject({ test: "private", grading: "automatic", released: "2026-11-19" });
+    expect(factsOf({ id: "no-such-board" })).toEqual({});
+  });
+});

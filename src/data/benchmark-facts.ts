@@ -8,6 +8,7 @@
  * some of the scored set is held back (a private test split, hidden answers, a held-out subset); "private" when none of it is published
  * beyond a few examples, or there is no fixed set at all (arena votes). Absent means unknown, which scores neutral.
  */
+import type { Benchmark } from "./types";
 export type TestSet = "public" | "partial" | "private";
 export type Grading = "automatic" | "llm-judge" | "human-judge" | "human-votes" | "mixed";
 export interface BenchmarkFacts {
@@ -276,8 +277,8 @@ const RESEARCHED: Record<string, BenchmarkFacts> = {
   "frontierswe-v1": {"test":"partial","testNote":"Partial. Scored set includes hidden workloads and hidden benchmarks: the v1 leaderboard has a 'Fraction of hidden workloads' column and the launch blog cites 'correctness failures on hidden benchmarks'. Public task folders on GitHub not ...","testUrl":"https://www.frontierswe.com/blog/v1","released":"2026-04","grading":"automatic"},
   "frontierswe-v2": {"test":"partial","testNote":"All 34 task folders (instructions, environments with tests, reference solutions) are public on GitHub, but some tasks are scored on hidden data such as held-out spectra, out-of-distribution compositions and hidden systematic shifts; the ...","testUrl":"https://www.frontierswe.com/blog/v2","released":"2026-09-02","grading":"automatic"},
   "gamefeel": {"test":"private","testNote":"The 12 game projects are unpublished, so the scored content is hidden; only the CSV of scores is public.","testUrl":"https://github.com/kodasdream/gamefeel-benchmark","released":"2026-10-16","grading":"mixed"},
-  "gamefeel-re": {"test":"private","testNote":"The reverse-evaluation items come from the unpublished games, with 748 tasks in a semi-private subset and over 8,000 in the full test, and none of them are published.","testUrl":"https://github.com/kodasdream/gamefeel-benchmark","released":"2026-11-12","grading":"llm-judge"},
-  "gamefeel-re-v1.5.1": {"test":"private","testNote":"The reverse-evaluation items come from the unpublished games, with 748 tasks in a semi-private subset and over 8,000 in the full test, and none of them are published.","testUrl":"https://github.com/kodasdream/gamefeel-benchmark","released":"2026-11-16","grading":"llm-judge"},
+  "gamefeel-re": {"test":"private","testNote":"The reverse-evaluation items come from the unpublished games, with 748 tasks in a semi-private subset and over 8,000 in the full test, and none of them are published.","testUrl":"https://github.com/kodasdream/gamefeel-benchmark","released":"2026-11-12","grading":"automatic"},
+  "gamefeel-re-v1.5.1": {"test":"private","testNote":"The reverse-evaluation items come from the unpublished games, with 748 tasks in a semi-private subset and over 8,000 in the full test, and none of them are published.","testUrl":"https://github.com/kodasdream/gamefeel-benchmark","released":"2026-11-16","grading":"automatic"},
   "gamefeel-v1.5": {"test":"private","testNote":"The 12 game projects are unpublished, so the scored content is hidden; only the CSV of scores is public.","testUrl":"https://github.com/kodasdream/gamefeel-benchmark","released":"2026-11-12","grading":"mixed"},
   "gamefeel-v1.5.1": {"test":"private","testNote":"The 12 game projects are unpublished, so the scored content is hidden; only the CSV of scores is public.","testUrl":"https://github.com/kodasdream/gamefeel-benchmark","released":"2026-11-16","grading":"mixed"},
   "gdpx": {"test":"partial","testNote":"Partial, most tasks private. Newsletter (2 Nov 2026): '12 private tasks and 1 public task' in biology alone. Site snippet: 14 of 206 tasks public (168 downloadable transcripts), rest private. The 14-task figure is from a search snippet, ...","testUrl":"https://newsletter.semianalysis.com/p/gdpx-measuring-frontier-model-capabilities","released":"2026-11-02","grading":"automatic"},
@@ -393,11 +394,25 @@ const RESEARCHED: Record<string, BenchmarkFacts> = {
 const OVERRIDES: Record<string, BenchmarkFacts> = {
   // Added 2026-11-20 by hand: the six prompts are shown in the launch video, and the author grades every app himself.
   "kingbench-4": { test: "public", testNote: "The six build prompts are shown in AICodeKing's launch video; the author runs each model in its coding tool and grades every app himself, out of 10.", testUrl: "https://www.youtube.com/watch?v=cAIvhxVx0kU", released: "2026-10-10", grading: "human-judge" },
+  // Added 2026-11-21 by hand (reported by the GameFeel author): v1.5.2 went up on 2026-11-19 (repo commit "v1.5.2: RE combined from five
+  // parts"). Reverse-Evaluation is scored by a formula against ground-truth answer keys (README, "How it is graded"), so it is automatic.
+  "gamefeel-v1.5.2": { test: "private", testNote: "The 12 game projects are unpublished, so the scored content is hidden; only the CSV of scores is public.", testUrl: "https://github.com/kodasdream/gamefeel-benchmark", released: "2026-11-19", grading: "mixed" },
+  "gamefeel-re-v1.5.2": { test: "private", testNote: "The reverse-evaluation items and answer keys are unpublished: over 8,000 tasks from the unpublished games (748 in a semi-private subset), plus a released-games part rating changes to commercial games such as Balatro, weighted 2 of 13.", testUrl: "https://github.com/kodasdream/gamefeel-benchmark", released: "2026-11-19", grading: "automatic" },
   // Added 2026-11-20 by hand: the method page says the 14 tasks were built for the benchmark and publishes none; it does not say who the two graders are.
   "corpo-index": { test: "private", testNote: "The 14 consulting-style tasks were built for the benchmark and are not published; the method page describes them but shows none.", testUrl: "https://local-bench.ai/method/", released: "2026-10-17" },
 };
 
 export const BENCHMARK_FACTS: Record<string, BenchmarkFacts> = { ...RESEARCHED, ...Object.fromEntries(Object.entries(OVERRIDES).map(([id, f]) => [id, { ...RESEARCHED[id], ...f }])) };
 
-/** A benchmark's facts, or its main board's when it is a sub-board with none of its own. */
-export const factsOf = (b: { id: string; variantOf?: string }): BenchmarkFacts => BENCHMARK_FACTS[b.id] ?? (b.variantOf ? BENCHMARK_FACTS[b.variantOf] : undefined) ?? {};
+/**
+ * A benchmark's facts; for a sub-board with none of its own, its main board's; for a new version with none yet, the board it supersedes,
+ * which keeps how the test set and grading work but not the old release date (a new version is not as old as the first).
+ */
+export const factsOf = (b: { id: string; variantOf?: string; versionPolicy?: Benchmark["versionPolicy"] }): BenchmarkFacts => {
+  const own = BENCHMARK_FACTS[b.id] ?? (b.variantOf ? BENCHMARK_FACTS[b.variantOf] : undefined);
+  if (own) return own;
+  const previous = b.versionPolicy?.kind === "fresh" && b.versionPolicy.supersedes ? BENCHMARK_FACTS[b.versionPolicy.supersedes] : undefined;
+  if (!previous) return {};
+  const { released: _released, ...kept } = previous;
+  return kept;
+};
