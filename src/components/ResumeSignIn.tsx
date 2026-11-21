@@ -2,6 +2,7 @@
 import { useAuth, useClerk, useUser } from "@clerk/nextjs";
 import { useEffect, useRef } from "react";
 import { RESUME_KEY, RESUME_TRIED, resumeTarget, resumeWhileSignedIn } from "@/lib/resume-sign-in";
+import { inAppBrowser } from "@/lib/in-app-browser";
 
 /** Signs a returning Google user back in when their session has run out. Google is asked with prompt=none, so it either answers silently or the visit stays signed out; nothing is ever shown. */
 export function ResumeSignIn() {
@@ -22,7 +23,8 @@ export function ResumeSignIn() {
       // Back from Google: finish the sign-in if it went through.
       if (stored === RESUME_TRIED) { if (signIn.status === "complete" && signIn.createdSessionId) void clerk.setActive({ session: signIn.createdSessionId }); return; }
       const googleId = resumeTarget(stored);
-      if (!googleId || window.self !== window.top) return;
+      // The sign-in pages run their own attempt (including the return from Google); starting another here would replace it mid-flight. An app's built-in browser can't finish a Google sign-in at all.
+      if (!googleId || window.self !== window.top || window.location.pathname.startsWith("/sign-in") || inAppBrowser(navigator.userAgent)) return;
       localStorage.setItem(RESUME_KEY, RESUME_TRIED);
       const here = clerk.buildUrlWithAuth(window.location.href);
       void signIn.create({ strategy: "oauth_google", redirectUrl: here, actionCompleteRedirectUrl: here, oidcPrompt: "none", oidcLoginHint: googleId })

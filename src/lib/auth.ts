@@ -76,7 +76,7 @@ export function useForgetResume() {
 }
 
 /** Clerk's sign-in form is drawn into a node of the page from inside `ClerkLayer`, whose provider it needs. */
-export interface SignInSlot { node: HTMLElement; forceRedirectUrl: string; signUpForceRedirectUrl: string }
+export interface SignInSlot { node: HTMLElement; forceRedirectUrl: string; signUpForceRedirectUrl: string; /** Leave Google off: inside an app's built-in browser it cannot finish. */ hideSocial?: boolean }
 let slot: SignInSlot | null = null;
 export function setSignInSlot(next: SignInSlot | null) { slot = next; emit(); }
 export const useSignInSlot = () => useSyncExternalStore(subscribe, () => slot, () => null);

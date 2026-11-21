@@ -28,5 +28,6 @@ function Publish() {
 
 function SignInForm() {
   const slot = useSignInSlot();
-  return slot && createPortal(<SignIn forceRedirectUrl={slot.forceRedirectUrl} signUpForceRedirectUrl={slot.signUpForceRedirectUrl} />, slot.node);
+  const appearance = slot?.hideSocial ? { elements: { socialButtonsRoot: { display: "none" }, dividerRow: { display: "none" } } } : undefined;
+  return slot && createPortal(<SignIn forceRedirectUrl={slot.forceRedirectUrl} signUpForceRedirectUrl={slot.signUpForceRedirectUrl} appearance={appearance} />, slot.node);
 }
