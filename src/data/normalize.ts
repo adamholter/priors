@@ -46,6 +46,13 @@ const cap = (w: string) => w[0].toUpperCase() + w.slice(1);
 /** family regex -> canonical id + display name + lab. Order matters (most specific first). */
 const FAMILIES: { re: RegExp; id: (m: RegExpMatchArray) => string; name: (m: RegExpMatchArray) => string; lab: string; reasoning?: boolean }[] = [
   // Derived releases retain their own identity, independent of the base-model note.
+  // Separate products whose names contain their base model's: without these they matched the base and one row overwrote the other.
+  { re: /\bgrok[\s-]*(\d+(?:\.\d+)?)[\s-]*(?:beta[\s-]*)?multi[\s-]*agent\b/, id: (m) => `grok-${m[1]}-multi-agent`, name: (m) => `Grok ${m[1]} Multi-Agent`, lab: "xai", reasoning: true },
+  { re: /\bglm[\s-]*(\d+(?:\.\d+)?)[\s-]*(turbo|plus)\b/, id: (m) => `glm-${m[1]}-${m[2]}`, name: (m) => `GLM ${m[1]} ${cap(m[2])}`, lab: "zhipu", reasoning: true },
+  { re: /\bgpt[\s-]*(\d+(?:\.\d+)?)[\s-]*codex[\s-]*spark\b/, id: (m) => `gpt-${m[1]}-codex-spark`, name: (m) => `GPT-${m[1]} Codex Spark`, lab: "openai", reasoning: true },
+  { re: /\bgpt[\s-]*4[\s-]*turbo\b/, id: () => "gpt-4-turbo", name: () => "GPT-4 Turbo", lab: "openai" },
+  { re: /\bdeepseek[\s-]*v?(\d+(?:\.\d+)?)[\s-]*flash[\s-]*vision\b/, id: (m) => `deepseek-v${m[1]}-flash-vision`, name: (m) => `DeepSeek V${m[1]} Flash Vision`, lab: "deepseek", reasoning: true },
+  { re: /\bqwen[\s-]*(\d+(?:\.\d+)?)[\s-]*coder[\s-]*plus\b/, id: (m) => `qwen-${m[1]}-coder-plus`, name: (m) => `Qwen ${m[1]} Coder Plus`, lab: "alibaba" },
   { re: /\bnex[\s-]*n2[\s-]*pro\b/, id: () => "nex-n2-pro", name: () => "Nex-N2-Pro", lab: "other", reasoning: true },
   // Anthropic
   // The older "Claude <version> <tier>" order. Claude 3.5 Sonnet is left out: it names two models, told apart in `normalizeLabel`.
@@ -251,6 +258,7 @@ export function cleanLabel(label: string): string {
     .replace(/\([^)]*\bbased\s+on\b[^)]*\)|\[[^\]]*\bbased\s+on\b[^\]]*\]/gi, " ")
     .toLowerCase()
     .replace(PROVIDER_PREFIX, "")
+    .replace(/(\d)_(\d)(?!\d)/g, "$1.$2") // "gemini_2_5_pro" -> "gemini 2.5 pro"
     .replace(/[_/]+/g, " ")
     .replace(/\((.*?)\)|\[(.*?)\]/g, " $1$2 ") // keep bracket contents as words
     .replace(/[^\w\s.-]/g, " ")
@@ -315,6 +323,8 @@ export function normalizeLabel(label: string, effortHint?: string): Normalized |
   // Hy4 Flash (2026-11-16) is Tencent's cheaper, smaller Hy4, not Hy4 with a speed setting, so "flash" is not noise here either.
   if (/\bhy[\s-]*4[\s-]*flash\b/.test(cleaned)) return { ok: true, modelId: "hy-4-flash", modelName: "Hy4 Flash", labId: "tencent", effort, reasoningFamily: true, cleaned };
   // o1-preview (Sept 2024) and o1 (Dec 2024) are different models with different scores, so "preview" is not noise here either.
+  // Kimi K2 Thinking is its own release (Nov 2025), not K2 in a thinking mode; "thinking" is stripped as noise below, so it is caught here.
+  if (/\bkimi[\s-]*k2[\s-]*thinking\b/.test(cleaned)) return { ok: true, modelId: "kimi-k2-thinking", modelName: "Kimi K2 Thinking", labId: "moonshot", effort, reasoningFamily: true, cleaned };
   if (/\bo1[\s-]*preview\b/.test(cleaned)) return { ok: true, modelId: "o1-preview", modelName: "o1-preview", labId: "openai", effort, reasoningFamily: true, cleaned };
   // StepFun's Step 5 Preview keeps the id Artificial Analysis gave it (no StepFun lab entry yet), so other boards join AA's rows.
   if (/\bstep[\s-]*5[\s-]*preview\b/.test(cleaned)) return { ok: true, modelId: "aa-step-5", modelName: "Step 5 Preview", labId: "other", effort, reasoningFamily: true, cleaned };

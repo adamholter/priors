@@ -26,6 +26,18 @@ const CATEGORY: Record<string, BenchmarkCategory> = {
 };
 const EFFORTS = new Set(["none", "minimal", "low", "medium", "high", "xhigh", "max"]);
 
+/**
+ * Hugging Face accounts that publish a lab's own weights or API names. Leaderboards such as UGI also list community fine-tunes
+ * ("Disya/Mistral-Chimera-Pro-24B", "SentientAGI/Dobby-Mini-Unhinged-Llama-3.1-8B"); their names contain the base model's, so they
+ * matched it and replaced the base model's own score. A label under any other account is left out.
+ */
+const LAB_ACCOUNTS = new Set(["meta-llama", "meta", "facebook", "mistralai", "mistral", "qwen", "alibaba", "google", "google-deepmind", "deepseek-ai", "deepseek",
+  "microsoft", "nvidia", "openai", "x-ai", "xai", "anthropic", "moonshotai", "moonshot", "z-ai", "zai-org", "thudm", "zhipuai", "minimaxai", "minimax",
+  "ibm-granite", "ibm", "allenai", "cohereforai", "coherelabs", "cohere", "tencent", "baidu", "xiaomimimo", "xiaomi", "stepfun-ai", "stepfun", "amazon",
+  "ai21labs", "ai21", "inclusionai", "bytedance-seed", "bytedance", "perplexity-ai", "liquidai", "upstage", "arcee-ai", "internlm", "openbmb", "01-ai",
+  "tiiuae", "lgai-exaone", "swiss-ai", "sarvamai", "nousresearch", "meituan-longcat", "meituan", "kwaipilot", "poolside", "reka", "rekaai", "inception"]);
+export const communityFinetune = (name: string) => { const m = name.match(/^([\w.-]+)\/[^/]/); return !!m && !LAB_ACCOUNTS.has(m[1].toLowerCase()); };
+
 interface RegistryEntry {
   id: string; name: string; version_status: string; category: string; one_sentence_description?: string; maintainer: string; primary_url?: string;
   scoring: { metric?: string; unit?: string; range?: [number | null, number | null]; higher_better?: boolean };
@@ -76,6 +88,7 @@ export function buildBenchmarkHeaven(registry: RegistryEntry[], data: Dataset): 
     const mine: RawRow[] = [];
     found.push({ snapshot: id.match(SNAPSHOT)?.[1] ?? "", bench, rows: mine });
     for (const o of kept) {
+      if (communityFinetune(o.subject.name)) continue;
       const variant = o.subject.variant?.toLowerCase().trim();
       mine.push({
         benchmarkId: bench.id, modelLabel: o.subject.name, effort: variant && EFFORTS.has(variant) ? variant : undefined, value: o.value * sc.factor(o),
