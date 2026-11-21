@@ -22,6 +22,8 @@ export interface BenchmarkFacts {
   /** First public release of this version, YYYY-MM-DD or YYYY-MM. `RELEASES` in quality.ts (hand-verified) wins over this. */
   released?: string;
   grading?: Grading;
+  /** One plain sentence on how answers are scored, shown in place of the generic wording when "mixed" or "automatic" would mislead. */
+  gradingNote?: string;
   /** Labs report their own scores instead of the publisher running every model. */
   selfReported?: true;
 }
@@ -396,8 +398,13 @@ const OVERRIDES: Record<string, BenchmarkFacts> = {
   "kingbench-4": { test: "public", testNote: "The six build prompts are shown in AICodeKing's launch video; the author runs each model in its coding tool and grades every app himself, out of 10.", testUrl: "https://www.youtube.com/watch?v=cAIvhxVx0kU", released: "2026-10-10", grading: "human-judge" },
   // Added 2026-11-21 by hand (reported by the GameFeel author): v1.5.2 went up on 2026-11-19 (repo commit "v1.5.2: RE combined from five
   // parts"). Reverse-Evaluation is scored by a formula against ground-truth answer keys (README, "How it is graded"), so it is automatic.
-  "gamefeel-v1.5.2": { test: "private", testNote: "The 12 game projects are unpublished, so the scored content is hidden; only the CSV of scores is public.", testUrl: "https://github.com/kodasdream/gamefeel-benchmark", released: "2026-11-19", grading: "mixed" },
-  "gamefeel-re-v1.5.2": { test: "private", testNote: "The reverse-evaluation items and answer keys are unpublished: over 8,000 tasks from the unpublished games (748 in a semi-private subset), plus a released-games part rating changes to commercial games such as Balatro, weighted 2 of 13.", testUrl: "https://github.com/kodasdream/gamefeel-benchmark", released: "2026-11-19", grading: "automatic" },
+  gamefeel: { gradingNote: "Coding answers are checked against answer keys (Opus 5.5 only rules on formatting slips and near misses, never on quality); game feel, ideas, visuals and audio are rated by people." },
+  "gamefeel-v1.5": { gradingNote: "Coding answers are checked against answer keys (Opus 5.5 only rules on formatting slips and near misses, never on quality); game feel, ideas, visuals and audio are rated by people." },
+  "gamefeel-v1.5.1": { gradingNote: "Coding answers are checked against answer keys (Opus 5.5 only rules on formatting slips and near misses, never on quality); game feel, ideas, visuals and audio are rated by people." },
+  "gamefeel-re": { gradingNote: "Each rating is scored against a ground-truth answer key by a formula (rating error, ranking and separation); no model judges." },
+  "gamefeel-re-v1.5.1": { gradingNote: "Each rating is scored against a ground-truth answer key by a formula (rating error, ranking and separation); no model judges." },
+  "gamefeel-v1.5.2": { test: "private", testNote: "The 12 game projects are unpublished, so the scored content is hidden; only the CSV of scores is public.", testUrl: "https://github.com/kodasdream/gamefeel-benchmark", released: "2026-11-19", grading: "mixed", gradingNote: "Coding answers are checked against answer keys (Opus 5.5 only rules on formatting slips and near misses, never on quality); game feel, ideas, visuals and audio are rated by people." },
+  "gamefeel-re-v1.5.2": { test: "private", testNote: "The reverse-evaluation items and answer keys are unpublished: over 8,000 tasks from the unpublished games (748 in a semi-private subset), plus a released-games part rating changes to commercial games such as Balatro, weighted 2 of 13.", testUrl: "https://github.com/kodasdream/gamefeel-benchmark", released: "2026-11-19", grading: "automatic", gradingNote: "Each rating is scored against a ground-truth answer key by a formula (rating error, ranking and separation); no model judges." },
   // Added 2026-11-20 by hand: the method page says the 14 tasks were built for the benchmark and publishes none; it does not say who the two graders are.
   "corpo-index": { test: "private", testNote: "The 14 consulting-style tasks were built for the benchmark and are not published; the method page describes them but shows none.", testUrl: "https://local-bench.ai/method/", released: "2026-10-17" },
 };
