@@ -85,7 +85,7 @@ export default async function Page() {
             <li>The votes are fitted with a Bradley-Terry model, the method arena leaderboards use, and shown on the Elo scale: 400 points apart means the higher model is placed above the lower one 10 times out of 11.</li>
             <li>Every model also plays one drawn game against a fixed 1000-rated opponent. That keeps a model with few rankings from jumping to an extreme and keeps the scale steady from week to week.</li>
             <li>A model needs {MIN_RANKINGS} rankings to be rated. The range is a 95% interval from resampling the rankings 100 times.</li>
-            <li>People rank the models Priors shows them, so a model shown to more people has more rankings. The rankings are anonymous.</li>
+            <li>People rank the models Priors shows them, so a model shown to more people has more rankings. The rankings are anonymous, so no single day can count for more than three times a typical day: a flood of saved rankings is scaled down.</li>
           </ul>
           <p>It measures belief, not ability, so it is never part of a default mix, and the fit that turns your ranking into a mix never uses it. It is also on the <Link href="/benchmarks/priorsbench" className="text-indigo hover:underline">benchmark list</Link>, where you can add it to a mix of your own.</p>
         </section>

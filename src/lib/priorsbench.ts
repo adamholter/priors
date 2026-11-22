@@ -9,7 +9,11 @@
  * - Older rankings count less: a ranking's weight halves every `HALF_LIFE_DAYS`, so the board follows what people think now.
  * - Every model also plays one virtual game, drawn, against a fixed 1000-rated opponent. That keeps a model seen in few
  *   rankings near the middle instead of at an extreme, and pins the scale so ratings on different days line up.
+ * - The rankings are anonymous, so the votes are untrusted: only the focuses the page offers count, and a day with far more rankings
+ *   than usual (`BURST`) is scaled down to that cap, so a flood of saved rankings cannot move the board much on its own.
  */
+import { FOCUS_IDS } from "@/data/types";
+
 export const PRIORSBENCH_ID = "priorsbench";
 export const PRIORSBENCH_URL = "https://mypriors.com/priorsbench";
 /** Production Convex, the same public address the site's client uses. */
@@ -18,6 +22,9 @@ export const HALF_LIFE_DAYS = 30;
 /** Rankings a model needs, in the weighted window, to get a rating. */
 export const MIN_RANKINGS = 15;
 const DAY = 86_400_000;
+/** A day counts as at most this many times the median day, and never less than `BURST_FLOOR` rankings. */
+const BURST = 3, BURST_FLOOR = 60;
+const FOCUSES = new Set<string>(FOCUS_IDS);
 
 export interface Ranking { lineup: string[]; focus: string; createdAt: number }
 export interface Rating { modelId: string; rating: number; ci?: [number, number]; rankings: number; weight: number }
@@ -49,7 +56,19 @@ export function dedupe(rankings: Ranking[]): Ranking[] {
 
 interface Fit { ids: string[]; strength: Float64Array; rankings: Map<string, number>; weight: Map<string, number> }
 
+/** Per ranking, the share of its weight it keeps once its day is capped at `BURST` times the median day. */
+function dayScale(rankings: Ranking[]): Map<Ranking, number> {
+  const byDay = new Map<number, Ranking[]>();
+  for (const r of rankings) { const d = Math.floor(r.createdAt / DAY), list = byDay.get(d); if (list) list.push(r); else byDay.set(d, [r]); }
+  const sizes = [...byDay.values()].map((l) => l.length).sort((a, b) => a - b);
+  const cap = Math.max(BURST_FLOOR, BURST * (sizes[Math.floor(sizes.length / 2)] ?? 0));
+  const out = new Map<Ranking, number>();
+  for (const list of byDay.values()) for (const r of list) out.set(r, Math.min(1, cap / list.length));
+  return out;
+}
+
 function fit(rankings: Ranking[], asOf: number, known?: (id: string) => boolean): Fit {
+  const scale = dayScale(rankings);
   const index = new Map<string, number>(), ids: string[] = [];
   const at = (id: string) => { let i = index.get(id); if (i == null) { i = ids.length; index.set(id, i); ids.push(id); } return i; };
   const pairs = new Map<number, number>(), counts = new Map<string, number>(), weights = new Map<string, number>();
@@ -57,7 +76,7 @@ function fit(rankings: Ranking[], asOf: number, known?: (id: string) => boolean)
     if (r.createdAt > asOf) continue;
     const lineup = r.lineup.filter((id, k, all) => all.indexOf(id) === k && (!known || known(id)));
     if (lineup.length < 2) continue;
-    const decay = 0.5 ** ((asOf - r.createdAt) / (HALF_LIFE_DAYS * DAY)), w = decay / (lineup.length - 1);
+    const decay = 0.5 ** ((asOf - r.createdAt) / (HALF_LIFE_DAYS * DAY)) * (scale.get(r) ?? 1), w = decay / (lineup.length - 1);
     for (const id of lineup) { counts.set(id, (counts.get(id) ?? 0) + 1); weights.set(id, (weights.get(id) ?? 0) + decay); }
     const slots = lineup.map(at);
     // Key: winner * 4096 + loser.
@@ -91,7 +110,7 @@ const round1 = (x: number) => Math.round(x * 10) / 10;
 
 /** Ratings as of `asOf`, best first, for models with at least `MIN_RANKINGS` rankings; `bootstrap` resamples give a 95% interval. */
 export function rate(rankings: Ranking[], { asOf = Date.now(), bootstrap = 0, known, seed = 1 }: { asOf?: number; bootstrap?: number; known?: (id: string) => boolean; seed?: number } = {}): Rating[] {
-  const kept = dedupe(rankings).filter((r) => r.createdAt <= asOf);
+  const kept = dedupe(rankings).filter((r) => r.createdAt <= asOf && FOCUSES.has(r.focus));
   const f = fit(kept, asOf, known);
   const out: Rating[] = f.ids.map((id, i) => ({ modelId: id, rating: round1(elo(f.strength[i])), rankings: f.rankings.get(id) ?? 0, weight: round1(f.weight.get(id) ?? 0) })).filter((r) => r.rankings >= MIN_RANKINGS);
   if (bootstrap > 0 && kept.length > 0) {
