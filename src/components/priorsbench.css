@@ -1,0 +1,13 @@
+/* /priorsbench: leaderboard rows, podium and the head-to-head grid. */
+.pb-row { display: grid; grid-template-columns: 24px 30px minmax(170px, 1.5fr) minmax(0, 1fr) 52px 74px 66px; column-gap: 10px; }
+@media (max-width: 767px) { .pb-row { grid-template-columns: 24px 30px minmax(0, 1fr) 52px 74px 66px; } }
+@media (max-width: 639px) { .pb-row { grid-template-columns: 22px 28px minmax(0, 1fr) 52px; } }
+.podium-rise { transform-origin: bottom; animation: podium-rise .6s cubic-bezier(.22, 1, .36, 1) both; }
+@keyframes podium-rise { from { transform: scaleY(0); } }
+@media (prefers-reduced-motion: reduce) { .podium-rise { animation: none; } }
+.h2h { display: grid; gap: 2px; align-items: stretch; justify-content: start; }
+.h2h-col { display: flex; justify-content: center; align-items: end; padding-bottom: 6px; color: var(--grey); }
+.h2h-cell { display: grid; place-items: center; aspect-ratio: 1; min-height: 26px; font: 11px var(--font-mono); color: var(--ink-2); border-radius: 2px; cursor: default; font-variant-numeric: tabular-nums; }
+.h2h-cell:hover { outline: 1.5px solid var(--ink); outline-offset: -1.5px; }
+.h2h-self { background: var(--hair); }
+.h2h-strong { color: var(--bone); }

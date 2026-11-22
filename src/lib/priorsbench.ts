@@ -109,8 +109,8 @@ const elo = (strength: number) => 1000 + 400 * Math.log10(strength);
 const round1 = (x: number) => Math.round(x * 10) / 10;
 
 /** Ratings as of `asOf`, best first, for models with at least `MIN_RANKINGS` rankings; `bootstrap` resamples give a 95% interval. */
-export function rate(rankings: Ranking[], { asOf = Date.now(), bootstrap = 0, known, seed = 1 }: { asOf?: number; bootstrap?: number; known?: (id: string) => boolean; seed?: number } = {}): Rating[] {
-  const kept = dedupe(rankings).filter((r) => r.createdAt <= asOf && FOCUSES.has(r.focus));
+export function rate(rankings: Ranking[], { asOf = Date.now(), bootstrap = 0, known, seed = 1, focus }: { asOf?: number; bootstrap?: number; known?: (id: string) => boolean; seed?: number; focus?: string } = {}): Rating[] {
+  const kept = dedupe(rankings).filter((r) => r.createdAt <= asOf && FOCUSES.has(r.focus) && (!focus || r.focus === focus));
   const f = fit(kept, asOf, known);
   const out: Rating[] = f.ids.map((id, i) => ({ modelId: id, rating: round1(elo(f.strength[i])), rankings: f.rankings.get(id) ?? 0, weight: round1(f.weight.get(id) ?? 0) })).filter((r) => r.rankings >= MIN_RANKINGS);
   if (bootstrap > 0 && kept.length > 0) {
@@ -130,14 +130,37 @@ export function rate(rankings: Ranking[], { asOf = Date.now(), bootstrap = 0, kn
   return out.sort((a, b) => b.rating - a.rating);
 }
 
-/** The board at the end of each week since the first ranking: what the ratings were on that day, with only the rankings made by then. */
-export function history(rankings: Ranking[], { now = Date.now(), known }: { now?: number; known?: (id: string) => boolean } = {}): { date: string; ratings: Rating[] }[] {
+/** The board every `stepDays` from a week after the first ranking to `now`, each from only the rankings made by then. */
+export function history(rankings: Ranking[], { now = Date.now(), known, stepDays = 7 }: { now?: number; known?: (id: string) => boolean; stepDays?: number } = {}): { date: string; ratings: Rating[] }[] {
   if (!rankings.length) return [];
   const first = Math.min(...rankings.map((r) => r.createdAt));
   const out: { date: string; ratings: Rating[] }[] = [];
-  for (let t = first + 7 * DAY; ; t += 7 * DAY) {
+  for (let t = first + 7 * DAY; ; t += stepDays * DAY) {
     const asOf = Math.min(t, now);
     out.push({ date: new Date(asOf).toISOString().slice(0, 10), ratings: rate(rankings, { asOf, known }) });
     if (asOf === now) return out;
   }
 }
+
+/** Where each model could rank given the 95% intervals: best is one plus the models clearly above it, worst counts every model it cannot be told apart from or is below. */
+export function rankBands(ratings: Rating[]): Map<string, [number, number]> {
+  const lo = (r: Rating) => r.ci?.[0] ?? r.rating, hi = (r: Rating) => r.ci?.[1] ?? r.rating;
+  return new Map(ratings.map((r) => [r.modelId, [1 + ratings.filter((o) => lo(o) > hi(r)).length, ratings.filter((o) => o === r || hi(o) >= lo(r)).length]]));
+}
+
+/** For each ordered pair of `ids`: the rankings that include both, and how many of those put the first above the second. */
+export function headToHead(rankings: Ranking[], ids: string[]): { above: number; both: number }[][] {
+  const at = new Map(ids.map((id, i) => [id, i]));
+  const m = ids.map(() => ids.map(() => ({ above: 0, both: 0 })));
+  for (const r of dedupe(rankings)) {
+    if (!FOCUSES.has(r.focus)) continue;
+    const seen = r.lineup.flatMap((id) => (at.has(id) ? [at.get(id)!] : [])).filter((v, k, all) => all.indexOf(v) === k);
+    for (let a = 0; a < seen.length; a++) for (let b = a + 1; b < seen.length; b++) {
+      m[seen[a]][seen[b]].above++; m[seen[a]][seen[b]].both++; m[seen[b]][seen[a]].both++;
+    }
+  }
+  return m;
+}
+
+/** Head-to-head votes: the ordered pairs in every counted ranking. */
+export const voteCount = (rankings: Ranking[]) => dedupe(rankings).filter((r) => FOCUSES.has(r.focus)).reduce((t, r) => { const n = new Set(r.lineup).size; return t + (n * (n - 1)) / 2; }, 0);

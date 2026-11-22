@@ -10,7 +10,7 @@ const dayLabel = (iso: string) => new Date(`${iso}T00:00:00Z`).toLocaleDateStrin
 const compact = (n: number) => n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${(n / 1e3).toFixed(n >= 1e4 ? 0 : 1)}K` : String(Math.round(n));
 
 /** `color` pulled toward the page by `t` (0 to 1): the next model of the same lab gets a lighter or darker step of its lab's color. */
-function step(color: string, pal: ChartPalette, t: number) {
+export function step(color: string, pal: ChartPalette, t: number) {
   const hex = (h: string) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
   if (!/^#[0-9a-f]{6}$/i.test(color) || !/^#[0-9a-f]{6}$/i.test(pal.bg)) return color;
   const a = hex(color), b = hex(pal.bg);

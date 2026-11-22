@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dedupe, history, rate, type Ranking } from "./priorsbench";
+import { dedupe, headToHead, history, rankBands, rate, voteCount, type Ranking } from "./priorsbench";
 
 const DAY = 86_400_000, now = Date.parse("2026-11-22T00:00:00Z");
 const many = (lineup: string[], n: number, start = now - 30 * DAY): Ranking[] => Array.from({ length: n }, (_, i) => ({ lineup, focus: "general", createdAt: start + i * 3_600_000 * 25 }));
@@ -30,5 +30,15 @@ describe("PriorsBench", () => {
     expect(top.ci![0]).toBeLessThanOrEqual(top.rating);
     expect(top.ci![1]).toBeGreaterThanOrEqual(top.rating);
     expect(history(rankings, { now }).at(-1)!.date).toBe("2026-11-22");
+  });
+  it("counts head-to-head placements, votes and rank bands", () => {
+    const rankings = [{ lineup: ["a", "b", "c"], focus: "general", createdAt: now - DAY }, { lineup: ["b", "a"], focus: "knowledge", createdAt: now - 2 * DAY }];
+    const m = headToHead(rankings, ["a", "b"]);
+    expect(m[0][1]).toEqual({ above: 1, both: 2 });
+    expect(m[1][0]).toEqual({ above: 1, both: 2 });
+    expect(voteCount(rankings)).toBe(4);
+    const bands = rankBands([{ modelId: "a", rating: 1200, ci: [1150, 1250], rankings: 20, weight: 20 }, { modelId: "b", rating: 1180, ci: [1100, 1220], rankings: 20, weight: 20 }, { modelId: "c", rating: 900, ci: [880, 920], rankings: 20, weight: 20 }]);
+    expect(bands.get("a")).toEqual([1, 2]);
+    expect(bands.get("c")).toEqual([3, 3]);
   });
 });
