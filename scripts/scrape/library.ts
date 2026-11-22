@@ -27,7 +27,7 @@ const LIBRARY_SETTINGS = { strictness: 50, estimateMissing: true, effortMatching
 const rng = (seed: number) => () => ((seed = Math.imul(seed ^ (seed >>> 15), 1 | seed)), ((seed + Math.imul(seed ^ (seed >>> 7), 61 | seed)) ^ seed) >>> 0) / 4294967296;
 
 function eligible(b: Benchmark): boolean {
-  return !b.proxy && !["cost", "speed", "composite", "reliability"].includes(b.category) && !/arena|image|subjective|price|cost|speed/i.test(`${b.id} ${b.name} ${b.description}`);
+  return !b.proxy && !["cost", "speed", "composite", "reliability"].includes(b.category) && !/arena|priorsbench|image|subjective|price|cost|speed/i.test(`${b.id} ${b.name} ${b.description}`);
 }
 
 function indexConfig(weights: Record<string, number>): IndexConfig {

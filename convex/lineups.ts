@@ -1,5 +1,6 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
+import { paginationOptsValidator } from "convex/server";
 
 /** Record a completed lineup fit. Anonymous and best-effort — the UI never blocks on it. */
 export const record = mutation({
@@ -53,4 +54,13 @@ export const count = query({
   args: {},
   returns: v.number(),
   handler: async (ctx) => (await ctx.db.query("lineups").take(1000)).length,
+});
+
+/** Every finished ranking, oldest first, without the fitted weights: the votes behind PriorsBench (`src/lib/priorsbench.ts`). */
+export const forBench = query({
+  args: { paginationOpts: paginationOptsValidator },
+  handler: async (ctx, { paginationOpts }) => {
+    const page = await ctx.db.query("lineups").order("asc").paginate({ ...paginationOpts, numItems: Math.min(paginationOpts.numItems, 2000) });
+    return { ...page, page: page.page.map((r) => ({ lineup: r.lineup, focus: r.focus, createdAt: r.createdAt })) };
+  },
 });

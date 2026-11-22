@@ -153,6 +153,7 @@ export const DIRECT: Record<string, Entry> = {
   "vendingbench-arena": { c: ["agentic", "games"], d: "Several models run competing vending machines at the same location and may trade or collude. Each is scored on its own final bank balance." },
   "voxelbench-image": { c: ["creative", "vision"], d: "Models rebuild a reference image as a 3D voxel model and people vote head to head on the renders. A rating from those votes." },
   "voxelbench-text": { c: ["creative"], d: "Models build 3D voxel scenes from text prompts and people vote head to head on the renders. A rating from those votes." },
+  priorsbench: { c: ["preference"], d: "What Priors visitors think: each ranking people finish on Priors counts every higher-placed model as beating every lower one, fitted into an Elo-scale rating like an arena, with recent rankings counting most. A measure of belief, not ability; never in a default mix." },
   "weirdml-v2": { c: ["coding", "science"], d: "17 unusual machine-learning tasks where the model writes a full Python solution from scratch. The mean accuracy of its solutions across tasks." },
   "weirdml-v3": { c: ["coding", "science", "agentic"], d: "11 hand-made machine-learning and data-analysis tasks run in coding agents: explore unfamiliar data and build a working pipeline with little data, vague goals or scarce feedback. Overall score with a 95% interval." },
   "zerobench-main": { c: ["vision", "reasoning"], d: "100 visual problems built to be impossible for the multimodal models of their day. Share solved in at least one of five tries." },
