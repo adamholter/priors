@@ -1565,13 +1565,13 @@ try {
     c.on("pageerror", (e) => errors.push(`${c.url()}: ${e.message}`));
     try {
       // An explicit mix, so the check holds whatever the default is: AA-Omniscience's gear swaps in its accuracy cut.
-      await c.goto(`${BASE}/builder?i=${encodeURIComponent("Gear|aa-omniscience:50,aa-gdp-pdf:50")}`, { waitUntil: "domcontentloaded" });
-      const gear = c.getByRole("button", { name: /^AA-Omniscience( v1)?: choose a category or subset/ }).first();
+      await c.goto(`${BASE}/builder?i=${encodeURIComponent("Gear|aa-omniscience-v1-1:50,aa-gdp-pdf:50")}`, { waitUntil: "domcontentloaded" });
+      const gear = c.getByRole("button", { name: /^AA-Omniscience( v1(\.1)?)?: choose a category or subset/ }).first();
       await gear.waitFor({ timeout: 30000 });
       const rows = await c.getByRole("slider").count();
       await gear.click();
       await c.getByRole("option", { name: "Accuracy" }).click();
-      await c.getByRole("slider", { name: /^AA-Omniscience( v1)? Accuracy weight$/ }).waitFor({ timeout: 10000 });
+      await c.getByRole("slider", { name: /^AA-Omniscience( v1(\.1)?)? Accuracy weight$/ }).waitFor({ timeout: 10000 });
       assert.equal(await c.getByRole("slider").count(), rows, "the mix keeps its size");
     } finally { await c.context().close(); }
   });

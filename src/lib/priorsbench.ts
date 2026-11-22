@@ -148,19 +148,20 @@ export function rankBands(ratings: Rating[]): Map<string, [number, number]> {
   return new Map(ratings.map((r) => [r.modelId, [1 + ratings.filter((o) => lo(o) > hi(r)).length, ratings.filter((o) => o === r || hi(o) >= lo(r)).length]]));
 }
 
-/** For each ordered pair of `ids`: the rankings that include both, and how many of those put the first above the second. */
+/** For each ordered pair of `ids`: the rankings that include both, and how many of those put the first above the second. A flooded day counts only up to the same cap as in the ratings. */
 export function headToHead(rankings: Ranking[], ids: string[]): { above: number; both: number }[][] {
   const at = new Map(ids.map((id, i) => [id, i]));
   const m = ids.map(() => ids.map(() => ({ above: 0, both: 0 })));
-  for (const r of dedupe(rankings)) {
-    if (!FOCUSES.has(r.focus)) continue;
+  const kept = dedupe(rankings).filter((r) => FOCUSES.has(r.focus)), scale = dayScale(kept);
+  for (const r of kept) {
+    const w = scale.get(r) ?? 1;
     const seen = r.lineup.flatMap((id) => (at.has(id) ? [at.get(id)!] : [])).filter((v, k, all) => all.indexOf(v) === k);
     for (let a = 0; a < seen.length; a++) for (let b = a + 1; b < seen.length; b++) {
-      m[seen[a]][seen[b]].above++; m[seen[a]][seen[b]].both++; m[seen[b]][seen[a]].both++;
+      m[seen[a]][seen[b]].above += w; m[seen[a]][seen[b]].both += w; m[seen[b]][seen[a]].both += w;
     }
   }
   return m;
 }
 
 /** Head-to-head votes: the ordered pairs in every counted ranking. */
-export const voteCount = (rankings: Ranking[]) => dedupe(rankings).filter((r) => FOCUSES.has(r.focus)).reduce((t, r) => { const n = new Set(r.lineup).size; return t + (n * (n - 1)) / 2; }, 0);
+export const voteCount = (rankings: Ranking[]) => { const kept = dedupe(rankings).filter((r) => FOCUSES.has(r.focus)), scale = dayScale(kept); return Math.round(kept.reduce((t, r) => { const n = new Set(r.lineup).size; return t + ((scale.get(r) ?? 1) * n * (n - 1)) / 2; }, 0)); };
