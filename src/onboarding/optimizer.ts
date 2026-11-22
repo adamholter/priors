@@ -30,6 +30,9 @@ function config(snapshot:Snapshot,target:string[],raw:Record<string,number>,s:Se
 function publishable(cfg:IndexConfig):IndexConfig{return{...cfg,excludeModels:undefined,onlyModels:undefined}}
 function eligible(snapshot:Snapshot,id:string,target:Set<string>){const b=columnsOf(snapshot).bench[columnsOf(snapshot).benchIndex.get(id)??-1];if(!b||b.proxy||["cost","speed","composite","reliability"].includes(b.category)||/arena|image|subjective|price|cost|speed/i.test(`${b.id} ${b.name} ${b.description}`))return false;const modelByVariant=columnsOf(snapshot).modelOf;const seen=new Set(observationsOf(snapshot,id).map(o=>modelByVariant.get(o.variantId)));let n=0;for(const m of target)if(seen.has(m))n++;return n>=Math.min(2,target.size)&&n/target.size>=.45}
 
+/** The tests the search can use for this lineup, in the order it tries them: no proxies, prices, speeds or judged preferences, and measured on enough of the models. */
+export function candidateIds(snapshot:Snapshot,target:string[]){const set=new Set(target);return snapshot.benchmarks.map(b=>b.id).filter(id=>eligible(snapshot,id,set))}
+
 function rankingLoss(p:ReturnType<typeof selectedPairAgreement>){return[p.missing,...p.priorityErrors,p.weightedErrors,p.total-p.matched]}
 const rankingLossLength=(n:number)=>n+3;
 

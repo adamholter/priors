@@ -50,7 +50,7 @@ function slotsOf(update: FitUpdate | null, wanted: string[]) {
   const max = Math.max(1, ...live.map(id => scores.get(id) ?? 0));
   return live.map((id, i) => ({ id, placed: !!update && wanted[i] === id, size: update ? Math.max(.12, (scores.get(id) ?? 0) / max) : 1 }));
 }
-/** Every candidate test: lit when it is in the mix, stronger with more weight, ringed while the search tries it. */
+/** Every test the search can use for this lineup: lit when it is in the mix, stronger with more weight, ringed while the search tries it. */
 function testsOf(update: FitUpdate | null, benchmarks: Props["benchmarks"]) {
   const weights = update?.weights ?? {}, total = Object.values(weights).reduce((n, w) => n + Math.max(0, w), 0) || 1;
   const max = Math.max(.0001, ...Object.values(weights)) / total;
@@ -71,6 +71,6 @@ export function SearchMonitor({ update, wanted, logs, elapsed, running, complete
       <div><span className="mini-cap">Your order</span><div className="ladder-rows">{slots.map((s, i) => <i key={i} className={s.placed ? "placed" : ""} style={{ width: `${s.size * 100}%` }} />)}</div></div>
       <div><span className="mini-cap">The tests</span><div className="test-dots">{tests.map(t => <i key={t.id} title={t.name} className={`${t.lit ? "on" : ""} ${t.trying ? "trying" : ""}`} style={{ "--level": t.level } as CSSProperties} />)}</div></div>
     </div>
-    <div className="monitor-metrics"><span>{Math.round(update?.fitScore ?? 0)}% <small>fit</small></span><span>{placed}/{wanted.length} <small>in place</small></span><span>{update?.benchmarkCount ?? "—"} <small>of {tests.length} tests</small></span></div>
+    <div className="monitor-metrics"><span>{Math.round(update?.fitScore ?? 0)}% <small>fit</small></span><span>{placed}/{wanted.length} <small>in place</small></span><span>{update?.benchmarkCount ?? "—"} <small>of {tests.length || "—"} tests</small></span></div>
   </div>;
 }

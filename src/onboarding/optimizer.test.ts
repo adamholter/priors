@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Snapshot } from "../data/types";
 import { computeIndex } from "../engine";
-import { fitPriors, fitScore, PREFERRED, selectedPairAgreement } from "./optimizer";
+import { candidateIds, fitPriors, fitScore, PREFERRED, selectedPairAgreement } from "./optimizer";
 
 function snapshot(): Snapshot {
   const models = ["a", "b", "c", "d"].map((id) => ({ id, name: id.toUpperCase(), labId: "lab", kind: "llm" as const, reasoning: false, aliases: [] }));
@@ -21,6 +21,14 @@ function snapshot(): Snapshot {
   ];
   return { version: 1, date: "2026-09-08", generatedAt: "", labs: [{ id: "lab", name: "Lab", color: "#000" }], models, variants, benchmarks, observations, series: [], sources: [] };
 }
+
+describe("candidateIds", () => {
+  it("lists only the tests the search can use for the lineup, so the search panel does not draw the rest", async () => {
+    expect(candidateIds(snapshot(), ["a", "b", "c", "d"])).toEqual(["deepswe-1.1", "reverse"]);
+    const result = await fitPriors(snapshot(), ["a", "b", "c", "d"], () => {});
+    for (const id of Object.keys(result.weights)) expect(candidateIds(snapshot(), ["a", "b", "c", "d"])).toContain(id);
+  });
+});
 
 describe("fitPriors", () => {
   it("finds and exact-verifies a sparse pairwise fit", async () => {

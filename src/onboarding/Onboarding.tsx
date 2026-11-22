@@ -76,8 +76,15 @@ export function Onboarding({ snapshot, introMix, lineup, seeds, quality, observe
   const labs = useMemo(() => new Map(snapshot.labs.map(l => [l.id, { ...l, color: labColor(l.id, l.color) }])), [snapshot, labColor]);
   const [resolvedSeeds, setResolvedSeeds] = useState(seeds);
   const bracketSeeds = useMemo(() => resolvedSeeds.filter(id => models.has(id)), [resolvedSeeds, models]);
-  const searchable = useMemo(() => snapshot.benchmarks.filter(b => !b.proxy && !["cost", "speed", "composite", "reliability"].includes(b.category)).map(b => ({ id: b.id, name: b.shortName ?? b.name })), [snapshot]);
   const qMap = useMemo(() => new Map(quality.map(q => [q.id, q])), [quality]);
+  /** The tests the running search can use for this lineup (the worker sends them first), best quality first; empty until it does. */
+  const [candidates, setCandidates] = useState<string[] | null>(null);
+  const searchable = useMemo(() => {
+    if (!candidates) return [];
+    const names = new Map(snapshot.benchmarks.map(b => [b.id, b.shortName ?? b.name]));
+    const score = (id: string) => qMap.get(id)?.score ?? 0;
+    return [...candidates].sort((a, b) => score(b) - score(a)).map(id => ({ id, name: names.get(id) ?? id }));
+  }, [snapshot, candidates, qMap]);
   // Each benchmark's explanation of its quality score is long and only the quality dialog and a fit's mix read it, so it comes with those.
   const [reasons, setReasons] = useState<Record<string, string>>({});
   const reasonsLoad = useRef<Promise<void> | null>(null);
@@ -236,7 +243,7 @@ export function Onboarding({ snapshot, introMix, lineup, seeds, quality, observe
     const attempt = ++searchAttempt.current;
     track("onboarding_fit_started", { from, lineup_size: target.length });
     release();
-    worker.current?.terminate(); if (displayTimer.current) clearTimeout(displayTimer.current); displayTimer.current = null; setError(""); setCopied(false); setUpdate(null); latest.current = null; setLogs([]); setElapsed(0); startTime.current = performance.now(); setStage("fit");
+    worker.current?.terminate(); if (displayTimer.current) clearTimeout(displayTimer.current); displayTimer.current = null; setError(""); setCopied(false); setUpdate(null); setCandidates(null); latest.current = null; setLogs([]); setElapsed(0); startTime.current = performance.now(); setStage("fit");
     window.scrollTo({ top: 0, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth" });
     // Precomputed mix library seeds the search; absent or stale, the worker computes live. Only a search reads it, so it downloads with the search's data.
     loadReasons();
@@ -277,8 +284,9 @@ export function Onboarding({ snapshot, introMix, lineup, seeds, quality, observe
           recordLineup.current?.({ focus, lineup: target, weights: u.weights, strictness: u.config.strictness ?? 50, fitScore: u.fitScore, exact: u.exactMatch, snapshotDate: snapshot.date });
         }
       };
-      w.onmessage = (e: MessageEvent<FitUpdate | { error: string }>) => {
+      w.onmessage = (e: MessageEvent<FitUpdate | { error: string } | { candidates: string[] }>) => {
         if (worker.current !== w) return;
+        if ("candidates" in e.data) { setCandidates(e.data.candidates); return; }
         if ("error" in e.data) { if (displayTimer.current) clearTimeout(displayTimer.current); latest.current = null; setError(e.data.error); w.terminate(); return; }
         latest.current = e.data;
         if (!displayTimer.current) {
