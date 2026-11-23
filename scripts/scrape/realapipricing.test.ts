@@ -146,7 +146,7 @@ describe("Real API Pricing subscriptions", () => {
     const named = (label: string) => found.find((r) => r.modelLabel === label)!.details as { plan: string; plans: { plan: string }[] };
     expect(named("Composer 2.5").plan).toBe("Cursor Ultra, legacy");
     expect(named("Claude Opus 5.5").plan).toBe("Claude Ultra");
-    expect(named("Claude Opus 5.5").plans.map((p) => p.plan).sort()).toEqual(["Claude Ultra", "Cursor Ultra, legacy"]);
+    expect(named("Claude Opus 5.5").plans.map((p) => p.plan).sort()).toEqual(["Claude Ultra", "Cursor Ultra, legacy", "Devin Max"]);
   });
   it("prices plans measured before an allowance change at the allowance they sell with now: Pro 100 doubled to 10× Plus, Pro 200 keeps 20×", () => {
     const sol = (row("GPT 5.6 Sol").details as { plans: { plan: string; feeUsd: number; usdPerMtok: number }[] }).plans;
@@ -353,5 +353,33 @@ describe("plans sold by time of day", () => {
       mimo("mimo_token_pro_day", "MiMo Token Plan Pro (Day)", 0.0170, 50),
     ]);
     expect((lone.details as { plan: string }).plan).toBe("MiMo Token Plan Lite (off-peak)");
+  });
+});
+
+describe("Devin Max, measured for Priors", () => {
+  const devin = BUDGET_PLANS.find((b) => b.planId === "devin_max")!;
+  const opus = (points: Points) => parseSubscriptions(points, conventions, channels).find((r) => r.modelLabel === "Claude Opus 5.5")!;
+  const share = (r: ReturnType<typeof opus>) => { const d = r.details as unknown as SubscriptionDetails; return d.plans.find((p) => p.plan === "Devin Max")!.usdPerMtok / blendedApiPrice(d.listPrice!, d.mix); };
+  it("pays the fee for 100% a week over 4.35 weeks, at the dollars of list price one percent bought", () => {
+    // Opus 5.5: one percent of the week bought $1.24 to $1.26 of Devin's listed price.
+    expect(1 / share(opus(payload))).toBeCloseTo(435 * 1.25 / 200, 6);
+    expect(devin.models.map((m) => m.model)).not.toContain("deepseek-v4.1-flash");
+  });
+  it("replaces Real API Pricing's older Devin Max point for the same model, and stays a pickable reseller plan, not the price", () => {
+    const old = point("devin_max::claude-opus-5.5", "Devin Max", "Anthropic", 0.0299, { model_display: "Claude Opus 5.5", workload: "anthropic", price_usd: 200, list_price: { cached: 0.2, input: 4, output: 20, currency: "USD" } });
+    const row = opus({ ...payload, points: [...payload.points, old] });
+    expect((row.details as unknown as SubscriptionDetails).plans.filter((p) => p.plan === "Devin Max")).toHaveLength(1);
+    expect(1 / share(row)).toBeCloseTo(435 * 1.25 / 200, 6);
+    expect((row.details as unknown as SubscriptionDetails).plan).toBe("Claude Max 5x");
+  });
+  it("joins the plans of a model priced by assumption, at its own list price and mix, without changing its price", () => {
+    const astra = (id: string, plan: string, v: number, fee: number) => point(`${id}::gpt-6-astra`, plan, "OpenAI", v, { model_display: "GPT 6 Astra", price_usd: fee, confidence: "medium" });
+    const found = parseSubscriptions({ ...payload, points: [...payload.points, astra("chatgpt_pro_10x", "ChatGPT Pro 10x", 0.0629, 100), astra("chatgpt_plus", "ChatGPT Plus", 0.1258, 20)] }, conventions, channels);
+    const row62 = found.find((r) => r.modelLabel === "GPT-6.2 Astra (max)")!, d = row62.details as unknown as SubscriptionDetails;
+    expect(row62.value).toBeCloseTo(0.0629, 9);
+    // GPT-6.2 Astra: one percent of the week bought $0.70 to $1.16.
+    expect(blendedApiPrice(d.listPrice!, d.mix) / d.plans.find((p) => p.plan === "Devin Max")!.usdPerMtok).toBeCloseTo(435 * 0.93 / 200, 6);
+    // Never a row of its own: no assumption or other plan, no Devin row.
+    expect(found.some((r) => /Wonder/.test(r.modelLabel) && (r.details as unknown as SubscriptionDetails).plan === "Devin Max")).toBe(false);
   });
 });

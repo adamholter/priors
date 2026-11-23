@@ -375,6 +375,10 @@ export interface BudgetPlan {
   source: string;
   checked: string;
   note: string;
+  /** Our own measurement, newer than Real API Pricing's: its points replace theirs with the same id, instead of the other way round. */
+  supersedes?: true;
+  /** Listed beside a model's own plans, to pick under Advanced → Plan, but never the only row a model has (Devin Max next to GPT-6.2 Sol's assumed ChatGPT price). */
+  listOnly?: true;
   /**
    * Each model's Real API Pricing slug and name, its vendor, and the seller's rate per 1M tokens (cache reads at 10% of input unless published).
    * Rates are in the unit of `budgetUsd`. A plan sold in credits gives both in credits, then `list` is the model's USD API price and `promo` the rates until a moment.
@@ -433,4 +437,33 @@ export const BUDGET_PLANS: BudgetPlan[] = [
     note: `${500 * n}M input and ${50 * n}M output tokens a month (${125 * n}M and ${12.5 * n}M per rolling 7 days, which a month's use stays under), from deeprelay.ai/pricing. Cached input counts as input at the model's usage factor (1 for DeepSeek V4.1 Flash 1017), so on the standard workload, 97% cache reads, the input cap runs out first. Past a cap calls continue at pay-as-you-go rates. Budgets and rates here are in millions of tokens.`,
     models: [{ model: "deepseek-v4.1-flash-1017", display: "DeepSeek V4.1 Flash 1017", vendor: "DeepSeek", input: 1, cached: 1, output: 1 }],
   })),
+  devinMax(),
 ];
+
+/**
+ * Devin Max ($200 a month) has only a weekly quota, shown in whole percents. Measured on 23 November 2026 (~/Projects/devin-quota): each model at
+ * its lowest effort on unique short prompts, the dollars of Devin's listed API price spent between one-percent drops fitted per model. Budgets and
+ * rates here are in percent of the weekly quota: 100 a week, 4.35 weeks a month, and each model's list price ÷ the dollars one percent buys (the
+ * middle of the fitted range). Real API Pricing's Devin Max point for Opus 5.5 (23 September, 97% cache reads) gave 14 times the fee; this one
+ * gives 2.7, so for both to hold Devin must count cache reads at well under the API's share of input, and cache-heavy work gets more than shown.
+ */
+function devinMax(): BudgetPlan {
+  const rows: [string, string, string, { input: number; cached: number; output: number }, number, number][] = [
+    ["gpt-6.2-sol", "GPT-6.2 Sol", "OpenAI", { input: 2, cached: 0.1, output: 10 }, 1.37, 1.71],
+    ["claude-sonnet-5.5", "Claude Sonnet 5.5", "Anthropic", { input: 2, cached: 0.1, output: 10 }, 1.27, 1.48],
+    ["claude-opus-5.5", "Claude Opus 5.5", "Anthropic", { input: 4, cached: 0.2, output: 20 }, 1.24, 1.26],
+    ["claude-fable-5.2", "Claude Fable 5.2", "Anthropic", { input: 8, cached: 0.2, output: 40 }, 0.92, 1.38],
+    ["claude-haiku-5.5", "Claude Haiku 5.5", "Anthropic", { input: 0.1, cached: 0.01, output: 0.5 }, 0.99, 1.15],
+    ["gemini-4-neon", "Gemini 4 Neon", "Google", { input: 3, cached: 0.15, output: 15 }, 0.93, 1.08],
+    ["muse-wonder", "Muse Wonder", "Muse", { input: 4, cached: 0.2, output: 20 }, 0.85, 1.04],
+    ["gpt-6.2-astra", "GPT-6.2 Astra", "OpenAI", { input: 8, cached: 0.4, output: 40 }, 0.70, 1.16],
+  ];
+  return {
+    planId: "devin_max", plan: "Devin Max", channel: "Cognition", feeUsd: 200, budgetUsd: 100 * 4.35, confidence: "medium", source: "https://devin.ai/pricing", checked: "2026-11-23", supersedes: true, listOnly: true,
+    note: "A weekly quota, no daily cap, measured for Priors on 23 November 2026: dollars of Devin's listed API price per percent of the weekly quota, per model, at its lowest effort, on prompts that were mostly cache writes (counted at the input price) with almost no output. Output is assumed to count at the same share of list price as input. Each model saw one or two one-percent drops, so each figure is good to about 15%. DeepSeek V4.1 Flash dropped once in 14 runs, too few to measure, and is left out. Budgets and rates here are in percent of the weekly quota.",
+    models: rows.map(([model, display, vendor, list, lo, hi]) => {
+      const perPercent = (lo + hi) / 2;
+      return { model, display, vendor, list, input: list.input / perPercent, cached: list.cached / perPercent, output: list.output / perPercent };
+    }),
+  };
+}

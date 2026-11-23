@@ -78,8 +78,8 @@ export function parseSubscriptions(json: Points, conventions: Conventions, chann
     ? { cache: conventions.anthropicTokenMix.cache, input: 0, cacheWrite: conventions.anthropicTokenMix.cacheWrite, output: conventions.anthropicTokenMix.output }
     : workload === "lowCache" ? pickMix(conventions.lowCacheTokenMix) : pickMix(conventions.standardTokenMix);
   const byModel = new Map<string, Point[]>(), resold = new Map<string, Point[]>();
-  const budgets = budgetPoints(conventions, now).filter((b) => !json.points.some((p) => p.id === b.id));
-  const statedIds = new Set(stated.map((p) => p.id));
+  const budgets = budgetPoints(conventions, now).filter((b) => budgetOf(b.id)?.supersedes || !json.points.some((p) => p.id === b.id));
+  const statedIds = new Set([...stated.map((p) => p.id), ...budgets.filter((b) => budgetOf(b.id)?.supersedes).map((b) => b.id)]);
   // OpenCode's own list is complete, so a model Real API Pricing still shows on Go but OpenCode dropped goes too.
   for (const p of [...withMultiples(json.points.filter((p) => !statedIds.has(p.id) && !(stated.length && isOpenCodeGo(p.id))).map(changed)), ...budgets, ...stated]) {
     if (p.billing !== "subscription" || p.unmetered || !(p.real_usd_per_mtok > 0)) continue;
@@ -117,10 +117,13 @@ export function parseSubscriptions(json: Points, conventions: Conventions, chann
     const label = all[0].model_display.replace(/\s*\(v\d+\)$/, "");
     const { until, list } = listOf(all, pick);
     const rate = list?.currency === "CNY" ? conventions.usdPerCny : 1;
+    // The engine divides a picked plan's token price by the row's list price at the row's mix. A list-only plan is priced at that mix, so its share of API price holds.
+    const rowApi = list ? blendedApiPrice({ cached: list.cached / rate, input: list.input / rate, output: list.output / rate }, mixOf(pick.workload)) : 0;
+    const priceOf = (p: Point) => budgetOf(p.id)?.listOnly && rowApi > 0 ? shareOf(all, p) * rowApi : p.real_usd_per_mtok;
     const details: SubscriptionDetails = {
       plan: name(pick), feeUsd: pick.price_usd ?? undefined, confidence: pick.confidence, mix: mixOf(pick.workload), dataDate: pick.data_date ?? undefined, ...(pick.preliminary ? { preliminary: pick.preliminary } : {}),
       ...(list ? { listPrice: { cached: list.cached / rate, input: list.input / rate, output: list.output / rate } } : {}), ...(until ? { listUntil: until.until } : {}),
-      plans: [...all].sort(cheaper).map((p) => ({ plan: name(p), feeUsd: p.price_usd ?? undefined, usdPerMtok: p.real_usd_per_mtok, confidence: p.confidence, ...(p.preliminary ? { preliminary: p.preliminary } : {}) })),
+      plans: [...all].sort(cheaper).map((p) => ({ plan: name(p), feeUsd: p.price_usd ?? undefined, usdPerMtok: priceOf(p), confidence: p.confidence, ...(p.preliminary ? { preliminary: p.preliminary } : {}) })),
     };
     const budget = budgetOf(pick.id);
     rows.push({ benchmarkId: SUBSCRIPTION_BENCHMARK, modelLabel: label, value: pick.real_usd_per_mtok, sourceUrl: budget?.source ?? SITE, note: `${name(pick)}${pick.price_usd ? `, $${pick.price_usd}/month` : ""}; ${pick.confidence} confidence; ${note}${budget ? `; ${budget.note}` : ""}`, details: details as unknown as Record<string, unknown> });
@@ -140,8 +143,9 @@ export function parseSubscriptions(json: Points, conventions: Conventions, chann
     add(all, pick, `biggest subsidy of ${count} plan${count === 1 ? "" : "s"}`);
   }
   // Models only resellers or harnesses sell.
+  // A list-only plan (Devin Max) never makes a row of its own: it waits for a model's other plans, an assumption or a curated figure.
   for (const all of resold.values()) {
-    if (!all.some((p) => p.confidence !== "low") || !claim(all)) continue;
+    if (all.every((p) => budgetOf(p.id)?.listOnly) || !all.some((p) => p.confidence !== "low") || !claim(all)) continue;
     const { pick, count } = best(all);
     add(all, pick, `biggest subsidy of ${count} reseller plan${count === 1 ? "" : "s"}`);
   }
@@ -182,6 +186,13 @@ export function parseSubscriptions(json: Points, conventions: Conventions, chann
       benchmarkId: SUBSCRIPTION_BENCHMARK, modelLabel: a.label, value: at.usdPerMtok * (a.poolRate ?? 1), sourceUrl: from.sourceUrl, note: `${plan}, $${at.feeUsd}/month; assumed; ${a.note}`,
       details: { ...rest, ...(rest.listUntil ? { listPrice: undefined, listUntil: undefined } : {}), ...(a.listPrice ? { listPrice: a.listPrice } : {}), value: undefined, plan, feeUsd: at.feeUsd, sameAs: a.sameAs, ...(a.poolRate ? { poolRate: a.poolRate } : {}), confidence: a.confidence ?? "assumed", ...(a.preliminary ? { preliminary: a.preliminary } : {}), dataDate: a.checked, plans } as unknown as Record<string, unknown>,
     });
+  }
+  // A list-only plan measured on a model whose price is assumed from another (GPT-6.2 Sol from GPT-6.1 Sol's ChatGPT plans) joins its plans, at the row's own list price and mix.
+  for (const p of budgets) {
+    if (!budgetOf(p.id)?.listOnly) continue;
+    const n = normalizeLabel(p.model_display), row = n.ok ? rows.find((r) => idOf(r) === n.modelId) : undefined, d = row?.details as unknown as SubscriptionDetails | undefined;
+    if (!d?.sameAs || !d.plans?.length || !d.listPrice || !d.mix || d.plans.some((x) => x.plan === name(p))) continue;
+    d.plans = [...d.plans, { plan: name(p), feeUsd: p.price_usd ?? undefined, usdPerMtok: shareOf([p], p) * blendedApiPrice(d.listPrice, d.mix), confidence: p.confidence }].sort((a, b) => a.usdPerMtok - b.usdPerMtok);
   }
   // What subscribers report getting from a plan joins the model's plans, marked preliminary, and becomes its price when it is the biggest subsidy.
   for (const e of planUsageEstimates()) {
