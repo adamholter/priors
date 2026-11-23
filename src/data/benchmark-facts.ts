@@ -420,6 +420,10 @@ const OVERRIDES: Record<string, BenchmarkFacts> = {
   hearingbench: { grading: "mixed", gradingNote: "Word and sentence clips are scored by rule; the other tiers are read and scored by Claude Opus 5.5." },
   // Added 2026-11-22: Priors' own board of visitors' rankings; there is no test set, the votes keep coming.
   priorsbench: { test: "private", testNote: "There is no test set: the votes are the rankings people finish on Priors, which keep arriving.", testUrl: "https://mypriors.com/priorsbench", released: "2026-11-22", refreshed: true, grading: "human-votes" },
+  // Added 2026-11-23 by hand from mazebench.com/blog ("Introducing MazeBench", 28 July 2026): anyone can play the world on the site, and
+  // the post says "The MazeBench solution algorithms are open sourced". One gem is one percent, counted by the game.
+  mazebench: { test: "public", testNote: "Anyone can play the whole world on mazebench.com, and the post introducing it says the solution algorithms are open source.", testUrl: "https://mazebench.com/blog?post=introducing-mazebench", released: "2026-07-28", grading: "automatic" },
+  "bg-maze-bench": { test: "public", testNote: "Anyone can play the whole world on mazebench.com, and the post introducing it says the solution algorithms are open source.", testUrl: "https://mazebench.com/blog?post=introducing-mazebench", released: "2026-07-28", grading: "automatic" },
   // Added 2026-11-20 by hand: the method page says the 14 tasks were built for the benchmark and publishes none; it does not say who the two graders are.
   "corpo-index": { test: "private", testNote: "The 14 consulting-style tasks were built for the benchmark and are not published; the method page describes them but shows none.", testUrl: "https://local-bench.ai/method/", released: "2026-10-17" },
 };
