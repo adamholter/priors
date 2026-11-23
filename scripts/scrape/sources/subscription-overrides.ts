@@ -457,10 +457,11 @@ function devinMax(): BudgetPlan {
     ["gemini-4-neon", "Gemini 4 Neon", "Google", { input: 3, cached: 0.15, output: 15 }, 0.93, 1.08],
     ["muse-wonder", "Muse Wonder", "Muse", { input: 4, cached: 0.2, output: 20 }, 0.85, 1.04],
     ["gpt-6.2-astra", "GPT-6.2 Astra", "OpenAI", { input: 8, cached: 0.4, output: 40 }, 0.70, 1.16],
+    ["gpt-6.1-terra", "GPT-6.1 Terra", "OpenAI", { input: 1, cached: 0.05, output: 5 }, 0.86, 1.29],
   ];
   return {
     planId: "devin_max", plan: "Devin Max", channel: "Cognition", feeUsd: 200, budgetUsd: 100 * 4.35, confidence: "medium", source: "https://devin.ai/pricing", checked: "2026-11-23", supersedes: true, listOnly: true,
-    note: "A weekly quota, no daily cap, measured for Priors on 23 November 2026: dollars of Devin's listed API price per percent of the weekly quota, per model, at its lowest effort, on prompts that were mostly cache writes (counted at the input price) with almost no output. Output is assumed to count at the same share of list price as input. Each model saw one or two one-percent drops, so each figure is good to about 15%. DeepSeek V4.1 Flash dropped once in 14 runs, too few to measure, and is left out. Budgets and rates here are in percent of the weekly quota.",
+    note: "A weekly quota, no daily cap, measured for Priors on 23 November 2026: dollars of Devin's listed API price per percent of the weekly quota, per model, at its lowest effort, on prompts that were mostly cache writes (counted at the input price) with almost no output. Output is assumed to count at the same share of list price as input. Each model saw one or two one-percent drops, so each figure is good to about 15%. DeepSeek V4.1 Flash dropped once in 14 runs, too few to measure, and is left out. GPT-6.1 Terra was measured the same day, after a first pass that skipped it. Budgets and rates here are in percent of the weekly quota.",
     models: rows.map(([model, display, vendor, list, lo, hi]) => {
       const perPercent = (lo + hi) / 2;
       return { model, display, vendor, list, input: list.input / perPercent, cached: list.cached / perPercent, output: list.output / perPercent };

@@ -89,6 +89,9 @@ describe("subscription cost basis", () => {
     // Its own plan row wins.
     const own = { ...withTerra, observations: [...withTerra.observations, { benchmarkId: SUBSCRIPTION_BENCHMARK, variantId: "gpt-6.1-terra@default", value: 0.01, observedAt: "", sourceUrl: "", details: plan("ChatGPT Plus", { ratio: 0.01 }) }] };
     expect(subscriptionPrices(own).get("gpt-6.1-terra")).toMatchObject({ ratio: 0.01, confidence: "high" });
+    // A row measured only on a list-only plan (Devin Max) leaves the estimate in place.
+    const listOnly = { ...withTerra, observations: [...withTerra.observations, { benchmarkId: SUBSCRIPTION_BENCHMARK, variantId: "gpt-6.1-terra@default", value: 0.001, observedAt: "", sourceUrl: "", details: { ...plan("Devin Max", { ratio: 0.001 }), listOnly: true } }] };
+    expect(subscriptionPrices(listOnly).get("gpt-6.1-terra")).toMatchObject({ plan: "ChatGPT Plus", confidence: "estimated from the median share of b" });
     // No limits published, no guess.
     expect(subscriptionPrices({ ...withTerra, observations: sn.observations }).has("gpt-6.1-terra")).toBe(false);
   });

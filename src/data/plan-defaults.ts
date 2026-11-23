@@ -53,7 +53,7 @@ function rowsOf(snapshot: Snapshot): Row[] {
     if (o.benchmarkId !== SUBSCRIPTION_BENCHMARK) continue;
     const row = o.details as unknown as SubscriptionDetails | undefined, free = !!row?.free, d = free ? row?.paid : row;
     const modelId = modelOf.get(o.variantId) ?? o.variantId.split("@")[0], labId = labOf.get(modelId) ?? "";
-    if (!d?.plans?.length || d.ratio != null || d.sameAs || !d.mix) continue;
+    if (!d?.plans?.length || d.ratio != null || d.sameAs || d.listOnly || !d.mix) continue;
     const prices = d.listPrice ?? aa.get(modelId), api = prices ? blendedApiPrice(prices, d.mix) : 0;
     if (positive(api)) out.push({ o, d, free, modelId, labId, api });
   }

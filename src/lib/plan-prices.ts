@@ -11,7 +11,7 @@ export interface PlanPriceModel extends PlanPrice {
   free?: true;
   paid?: PlanPrice;
   /** The model's share on each plan that sells it, by plan name. */
-  plans?: Record<string, { ratio: number; feeUsd?: number; listRatio?: number; preliminary?: PlanCaveat }>;
+  plans?: Record<string, { ratio: number; feeUsd?: number; listRatio?: number; preliminary?: PlanCaveat; /** This plan's own confidence: a plan measured on a model whose main figure is assumed is not assumed. */ confidence?: string }>;
   /** The share read more than one way (Fable 5.2: the shared weekly limit, or only the Fable a plan can buy). The first is `ratio`. */
   readings?: PlanReading[];
 }
@@ -58,7 +58,7 @@ export function planPrices(snapshot: Snapshot): PlanPrices {
   for (const lab of options) for (const { plan } of lab.plans) {
     for (const [id, p] of subscriptionPrices(snapshot, { [lab.labId]: plan }, { free: false })) {
       if (labOf.get(id) !== lab.labId || soldAs(p.plan) !== soldAs(plan)) continue;
-      (byPlan.get(id) ?? byPlan.set(id, {}).get(id)!)[currentPlanName(plan)] = { ratio: round(p.aaCostRatio ?? p.ratio), ...(p.feeUsd != null ? { feeUsd: p.feeUsd } : {}), ...(p.preliminary ? { preliminary: p.preliminary } : {}), ...listRatio(p) };
+      (byPlan.get(id) ?? byPlan.set(id, {}).get(id)!)[currentPlanName(plan)] = { ratio: round(p.aaCostRatio ?? p.ratio), ...(p.feeUsd != null ? { feeUsd: p.feeUsd } : {}), confidence: p.confidence, ...(p.preliminary ? { preliminary: p.preliminary } : {}), ...listRatio(p) };
     }
   }
   const models = snapshot.models.flatMap((m): PlanPriceModel[] => {

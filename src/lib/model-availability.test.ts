@@ -20,6 +20,10 @@ describe("plans of a model", () => {
   it("marks a share taken from another model, and names the plan without that note", () => {
     expect(plansOf(model({ plan: "Pro (assumed same as X)", confidence: "assumed", feeUsd: 20 }))).toEqual([{ plan: "Pro", feeUsd: 20, ratio: 0.1, assumed: true }]);
   });
+  it("marks only the plans whose own figure is assumed: one measured on a model priced by assumption is not", () => {
+    const rows = plansOf(model({ plan: "Pro (assumed same as X)", confidence: "assumed", plans: { Pro: { ratio: 0.1, feeUsd: 20, confidence: "assumed" }, "Devin Max": { ratio: 0.3, feeUsd: 200, confidence: "medium" } } }));
+    expect(rows.map((p) => [p.plan, p.assumed ?? false])).toEqual([["Pro", true], ["Devin Max", false]]);
+  });
   it("puts a free tier first, then the paid plan behind it", () => {
     const rows = plansOf(model({ plan: "Zen free tier", ratio: 0, feeUsd: 0, free: true, paid: { plan: "Go", ratio: 0.2, feeUsd: 10, confidence: "medium" } }));
     expect(rows.map((p) => [p.plan, p.free ?? false])).toEqual([["Zen free tier", true], ["Go", false]]);

@@ -21,8 +21,9 @@ const listed = (plan: string) => !studentBase(plan) && !["peak", "mixed"].includ
 
 /** The plans that sell a model, cheapest first. A free tier leads. */
 export function plansOf(m: PlanPriceModel): PlanOffer[] {
-  const assumed = /^(assumed|estimated)/.test(m.confidence) ? { assumed: true as const } : {};
-  const paid = new Map(Object.entries(m.plans ?? {}).map(([plan, p]) => [plan, { plan, ...(p.feeUsd != null ? { feeUsd: p.feeUsd } : {}), ratio: p.listRatio ?? p.ratio, ...(p.preliminary ? { preliminary: p.preliminary } : {}), ...assumed }]));
+  // Each plan carries its own confidence: Devin Max measured on GPT-6.2 Sol is not assumed because Sol's ChatGPT price is.
+  const assumedIf = (c?: string) => /^(assumed|estimated)/.test(c ?? "") ? { assumed: true as const } : {}, assumed = assumedIf(m.confidence);
+  const paid = new Map(Object.entries(m.plans ?? {}).map(([plan, p]) => [plan, { plan, ...(p.feeUsd != null ? { feeUsd: p.feeUsd } : {}), ratio: p.listRatio ?? p.ratio, ...(p.preliminary ? { preliminary: p.preliminary } : {}), ...(p.confidence !== undefined ? assumedIf(p.confidence) : assumed) }]));
   const own = m.free ? m.paid : m, name = own && soldAs(own.plan);
   if (own && name && !paid.has(name) && own.ratio > 0) paid.set(name, { plan: name, ...(own.feeUsd != null ? { feeUsd: own.feeUsd } : {}), ratio: own.listRatio ?? own.ratio, ...(own.preliminary ? { preliminary: own.preliminary } : {}), ...assumed });
   const rows = sortOffers([...paid.values()].filter((p) => listed(p.plan) && p.ratio > 0));

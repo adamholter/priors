@@ -35,7 +35,7 @@ function describeRow(o: Observation, snapshot: Snapshot) {
     const s = d as unknown as SubscriptionDetails & { free?: boolean; paid?: SubscriptionDetails };
     const paid = s.free && s.paid ? s.paid : s, api = paid.listPrice && paid.mix ? blendedApiPrice(paid.listPrice, paid.mix) : 0;
     if (s.free) row.free = `${s.plan} (priced at 0 while free tiers count)`;
-    row.defaultPlan = paid.plan;
+    row.defaultPlan = paid.listOnly ? `none here: ${paid.plan} is a plan to pick, not this model's price` : paid.plan;
     row.plans = (paid.plans ?? []).map((p) => `${p.plan}${p.feeUsd ? ` $${p.feeUsd}/mo` : ""}${api ? ` ${(api / p.usdPerMtok).toFixed(1)}x API value` : ""}${p.confidence ? ` (${p.confidence})` : ""}`);
   }
   const bench = snapshot.benchmarks.find((b) => b.id === o.benchmarkId);

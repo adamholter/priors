@@ -133,7 +133,7 @@ describe("Real API Pricing subscriptions", () => {
   });
   const computed = rows.filter((r) => !(r.details as { source?: string; sameAs?: string }).source && !(r.details as { sameAs?: string }).sameAs && r.sourceUrl !== VIBE);
   it("keeps one row per model, with no metered APIs or unmetered promos", () => {
-    expect(computed.map((r) => r.modelLabel)).toEqual(["GPT 5.6 Sol", "Claude Opus 5.5", "Claude Fable 5", "GLM 5.3 FlashX", "Gemini 4 Argon", "Hy4", "Hy4 preview", "Qwen3.7 Max"]);
+    expect(computed.filter((r) => !(r.details as unknown as SubscriptionDetails).listOnly).map((r) => r.modelLabel)).toEqual(["GPT 5.6 Sol", "Claude Opus 5.5", "Claude Fable 5", "GLM 5.3 FlashX", "Gemini 4 Argon", "Hy4", "Hy4 preview", "Qwen3.7 Max"]);
     expect(row("GPT 5.6 Sol").details).toMatchObject({ plans: [{ plan: "Cursor Ultra, legacy" }, { plan: "ChatGPT Pro 20x" }, { plan: "ChatGPT Pro 500" }, { plan: "ChatGPT Pro 10x" }, { plan: "ChatGPT Plus" }] });
   });
   it("marks Cursor's old plans as legacy, lists them on other labs' models, and never prices those models on them", () => {
@@ -322,7 +322,7 @@ describe("Real API Pricing subscriptions", () => {
     const ctx = { fetchText: async (url: string) => JSON.stringify(files[url.split("/").pop()!]) } as unknown as Parameters<typeof source.scrape>[0];
     const r = await source.scrape(ctx);
     expect(r.benchmarks[0]).toMatchObject({ id: SUBSCRIPTION_BENCHMARK, unit: "usd", proxy: true, defaultWeight: 0, eligibleForDefault: false, lastUpdated: "2026-10-08" });
-    expect(r.rows).toHaveLength(8 + 7 + 2 + 1 + 3); // + Gemini 4 Neon and the Qwen plan usage rows, added even before a plan row exists. // Carbon is absent without a Flash Ultra measurement. + Mistral Vibe Pro's rows (four Mistral models, GLM 5.2, GLM 5.3 Flash, DeepSeek V4.1 Flash 1017), Tencent Token Plan's Hy4 and Hy4 preview, Fable 5.2's measured share. Hydrogen is absent without a Flash shared-pool measurement
+    expect(r.rows.filter((x) => !(x.details as unknown as SubscriptionDetails | undefined)?.listOnly)).toHaveLength(8 + 7 + 2 + 1 + 3); // + Gemini 4 Neon and the Qwen plan usage rows, added even before a plan row exists. // Carbon is absent without a Flash Ultra measurement. + Mistral Vibe Pro's rows (four Mistral models, GLM 5.2, GLM 5.3 Flash, DeepSeek V4.1 Flash 1017), Tencent Token Plan's Hy4 and Hy4 preview, Fable 5.2's measured share. Hydrogen is absent without a Flash shared-pool measurement
     expect(Object.keys(r.raw)).toEqual(["points.json", "conventions.json", "channel-colors.json"]);
   });
 });
@@ -379,7 +379,11 @@ describe("Devin Max, measured for Priors", () => {
     expect(row62.value).toBeCloseTo(0.0629, 9);
     // GPT-6.2 Astra: one percent of the week bought $0.70 to $1.16.
     expect(blendedApiPrice(d.listPrice!, d.mix) / d.plans.find((p) => p.plan === "Devin Max")!.usdPerMtok).toBeCloseTo(435 * 0.93 / 200, 6);
-    // Never a row of its own: no assumption or other plan, no Devin row.
-    expect(found.some((r) => /Wonder/.test(r.modelLabel) && (r.details as unknown as SubscriptionDetails).plan === "Devin Max")).toBe(false);
+    // A model with nothing else gets a row that counts only when Devin Max is picked (GPT-6.1 Terra: one percent bought $0.86 to $1.29).
+    const terra = found.find((r) => r.modelLabel === "GPT-6.1 Terra")!, t = terra.details as unknown as SubscriptionDetails;
+    expect(t).toMatchObject({ plan: "Devin Max", listOnly: true });
+    expect(blendedApiPrice(t.listPrice!, t.mix) / t.plans[0].usdPerMtok).toBeCloseTo(435 * 1.075 / 200, 6);
+    // Never a price of its own: no assumption or other plan, no Devin row that prices the model.
+    expect(found.some((r) => /Wonder/.test(r.modelLabel) && (r.details as unknown as SubscriptionDetails).plan === "Devin Max" && !(r.details as unknown as SubscriptionDetails).listOnly)).toBe(false);
   });
 });

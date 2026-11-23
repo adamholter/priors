@@ -46,6 +46,8 @@ export interface SubscriptionDetails {
   ratio?: number;
   /** A model no plan sells yet, assumed to get this model's share of API price (`scripts/scrape/sources/subscription-overrides.ts`). */
   sameAs?: string;
+  /** Measured only on a plan that is never a model's price unless picked (Devin Max): the model keeps whatever else prices it, and this row counts only when that plan is picked. */
+  listOnly?: true;
   /** With `sameAs` on a shared pool: how much of it a list-price dollar of this model uses against one of that model's (3 = a third of its share). */
   poolRate?: number;
   /** Where a curated figure came from. */
@@ -253,6 +255,8 @@ export function subscriptionPrices(snapshot: Snapshot, picks: Record<string, str
     const usePaid = !!row?.free && (!free || (!!row.limited && free !== "limited") || (picked !== undefined && !!row.paid?.plans?.some((p) => currentPlanName(p.plan) === currentPlanName(picked))));
     if (usePaid && !row.paid) continue;
     const d = usePaid ? row.paid : row, rowValue = usePaid ? row.paid!.value : o.value;
+    const wanted = labOf ? chosen[labOf.get(modelId) ?? ""] : undefined;
+    if (d?.listOnly && !(wanted !== undefined && d.plans?.some((p) => currentPlanName(p.plan) === currentPlanName(wanted)))) continue;
     if (d?.sameAs) assumed.push([modelId, d]);
     // A curated ratio is taken as is; 0 is a free tier.
     if (typeof d?.ratio === "number" && Number.isFinite(d.ratio) && d.ratio >= 0) {
@@ -278,7 +282,7 @@ export function subscriptionPrices(snapshot: Snapshot, picks: Record<string, str
       const want = labOf && chosen[labOf.get(modelId) ?? ""], own = d.plan.replace(/ \(assumed same as .*\)$/, "");
       const p = (want !== undefined ? d.plans.find((x) => currentPlanName(x.plan) === currentPlanName(want)) : undefined) ?? d.plans.find((x) => x.plan === own);
       const prices = d.listPrice ?? aaPrices.get(d.sameAs!), api = p && prices && d.mix ? blendedApiPrice(prices, d.mix) : 0;
-      if (p && positive(p.usdPerMtok) && positive(api)) out.set(modelId, { ratio: (p.usdPerMtok / api) * (d.poolRate ?? 1), plan: d.plan.replace(/^.*?(?= \(assumed same as )/, p.plan), feeUsd: p.feeUsd, confidence: d.confidence, ...(d.preliminary ? { preliminary: d.preliminary } : {}) });
+      if (p && positive(p.usdPerMtok) && positive(api)) out.set(modelId, { ratio: (p.usdPerMtok / api) * (d.poolRate ?? 1), plan: d.plan.replace(/^.*?(?= \(assumed same as )/, p.plan), feeUsd: p.feeUsd, confidence: p.plan === own ? d.confidence : p.confidence ?? d.confidence, ...(d.preliminary ? { preliminary: d.preliminary } : {}) });
       continue;
     }
     const from = out.get(d.sameAs!); if (positive(from?.ratio)) out.set(modelId, { ratio: from.aaCostRatio ?? from.ratio, plan: d.plan.replace(/^.*?(?= \(assumed same as )/, from.plan), feeUsd: from.feeUsd, confidence: d.confidence , ...(d.preliminary ? { preliminary: d.preliminary } : {}) });

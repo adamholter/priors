@@ -191,8 +191,9 @@ export function parseSubscriptions(json: Points, conventions: Conventions, chann
   for (const p of budgets) {
     if (!budgetOf(p.id)?.listOnly) continue;
     const n = normalizeLabel(p.model_display), row = n.ok ? rows.find((r) => idOf(r) === n.modelId) : undefined, d = row?.details as unknown as SubscriptionDetails | undefined;
-    if (!d?.sameAs || !d.plans?.length || !d.listPrice || !d.mix || d.plans.some((x) => x.plan === name(p))) continue;
-    d.plans = [...d.plans, { plan: name(p), feeUsd: p.price_usd ?? undefined, usdPerMtok: shareOf([p], p) * blendedApiPrice(d.listPrice, d.mix), confidence: p.confidence }].sort((a, b) => a.usdPerMtok - b.usdPerMtok);
+    if (!d?.sameAs || !d.plans?.length || !d.listPrice || !d.mix) continue;
+    // A measured point replaces the same plan copied from the other model (GPT-6.1 Terra's Devin Max from Sol's, 10 times the fee on Terra's lower list price).
+    d.plans = [...d.plans.filter((x) => x.plan !== name(p)), { plan: name(p), feeUsd: p.price_usd ?? undefined, usdPerMtok: shareOf([p], p) * blendedApiPrice(d.listPrice, d.mix), confidence: p.confidence }].sort((a, b) => a.usdPerMtok - b.usdPerMtok);
   }
   // What subscribers report getting from a plan joins the model's plans, marked preliminary, and becomes its price when it is the biggest subsidy.
   for (const e of planUsageEstimates()) {
@@ -204,6 +205,13 @@ export function parseSubscriptions(json: Points, conventions: Conventions, chann
     const details = { ...own, value: undefined, ratio: undefined, sameAs: undefined, poolRate: undefined, readings: undefined, plan: e.plan, feeUsd: e.feeUsd, confidence: "preliminary", mix, listPrice, source: e.source || SITE, dataDate: e.checked, preliminary: e.preliminary, plans: [entry, ...(own?.plans ?? []).filter((p) => p.plan !== e.plan)].sort((a, b) => a.usdPerMtok - b.usdPerMtok) };
     const next: RawRow = { ...(from ?? { modelLabel: e.label }), benchmarkId: SUBSCRIPTION_BENCHMARK, value: row?.free ? from!.value : usdPerMtok, sourceUrl: e.source || SITE, note: `${e.plan}, $${e.feeUsd}/month; preliminary; ${e.preliminary.short} ${e.preliminary.note}`, details: (row?.free ? { ...row, paid: { ...details, value: usdPerMtok } } : details) as unknown as Record<string, unknown> };
     if (at >= 0) rows[at] = next; else rows.push(next);
+  }
+  // A model with nothing else (GPT-6.1 Terra, which the site prices from the median share of OpenAI's models) gets a row that counts only when its list-only plan is picked.
+  for (const p of budgets) {
+    const n = budgetOf(p.id)?.listOnly ? normalizeLabel(p.model_display) : undefined;
+    if (!n?.ok || taken.has(n.modelId) || rows.some((r) => idOf(r) === n.modelId)) continue;
+    add([p], p, "the only plan measured, listed to pick and never the model's price");
+    (rows[rows.length - 1].details as unknown as SubscriptionDetails).listOnly = true;
   }
   return rows;
 }
