@@ -20,7 +20,28 @@
 .bench-test.is-unknown{color:var(--grey)}
 .bench-factor .num{color:var(--ink)}
 .bench-head{align-items:end;padding-bottom:7px;border-bottom:1px solid var(--hair)}
-.bench-head .bench-tip{cursor:help}
+.bench-head .bench-tip{cursor:pointer}
+/* Column labels sort their column. The active one is ink with its direction; the others show a faint arrow on hover. */
+.bench-sort{display:inline-flex;align-items:center;gap:4px;padding:0;border:0;background:none;font:inherit;color:inherit;letter-spacing:inherit;text-transform:inherit;cursor:pointer}
+.bench-sort:hover,.bench-sort[data-on]{color:var(--ink)}
+.bench-sort:focus-visible{outline:2px solid var(--ink);outline-offset:2px;border-radius:2px}
+.bench-sort-arrow{opacity:0;flex:none}
+.bench-sort:hover .bench-sort-arrow{opacity:.45}
+.bench-sort[data-on] .bench-sort-arrow{opacity:1}
+/* The funnel: current sort beside it, the menu below. */
+.bench-funnel{display:inline-flex;align-items:center;gap:6px;padding:4px 9px;border:1px solid var(--hair);border-radius:4px;background:transparent;color:var(--ink-2);cursor:pointer}
+.bench-funnel:hover,.bench-funnel[aria-expanded=true]{color:var(--ink);border-color:var(--hair-3)}
+.bench-funnel span{font-size:12.5px}
+.bench-sort-menu{position:fixed;z-index:90;width:240px;max-height:min(460px,70dvh);overflow-y:auto;display:grid;gap:1px;border:1px solid var(--hair);border-radius:8px;background:var(--white);box-shadow:0 14px 36px var(--shadow);padding:6px}
+.bench-sort-opt{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:5px;text-align:left;font-size:13px;color:var(--ink)}
+.bench-sort-opt:hover{background:var(--hair-2)}
+.bench-sort-check{flex:none;opacity:0}
+.bench-sort-opt[aria-checked=true] .bench-sort-check{opacity:1}
+.bench-sort-group{padding:8px 8px 3px}
+.bench-sort-dir{display:grid;grid-template-columns:1fr 1fr;border:1px solid var(--hair);border-radius:5px;overflow:hidden;margin-bottom:5px}
+.bench-sort-dir button{padding:5px 6px;font-size:12px;color:var(--grey)}
+.bench-sort-dir button+button{border-left:1px solid var(--hair)}
+.bench-sort-dir button[aria-pressed=true]{background:var(--hair-2);color:var(--ink)}
 .bench-dir .bench-row{align-items:center;padding:11px 0}
 /* Off-screen rows skip layout and paint (and their compositor tiles) until they near the viewport. */
 .bench-dir ul > li{content-visibility:auto;contain-intrinsic-size:auto 74px}

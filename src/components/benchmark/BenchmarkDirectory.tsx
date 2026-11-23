@@ -3,8 +3,9 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from "react";
 import {
   IconBolt, IconBook2, IconBrain, IconBriefcase, IconChartPie, IconChess, IconCode, IconCube, IconDots, IconEye, IconFileText, IconFlask, IconHistory, IconLanguage, IconMathFunction, IconMoodSmile, IconPalette,
-  IconReceipt, IconRepeat, IconRobot, IconSearch, IconShieldCheck, IconStack2, IconThumbUp, IconTrophy, IconUsers, IconWorld,
+  IconArrowDown, IconArrowUp, IconCheck, IconFilter, IconReceipt, IconRepeat, IconRobot, IconSearch, IconShieldCheck, IconStack2, IconThumbUp, IconTrophy, IconUsers, IconWorld,
 } from "@tabler/icons-react";
+import { createPortal } from "react-dom";
 import { QUALITY_FACTORS, type QualityFactorId } from "@/onboarding/quality";
 import type { TestSet } from "@/data/benchmark-facts";
 import { BenchmarkStar, BenchmarkStars } from "./BenchmarkStar";
@@ -12,6 +13,7 @@ import type { Benchmark } from "@/data/types";
 import { categoriesOf, categoryBlurb, categoryName, categoryOrder } from "@/data/categories";
 import { searchBenchmarks } from "@/lib/benchmark-search";
 import { recommendedScore } from "@/lib/benchmark-recommended";
+import { clickColumn, DIRECTORY_SORTS, dirNames, naturalDir, sortDirectory, type DirectorySort, type SortDir } from "@/lib/benchmark-directory-sort";
 import { benchmarkPath } from "@/lib/benchmark-slug";
 import { useLabColor } from "@/components/chart/echarts";
 import "./benchmarks.css";
@@ -39,6 +41,7 @@ const CATEGORY_ICON: Record<Benchmark["category"], Icon> = {
   multilingual: IconLanguage, preference: IconThumbUp, composite: IconChartPie, speed: IconBolt, cost: IconReceipt, reliability: IconRepeat, other: IconDots,
 };
 const TIP = {
+  name: "The benchmark's name. Click to sort A to Z, again for Z to A.",
   leader: "The model with the best score this benchmark reports, older models included.",
   models: "How many models the publisher has measured here. Priors' estimates don't count.",
   uses: "How many published Priors pages give this benchmark weight.",
@@ -48,26 +51,7 @@ const TIP = {
 
 const TEST_SET_NAME: Record<DirectoryItem["testSet"], string> = { private: "Private", partial: "Partly private", public: "Public", unknown: "Unknown" };
 const FACTOR_TIP = Object.fromEntries(QUALITY_FACTORS.map((f) => [f.id, f.how])) as Record<QualityFactorId, string>;
-const factor = (x: DirectoryItem, id: QualityFactorId) => x.factors[id] ?? -1;
 
-type Sort = "recommended" | "uses" | "stars" | "quality" | "models" | "updated" | "name" | QualityFactorId;
-const SORTS: { id: Sort; name: string; factors?: true }[] = [
-  { id: "recommended", name: "Recommended" }, { id: "uses", name: "Most used in mixes" }, { id: "stars", name: "Most starred" }, { id: "quality", name: "Quality" },
-  { id: "models", name: "Most models" }, { id: "updated", name: "Recently updated" }, { id: "name", name: "A to Z" },
-  { id: "saturation", name: "Most headroom", factors: true }, { id: "testSet", name: "Private test sets first", factors: true }, { id: "recency", name: "Newest benchmarks", factors: true },
-  { id: "objectivity", name: "Most objective grading", factors: true }, { id: "frontier", name: "Adds new models fastest", factors: true }, { id: "size", name: "Most tasks", factors: true }, { id: "efforts", name: "Tests several efforts", factors: true }, { id: "breadth", name: "Broadest", factors: true },
-];
-const byFactor = (id: QualityFactorId) => (a: DirectoryItem, b: DirectoryItem) => factor(b, id) - factor(a, id) || b.quality - a.quality;
-const compare: Record<Sort, (a: DirectoryItem, b: DirectoryItem) => number> = {
-  recommended: (a, b) => recommendedScore(b) - recommendedScore(a),
-  uses: (a, b) => b.uses - a.uses || b.quality - a.quality,
-  stars: (a, b) => b.stars - a.stars || recommendedScore(b) - recommendedScore(a),
-  quality: (a, b) => b.quality - a.quality,
-  models: (a, b) => b.models - a.models,
-  updated: (a, b) => (b.lastUpdated ?? "").localeCompare(a.lastUpdated ?? ""),
-  name: (a, b) => a.name.localeCompare(b.name),
-  saturation: byFactor("saturation"), testSet: byFactor("testSet"), recency: byFactor("recency"), objectivity: byFactor("objectivity"), frontier: byFactor("frontier"), size: byFactor("size"), efforts: byFactor("efforts"), breadth: byFactor("breadth"),
-};
 const title = categoryName;
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
@@ -75,7 +59,8 @@ const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? o
 export function BenchmarkDirectory({ items }: { items: DirectoryItem[] }) {
   const [q, setQ] = useState("");
   const [category, setCategory] = useState("all");
-  const [sort, setSort] = useState<Sort>("recommended");
+  const [order, setOrder] = useState<{ sort: DirectorySort; dir: SortDir }>({ sort: "recommended", dir: "desc" });
+  const { sort, dir } = order;
   const [everything, setEverything] = useState(false);
   // "factors": the columns are the parts of the quality score instead of top model, models and mixes.
   const [view, setView] = useState<"overview" | "factors">("overview");
@@ -98,8 +83,11 @@ export function BenchmarkDirectory({ items }: { items: DirectoryItem[] }) {
   const ranked = useMemo(() => [...items].sort((a, b) => Number(!!a.superseded) - Number(!!b.superseded) || Number(!!a.variantOf) - Number(!!b.variantOf) || recommendedScore(b) - recommendedScore(a)), [items]);
   const found = useMemo(() => {
     const inCategory = (x: DirectoryItem) => category === "all" || categoriesOf(x).some((c) => c === category);
-    return searching ? searchBenchmarks(ranked.filter(inCategory), q, title, { loose: true }) : base.filter(inCategory).sort(compare[sort]);
-  }, [base, ranked, category, sort, q, searching]);
+    // While searching, Recommended means best match first; any other sort orders the matches.
+    if (searching) { const hits = searchBenchmarks(ranked.filter(inCategory), q, title, { loose: true }); return sort === "recommended" && dir === "desc" ? hits : sortDirectory(hits, sort, dir); }
+    return sortDirectory(base.filter(inCategory), sort, dir);
+  }, [base, ranked, category, sort, dir, q, searching]);
+  const column = (id: DirectorySort) => setOrder((o) => clickColumn(o, id));
   const totals = useMemo(() => ({ models: Math.max(0, ...base.map((x) => x.models)), publishers: new Set(base.map((x) => x.host).filter(Boolean)).size }), [base]);
   // Every benchmark is listed, so a new one is never hidden below a cut-off (and find-in-page sees it). Only search results stop at 60.
   // What keeps ~450 rows light: rows off screen skip layout and paint (content-visibility in benchmarks.css), and their icons
@@ -128,7 +116,7 @@ export function BenchmarkDirectory({ items }: { items: DirectoryItem[] }) {
               <kbd className="absolute right-3 top-1/2 -translate-y-1/2 cap border hairline rounded px-1.5 max-sm:hidden" aria-hidden="true">/</kbd>
             </div>
             <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
-              {!searching && <label className="cap flex items-center gap-2">Sort<select className="inp !w-auto !py-1 !text-[12.5px] normal-case" value={sort} onChange={(e) => setSort(e.target.value as Sort)}>{SORTS.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>}
+              <SortMenu sort={sort} dir={dir} searching={searching} onChange={setOrder} />
               <div className="seg" role="group" aria-label="Columns">{(["overview", "factors"] as const).map((v) => <button key={v} type="button" className="!px-2.5 !py-1 text-[12px]" aria-pressed={view === v} onClick={() => setView(v)}>{v === "overview" ? "Overview" : "Quality factors"}</button>)}</div>
               {!searching && <label className="cap flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={everything} onChange={(e) => setEverything(e.target.checked)} />Older versions and sub-boards</label>}
               <Link href="/benchmarks/methodology" className="cap underline decoration-dotted underline-offset-2 hover:text-ink">How scores work</Link>
@@ -136,15 +124,15 @@ export function BenchmarkDirectory({ items }: { items: DirectoryItem[] }) {
             </div>
           </div>
           {shown.length ? <div className="min-w-0">
-            <div className="bench-head cap" aria-hidden="true">
-              <span>Benchmark</span>
+            <div className="bench-head cap" role="toolbar" aria-label="Sort by column">
+              <Head id="name" order={order} onClick={column} text={TIP.name}>Name</Head>
               {view === "overview" ? <>
-                <Tip text={TIP.leader}><IconTrophy size={13} stroke={1.6} aria-hidden />Top model</Tip>
-                <Tip text={TIP.models} end><IconCube size={13} stroke={1.6} aria-hidden />Models</Tip>
-                <Tip text={TIP.uses} end><IconUsers size={13} stroke={1.6} aria-hidden />Mixes</Tip>
-              </> : QUALITY_FACTORS.map((f) => <Tip key={f.id} text={f.how} end>{f.name}</Tip>)}
-              <Tip text={TIP.quality} end>Quality</Tip>
-              <Tip text={TIP.stars} end>Stars</Tip>
+                <Head id="leader" order={order} onClick={column} text={TIP.leader}><IconTrophy size={13} stroke={1.6} aria-hidden />Top model</Head>
+                <Head id="models" order={order} onClick={column} text={TIP.models} end><IconCube size={13} stroke={1.6} aria-hidden />Models</Head>
+                <Head id="uses" order={order} onClick={column} text={TIP.uses} end><IconUsers size={13} stroke={1.6} aria-hidden />Mixes</Head>
+              </> : QUALITY_FACTORS.map((f) => <Head key={f.id} id={f.id} order={order} onClick={column} text={f.how} end>{f.name}</Head>)}
+              <Head id="quality" order={order} onClick={column} text={TIP.quality} end>Quality</Head>
+              <Head id="stars" order={order} onClick={column} text={TIP.stars} end>Stars</Head>
             </div>
             <ul className="grid">{shown.map((x) => <Row key={x.id} x={x} showCategory={category === "all"} view={view} />)}</ul>
           </div> : <p className="cap py-6">Nothing matches &ldquo;{q}&rdquo;. Try a word for what you want measured, such as coding, math or agents.</p>}
@@ -191,6 +179,54 @@ function Favicon({ host }: { host: string }) {
   if (!ok) return null;
   // eslint-disable-next-line @next/next/no-img-element
   return <img className="bench-fav" src={`https://www.google.com/s2/favicons?domain=${encodeURIComponent(host)}&sz=32`} alt="" width={14} height={14} loading="lazy" onError={() => setOk(false)} />;
+}
+
+/**
+ * A column label that sorts by its column: the first click in the column's natural direction (names A to Z, numbers highest first),
+ * the next click the other way. The active column shows its direction; right-aligned columns put the arrow before the label so the label stays over its numbers.
+ */
+function Head({ id, order, onClick, text, end, children }: { id: DirectorySort; order: { sort: DirectorySort; dir: SortDir }; onClick: (id: DirectorySort) => void; text: string; end?: boolean; children: ReactNode }) {
+  const on = order.sort === id, [first, second] = dirNames(id), now = on ? (order.dir === naturalDir(id) ? first : second) : undefined;
+  const Arrow = on && order.dir === "asc" ? IconArrowUp : IconArrowDown;
+  const arrow = <Arrow size={12} stroke={2} className="bench-sort-arrow" aria-hidden />;
+  return <Tip text={text} end={end}>
+    <button type="button" className="bench-sort" data-sort={id} data-on={on || undefined} aria-pressed={on} aria-label={`Sort by ${DIRECTORY_SORTS.find((s) => s.id === id)?.name}${now ? `, ${now.toLowerCase()}` : ""}`} onClick={() => onClick(id)}>
+      {end && arrow}{children}{!end && arrow}
+    </button>
+  </Tip>;
+}
+
+/** The funnel: every sort, including the ones with no column (Recommended, Recently updated), and the direction. On narrow screens, where the column labels are hidden, it is the only sort control. */
+function SortMenu({ sort, dir, searching, onChange }: { sort: DirectorySort; dir: SortDir; searching: boolean; onChange: (o: { sort: DirectorySort; dir: SortDir }) => void }) {
+  const [at, setAt] = useState<{ top: number; left: number } | null>(null);
+  const root = useRef<HTMLButtonElement>(null), menu = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!at) return;
+    const away = (e: PointerEvent) => { const t = e.target as Node; if (!root.current?.contains(t) && !menu.current?.contains(t)) setAt(null); };
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") { e.stopPropagation(); setAt(null); root.current?.focus(); } };
+    const close = () => setAt(null);
+    document.addEventListener("pointerdown", away); document.addEventListener("keydown", esc, true); addEventListener("scroll", close, { passive: true }); addEventListener("resize", close);
+    return () => { document.removeEventListener("pointerdown", away); document.removeEventListener("keydown", esc, true); removeEventListener("scroll", close); removeEventListener("resize", close); };
+  }, [at]);
+  const toggle = () => { if (at) return setAt(null); const r = root.current!.getBoundingClientRect(); setAt({ top: r.bottom + 6, left: Math.max(8, Math.min(r.left, innerWidth - 248)) }); };
+  const label = sort === "recommended" && searching ? "Best match" : DIRECTORY_SORTS.find((s) => s.id === sort)?.name ?? "Recommended";
+  const [first, second] = dirNames(sort), reversed = dir !== naturalDir(sort);
+  const item = (s: (typeof DIRECTORY_SORTS)[number]) => <button key={s.id} type="button" role="menuitemradio" aria-checked={s.id === sort} className="bench-sort-opt" onClick={() => { onChange({ sort: s.id, dir: naturalDir(s.id) }); setAt(null); }}>
+    <IconCheck size={14} stroke={2} className="bench-sort-check" aria-hidden />{s.id === "recommended" && searching ? "Best match" : s.name}
+  </button>;
+  return <>
+    <button ref={root} type="button" className="bench-funnel cap" aria-haspopup="menu" aria-expanded={!!at} aria-label={`Sort: ${label}${reversed ? `, ${second.toLowerCase()}` : ""}`} onClick={toggle}>
+      <IconFilter size={15} stroke={1.6} aria-hidden /><span className="normal-case">{label}</span>{reversed && <IconArrowUp size={12} stroke={2} aria-hidden />}
+    </button>
+    {at && createPortal(<div ref={menu} className="bench-sort-menu" role="menu" aria-label="Sort benchmarks" style={{ top: at.top, left: at.left }}>
+      <div className="bench-sort-dir" role="group" aria-label="Direction">
+        {([[naturalDir(sort), first], [naturalDir(sort) === "asc" ? "desc" : "asc", second]] as const).map(([d, name]) => <button key={d} type="button" aria-pressed={dir === d} onClick={() => onChange({ sort, dir: d })}>{name}</button>)}
+      </div>
+      {DIRECTORY_SORTS.filter((s) => !s.factors).map(item)}
+      <p className="cap bench-sort-group">Quality factors</p>
+      {DIRECTORY_SORTS.filter((s) => s.factors).map(item)}
+    </div>, document.body)}
+  </>;
 }
 
 /** One part of the quality score in a row: its 0 to 100 score, or for the test set the word. */

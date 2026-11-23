@@ -531,13 +531,52 @@ try {
       const first = c.locator(".bench-row").first();
       assert.equal(await first.locator("[data-factor]").count(), 8, "eight parts per row");
       assert.match(await first.locator("[data-factor=testSet]").innerText(), /Private|Partly private|Public|Unknown/);
-      await c.getByLabel("Sort").selectOption("testSet");
+      // Clicking a column label sorts by it.
+      await c.locator(".bench-head [data-sort=testSet]").click();
       await c.waitForFunction(() => /Private/.test(document.querySelector(".bench-row [data-factor=testSet]")?.textContent ?? ""), null, { timeout: 5000 });
       assert.match(await c.locator(".bench-row").first().locator("[data-factor=testSet]").innerText(), /Private/, "private test sets sort first");
-      await c.getByLabel("Sort").selectOption("saturation");
+      await c.locator(".bench-head [data-sort=saturation]").click();
       await c.waitForTimeout(300);
       const headroom = await c.locator(".bench-row [data-factor=saturation] .num").evaluateAll((cells) => cells.slice(0, 12).map((x) => Number(x.textContent)));
       assert.deepEqual(headroom, [...headroom].sort((a, b) => b - a), "most headroom first");
+    } finally { await c.context().close(); }
+  });
+
+  await check("benchmark directory: clicking a column label sorts by it, again reverses it, and the funnel lists every sort", async () => {
+    const c = await (await browser.newContext({ viewport: { width: 1440, height: 1000 } })).newPage();
+    try {
+      await c.goto(`${BASE}/benchmarks`, { waitUntil: "networkidle" });
+      const head = c.locator(".bench-head");
+      assert.equal((await head.locator("[data-sort=name]").innerText()).trim(), "Name", "the first column is Name, not Benchmark");
+      const col = (sel) => c.locator(`.bench-row ${sel}`).evaluateAll((cells) => cells.slice(0, 15).map((x) => x.textContent.trim()));
+      const nums = async (sel) => (await col(sel)).map(Number);
+      // A click before hydration does nothing, so click until the column takes the sort.
+      for (let tries = 0; tries < 20 && !(await head.locator("[data-sort=models][data-on]").count()); tries++) { await head.locator("[data-sort=models]").click(); await c.waitForTimeout(250); }
+      const down = await nums(".bench-num:nth-child(3) .num");
+      assert.deepEqual(down, [...down].sort((a, b) => b - a), `most models first: ${down}`);
+      await head.locator("[data-sort=models]").click();
+      await c.waitForTimeout(250);
+      const up = await nums(".bench-num:nth-child(3) .num");
+      assert.deepEqual(up, [...up].sort((a, b) => a - b), `a second click puts fewest models first: ${up}`);
+      assert.match(await head.locator("[data-sort=models]").getAttribute("aria-label"), /lowest first/);
+      await head.locator("[data-sort=name]").click();
+      await c.waitForTimeout(250);
+      const names = await col(".bench-main .text-\\[15px\\]");
+      assert.deepEqual(names, [...names].sort((a, b) => a.localeCompare(b)), "names A to Z");
+      await head.locator("[data-sort=stars]").click();
+      await c.waitForTimeout(250);
+      const stars = await c.locator(".bench-star-cell").evaluateAll((cells) => cells.slice(0, 15).map((x) => Number(x.textContent.replace(/\D/g, "") || 0)));
+      assert.deepEqual(stars, [...stars].sort((a, b) => b - a), `most stars first: ${stars}`);
+      // The funnel names the current sort and offers the sorts with no column.
+      const funnel = c.locator(".bench-funnel");
+      assert.match(await funnel.innerText(), /Stars/);
+      await funnel.click();
+      const menu = c.getByRole("menu", { name: "Sort benchmarks" });
+      await menu.waitFor();
+      for (const name of ["Recommended", "Recently updated", "Headroom", "Size"]) assert.equal(await menu.getByRole("menuitemradio", { name }).count(), 1, `the funnel offers ${name}`);
+      await menu.getByRole("menuitemradio", { name: "Recommended" }).click();
+      assert.match(await funnel.innerText(), /Recommended/);
+      assert.equal(await head.locator("[data-on]").count(), 0, "Recommended has no column, so no label is active");
     } finally { await c.context().close(); }
   });
 
@@ -1768,7 +1807,7 @@ try {
         return { rows: rows.map((r) => { const tile = r.querySelector(".bench-cat"); return { tile: mid(box(tile)), icon: mid(box(tile.querySelector("svg"))), title: mid(box(r.querySelector(".bench-main .text-\\[15px\\]"))) }; }),
           bars: rows.map((r) => box(r.querySelector(".bench-bars")).x),
           name: box(rows[0].querySelector(".bench-leader .truncate")).x,
-          label: (() => { const range = document.createRange(); range.selectNodeContents(heads[1]); const t = [...heads[1].childNodes].find((n) => n.nodeType === 3); range.selectNode(t); return range.getBoundingClientRect().x; })() };
+          label: (() => { const range = document.createRange(); const t = [...heads[1].querySelector("button").childNodes].find((n) => n.nodeType === 3); range.selectNode(t); return range.getBoundingClientRect().x; })() };
       });
       assert.ok(m.rows.length > 3, "rows carry category tiles");
       for (const r of m.rows) {
