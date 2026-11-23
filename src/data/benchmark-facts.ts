@@ -424,6 +424,8 @@ const OVERRIDES: Record<string, BenchmarkFacts> = {
   // the post says "The MazeBench solution algorithms are open sourced". One gem is one percent, counted by the game.
   mazebench: { test: "public", testNote: "Anyone can play the whole world on mazebench.com, and the post introducing it says the solution algorithms are open source.", testUrl: "https://mazebench.com/blog?post=introducing-mazebench", released: "2026-07-28", grading: "automatic" },
   "bg-maze-bench": { test: "public", testNote: "Anyone can play the whole world on mazebench.com, and the post introducing it says the solution algorithms are open source.", testUrl: "https://mazebench.com/blog?post=introducing-mazebench", released: "2026-07-28", grading: "automatic" },
+  // Added 2026-11-23 by hand: launched that day (x.com/DesignArena/status/2124943628707713372); blind votes from DesignArena users, no fixed set.
+  "designarena-hii": { test: "private", testNote: "There is no fixed test set: the votes come from DesignArena users' own requests, which keep arriving.", testUrl: "https://www.designarena.ai/blog/human-intelligence-index", released: "2026-11-23", grading: "human-votes" },
   // Added 2026-11-20 by hand: the method page says the 14 tasks were built for the benchmark and publishes none; it does not say who the two graders are.
   "corpo-index": { test: "private", testNote: "The 14 consulting-style tasks were built for the benchmark and are not published; the method page describes them but shows none.", testUrl: "https://local-bench.ai/method/", released: "2026-10-17" },
 };

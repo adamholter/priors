@@ -271,6 +271,8 @@ const RESEARCHED: Record<string, BenchmarkSize> = {
 const OVERRIDES: Record<string, BenchmarkSize | null> = {
   ...Object.fromEntries(["informativeness", "transparency", "organization", "warmth", "conviction", "expressiveness"].map((t) => [`aa-personality-${t}`, { tasks: 30, url: "https://artificialanalysis.ai/evaluations/personality" }])),
   "aa-intelligence-index-v5.0": null,
+  // The board's own vote count on 2026-11-23 (its page data, `metadata.totalVotes`).
+  "designarena-hii": { tasks: 2_314_337, votes: true, url: "https://www.designarena.ai/leaderboard?section=overall&board=human-intelligence-index" },
   // One run per model; the score is gems collected out of 100 (mazebench.com/blog, "Introducing MazeBench").
   mazebench: { tasks: 100, url: "https://mazebench.com/blog?post=introducing-mazebench" },
 };
