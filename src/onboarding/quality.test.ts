@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Benchmark, Snapshot } from "../data/types";
-import { benchmarkQuality, QUALITY_WEIGHTS, REFRESHED_SCORE, TEST_SET_SCORE } from "./quality";
+import { benchmarkQuality, QUALITY_WEIGHTS, REFRESHED_SCORE, sizeScore, TEST_SET_SCORE } from "./quality";
 
 const benchmark = (id: string, name = id): Benchmark => ({
   id, name, sourceId: "test", url: "https://example.com", description: "Test benchmark",
@@ -57,7 +57,7 @@ describe("benchmarkQuality", () => {
   it("adds the +15 preferred-benchmark contribution on top of the seven weighted parts", () => {
     const q = benchmarkQuality(snapshot([benchmark("deepswe-1.1")], [["deepswe-1.1", "a@low", 40], ["deepswe-1.1", "b@low", 60]]))[0];
     expect(q.preferred).toBe(true);
-    expect(q.factors.map((f) => f.id)).toEqual(["saturation", "testSet", "recency", "objectivity", "frontier", "efforts", "breadth"]);
+    expect(q.factors.map((f) => f.id)).toEqual(["saturation", "testSet", "recency", "objectivity", "frontier", "size", "efforts", "breadth"]);
     expect(q.factors.reduce((sum, f) => sum + f.weight, 0)).toBeCloseTo(1, 10);
     const base = q.factors.reduce((sum, f) => sum + f.score * f.weight, 0);
     expect(q.adjustments).toEqual([expect.objectContaining({ id: "preferred", points: 15 })]);
@@ -172,5 +172,31 @@ describe("facts for a new version", () => {
     expect(facts.released).toBeUndefined();
     expect(factsOf({ id: "gamefeel-re-v1.5.2" })).toMatchObject({ test: "private", grading: "automatic", released: "2026-11-19" });
     expect(factsOf({ id: "no-such-board" })).toEqual({});
+  });
+});
+
+describe("size", () => {
+  it("scores the samples a result rests on, on a log scale, with repeat runs worth less than new tasks", () => {
+    expect(sizeScore(undefined)).toBe(50);
+    expect(sizeScore({ tasks: 10 })).toBe(0);
+    expect(sizeScore({ tasks: 100 })).toBe(50);
+    expect(sizeScore({ tasks: 1000 })).toBe(100);
+    expect(sizeScore({ tasks: 70000 })).toBe(100);
+    // Four runs count as twice the tasks, and more runs add nothing: 25 problems run 100 times are still 25 problems.
+    expect(sizeScore({ tasks: 50, runs: 4 })).toBe(sizeScore({ tasks: 100 }));
+    expect(sizeScore({ tasks: 25, runs: 100 })).toBe(sizeScore({ tasks: 50 }));
+    expect(sizeScore({ tasks: 5000, votes: true })).toBe(sizeScore({ tasks: 500 }));
+  });
+
+  it("reads each benchmark's researched size into its own part of the score", () => {
+    const ids = ["aa-hle-diamond", "aa-terminalbench-v4-0", "no-size-yet"];
+    const all = benchmarkQuality(snapshot(ids.map((id) => benchmark(id)), ids.flatMap((id) => [[id, "a@low", 40], [id, "b@low", 60]] as Array<[string, string, number]>)));
+    const q = all.find((x) => x.id === "aa-hle-diamond")!;
+    const f = q.factors.find((x) => x.id === "size")!;
+    expect(f.score).toBe(100);
+    expect(f.summary).toBe("1,000 tasks");
+    expect(all.find((x) => x.id === "aa-terminalbench-v4-0")!.factors.find((x) => x.id === "size")!.summary).toBe("66 tasks × 3 runs");
+    expect(all.find((x) => x.id === "no-size-yet")!.factors.find((x) => x.id === "size")!).toMatchObject({ score: 50, summary: "Size not known" });
+    expect(Object.values(QUALITY_WEIGHTS).reduce((a, b) => a + b, 0)).toBeCloseTo(1);
   });
 });

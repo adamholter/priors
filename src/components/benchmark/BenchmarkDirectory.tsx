@@ -55,7 +55,7 @@ const SORTS: { id: Sort; name: string; factors?: true }[] = [
   { id: "recommended", name: "Recommended" }, { id: "uses", name: "Most used in mixes" }, { id: "stars", name: "Most starred" }, { id: "quality", name: "Quality" },
   { id: "models", name: "Most models" }, { id: "updated", name: "Recently updated" }, { id: "name", name: "A to Z" },
   { id: "saturation", name: "Most headroom", factors: true }, { id: "testSet", name: "Private test sets first", factors: true }, { id: "recency", name: "Newest benchmarks", factors: true },
-  { id: "objectivity", name: "Most objective grading", factors: true }, { id: "frontier", name: "Adds new models fastest", factors: true }, { id: "efforts", name: "Tests several efforts", factors: true }, { id: "breadth", name: "Broadest", factors: true },
+  { id: "objectivity", name: "Most objective grading", factors: true }, { id: "frontier", name: "Adds new models fastest", factors: true }, { id: "size", name: "Most tasks", factors: true }, { id: "efforts", name: "Tests several efforts", factors: true }, { id: "breadth", name: "Broadest", factors: true },
 ];
 const byFactor = (id: QualityFactorId) => (a: DirectoryItem, b: DirectoryItem) => factor(b, id) - factor(a, id) || b.quality - a.quality;
 const compare: Record<Sort, (a: DirectoryItem, b: DirectoryItem) => number> = {
@@ -66,7 +66,7 @@ const compare: Record<Sort, (a: DirectoryItem, b: DirectoryItem) => number> = {
   models: (a, b) => b.models - a.models,
   updated: (a, b) => (b.lastUpdated ?? "").localeCompare(a.lastUpdated ?? ""),
   name: (a, b) => a.name.localeCompare(b.name),
-  saturation: byFactor("saturation"), testSet: byFactor("testSet"), recency: byFactor("recency"), objectivity: byFactor("objectivity"), frontier: byFactor("frontier"), efforts: byFactor("efforts"), breadth: byFactor("breadth"),
+  saturation: byFactor("saturation"), testSet: byFactor("testSet"), recency: byFactor("recency"), objectivity: byFactor("objectivity"), frontier: byFactor("frontier"), size: byFactor("size"), efforts: byFactor("efforts"), breadth: byFactor("breadth"),
 };
 const title = categoryName;
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;

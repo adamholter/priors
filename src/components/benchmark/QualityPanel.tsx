@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { IconAdjustmentsHorizontal, IconRosetteDiscountCheck, IconArrowBarToUp, IconCalendar, IconGavel, IconLock, IconLockOpen, IconLockQuestion, IconStopwatch, IconUsersGroup, type Icon } from "@tabler/icons-react";
+import { IconAdjustmentsHorizontal, IconListNumbers, IconRosetteDiscountCheck, IconArrowBarToUp, IconCalendar, IconGavel, IconLock, IconLockOpen, IconLockQuestion, IconStopwatch, IconUsersGroup, type Icon } from "@tabler/icons-react";
 import { QUALITY_FACTORS, type BenchmarkQuality, type QualityFactorId } from "@/onboarding/quality";
 import { FACTS_CHECKED, type BenchmarkFacts } from "@/data/benchmark-facts";
 import "./quality-panel.css";
@@ -10,7 +10,7 @@ export interface QualityView { quality: BenchmarkQuality; facts: BenchmarkFacts;
 const signed = (n: number) => `${n > 0 ? "+" : n < 0 ? "−" : ""}${Math.abs(n) % 1 ? Math.abs(n).toFixed(1) : Math.abs(n)}`;
 const ASK = Object.fromEntries(QUALITY_FACTORS.map((f) => [f.id, f.ask])) as Record<QualityFactorId, string>;
 const ICON: Record<QualityFactorId, Icon> = {
-  saturation: IconArrowBarToUp, testSet: IconLock, recency: IconCalendar, objectivity: IconGavel, frontier: IconStopwatch, efforts: IconAdjustmentsHorizontal, breadth: IconUsersGroup,
+  saturation: IconArrowBarToUp, testSet: IconLock, recency: IconCalendar, objectivity: IconGavel, frontier: IconStopwatch, size: IconListNumbers, efforts: IconAdjustmentsHorizontal, breadth: IconUsersGroup,
 };
 const TEST_ICON = { private: IconLock, partial: IconLock, public: IconLockOpen, unknown: IconLockQuestion } as const;
 

@@ -1,5 +1,6 @@
 import type { Benchmark, Snapshot } from "../data/types";
 import { factsOf, type TestSet } from "../data/benchmark-facts";
+import { sizeOf, type BenchmarkSize } from "../data/benchmark-size";
 import { FAST_DAYS, SLOW_DAYS } from "../data/new-models";
 import { focusMultiplier, type Focus } from "./focus";
 import { defaultLineup } from "./defaults";
@@ -11,7 +12,8 @@ export const PREFERRED = ["deepswe-1.1", "aa-terminalbench-v4-0", "arc-agi-3", "
 export const FRONTIER_RELEASE_DATE = "2026-09-22";
 /** The score's recipe: shares of each 0-100 part, then points added or taken away. The methodology page and every breakdown read these. */
 // Efforts joined on 2026-11-20 (Adam: a model tested at several reasoning efforts tells more), taking 5 points from Headroom and 5 from Breadth.
-export const QUALITY_WEIGHTS = { saturation: 0.2, testSet: 0.2, recency: 0.15, objectivity: 0.15, frontier: 0.15, efforts: 0.1, breadth: 0.05 } as const;
+// Size joined on 2026-11-23 (Adam: how many tasks and runs a score rests on matters), taking 5 points from Headroom and 5 from New models.
+export const QUALITY_WEIGHTS = { saturation: 0.15, testSet: 0.2, recency: 0.15, objectivity: 0.15, frontier: 0.1, size: 0.1, efforts: 0.1, breadth: 0.05 } as const;
 export const QUALITY_ADJUST = { preferred: 15, superseded: -25, staleFrontier: -20 } as const;
 /** What a test set's openness scores: a public set can be trained on, a private one cannot. Unknown is neutral. */
 export const TEST_SET_SCORE = { private: 100, partial: 70, public: 30, unknown: 50 } as const;
@@ -24,6 +26,17 @@ export type QualityFactorId = keyof typeof QUALITY_WEIGHTS;
 /** Efforts: full credit when this share (percent) of multi-effort models is measured at two or more efforts. */
 export const EFFORTS_FULL_AT = 50;
 /**
+ * Size: the samples a score rests on, on a log scale from `SIZE_NONE_AT` (0) to `SIZE_FULL_AT` (100). Repeat runs count, but less than
+ * new tasks, since rerunning the same 30 questions does not make them 300 different ones: samples = tasks × √runs, with runs capped
+ * at `SIZE_MAX_RUNS` (four runs count as twice the tasks). Votes count a tenth each. Unknown scores 50.
+ */
+export const SIZE_NONE_AT = 10, SIZE_FULL_AT = 1000, SIZE_MAX_RUNS = 4, SIZE_VOTE = 0.1;
+export function sizeScore(size: BenchmarkSize | undefined): number {
+  if (!size) return 50;
+  const samples = size.votes ? size.tasks * SIZE_VOTE : size.tasks * Math.sqrt(Math.min(SIZE_MAX_RUNS, Math.max(1, size.runs ?? 1)));
+  return Math.round(Math.max(0, Math.min(100, (100 * Math.log10(samples / SIZE_NONE_AT)) / Math.log10(SIZE_FULL_AT / SIZE_NONE_AT))));
+}
+/**
  * Display order and names: the same in the directory, a benchmark's page and the methodology page. `ask` is the question each part
  * answers, the line a benchmark page shows under its name.
  */
@@ -33,6 +46,7 @@ export const QUALITY_FACTORS: { id: QualityFactorId; name: string; ask: string; 
   { id: "recency", name: "Recency", ask: "How new is it?", how: "How recently the benchmark was released. Full credit for 90 days, then falling to zero by about two years. Unknown dates score 50." },
   { id: "objectivity", name: "Grading", ask: "How are answers scored?", how: `How objective the grading is: exact answers and tests score high (${GRADING_SCORE.automatic}), model judges ${GRADING_SCORE["llm-judge"]}, a panel of people ${GRADING_SCORE["human-judge"]}, one person alone ${GRADING_SCORE["author-judge"]}, votes ${GRADING_SCORE["human-votes"]}. Scores the labs report themselves lose ${-SELF_REPORTED}. A few are set by hand.` },
   { id: "frontier", name: "New models", ask: "How fast does it test new releases?", how: `How quickly it scores new models, measured from Priors' daily history: full credit for a model scored within ${FAST_DAYS} days of release, none after ${SLOW_DAYS} or never, with widely tested models counting most. Where too few new models have come out to tell, the share of today's 10 default lineup models it has measured.` },
+  { id: "size", name: "Size", ask: "How many tasks is the score built on?", how: `How many tasks the leaderboard scores, and how many times each is run. A score on 30 questions moves a lot with luck; one on 1,000 does not. On a log scale: ${SIZE_NONE_AT} tasks score 0, 100 score 50, ${SIZE_FULL_AT.toLocaleString("en-US")} or more score 100. Repeat runs count less than new tasks (four runs per task count as twice the tasks), and arena votes count a tenth each. Unknown sizes score 50.` },
   { id: "efforts", name: "Efforts", ask: "Does it test each model at several reasoning efforts?", how: `Of the models it measured that come in more than one reasoning effort, the share it measured at two or more. Full credit at ${EFFORTS_FULL_AT}%; a benchmark with too few such models scores 50.` },
   { id: "breadth", name: "Breadth", ask: "How many models has it measured?", how: "How many models it has measured in all, with full credit at 40." },
 ];
@@ -308,6 +322,7 @@ export function benchmarkQuality(snapshot: Snapshot, cohort: string[] = defaultL
     const serious = !NOT_SERIOUS.has(benchmark.id);
     const dateConfidence = verified ? "verified" as const : researched ? "researched" as const : "unknown" as const;
     const efforts = effortsCoverage(rows, multiEffort), top = topQuarter(benchmark, rows);
+    const size = sizeOf(benchmark), sizeValue = sizeScore(size), many = (n: number) => n.toLocaleString("en-US");
     const released = releaseDate ? new Date(`${releaseDate}T12:00:00Z`) : undefined, ageDays = released ? Math.round((Date.parse(snapshot.date) - released.getTime()) / 86_400_000) : undefined;
     const summaries: Record<QualityFactorId, string> = {
       saturation: top != null ? `Top models average ${Math.round(top)} of 100` : saturation >= 70 ? "Plenty of room" : saturation >= 40 ? "Some room left" : "Little room left",
@@ -315,6 +330,7 @@ export function benchmarkQuality(snapshot: Snapshot, cohort: string[] = defaultL
       recency: released ? `${ageDays != null && ageDays < 60 ? `${Math.max(0, ageDays)} days old` : ageDays != null && ageDays < 730 ? `${Math.round(ageDays / 30.4)} months old` : `${Math.round((ageDays ?? 0) / 365)} years old`}` : "Release date unknown",
       objectivity: OBJECTIVITY[benchmark.id] != null ? (objectivity >= 85 ? "Exact answers or tests" : objectivity >= 70 ? "Mostly checked automatically" : "Partly judged") : facts.grading ? GRADING_SHORT[facts.grading] : "Not researched",
       frontier: added ? `${added.added} of ${added.of} new models${added.medianDays != null ? `, ${added.medianDays === 0 ? "same day" : `~${added.medianDays}d`}` : ""}` : frontier.total ? `${frontier.measured} of ${frontier.total} top models` : `${measured} models`,
+      size: !size ? "Size not known" : size.votes ? `${many(size.tasks)} votes` : `${many(size.tasks)} task${size.tasks === 1 ? "" : "s"}${size.runs ? ` × ${size.runs} runs` : ""}`,
       efforts: efforts.models < 3 ? "Too few models to tell" : efforts.several ? `${efforts.several} of ${efforts.models} models at 2+ efforts` : "One effort per model",
       breadth: `${measured} model${measured === 1 ? "" : "s"}`,
     };
@@ -324,6 +340,7 @@ export function benchmarkQuality(snapshot: Snapshot, cohort: string[] = defaultL
       recency: [recency, releaseDate ? `Released ${facts.released && !verified && /^\d{4}-\d{2}$/.test(facts.released) ? facts.released : releaseDate}${dateConfidence === "researched" ? " (from the publisher's pages, not yet checked by hand)" : ""}.` : "Release date not known, so recency is held at 50."],
       objectivity: [objectivity, OBJECTIVITY[benchmark.id] != null ? "Set by hand from how answers are graded." : facts.grading ? `${facts.gradingNote ? facts.gradingNote.replace(/\.$/, "") : GRADING_WORDS[facts.grading]}${facts.selfReported ? "; labs report their own scores" : ""}.` : "Judged from its unit and description; the grading method has not been researched."],
       frontier: [frontierScore, added ? `Scored ${added.added} of the ${added.of} notable models released since Priors began watching it${added.medianDays != null ? `, typically ${added.medianDays === 0 ? "on release day" : `${added.medianDays} day${added.medianDays === 1 ? "" : "s"} after release`}` : ""}.` : frontier.total ? `Has measured ${frontier.measured} of today's ${frontier.total} default lineup models. Too few new models to time how quickly it adds them.` : `${measured} models measured.`],
+      size: [sizeValue, !size ? "How many tasks it scores has not been found, so this is held at 50." : size.votes ? `Built on ${many(size.tasks)} votes, counted as ${many(Math.round(size.tasks * SIZE_VOTE))} tasks.` : `Scores ${many(size.tasks)} task${size.tasks === 1 ? "" : "s"}${size.runs ? `, each run ${size.runs} times and averaged` : ""}.`],
       efforts: [efforts.score, efforts.models < 3 ? "Fewer than three of its models come in more than one reasoning effort, so this is held at 50." : `Measured ${efforts.several} of the ${efforts.models} models that come in more than one reasoning effort at two or more of them.`],
       breadth: [coverage, `${measured} model${measured === 1 ? "" : "s"} measured.`],
     };
