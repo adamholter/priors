@@ -490,7 +490,7 @@ try {
       await c.goto(`${BASE}/benchmarks/aa-terminalbench-v4-0`, { waitUntil: "domcontentloaded" });
       const panel = c.locator("[data-quality-panel]");
       await panel.waitFor({ timeout: 30000 });
-      assert.deepEqual(await panel.locator("[data-factor]").evaluateAll((rows) => rows.map((r) => r.getAttribute("data-factor"))), ["saturation", "testSet", "recency", "objectivity", "frontier", "efforts", "breadth"], "the seven parts, in the methodology's order");
+      assert.deepEqual(await panel.locator("[data-factor]").evaluateAll((rows) => rows.map((r) => r.getAttribute("data-factor"))), ["saturation", "testSet", "recency", "objectivity", "frontier", "size", "efforts", "breadth"], "the eight parts, in the methodology's order");
       const score = Number(await panel.locator("[data-quality-score]").innerText());
       assert.ok(score > 0 && score <= 100, "a 0 to 100 score");
       assert.match(await c.locator("[data-quality-summary]").innerText(), new RegExp(`Quality ${score} of 100`), "the summary under the title carries the same score");
@@ -529,7 +529,7 @@ try {
       const head = (await c.locator(".bench-head").innerText()).toLowerCase();
       for (const name of ["headroom", "test set", "recency", "grading", "new models", "efforts", "breadth", "quality", "stars"]) assert.ok(head.includes(name), `a ${name} column`);
       const first = c.locator(".bench-row").first();
-      assert.equal(await first.locator("[data-factor]").count(), 7, "seven parts per row");
+      assert.equal(await first.locator("[data-factor]").count(), 8, "eight parts per row");
       assert.match(await first.locator("[data-factor=testSet]").innerText(), /Private|Partly private|Public|Unknown/);
       await c.getByLabel("Sort").selectOption("testSet");
       await c.waitForFunction(() => /Private/.test(document.querySelector(".bench-row [data-factor=testSet]")?.textContent ?? ""), null, { timeout: 5000 });

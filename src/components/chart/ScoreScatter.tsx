@@ -121,7 +121,9 @@ function useKeepOnScreen(ref: RefObject<HTMLElement | null>, rest: number, mark?
     const queue = () => { if (!raf) raf = requestAnimationFrame(place); };
     place();
     window.addEventListener("scroll", queue, { passive: true }); window.addEventListener("resize", queue); window.visualViewport?.addEventListener("resize", queue);
-    return () => { cancelAnimationFrame(raf); window.removeEventListener("scroll", queue); window.removeEventListener("resize", queue); window.visualViewport?.removeEventListener("resize", queue); };
+    // The page can shift under a placed card without a scroll (a second selection adds a row of names above the chart): place it again.
+    const shift = typeof ResizeObserver === "undefined" ? undefined : new ResizeObserver(queue); shift?.observe(document.body); shift?.observe(el);
+    return () => { cancelAnimationFrame(raf); shift?.disconnect(); window.removeEventListener("scroll", queue); window.removeEventListener("resize", queue); window.visualViewport?.removeEventListener("resize", queue); };
   }, [ref, rest]);
 }
 
