@@ -24,6 +24,9 @@ describe("common plans", () => {
   it("counts a lab's own current plans and widely used resellers, not legacy, peak, team, student or unpopular ones", () => {
     expect(isCommonPlan("Claude Max 5x", "anthropic")).toBe(true);
     expect(isCommonPlan("OpenCode Go", "zhipu")).toBe(true);
+    // The X Subscription replaced SuperGrok (2026-10-12): its tiers are xAI's own plans; the SuperGrok ones are legacy now.
+    for (const plan of ["X Plus", "X Premium", "X Super", "X Ultra"]) expect(isCommonPlan(plan, "xai")).toBe(true);
+    expect(isCommonPlan("SuperGrok Plus, legacy", "xai")).toBe(false);
     expect(isCommonPlan("Ollama Pro", "deepseek")).toBe(true);
     for (const plan of ["Command Code GOAT", "Droid Max", "Mistral Vibe Pro", "OpenCode Go Teams", "Claude Team Premium", "GLM Coding Pro ¥538 (peak)", "GLM Coding Pro ¥149, existing subscribers (off-peak)", "Kimi Allegro, legacy", "Google AI Pro (Student)"]) expect(isCommonPlan(plan, "zhipu"), plan).toBe(false);
     expect(isCommonPlan("Mistral Vibe Pro", "mistral")).toBe(true);

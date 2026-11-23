@@ -16,7 +16,7 @@ import { blendedApiPrice, listPrices, planDisplayName, SUBSCRIPTION_BENCHMARK, t
 import type { Observation, Snapshot } from "./types";
 
 const OWN: Record<string, RegExp> = {
-  anthropic: /^Claude\b/, openai: /^ChatGPT\b/, google: /^Google AI\b/, xai: /^SuperGrok\b/, cursor: /^Cursor\b/, moonshot: /^Kimi\b/, zhipu: /^GLM\b/,
+  anthropic: /^Claude\b/, openai: /^ChatGPT\b/, google: /^Google AI\b/, xai: /^(SuperGrok|X (Plus|Premium|Super|Ultra))\b/, cursor: /^Cursor\b/, moonshot: /^Kimi\b/, zhipu: /^GLM\b/,
   minimax: /^MiniMax\b/, xiaomi: /^MiMo\b/, tencent: /^Tencent\b/, alibaba: /^(Alibaba\b|Qwen\b)/, mistral: /^Mistral\b/,
 };
 const POPULAR_RESELLERS = /^(OpenCode Go|Ollama (Pro|Max)|Cursor (Pro|Pro\+|Ultra))$/;

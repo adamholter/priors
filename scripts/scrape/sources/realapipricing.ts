@@ -164,7 +164,9 @@ export function parseSubscriptions(json: Points, conventions: Conventions, chann
   // price, so the two stay equal even if their list prices differ; the copied token price and mix give the same share without it.
   for (const a of SUBSIDY_ASSUMPTIONS) {
     const from = rows.find((r) => idOf(r) === a.sameAs);
-    if (!from || rows.some((r) => idOf(r) === a.modelId)) continue;
+    if (!from || (!a.replaces && rows.some((r) => idOf(r) === a.modelId))) continue;
+    // A row that measured an allowance gone since (Argon's own Pro pool) makes way.
+    if (a.replaces) for (let i = rows.length - 1; i >= 0; i--) if (idOf(rows[i]) === a.modelId) rows.splice(i, 1);
     const row = from.details as unknown as SubscriptionDetails;
     if (!a.plans) {
       const d = row, plan = `${d.plan} (assumed same as ${a.sameAsName})`;

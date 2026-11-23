@@ -204,17 +204,20 @@ describe("Real API Pricing subscriptions", () => {
     expect(d.preliminary!.short).toBe("From one user's data (@SSHCodes), pending larger-scale data.");
     expect(d.plans[0].preliminary?.credit).toBe("@SSHCodes");
   });
-  it("gives Gemini 4 Carbon, sold only on Ultra, Flash's Ultra rows from the shared pool, on the plan with the biggest subsidy", () => {
+  it("since November 23 gives Carbon and Argon Flash's share of the shared Gemini pool on every plan, Pro included, and drops Argon's old Pro-pool row", () => {
     const flash = (id: string, plan: string, v: number, fee: number) => point(`${id}::gemini-3.8-flash`, plan, "Google", v, { model_display: "Gemini 3.8 Flash", price_usd: fee, workload: "lowCache", confidence: id.includes("ultra") ? "low" : "high" });
     const points = [...payload.points, flash("google_ai_pro_us", "Google AI Pro", 0.0077, 19.99), flash("google_ai_ultra_5x_us", "Google AI Ultra 5x", 0.0077, 99.99), flash("google_ai_ultra_20x_us", "Google AI Ultra 20x", 0.0039, 199.99)];
-    const carbon = parseSubscriptions({ ...payload, points }, conventions, channels).find((r) => r.modelLabel === "Gemini 4 Carbon (max)")!;
-    expect(carbon.value).toBeCloseTo(0.0117, 6);
-    expect(carbon).toMatchObject({ details: { plan: "Google AI Ultra 20x (assumed same as Flash)", feeUsd: 199.99, sameAs: "gemini-3.8-flash", poolRate: 3, confidence: "assumed" } });
-    const d = carbon.details as unknown as { plans: { plan: string }[]; listPrice?: unknown };
-    expect(d.plans.map((p) => p.plan).sort()).toEqual(["Google AI Ultra 20x", "Google AI Ultra 5x"]);
-    expect(d.listPrice).toBeUndefined();
-    // No Ultra measurement, no Carbon row: Pro does not sell it.
-    expect(row("Gemini 4 Carbon (max)")).toBeUndefined();
+    const found = parseSubscriptions({ ...payload, points }, conventions, channels);
+    const flashRow = found.find((r) => r.modelLabel === "Gemini 3.8 Flash")!;
+    for (const label of ["Gemini 4 Carbon (max)", "Gemini 4 Argon (max)", "Gemini 4 Hydrogen (xhigh)"]) {
+      const r = found.find((x) => x.modelLabel === label)!;
+      // The same token price as Flash's row, and `sameAs` so the engine gives it Flash's share of API price on whatever plan Flash is priced at.
+      expect(r.value).toBe(flashRow.value);
+      expect(r.details).toMatchObject({ sameAs: "gemini-3.8-flash", plans: [] });
+      expect((r.details as { poolRate?: number }).poolRate).toBeUndefined();
+    }
+    // Real API Pricing's Argon row measured Pro's old Argon-only pool: it makes way.
+    expect(found.filter((r) => /^Gemini 4 Argon/.test(r.modelLabel))).toHaveLength(1);
   });
   it("gives GPT-6.2 Astra GPT-6 Astra's ChatGPT plan tokens, priced against its own lower list price, until it is measured", () => {
     const astra = (id: string, plan: string, v: number, fee: number) => point(`${id}::gpt-6-astra`, plan, "OpenAI", v, { model_display: "GPT 6 Astra", price_usd: fee, confidence: "medium" });
@@ -236,7 +239,8 @@ describe("Real API Pricing subscriptions", () => {
     const points = [...payload.points, flash];
     const found = parseSubscriptions({ ...payload, points }, conventions, channels);
     expect(found.find((r) => r.modelLabel.startsWith("Gemini 4 Hydrogen"))).toMatchObject({ value: flash.real_usd_per_mtok, details: { sameAs: "gemini-3.8-flash", confidence: "medium", plan: "Google AI Pro (assumed same as Flash)" } });
-    expect(found.find((r) => r.modelLabel === "Gemini 4 Argon")!.value).toBe(0.303);
+    // Argon's own Pro pool is gone (2026-11-23): Argon follows Flash too.
+    expect(found.find((r) => r.modelLabel.startsWith("Gemini 4 Argon"))!.value).toBe(flash.real_usd_per_mtok);
     // Without a shared-pool measurement, do not silently substitute Argon's unrelated allowance.
     expect(rows.some((r) => r.modelLabel.startsWith("Gemini 4 Hydrogen"))).toBe(false);
     const measured = parseSubscriptions({ ...payload, points: [...points, point("google_ai_pro_us::gemini-4-hydrogen", "Google AI Pro", "Google", 0.009, { model_display: "Gemini 4 Hydrogen", price_usd: 19.99 })] }, conventions, channels);
@@ -385,5 +389,24 @@ describe("Devin Max, measured for Priors", () => {
     expect(blendedApiPrice(t.listPrice!, t.mix) / t.plans[0].usdPerMtok).toBeCloseTo(435 * 1.075 / 200, 6);
     // Never a price of its own: no assumption or other plan, no Devin row that prices the model.
     expect(found.some((r) => /Wonder/.test(r.modelLabel) && (r.details as unknown as SubscriptionDetails).plan === "Devin Max" && !(r.details as unknown as SubscriptionDetails).listOnly)).toBe(false);
+  });
+});
+
+describe("The X Subscription", () => {
+  const grok = (id: string, plan: string, v: number, fee: number, confidence = "medium") => point(`${id}::grok-4.7`, plan, "SpaceXAI", v, { model_display: "Grok 4.7", price_usd: fee, confidence });
+  const points = [...payload.points, grok("supergrok", "SuperGrok", 0.0524, 30), grok("supergrok_plus", "SuperGrok Plus", 0.0437, 100), grok("supergrok_heavy", "SuperGrok Heavy", 0.0524, 300)];
+  const row = parseSubscriptions({ ...payload, points }, conventions, channels).find((r) => r.modelLabel === "Grok 4.7")!;
+  const plans = (row.details as unknown as SubscriptionDetails).plans, at = (plan: string) => plans.find((p) => p.plan === plan)!;
+  it("lists Plus, Premium, Super and Ultra at X's multiples of Plus, Premium taking SuperGrok's measured allowance", () => {
+    // Premium is SuperGrok's $30 allowance; Plus a quarter of it for $8, Super 15/4 for $100, Ultra 50/4 for $200.
+    expect(at("X Premium").usdPerMtok).toBeCloseTo(0.0524, 9);
+    expect(at("X Plus").usdPerMtok).toBeCloseTo(0.0524 * (8 / 30) * 4, 9);
+    expect(at("X Super").usdPerMtok).toBeCloseTo(0.0524 * (100 / 30) / 3.75, 9);
+    expect(at("X Ultra").usdPerMtok).toBeCloseTo(0.0524 * (200 / 30) / 12.5, 9);
+    expect(at("X Ultra").confidence).toBe("low");
+  });
+  it("marks the SuperGrok plans legacy and prices Grok on an X plan", () => {
+    expect(plans.map((p) => p.plan)).toEqual(expect.arrayContaining(["SuperGrok, legacy", "SuperGrok Plus, legacy", "SuperGrok Heavy, legacy"]));
+    expect((row.details as unknown as SubscriptionDetails).plan).toMatch(/^X /);
   });
 });

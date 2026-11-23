@@ -76,6 +76,8 @@ export interface SubsidyAssumption {
   poolRate?: number;
   /** Set once the assumption itself is measured; default "assumed". */
   confidence?: string;
+  /** Replaces the model's measured row, which measured an allowance that no longer exists (Argon's own Pro pool, folded into the Gemini pool on 2026-11-23). */
+  replaces?: true;
   /** The figure is early: shown wherever it appears. */
   preliminary?: PlanCaveat;
   /**
@@ -102,12 +104,19 @@ export const SUBSIDY_ASSUMPTIONS: SubsidyAssumption[] = [
     listPrice: { input: 2, cached: 0.1, output: 10 }, checked: "2026-11-17",
     note: "No plan measurement for GPT-6.2 Sol yet: each ChatGPT plan is assumed to give as many tokens as it does for GPT-6.1 Sol, whose API prices GPT-6.2 Sol keeps ($2 input, $0.10 cached, $10 output per 1M).",
   },
-  // Carbon is Ultra-only (Sundar Pichai, November 10; Antigravity's models table). On Ultra every Gemini model, Carbon and Argon included,
-  // draws on one shared weekly pool, but not at the same rate per list-price dollar: Flash and Hydrogen use it at exactly the same rate,
-  // and Argon and Carbon at about three times that ($600 of Flash or $200 of Argon/Carbon a week on Ultra 5x). Evidence in docs/data.md.
+  // Since 2026-11-23 every Gemini model on Antigravity draws on one Gemini pool on every paid plan: Varun Mohan (x.com/_mohansolo/status/2124960419429458207)
+  // gave paid Pro users Carbon, and in the same thread ended Pro's separate Argon bucket, moving its capacity into the general Gemini bucket "so you
+  // can also just use more Argon, Carbon, and (most importantly) Neon". agy states the pool is "consumed proportionally to the cost of the tokens",
+  // and Flash, Hydrogen and Neon measure at the same rate per list-price dollar. Adam's call (November 23): Argon and Carbon get the same share of API
+  // price as every other Google model. Until 2026-11-23 Carbon was Ultra-only at a third of Flash's share (a community reading of $600 of Flash or
+  // $200 of Argon/Carbon a week on Ultra 5x), and Argon's Pro row measured its own small pool.
   {
-    modelId: "gemini-4-carbon", label: "Gemini 4 Carbon (max)", sameAs: "gemini-3.8-flash", sameAsName: "Flash", plans: /^Google AI Ultra/, poolRate: 3, checked: "2026-11-16",
-    note: "Only Google AI Ultra sells Carbon; Ultra 20x gives the most per dollar. Carbon shares Ultra's weekly Gemini pool with Flash, but a dollar of Carbon at its API list price uses about three times as much of it as a dollar of Flash (a community reading of $600 of Flash or $200 of Argon/Carbon a week on Ultra 5x, matched by Priors' own measurement on November 16), so it gets a third of Flash's share of API price on the same plan.",
+    modelId: "gemini-4-carbon", label: "Gemini 4 Carbon (max)", sameAs: "gemini-3.8-flash", sameAsName: "Flash", checked: "2026-11-23",
+    note: "Carbon draws on the Gemini pool every Google AI plan shares, Pro included since November 23, 2026, which is used in proportion to the API cost of the tokens, so it gets Flash's share of API price on whichever Google AI plan Flash is priced at, like Hydrogen.",
+  },
+  {
+    modelId: "gemini-4", label: "Gemini 4 Argon (max)", sameAs: "gemini-3.8-flash", sameAsName: "Flash", replaces: true, checked: "2026-11-23",
+    note: "Since November 23, 2026 Argon has no pool of its own on Google AI Pro: its capacity moved into the Gemini pool every plan shares, which is used in proportion to the API cost of the tokens, so Argon gets Flash's share of API price on each plan. Real API Pricing's Pro row for Argon measured the old separate pool.",
   },
   // Hydrogen shares the Gemini pool with Flash (agy's /quota lists both in "Gemini Models"; Pro's Argon pool is separate) and, measured
   // November 16, uses it at exactly Flash's rate per list-price dollar, so it gets Flash's share of API price on every plan. docs/data.md.
@@ -308,7 +317,8 @@ export const PLAN_CHANGES: PlanChange[] = [
  * customers, so they stay priced but say so, and they leave the median while the lab sells something else. Cursor's replacements publish no token allowance
  * (cursor.com/docs/models-and-pricing, read 2026-11-04). Moonshot: "Andante, Moderato, Allegretto, and Allegro are legacy plans" (kimi.com/en/help/membership/membership-pricing, read 2026-11-05).
  */
-export const LEGACY_PLANS = ["cursor_", "kimi_andante", "kimi_moderato", "kimi_allegretto", "kimi_allegro"];
+// SuperGrok (Lite, $30, Plus, Heavy) gave way to the X Subscription on 2026-10-12 for new customers (PLAN_MULTIPLES below). "supergrok::" so the prefix does not match the other SuperGrok ids.
+export const LEGACY_PLANS = ["cursor_", "kimi_andante", "kimi_moderato", "kimi_allegretto", "kimi_allegro", "supergrok::", "supergrok_lite", "supergrok_plus", "supergrok_heavy"];
 
 /**
  * A lab's API price for a stated period, when Artificial Analysis lists the price that follows it and Real API Pricing publishes none.
@@ -348,6 +358,13 @@ export const PLAN_MULTIPLES: PlanMultiple[] = [
   // Launched 29 September 2026 at 25 times Plus; OpenAI doubled Pro 100 and Pro 500 on 29 October ("twice their previous Work and Codex allowance"), so 50 times. OpenAI states neither the launch figure nor 50 on the current page: 50 is that arithmetic.
   // The only self-serve plan with Ultrafast, which is why it is listed. Left out of the median so adding it moves no model's default price.
   { base: "chatgpt_plus", planId: "chatgpt_pro_500", plan: "ChatGPT Pro 500", feeUsd: 500, multiple: 50, listOnly: true, source: "https://help.openai.com/en/articles/9793128-about-chatgpt-pro-tiers", checked: "2026-11-05" },
+  // The X Subscription (2026-10-12) replaced SuperGrok: one weekly pool for Grok, Cursor and X, sold as Plus $8, Premium $30 (4x Plus), Super $100
+  // (15x Plus) and Ultra $200 (50x Plus), from X's plans table (reported by @mattyp, November 23; the same prices are on Cursor's pricing page).
+  // No one has measured it. Premium is "the benefits of SuperGrok, Cursor Pro, and X Premium+" at SuperGrok's $30, so it is assumed to give
+  // SuperGrok's measured Grok allowance, and the others scale from it by X's multiples. Model-specific: only the Grok models SuperGrok was measured on.
+  ...([["plus", "X Plus", 8, 1 / 4], ["premium", "X Premium", 30, 1], ["super", "X Super", 100, 15 / 4], ["ultra", "X Ultra", 200, 50 / 4]] as const).map(([id, plan, feeUsd, multiple]): PlanMultiple => ({
+    base: "supergrok", planId: `xai_x_${id}`, plan, feeUsd, multiple, source: "https://cursor.com/docs/models-and-pricing", checked: "2026-11-23",
+  })),
 ];
 
 /**

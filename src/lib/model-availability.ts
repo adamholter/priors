@@ -67,7 +67,7 @@ export function planSubsidies(snapshot: Snapshot): PlanSubsidy[] {
 
 /** Who sells a plan, read from its name, and whose models count as the seller's own. Logos are in `public/logos/<id>.png`. */
 const SELLERS: { id: string; name: string; plans: RegExp; lab?: string }[] = [
-  { id: "anthropic", name: "Anthropic", plans: /^Claude\b/, lab: "anthropic" }, { id: "openai", name: "OpenAI", plans: /^ChatGPT\b/, lab: "openai" }, { id: "google", name: "Google", plans: /^Google AI\b/, lab: "google" }, { id: "xai", name: "xAI", plans: /^SuperGrok\b/, lab: "xai" },
+  { id: "anthropic", name: "Anthropic", plans: /^Claude\b/, lab: "anthropic" }, { id: "openai", name: "OpenAI", plans: /^ChatGPT\b/, lab: "openai" }, { id: "google", name: "Google", plans: /^Google AI\b/, lab: "google" }, { id: "xai", name: "xAI", plans: /^(SuperGrok|X (Plus|Premium|Super|Ultra))\b/, lab: "xai" },
   { id: "cursor", name: "Cursor", plans: /^Cursor\b/, lab: "cursor" }, { id: "kimi", name: "Kimi", plans: /^Kimi\b/, lab: "moonshot" }, { id: "zhipu", name: "Z.ai", plans: /^GLM\b/, lab: "zhipu" }, { id: "minimax", name: "MiniMax", plans: /^MiniMax\b/, lab: "minimax" },
   { id: "xiaomi", name: "Xiaomi", plans: /^MiMo\b/, lab: "xiaomi" }, { id: "tencent", name: "Tencent", plans: /^Tencent\b/, lab: "tencent" }, { id: "alibaba", name: "Alibaba", plans: /^(阿里云|Alibaba\b|Qwen\b)/, lab: "alibaba" }, { id: "mistral", name: "Mistral", plans: /^Mistral\b/, lab: "mistral" },
   { id: "opencode", name: "OpenCode", plans: /^OpenCode\b/ }, { id: "commandcode", name: "Command Code", plans: /^Command Code\b/ }, { id: "factory", name: "Factory", plans: /^Droid\b/ }, { id: "ollama", name: "Ollama", plans: /^Ollama\b/ },
