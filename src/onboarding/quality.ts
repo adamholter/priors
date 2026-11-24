@@ -7,8 +7,8 @@ import { defaultLineup } from "./defaults";
 
 // AA's Terminal-Bench 4 run is preferred over tbench.ai's board: AA runs every new model on it, so fitted mixes that use it rank more models.
 // HLE-Diamond replaces Humanity's Last Exam, as it did in AA's index v5.
-// MazeBench, both GameFeel boards and FrontierCode 2.0-AA joined on 2026-11-24 (Adam).
-export const PREFERRED = ["deepswe-1.1", "aa-terminalbench-v4-0", "arc-agi-3", "simplebench", "bsbench-v2", "aa-hle-diamond", "aa-omniscience", "frontiermath-tier-4-v2", "vals-programbench-v1", "mazebench", "gamefeel-v1.5.2", "gamefeel-re-v1.5.2", "aa-frontiercode-2-0"] as const;
+// MazeBench, both GameFeel boards and FrontierCode 2.0-AA joined on 2026-11-24 (Adam); ARC-AGI-3 left the same day (Adam).
+export const PREFERRED = ["deepswe-1.1", "aa-terminalbench-v4-0", "simplebench", "bsbench-v2", "aa-hle-diamond", "aa-omniscience", "frontiermath-tier-4-v2", "vals-programbench-v1", "mazebench", "gamefeel-v1.5.2", "gamefeel-re-v1.5.2", "aa-frontiercode-2-0"] as const;
 /** What the bonus for `PREFERRED` is called wherever it shows. */
 export const RECOMMENDED_NAME = "Priors Recommended";
 export const EPOCH_VERIFIED = ["mazebench", "bg-maze-bench"] as const;
