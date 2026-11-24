@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { clickColumn, DIRECTORY_SORTS, naturalDir, sortDirectory, type SortableBenchmark } from "./benchmark-directory-sort";
+import { clickColumn, DIRECTORY_SORTS, naturalDir, sortDirectory, withQualityAdjustments, type SortableBenchmark } from "./benchmark-directory-sort";
 
 const b = (name: string, extra: Partial<SortableBenchmark> = {}): SortableBenchmark => ({ name, models: 10, quality: 50, uses: 0, stars: 0, factors: {}, ...extra });
 const names = (xs: SortableBenchmark[]) => xs.map((x) => x.name);
@@ -33,5 +33,15 @@ describe("benchmark directory sorting", () => {
   it("offers every column and every quality part as a sort", () => {
     const ids = DIRECTORY_SORTS.map((s) => s.id);
     for (const id of ["name", "leader", "models", "uses", "quality", "stars", "saturation", "testSet", "recency", "objectivity", "frontier", "size", "efforts", "breadth"]) expect(ids).toContain(id);
+  });
+  it("switches between adjusted and base quality scores when bonuses and penalties are toggled", () => {
+    const rows = [
+      b("Boosted", { quality: 85, baseQuality: 70 }),
+      b("Plain", { quality: 78, baseQuality: 78 }),
+      b("Penalized", { quality: 55, baseQuality: 80 }),
+    ];
+    expect(names(sortDirectory(withQualityAdjustments(rows, true), "quality"))).toEqual(["Boosted", "Plain", "Penalized"]);
+    expect(names(sortDirectory(withQualityAdjustments(rows, false), "quality"))).toEqual(["Penalized", "Plain", "Boosted"]);
+    expect(withQualityAdjustments(rows, false).map((r) => r.quality)).toEqual([70, 78, 80]);
   });
 });

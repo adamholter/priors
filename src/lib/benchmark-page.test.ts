@@ -20,7 +20,7 @@ describe("benchmark pages", async () => {
     expect(directoryItems(fake(false), new Map(), nobody)[0].leader?.name).toBe(a.name);
     // Stars and the parts of the quality score ride along with each row.
     const starred = directoryItems(fake(true), new Map(benchmarkQuality(fake(true)).map((q) => [q.id, q])), { stars: { t: 3 }, uses: new Map([["t", 2]]) })[0];
-    expect(starred).toMatchObject({ stars: 3, uses: 2, testSet: "unknown" });
+    expect(starred).toMatchObject({ stars: 3, uses: 2, testSet: "unknown", baseQuality: starred.quality });
     expect(Object.keys(starred.factors).sort()).toEqual(["breadth", "efforts", "frontier", "objectivity", "recency", "saturation", "size", "testSet"]);
   });
 

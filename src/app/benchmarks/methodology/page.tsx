@@ -41,6 +41,7 @@ export default async function Page() {
             <li><b className="font-medium text-ink">&minus;{-QUALITY_ADJUST.superseded}</b> for a few older versions with a clear replacement.</li>
             <li><b className="font-medium text-ink">&minus;{-QUALITY_ADJUST.staleFrontier}</b> if its results were last updated before {FRONTIER_RELEASE_DATE}, when the current frontier models began to ship.</li>
           </ul>
+          <p>The directory&rsquo;s Bonuses and penalties toggle (on by default) lets you switch these adjustments off to sort by the eight weighted parts alone, and each benchmark&rsquo;s page shows its score before and after they are applied.</p>
           <p>The test set, release date and grading method of each benchmark were researched from its publisher&rsquo;s pages in November 2026 and are corrected as mistakes turn up. Quality doesn&rsquo;t prove a benchmark is valid or free of training contamination, and part of it is our judgment. The same score guides the benchmarks suggested in the ranking flow and the builder.</p>
         </section>
         <section className="grid gap-3">

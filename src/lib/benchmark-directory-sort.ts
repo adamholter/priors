@@ -3,7 +3,7 @@ import { recommendedScore } from "./benchmark-recommended";
 
 /** What the directory needs of a row to sort it. */
 export interface SortableBenchmark {
-  name: string; models: number; quality: number; uses: number; stars: number; lastUpdated?: string;
+  name: string; models: number; quality: number; baseQuality?: number; uses: number; stars: number; lastUpdated?: string;
   factors: Partial<Record<QualityFactorId, number>>; leader?: { name: string };
 }
 
@@ -49,6 +49,11 @@ const missing = (x: SortableBenchmark, sort: DirectorySort) => sort === "leader"
 export function sortDirectory<T extends SortableBenchmark>(items: readonly T[], sort: DirectorySort, dir: SortDir = naturalDir(sort)): T[] {
   const sign = dir === naturalDir(sort) ? 1 : -1, cmp = COMPARE[sort];
   return [...items].sort((a, b) => Number(missing(a, sort)) - Number(missing(b, sort)) || sign * cmp(a, b));
+}
+
+/** Switch every row's active quality between the adjusted score (default) and the base score before bonuses and penalties. */
+export function withQualityAdjustments<T extends SortableBenchmark>(items: readonly T[], on: boolean): T[] {
+  return on ? [...items] : items.map((x) => (x.baseQuality == null || x.baseQuality === x.quality ? x : { ...x, quality: x.baseQuality }));
 }
 
 /** A click on a column header: a new column starts in its natural direction, the current one flips. */

@@ -13,7 +13,7 @@ import type { Benchmark } from "@/data/types";
 import { categoriesOf, categoryBlurb, categoryName, categoryOrder } from "@/data/categories";
 import { searchBenchmarks } from "@/lib/benchmark-search";
 import { recommendedScore } from "@/lib/benchmark-recommended";
-import { clickColumn, DIRECTORY_SORTS, dirNames, naturalDir, sortDirectory, type DirectorySort, type SortDir } from "@/lib/benchmark-directory-sort";
+import { clickColumn, DIRECTORY_SORTS, dirNames, naturalDir, sortDirectory, withQualityAdjustments, type DirectorySort, type SortDir } from "@/lib/benchmark-directory-sort";
 import { benchmarkPath } from "@/lib/benchmark-slug";
 import { useLabColor } from "@/components/chart/echarts";
 import "./benchmarks.css";
@@ -21,7 +21,7 @@ import "./benchmarks.css";
 /** One row of the directory: what the benchmark is, how much it covers, how good and how used it is. */
 export interface DirectoryItem {
   id: string; name: string; shortName?: string; sourceId: string; category: Benchmark["category"]; categories?: Benchmark["category"][]; description: string; host: string;
-  models: number; quality: number; uses: number; lastUpdated?: string;
+  models: number; quality: number; baseQuality?: number; uses: number; lastUpdated?: string;
   /** People who starred it. */
   stars: number;
   /** Each part of the quality score, 0 to 100 (`QUALITY_FACTORS`), and what two of them rest on: whether the test set is public, the release date, and the typical days it takes to score a new model. */
@@ -62,6 +62,7 @@ export function BenchmarkDirectory({ items }: { items: DirectoryItem[] }) {
   const [order, setOrder] = useState<{ sort: DirectorySort; dir: SortDir }>({ sort: "recommended", dir: "desc" });
   const { sort, dir } = order;
   const [everything, setEverything] = useState(false);
+  const [withAdjustments, setWithAdjustments] = useState(true);
   // "factors": the columns are the parts of the quality score instead of top model, models and mixes.
   const [view, setView] = useState<"overview" | "factors">("overview");
   const input = useRef<HTMLInputElement>(null);
@@ -70,7 +71,8 @@ export function BenchmarkDirectory({ items }: { items: DirectoryItem[] }) {
     const onKey = (e: KeyboardEvent) => { if (e.key === "/" && !(e.target as HTMLElement)?.closest("input,textarea,select")) { e.preventDefault(); input.current?.focus(); } };
     addEventListener("keydown", onKey); return () => removeEventListener("keydown", onKey);
   }, []);
-  const base = useMemo(() => items.filter((x) => everything || (!x.superseded && !x.variantOf)), [items, everything]);
+  const effective = useMemo(() => withQualityAdjustments(items, withAdjustments), [items, withAdjustments]);
+  const base = useMemo(() => effective.filter((x) => everything || (!x.superseded && !x.variantOf)), [effective, everything]);
   const searching = q.trim().length > 0;
     const categories = useMemo(() => {
     const count = new Map<string, number>();
@@ -80,7 +82,7 @@ export function BenchmarkDirectory({ items }: { items: DirectoryItem[] }) {
   }, [base]);
   // A search over everything: an older version or a category split is often exactly what someone typed.
   // Equal matches keep input order, so feed it current boards before older versions and splits, then by recommendation.
-  const ranked = useMemo(() => [...items].sort((a, b) => Number(!!a.superseded) - Number(!!b.superseded) || Number(!!a.variantOf) - Number(!!b.variantOf) || recommendedScore(b) - recommendedScore(a)), [items]);
+  const ranked = useMemo(() => [...effective].sort((a, b) => Number(!!a.superseded) - Number(!!b.superseded) || Number(!!a.variantOf) - Number(!!b.variantOf) || recommendedScore(b) - recommendedScore(a)), [effective]);
   const found = useMemo(() => {
     const inCategory = (x: DirectoryItem) => category === "all" || categoriesOf(x).some((c) => c === category);
     // While searching, Recommended means best match first; any other sort orders the matches.
@@ -119,6 +121,7 @@ export function BenchmarkDirectory({ items }: { items: DirectoryItem[] }) {
               <SortMenu sort={sort} dir={dir} searching={searching} onChange={setOrder} />
               <div className="seg" role="group" aria-label="Columns">{(["overview", "factors"] as const).map((v) => <button key={v} type="button" className="!px-2.5 !py-1 text-[12px]" aria-pressed={view === v} onClick={() => setView(v)}>{v === "overview" ? "Overview" : "Quality factors"}</button>)}</div>
               {!searching && <label className="cap flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={everything} onChange={(e) => setEverything(e.target.checked)} />Older versions and sub-boards</label>}
+              <label className="cap flex items-center gap-2 cursor-pointer" title="Include bonuses and penalties (+15 preferred or verified, -25 superseded, -20 stale) in quality scores"><input type="checkbox" data-quality-adjustments checked={withAdjustments} onChange={(e) => setWithAdjustments(e.target.checked)} />Bonuses and penalties</label>
               <Link href="/benchmarks/methodology" className="cap underline decoration-dotted underline-offset-2 hover:text-ink">How scores work</Link>
               <span className="cap ml-auto" role="status">{searching ? plural(found.length, "match", "matches") : plural(found.length, "benchmark")}</span>
             </div>
@@ -131,10 +134,10 @@ export function BenchmarkDirectory({ items }: { items: DirectoryItem[] }) {
                 <Head id="models" order={order} onClick={column} text={TIP.models} end><IconCube size={13} stroke={1.6} aria-hidden />Models</Head>
                 <Head id="uses" order={order} onClick={column} text={TIP.uses} end><IconUsers size={13} stroke={1.6} aria-hidden />Mixes</Head>
               </> : QUALITY_FACTORS.map((f) => <Head key={f.id} id={f.id} order={order} onClick={column} text={f.how} end>{f.name}</Head>)}
-              <Head id="quality" order={order} onClick={column} text={TIP.quality} end>Quality</Head>
+              <Head id="quality" order={order} onClick={column} text={withAdjustments ? TIP.quality : "Base quality score from the eight weighted parts only (bonuses and penalties turned off)."} end>Quality</Head>
               <Head id="stars" order={order} onClick={column} text={TIP.stars} end>Stars</Head>
             </div>
-            <ul className="grid">{shown.map((x) => <Row key={x.id} x={x} showCategory={category === "all"} view={view} />)}</ul>
+            <ul className="grid">{shown.map((x) => <Row key={x.id} x={x} showCategory={category === "all"} view={view} withAdjustments={withAdjustments} />)}</ul>
           </div> : <p className="cap py-6">Nothing matches &ldquo;{q}&rdquo;. Try a word for what you want measured, such as coding, math or agents.</p>}
         </div>
       </div>
@@ -246,8 +249,11 @@ function Factor({ x, id }: { x: DirectoryItem; id: QualityFactorId }) {
   return <span className={`bench-cell bench-num bench-factor ${id === "testSet" ? `bench-test is-${x.testSet}` : ""}`} data-factor={id}><Tip text={tip} end><span className="bench-word">{name}: </span><span className={id === "testSet" ? "" : "num"}>{text}</span></Tip></span>;
 }
 
-function Row({ x, showCategory, view }: { x: DirectoryItem; showCategory?: boolean; view: "overview" | "factors" }) {
+function Row({ x, showCategory, view, withAdjustments }: { x: DirectoryItem; showCategory?: boolean; view: "overview" | "factors"; withAdjustments: boolean }) {
   const lab = useLabColor(), main = categoriesOf(x)[0], icon = CATEGORY_ICON[main] ? main : "other";
+  const qTip = !withAdjustments ? `Quality ${Math.round(x.quality)} of 100 (bonuses and penalties off). ${TIP.quality}`
+    : x.baseQuality != null && Math.round(x.baseQuality) !== Math.round(x.quality) ? `Quality ${Math.round(x.quality)} of 100 (${Math.round(x.baseQuality)} before bonuses and penalties). ${TIP.quality}`
+    : `Quality ${Math.round(x.quality)} of 100. ${TIP.quality}`;
   return (
     <li className="bench-li border-b hairline last:border-b-0">
       <Link href={benchmarkPath(x.id) as "/"} className="bench-row group">
@@ -268,7 +274,7 @@ function Row({ x, showCategory, view }: { x: DirectoryItem; showCategory?: boole
           <span className="bench-cell bench-num"><Tip text={TIP.models} end><Use k="cube" className="bench-inline" size={13} /><span className="num">{x.models}</span><span className="bench-word"> {x.models === 1 ? "model" : "models"}</span></Tip></span>
           <span className={`bench-cell bench-num ${x.uses ? "" : "bench-none"}`}><Tip text={TIP.uses} end><Use k="users" className="bench-inline" size={13} /><span className="num">{x.uses || <><span aria-hidden="true">–</span><span className="bench-word">0</span></>}</span><span className="bench-word"> {x.uses === 1 ? "mix" : "mixes"}</span></Tip></span>
         </> : QUALITY_FACTORS.map((f) => <Factor key={f.id} x={x} id={f.id} />)}
-        <span className="bench-cell bench-q"><Tip text={`Quality ${Math.round(x.quality)} of 100. ${TIP.quality}`} end><Quality v={x.quality} /></Tip></span>
+        <span className="bench-cell bench-q"><Tip text={qTip} end><Quality v={x.quality} /></Tip></span>
         {/* The star's own column: the button sits over it, outside the link (a button cannot go inside one). */}
         <span className="bench-star-space" aria-hidden="true" />
       </Link>

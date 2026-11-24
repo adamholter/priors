@@ -80,7 +80,7 @@ export function directoryItems(snapshot: Snapshot, quality: Map<string, Benchmar
     const q = quality.get(b.id);
     return {
       id: b.id, name: b.name, shortName: b.shortName, sourceId: b.sourceId, category: b.category, ...(b.categories ? { categories: b.categories } : {}), description: b.description, host: host(b.url),
-      models: models.get(b.id)!.size, quality: q?.score ?? 50, uses: community.uses.get(b.id) ?? 0, stars: community.stars[b.id] ?? 0, lastUpdated: b.lastUpdated, ...leaderOf(b.id),
+      models: models.get(b.id)!.size, quality: q?.score ?? 50, baseQuality: q?.baseScore ?? q?.score ?? 50, uses: community.uses.get(b.id) ?? 0, stars: community.stars[b.id] ?? 0, lastUpdated: b.lastUpdated, ...leaderOf(b.id),
       testSet: q?.testSet ?? "unknown", factors: Object.fromEntries((q?.factors ?? []).map((f) => [f.id, f.score])) as DirectoryItem["factors"],
       ...(b.newModels?.medianDays != null ? { addDays: b.newModels.medianDays } : {}), ...(q?.releaseDate ? { released: q.releaseDate } : {}),
       ...(superseded.has(b.id) || b.stoppedPublishing ? { superseded: true } : {}), ...(b.variantOf ? { variantOf: b.variantOf } : {}), ...(splits.get(b.id) ? { splits: splits.get(b.id) } : {}),

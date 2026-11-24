@@ -69,6 +69,8 @@ export interface BenchmarkQuality {
   id: string;
   name: string;
   score: number;
+  /** The weighted score from the eight parts alone (0 to 100), before bonuses and penalties in `adjustments`. */
+  baseScore: number;
   recency: number;
   saturation: number;
   objectivity: number;
@@ -354,13 +356,16 @@ export function benchmarkQuality(snapshot: Snapshot, cohort: string[] = defaultL
       ...(superseded ? [{ id: "superseded" as const, label: "An older version with a replacement", points: QUALITY_ADJUST.superseded }] : []),
       ...(staleFrontier ? [{ id: "staleFrontier" as const, label: `Results last updated before ${FRONTIER_RELEASE_DATE}, when the current frontier models began to ship`, points: QUALITY_ADJUST.staleFrontier }] : []),
     ];
-    const score = !serious ? 0 : rounded(factors.reduce((sum, f) => sum + f.score * f.weight, 0) + adjustments.reduce((sum, a) => sum + a.points, 0));
+    const rawBase = factors.reduce((sum, f) => sum + f.score * f.weight, 0);
+    const baseScore = !serious ? 0 : rounded(rawBase);
+    const score = !serious ? 0 : rounded(rawBase + adjustments.reduce((sum, a) => sum + a.points, 0));
     const reason = !serious ? "Not a serious benchmark (one person's reactions to a few posts per model), so it has no quality score and is never recommended or picked automatically."
       : `${factors.map((f) => `${f.name} ${f.score}/100 (${Math.round(f.weight * 100)}% of the score): ${f.detail}`).join(" ")}${adjustments.length ? ` Then ${adjustments.map((a) => `${a.points > 0 ? "+" : ""}${a.points} (${a.label.toLowerCase()})`).join(", ")}.` : ""} ${benchmark.lastUpdated ? `Publisher results updated ${benchmark.lastUpdated}. ` : ""}Quality does not prove validity or freedom from training contamination.`;
     return {
       id: benchmark.id,
       name: benchmark.name,
       score,
+      baseScore,
       recency,
       saturation,
       objectivity,

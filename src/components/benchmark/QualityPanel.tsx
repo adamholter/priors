@@ -48,7 +48,8 @@ export function QualityPanel({ view }: { view: QualityView }) {
           <Dial score={q.score} size={60} label={`Quality ${q.score} of 100`} />
           <div className="min-w-0">
             <p className="quality-summary"><span data-quality-score>{q.score}</span> of 100</p>
-            {q.adjustments.length ? q.adjustments.map((a) => <p key={a.id} className="quality-ask" data-adjust={a.id}><b className="num">{signed(a.points)}</b> {a.label}</p>) : <p className="quality-ask">How useful it is for telling today&rsquo;s models apart</p>}
+            <p className="quality-ask">Before bonuses and penalties: <b className="num" data-quality-base>{q.baseScore}</b>{q.adjustments.length ? "" : " (none applied)"}</p>
+            {q.adjustments.map((a) => <p key={a.id} className="quality-ask" data-adjust={a.id}><b className="num">{signed(a.points)}</b> {a.label}</p>)}
           </div>
         </div>
       </li>
@@ -75,6 +76,7 @@ export function QualityPanel({ view }: { view: QualityView }) {
       <dl>
         {q.factors.map((f) => <div key={f.id}><dt>{f.name} <span className="cap">{f.score} of 100 · {Math.round(f.weight * 100)}% · {signed(f.points)}</span></dt><dd>{f.detail}{f.id === "testSet" && facts.testUrl && <> <a href={facts.testUrl} target="_blank" rel="noreferrer" className="underline decoration-dotted underline-offset-2 hover:text-ink">Source</a></>}</dd></div>)}
       </dl>
+      <p className="cap">Weighted parts total {q.baseScore} of 100{q.adjustments.length ? `; after bonuses and penalties, final quality is ${q.score} of 100` : " (no bonuses or penalties)"}.</p>
       <p className="cap">Not counted in the score: {stars} star{stars === 1 ? "" : "s"} · used by {uses} published page{uses === 1 ? "" : "s"}. Both lift it in the directory&rsquo;s recommended order. Test set, release date and grading were researched from the publisher&rsquo;s pages ({FACTS_CHECKED}); <Link href="/request" className="underline decoration-dotted underline-offset-2 hover:text-ink">tell us</Link> if one is wrong.</p>
     </details>
   </section>;

@@ -215,7 +215,28 @@ describe("size", () => {
       const q = all.find((x) => x.id === id)!;
       expect(q.adjustments).toContainEqual({ id: "epochVerified", label: "Verified by Epoch AI", points: 15 });
       const base = q.factors.reduce((sum, f) => sum + f.score * f.weight, 0);
+      expect(q.baseScore).toBe(Math.round(base));
       expect(q.score).toBe(Math.min(100, Math.round(base + 15)));
     }
+  });
+
+  it("reports baseScore before bonuses and penalties alongside the adjusted score", () => {
+    const benches = [
+      benchmark("deepswe-1.1"),
+      benchmark("aa-terminalbench-v2-1"),
+      benchmark("plain-bench"),
+      benchmark("khalilbench"),
+    ];
+    const all = benchmarkQuality(snapshot(benches, benches.flatMap((b) => [[b.id, "a@low", 40], [b.id, "b@low", 60]] as Array<[string, string, number]>)));
+    const byId = (id: string) => all.find((x) => x.id === id)!;
+    // Preferred (+15) lifts score above baseScore.
+    expect(byId("deepswe-1.1").score).toBeGreaterThan(byId("deepswe-1.1").baseScore);
+    // Superseded (-25) lowers score below baseScore.
+    expect(byId("aa-terminalbench-v2-1").score).toBeLessThan(byId("aa-terminalbench-v2-1").baseScore);
+    // No adjustments means baseScore equals score.
+    expect(byId("plain-bench").adjustments).toEqual([]);
+    expect(byId("plain-bench").baseScore).toBe(byId("plain-bench").score);
+    // Non-serious benchmarks stay 0 both before and after.
+    expect([byId("khalilbench").baseScore, byId("khalilbench").score]).toEqual([0, 0]);
   });
 });

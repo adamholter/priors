@@ -492,7 +492,9 @@ try {
       await panel.waitFor({ timeout: 30000 });
       assert.deepEqual(await panel.locator("[data-factor]").evaluateAll((rows) => rows.map((r) => r.getAttribute("data-factor"))), ["saturation", "testSet", "recency", "objectivity", "frontier", "size", "efforts", "breadth"], "the eight parts, in the methodology's order");
       const score = Number(await panel.locator("[data-quality-score]").innerText());
+      const baseScore = Number(await panel.locator("[data-quality-base]").innerText());
       assert.ok(score > 0 && score <= 100, "a 0 to 100 score");
+      assert.ok(baseScore > 0 && baseScore <= 100 && baseScore < score, `preferred benchmark shows base score (${baseScore}) before +15 bonus (${score})`);
       assert.match(await c.locator("[data-quality-summary]").innerText(), new RegExp(`Quality ${score} of 100`), "the summary under the title carries the same score");
       assert.match(await panel.locator("[data-factor=testSet]").innerText(), /Public|Private|Partly private|Unknown/, "the test-set card says whether it is public");
       // Every card answers in a few words and shows its score on a ring out of 100.
@@ -539,6 +541,18 @@ try {
       await c.waitForTimeout(300);
       const headroom = await c.locator(".bench-row [data-factor=saturation] .num").evaluateAll((cells) => cells.slice(0, 12).map((x) => Number(x.textContent)));
       assert.deepEqual(headroom, [...headroom].sort((a, b) => b - a), "most headroom first");
+      // The Bonuses and penalties toggle starts on and switches Quality sorting to base scores when turned off.
+      const adj = c.locator("[data-quality-adjustments]");
+      assert.equal(await adj.isChecked(), true, "bonuses and penalties default on");
+      await c.locator(".bench-head [data-sort=quality]").click();
+      await c.waitForTimeout(250);
+      const qOn = await c.locator(".bench-row .bench-q .num").evaluateAll((cells) => cells.slice(0, 10).map((x) => Number(x.textContent)));
+      await adj.click();
+      await c.waitForTimeout(250);
+      assert.equal(await adj.isChecked(), false);
+      const qOff = await c.locator(".bench-row .bench-q .num").evaluateAll((cells) => cells.slice(0, 10).map((x) => Number(x.textContent)));
+      assert.deepEqual(qOff, [...qOff].sort((a, b) => b - a), "base quality scores stay sorted descending");
+      assert.notDeepEqual(qOff, qOn, "turning off bonuses and penalties changes top quality scores");
     } finally { await c.context().close(); }
   });
 
