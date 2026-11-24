@@ -275,6 +275,9 @@ const OVERRIDES: Record<string, BenchmarkSize | null> = {
   "designarena-hii": { tasks: 2_314_337, votes: true, url: "https://www.designarena.ai/leaderboard?section=overall&board=human-intelligence-index" },
   // One run per model; the score is gems collected out of 100 (mazebench.com/blog, "Introducing MazeBench").
   mazebench: { tasks: 100, url: "https://mazebench.com/blog?post=introducing-mazebench" },
+  // Author-reported totals (2026-11-24): ~70,000 tasks across the full 12-game test set, ~18,000 tasks across Reverse Evaluation v1.5.2.
+  "gamefeel-v1.5.2": { tasks: 70_000, url: "https://github.com/kodasdream/gamefeel-benchmark" },
+  "gamefeel-re-v1.5.2": { tasks: 18_000, url: "https://github.com/kodasdream/gamefeel-benchmark" },
 };
 
 export const BENCHMARK_SIZE: Record<string, BenchmarkSize> = Object.fromEntries(

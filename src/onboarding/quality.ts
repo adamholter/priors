@@ -8,13 +8,15 @@ import { defaultLineup } from "./defaults";
 // AA's Terminal-Bench 4 run is preferred over tbench.ai's board: AA runs every new model on it, so fitted mixes that use it rank more models.
 // HLE-Diamond replaces Humanity's Last Exam, as it did in AA's index v5.
 export const PREFERRED = ["deepswe-1.1", "aa-terminalbench-v4-0", "arc-agi-3", "simplebench", "bsbench-v2", "aa-hle-diamond", "aa-omniscience", "frontiermath-tier-4-v2", "vals-programbench-v1"] as const;
+export const EPOCH_VERIFIED = ["mazebench", "bg-maze-bench"] as const;
 
 export const FRONTIER_RELEASE_DATE = "2026-09-22";
 /** The score's recipe: shares of each 0-100 part, then points added or taken away. The methodology page and every breakdown read these. */
 // Efforts joined on 2026-11-20 (Adam: a model tested at several reasoning efforts tells more), taking 5 points from Headroom and 5 from Breadth.
 // Size joined on 2026-11-23 (Adam: how many tasks and runs a score rests on matters), taking 5 points from Headroom and 5 from New models.
-export const QUALITY_WEIGHTS = { saturation: 0.15, testSet: 0.2, recency: 0.15, objectivity: 0.15, frontier: 0.1, size: 0.1, efforts: 0.1, breadth: 0.05 } as const;
-export const QUALITY_ADJUST = { preferred: 15, superseded: -25, staleFrontier: -20 } as const;
+// Reweighted on 2026-11-24: Headroom 15->20%, Breadth 5->10%, Efforts 10->5%, Recency 15->10%.
+export const QUALITY_WEIGHTS = { saturation: 0.2, testSet: 0.2, recency: 0.1, objectivity: 0.15, frontier: 0.1, size: 0.1, efforts: 0.05, breadth: 0.1 } as const;
+export const QUALITY_ADJUST = { preferred: 15, epochVerified: 15, superseded: -25, staleFrontier: -20 } as const;
 /** What a test set's openness scores: a public set can be trained on, a private one cannot. Unknown is neutral. */
 export const TEST_SET_SCORE = { private: 100, partial: 70, public: 30, unknown: 50 } as const;
 /** A set that keeps replacing its questions resists training on the old ones, whatever is public. */
@@ -317,6 +319,7 @@ export function benchmarkQuality(snapshot: Snapshot, cohort: string[] = defaultL
     const added = benchmark.newModels;
     const frontierScore = added ? added.score : frontier.total ? frontier.score : coverage;
     const preferred = (PREFERRED as readonly string[]).includes(benchmark.id);
+    const epochVerified = (EPOCH_VERIFIED as readonly string[]).includes(benchmark.id);
     const superseded = SUPERSEDED.has(benchmark.id) || !!benchmark.stoppedPublishing;
     const staleFrontier = snapshot.date >= FRONTIER_RELEASE_DATE && !!benchmark.lastUpdated && benchmark.lastUpdated < FRONTIER_RELEASE_DATE;
     const serious = !NOT_SERIOUS.has(benchmark.id);
@@ -347,6 +350,7 @@ export function benchmarkQuality(snapshot: Snapshot, cohort: string[] = defaultL
     const factors: QualityFactor[] = QUALITY_FACTORS.map(({ id, name }) => ({ id, name, score: details[id][0], weight: QUALITY_WEIGHTS[id], points: Math.round(details[id][0] * QUALITY_WEIGHTS[id] * 10) / 10, summary: summaries[id], detail: details[id][1] }));
     const adjustments: QualityAdjustment[] = [
       ...(preferred ? [{ id: "preferred" as const, label: "A benchmark Priors prefers", points: QUALITY_ADJUST.preferred }] : []),
+      ...(epochVerified ? [{ id: "epochVerified" as const, label: "Verified by Epoch AI", points: QUALITY_ADJUST.epochVerified }] : []),
       ...(superseded ? [{ id: "superseded" as const, label: "An older version with a replacement", points: QUALITY_ADJUST.superseded }] : []),
       ...(staleFrontier ? [{ id: "staleFrontier" as const, label: `Results last updated before ${FRONTIER_RELEASE_DATE}, when the current frontier models began to ship`, points: QUALITY_ADJUST.staleFrontier }] : []),
     ];

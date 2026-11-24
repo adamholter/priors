@@ -5,7 +5,7 @@ import { SiteFooter } from "@/components/SiteFooter";
 import { SiteNav } from "@/components/SiteNav";
 import { Wordmark } from "@/components/Wordmark";
 import { HeaderAccount } from "@/components/AccountMenu";
-import { FRONTIER_RELEASE_DATE, PREFERRED, QUALITY_ADJUST, QUALITY_FACTORS, QUALITY_WEIGHTS } from "@/onboarding/quality";
+import { EPOCH_VERIFIED, FRONTIER_RELEASE_DATE, PREFERRED, QUALITY_ADJUST, QUALITY_FACTORS, QUALITY_WEIGHTS } from "@/onboarding/quality";
 import { USE_LIFT } from "@/lib/benchmark-recommended";
 import { pageMeta } from "@/lib/site-meta";
 
@@ -29,7 +29,7 @@ export default async function Page() {
         </div>
         <section className="grid gap-3">
           <h2 className="text-[22px] text-ink">Quality</h2>
-          <p>A score from 0 to 100 for how useful a benchmark is for telling current models apart. It&rsquo;s a weighted sum of six parts, each also 0 to 100. Every benchmark&rsquo;s page shows its own parts, and the directory can list them as columns:</p>
+          <p>A score from 0 to 100 for how useful a benchmark is for telling current models apart. It&rsquo;s a weighted sum of eight parts, each also 0 to 100. Every benchmark&rsquo;s page shows its own parts, and the directory can list them as columns:</p>
           <div className="overflow-x-auto"><table className="w-full text-[14px] leading-normal">
             <thead><tr className="cap text-left"><th className="font-normal py-1.5 pr-4">Part</th><th className="font-normal py-1.5 pr-4 text-right">Weight</th><th className="font-normal py-1.5">What it measures</th></tr></thead>
             <tbody>{PARTS.map((p) => <tr key={p.name} className="border-t hairline align-top"><td className="py-2 pr-4 text-ink whitespace-nowrap">{p.name}</td><td className="py-2 pr-4 text-right num">{pct(p.weight)}</td><td className="py-2">{p.how}</td></tr>)}</tbody>
@@ -37,6 +37,7 @@ export default async function Page() {
           <p>Then points are added or taken away, and the total stays between 0 and 100:</p>
           <ul className="grid gap-1 list-disc pl-5">
             <li><b className="font-medium text-ink">+{QUALITY_ADJUST.preferred}</b> for the benchmarks Priors prefers: {PREFERRED.flatMap((id) => names.get(id) ?? []).join(", ")}.</li>
+            <li><b className="font-medium text-ink">+{QUALITY_ADJUST.epochVerified}</b> for benchmarks verified by Epoch AI: {[...new Set(EPOCH_VERIFIED.flatMap((id) => names.get(id) ?? []))].join(", ")}.</li>
             <li><b className="font-medium text-ink">&minus;{-QUALITY_ADJUST.superseded}</b> for a few older versions with a clear replacement.</li>
             <li><b className="font-medium text-ink">&minus;{-QUALITY_ADJUST.staleFrontier}</b> if its results were last updated before {FRONTIER_RELEASE_DATE}, when the current frontier models began to ship.</li>
           </ul>

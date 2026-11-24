@@ -114,7 +114,10 @@ export function BenchmarkPage({ snapshot: base, benchmarkId, models, relatives, 
             {b.effortBasis && <p data-effort-basis className="text-[13px] text-ink-2 max-w-[68ch]">Each row is the model&rsquo;s best measured setting, not one reasoning effort: the publisher keeps each model&rsquo;s best score across settings.</p>}
             <div className="mt-2"><Relatives current={benchmarkId} family={relatives.family} familyLabel={relatives.familyLabel} versions={relatives.versions} /></div>
             {quality && <p className="text-[13px] text-ink-2" data-quality-summary><a href="#quality" className="underline decoration-dotted underline-offset-2 hover:text-ink">Quality {quality.quality.score} of 100</a>{quality.quality.factors.filter((f) => f.id === "testSet" || f.id === "frontier").map((f) => <span key={f.id}> · {f.detail.split(". ")[0].replace(/\.$/, "")}</span>)}</p>}
-            <p className="cap">{models} models · {result.ranked.length} results{b.lastUpdated ? ` · updated ${b.lastUpdated}` : ` · data as of ${snapshot.date}`}{host && <> · <a href={b.url} target="_blank" rel="noreferrer" className="hover:text-ink underline decoration-dotted">{host} ↗</a></>}</p>
+            <p className="cap">{models} models · {result.ranked.length} results{b.lastUpdated ? ` · updated ${b.lastUpdated}` : ` · data as of ${snapshot.date}`}{host && <> · <a href={b.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 hover:text-ink underline decoration-dotted">{b.sourceId === "gamefeel" && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src="/logos/gamefeel.png" alt="" width={14} height={14} className="w-[14px] h-[14px] rounded-[3px] shrink-0" />
+            )}{host} ↗</a></>}</p>
           </section>
 
           <section className="chart-panel">

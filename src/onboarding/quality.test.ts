@@ -197,6 +197,25 @@ describe("size", () => {
     expect(f.summary).toBe("1,000 tasks");
     expect(all.find((x) => x.id === "aa-terminalbench-v4-0")!.factors.find((x) => x.id === "size")!.summary).toBe("66 tasks × 3 runs");
     expect(all.find((x) => x.id === "no-size-yet")!.factors.find((x) => x.id === "size")!).toMatchObject({ score: 50, summary: "Size not known" });
+    expect(QUALITY_WEIGHTS).toEqual({ saturation: 0.2, testSet: 0.2, recency: 0.1, objectivity: 0.15, frontier: 0.1, size: 0.1, efforts: 0.05, breadth: 0.1 });
     expect(Object.values(QUALITY_WEIGHTS).reduce((a, b) => a + b, 0)).toBeCloseTo(1);
+  });
+
+  it("uses the updated v1.5.2 task counts for GameFeel Benchmark and GameFeel RE", () => {
+    const ids = ["gamefeel-v1.5.2", "gamefeel-re-v1.5.2"];
+    const all = benchmarkQuality(snapshot(ids.map((id) => benchmark(id)), ids.flatMap((id) => [[id, "a@low", 40], [id, "b@low", 60]] as Array<[string, string, number]>)));
+    expect(all.find((x) => x.id === "gamefeel-v1.5.2")!.factors.find((x) => x.id === "size")!).toMatchObject({ score: 100, summary: "70,000 tasks" });
+    expect(all.find((x) => x.id === "gamefeel-re-v1.5.2")!.factors.find((x) => x.id === "size")!).toMatchObject({ score: 100, summary: "18,000 tasks" });
+  });
+
+  it("awards MazeBench a +15 bonus for being verified by Epoch AI", () => {
+    const ids = ["mazebench", "bg-maze-bench"];
+    const all = benchmarkQuality(snapshot(ids.map((id) => benchmark(id)), ids.flatMap((id) => [[id, "a@low", 40], [id, "b@low", 60]] as Array<[string, string, number]>)));
+    for (const id of ids) {
+      const q = all.find((x) => x.id === id)!;
+      expect(q.adjustments).toContainEqual({ id: "epochVerified", label: "Verified by Epoch AI", points: 15 });
+      const base = q.factors.reduce((sum, f) => sum + f.score * f.weight, 0);
+      expect(q.score).toBe(Math.min(100, Math.round(base + 15)));
+    }
   });
 });

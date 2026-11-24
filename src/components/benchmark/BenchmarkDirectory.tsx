@@ -174,11 +174,18 @@ function Quality({ v }: { v: number }) {
   </span>;
 }
 
-function Favicon({ host }: { host: string }) {
+const LOCAL_FAVICON: Record<string, string> = {
+  "kodasdream.github.io": "/logos/gamefeel.png",
+};
+
+function Favicon({ host, sourceId }: { host: string; sourceId?: string }) {
   const [ok, setOk] = useState(true);
   if (!ok) return null;
+  const src = sourceId === "gamefeel" || host in LOCAL_FAVICON
+    ? (LOCAL_FAVICON[host] ?? "/logos/gamefeel.png")
+    : `https://www.google.com/s2/favicons?domain=${encodeURIComponent(host)}&sz=32`;
   // eslint-disable-next-line @next/next/no-img-element
-  return <img className="bench-fav" src={`https://www.google.com/s2/favicons?domain=${encodeURIComponent(host)}&sz=32`} alt="" width={14} height={14} loading="lazy" onError={() => setOk(false)} />;
+  return <img className="bench-fav" src={src} alt="" width={14} height={14} loading="lazy" onError={() => setOk(false)} />;
 }
 
 /**
@@ -253,7 +260,7 @@ function Row({ x, showCategory, view }: { x: DirectoryItem; showCategory?: boole
               {x.splits ? <span className="cap">{plural(x.splits, "sub-board")}</span> : null}
             </span>
             <span className="block text-[13px] text-ink-2 truncate">{x.description}</span>
-            {x.host && <span className="bench-host cap"><Favicon host={x.host} />{x.host}</span>}
+            {x.host && <span className="bench-host cap"><Favicon host={x.host} sourceId={x.sourceId} />{x.host}</span>}
           </span>
         </span>
         {view === "overview" ? <>
