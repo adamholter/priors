@@ -83,7 +83,7 @@ export function directoryItems(snapshot: Snapshot, quality: Map<string, Benchmar
       models: models.get(b.id)!.size, quality: q?.score ?? 50, baseQuality: q?.baseScore ?? q?.score ?? 50, uses: community.uses.get(b.id) ?? 0, stars: community.stars[b.id] ?? 0, lastUpdated: b.lastUpdated, ...leaderOf(b.id),
       testSet: q?.testSet ?? "unknown", factors: Object.fromEntries((q?.factors ?? []).map((f) => [f.id, f.score])) as DirectoryItem["factors"],
       ...(b.newModels?.medianDays != null ? { addDays: b.newModels.medianDays } : {}), ...(q?.releaseDate ? { released: q.releaseDate } : {}),
-      ...(superseded.has(b.id) || b.stoppedPublishing ? { superseded: true } : {}), ...(b.variantOf ? { variantOf: b.variantOf } : {}), ...(splits.get(b.id) ? { splits: splits.get(b.id) } : {}),
+      ...(superseded.has(b.id) || b.stoppedPublishing ? { superseded: true } : {}), ...(q?.preferred ? { recommended: true as const } : {}), ...(b.variantOf ? { variantOf: b.variantOf } : {}), ...(splits.get(b.id) ? { splits: splits.get(b.id) } : {}),
     };
   });
 }

@@ -3,10 +3,10 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from "react";
 import {
   IconBolt, IconBook2, IconBrain, IconBriefcase, IconChartPie, IconChess, IconCode, IconCube, IconDots, IconEye, IconFileText, IconFlask, IconHistory, IconLanguage, IconMathFunction, IconMoodSmile, IconPalette,
-  IconArrowDown, IconArrowUp, IconCheck, IconFilter, IconReceipt, IconRepeat, IconRobot, IconSearch, IconShieldCheck, IconStack2, IconThumbUp, IconTrophy, IconUsers, IconWorld,
+  IconArrowDown, IconArrowUp, IconCheck, IconFilter, IconReceipt, IconRepeat, IconRobot, IconRosetteDiscountCheck, IconSearch, IconShieldCheck, IconStack2, IconThumbUp, IconTrophy, IconUsers, IconWorld,
 } from "@tabler/icons-react";
 import { createPortal } from "react-dom";
-import { QUALITY_FACTORS, type QualityFactorId } from "@/onboarding/quality";
+import { QUALITY_FACTORS, RECOMMENDED_NAME, RECOMMENDED_TIP, type QualityFactorId } from "@/onboarding/quality";
 import type { TestSet } from "@/data/benchmark-facts";
 import { BenchmarkStar, BenchmarkStars } from "./BenchmarkStar";
 import type { Benchmark } from "@/data/types";
@@ -30,6 +30,8 @@ export interface DirectoryItem {
   leader?: { name: string; labId: string; color: string };
   /** An older version of a benchmark that has a newer one. */
   superseded?: boolean;
+  /** Priors Recommended: Priors adds `QUALITY_ADJUST.preferred` to its quality. */
+  recommended?: true;
   /** A category split of another board (arena categories, subsets); `splits` counts them on the main board. */
   variantOf?: string; splits?: number;
 }
@@ -121,7 +123,7 @@ export function BenchmarkDirectory({ items }: { items: DirectoryItem[] }) {
               <SortMenu sort={sort} dir={dir} searching={searching} onChange={setOrder} />
               <div className="seg" role="group" aria-label="Columns">{(["overview", "factors"] as const).map((v) => <button key={v} type="button" className="!px-2.5 !py-1 text-[12px]" aria-pressed={view === v} onClick={() => setView(v)}>{v === "overview" ? "Overview" : "Quality factors"}</button>)}</div>
               {!searching && <label className="cap flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={everything} onChange={(e) => setEverything(e.target.checked)} />Older versions and sub-boards</label>}
-              <label className="cap flex items-center gap-2 cursor-pointer" title="Include bonuses and penalties (+15 preferred or verified, -25 superseded, -20 stale) in quality scores"><input type="checkbox" data-quality-adjustments checked={withAdjustments} onChange={(e) => setWithAdjustments(e.target.checked)} />Bonuses and penalties</label>
+              <label className="cap flex items-center gap-2 cursor-pointer" title="Include bonuses and penalties (+15 Priors Recommended or Epoch verified, -25 superseded, -20 stale) in quality scores"><input type="checkbox" data-quality-adjustments checked={withAdjustments} onChange={(e) => setWithAdjustments(e.target.checked)} />Bonuses and penalties</label>
               <Link href="/benchmarks/methodology" className="cap underline decoration-dotted underline-offset-2 hover:text-ink">How scores work</Link>
               <span className="cap ml-auto" role="status">{searching ? plural(found.length, "match", "matches") : plural(found.length, "benchmark")}</span>
             </div>
@@ -150,7 +152,7 @@ export function BenchmarkDirectory({ items }: { items: DirectoryItem[] }) {
  * ~450 rows; a <use> is two nodes. The referenced paths keep stroke="currentColor", so each use takes its row's color.
  */
 const SPRITE: Record<string, { I: Icon; stroke: number }> = {
-  trophy: { I: IconTrophy, stroke: 1.6 }, cube: { I: IconCube, stroke: 1.6 }, users: { I: IconUsers, stroke: 1.6 }, history: { I: IconHistory, stroke: 1.6 },
+  trophy: { I: IconTrophy, stroke: 1.6 }, cube: { I: IconCube, stroke: 1.6 }, users: { I: IconUsers, stroke: 1.6 }, history: { I: IconHistory, stroke: 1.6 }, recommended: { I: IconRosetteDiscountCheck, stroke: 1.6 },
   ...Object.fromEntries(Object.entries(CATEGORY_ICON).map(([c, I]) => [`cat-${c}`, { I, stroke: 1.5 }])),
 };
 function DirSprite() {
@@ -262,6 +264,7 @@ function Row({ x, showCategory, view, withAdjustments }: { x: DirectoryItem; sho
           <span className="min-w-0">
             <span className="flex flex-wrap items-center gap-x-2">
               <span className="text-[15px] group-hover:underline decoration-dotted underline-offset-2">{x.name}</span>
+              {x.recommended && <Tip text={RECOMMENDED_TIP} className="bench-rec cap"><Use k="recommended" size={13} />{RECOMMENDED_NAME}</Tip>}
               {x.superseded && <span className="cap inline-flex items-center gap-1"><Use k="history" size={12} />older version</span>}
               {x.splits ? <span className="cap">{plural(x.splits, "sub-board")}</span> : null}
             </span>

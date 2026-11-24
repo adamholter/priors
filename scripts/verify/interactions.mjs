@@ -541,6 +541,10 @@ try {
       await c.waitForTimeout(300);
       const headroom = await c.locator(".bench-row [data-factor=saturation] .num").evaluateAll((cells) => cells.slice(0, 12).map((x) => Number(x.textContent)));
       assert.deepEqual(headroom, [...headroom].sort((a, b) => b - a), "most headroom first");
+      // Priors Recommended boards carry a badge that says why they score higher.
+      const rec = c.locator(".bench-row .bench-rec").first();
+      assert.equal((await rec.innerText()).trim(), "Priors Recommended");
+      assert.match(await rec.getAttribute("data-bench-tip"), /adds 15 points/);
       // The Bonuses and penalties toggle starts on and switches Quality sorting to base scores when turned off.
       const adj = c.locator("[data-quality-adjustments]");
       assert.equal(await adj.isChecked(), true, "bonuses and penalties default on");

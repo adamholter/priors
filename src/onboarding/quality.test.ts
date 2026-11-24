@@ -216,8 +216,20 @@ describe("size", () => {
       expect(q.adjustments).toContainEqual({ id: "epochVerified", label: "Verified by Epoch AI", points: 15 });
       const base = q.factors.reduce((sum, f) => sum + f.score * f.weight, 0);
       expect(q.baseScore).toBe(Math.round(base));
-      expect(q.score).toBe(Math.min(100, Math.round(base + 15)));
+      // MazeBench itself is Priors Recommended too, so it gets both bonuses.
+      expect(q.score).toBe(Math.min(100, Math.round(base + (id === "mazebench" ? 30 : 15))));
     }
+  });
+
+  it("marks MazeBench, both GameFeel boards and FrontierCode 2.0-AA Priors Recommended", () => {
+    const ids = ["mazebench", "gamefeel-v1.5.2", "gamefeel-re-v1.5.2", "aa-frontiercode-2-0", "bg-maze-bench"];
+    const all = benchmarkQuality(snapshot(ids.map((id) => benchmark(id)), ids.flatMap((id) => [[id, "a@low", 40], [id, "b@low", 60]] as Array<[string, string, number]>)));
+    for (const id of ids.slice(0, 4)) {
+      const q = all.find((x) => x.id === id)!;
+      expect(q.preferred).toBe(true);
+      expect(q.adjustments).toContainEqual({ id: "preferred", label: "Priors Recommended", points: 15 });
+    }
+    expect(all.find((x) => x.id === "bg-maze-bench")!.preferred).toBe(false);
   });
 
   it("reports baseScore before bonuses and penalties alongside the adjusted score", () => {

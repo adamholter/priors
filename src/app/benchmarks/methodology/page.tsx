@@ -5,7 +5,7 @@ import { SiteFooter } from "@/components/SiteFooter";
 import { SiteNav } from "@/components/SiteNav";
 import { Wordmark } from "@/components/Wordmark";
 import { HeaderAccount } from "@/components/AccountMenu";
-import { EPOCH_VERIFIED, FRONTIER_RELEASE_DATE, PREFERRED, QUALITY_ADJUST, QUALITY_FACTORS, QUALITY_WEIGHTS } from "@/onboarding/quality";
+import { RECOMMENDED_NAME, EPOCH_VERIFIED, FRONTIER_RELEASE_DATE, PREFERRED, QUALITY_ADJUST, QUALITY_FACTORS, QUALITY_WEIGHTS } from "@/onboarding/quality";
 import { USE_LIFT } from "@/lib/benchmark-recommended";
 import { pageMeta } from "@/lib/site-meta";
 
@@ -36,7 +36,7 @@ export default async function Page() {
           </table></div>
           <p>Then points are added or taken away, and the total stays between 0 and 100:</p>
           <ul className="grid gap-1 list-disc pl-5">
-            <li><b className="font-medium text-ink">+{QUALITY_ADJUST.preferred}</b> for the benchmarks Priors prefers: {PREFERRED.flatMap((id) => names.get(id) ?? []).join(", ")}.</li>
+            <li><b className="font-medium text-ink">+{QUALITY_ADJUST.preferred}</b> for the benchmarks marked {RECOMMENDED_NAME}: {PREFERRED.flatMap((id) => names.get(id) ?? []).join(", ")}.</li>
             <li><b className="font-medium text-ink">+{QUALITY_ADJUST.epochVerified}</b> for benchmarks verified by Epoch AI: {[...new Set(EPOCH_VERIFIED.flatMap((id) => names.get(id) ?? []))].join(", ")}.</li>
             <li><b className="font-medium text-ink">&minus;{-QUALITY_ADJUST.superseded}</b> for a few older versions with a clear replacement.</li>
             <li><b className="font-medium text-ink">&minus;{-QUALITY_ADJUST.staleFrontier}</b> if its results were last updated before {FRONTIER_RELEASE_DATE}, when the current frontier models began to ship.</li>

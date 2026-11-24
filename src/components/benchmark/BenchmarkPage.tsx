@@ -19,6 +19,8 @@ import { HeaderAccount } from "../AccountMenu";
 import { SettingsButton } from "../SiteSettings";
 import { BenchmarkStar, BenchmarkStars } from "./BenchmarkStar";
 import { QualityPanel, type QualityView } from "./QualityPanel";
+import { IconRosetteDiscountCheck } from "@tabler/icons-react";
+import { RECOMMENDED_NAME, RECOMMENDED_TIP } from "@/onboarding/quality";
 import { Wordmark } from "../Wordmark";
 import { SiteNav } from "../SiteNav";
 import { Rankings } from "../Rankings";
@@ -107,6 +109,7 @@ export function BenchmarkPage({ snapshot: base, benchmarkId, models, relatives, 
           <section className="grid gap-2">
             <p className="cap"><Link href={"/benchmarks" as "/"} className="hover:text-ink">Benchmarks</Link> · {categoryNames(b)}</p>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2"><h1 className="text-[34px] sm:text-[44px] leading-[1.05]">{b.name}</h1>{quality && <BenchmarkStar id={benchmarkId} name={b.name} count={quality.stars} label />}</div>
+            {quality?.quality.preferred && <p data-recommended className="text-[13px] inline-flex items-center gap-1.5 text-ink-2"><span className="inline-flex items-center gap-1 font-medium" style={{ color: "var(--indigo)" }}><IconRosetteDiscountCheck size={16} stroke={1.6} aria-hidden="true" />{RECOMMENDED_NAME}</span>{RECOMMENDED_TIP.replace("this benchmark", "it")}</p>}
             <p className="text-[15px] text-ink-2 max-w-[68ch]">{b.description}</p>
             {breaksFor([benchmarkId]).map((x) => <p key={x.date} data-series-break={x.date} className="text-[13px] text-ink-2 max-w-[68ch]">{x.note} <a href={x.url} target="_blank" rel="noreferrer" className="underline underline-offset-2 hover:text-ink">Their method</a></p>)}
             {b.stoppedPublishing && <p data-stopped-publishing className="text-[13px] text-ink-2 max-w-[68ch]">Not current: the last update was {b.stoppedPublishing}, while the publisher&rsquo;s other boards kept updating.</p>}

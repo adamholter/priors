@@ -100,3 +100,5 @@ svg.bench-inline,.bench-trophy{display:none}
 /* In the directory the star is quiet until hovered. */
 .bench-star-cell .bench-star{border-color:transparent;padding:4px 5px}
 .bench-star-cell .bench-star:hover{border-color:var(--hair)}
+/* Priors Recommended: the reason for the +15 on its quality, named on the row and the benchmark's page. */
+.bench-rec{color:var(--indigo);font-weight:500}
