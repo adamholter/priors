@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { parseOsworld2, parseOsworldVerified } from "./sources/osworld";
-import { parseProV2, parseScaleEntries, PRO_V2_BOARDS } from "./sources/scale";
+import { parseProV2, parseScaleEntries, parseSweAtlas, PRO_V2_BOARDS, SWE_ATLAS_BOARDS } from "./sources/scale";
 import { parseAutomationBench } from "./sources/zapier";
 import { parseRoboflow } from "./sources/roboflow";
 
@@ -46,6 +46,28 @@ describe("Scale SWE Atlas-QnA", () => {
     ]);
     expect(v2.hard.map((r) => [r.modelLabel, r.value])).toEqual([["Haiku 5.5", 52.94], ["Minimax M3.1 Flash", 84.31]]);
     expect(() => parseProV2(`<script>self.__next_f.push([1,${JSON.stringify(`1e:{"variants":[{"key":"full","label":"x","entries":[${JSON.stringify(e("A", 1))}]}]}`)}])</script>`)).toThrow(/hard/);
+  });
+});
+
+describe("Scale SWE Atlas v1.1", () => {
+  it("reads the Overall tab and each lane's tab, each lane replacing its v1.0 board", () => {
+    const e = (model: string, score: number) => ({ model, score, confidenceInterval_upper: 2, company: "x" });
+    const tab = (key: string, entries: object[]) => ({ key, label: key, entries });
+    const payload = JSON.stringify(`1e:{"variants":${JSON.stringify([
+      tab("overall", [e("Claude Fable 5.2 (Claude Code) max", 80.55), e("Gemini 4 Neon (Antigravity CLI) xhigh", 72.01)]),
+      tab("qna", [e("Claude Fable 5.2 (Claude Code) max", 83.87), e("Qwen 3.8 Max (mini-swe-agent) max", 81.45)]),
+      tab("testwriting", [e("Claude Fable 5.1 (Claude Code) max", 78.89)]),
+      tab("refactoring", [e("Claude Fable 5.2 (Claude Code) max", 80)]),
+    ])}}`);
+    const atlas = parseSweAtlas(`<script>self.__next_f.push([1,${payload}])</script>`);
+    expect(atlas.overall.map((r) => [r.benchmarkId, r.modelLabel, r.effort, r.harness, r.value])).toEqual([
+      ["swe-atlas-v1-1", "Claude Fable 5.2", "max", "Claude Code", 80.55],
+      ["swe-atlas-v1-1", "Gemini 4 Neon", "xhigh", "Antigravity CLI", 72.01],
+    ]);
+    expect(atlas.qna.map((r) => [r.benchmarkId, r.modelLabel, r.value])).toEqual([["swe-atlas-qna-v1-1", "Claude Fable 5.2", 83.87], ["swe-atlas-qna-v1-1", "Qwen 3.8 Max", 81.45]]);
+    expect(atlas.testwriting[0]).toMatchObject({ benchmarkId: "swe-atlas-tw-v1-1", value: 78.89 });
+    expect(atlas.refactoring[0]).toMatchObject({ benchmarkId: "swe-atlas-refactoring-v1-1", value: 80 });
+    expect([SWE_ATLAS_BOARDS.qna.supersedes, SWE_ATLAS_BOARDS.testwriting.supersedes, SWE_ATLAS_BOARDS.refactoring.supersedes]).toEqual(["swe-atlas-qna", "bh-swe-atlas-test-writing", "bh-swe-atlas-refactoring"]);
   });
 });
 

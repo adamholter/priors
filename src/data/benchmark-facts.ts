@@ -427,6 +427,10 @@ const OVERRIDES: Record<string, BenchmarkFacts> = {
   // Added 2026-11-23 by hand: launched that day (x.com/DesignArena/status/2124943628707713372); blind votes from DesignArena users, no fixed set.
   "designarena-hii": { test: "private", testNote: "There is no fixed test set: the votes come from DesignArena users' own requests, which keep arriving.", testUrl: "https://www.designarena.ai/blog/human-intelligence-index", released: "2026-11-23", grading: "human-votes" },
   // Added 2026-11-20 by hand: the method page says the 14 tasks were built for the benchmark and publishes none; it does not say who the two graders are.
+  // SWE Atlas v1.1 (Scale, November 2026): same public tasks as v1.0, re-run with a new judge. Its leaderboard tabs date from 2026-11-06.
+  ...Object.fromEntries(["swe-atlas-v1-1", "swe-atlas-qna-v1-1", "swe-atlas-tw-v1-1", "swe-atlas-refactoring-v1-1"].map((id) => [id, {"test":"public","testNote":"SWE Atlas v1.1 keeps v1.0's 284 tasks; tasks, rubrics and reference solutions are in the public scaleapi/SWE-Atlas repository. A new judge (GPT-6.1 Sol, majority of three) grades the rubrics.","testUrl":"https://github.com/scaleapi/SWE-Atlas","released":"2026-11-06","grading":"mixed"}])),
+  // Released 2026-11-10 by Google DeepMind and Artificial Analysis; a 10-task showcase subset is public, the other 190 tasks are not. An agentic autorater on a non-Google model grades ~70 rubric checks per task.
+  "aa-mka": { test: "partial", testNote: "A public showcase of 10 tasks, one per vertical; the other 190 stay private.", testUrl: "https://artificialanalysis.ai/evaluations/mka", released: "2026-11-10", grading: "llm-judge" },
   "corpo-index": { test: "private", testNote: "The 14 consulting-style tasks were built for the benchmark and are not published; the method page describes them but shows none.", testUrl: "https://local-bench.ai/method/", released: "2026-10-17" },
 };
 
