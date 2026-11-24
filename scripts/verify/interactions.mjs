@@ -487,7 +487,7 @@ try {
   await check("a benchmark's page shows its quality score, every part behind it, and a star that sends a signed-out visitor to sign in", async () => {
     const c = await (await browser.newContext({ viewport: { width: 1440, height: 1000 } })).newPage();
     try {
-      await c.goto(`${BASE}/benchmarks/aa-terminalbench-v4-0`, { waitUntil: "domcontentloaded" });
+      await c.goto(`${BASE}/benchmarks/aa-hle-diamond`, { waitUntil: "domcontentloaded" });
       const panel = c.locator("[data-quality-panel]");
       await panel.waitFor({ timeout: 30000 });
       assert.deepEqual(await panel.locator("[data-factor]").evaluateAll((rows) => rows.map((r) => r.getAttribute("data-factor"))), ["saturation", "testSet", "recency", "objectivity", "frontier", "size", "efforts", "breadth"], "the eight parts, in the methodology's order");
@@ -509,7 +509,7 @@ try {
       points.push(...await panel.locator("[data-adjust] b").evaluateAll((cells) => cells.map((x) => Number(x.textContent.replace("−", "-").replace("+", "")))));
       const sum = points.reduce((a, b) => a + b, 0);
       assert.ok(Math.abs(Math.min(100, Math.max(0, sum)) - score) <= 1.5, `the lines add up to the score (${sum.toFixed(1)} vs ${score})`);
-      const star = c.locator("[data-benchmark-star='aa-terminalbench-v4-0']").first();
+      const star = c.locator("[data-benchmark-star='aa-hle-diamond']").first();
       assert.equal(await star.getAttribute("href"), "/sign-in", "signed out, the star leads to sign-in");
       assert.match(await star.innerText(), /Star/);
     } finally { await c.context().close(); }

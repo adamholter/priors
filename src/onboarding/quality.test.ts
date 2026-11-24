@@ -55,7 +55,7 @@ describe("benchmarkQuality", () => {
   });
 
   it("adds the +15 preferred-benchmark contribution on top of the seven weighted parts", () => {
-    const q = benchmarkQuality(snapshot([benchmark("deepswe-1.1")], [["deepswe-1.1", "a@low", 40], ["deepswe-1.1", "b@low", 60]]))[0];
+    const q = benchmarkQuality(snapshot([benchmark("simplebench")], [["simplebench", "a@low", 40], ["simplebench", "b@low", 60]]))[0];
     expect(q.preferred).toBe(true);
     expect(q.factors.map((f) => f.id)).toEqual(["saturation", "testSet", "recency", "objectivity", "frontier", "size", "efforts", "breadth"]);
     expect(q.factors.reduce((sum, f) => sum + f.weight, 0)).toBeCloseTo(1, 10);
@@ -234,7 +234,7 @@ describe("size", () => {
 
   it("reports baseScore before bonuses and penalties alongside the adjusted score", () => {
     const benches = [
-      benchmark("deepswe-1.1"),
+      benchmark("simplebench"),
       benchmark("aa-terminalbench-v2-1"),
       benchmark("plain-bench"),
       benchmark("khalilbench"),
@@ -242,7 +242,7 @@ describe("size", () => {
     const all = benchmarkQuality(snapshot(benches, benches.flatMap((b) => [[b.id, "a@low", 40], [b.id, "b@low", 60]] as Array<[string, string, number]>)));
     const byId = (id: string) => all.find((x) => x.id === id)!;
     // Preferred (+15) lifts score above baseScore.
-    expect(byId("deepswe-1.1").score).toBeGreaterThan(byId("deepswe-1.1").baseScore);
+    expect(byId("simplebench").score).toBeGreaterThan(byId("simplebench").baseScore);
     // Superseded (-25) lowers score below baseScore.
     expect(byId("aa-terminalbench-v2-1").score).toBeLessThan(byId("aa-terminalbench-v2-1").baseScore);
     // No adjustments means baseScore equals score.

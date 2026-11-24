@@ -121,8 +121,8 @@ describe("fitPriors", () => {
   });
 
   it("exports the preferred benchmark order", () => {
-    expect(PREFERRED[0]).toBe("deepswe-1.1");
-    expect(PREFERRED).toHaveLength(12);
+    expect(PREFERRED[0]).toBe("simplebench");
+    expect(PREFERRED).toHaveLength(9);
   });
 });
 
