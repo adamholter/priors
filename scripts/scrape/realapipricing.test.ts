@@ -63,6 +63,14 @@ describe("OpenCode Go's limits", () => {
     const stale = point("opencode_go::mimo-v2.5", "OpenCode Go", "Xiaomi", 0.0013, { model_display: "MiMo V2.5", price_usd: 10 });
     expect(parseSubscriptions({ ...payload, points: [stale] }, conventions, channels, new Date("2026-11-18T00:00:00Z"), points).some((r) => r.modelLabel === "MiMo V2.5")).toBe(false);
   });
+  it("tags a promotional limit on every Go plan, until the limit drops back", () => {
+    const kimi = (usage: [number, number, number]) => model("kimi-k3.1-pro", "Kimi K3.1 Pro", "moonshotai/kimi-k3.1-pro", 2, 10, 0.2, usage);
+    const promo = parseOpenCodeGo(page, { data: [kimi([60, 120, 65])] }, mix, "2026-11-25");
+    expect(promo.map((p) => p.preliminary?.label)).toEqual(["Promotion", "Promotion", "Promotion"]);
+    expect(promo[0].preliminary?.short).toMatch(/Gimme Kimi Phase 1/);
+    expect(parseOpenCodeGo(page, { data: [kimi([15, 60, 20])] }, mix, "2026-11-22").some((p) => p.preliminary)).toBe(false);
+    expect(points.some((p) => p.preliminary)).toBe(false);
+  });
   it("throws on a changed page or list, so the last rows stand", () => {
     expect(() => parseOpenCodeGo("<p>new page</p>", list, mix, "2026-11-18")).toThrow(/page changed/);
     expect(() => parseOpenCodeGo(page, { data: [] }, mix, "2026-11-18")).toThrow(/response changed/);

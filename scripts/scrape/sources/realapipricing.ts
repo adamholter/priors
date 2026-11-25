@@ -39,6 +39,21 @@ export const OPENCODE_GO_DOCS = "https://opencode.ai/v2/docs/console/go";
 export const OPENCODE_GO_MODELS = "https://opencode.ai/inference/go/v1/models";
 const OPENCODE_PLANS = [{ planId: "opencode_go", plan: "OpenCode Go", key: "go" }, { planId: "opencode_go_plus", plan: "OpenCode Go Plus", key: "go-plus" }, { planId: "opencode_go_teams", plan: "OpenCode Go Teams", key: "go-teams" }];
 const isOpenCodeGo = (id: string) => id.startsWith("opencode_go");
+
+/**
+ * Raised Go limits that OpenCode announced as a promotion, by model id on its list. Each is tagged on every Go plan while Go's own limit stays
+ * above what it was before (`before`), so the tag goes when OpenCode lowers the limit again. No end date has been announced for these.
+ */
+export const OPENCODE_GO_PROMOS: { id: string; before: number; caveat: PlanCaveat }[] = [
+  {
+    id: "kimi-k3.1-pro", before: 15,
+    caveat: {
+      label: "Promotion", short: "OpenCode's Gimme Kimi Phase 1: $60 of Kimi K3.1 Pro a month on the $10 Go plan, up from $15. OpenCode has not said when it ends.",
+      note: "OpenCode raised Kimi K3.1 Pro's monthly limit on 24 November 2026 for every Go subscriber, Go from $15 to $60, Go Plus to $120 and Go Teams to $65, and announced it as \"Gimme Kimi Phase 1\" (x.com/opencode/status/2125413495629926551).",
+      source: "https://x.com/opencode/status/2125413495629926551",
+    },
+  },
+];
 type OpenCodeModel = { id: string; name: string; canonical_id?: string | null; cost?: { text?: { input?: { price?: number; cache?: { read?: number } }; output?: { price?: number } }; multipliers?: { factor?: number }[] }; go?: { monthly_usage?: Record<string, number>; training?: boolean } };
 
 /**
@@ -58,9 +73,10 @@ export function parseOpenCodeGo(html: string, list: { data?: OpenCodeModel[] }, 
     const list_price = { cached: +((rate?.input?.cache?.read ?? 0) * peak).toPrecision(6), input: +(input * peak).toPrecision(6), output: +(output * peak).toPrecision(6), currency: "USD" };
     // The list's id can name a family ("deepseek-v4.1-flash") whose current revision is the canonical id: both models get the row.
     const canonical = m.canonical_id?.split("/").pop()?.toLowerCase(), serves = [{ slug: canonical ?? m.id, display: m.name }, ...(canonical && canonical !== m.id ? [{ slug: m.id, display: m.name.replace(/\s+\d{4}$/, "") }] : [])].map((s) => { const n = normalizeLabel(s.display); return { ...s, model: n.ok ? n.modelId : s.slug }; });
+    const promo = OPENCODE_GO_PROMOS.find((p) => p.id === m.id && usage.go > p.before)?.caveat;
     return OPENCODE_PLANS.flatMap(({ planId, plan, key }, i) => {
       const limit = usage[key];
-      return limit > 0 ? serves.map(({ slug, model, display }): Point => ({ id: `${planId}::${slug}`, plan, plan_en: plan, billing: "subscription", model, model_display: display, vendor: m.canonical_id?.split("/")[0] ?? "OpenCode Go", workload: "standard", list_price, price_usd: fees[i], confidence: "high", data_date: date, real_usd_per_mtok: fees[i] * blendedApiPrice(list_price, mix) / limit })) : [];
+      return limit > 0 ? serves.map(({ slug, model, display }): Point => ({ id: `${planId}::${slug}`, plan, plan_en: plan, billing: "subscription", model, model_display: display, vendor: m.canonical_id?.split("/")[0] ?? "OpenCode Go", workload: "standard", list_price, price_usd: fees[i], confidence: "high", data_date: date, real_usd_per_mtok: fees[i] * blendedApiPrice(list_price, mix) / limit, ...(promo ? { preliminary: promo } : {}) })) : [];
     });
   });
   if (!points.length) throw new Error("OpenCode Go models: no monthly limits; response changed?");

@@ -60,6 +60,7 @@ const RESEARCHED: Record<string, BenchmarkSize> = {
   "aa-tau3-banking": {"tasks":97,"url":"https://artificialanalysis.ai/evaluations/tau3-banking"},
   "aa-terminalbench-science": {"tasks":70,"runs":3,"url":"https://artificialanalysis.ai/evaluations/terminal-bench-science"},
   "aa-terminalbench-v2-1": {"tasks":89,"runs":3,"url":"https://artificialanalysis.ai/evaluations/terminalbench-2-1"},
+  "aa-terminalbench-v4-1": {"tasks":66,"runs":3,"url":"https://artificialanalysis.ai/evaluations/terminalbench-4-1"},
   "aa-terminalbench-v4-0": {"tasks":66,"runs":3,"url":"https://artificialanalysis.ai/evaluations/terminalbench-4-0"},
   "arc-agi-1": {"tasks":100,"url":"https://arcprize.org/policy"},
   "arc-agi-2": {"tasks":120,"runs":2,"url":"https://arcprize.org/arc-agi/2"},
@@ -271,6 +272,10 @@ const RESEARCHED: Record<string, BenchmarkSize> = {
 const OVERRIDES: Record<string, BenchmarkSize | null> = {
   ...Object.fromEntries(["informativeness", "transparency", "organization", "warmth", "conviction", "expressiveness"].map((t) => [`aa-personality-${t}`, { tasks: 30, url: "https://artificialanalysis.ai/evaluations/personality" }])),
   "aa-intelligence-index-v5.0": null,
+  // Eight tasks, one 10-hour run per model and task (the blog's protocol section).
+  "rsi-infra-bench": { tasks: 8, runs: 1, url: "https://ai4ai-for-anything.github.io/blog/rsi-infra-bench/" },
+  // 21 tasks, three trials per agent and task (the leaderboard page).
+  weightbench: { tasks: 21, runs: 3, url: "https://www.benchflow.ai/weightbench" },
   // The board's own vote count on 2026-11-23 (its page data, `metadata.totalVotes`).
   "designarena-hii": { tasks: 2_314_337, votes: true, url: "https://www.designarena.ai/leaderboard?section=overall&board=human-intelligence-index" },
   // One run per model; the score is gems collected out of 100 (mazebench.com/blog, "Introducing MazeBench").

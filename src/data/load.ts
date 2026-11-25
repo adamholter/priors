@@ -114,7 +114,8 @@ export function snapshotFileForDate(date?: string): string {
 }
 export function loadSnapshot(date?: string): Promise<Snapshot | null> {
   const file = snapshotFileForDate(date);
-  if (!remoteBase()) return bundledSnapshot(file);
+  // Without live data a build has only finished days dated, so today's date answers with latest when latest is today's.
+  if (!remoteBase()) return bundledSnapshot(file).then(async (s) => s ?? (file === "latest.json.gz" ? null : bundledSnapshot("latest.json.gz").then((l) => (l && file === `${l.date}.json.gz` ? l : null))));
   return remoteSnapshot("latest.json.gz").then(async (live) => {
     // Today's dated file is rewritten all day, so a build's copy of it is old: the live latest is today's.
     if (file === "latest.json.gz" || (live && file === `${live.date}.json.gz`)) return live ?? bundledSnapshot("latest.json.gz");
@@ -155,6 +156,9 @@ export async function loadMixLibrary(date?: string): Promise<MixLibrary | null> 
   const file = date ? `${date}.library.json.gz` : "latest.library.json.gz";
   // Today's dated file is rewritten all day and a build may not have it, so the live latest answers for today, as in `loadSnapshot`.
   if (remoteBase()) { const live = await remoteLibrary("latest.library.json.gz"); if (live && (!date || live.date === date)) return live; }
-  try { return JSON.parse(gunzipSync(await readRuntimeFile(`data/snapshots/${file}`)).toString("utf8")) as MixLibrary; }
-  catch { return null; }
+  const read = async (f: string) => { try { return JSON.parse(gunzipSync(await readRuntimeFile(`data/snapshots/${f}`)).toString("utf8")) as MixLibrary; } catch { return null; } };
+  const own = await read(file);
+  if (own || !date) return own;
+  const latest = await read("latest.library.json.gz");
+  return latest?.date === date ? latest : null;
 }

@@ -63,6 +63,7 @@ export const AA: Record<string, Entry> = {
   "aa-terminalbench-science": { c: ["science", "agentic"], d: "70 scientific research workflows done in a terminal, curated by scientists across the life, physical, mathematical, engineering and earth sciences: data analysis, simulation, model fitting and more. A task passes only if every test passes; first-try pass rate over three runs. Run by Artificial Analysis." },
   "aa-terminalbench-v2-1": { c: ["agentic", "coding"], d: "Command-line software engineering jobs done by an agent in a terminal. Share of tasks passed. Artificial Analysis' run of Terminal-Bench 2.1." },
   "aa-terminalbench-v4-0": { c: ["agentic", "coding"], d: "66 broad technical jobs done through a terminal: software, machine learning, science, operations, security, hardware and media. Share passed on the first try, averaged over three runs. Artificial Analysis' run, separate from tbench.ai's own board." },
+  "aa-terminalbench-v4-1": { c: ["agentic", "coding"], d: "Terminal-Bench 4.0's 66 terminal jobs (software, machine learning, science, operations, security, hardware, media) scored with updated verifiers that are harder to game. Share passed on the first try, averaged over three runs, in mini-SWE-agent. Part of the Artificial Analysis Intelligence Index from v5.0.2." },
 };
 
 const OMNI: Record<string, [string, BenchmarkCategory[]]> = {

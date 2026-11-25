@@ -125,3 +125,15 @@ describe("data-live pointer", () => {
     expect(fetchMock.mock.calls.map((c) => c[0])).toContain("https://raw.githubusercontent.com/adamholter/priors/data-live/data/snapshots/latest.json.gz");
   });
 });
+
+describe("bundled snapshots only", () => {
+  beforeEach(() => { vi.stubEnv("SNAPSHOT_BASE_URL", ""); });
+  afterEach(() => { vi.unstubAllEnvs(); });
+  it("answers latest's own date with latest when that day has no dated file yet, and nothing for a missing other day", async () => {
+    const { loadSnapshot, loadMixLibrary } = await fresh();
+    const live = (await loadSnapshot())!;
+    expect((await loadSnapshot(live.date))?.generatedAt).toBe(live.generatedAt);
+    expect(await loadSnapshot("1999-01-01")).toBeNull();
+    expect((await loadMixLibrary(live.date))?.date).toBe(live.date);
+  });
+});
