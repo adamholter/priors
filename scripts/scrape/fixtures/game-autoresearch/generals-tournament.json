@@ -1,0 +1,226 @@
+{
+ "source": "Generals expansion and Carbon tournament addendum, November 24, 2026",
+ "task": "Generals, empty starter with an editable slow simulator, network variant, 3 L40S-hours of research per model, Terminus-2 high effort",
+ "tournament": "20 networks including Gemini 4 Carbon, 190 pairings, 48,640 games, 4,864 per network on 128 maps in both seats; Bradley-Terry Elo centered at 1000, 95% whole-map bootstrap intervals",
+ "rows": [
+  {
+   "rank": 1,
+   "model": "Claude Fable 5.2",
+   "cohort": "new",
+   "elo": 1384.6,
+   "lo": 1362.0,
+   "hi": 1407.5,
+   "h2h": 85.25,
+   "panel": 92.58,
+   "submissions": 6
+  },
+  {
+   "rank": 2,
+   "model": "GPT-6.2 Sol",
+   "cohort": "previous",
+   "elo": 1319.2,
+   "lo": 1304.7,
+   "hi": 1335.6,
+   "h2h": 80.32,
+   "panel": 92.9,
+   "submissions": 6
+  },
+  {
+   "rank": 3,
+   "model": "Claude Opus 5.5",
+   "cohort": "new",
+   "elo": 1288.2,
+   "lo": 1266.6,
+   "hi": 1308.5,
+   "h2h": 77.77,
+   "panel": 90.76,
+   "submissions": 8
+  },
+  {
+   "rank": 4,
+   "model": "GPT-6.2 Astra",
+   "cohort": "new",
+   "elo": 1286.1,
+   "lo": 1269.8,
+   "hi": 1302.2,
+   "h2h": 77.59,
+   "panel": 93.16,
+   "submissions": 4
+  },
+  {
+   "rank": 5,
+   "model": "Gemini 4 Neon",
+   "cohort": "previous",
+   "elo": 1243.5,
+   "lo": 1220.6,
+   "hi": 1265.9,
+   "h2h": 73.86,
+   "panel": 89.45,
+   "submissions": 6
+  },
+  {
+   "rank": 6,
+   "model": "Gemini 4 Carbon",
+   "cohort": "carbon addendum",
+   "elo": 1232.5,
+   "lo": 1216.3,
+   "hi": 1247.9,
+   "h2h": 72.86,
+   "submissions": 5
+  },
+  {
+   "rank": 7,
+   "model": "Tencent Hy4",
+   "cohort": "previous",
+   "elo": 1223.3,
+   "lo": 1204.9,
+   "hi": 1241.3,
+   "h2h": 72.02,
+   "panel": 86.91,
+   "submissions": 4
+  },
+  {
+   "rank": 8,
+   "model": "GPT-6 Astra",
+   "cohort": "new",
+   "elo": 1117.0,
+   "lo": 1098.9,
+   "hi": 1135.9,
+   "h2h": 61.81,
+   "panel": 88.48,
+   "submissions": 7
+  },
+  {
+   "rank": 9,
+   "model": "Meta Muse Wonder",
+   "cohort": "new",
+   "elo": 1115.3,
+   "lo": 1101.2,
+   "hi": 1130.9,
+   "h2h": 61.65,
+   "panel": 87.83,
+   "submissions": 5
+  },
+  {
+   "rank": 10,
+   "model": "Kimi K3",
+   "cohort": "new",
+   "elo": 1028.9,
+   "lo": 1016.1,
+   "hi": 1042.0,
+   "h2h": 53.0,
+   "panel": 88.41,
+   "submissions": 1
+  },
+  {
+   "rank": 11,
+   "model": "GPT-6.1 Sol",
+   "cohort": "new",
+   "elo": 988.4,
+   "lo": 967.8,
+   "hi": 1008.3,
+   "h2h": 48.92,
+   "panel": 73.37,
+   "submissions": 4
+  },
+  {
+   "rank": 12,
+   "model": "Gemini 4 Hydrogen",
+   "cohort": "new",
+   "elo": 917.9,
+   "lo": 902.0,
+   "hi": 935.8,
+   "h2h": 41.83,
+   "panel": 78.71,
+   "submissions": 5
+  },
+  {
+   "rank": 13,
+   "model": "GPT-6.1 Terra",
+   "cohort": "new",
+   "elo": 821.4,
+   "lo": 809.7,
+   "hi": 834.1,
+   "h2h": 32.33,
+   "panel": 56.18,
+   "submissions": 6
+  },
+  {
+   "rank": 14,
+   "model": "DeepSeek V4.1 Flash",
+   "cohort": "previous",
+   "elo": 762.1,
+   "lo": 749.3,
+   "hi": 774.6,
+   "h2h": 26.76,
+   "panel": 46.48,
+   "submissions": 5
+  },
+  {
+   "rank": 15,
+   "model": "GLM-5.3",
+   "cohort": "previous",
+   "elo": 749.8,
+   "lo": 737.0,
+   "hi": 763.0,
+   "h2h": 25.64,
+   "panel": 43.1,
+   "submissions": 6
+  },
+  {
+   "rank": 16,
+   "model": "Kimi K3.1 Pro",
+   "cohort": "new",
+   "elo": 728.4,
+   "lo": 715.0,
+   "hi": 742.4,
+   "h2h": 23.74,
+   "panel": 38.35,
+   "submissions": 3
+  },
+  {
+   "rank": 17,
+   "model": "Inkling 2 Small",
+   "cohort": "previous",
+   "elo": 719.9,
+   "lo": 706.9,
+   "hi": 732.4,
+   "h2h": 23.0,
+   "panel": 37.04,
+   "submissions": 3
+  },
+  {
+   "rank": 18,
+   "model": "DeepSeek V4 Flash",
+   "cohort": "new",
+   "elo": 698.6,
+   "lo": 684.4,
+   "hi": 713.2,
+   "h2h": 21.18,
+   "panel": 37.11,
+   "submissions": 4
+  },
+  {
+   "rank": 19,
+   "model": "DeepSeek V4 Pro",
+   "cohort": "new",
+   "elo": 691.4,
+   "lo": 675.1,
+   "hi": 707.2,
+   "h2h": 20.57,
+   "panel": 26.04,
+   "submissions": 1
+  },
+  {
+   "rank": 20,
+   "model": "GPT-6 Luna",
+   "cohort": "previous",
+   "elo": 683.5,
+   "lo": 667.0,
+   "hi": 699.4,
+   "h2h": 19.92,
+   "panel": 29.43,
+   "submissions": 3
+  }
+ ]
+}

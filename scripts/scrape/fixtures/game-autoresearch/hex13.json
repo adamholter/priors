@@ -1,0 +1,263 @@
+{
+ "researchSeconds": 5400,
+ "finalTrainHours": 1,
+ "refs": {
+  "heuristic": -1155,
+  "mohex-100": -498,
+  "mohex-2k": -177,
+  "mohex-anchor": 0
+ },
+ "random": -2580,
+ "models": [
+  {
+   "model": "Gemini 4 Neon",
+   "session": "hex-neon-agy-1",
+   "elo": -312,
+   "ci": [
+    -358,
+    -267
+   ],
+   "se": 20.4,
+   "winVsAnchor": 0.1328,
+   "games": 1152,
+   "perOpponent": {
+    "heuristic": 1.0,
+    "heuristic-e60": 1.0,
+    "heuristic-e80": 1.0,
+    "heuristic-e90": 1.0,
+    "mohex-100": 0.6484,
+    "mohex-100-e15": 0.9844,
+    "mohex-2k": 0.3984,
+    "mohex-anchor": 0.1328,
+    "random": 1.0
+   },
+   "budgetUsed": 0.989,
+   "campaign": "hex13-recipe-20261123"
+  },
+  {
+   "model": "Claude Fable 5.2",
+   "session": "hex-fable-1",
+   "elo": -390,
+   "ci": [
+    -430,
+    -353
+   ],
+   "se": 20.8,
+   "winVsAnchor": 0.0781,
+   "games": 1152,
+   "perOpponent": {
+    "heuristic": 1.0,
+    "heuristic-e60": 1.0,
+    "heuristic-e80": 1.0,
+    "heuristic-e90": 1.0,
+    "mohex-100": 0.5391,
+    "mohex-100-e15": 0.9922,
+    "mohex-2k": 0.3047,
+    "mohex-anchor": 0.0781,
+    "random": 1.0
+   },
+   "budgetUsed": 0.939,
+   "campaign": "hex13-recipe-20261123"
+  },
+  {
+   "model": "Gemini 4 Carbon",
+   "session": "hex-carbon-agy-1",
+   "elo": -405,
+   "ci": [
+    -445,
+    -365
+   ],
+   "se": 20.8,
+   "winVsAnchor": 0.0469,
+   "games": 1152,
+   "perOpponent": {
+    "heuristic": 1.0,
+    "heuristic-e60": 1.0,
+    "heuristic-e80": 1.0,
+    "heuristic-e90": 1.0,
+    "mohex-100": 0.5859,
+    "mohex-100-e15": 0.9844,
+    "mohex-2k": 0.25,
+    "mohex-anchor": 0.0469,
+    "random": 1.0
+   },
+   "budgetUsed": 0.065,
+   "campaign": "hex13-recipe-carbon-20261124b"
+  },
+  {
+   "model": "GPT-6.2 Astra",
+   "session": "hex-astra62-1",
+   "elo": -481,
+   "ci": [
+    -518,
+    -442
+   ],
+   "se": 21.2,
+   "winVsAnchor": 0.0547,
+   "games": 1152,
+   "perOpponent": {
+    "heuristic": 1.0,
+    "heuristic-e60": 1.0,
+    "heuristic-e80": 1.0,
+    "heuristic-e90": 1.0,
+    "mohex-100": 0.3906,
+    "mohex-100-e15": 0.9922,
+    "mohex-2k": 0.1953,
+    "mohex-anchor": 0.0547,
+    "random": 1.0
+   },
+   "budgetUsed": 0.998,
+   "campaign": "hex13-recipe-20261123"
+  },
+  {
+   "model": "DeepSeek V4.1 Flash",
+   "session": "hex-flash-1",
+   "elo": -520,
+   "ci": [
+    -555,
+    -484
+   ],
+   "se": 21.4,
+   "winVsAnchor": 0.0078,
+   "games": 1152,
+   "perOpponent": {
+    "heuristic": 1.0,
+    "heuristic-e60": 1.0,
+    "heuristic-e80": 1.0,
+    "heuristic-e90": 1.0,
+    "mohex-100": 0.4609,
+    "mohex-100-e15": 0.9297,
+    "mohex-2k": 0.1172,
+    "mohex-anchor": 0.0078,
+    "random": 1.0
+   },
+   "budgetUsed": 0.968,
+   "campaign": "hex13-recipe-20261123"
+  },
+  {
+   "model": "Claude Opus 5.5",
+   "session": "hex-opus-1",
+   "elo": -601,
+   "ci": [
+    -636,
+    -565
+   ],
+   "se": 21.8,
+   "winVsAnchor": 0.0,
+   "games": 1152,
+   "perOpponent": {
+    "heuristic": 1.0,
+    "heuristic-e60": 1.0,
+    "heuristic-e80": 1.0,
+    "heuristic-e90": 1.0,
+    "mohex-100": 0.3203,
+    "mohex-100-e15": 0.9062,
+    "mohex-2k": 0.0547,
+    "mohex-anchor": 0.0,
+    "random": 1.0
+   },
+   "budgetUsed": 0.915,
+   "campaign": "hex13-recipe-20261123"
+  },
+  {
+   "model": "GPT-6.2 Sol",
+   "session": "hex-sol62-1",
+   "elo": -692,
+   "ci": [
+    -725,
+    -658
+   ],
+   "se": 21.9,
+   "winVsAnchor": 0.0,
+   "games": 1152,
+   "perOpponent": {
+    "heuristic": 1.0,
+    "heuristic-e60": 1.0,
+    "heuristic-e80": 1.0,
+    "heuristic-e90": 1.0,
+    "mohex-100": 0.1562,
+    "mohex-100-e15": 0.8516,
+    "mohex-2k": 0.0156,
+    "mohex-anchor": 0.0,
+    "random": 1.0
+   },
+   "budgetUsed": 0.922,
+   "campaign": "hex13-recipe-20261123"
+  },
+  {
+   "model": "GPT-6 Astra",
+   "session": "hex-astra-1",
+   "elo": -719,
+   "ci": [
+    -749,
+    -686
+   ],
+   "se": 21.9,
+   "winVsAnchor": 0.0,
+   "games": 1152,
+   "perOpponent": {
+    "heuristic": 1.0,
+    "heuristic-e60": 1.0,
+    "heuristic-e80": 1.0,
+    "heuristic-e90": 1.0,
+    "mohex-100": 0.125,
+    "mohex-100-e15": 0.8203,
+    "mohex-2k": 0.0,
+    "mohex-anchor": 0.0,
+    "random": 1.0
+   },
+   "budgetUsed": 0.96,
+   "campaign": "hex13-recipe-20261123"
+  },
+  {
+   "model": "GPT-6.1 Sol",
+   "session": "hex-sol-1",
+   "elo": -727,
+   "ci": [
+    -752,
+    -705
+   ],
+   "se": 21.8,
+   "winVsAnchor": 0.0,
+   "games": 1152,
+   "perOpponent": {
+    "heuristic": 0.9922,
+    "heuristic-e60": 1.0,
+    "heuristic-e80": 1.0,
+    "heuristic-e90": 1.0,
+    "mohex-100": 0.0312,
+    "mohex-100-e15": 0.8984,
+    "mohex-2k": 0.0,
+    "mohex-anchor": 0.0,
+    "random": 1.0
+   },
+   "budgetUsed": 0.973,
+   "campaign": "hex13-recipe-20261123"
+  },
+  {
+   "model": "Kimi K3.1 Pro",
+   "session": "hex-kimi-1",
+   "elo": -1028,
+   "ci": [
+    -1061,
+    -994
+   ],
+   "se": 20.3,
+   "winVsAnchor": 0.0,
+   "games": 1152,
+   "perOpponent": {
+    "heuristic": 0.6953,
+    "heuristic-e60": 1.0,
+    "heuristic-e80": 1.0,
+    "heuristic-e90": 1.0,
+    "mohex-100": 0.0,
+    "mohex-100-e15": 0.3047,
+    "mohex-2k": 0.0,
+    "mohex-anchor": 0.0,
+    "random": 1.0
+   },
+   "budgetUsed": 0.964,
+   "campaign": "hex13-recipe-20261123"
+  }
+ ]
+}
