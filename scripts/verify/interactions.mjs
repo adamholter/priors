@@ -45,14 +45,14 @@ try {
     }
   });
 
-  await check("footer: five links, and Tools is the one door to the skill, the CLI and MCP server, import and export", async () => {
+  await check("footer: six links, and Tools is the one door to the skill, the CLI and MCP server, import and export", async () => {
     const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
     const p = await context.newPage();
     try {
       await p.goto(`${BASE}/tools`, { waitUntil: "domcontentloaded" });
       const foot = p.getByRole("navigation", { name: "Footer" });
-      assert.deepEqual(await foot.getByRole("link").evaluateAll((links) => links.map((a) => a.getAttribute("href"))), ["/support", "/privacy", "/benchmarks", "/tools", "/request"]);
-      assert.deepEqual(await foot.getByRole("link").evaluateAll((links) => links.slice(1).map((a) => a.textContent)), ["Privacy", "Benchmarks", "Tools", "Report or request"]);
+      assert.deepEqual(await foot.getByRole("link").evaluateAll((links) => links.map((a) => a.getAttribute("href"))), ["/support", "/privacy", "/models", "/benchmarks", "/tools", "/request"]);
+      assert.deepEqual(await foot.getByRole("link").evaluateAll((links) => links.slice(1).map((a) => a.textContent)), ["Privacy", "Models", "Benchmarks", "Tools", "Report or request"]);
       const main = p.locator("main");
       for (const id of ["skill", "mcp", "cli", "import", "export"]) assert.equal(await main.locator(`section#${id} h2`).count(), 1, `/tools has a ${id} section`);
       for (const href of ["/skill", "/cli#mcp", "/cli#cli", "/import", "/request?kind=benchmark"]) assert.ok(await main.locator(`section a[href="${href}"]`).count(), `/tools links to ${href}`);
@@ -595,6 +595,32 @@ try {
       await menu.getByRole("menuitemradio", { name: "Recommended" }).click();
       assert.match(await funnel.innerText(), /Recommended/);
       assert.equal(await head.locator("[data-on]").count(), 0, "Recommended has no column, so no label is active");
+    } finally { await c.context().close(); }
+  });
+
+  await check("model directory: linked from the site nav and every model page, ranked by default, searchable, filtered by lab, rows open the model", async () => {
+    const c = await (await browser.newContext({ viewport: { width: 1440, height: 1000 } })).newPage();
+    try {
+      await c.goto(`${BASE}/benchmarks`, { waitUntil: "domcontentloaded" });
+      assert.equal(await c.getByRole("navigation", { name: "Site" }).first().getByRole("link", { name: "Models", exact: true }).getAttribute("href"), "/models", "the site nav links the model directory");
+      assert.equal(await c.getByRole("navigation", { name: "Footer" }).getByRole("link", { name: "Models", exact: true }).count(), 1, "so does the footer");
+      await c.goto(`${BASE}/models`, { waitUntil: "networkidle" });
+      const ranks = await c.locator(".bench-row").evaluateAll((rows) => rows.slice(0, 10).map((r) => Number(r.querySelector(".bench-num .num")?.textContent.replace("#", ""))));
+      assert.deepEqual(ranks, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], `ranked best first by default: ${ranks}`);
+      const search = c.getByRole("searchbox", { name: "Search models" });
+      for (let tries = 0; tries < 20 && !/match/.test(await c.locator(".model-dir [role=status]").innerText()); tries++) { await search.fill(""); await search.fill("opus"); await c.waitForTimeout(250); }
+      const names = await c.locator(".bench-main .text-\\[15px\\]").allInnerTexts();
+      assert.ok(names.length > 0 && names.every((n) => /opus/i.test(n)), `search keeps Opus models: ${names.slice(0, 5)}`);
+      await search.fill("");
+      await c.locator(".model-rail button", { hasText: "Anthropic" }).click();
+      await c.waitForTimeout(250);
+      const labs = await c.locator(".model-rail button[aria-pressed=true]").innerText();
+      assert.match(labs, /Anthropic/);
+      const first = c.locator(".bench-row").first(), id = await first.getAttribute("data-model");
+      assert.match(id, /^claude-/, `the Anthropic filter shows Claude models: ${id}`);
+      await first.click();
+      await c.waitForURL(new RegExp(`/models/${id.replace(/\./g, "\\.")}$`));
+      assert.equal(await c.getByRole("link", { name: "All models" }).getAttribute("href"), "/models", "the model page links back to the directory");
     } finally { await c.context().close(); }
   });
 

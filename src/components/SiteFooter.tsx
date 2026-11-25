@@ -12,6 +12,7 @@ export function SiteFooter() {
     <nav aria-label="Footer" className="flex items-center gap-4 cap">
       <SupportLink from="footer" className="support-link support-link-foot" />
       <Link prefetch={false} href="/privacy" className="hover:text-ink">Privacy</Link>
+      <Link prefetch={false} href="/models" className="hover:text-ink">Models</Link>
       <Link prefetch={false} href="/benchmarks" className="hover:text-ink">Benchmarks</Link>
       <Link prefetch={false} href="/tools" className="hover:text-ink">Tools</Link>
       <Link prefetch={false} href="/request" className="hover:text-ink">Report or request</Link>

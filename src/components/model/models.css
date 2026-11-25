@@ -1,0 +1,21 @@
+/* The model directory reuses the benchmark directory's layout (benchmarks.css) with its own columns. */
+.model-dir .bench-head,.model-dir .bench-row{grid-template-columns:minmax(0,1fr) 104px 92px 84px 78px;column-gap:14px}
+.model-dir .bench-head>:nth-child(n+2){justify-self:end;text-align:right}
+.model-dir ul > li{contain-intrinsic-size:auto 58px}
+.model-rail{max-height:calc(100dvh - 32px);overflow-y:auto;overscroll-behavior:contain}
+.model-dot{display:inline-block;width:9px;height:9px;border-radius:50%;justify-self:center;flex:none}
+.model-dot-row{margin:7px 4px 0 2px}
+.model-lab-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.model-score{margin-left:7px;font-size:12px}
+.model-open{color:var(--indigo)}
+.model-sort-select{border:1px solid var(--hair);border-radius:4px;background:transparent;color:var(--ink);font-size:12.5px;padding:3px 6px}
+@media (max-width:1040px){
+  .model-dir .bench-main{padding-right:0}
+  .model-dir .bench-none{display:none}
+}
+@media (max-width:800px){
+  .model-rail{max-height:none;overflow-y:visible}
+  /* The strip scrolls sideways, so a name takes its full width instead of shrinking to nothing. */
+  .model-lab-name{overflow:visible;min-width:auto}
+  .model-rail button{flex:none}
+}
