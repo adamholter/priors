@@ -30,6 +30,15 @@ const DASHBOARD = "https://slophouse.ineededadomain.com";
 export const MIN_USERS = T3_MIN_USERS, MIN_TURNS = 30;
 const DAYS = 30, CACHE_HOURS = 20, CACHE_MAX_DAYS = 7;
 /**
+ * Tokens per turn (what cost is priced from) come from a shorter window than time: cache hit rates move fast (Antigravity's Gemini
+ * turns went from about 55% cached to 86-92% around November 20, and up again at 00:00 UTC on November 25), and a 30-day mean
+ * would keep pricing the old behaviour for weeks. TOKEN_DAYS days, starting no earlier than TOKENS_SINCE, a one-time floor set on
+ * 2026-11-26 so the costs published that day priced only turns after the November 25 jump (Adam); it stops mattering once it is
+ * more than TOKEN_DAYS days old (December 2). An effort without enough turns in the window falls back to the 30-day tokens.
+ */
+export const TOKEN_DAYS = 7, TOKENS_SINCE = "2026-11-25T00:00:00Z";
+export const tokenStart = (now: number) => new Date(Math.max(now - TOKEN_DAYS * 86_400_000, Date.parse(TOKENS_SINCE)));
+/**
  * Between the daily queries, every scrape (15 minutes) runs the same query over the last week and looks only at models the site does
  * not show yet: just released, or held by scripts/scrape/t3-costs.ts until their cost rises with effort. One enters the day's data once
  * it has this many turns at this many stated efforts, so a chance fit in a launch's first hour does not go up. A published model keeps
@@ -51,15 +60,18 @@ const NOT_PLAIN = /[:[\]"\s/]|^[a-z-]+\.|^fusion-|-(fast|build|turbo|sidekick|ul
 export const ANTIGRAVITY_ALIAS_EFFORT: Record<string, string> = { "gemini-4-neon": "high" };
 const aliasSql = (map: Record<string, string>) => `transform(m2, [${Object.keys(map).map((k) => `'${k}'`).join(", ")}], [${Object.values(map).map((v) => `'${v}'`).join(", ")}], '')`;
 
-export const T3_SQL = `SELECT base, sum(n) total, groupArray((eff, n, u, avg_s, med_s, p90_s, out_tok, tok_n, fresh, cached, written, tok_out, tok_u)) efforts FROM (
+/** The day's query; tokens from `since` on (UTC, `YYYY-MM-DD HH:MM:SS`) ride beside the full window's (`r_…`). */
+export const t3Sql = (since: string) => `SELECT base, sum(n) total, groupArray((eff, n, u, avg_s, med_s, p90_s, out_tok, tok_n, fresh, cached, written, tok_out, tok_u, r_n, r_fresh, r_cached, r_written, r_out, r_u)) efforts FROM (
  SELECT base, eff, count() n, uniq(installId) u, round(avg(durationMs)/1000, 2) avg_s, round(quantileTDigest(0.5)(durationMs)/1000, 2) med_s, round(quantileTDigest(0.9)(durationMs)/1000, 2) p90_s, round(avg(outputTokens)) out_tok,
   countIf(tok) tok_n, round(avgIf(greatest(inputTokens - ifNull(cachedInputTokens, 0) - ifNull(cacheCreationTokens, 0), 0), tok)) fresh,
-  round(avgIf(ifNull(cachedInputTokens, 0), tok)) cached, round(avgIf(ifNull(cacheCreationTokens, 0), tok)) written, round(avgIf(outputTokens, tok)) tok_out, uniqIf(installId, tok) tok_u
+  round(avgIf(ifNull(cachedInputTokens, 0), tok)) cached, round(avgIf(ifNull(cacheCreationTokens, 0), tok)) written, round(avgIf(outputTokens, tok)) tok_out, uniqIf(installId, tok) tok_u,
+  countIf(rtok) r_n, round(avgIf(greatest(inputTokens - ifNull(cachedInputTokens, 0) - ifNull(cacheCreationTokens, 0), 0), rtok)) r_fresh,
+  round(avgIf(ifNull(cachedInputTokens, 0), rtok)) r_cached, round(avgIf(ifNull(cacheCreationTokens, 0), rtok)) r_written, round(avgIf(outputTokens, rtok)) r_out, uniqIf(installId, rtok) r_u
  FROM (SELECT replaceRegexpOne(replaceRegexpOne(replaceRegexpOne(model, '\\\\[1m\\\\]$', ''), '^(claude-[a-z]+-[0-9]+)\\\\.([0-9]+)$', '\\\\1-\\\\2'), '^deepseek-v([0-9])([0-9])-', 'deepseek-v\\\\1.\\\\2-') AS m2,
    extract(m2, '^gemini-.+-(minimal|low|medium|high|xhigh)$') AS sfx,
    if(sfx != '', substring(m2, 1, length(m2) - length(sfx) - 1), m2) AS base,
    if(sfx != '', sfx, if(provider = 'antigravity' AND effort = '', ${aliasSql(ANTIGRAVITY_ALIAS_EFFORT)}, effort)) AS eff, installId, durationMs, outputTokens, inputTokens, cachedInputTokens, cacheCreationTokens,
-   inputTokens IS NOT NULL AND outputTokens IS NOT NULL AS tok
+   inputTokens IS NOT NULL AND outputTokens IS NOT NULL AS tok, tok AND timestamp >= toDateTime('${since}', 'UTC') AS rtok
   FROM events WHERE event = 'provider.turn.completed' AND terminalStatus = 'completed' AND timestamp >= now() - toIntervalDay({days:UInt32}) AND timestamp < now()
    AND position(model, '/') = 0 AND model NOT IN ('', 'default') AND durationMs > 0 AND durationMs < 86400000 AND JSONExtractBool(properties, 'subagent') = 0)
  WHERE eff IN ('', 'none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max')
@@ -72,13 +84,14 @@ GROUP BY base ORDER BY total DESC LIMIT 100`;
  * the rest.
  */
 type Effort = [eff: string, turns: number, users: number, meanSec: number | null, medianSec: number | null, p90Sec: number | null, outputTokens: number | null,
-  tokenTurns?: number, fresh?: number | null, cached?: number | null, written?: number | null, tokenOutput?: number | null, tokenUsers?: number];
+  tokenTurns?: number, fresh?: number | null, cached?: number | null, written?: number | null, tokenOutput?: number | null, tokenUsers?: number,
+  recentTurns?: number, recentFresh?: number | null, recentCached?: number | null, recentWritten?: number | null, recentOutput?: number | null, recentUsers?: number];
 /** Bumped when the query changes, so a cached payload from the old query is refetched instead of served for up to a day. */
-export const T3_PAYLOAD_VERSION = 5;
-export type T3Payload = { version?: number; fetchedAt: string; start: string; end: string; rows: [base: string, total: number, efforts: Effort[]][] };
+export const T3_PAYLOAD_VERSION = 6;
+export type T3Payload = { version?: number; fetchedAt: string; start: string; end: string; /** First day of the token window (version 6 on). */ tokenStart?: string; rows: [base: string, total: number, efforts: Effort[]][] };
 
 export function parseT3Telemetry(p: T3Payload): Pick<ScrapeResult, "benchmarks" | "rows" | "notes"> {
-  const window = `${p.start} to ${p.end}`;
+  const window = `${p.start} to ${p.end}`, tokenWindow = p.tokenStart ? `${p.tokenStart} to ${p.end}` : window;
   const rows: RawRow[] = [];
   let skipped = 0;
   for (const [base, , efforts] of p.rows) {
@@ -89,16 +102,18 @@ export function parseT3Telemetry(p: T3Payload): Pick<ScrapeResult, "benchmarks" 
     const explicit = usable.filter(([eff]) => eff !== ""), unstated = usable.filter(([eff]) => eff === "");
     const turns = (list: Effort[]) => list.reduce((a, [, n]) => a + n, 0);
     const pick = explicit.length && turns(explicit) >= 0.05 * turns(usable) ? explicit : unstated;
-    for (const [eff, n, u, mean, median, p90, out, tokenTurns, fresh, cached, written, tokenOut, tokenUsers] of pick) {
-      // Tokens by kind for an average turn, which scripts/scrape/t3-costs.ts prices at the model's list price. Some harnesses send no
-      // token counts (Antigravity often), so the turns and users behind the tokens must clear the same bar on their own.
-      const perTurn = (tokenTurns ?? 0) >= MIN_TURNS && (tokenUsers ?? 0) >= MIN_USERS && typeof tokenOut === "number" && tokenOut > 0
-        ? { fresh: fresh ?? 0, cached: cached ?? 0, written: written ?? 0, output: tokenOut } : undefined;
+    for (const [eff, n, u, mean, median, p90, out, ...tok] of pick) {
+      // Tokens by kind for an average turn, which scripts/scrape/t3-costs.ts prices at the model's list price: from the token window
+      // (TOKEN_DAYS) when it clears the bar, else the full window. Some harnesses send no token counts (Antigravity often), so the
+      // turns and users behind the tokens must clear the same bar on their own.
+      const tokens = ([[tok[6], tok[7], tok[8], tok[9], tok[10], tok[11], tokenWindow], [tok[0], tok[1], tok[2], tok[3], tok[4], tok[5], window]] as const)
+        .find(([turns, , , , output, users]) => (turns ?? 0) >= MIN_TURNS && (users ?? 0) >= MIN_USERS && typeof output === "number" && output > 0 && turns !== undefined);
+      const perTurn = tokens && { fresh: tokens[1] ?? 0, cached: tokens[2] ?? 0, written: tokens[3] ?? 0, output: tokens[4]! };
       rows.push({
         benchmarkId: T3_TURN_TIME_ID, modelLabel: base.replace(/(\d)p(\d)/g, "$1.$2"), ...(eff ? { effort: eff } : { effortUnstated: true }), value: Math.round((mean! / 60) * 100) / 100, durationSec: mean!,
         ...(typeof out === "number" && out > 0 ? { outputTokens: out } : {}), sourceUrl: SITE,
         note: `mean of ${n.toLocaleString("en-US")} completed turns from ${u.toLocaleString("en-US")} T3 Code users, ${window}${eff ? "" : "; effort not recorded (harness default)"}`,
-        details: { users: u, turns: n, medianSec: median ?? undefined, p90Sec: p90 ?? undefined, window, ...(perTurn ? { perTurn, tokenTurns, tokenUsers } : {}) },
+        details: { users: u, turns: n, medianSec: median ?? undefined, p90Sec: p90 ?? undefined, window, ...(tokens ? { perTurn, tokenTurns: tokens[0], tokenUsers: tokens[5], tokenWindow: tokens[6] } : {}) },
       });
     }
   }
@@ -147,13 +162,13 @@ function cookieHeader(jar: string): string {
 const day = (t: number) => new Date(t).toISOString().slice(0, 10);
 
 /** One aggregate query. The session cookie goes only to the dashboard. */
-async function query(days: number, timeoutMs: number): Promise<T3Payload["rows"]> {
+async function query(days: number, since: Date, timeoutMs: number): Promise<T3Payload["rows"]> {
   const jar = process.env.PRIORS_SLOPHOUSE_JAR ?? path.join(homedir(), "Projects/overnight-2026-10-20/data/b81/.jar");
   if (!existsSync(jar)) throw new Error("no slophouse session on this machine");
   const res = await fetch(`${DASHBOARD}/api/query`, {
     method: "POST", signal: AbortSignal.timeout(timeoutMs),
     headers: { Cookie: cookieHeader(jar), Origin: DASHBOARD, "Sec-Fetch-Site": "same-origin", "Content-Type": "application/json" },
-    body: JSON.stringify({ sql: T3_SQL, days }),
+    body: JSON.stringify({ sql: t3Sql(since.toISOString().slice(0, 19).replace("T", " ")), days }),
   });
   if (res.status === 401 || res.status === 403) throw new Error(`slophouse session expired (${res.status}); sign in again in a browser and save the cookie jar`);
   if (!res.ok) throw new Error(`slophouse ${res.status}`);
@@ -175,14 +190,14 @@ const source: Source = {
       try {
         const published = publishedModels();
         const known = (base: string) => { const n = normalizeLabel(base.replace(/(\d)p(\d)/g, "$1.$2")); return n.ok && published.has(n.modelId); };
-        const { payload: merged, added } = mergeWatched(payload, await query(WATCH_DAYS, 90_000), known);
+        const { payload: merged, added } = mergeWatched(payload, await query(WATCH_DAYS, tokenStart(Date.parse(payload.fetchedAt)), 90_000), known);
         if (added.length) { payload = merged; writeFileSync(cacheFile, JSON.stringify(payload)); ctx.log(`T3 telemetry: rechecking ${added.join(", ")}, not on the site yet`); }
       } catch (e) { ctx.log(`T3 telemetry: new-model check skipped: ${(e as Error).message}`); }
     } else {
       try {
-        const rows = await query(DAYS, 150_000);
-        const now = Date.parse(ctx.now);
-        payload = { version: T3_PAYLOAD_VERSION, fetchedAt: ctx.now, start: day(now - DAYS * 86_400_000), end: day(now), rows };
+        const now = Date.parse(ctx.now), since = tokenStart(now);
+        const rows = await query(DAYS, since, 150_000);
+        payload = { version: T3_PAYLOAD_VERSION, fetchedAt: ctx.now, start: day(now - DAYS * 86_400_000), end: day(now), tokenStart: day(since.getTime()), rows };
         mkdirSync(path.dirname(cacheFile), { recursive: true });
         writeFileSync(cacheFile, JSON.stringify(payload));
       } catch (e) {

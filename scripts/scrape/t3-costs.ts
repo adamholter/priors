@@ -69,7 +69,7 @@ export function applyT3Costs(snapshot: Snapshot, opts: { hold?: boolean } = {}):
   // T3's own ClickHouse rows, per effort.
   const perEffort: Observation[] = [];
   for (const o of snapshot.observations) {
-    const d = o.benchmarkId === TIME_BENCHMARK ? o.details as { perTurn?: PerTurn; users?: number; turns?: number; tokenTurns?: number; tokenUsers?: number; window?: string } | undefined : undefined;
+    const d = o.benchmarkId === TIME_BENCHMARK ? o.details as { perTurn?: PerTurn; users?: number; turns?: number; tokenTurns?: number; tokenUsers?: number; window?: string; tokenWindow?: string } | undefined : undefined;
     const p = d?.perTurn && priceOf(o);
     if (!d?.perTurn || !p) continue;
     const usd = turnCost(d.perTurn, p);
@@ -78,8 +78,8 @@ export function applyT3Costs(snapshot: Snapshot, opts: { hold?: boolean } = {}):
     priced.push(modelOf.get(o.variantId) ?? o.variantId);
     perEffort.push({
       benchmarkId: COST_BENCHMARK, variantId: o.variantId, value: usd, observedAt: o.observedAt, sourceUrl: o.sourceUrl, costUsd: usd,
-      note: `${noteFor(p)}; ${(d.tokenTurns ?? d.turns ?? 0).toLocaleString("en-US")} turns with token counts from ${(d.tokenUsers ?? d.users ?? 0).toLocaleString("en-US")} T3 Code users${d.window ? `, ${d.window}` : ""}`,
-      details: { users: d.tokenUsers ?? d.users, turns: d.tokenTurns ?? d.turns, perTurn: d.perTurn, ...(d.window ? { window: d.window } : {}) },
+      note: `${noteFor(p)}; ${(d.tokenTurns ?? d.turns ?? 0).toLocaleString("en-US")} turns with token counts from ${(d.tokenUsers ?? d.users ?? 0).toLocaleString("en-US")} T3 Code users${d.tokenWindow ?? d.window ? `, ${d.tokenWindow ?? d.window}` : ""}`,
+      details: { users: d.tokenUsers ?? d.users, turns: d.tokenTurns ?? d.turns, perTurn: d.perTurn, ...(d.tokenWindow ?? d.window ? { window: d.tokenWindow ?? d.window } : {}) },
     });
   }
 
@@ -102,11 +102,13 @@ export function applyT3Costs(snapshot: Snapshot, opts: { hold?: boolean } = {}):
 
   if (perEffort.length) {
     snapshot.observations = [...snapshot.observations.filter((o) => o.benchmarkId !== COST_BENCHMARK), ...perEffort];
-    const time = snapshot.benchmarks.find((b) => b.id === TIME_BENCHMARK), window = (perEffort[0].details as { window?: string }).window;
+    const time = snapshot.benchmarks.find((b) => b.id === TIME_BENCHMARK), windows = perEffort.map((o) => (o.details as { window?: string }).window).filter(Boolean) as string[];
+    // Tokens come from the last week where an effort has enough turns there, else the full window: name the usual one.
+    const window = windows.sort((x, y) => windows.filter((w) => w === y).length - windows.filter((w) => w === x).length)[0];
     const cost = {
       id: COST_BENCHMARK, name: "T3 Code cost per turn", shortName: "T3 $/turn", sourceId: time?.sourceId ?? "t3-telemetry", url: time?.url ?? "https://t3.codes",
       ...(time?.lastUpdated ? { lastUpdated: time.lastUpdated } : {}),
-      description: `API-equivalent cost of an average turn in real T3 Code sessions, by model and reasoning effort${window ? ` (${window})` : ""}: its fresh, cached, cache-write and output tokens at the model's current list price. Not what anyone was billed. From T3 Code's own telemetry; each figure lists the users behind it.`,
+      description: `API-equivalent cost of an average turn in real T3 Code sessions, by model and reasoning effort${window ? ` (${window})` : ""}: its fresh, cached, cache-write and output tokens at the model's current list price. Efforts with too few turns in that window use the time chart's 30 days. Not what anyone was billed. From T3 Code's own telemetry; each figure lists the users behind it.`,
       unit: "usd" as const, higherIsBetter: false, category: "cost" as const, eligibleForDefault: false, defaultWeight: 0,
     };
     const i = snapshot.benchmarks.findIndex((b) => b.id === COST_BENCHMARK);
