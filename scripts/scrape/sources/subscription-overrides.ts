@@ -96,13 +96,13 @@ export const SUBSIDY_ASSUMPTIONS: SubsidyAssumption[] = [
   // unchanged. A measured row for either replaces this the day it appears.
   {
     modelId: "gpt-6.2-astra", label: "GPT-6.2 Astra (max)", sameAs: "gpt-6-astra", sameAsName: "GPT-6 Astra", plans: /^ChatGPT /,
-    listPrice: { input: 8, cached: 0.4, output: 40 }, checked: "2026-11-17",
-    note: "No plan measurement for GPT-6.2 Astra yet: each ChatGPT plan is assumed to give as many tokens as it does for GPT-6 Astra, priced against GPT-6.2 Astra's lower API list price ($8 input, $0.40 cached, $40 output per 1M, from OpenAI's launch post), so its share of API price is higher than GPT-6 Astra's.",
+    listPrice: { input: 8, cached: 0.4, output: 40 }, checked: "2026-11-26",
+    note: "No plan measurement for GPT-6.2 Astra yet: each ChatGPT plan is assumed to give as many tokens as it does for GPT-6 Astra, priced against GPT-6.2 Astra's lower API list price ($8 input, $0.40 cached, $40 output per 1M, from OpenAI's launch post), so its share of API price is higher than GPT-6 Astra's. OpenAI's launch billing under-counted GPT-6.2 Astra and Sol usage until 26 November 2026 (Tibo, https://x.com/thsottiaux/status/2125784147889393806: limits now reached about 40% faster than the week before). These figures are not from that period: they follow the earlier models' measurements and OpenAI's published Codex limits, which did not change with the fix, so they stand.",
   },
   {
     modelId: "gpt-6.2-sol", label: "GPT-6.2 Sol (max)", sameAs: "gpt-6.1-sol", sameAsName: "GPT-6.1 Sol", plans: /^ChatGPT /,
-    listPrice: { input: 2, cached: 0.1, output: 10 }, checked: "2026-11-17",
-    note: "No plan measurement for GPT-6.2 Sol yet: each ChatGPT plan is assumed to give as many tokens as it does for GPT-6.1 Sol, whose API prices GPT-6.2 Sol keeps ($2 input, $0.10 cached, $10 output per 1M).",
+    listPrice: { input: 2, cached: 0.1, output: 10 }, checked: "2026-11-26",
+    note: "No plan measurement for GPT-6.2 Sol yet: each ChatGPT plan is assumed to give as many tokens as it does for GPT-6.1 Sol, whose API prices GPT-6.2 Sol keeps ($2 input, $0.10 cached, $10 output per 1M). OpenAI's launch billing under-counted GPT-6.2 Astra and Sol usage until 26 November 2026 (Tibo, https://x.com/thsottiaux/status/2125784147889393806: limits now reached about 40% faster than the week before). These figures are not from that period: they follow the earlier models' measurements and OpenAI's published Codex limits, which did not change with the fix, so they stand.",
   },
   // Since 2026-11-23 every Gemini model on Antigravity draws on one Gemini pool on every paid plan: Varun Mohan (x.com/_mohansolo/status/2124960419429458207)
   // gave paid Pro users Carbon, and in the same thread ended Pro's separate Argon bucket, moving its capacity into the general Gemini bucket "so you
@@ -297,11 +297,23 @@ export interface PlanChange {
   plan: string;
   factor: number;
   until?: string;
+  /** Only these models' points on the plan (the part after `::`). */
+  models?: RegExp;
+  /** Shown on each point the change corrects. */
+  caveat?: PlanCaveat;
   source: string;
   note: string;
 }
 
 export const PLAN_CHANGES: PlanChange[] = [
+  // OpenAI's GPT-6.2 billing mistake (Tibo, https://x.com/thsottiaux/status/2125784147889393806, 2026-11-26 02:50 UTC): Astra and Sol were under-counted on ChatGPT plans from launch;
+  // since the fix limits come about 40% faster. No GPT-6.2 plan measurement existed then (the SUBSIDY_ASSUMPTIONS rows stand); a Real API
+  // Pricing point measured before the fix gets 1.4 times the token price. A measurement whose range ends on or after the 26th is taken as is.
+  ...(["chatgpt_go", "chatgpt_plus", "chatgpt_pro_10x", "chatgpt_pro_20x", "chatgpt_pro_500", "chatgpt_business"] as const).map((planId): PlanChange => ({
+    planId, plan: "", factor: 1.4, until: "2026-11-26", models: /^gpt-6\.2-(astra|sol)$/, source: "https://x.com/thsottiaux/status/2125784147889393806",
+    caveat: { label: "Corrected", short: "Measured before OpenAI fixed a launch billing mistake that under-counted GPT-6.2 usage; divided by 1.4 to today's billing.", note: "OpenAI under-counted GPT-6.2 Astra and Sol usage on ChatGPT plans from launch (17 November 2026) until 26 November; since the fix the same work reaches the limits about 40% faster (Tibo, https://x.com/thsottiaux/status/2125784147889393806), so a measurement from before it is divided by 1.4.", source: "https://x.com/thsottiaux/status/2125784147889393806" },
+    note: "GPT-6.2 billing fix, 26 November 2026.",
+  })),
   {
     planId: "chatgpt_pro_5x", plan: "ChatGPT Pro 10x", factor: 0.5, until: "2026-10-29", source: "https://help.openai.com/en/articles/9793128-what-is-chatgpt-pro",
     note: "OpenAI doubled Pro 100's Work and Codex allowance on 29 October 2026: 5× to 10× Plus. The Pro 200 cut announced on 29 September was canceled the same day, so Pro 200 keeps the 20× allowance Real API Pricing measured.",

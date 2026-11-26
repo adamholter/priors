@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import source, { budgetPoints, parseOpenCodeGo, parseSubscriptions, type Channels, type Conventions, type Points } from "./sources/realapipricing";
+import source, { budgetPoints, changed, parseOpenCodeGo, parseSubscriptions, type Channels, type Conventions, type Points } from "./sources/realapipricing";
 import { blendedApiPrice, SUBSCRIPTION_BENCHMARK, type SubscriptionDetails } from "../../src/data/subscription";
 import { BUDGET_PLANS } from "./sources/subscription-overrides";
 
@@ -239,8 +239,11 @@ describe("Real API Pricing subscriptions", () => {
     const mix = conventions.standardTokenMix;
     expect(blendedApiPrice({ input: 10, cached: 1, output: 50 }, mix) / blendedApiPrice({ input: 8, cached: 0.4, output: 40 }, mix)).toBeCloseTo(1.865, 2);
     // A measured row replaces the assumption.
-    const measured = parseSubscriptions({ ...payload, points: [...points, point("chatgpt_pro_10x::gpt-6.2-astra", "ChatGPT Pro 10x", "OpenAI", 0.05, { model_display: "GPT 6.2 Astra", price_usd: 100 })] }, conventions, channels);
+    const measured = parseSubscriptions({ ...payload, points: [...points, point("chatgpt_pro_10x::gpt-6.2-astra", "ChatGPT Pro 10x", "OpenAI", 0.05, { model_display: "GPT 6.2 Astra", price_usd: 100, data_date: "2026-11-27" })] }, conventions, channels);
     expect(measured.filter((r) => /^GPT[- ]6\.2 Astra/.test(r.modelLabel)).map((r) => r.value)).toEqual([0.05]);
+    // One measured before OpenAI's billing fix (26 November) under-counted usage, so its token price is 1.4 times what it read.
+    const early = parseSubscriptions({ ...payload, points: [...points, point("chatgpt_pro_10x::gpt-6.2-astra", "ChatGPT Pro 10x", "OpenAI", 0.05, { model_display: "GPT 6.2 Astra", price_usd: 100, data_date: "2026-11-21" })] }, conventions, channels);
+    expect(early.filter((r) => /^GPT[- ]6\.2 Astra/.test(r.modelLabel)).map((r) => r.value)[0]).toBeCloseTo(0.07, 9);
   });
   it("prices Hydrogen from the shared Gemini pool, keeping Argon's separate Pro quota out of its estimate", () => {
     const flash = point("google_ai_pro_us::gemini-3.8-flash", "Google AI Pro", "Google", 0.0077450601, { model_display: "Gemini 3.8 Flash", price_usd: 19.99, workload: "lowCache", confidence: "high" });
@@ -416,5 +419,19 @@ describe("The X Subscription", () => {
   it("marks the SuperGrok plans legacy and prices Grok on an X plan", () => {
     expect(plans.map((p) => p.plan)).toEqual(expect.arrayContaining(["SuperGrok, legacy", "SuperGrok Plus, legacy", "SuperGrok Heavy, legacy"]));
     expect((row.details as unknown as SubscriptionDetails).plan).toMatch(/^X /);
+  });
+});
+
+describe("GPT-6.2 billing fix (OpenAI, 26 November 2026)", () => {
+  const point = (id: string, data_date: string) => ({ id, plan: "ChatGPT Plus", billing: "subscription", model: id.split("::")[1], model_display: "", vendor: "OpenAI", real_usd_per_mtok: 0.01, confidence: "high", data_date });
+  it("prices a GPT-6.2 plan measurement from before the fix at 1.4 times, with a note and source, and leaves the rest alone", () => {
+    const fixed = changed(point("chatgpt_plus::gpt-6.2-astra", "2026-11-20~2026-11-22"));
+    expect(fixed.real_usd_per_mtok).toBeCloseTo(0.014, 6);
+    expect(fixed.plan).toBe("ChatGPT Plus");
+    expect(fixed.preliminary).toMatchObject({ label: "Corrected", source: "https://x.com/thsottiaux/status/2125784147889393806" });
+    expect(changed(point("chatgpt_pro_20x::gpt-6.2-sol", "2026-11-19")).real_usd_per_mtok).toBeCloseTo(0.014, 6);
+    expect(changed(point("chatgpt_plus::gpt-6.2-sol", "2026-11-26")).real_usd_per_mtok).toBe(0.01);
+    expect(changed(point("chatgpt_plus::gpt-6.1-sol", "2026-11-09")).real_usd_per_mtok).toBe(0.01);
+    expect(changed(point("devin_max::gpt-6.2-astra", "2026-11-20")).real_usd_per_mtok).toBe(0.01);
   });
 });

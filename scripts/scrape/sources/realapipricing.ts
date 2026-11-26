@@ -236,10 +236,10 @@ export function parseSubscriptions(json: Points, conventions: Conventions, chann
 
 /** A point measured before a plan's allowance changed, priced at the allowance it sells with now. */
 export function changed(p: Point): Point {
-  const c = PLAN_CHANGES.find((c) => p.id.startsWith(`${c.planId}::`));
+  const c = PLAN_CHANGES.find((c) => p.id.startsWith(`${c.planId}::`) && (!c.models || c.models.test(p.id.slice(c.planId.length + 2))));
   const measured = p.data_date?.split("~").pop();
   if (!c || (c.until && measured && measured >= c.until)) return p;
-  return { ...p, plan: c.plan, plan_en: c.plan, real_usd_per_mtok: p.real_usd_per_mtok * c.factor };
+  return { ...p, ...(c.plan ? { plan: c.plan, plan_en: c.plan } : {}), real_usd_per_mtok: p.real_usd_per_mtok * c.factor, ...(c.caveat ? { preliminary: c.caveat } : {}) };
 }
 
 const LESS_SURE: Record<string, string> = { high: "medium", medium: "low", low: "low" };
