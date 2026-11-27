@@ -52,8 +52,8 @@ export function SiteSearchButton({ wide = false }: { wide?: boolean }) {
   if (!wide) return <button type="button" onClick={openSiteSearch} aria-label="Search models, benchmarks and pages" title={`Search (${mac ? "⌘" : "Ctrl+"}K)`}
     className="icon-btn inline-flex items-center justify-center"><IconSearch size={18} stroke={1.6} aria-hidden="true" /></button>;
   return <button type="button" onClick={openSiteSearch} aria-label="Search models, benchmarks and pages"
-    className="site-search-trigger inline-flex items-center gap-2 h-8 w-[230px] pl-2.5 pr-1.5 rounded-md border hairline bg-white text-[13px] text-grey hover:border-ink">
-    <IconSearch size={15} stroke={1.75} aria-hidden="true" /><span className="flex-1 text-left truncate">Search models, benchmarks…</span>
+    className="site-search-trigger inline-flex items-center gap-2 h-8 w-full pl-2.5 pr-1.5 rounded-md border hairline bg-white text-[13px] text-grey hover:border-ink">
+    <IconSearch size={15} stroke={1.75} aria-hidden="true" /><span className="flex-1 min-w-0 text-left truncate">Search models, benchmarks, pages</span>
     <kbd className="cap px-1.5 py-0.5 rounded border hairline">{mac ? "⌘K" : "Ctrl K"}</kbd>
   </button>;
 }

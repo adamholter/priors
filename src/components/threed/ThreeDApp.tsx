@@ -8,11 +8,7 @@ import { mergeImports } from "@/lib/import-merge";
 import { PRESET_IDS, threeDUrl } from "@/lib/compare-ref";
 import { formulaInputs, chartLabel } from "@/lib/metrics";
 import { metaFor, placePoints, type Point3 } from "@/lib/three-d";
-import { HeaderAccount } from "../AccountMenu";
 import { SiteFooter } from "../SiteFooter";
-import { SiteNav } from "../SiteNav";
-import { SettingsButton } from "../SiteSettings";
-import { Wordmark } from "../Wordmark";
 import { markColor, useChartPalette } from "../chart/echarts";
 import { choiceFromIndex, choiceFromPage, choiceFromPreset, rankSide, type Choice, type Published } from "../compare/choice";
 import { loadPage } from "../compare/load-page";
@@ -23,6 +19,7 @@ import { Scene3D, type LabelMode, type Look, type ViewPreset } from "./Scene3D";
 import { AxisIcon, CAMERA_ICONS, MeasureIcon, TOGGLE_ICONS } from "./icons";
 import "../compare/compare.css";
 import "./threed.css";
+import { SiteHeader } from "@/components/SiteHeader";
 
 const VIEWS = {
   perspective: { label: "Perspective", ortho: false, dir: [1.15, 0.62, -0.72] },
@@ -98,11 +95,7 @@ export function ThreeDApp({ initial, wantMine, axes: axesParam, published }: { i
 
   return <main className="min-h-dvh">
     {probe}
-    <header className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 sm:px-8 py-2 sm:min-h-14 border-b hairline">
-      <div className="flex items-center gap-5"><Wordmark /><span className="max-sm:hidden"><SiteNav /></span></div>
-      <span className="ml-auto flex items-center gap-2"><HeaderAccount /><SettingsButton /></span>
-      <span className="sm:hidden w-full"><SiteNav mobile /></span>
-    </header>
+    <SiteHeader />
     <div className="max-w-[1280px] mx-auto px-4 sm:px-8 py-8 grid gap-5">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div><h1 className="text-[36px] leading-tight">3D</h1><div className="seg t3d-looks mt-2" role="group" aria-label="Chart style">{LOOKS.map((l) => <button key={l.id} type="button" aria-pressed={look === l.id} onClick={() => setLook(l.id)}>{l.label}</button>)}</div>{full && <p className="text-[13.5px] text-ink-2 mt-2 max-w-[62ch]">Every model as a point, with the better end of each axis at the best corner. Each point is projected onto the floor and back walls so you can read it against the grid. The green surface is the Pareto frontier: every model under it is beaten on all three by a model on it. Hover a point to trace its values.</p>}</div>

@@ -54,7 +54,7 @@ function RankingsColumns({ ranked, labs, limit = 30, onSelect, selected, showEff
   const cap = Math.min(limit, 20);
   const rows = expanded ? ranked : ranked.slice(0, cap);
   const svg = useRef<() => string | undefined>(() => undefined);
-  const head = <><div id={anchor} className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1 mb-3 min-h-8 scroll-mt-20">{subtitle ? <div className="w-full min-w-0">{title}</div> : <div className="min-w-0">{title}</div>}{subtitle && <div className="min-w-0 flex-1 basis-[280px]">{subtitle}</div>}<div className="flex items-center gap-1 ml-auto">{actions}{anchor && <ChartLink id={anchor} name="Rankings" />}<ChartExport name="Rankings" getSvg={() => svg.current()} getRows={() => ranked.map((r) => ({ rank: r.rank, model: r.model.name, effort: showEffort ? r.variant.effort : "best", score: +r.score.toFixed(2), lab: r.model.labId, cost_per_task_usd: r.costUsd ?? null, speed_toks: r.speed ?? null, coverage: r.coverage }))} /></div></div></>;
+  const head = <><div id={anchor} className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1 mb-3 min-h-8 scroll-mt-20">{subtitle ? <div className="w-full min-w-0">{title}</div> : <div className="min-w-0 max-w-full shrink-0">{title}</div>}{subtitle && <div className="min-w-0 flex-1 basis-[280px]">{subtitle}</div>}<div className="flex items-center gap-1 ml-auto">{actions}{anchor && <ChartLink id={anchor} name="Rankings" />}<ChartExport name="Rankings" getSvg={() => svg.current()} getRows={() => ranked.map((r) => ({ rank: r.rank, model: r.model.name, effort: showEffort ? r.variant.effort : "best", score: +r.score.toFixed(2), lab: r.model.labId, cost_per_task_usd: r.costUsd ?? null, speed_toks: r.speed ?? null, coverage: r.coverage }))} /></div></div></>;
   if (!rows.length) return <>{head}<p className="cap py-6">{empty ?? NO_ROWS}</p></>;
   // Bars have no room for a label, so new models are named below them.
   const newNames = [...new Set(rows.filter((r) => fresh?.has(r.model.id)).map((r) => r.model.name))];
@@ -73,7 +73,7 @@ function RankingsRows({ ranked, labs, limit = 30, onSelect, selected, showEffort
   const max = Math.max(...rows.map((r) => r.score), 1);
   const pitch = Math.round(30 * (pal.size?.row ?? 1));
 
-  const head = (exp: ReactNode) => <><div id={anchor} className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1 mb-3 min-h-8 scroll-mt-20">{subtitle ? <div className="w-full min-w-0">{title}</div> : <div className="min-w-0">{title}</div>}{subtitle && <div className="min-w-0 flex-1 basis-[280px]">{subtitle}</div>}<div className="flex items-center gap-1 ml-auto">{actions}{anchor && <ChartLink id={anchor} name="Rankings" />}{exp}</div></div></>;
+  const head = (exp: ReactNode) => <><div id={anchor} className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1 mb-3 min-h-8 scroll-mt-20">{subtitle ? <div className="w-full min-w-0">{title}</div> : <div className="min-w-0 max-w-full shrink-0">{title}</div>}{subtitle && <div className="min-w-0 flex-1 basis-[280px]">{subtitle}</div>}<div className="flex items-center gap-1 ml-auto">{actions}{anchor && <ChartLink id={anchor} name="Rankings" />}{exp}</div></div></>;
   if (!rows.length) return <>{head(null)}<p className="cap py-6">{empty ?? NO_ROWS}</p></>;
   return (
     <>

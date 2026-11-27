@@ -53,6 +53,7 @@ import "./page-themes.css";
 import { VIA_KEY } from "@/lib/share";
 import { useNewModels } from "@/lib/seen-models";
 import { avatarSrc } from "@/lib/avatar";
+import { SiteSearchButton } from "../SiteSearch";
 
 /** Stored shapes come from the Convex validators, so the page and the database can't disagree. */
 export type { Section };
@@ -262,7 +263,7 @@ export function IndexPage({ profile, snapshot: base, edit, tab: linkedTab, linke
       <header className="flex items-center gap-x-6 gap-y-2 px-4 sm:px-8 h-12 sm:h-auto sm:min-h-14 sm:py-2 border-b hairline relative sm:sticky top-0 z-10" style={{ background: surface + "E6", backdropFilter: "blur(8px)" }}>
         <Wordmark />
         <span className="text-grey text-[13px] max-sm:hidden">/ {p.handle}</span>
-        <span className="max-sm:hidden"><SiteNav /></span>
+        <span className="max-sm:hidden"><SiteNav /></span><span className="max-lg:hidden w-[240px]"><SiteSearchButton wide /></span><span className="max-sm:hidden lg:hidden"><SiteSearchButton /></span>
         <div className="ml-auto hidden sm:flex flex-wrap items-center justify-end gap-3">
           <span className="flex items-center">
             {active && <ShareCards compact indices={p.indices} active={active} profile={p} pageUrl={pageUrl.toString()} defaultDesign={p.theme?.cardDesign} top={topNames} pageTheme={p.theme?.preset} />}

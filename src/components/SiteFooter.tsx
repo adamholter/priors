@@ -17,14 +17,18 @@ const GROUPS: { title: string; links: ({ href: string; label: string; icon: Icon
 
 /**
  * The foot of the app's own pages: the header's five places with the same icons, then every other page in four groups, so the bottom of
- * any page is a map of the site. Support Priors is in the brand blue so it stands out from the list.
+ * any page is a map of the site. Support Priors is in the brand blue so it stands out from the list. The wordmark leads the first row, and the
+ * footer has the header's side padding, so their edges line up.
  */
 export function SiteFooter() {
-  return <footer className="grid gap-8 px-4 sm:px-8 pt-8 pb-10 max-w-[1500px] border-t border-hair mx-4 sm:mx-8 mt-6">
+  return <footer className="site-footer grid gap-7 px-4 sm:px-8 pt-7 pb-8 border-t border-hair mt-6">
+    <div className="flex flex-wrap items-center gap-x-8 gap-y-3">
+    <Wordmark size={24} />
     <nav aria-label="Footer" className="flex flex-wrap gap-x-6 gap-y-3">
       {SITE_PLACES.map((p) => <Link key={p.id} prefetch={false} href={p.href} className="inline-flex items-center gap-2 text-[14px] text-ink no-underline hover:underline">
         <p.icon size={18} stroke={1.6} aria-hidden="true" className="text-ink-2" />{p.label}</Link>)}
     </nav>
+    </div>
     <div className="grid grid-cols-2 sm:grid-cols-4 gap-6">
       {GROUPS.map((g) => <nav key={g.title} aria-label={g.title} className="grid gap-2 content-start">
         <p className="cap mb-0.5">{g.title}</p>
@@ -34,6 +38,5 @@ export function SiteFooter() {
             <l.icon size={15} stroke={1.6} aria-hidden="true" className="text-grey" />{l.label}</Link>)}
       </nav>)}
     </div>
-    <Wordmark size={18} />
   </footer>;
 }

@@ -1,10 +1,9 @@
 import Link from "next/link";
-import { SettingsButton } from "@/components/SiteSettings";
-import { Wordmark } from "@/components/Wordmark";
 import { PageTransition } from "@/components/PageTransition";
 import { pageMeta } from "@/lib/site-meta";
 import { TOOLS } from "@/mcp/tools";
 import { CopyBlock } from "./CopyBlock";
+import { SiteHeader } from "@/components/SiteHeader";
 
 export const metadata = pageMeta({ title: "CLI and MCP", description: "Rank models, read every benchmark and run your Priors page from the terminal or from your own agent.", path: "/cli" });
 
@@ -40,10 +39,10 @@ priors call fit_ranking order='["opus 5.5","gpt-6.1 sol","fable 5.1"]'`;
 export default function CliPage() {
   return (
     <PageTransition><main className="min-h-screen">
-      <header className="flex items-center gap-6 px-8 h-14 border-b hairline"><Wordmark transitionTypes={["nav-back"]} /><Link href="/builder" transitionTypes={["nav-back"]} className="text-grey text-[13px] hover:text-ink">Builder</Link><Link href="/tools" transitionTypes={["nav-back"]} className="text-grey text-[13px] hover:text-ink">Tools</Link><span className="ml-auto"><SettingsButton /></span></header>
+      <SiteHeader />
       <div className="max-w-[860px] mx-auto px-8 py-12 grid gap-10">
         <div>
-          <h1 className="text-[36px] mb-3">CLI and MCP</h1>
+          <Link href="/tools" transitionTypes={["nav-back"]} className="tools-back cap inline-block mb-3 hover:text-ink">← Tools</Link><h1 className="text-[36px] mb-3">CLI and MCP</h1>
           <p className="text-[16px] text-ink-2 leading-relaxed max-w-[64ch]">Everything the site does, from a terminal or from your own agent: rank models under any index, read any benchmark, compare, chart, and, with your token, run your page. One set of {TOOLS.length} tools serves the MCP server, the CLI and a plain HTTP API, so they never disagree with each other or with mypriors.com.</p>
         </div>
 

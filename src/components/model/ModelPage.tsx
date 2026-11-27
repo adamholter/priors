@@ -2,16 +2,12 @@
 import { categoryName } from "@/data/categories";
 import { SiteFooter } from "@/components/SiteFooter";
 import Link from "next/link";
-import { HeaderAccount } from "@/components/AccountMenu";
-import { SettingsButton } from "../SiteSettings";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { EChartsOption } from "echarts";
 import type { Benchmark, Snapshot } from "@/data/types";
 import { benchRows, type BenchRow as Row, type ModelView, type ViewBenchmark, type ViewField } from "@/lib/model-view";
 import type { ModelAvailability } from "@/lib/model-availability";
 import { rankParam, type RankingOption } from "@/lib/model-ranking-param";
-import { Wordmark } from "../Wordmark";
-import { SiteNav } from "../SiteNav";
 import { CONTAIN_AXIS_LABELS, insideLabels, markColor, useChartPalette, useEChart } from "../chart/echarts";
 import { BenchmarkInfo, InfoIcon } from "../BenchmarkInfo";
 import { ModelStrengths } from "./ModelStrengths";
@@ -21,6 +17,7 @@ import { ModelCostSpeed } from "./ModelCostSpeed";
 import { ModelAvailabilitySection } from "./ModelAvailability";
 import { escapeSvg as esc } from "../chart/export-frame";
 import { useNearView } from "../use-near-view";
+import { SiteHeader } from "@/components/SiteHeader";
 
 type Bench = Pick<Benchmark, "unit" | "higherIsBetter" | "name" | "effortBasis">;
 
@@ -56,7 +53,7 @@ export function ModelPage({ view, summary, availability, othersUrl, options, cur
   return (
     <main className="min-h-screen">
       {probe}
-      <header className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 sm:px-8 py-2 sm:min-h-14 border-b hairline"><div className="flex items-center gap-5"><Wordmark /><Link href={view.builderHref as "/builder"} prefetch={false} className="max-sm:hidden text-grey text-[13px] hover:text-ink">Builder</Link><Link href="/models" prefetch={false} className="max-sm:hidden text-grey text-[13px] hover:text-ink">All models</Link></div><span className="ml-auto flex items-center gap-2"><HeaderAccount /><SettingsButton /></span><span className="sm:hidden w-full"><SiteNav mobile /></span></header>
+      <SiteHeader current="models" />
       <div className="max-w-[1100px] mx-auto px-5 sm:px-8 py-10 grid gap-12">
         <section className="grid gap-5 sm:grid-cols-[1fr_auto] items-end">
           <div>

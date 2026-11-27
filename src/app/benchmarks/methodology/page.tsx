@@ -1,13 +1,10 @@
 import Link from "next/link";
 import { loadSnapshot } from "@/data/load";
-import { SettingsButton } from "@/components/SiteSettings";
 import { SiteFooter } from "@/components/SiteFooter";
-import { SiteNav } from "@/components/SiteNav";
-import { Wordmark } from "@/components/Wordmark";
-import { HeaderAccount } from "@/components/AccountMenu";
 import { RECOMMENDED_NAME, EPOCH_VERIFIED, FRONTIER_RELEASE_DATE, PREFERRED, QUALITY_ADJUST, QUALITY_FACTORS, QUALITY_WEIGHTS } from "@/onboarding/quality";
 import { USE_LIFT } from "@/lib/benchmark-recommended";
 import { pageMeta } from "@/lib/site-meta";
+import { SiteHeader } from "@/components/SiteHeader";
 
 export const dynamic = "force-dynamic";
 export const metadata = pageMeta({ title: "How benchmark scores work", description: "How Priors calculates the quality and recommended scores in its benchmark directory.", path: "/benchmarks/methodology" });
@@ -20,7 +17,7 @@ export default async function Page() {
   const names = new Map(snapshot?.benchmarks.map((b) => [b.id, b.name]));
   return (
     <main className="min-h-screen">
-      <header className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 sm:px-8 py-2 sm:min-h-14 border-b hairline"><div className="flex items-center gap-5"><Wordmark /><span className="max-sm:hidden"><SiteNav current="benchmarks" /></span></div><span className="ml-auto flex items-center gap-2"><HeaderAccount /><SettingsButton /></span><span className="sm:hidden w-full"><SiteNav current="benchmarks" mobile /></span></header>
+      <SiteHeader current="benchmarks" />
       <article className="max-w-[720px] mx-auto px-5 sm:px-8 py-12 grid gap-8 text-[15px] leading-[1.7] text-ink-2">
         <div className="grid gap-2">
           <Link href="/benchmarks" className="cap hover:text-ink">Benchmarks</Link>

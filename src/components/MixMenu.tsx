@@ -28,7 +28,7 @@ export function MixMenu({ indices, activeId, onSelect, onAdd, onRename, onRemove
   const item = "flex w-full items-center gap-2.5 px-3 py-2 rounded text-left text-[13.5px] text-ink-2 hover:bg-hair-2 hover:text-ink";
   return <div ref={box} className="relative inline-block max-w-full">
     <button ref={trigger} type="button" aria-haspopup="menu" aria-expanded={open} onClick={() => (open ? close() : setOpen(true))}
-      className="mix-menu-trigger max-w-full -mx-2 px-2 py-0.5 rounded-md hover:bg-hair-2 text-left" title="Switch, rename or add a mix">
+      className="mix-menu-trigger -mx-2 px-2 py-0.5 rounded-md hover:bg-hair-2 text-left" title="Switch, rename or add a mix">
       {/* The chevron stays on the line with the name's last word, however the title wraps. */}
       {head}<span className="whitespace-nowrap">{tail}<IconChevronDown size={18} stroke={1.75} aria-hidden="true" className="ml-1.5 text-grey" style={{ display: "inline-block", verticalAlign: "middle" }} /></span>
     </button>

@@ -1,10 +1,9 @@
-import { SettingsButton } from "@/components/SiteSettings";
 import Link from "next/link";
-import { Wordmark } from "@/components/Wordmark";
 import { PageTransition } from "@/components/PageTransition";
 import { CopySkill } from "./CopySkill";
 import { pageMeta } from "@/lib/site-meta";
 import { readRuntimeFile } from "@/lib/runtime-files";
+import { SiteHeader } from "@/components/SiteHeader";
 
 export const metadata = pageMeta({ title: "Agent skill", description: "A skill that lets your own agent read and export Priors data, add benchmarks and edit your page.", path: "/skill" });
 
@@ -12,10 +11,10 @@ export default async function SkillPage() {
   const md = (await readRuntimeFile("public/skill/SKILL.md")).toString("utf8");
   return (
     <PageTransition><main className="min-h-screen">
-      <header className="flex items-center gap-6 px-8 h-14 border-b hairline"><Wordmark transitionTypes={["nav-back"]} /><Link href="/builder" transitionTypes={["nav-back"]} className="text-grey text-[13px] hover:text-ink">Builder</Link><Link href="/tools" transitionTypes={["nav-back"]} className="text-grey text-[13px] hover:text-ink">Tools</Link><span className="ml-auto"><SettingsButton /></span></header>
+      <SiteHeader />
       <div className="max-w-[820px] mx-auto px-8 py-12 grid gap-8">
         <div>
-          <h1 className="text-[36px] mb-3">One skill for your agent</h1>
+          <Link href="/tools" transitionTypes={["nav-back"]} className="tools-back cap inline-block mb-3 hover:text-ink">← Tools</Link><h1 className="text-[36px] mb-3">One skill for your agent</h1>
           <p className="text-[16px] text-ink-2 leading-relaxed max-w-[62ch]">Install it in Claude Code, Codex, or any agent that reads skill files, or paste it into a chat. It tells the agent how to get data out of Priors, how to research a benchmark you want and add it to your page, and how to restyle or rewrite your page when you ask. It also says where the code is, so your agent can work on Priors itself.</p>
         </div>
         <CopySkill md={md} />

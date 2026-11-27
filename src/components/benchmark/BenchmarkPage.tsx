@@ -15,14 +15,10 @@ import { formulaInputs } from "@/lib/metrics";
 import { formatBenchValue } from "@/lib/benchmark-format";
 import { benchmarkIndex, benchmarkView, hasOwnCost } from "@/lib/benchmark-page";
 import { SiteFooter } from "../SiteFooter";
-import { HeaderAccount } from "../AccountMenu";
-import { SettingsButton } from "../SiteSettings";
 import { BenchmarkStar, BenchmarkStars } from "./BenchmarkStar";
 import { QualityPanel, type QualityView } from "./QualityPanel";
 import { IconRosetteDiscountCheck } from "@tabler/icons-react";
 import { RECOMMENDED_NAME, RECOMMENDED_TIP } from "@/onboarding/quality";
-import { Wordmark } from "../Wordmark";
-import { SiteNav } from "../SiteNav";
 import { Rankings } from "../Rankings";
 import { ParetoChart } from "../chart/ParetoChart";
 import { freeTierSettings } from "@/data/free-tier";
@@ -35,6 +31,7 @@ import { INDEX_SCORE_AXIS, ScoreAxisContext, type ScoreAxis } from "../chart/sco
 import { BreakdownTable, Relatives, SeriesChart } from "./BenchmarkExtras";
 import { metricChartOf } from "@/lib/benchmark-chart";
 import { benchmarkMetrics, benchmarkSeries, formatMetric, type BenchMetric } from "@/lib/benchmark-metrics";
+import { SiteHeader } from "@/components/SiteHeader";
 
 const fmt = formatBenchValue;
 const usd = (v: number) => v === 0 ? "free" : `$${v >= 10 ? v.toFixed(0) : v >= 1 ? v.toFixed(2) : v.toFixed(v >= 0.1 ? 2 : 3)}`;
@@ -103,7 +100,7 @@ export function BenchmarkPage({ snapshot: base, benchmarkId, models, relatives, 
 
   return (
     <main className="min-h-screen">
-      <header className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 sm:px-8 py-2 sm:min-h-14 border-b hairline"><div className="flex items-center gap-5"><Wordmark /><span className="max-sm:hidden"><SiteNav /></span></div><span className="ml-auto flex items-center gap-2"><HeaderAccount /><SettingsButton /></span><span className="sm:hidden w-full"><SiteNav mobile /></span></header>
+      <SiteHeader current="benchmarks" />
       <BenchmarkStars><HighlightContext.Provider value={highlightState}><ScoreAxisContext.Provider value={plotRaw ? axis : { ...INDEX_SCORE_AXIS, name: "Score (Priors scale)" }}>
         <div className="max-w-[1100px] mx-auto px-5 sm:px-8 py-10 grid gap-12">
           <section className="grid gap-2">

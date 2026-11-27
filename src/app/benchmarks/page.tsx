@@ -1,15 +1,12 @@
 import type { Metadata } from "next";
 import { loadSnapshot } from "@/data/load";
-import { Wordmark } from "@/components/Wordmark";
-import { SiteNav } from "@/components/SiteNav";
 import { SiteFooter } from "@/components/SiteFooter";
-import { HeaderAccount } from "@/components/AccountMenu";
-import { SettingsButton } from "@/components/SiteSettings";
 import { BenchmarkDirectory } from "@/components/benchmark/BenchmarkDirectory";
 import { directoryItems, starIds } from "@/lib/benchmark-page";
 import { benchmarkQuality } from "@/onboarding/quality";
 import { benchmarkCommunity } from "@/lib/benchmark-community";
 import { pageMeta } from "@/lib/site-meta";
+import { SiteHeader } from "@/components/SiteHeader";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = pageMeta({ title: "Benchmarks", description: "Search every benchmark Priors tracks. Each has its own leaderboard, its published extras, and a cost chart adjusted for subscription plans.", path: "/benchmarks" });
@@ -20,7 +17,7 @@ export default async function Page() {
   const items = snapshot ? directoryItems(snapshot, new Map(benchmarkQuality(snapshot).map((q) => [q.id, q])), community) : [];
   return (
     <main className="min-h-screen">
-      <header className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 sm:px-8 py-2 sm:min-h-14 border-b hairline"><div className="flex items-center gap-5"><Wordmark /><span className="max-sm:hidden"><SiteNav current="benchmarks" /></span></div><span className="ml-auto flex items-center gap-2"><HeaderAccount /><SettingsButton /></span><span className="sm:hidden w-full"><SiteNav current="benchmarks" mobile /></span></header>
+      <SiteHeader current="benchmarks" />
       <div className="max-w-[1240px] mx-auto px-5 sm:px-8 py-10 grid gap-8">
         <div>
           <h1 className="text-[38px] leading-tight">Benchmarks</h1>

@@ -1,12 +1,10 @@
-import Link from "next/link";
-import { SettingsButton } from "@/components/SiteSettings";
 import { SiteFooter } from "@/components/SiteFooter";
-import { Wordmark } from "@/components/Wordmark";
 import { loadSnapshot } from "@/data/load";
 import { pageMeta } from "@/lib/site-meta";
 import { Pledge } from "./Pledge";
 import { ShareButton } from "./ShareButton";
 import "./support.css";
+import { SiteHeader } from "@/components/SiteHeader";
 
 export const metadata = pageMeta({ title: "Support Priors", description: "Priors is free, and supporters now cover the whole bill. Here is what it costs and where your support goes.", path: "/support" });
 
@@ -40,7 +38,7 @@ export default async function SupportPage() {
   const models = snap?.models?.length ?? 0;
   return (
     <main className="min-h-screen">
-      <header className="flex items-center gap-6 px-8 h-14 border-b hairline"><Wordmark /><Link href="/builder" className="text-grey text-[13px] hover:text-ink">Builder</Link><span className="ml-auto"><SettingsButton /></span></header>
+      <SiteHeader />
       <div className="max-w-[1040px] mx-auto px-6 sm:px-8 py-12 sm:py-16 grid gap-16">
         <section className="sp-hero">
           <div className="grid gap-5">

@@ -1,20 +1,17 @@
 import type { Metadata } from "next";
-import { HeaderAccount } from "@/components/AccountMenu";
 import Link from "next/link";
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "../../../convex/_generated/api";
 import { loadSnapshot } from "@/data/load";
 import { computeIndex, PAGE_VIEW, rankingRows, type IndexConfig } from "@/engine";
 import type { Snapshot } from "@/data/types";
-import { Wordmark } from "@/components/Wordmark";
 import { SiteFooter } from "@/components/SiteFooter";
-import { SiteNav } from "@/components/SiteNav";
-import { SettingsButton } from "@/components/SiteSettings";
 import { encodeIndices, prettyQuery } from "@/lib/url";
 import { rankedCount } from "@/lib/ranked-count";
 import { ExploreCard, FeaturedMixCard, type ExploreCardData, type FeaturedMixData } from "@/components/explore/ExploreCard";
 import { featuredMixes } from "@/lib/featured-mixes";
 import { pageMeta } from "@/lib/site-meta";
+import { SiteHeader } from "@/components/SiteHeader";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = pageMeta({ title: "Explore rankings", description: "AI model rankings people have built and published on Priors.", path: "/explore" });
@@ -55,11 +52,7 @@ export default async function Explore() {
   }) : [];
 
   return <main className="min-h-dvh">
-    <header className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 sm:px-8 py-2 sm:min-h-14 border-b hairline">
-      <div className="flex items-center gap-5"><Wordmark /><span className="max-sm:hidden"><SiteNav current="explore" /></span></div>
-      <span className="ml-auto flex items-center gap-2"><HeaderAccount /><SettingsButton /></span>
-      <span className="sm:hidden w-full"><SiteNav current="explore" mobile /></span>
-    </header>
+    <SiteHeader current="explore" />
     <div className="max-w-[1100px] mx-auto px-4 sm:px-8 py-10">
       <div className="flex flex-wrap items-end justify-between gap-4 mb-8">
         <div>

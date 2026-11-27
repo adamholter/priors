@@ -3,7 +3,7 @@ import Link from "next/link";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { SITE_PLACES, type SiteId as Id } from "./site-places";
-import { openSiteSearch, SiteSearchButton } from "./SiteSearch";
+import { openSiteSearch } from "./SiteSearch";
 import { IconSearch } from "@tabler/icons-react";
 
 /**
@@ -11,14 +11,12 @@ import { IconSearch } from "@tabler/icons-react";
  * Each has an icon (from 1024px; narrower desktop headers have no room) and the page you are on is filled. `mobile` is the phone row under the header: five icons with short labels, which slides
  * away while you scroll down and comes back as soon as you scroll up, without going back to the top (`useHeadroom`).
  */
-export function SiteNav({ current, mobile = false, compactSearch = false }: { current?: Id; mobile?: boolean; /** Search as an icon at every width (the Builder, whose header also holds the mix tabs). */ compactSearch?: boolean }) {
+export function SiteNav({ current, mobile = false }: { current?: Id; mobile?: boolean }) {
   if (mobile) return <PhoneNav current={current} />;
   return <nav aria-label="Site" className="flex items-center gap-0.5">
     {SITE_PLACES.map((p) => <Link key={p.id} href={p.href} title={p.title} aria-current={current === p.id ? "page" : undefined}
       className={`inline-flex items-center gap-1.5 px-1.5 lg:px-2.5 py-1.5 rounded-md text-[13px] whitespace-nowrap no-underline ${current === p.id ? "text-ink bg-hair-2" : "text-ink-2 hover:text-ink hover:bg-hair-2/60"}`}>
       <p.icon size={16} stroke={1.6} aria-hidden="true" className="max-lg:hidden" />{p.label}</Link>)}
-    {/* Universal search: a field from 1280px, an icon below that. */}
-    {compactSearch ? <span className="ml-1"><SiteSearchButton /></span> : <><span className="ml-1 xl:hidden"><SiteSearchButton /></span><span className="ml-3 max-xl:hidden"><SiteSearchButton wide /></span></>}
   </nav>;
 }
 

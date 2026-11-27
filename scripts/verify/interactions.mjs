@@ -64,7 +64,7 @@ try {
       for (const route of ["/skill", "/cli", "/import"]) {
         const res = await p.goto(`${BASE}${route}`, { waitUntil: "domcontentloaded" });
         assert.equal(res.status(), 200, `${route} status`);
-        assert.ok(await p.locator('header a[href="/tools"]').count(), `${route} links back to /tools`);
+        assert.ok(await p.locator('a.tools-back[href="/tools"]').count(), `${route} links back to /tools`);
       }
       // Click once the page has loaded (a click during hydration can be dropped), and wait for the address to change, not for
       // /request's own load event: that waits on every subresource and is what timed out on a busy CI runner.

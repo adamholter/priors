@@ -53,6 +53,7 @@ import { usePhone } from "./builder-size";
 import { leaving } from "./nav-progress";
 import { VersionNotices, type BuilderNotices } from "./VersionNotices";
 import { ownSavedIndices, upgradeIndex } from "@/lib/version-notices";
+import { SiteSearchButton } from "./SiteSearch";
 
 /** In the builder, version notices also cover the signed-in user's own page. */
 const OWN_PAGE = {};
@@ -223,7 +224,7 @@ export function Builder({ snapshot: base, initialIndices }: { snapshot: Snapshot
     <ChartPaletteContext.Provider value={palette}>
     <div className="builder min-h-dvh">
       <header className="builder-header grid grid-cols-[auto_minmax(0,1fr)_auto] lg:flex items-center gap-x-4 gap-y-2 px-4 sm:px-8 py-2 lg:py-0 lg:h-14 border-b hairline lg:sticky top-0 bg-bone z-40">
-        <div className="shrink-0 flex items-center gap-5"><Wordmark transitionTypes={["nav-back"]} /><span className="max-sm:hidden"><SiteNav current="builder" compactSearch /></span></div>
+        <div className="shrink-0 flex items-center gap-5"><Wordmark transitionTypes={["nav-back"]} /><span className="max-sm:hidden"><SiteNav current="builder" /></span><span className="max-xl:hidden w-[220px]"><SiteSearchButton wide /></span><span className="max-sm:hidden xl:hidden"><SiteSearchButton /></span></div>
         <div className="min-w-0 flex-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden max-sm:col-span-3 max-sm:row-start-2 empty:hidden">
           {(mixOpen || indices.length > 1) && <IndexTabs indices={indices} activeId={active.id} onSelect={setActiveId} onRename={(id, name) => update({ ...indices.find((i) => i.id === id)!, name })} onAdd={add} onRemove={remove} />}
         </div>

@@ -279,6 +279,8 @@ const OVERRIDES: Record<string, BenchmarkSize | null> = {
   "game-autoresearch": { tasks: 6, runs: 1, url: "https://gameautoresearch.github.io/" },
   // One bot-writing task; its five attempts are what vary (each plays 360 games, so each attempt's own score is precise).
   "polytopia-bench": { tasks: 1, runs: 5, url: "https://github.com/kevinz917/superhuman-polytopia-bot/blob/main/benchmark/INDEX.md" },
+  // Added 2026-11-27: 544 prompts in 136 families of four; each family is scored as a whole (family pass^4).
+  hfe: { tasks: 544, url: "https://www.kaggle.com/benchmarks/deepmind/hfe" },
   // The board's own vote count on 2026-11-23 (its page data, `metadata.totalVotes`).
   "designarena-hii": { tasks: 2_314_337, votes: true, url: "https://www.designarena.ai/leaderboard?section=overall&board=human-intelligence-index" },
   // One run per model; the score is gems collected out of 100 (mazebench.com/blog, "Introducing MazeBench").

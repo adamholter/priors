@@ -1,15 +1,12 @@
 import Link from "next/link";
 import { unstable_cache } from "next/cache";
 import { loadSnapshot } from "@/data/load";
-import { SettingsButton } from "@/components/SiteSettings";
 import { SiteFooter } from "@/components/SiteFooter";
-import { SiteNav } from "@/components/SiteNav";
-import { Wordmark } from "@/components/Wordmark";
-import { HeaderAccount } from "@/components/AccountMenu";
 import { Podium, PriorsBenchBoard } from "@/components/PriorsBenchBoard";
 import { pageMeta } from "@/lib/site-meta";
 import { fetchRankings, HALF_LIFE_DAYS, MIN_RANKINGS, PRIORS_CONVEX_URL } from "@/lib/priorsbench";
 import { buildBoard } from "@/lib/priorsbench-board";
+import { SiteHeader } from "@/components/SiteHeader";
 
 export const dynamic = "force-dynamic";
 export const metadata = pageMeta({ title: "PriorsBench", description: "The AI models people rank highest on Priors: an Elo-scale leaderboard from every ranking, with head-to-head records and history.", path: "/priorsbench" });
@@ -26,7 +23,7 @@ export default async function Page() {
   const stats: [string, string][] = data ? [[data.totals.rankings.toLocaleString("en-US"), "rankings"], [data.totals.votes.toLocaleString("en-US"), "head-to-head votes"], [String(data.totals.models), "models rated"], [shortDate(data.totals.since), "first ranking"]] : [];
   return (
     <main className="min-h-screen">
-      <header className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 sm:px-8 py-2 sm:min-h-14 border-b hairline"><div className="flex items-center gap-5"><Wordmark /><span className="max-sm:hidden"><SiteNav /></span></div><span className="ml-auto flex items-center gap-2"><HeaderAccount /><SettingsButton /></span><span className="sm:hidden w-full"><SiteNav mobile /></span></header>
+      <SiteHeader />
       <div className="max-w-[1240px] mx-auto px-4 sm:px-8 py-10 sm:py-12 grid gap-12">
         <div className="grid gap-x-16 gap-y-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] items-end">
           <div className="grid gap-7">

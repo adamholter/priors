@@ -1,13 +1,12 @@
 "use client";
 import Link from "next/link";
-import { SettingsButton } from "@/components/SiteSettings";
 import { useState } from "react";
-import { Wordmark } from "@/components/Wordmark";
 import { importSchema, type ImportPayload } from "@/lib/import";
 import { normalizeLabel } from "@/data/normalize";
 import { authEnabled } from "@/app/providers";
 import { PageTransition } from "@/components/PageTransition";
 import { ImportSave } from "./ImportSave";
+import { SiteHeader } from "@/components/SiteHeader";
 
 export const LOCAL_KEY = "priors:imports";
 
@@ -29,9 +28,9 @@ export default function ImportPage() {
 
   return (
     <PageTransition><main className="min-h-screen">
-      <header className="flex items-center gap-6 px-8 h-14 border-b hairline"><Wordmark transitionTypes={["nav-back"]} /><Link href="/builder" transitionTypes={["nav-back"]} className="text-grey text-[13px] hover:text-ink">Builder</Link><Link href="/tools" transitionTypes={["nav-back"]} className="text-grey text-[13px] hover:text-ink">Tools</Link><span className="ml-auto"><SettingsButton /></span></header>
+      <SiteHeader />
       <div className="max-w-[820px] mx-auto px-8 py-12 grid gap-6">
-        <div><h1 className="text-[36px] mb-3">Import a benchmark</h1><p className="text-[16px] text-ink-2 max-w-[62ch]">Paste the JSON your agent produced with the <Link href="/skill" transitionTypes={["nav-forward"]} className="text-indigo">Priors skill</Link>, or drop the file. Model names are matched to the models already on the site; anything unrecognized is listed so you can fix it. An import is yours alone: to have a benchmark added for everyone, <Link href="/request?kind=benchmark" className="text-indigo">request it</Link>.</p></div>
+        <div><Link href="/tools" transitionTypes={["nav-back"]} className="tools-back cap inline-block mb-3 hover:text-ink">← Tools</Link><h1 className="text-[36px] mb-3">Import a benchmark</h1><p className="text-[16px] text-ink-2 max-w-[62ch]">Paste the JSON your agent produced with the <Link href="/skill" transitionTypes={["nav-forward"]} className="text-indigo">Priors skill</Link>, or drop the file. Model names are matched to the models already on the site; anything unrecognized is listed so you can fix it. An import is yours alone: to have a benchmark added for everyone, <Link href="/request?kind=benchmark" className="text-indigo">request it</Link>.</p></div>
         <div className="grid gap-2">
           <textarea value={text} onChange={(e) => validate(e.target.value)} rows={12} spellCheck={false} placeholder='{ "benchmark": { … }, "rows": [ … ] }' className="inp mono text-[12.5px]" onDrop={async (e) => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) validate(await f.text()); }} onDragOver={(e) => e.preventDefault()} />
           <div className="flex items-center gap-2"><input type="file" accept="application/json,.json" onChange={async (e) => { const f = e.target.files?.[0]; if (f) validate(await f.text()); }} className="text-[12.5px]" /></div>

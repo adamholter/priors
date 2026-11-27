@@ -147,6 +147,7 @@ export const DIRECT: Record<string, Entry> = {
   "roboflow-visual-reasoning": { c: ["vision", "reasoning"], d: "Questions about images that take counting, comparing, spatial sense and several steps of inference; the answer is never written in the image. Share correct, judged by an AI model." },
   simplebench: { c: ["reasoning"], d: "Over 200 multiple-choice trick questions on everyday spatial, time and social sense, where ordinary people beat frontier models. Share correct, averaged over 5 runs." },
   "simpleqa-verified": { c: ["knowledge"], d: `${SIMPLEQA}.` },
+  hfe: { c: ["vision", "reasoning", "reliability"], d: "Google DeepMind's reliability test: 544 simple everyday prompts, mostly about pictures (count the mugs, name the object), in families of four slight variations. A family counts only if the model gets every variation right every time (family pass^4), so a model that is right once but not reliably scores low." },
   "subscription-token-price": { c: ["cost"] },
   "swe-atlas-v1-1": { c: ["coding", "agentic"], d: "Scale AI's index of professional coding work beyond fixing issues: answering questions about a codebase, writing tests and refactoring, 284 tasks in real repositories. Version 1.1, re-graded by a new judge; not comparable with v1.0." },
   "swe-atlas-qna-v1-1": { c: ["coding", "agentic"], d: "An agent explores a real code repository with shell tools and answers deep questions about how it works. The share of questions where every rubric item is met. Version 1.1 of SWE Atlas QnA, re-graded by a new judge." },

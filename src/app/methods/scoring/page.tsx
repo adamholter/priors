@@ -1,16 +1,13 @@
 import Link from "next/link";
 import { loadSnapshot } from "@/data/load";
-import { SettingsButton } from "@/components/SiteSettings";
 import { SiteFooter } from "@/components/SiteFooter";
-import { SiteNav } from "@/components/SiteNav";
-import { Wordmark } from "@/components/Wordmark";
-import { HeaderAccount } from "@/components/AccountMenu";
 import { curveAt, mixAt, type FigCurve } from "@/components/methods/figure-math";
 import { TwoScales } from "@/components/methods/TwoScales";
 import { AbilitySteps, AverageFigure, Both, CurveKey, CurvesFigure, Figure, pickThree, StepsFigure } from "@/components/methods/ScoringFigures";
 import { computeIndex, defaultConfig, EPOCH_ECI, selectVariants, type RankedVariant, type ScoringFit, type ScoringMethod } from "@/engine";
 import { encodeIndices, prettyQuery } from "@/lib/url";
 import { pageMeta } from "@/lib/site-meta";
+import { SiteHeader } from "@/components/SiteHeader";
 
 export const dynamic = "force-dynamic";
 export const metadata = pageMeta({ title: "Scoring methods", description: "The three ways Priors can turn a mix of benchmarks into one score per model: the weighted average, IRT ability and an ECI-style score.", path: "/methods/scoring" });
@@ -56,7 +53,7 @@ export default async function Page() {
   const open = (scoring: ScoringMethod) => (config ? `/builder?${prettyQuery(encodeIndices([{ ...config, name: "General frontier", scoring }]))}` : "/builder");
   return (
     <main className="min-h-screen">
-      <header className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 sm:px-8 py-2 sm:min-h-14 border-b hairline"><div className="flex items-center gap-5"><Wordmark /><span className="max-sm:hidden"><SiteNav /></span></div><span className="ml-auto flex items-center gap-2"><HeaderAccount /><SettingsButton /></span><span className="sm:hidden w-full"><SiteNav mobile /></span></header>
+      <SiteHeader />
       <article className="max-w-[720px] mx-auto px-5 sm:px-8 py-12 grid gap-8 text-[15px] leading-[1.7] text-ink-2">
         <div className="grid gap-2">
           <Link href="/builder" className="cap hover:text-ink">Rankings</Link>

@@ -1,12 +1,11 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { SettingsButton } from "@/components/SiteSettings";
 import { SiteFooter } from "@/components/SiteFooter";
-import { Wordmark } from "@/components/Wordmark";
 import { PageTransition } from "@/components/PageTransition";
 import { pageMeta } from "@/lib/site-meta";
 import { TOOLS } from "@/mcp/tools";
 import { CopyBlock } from "../cli/CopyBlock";
+import { SiteHeader } from "@/components/SiteHeader";
 
 export const metadata = pageMeta({ title: "Tools", description: "Every way to use Priors from outside the site: the agent skill, the MCP server, the CLI, importing your own benchmark and exporting the data.", path: "/tools" });
 
@@ -23,7 +22,7 @@ const SECTIONS = [["skill", "Agent skill"], ["mcp", "MCP server"], ["cli", "CLI"
 export default function ToolsPage() {
   return (
     <PageTransition><main className="min-h-screen">
-      <header className="flex items-center gap-6 px-4 sm:px-8 h-14 border-b hairline"><Wordmark transitionTypes={["nav-back"]} /><Link href="/builder" transitionTypes={["nav-back"]} className="text-grey text-[13px] hover:text-ink">Builder</Link><span className="ml-auto"><SettingsButton /></span></header>
+      <SiteHeader />
       <div className="max-w-[820px] mx-auto px-4 sm:px-8 py-12 grid gap-10">
         <div className="grid gap-4">
           <h1 className="text-[36px]">Tools</h1>

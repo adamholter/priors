@@ -6,16 +6,13 @@ import { IconArrowsLeftRight, IconChevronDown, IconSearch, IconX } from "@tabler
 import { categoryName } from "@/data/categories";
 import { money } from "@/lib/metrics";
 import type { CompareBench, CompareOption, CompareSide, ModelCompareView } from "@/lib/model-view";
-import { HeaderAccount } from "../AccountMenu";
 import { Radar, RadarSwatch } from "../chart/Radar";
 import type { RadarSeries } from "../chart/radar-view";
 import { useChartPalette } from "../chart/palette-context";
 import { markColor } from "../chart/theme-tokens";
 import { SiteFooter } from "../SiteFooter";
-import { SiteNav } from "../SiteNav";
-import { SettingsButton } from "../SiteSettings";
-import { Wordmark } from "../Wordmark";
 import "../chart/radar.css";
+import { SiteHeader } from "@/components/SiteHeader";
 
 const FIRST_BENCHMARKS = 12, FIRST_PER_LAB = 5, NEAR = 3, MAX_RESULTS = 40;
 const secs = (v: number) => (v >= 60 ? `${(v / 60).toFixed(v >= 600 ? 0 : 1)} min` : `${v.toFixed(v >= 10 ? 0 : 1)}s`);
@@ -104,11 +101,7 @@ export function ModelCompare({ view }: { view: ModelCompareView }) {
   const go = (nextA: string, nextB?: string) => { setChoosing(null); router.push(href(nextA, nextB) as "/"); };
   const nameButton = (s: CompareSide, side: "a" | "b") => <button type="button" className="inline-flex items-baseline gap-1 text-left hover:underline decoration-1 underline-offset-[6px]" aria-label={`Change ${s.name}`} onClick={() => setChoosing(side)}>{s.name}<IconChevronDown size={20} className="self-center text-grey shrink-0" aria-hidden="true" /></button>;
   return <main className="min-h-dvh">
-    <header className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 sm:px-8 py-2 sm:min-h-14 border-b hairline">
-      <div className="flex items-center gap-5"><Wordmark /><span className="max-sm:hidden"><SiteNav /></span></div>
-      <span className="ml-auto flex items-center gap-2"><HeaderAccount /><SettingsButton /></span>
-      <span className="sm:hidden w-full"><SiteNav mobile /></span>
-    </header>
+    <SiteHeader current="models" />
     <div className="max-w-[1100px] mx-auto px-5 sm:px-8 py-10 grid gap-12">
       {!b ? <section className="grid gap-6">
         <h1 className="text-[36px] sm:text-[44px] leading-[1.05]">Compare <Link className="hover:underline decoration-1 underline-offset-[6px]" href={modelHref(a.id) as "/"} prefetch={false}>{a.name}</Link></h1>

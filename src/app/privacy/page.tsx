@@ -1,7 +1,5 @@
-import Link from "next/link";
-import { SettingsButton } from "@/components/SiteSettings";
-import { Wordmark } from "@/components/Wordmark";
 import { pageMeta } from "@/lib/site-meta";
+import { SiteHeader } from "@/components/SiteHeader";
 
 export const metadata = pageMeta({ title: "Privacy", description: "What Priors stores, what it measures and how to have it removed.", path: "/privacy" });
 
@@ -10,7 +8,7 @@ const UPDATED = "November 10, 2026";
 export default function PrivacyPage() {
   return (
     <main className="min-h-screen">
-      <header className="flex items-center gap-6 px-8 h-14 border-b hairline"><Wordmark /><Link href="/builder" className="text-grey text-[13px] hover:text-ink">Builder</Link><span className="ml-auto"><SettingsButton /></span></header>
+      <SiteHeader />
       <article className="max-w-[720px] mx-auto px-8 py-12 grid gap-7 text-[15px] leading-[1.7] text-ink-2">
         <div>
           <h1 className="text-[36px] text-ink mb-2">Privacy</h1>
