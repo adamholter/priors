@@ -624,7 +624,7 @@ try {
       assert.match(id, /^claude-/, `the Anthropic filter shows Claude models: ${id}`);
       await first.click();
       await c.waitForURL(new RegExp(`/models/${id.replace(/\./g, "\\.")}$`));
-      assert.equal(await c.getByRole("link", { name: "All models" }).getAttribute("href"), "/models", "the model page links back to the directory");
+      assert.equal(await c.getByRole("navigation", { name: "Site" }).first().getByRole("link", { name: "Models", exact: true }).getAttribute("href"), "/models", "the model page links back to the directory (the site nav's Models)");
     } finally { await c.context().close(); }
   });
 
