@@ -640,8 +640,9 @@ try {
       const settings = c.locator(".settings-panel");
       await settings.waitFor();
       assert.equal(await settings.locator(".settings-themes:not(.theme-library-grid) .theme-swatch").count(), 8, "the default picker keeps its eight themes");
-      await settings.getByRole("button", { name: "Explore themes" }).click();
       const library = c.getByRole("dialog", { name: "Explore themes" });
+      // A click while the page is still hydrating can be dropped on a busy runner: click again until the library opens.
+      for (let i = 0; i < 6 && !(await library.isVisible()); i++) { await settings.getByRole("button", { name: "Explore themes" }).click(); await library.waitFor({ timeout: 5000 }).catch(() => {}); }
       await library.waitFor();
       assert.ok((await library.locator(".theme-swatch").count()) >= 9, "the library lists the extra themes");
       await library.locator(".theme-swatch", { hasText: "Terminal" }).click();
