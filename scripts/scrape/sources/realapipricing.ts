@@ -88,7 +88,7 @@ const cheaper = (a: Point, b: Point) => a.real_usd_per_mtok - b.real_usd_per_mto
 
 /** One row per model: the plan with the biggest subsidy, with every plan that sells the model in details. */
 export function parseSubscriptions(json: Points, conventions: Conventions, channels: Channels, now = new Date(), stated: Point[] = []): RawRow[] {
-  const budgetOf = (id: string) => BUDGET_PLANS.find((b) => id.startsWith(`${b.planId}::`));
+  const budgetOf = (id: string) => BUDGET_PLANS.find((b) => b.exactIds ? b.models.some((m) => id === `${b.planId}::${m.model}`) : id.startsWith(`${b.planId}::`));
   const channelOf = (id: string) => budgetOf(id)?.channel ?? channels.channels.find(([prefix]) => id.startsWith(prefix))?.[1];
   const mixOf = (workload?: string): TokenMix => workload === "anthropic"
     ? { cache: conventions.anthropicTokenMix.cache, input: 0, cacheWrite: conventions.anthropicTokenMix.cacheWrite, output: conventions.anthropicTokenMix.output }

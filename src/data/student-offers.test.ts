@@ -97,7 +97,10 @@ describe("student offers", () => {
     expect(cost(after, /^gemini-3\.8-flash$/)!.costUsd).toBe(0);
     // Models the free year leaves out are priced on the regular plan it discounts (which need not be the lab's default).
     const regular = computeIndex(snapshot, { ...config, subscriptionPlans: { google: "Google AI Pro" } }, PAGE_VIEW);
-    expect(cost(after, /hydrogen/)!.costUsd).toBe(cost(regular, /hydrogen/)!.costUsd);
+    // Any Google model priced on the plan but not Flash (Hydrogen, Neon, Carbon: whichever has a cost in this snapshot).
+    const left = regular.ranked.find((x) => x.model.labId === "google" && !/^gemini-3\.8-flash$/.test(x.model.id) && x.costUsd != null)!;
+    expect(left).toBeDefined();
+    expect(after.ranked.find((x) => x.variant.id === left.variant.id)!.costUsd).toBe(left.costUsd);
     expect(after.ranked.filter((x) => x.costUsd !== before.ranked.find((y) => y.variant.id === x.variant.id)!.costUsd).every((x) => x.model.labId === "google")).toBe(true);
   });
 

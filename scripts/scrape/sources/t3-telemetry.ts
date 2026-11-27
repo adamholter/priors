@@ -47,6 +47,8 @@ export const tokenStart = (now: number) => new Date(Math.max(now - TOKEN_DAYS * 
  * refresh raises the bar, so this does not republish the site every 15 minutes.
  */
 const WATCH_DAYS = 7, WATCH_MIN_TURNS = 1_000, WATCH_MIN_EFFORTS = 3, WATCH_GROWTH = 1.25;
+/** Explicit-effort turns that count as a setting even when unstated turns outnumber them twenty to one. */
+const EXPLICIT_MIN_TURNS = 1_000;
 const EFFORTS = new Set(["none", "minimal", "low", "medium", "high", "xhigh", "max"]);
 /** Ids that are not the plain model: provider or region prefixes (`openai.`, `us.anthropic.`), fast and sovereign modes, composites, an effort in a non-Gemini id, and aliases with no version (`opus`). */
 const NOT_PLAIN = /[:[\]"\s/]|^[a-z-]+\.|^fusion-|-(fast|build|turbo|sidekick|ultrafast|sovereign|latest)(-|$)|-(minimal|low|medium|high|xhigh|max)$|^[^0-9]*$/;
@@ -98,10 +100,12 @@ export function parseT3Telemetry(p: T3Payload): Pick<ScrapeResult, "benchmarks" 
     if (!base || NOT_PLAIN.test(base)) { skipped++; continue; }
     const usable = efforts.filter(([eff, n, u, mean]) => (eff === "" || EFFORTS.has(eff)) && n >= MIN_TURNS && u >= MIN_USERS && typeof mean === "number" && mean > 0);
     // No effort recorded means the harness default, which differs by harness: it stands in only for a model run (almost) without an
-    // explicit effort, such as Composer 2.5, where a stray handful of "high" turns is noise rather than a setting.
+    // explicit effort, such as Composer 2.5, where a stray handful of "high" turns is noise rather than a setting. A thousand explicit
+    // turns are a setting however many go unstated: Gemini 4 Hydrogen, 7,143 turns across four efforts beside 191,246 unstated
+    // (Antigravity) on 27 November 2026, lost its per-effort rows, and with them its cost per task, under the 5% share alone.
     const explicit = usable.filter(([eff]) => eff !== ""), unstated = usable.filter(([eff]) => eff === "");
     const turns = (list: Effort[]) => list.reduce((a, [, n]) => a + n, 0);
-    const pick = explicit.length && turns(explicit) >= 0.05 * turns(usable) ? explicit : unstated;
+    const pick = explicit.length && turns(explicit) >= Math.min(0.05 * turns(usable), EXPLICIT_MIN_TURNS) ? explicit : unstated;
     for (const [eff, n, u, mean, median, p90, out, ...tok] of pick) {
       // Tokens by kind for an average turn, which scripts/scrape/t3-costs.ts prices at the model's list price: from the token window
       // (TOKEN_DAYS) when it clears the bar, else the full window. Some harnesses send no token counts (Antigravity often), so the

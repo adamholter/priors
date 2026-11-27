@@ -90,20 +90,6 @@ export interface SubsidyAssumption {
 }
 
 export const SUBSIDY_ASSUMPTIONS: SubsidyAssumption[] = [
-  // GPT-6.2 Astra and Sol (OpenAI, 2026-11-17) have no plan measurement yet. Adam's call (November 17): assume each plan gives the same
-  // tokens as the model it follows on ChatGPT plans, GPT-6 Astra and GPT-6.1 Sol, so the plan's token price carries over. Astra's API
-  // price dropped (input and output 20%, cached input 60%), so the same tokens are a larger share of its new list price; Sol's price is
-  // unchanged. A measured row for either replaces this the day it appears.
-  {
-    modelId: "gpt-6.2-astra", label: "GPT-6.2 Astra (max)", sameAs: "gpt-6-astra", sameAsName: "GPT-6 Astra", plans: /^ChatGPT /,
-    listPrice: { input: 8, cached: 0.4, output: 40 }, checked: "2026-11-26",
-    note: "No plan measurement for GPT-6.2 Astra yet: each ChatGPT plan is assumed to give as many tokens as it does for GPT-6 Astra, priced against GPT-6.2 Astra's lower API list price ($8 input, $0.40 cached, $40 output per 1M, from OpenAI's launch post), so its share of API price is higher than GPT-6 Astra's. OpenAI's launch billing under-counted GPT-6.2 Astra and Sol usage until 26 November 2026 (Tibo, https://x.com/thsottiaux/status/2125784147889393806: limits now reached about 40% faster than the week before). These figures are not from that period: they follow the earlier models' measurements and OpenAI's published Codex limits, which did not change with the fix, so they stand.",
-  },
-  {
-    modelId: "gpt-6.2-sol", label: "GPT-6.2 Sol (max)", sameAs: "gpt-6.1-sol", sameAsName: "GPT-6.1 Sol", plans: /^ChatGPT /,
-    listPrice: { input: 2, cached: 0.1, output: 10 }, checked: "2026-11-26",
-    note: "No plan measurement for GPT-6.2 Sol yet: each ChatGPT plan is assumed to give as many tokens as it does for GPT-6.1 Sol, whose API prices GPT-6.2 Sol keeps ($2 input, $0.10 cached, $10 output per 1M). OpenAI's launch billing under-counted GPT-6.2 Astra and Sol usage until 26 November 2026 (Tibo, https://x.com/thsottiaux/status/2125784147889393806: limits now reached about 40% faster than the week before). These figures are not from that period: they follow the earlier models' measurements and OpenAI's published Codex limits, which did not change with the fix, so they stand.",
-  },
   // Since 2026-11-23 every Gemini model on Antigravity draws on one Gemini pool on every paid plan: Varun Mohan (x.com/_mohansolo/status/2124960419429458207)
   // gave paid Pro users Carbon, and in the same thread ended Pro's separate Argon bucket, moving its capacity into the general Gemini bucket "so you
   // can also just use more Argon, Carbon, and (most importantly) Neon". agy states the pool is "consumed proportionally to the cost of the tokens",
@@ -307,13 +293,14 @@ export interface PlanChange {
 
 export const PLAN_CHANGES: PlanChange[] = [
   // OpenAI's GPT-6.2 billing mistake (Tibo, https://x.com/thsottiaux/status/2125784147889393806, 2026-11-26 02:50 UTC): Astra and Sol were under-counted on ChatGPT plans from launch;
-  // since the fix limits come about 40% faster. No GPT-6.2 plan measurement existed then (the SUBSIDY_ASSUMPTIONS rows stand); a Real API
-  // Pricing point measured before the fix gets 1.4 times the token price. A measurement whose range ends on or after the 26th is taken as is.
-  ...(["chatgpt_go", "chatgpt_plus", "chatgpt_pro_10x", "chatgpt_pro_20x", "chatgpt_pro_500", "chatgpt_business"] as const).map((planId): PlanChange => ({
-    planId, plan: "", factor: 1.4, until: "2026-11-26", models: /^gpt-6\.2-(astra|sol)$/, source: "https://x.com/thsottiaux/status/2125784147889393806",
-    caveat: { label: "Corrected", short: "Measured before OpenAI fixed a launch billing mistake that under-counted GPT-6.2 usage; divided by 1.4 to today's billing.", note: "OpenAI under-counted GPT-6.2 Astra and Sol usage on ChatGPT plans from launch (17 November 2026) until 26 November; since the fix the same work reaches the limits about 40% faster (Tibo, https://x.com/thsottiaux/status/2125784147889393806), so a measurement from before it is divided by 1.4.", source: "https://x.com/thsottiaux/status/2125784147889393806" },
-    note: "GPT-6.2 billing fix, 26 November 2026.",
-  })),
+  // since the fix the same work reaches the limits 40% faster on Astra and 25% faster on Sol. A Real API Pricing point measured before the
+  // fix gets that factor on its token price. A measurement whose range ends on or after the 26th is taken as is.
+  ...(["chatgpt_go", "chatgpt_plus", "chatgpt_pro_10x", "chatgpt_pro_20x", "chatgpt_pro_500", "chatgpt_business"] as const).flatMap((planId): PlanChange[] =>
+    ([["astra", "Astra", 1.4, 40], ["sol", "Sol", 1.25, 25]] as const).map(([slug, name, factor, pct]): PlanChange => ({
+      planId, plan: "", factor, until: "2026-11-26", models: new RegExp(`^gpt-6\\.2-${slug}$`), source: "https://x.com/thsottiaux/status/2125784147889393806",
+      caveat: { label: "Corrected", short: `Measured before OpenAI fixed a launch billing mistake that under-counted GPT-6.2 ${name} usage; divided by ${factor} to today's billing.`, note: `OpenAI under-counted GPT-6.2 ${name} usage on ChatGPT plans from launch (17 November 2026) until 26 November; since the fix the same work reaches the limits ${pct}% faster (Tibo, https://x.com/thsottiaux/status/2125784147889393806), so a measurement from before it is divided by ${factor}.`, source: "https://x.com/thsottiaux/status/2125784147889393806" },
+      note: "GPT-6.2 billing fix, 26 November 2026.",
+    }))),
   {
     planId: "chatgpt_pro_5x", plan: "ChatGPT Pro 10x", factor: 0.5, until: "2026-10-29", source: "https://help.openai.com/en/articles/9793128-what-is-chatgpt-pro",
     note: "OpenAI doubled Pro 100's Work and Codex allowance on 29 October 2026: 5× to 10× Plus. The Pro 200 cut announced on 29 September was canceled the same day, so Pro 200 keeps the 20× allowance Real API Pricing measured.",
@@ -406,6 +393,8 @@ export interface BudgetPlan {
   note: string;
   /** Our own measurement, newer than Real API Pricing's: its points replace theirs with the same id, instead of the other way round. */
   supersedes?: true;
+  /** Only this plan's listed models are its points: Real API Pricing's other models on the same plan id (ChatGPT Plus on GPT-6.1 Sol) stay theirs. */
+  exactIds?: true;
   /** Listed beside a model's own plans, to pick under Advanced → Plan, but never the only row a model has (Devin Max next to GPT-6.2 Sol's assumed ChatGPT price). */
   listOnly?: true;
   /**
@@ -435,6 +424,9 @@ const tencentTokenPlan = (tier: string, feeUsd: number, credits: number): Budget
     { model: "hy4-preview", display: "Hy4 preview", vendor: "Tencent", ...HY4_CREDITS, list: HY4_LIST, promo: { until: "2026-11-30T04:00:00Z", input: 105, cached: 5, output: 215 } },
   ],
 });
+
+/** GPT-6.2 on ChatGPT plans: API dollars per percent of Pro 10x's weekly limit, measured 27 November 2026 (chatgptGpt62 below). */
+export const G62_PER_PERCENT = { astra: (95.5 + 95.9) / 2 / 25, sol: 121.4 / 25 };
 
 export const BUDGET_PLANS: BudgetPlan[] = [
   tencentTokenPlan("Lite", 7, 1000), tencentTokenPlan("Standard", 17, 2600), tencentTokenPlan("Pro", 51, 7900), tencentTokenPlan("Max", 103, 15900),
@@ -467,7 +459,29 @@ export const BUDGET_PLANS: BudgetPlan[] = [
     models: [{ model: "deepseek-v4.1-flash-1017", display: "DeepSeek V4.1 Flash 1017", vendor: "DeepSeek", input: 1, cached: 1, output: 1 }],
   })),
   devinMax(),
+  ...chatgptGpt62(),
 ];
+
+/**
+ * GPT-6.2 Astra and Sol on ChatGPT plans, measured for Priors on 27 November 2026, after OpenAI's billing fix (26 November). Codex shows only the
+ * weekly limit, in whole percents. On Adam's ChatGPT Pro 10x ($100) account: unique prompts at low effort through `codex exec`, and one long
+ * app-server thread for cache reads, with tokens from Codex's own usage events. OpenAI's credit rate card (developers.openai.com/codex/pricing:
+ * Astra 200 / 10 / 1,000 credits per 1M input / cached / output, Sol 50 / 2.5 / 250, both 25 credits per API dollar) prices the tokens:
+ *   Astra, uncached: 25 requests, 1.41M input, 3 drops: 95.5 credits ($3.82 at API prices) per percent.
+ *   Astra, cached: 131 turns of one 140k-token thread, 18.6M cache reads, 2 drops: 95.9 credits per percent, so cache reads count at the rate card.
+ *   Sol, uncached: 52 requests, 4.80M input, 2 drops (26 requests each): 121.4 credits ($4.86) per percent.
+ * Budgets and rates here are in percent of Pro 10x's weekly limit, 4 weeks a month as Real API Pricing counts ChatGPT plans. The other plans scale
+ * by OpenAI's multiples of Plus (Pro 10x is 10 times, Pro 20x 20, Pro 500 50). Output is assumed to count at the rate card too.
+ */
+function chatgptGpt62(): BudgetPlan[] {
+  const rows = [["astra", "Astra", { input: 8, cached: 0.4, output: 40 }], ["sol", "Sol", { input: 2, cached: 0.1, output: 10 }]] as const;
+  const plans = [["chatgpt_plus", "ChatGPT Plus", 20, 1], ["chatgpt_pro_10x", "ChatGPT Pro 10x", 100, 10], ["chatgpt_pro_20x", "ChatGPT Pro 20x", 200, 20], ["chatgpt_pro_500", "ChatGPT Pro 500", 500, 50]] as const;
+  return plans.map(([planId, plan, feeUsd, multiple]): BudgetPlan => ({
+    planId, plan, channel: "OpenAI", feeUsd, budgetUsd: 100 * 4 * multiple / 10, confidence: planId === "chatgpt_pro_10x" ? "high" : "medium", source: "https://developers.openai.com/codex/pricing", checked: "2026-11-27", supersedes: true, exactIds: true,
+    note: `Measured for Priors on 27 November 2026, after OpenAI fixed GPT-6.2's launch billing (26 November): on a ChatGPT Pro 10x account, one percent of the weekly limit took $${G62_PER_PERCENT.astra.toFixed(2)} of GPT-6.2 Astra or $${G62_PER_PERCENT.sol.toFixed(2)} of GPT-6.2 Sol at API prices, uncached or cached alike (cache reads count at OpenAI's published credit rates). That is about as many tokens as Real API Pricing measured for GPT-6 Astra, and about two thirds of what it measured for GPT-6.1 Sol. ${planId === "chatgpt_pro_10x" ? "" : `Scaled from Pro 10x by OpenAI's multiple (${multiple} times Plus). `}Four weeks a month. Each figure is good to about 5%.`,
+    models: rows.map(([slug, name, list]) => ({ model: `gpt-6.2-${slug}`, display: `GPT 6.2 ${name}`, vendor: "OpenAI", list, input: list.input / G62_PER_PERCENT[slug], cached: list.cached / G62_PER_PERCENT[slug], output: list.output / G62_PER_PERCENT[slug] })),
+  }));
+}
 
 /**
  * Devin Max ($200 a month) has only a weekly quota, shown in whole percents. Measured on 23 November 2026 (~/Projects/devin-quota): each model at

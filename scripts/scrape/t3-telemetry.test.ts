@@ -21,6 +21,14 @@ describe("T3 Code telemetry by effort", () => {
     expect(of("claude-opus-5-5").every((r) => r.effort)).toBe(true);
     expect(of("composer-2.5")).toEqual([expect.objectContaining({ effortUnstated: true })]);
   });
+  it("keeps a thousand explicit-effort turns as efforts even when unstated turns outnumber them twenty to one (Hydrogen, 27 November)", () => {
+    const eff = (name: string, n: number, u: number) => [name, n, u, 200, 150, 400, 900, n, 1e5, 9e5, 0, 900, u, n, 1e5, 9e5, 0, 900, u] as never;
+    const day = { ...payload, rows: [...payload.rows.filter(([b]) => b !== "gemini-4-hydrogen"), ["gemini-4-hydrogen", 198389, [eff("medium", 2353, 86), eff("xhigh", 1197, 54), eff("", 191246, 9483), eff("low", 445, 40), eff("high", 3148, 161)]]] } as T3Payload;
+    expect(parseT3Telemetry(day).rows.filter((r) => r.modelLabel === "gemini-4-hydrogen").map((r) => r.effort).sort()).toEqual(["high", "low", "medium", "xhigh"]);
+    // A stray few hundred stay noise: 300 explicit beside 20,000 unstated.
+    const few = { ...payload, rows: [...payload.rows.filter(([b]) => b !== "gemini-4-hydrogen"), ["gemini-4-hydrogen", 20300, [eff("", 20000, 900), eff("high", 300, 9)]]] } as T3Payload;
+    expect(parseT3Telemetry(few).rows.filter((r) => r.modelLabel === "gemini-4-hydrogen")).toEqual([expect.objectContaining({ effortUnstated: true })]);
+  });
   it("files Antigravity's plain Gemini Neon id under the effort Antigravity runs it at, not as unstated", () => {
     // Newer T3 Code versions send `gemini-4-neon` with no effort; Antigravity resolves that alias to gemini-4-neon-high.
     expect(ANTIGRAVITY_ALIAS_EFFORT).toEqual({ "gemini-4-neon": "high" });

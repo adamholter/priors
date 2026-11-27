@@ -141,7 +141,7 @@ describe("Real API Pricing subscriptions", () => {
   });
   const computed = rows.filter((r) => !(r.details as { source?: string; sameAs?: string }).source && !(r.details as { sameAs?: string }).sameAs && r.sourceUrl !== VIBE);
   it("keeps one row per model, with no metered APIs or unmetered promos", () => {
-    expect(computed.filter((r) => !(r.details as unknown as SubscriptionDetails).listOnly).map((r) => r.modelLabel)).toEqual(["GPT 5.6 Sol", "Claude Opus 5.5", "Claude Fable 5", "GLM 5.3 FlashX", "Gemini 4 Argon", "Hy4", "Hy4 preview", "Qwen3.7 Max"]);
+    expect(computed.filter((r) => !(r.details as unknown as SubscriptionDetails).listOnly).map((r) => r.modelLabel)).toEqual(["GPT 5.6 Sol", "Claude Opus 5.5", "Claude Fable 5", "GLM 5.3 FlashX", "Gemini 4 Argon", "Hy4", "Hy4 preview", "GPT 6.2 Astra", "GPT 6.2 Sol", "Qwen3.7 Max"]);
     expect(row("GPT 5.6 Sol").details).toMatchObject({ plans: [{ plan: "Cursor Ultra, legacy" }, { plan: "ChatGPT Pro 20x" }, { plan: "ChatGPT Pro 500" }, { plan: "ChatGPT Pro 10x" }, { plan: "ChatGPT Plus" }] });
   });
   it("marks Cursor's old plans as legacy, lists them on other labs' models, and never prices those models on them", () => {
@@ -227,23 +227,27 @@ describe("Real API Pricing subscriptions", () => {
     // Real API Pricing's Argon row measured Pro's old Argon-only pool: it makes way.
     expect(found.filter((r) => /^Gemini 4 Argon/.test(r.modelLabel))).toHaveLength(1);
   });
-  it("gives GPT-6.2 Astra GPT-6 Astra's ChatGPT plan tokens, priced against its own lower list price, until it is measured", () => {
+  it("prices GPT-6.2 on ChatGPT plans from Priors' own post-fix measurement, scaled by OpenAI's plan multiples, replacing any Real API Pricing point", () => {
     const astra = (id: string, plan: string, v: number, fee: number) => point(`${id}::gpt-6-astra`, plan, "OpenAI", v, { model_display: "GPT 6 Astra", price_usd: fee, confidence: "medium" });
-    const points = [...payload.points, astra("chatgpt_pro_10x", "ChatGPT Pro 10x", 0.0629, 100), astra("chatgpt_plus", "ChatGPT Plus", 0.1258, 20)];
+    const old62 = point("chatgpt_pro_10x::gpt-6.2-astra", "ChatGPT Pro 10x", "OpenAI", 0.2, { model_display: "GPT 6.2 Astra", price_usd: 100, data_date: "2026-11-21" });
+    const points = [...payload.points, astra("chatgpt_pro_10x", "ChatGPT Pro 10x", 0.0629, 100), astra("chatgpt_plus", "ChatGPT Plus", 0.1258, 20), old62];
     const found = parseSubscriptions({ ...payload, points }, conventions, channels);
-    const row62 = found.find((r) => r.modelLabel === "GPT-6.2 Astra (max)")!;
-    // Same tokens per plan dollar as GPT-6 Astra...
-    expect(row62.value).toBeCloseTo(0.0629, 9);
-    expect(row62).toMatchObject({ details: { plan: "ChatGPT Pro 10x (assumed same as GPT-6 Astra)", sameAs: "gpt-6-astra", listPrice: { input: 8, cached: 0.4, output: 40 }, confidence: "assumed" } });
-    // ...so a larger share of the cheaper list price: about 1.9 times GPT-6 Astra's at the standard mix ($10 / $1 / $50 before).
-    const mix = conventions.standardTokenMix;
-    expect(blendedApiPrice({ input: 10, cached: 1, output: 50 }, mix) / blendedApiPrice({ input: 8, cached: 0.4, output: 40 }, mix)).toBeCloseTo(1.865, 2);
-    // A measured row replaces the assumption.
-    const measured = parseSubscriptions({ ...payload, points: [...points, point("chatgpt_pro_10x::gpt-6.2-astra", "ChatGPT Pro 10x", "OpenAI", 0.05, { model_display: "GPT 6.2 Astra", price_usd: 100, data_date: "2026-11-27" })] }, conventions, channels);
-    expect(measured.filter((r) => /^GPT[- ]6\.2 Astra/.test(r.modelLabel)).map((r) => r.value)).toEqual([0.05]);
-    // One measured before OpenAI's billing fix (26 November) under-counted usage, so its token price is 1.4 times what it read.
-    const early = parseSubscriptions({ ...payload, points: [...points, point("chatgpt_pro_10x::gpt-6.2-astra", "ChatGPT Pro 10x", "OpenAI", 0.05, { model_display: "GPT 6.2 Astra", price_usd: 100, data_date: "2026-11-21" })] }, conventions, channels);
-    expect(early.filter((r) => /^GPT[- ]6\.2 Astra/.test(r.modelLabel)).map((r) => r.value)[0]).toBeCloseTo(0.07, 9);
+    const row62 = found.find((r) => r.modelLabel === "GPT 6.2 Astra")!, d = row62.details as unknown as SubscriptionDetails;
+    // One percent of Pro 10x's week took $3.83 of Astra at API prices; 400 percent a month (4 weeks) for $100.
+    const perPercent = (95.5 + 95.9) / 2 / 25, api = blendedApiPrice({ input: 8, cached: 0.4, output: 40 }, conventions.standardTokenMix);
+    expect(row62.value).toBeCloseTo(100 * api / (400 * perPercent), 9);
+    expect(d).toMatchObject({ plan: "ChatGPT Pro 10x", feeUsd: 100, confidence: "high", dataDate: "2026-11-27", listPrice: { input: 8, cached: 0.4, output: 40 } });
+    expect((d as { sameAs?: string }).sameAs).toBeUndefined();
+    // Plus gives a tenth for a fifth of the fee; Pro 20x and Pro 500 the same share as Pro 10x. Real API Pricing's older Pro 10x point makes way.
+    expect(d.plans.map((p) => p.plan).sort()).toEqual(["ChatGPT Plus", "ChatGPT Pro 10x", "ChatGPT Pro 20x", "ChatGPT Pro 500", "Devin Max"]);
+    expect(d.plans.find((p) => p.plan === "ChatGPT Plus")!.usdPerMtok / row62.value).toBeCloseTo(2, 9);
+    expect(row62.note).toMatch(/Measured for Priors on 27 November 2026/);
+    // Sol: $4.86 a percent, about two thirds of GPT-6.1 Sol's measured tokens.
+    const sol = found.find((r) => r.modelLabel === "GPT 6.2 Sol")!;
+    expect(sol.value).toBeCloseTo(100 * blendedApiPrice({ input: 2, cached: 0.1, output: 10 }, conventions.standardTokenMix) / (400 * 121.4 / 25), 9);
+    // Real API Pricing's other models on the same plan ids stay theirs, without this plan's note.
+    const old = found.find((r) => r.modelLabel === "GPT 6 Astra")!;
+    expect(old.note).not.toMatch(/Measured for Priors/);
   });
   it("prices Hydrogen from the shared Gemini pool, keeping Argon's separate Pro quota out of its estimate", () => {
     const flash = point("google_ai_pro_us::gemini-3.8-flash", "Google AI Pro", "Google", 0.0077450601, { model_display: "Gemini 3.8 Flash", price_usd: 19.99, workload: "lowCache", confidence: "high" });
@@ -337,7 +341,7 @@ describe("Real API Pricing subscriptions", () => {
     const ctx = { fetchText: async (url: string) => JSON.stringify(files[url.split("/").pop()!]) } as unknown as Parameters<typeof source.scrape>[0];
     const r = await source.scrape(ctx);
     expect(r.benchmarks[0]).toMatchObject({ id: SUBSCRIPTION_BENCHMARK, unit: "usd", proxy: true, defaultWeight: 0, eligibleForDefault: false, lastUpdated: "2026-10-08" });
-    expect(r.rows.filter((x) => !(x.details as unknown as SubscriptionDetails | undefined)?.listOnly)).toHaveLength(8 + 7 + 2 + 1 + 3); // + Gemini 4 Neon and the Qwen plan usage rows, added even before a plan row exists. // Carbon is absent without a Flash Ultra measurement. + Mistral Vibe Pro's rows (four Mistral models, GLM 5.2, GLM 5.3 Flash, DeepSeek V4.1 Flash 1017), Tencent Token Plan's Hy4 and Hy4 preview, Fable 5.2's measured share. Hydrogen is absent without a Flash shared-pool measurement
+    expect(r.rows.filter((x) => !(x.details as unknown as SubscriptionDetails | undefined)?.listOnly)).toHaveLength(8 + 7 + 2 + 1 + 3 + 2); // + Gemini 4 Neon and the Qwen plan usage rows, added even before a plan row exists. // Carbon is absent without a Flash Ultra measurement. + Mistral Vibe Pro's rows (four Mistral models, GLM 5.2, GLM 5.3 Flash, DeepSeek V4.1 Flash 1017), Tencent Token Plan's Hy4 and Hy4 preview, Fable 5.2's measured share, GPT-6.2 Astra and Sol on ChatGPT plans (measured for Priors). Hydrogen is absent without a Flash shared-pool measurement
     expect(Object.keys(r.raw)).toEqual(["points.json", "conventions.json", "channel-colors.json"]);
   });
 });
@@ -387,11 +391,10 @@ describe("Devin Max, measured for Priors", () => {
     expect(1 / share(row)).toBeCloseTo(435 * 1.25 / 200, 6);
     expect((row.details as unknown as SubscriptionDetails).plan).toBe("Claude Max 5x");
   });
-  it("joins the plans of a model priced by assumption, at its own list price and mix, without changing its price", () => {
-    const astra = (id: string, plan: string, v: number, fee: number) => point(`${id}::gpt-6-astra`, plan, "OpenAI", v, { model_display: "GPT 6 Astra", price_usd: fee, confidence: "medium" });
-    const found = parseSubscriptions({ ...payload, points: [...payload.points, astra("chatgpt_pro_10x", "ChatGPT Pro 10x", 0.0629, 100), astra("chatgpt_plus", "ChatGPT Plus", 0.1258, 20)] }, conventions, channels);
-    const row62 = found.find((r) => r.modelLabel === "GPT-6.2 Astra (max)")!, d = row62.details as unknown as SubscriptionDetails;
-    expect(row62.value).toBeCloseTo(0.0629, 9);
+  it("joins the plans of GPT-6.2 Astra beside its measured ChatGPT plans, at its own list price and mix, without changing its price", () => {
+    const found = parseSubscriptions(payload, conventions, channels);
+    const row62 = found.find((r) => r.modelLabel === "GPT 6.2 Astra")!, d = row62.details as unknown as SubscriptionDetails;
+    expect(d.plan).toBe("ChatGPT Pro 10x");
     // GPT-6.2 Astra: one percent of the week bought $0.70 to $1.16.
     expect(blendedApiPrice(d.listPrice!, d.mix) / d.plans.find((p) => p.plan === "Devin Max")!.usdPerMtok).toBeCloseTo(435 * 0.93 / 200, 6);
     // A model with nothing else gets a row that counts only when Devin Max is picked (GPT-6.1 Terra: one percent bought $0.86 to $1.29).
@@ -424,12 +427,14 @@ describe("The X Subscription", () => {
 
 describe("GPT-6.2 billing fix (OpenAI, 26 November 2026)", () => {
   const point = (id: string, data_date: string) => ({ id, plan: "ChatGPT Plus", billing: "subscription", model: id.split("::")[1], model_display: "", vendor: "OpenAI", real_usd_per_mtok: 0.01, confidence: "high", data_date });
-  it("prices a GPT-6.2 plan measurement from before the fix at 1.4 times, with a note and source, and leaves the rest alone", () => {
+  it("prices a GPT-6.2 plan measurement from before the fix at 1.4 times (Astra) or 1.25 times (Sol), with a note and source, and leaves the rest alone", () => {
     const fixed = changed(point("chatgpt_plus::gpt-6.2-astra", "2026-11-20~2026-11-22"));
     expect(fixed.real_usd_per_mtok).toBeCloseTo(0.014, 6);
     expect(fixed.plan).toBe("ChatGPT Plus");
     expect(fixed.preliminary).toMatchObject({ label: "Corrected", source: "https://x.com/thsottiaux/status/2125784147889393806" });
-    expect(changed(point("chatgpt_pro_20x::gpt-6.2-sol", "2026-11-19")).real_usd_per_mtok).toBeCloseTo(0.014, 6);
+    expect(changed(point("chatgpt_pro_20x::gpt-6.2-sol", "2026-11-19")).real_usd_per_mtok).toBeCloseTo(0.0125, 6);
+    expect(changed(point("chatgpt_pro_20x::gpt-6.2-sol", "2026-11-19")).preliminary?.short).toMatch(/GPT-6\.2 Sol usage; divided by 1\.25/);
+    expect(changed(point("chatgpt_plus::gpt-6.2-astra-mini", "2026-11-19")).real_usd_per_mtok).toBe(0.01);
     expect(changed(point("chatgpt_plus::gpt-6.2-sol", "2026-11-26")).real_usd_per_mtok).toBe(0.01);
     expect(changed(point("chatgpt_plus::gpt-6.1-sol", "2026-11-09")).real_usd_per_mtok).toBe(0.01);
     expect(changed(point("devin_max::gpt-6.2-astra", "2026-11-20")).real_usd_per_mtok).toBe(0.01);
