@@ -26,6 +26,9 @@ for (const [pname, profile] of Object.entries(PROFILES)) for (const scheme of ["
   await p.goto(`${BASE}/builder`, { waitUntil: "domcontentloaded" });
   await p.locator(".chart-toolbar").first().waitFor({ timeout: 60000 });
   await p.waitForTimeout(2500);
+  // The phone site nav pins to the top while you scroll up and hides while you scroll down. A reader who scrolled down to a chart has it
+  // hidden, so end each placement with a small scroll down (net zero) before tapping near the top of the screen.
+  const hideNav = async () => { await p.evaluate(() => window.scrollBy(0, -16)); await p.waitForTimeout(80); await p.evaluate(() => window.scrollBy(0, 16)); await p.waitForTimeout(260); };
   const tag = `${pname}-${scheme}`;
   const shot = (name) => p.screenshot({ path: `${SHOTS}/${tag}-${name}.png` });
   const chartBox = (id) => p.locator(`#${id}`);
@@ -34,7 +37,7 @@ for (const [pname, profile] of Object.entries(PROFILES)) for (const scheme of ["
     if (!(await root.count())) { await check(`${tag} ${id}: chart exists`, () => assert.fail("no chart")); continue; }
     const plot = root.locator('[role="img"]').first();
     // Scroll so the plot's top sits near the top of the screen: its lower part, where the card used to sit, is below the fold.
-    const placeAt = async (top) => { await plot.evaluate((el, t) => { window.scrollBy(0, el.getBoundingClientRect().top - t); }, top); await p.waitForTimeout(250); };
+    const placeAt = async (top) => { await plot.evaluate((el, t) => { window.scrollBy(0, el.getBoundingClientRect().top - t); }, top); await p.waitForTimeout(250); await hideNav(); };
     const tap = async () => {
       const box = await plot.boundingBox();
       const pts = await plot.evaluate((el) => { const c = el.querySelector("canvas, svg"); return !!c; });
@@ -85,7 +88,7 @@ for (const [pname, profile] of Object.entries(PROFILES)) for (const scheme of ["
   await check(`${tag}: student plan option, card still on screen`, async () => {
     const root = chartBox(CHARTS[0]);
     const details = root.locator("details", { has: p.locator("summary[aria-label$='settings']") }).first();
-    await details.scrollIntoViewIfNeeded();
+    await details.scrollIntoViewIfNeeded(); await hideNav();
     await details.locator("summary").first().tap(); await p.waitForTimeout(300);
     const menu = details.locator(".chart-settings-menu");
     await menu.getByRole("tab", { name: "Data" }).tap();
@@ -100,7 +103,7 @@ for (const [pname, profile] of Object.entries(PROFILES)) for (const scheme of ["
     assert.ok(mr.left >= 0 && mr.right <= vw + 1, `menu sideways ${mr.left}..${mr.right}`);
     await details.locator("summary").first().tap(); await p.waitForTimeout(300);
     const plot = root.locator('[role="img"]').first();
-    await plot.evaluate((el) => window.scrollBy(0, el.getBoundingClientRect().top - 60)); await p.waitForTimeout(300);
+    await plot.evaluate((el) => window.scrollBy(0, el.getBoundingClientRect().top - 60)); await p.waitForTimeout(300); await hideNav();
     const box = await plot.boundingBox(), card = root.getByRole("status", { name: "Selected model" });
     let found = false;
     for (let gy = 0.2; gy <= 0.8 && !found; gy += 0.1) for (let gx = 0.3; gx <= 0.95 && !found; gx += 0.05) { await p.touchscreen.tap(box.x + box.width * gx, box.y + box.height * gy); await p.waitForTimeout(100); found = !!(await card.count()); }

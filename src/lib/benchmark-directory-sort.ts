@@ -4,16 +4,18 @@ import { recommendedScore } from "./benchmark-recommended";
 /** What the directory needs of a row to sort it. */
 export interface SortableBenchmark {
   name: string; models: number; quality: number; baseQuality?: number; uses: number; stars: number; lastUpdated?: string;
+  /** Release date of the benchmark itself (YYYY-MM-DD), not of its latest results. */
+  released?: string;
   factors: Partial<Record<QualityFactorId, number>>; leader?: { name: string };
 }
 
-export type DirectorySort = "recommended" | "uses" | "stars" | "quality" | "models" | "updated" | "name" | "leader" | QualityFactorId;
+export type DirectorySort = "recommended" | "uses" | "stars" | "quality" | "models" | "newest" | "updated" | "name" | "leader" | QualityFactorId;
 export type SortDir = "asc" | "desc";
 
 /** The sorts the funnel menu lists, in order. Factor sorts are grouped under Quality factors. Every column header sorts by one of these too. */
 export const DIRECTORY_SORTS: { id: DirectorySort; name: string; factors?: true }[] = [
   { id: "recommended", name: "Recommended" }, { id: "quality", name: "Quality" }, { id: "stars", name: "Stars" }, { id: "uses", name: "Mixes" },
-  { id: "models", name: "Models" }, { id: "updated", name: "Recently updated" }, { id: "name", name: "Name" }, { id: "leader", name: "Top model" },
+  { id: "models", name: "Models" }, { id: "newest", name: "Newest" }, { id: "updated", name: "Recently updated" }, { id: "name", name: "Name" }, { id: "leader", name: "Top model" },
   { id: "saturation", name: "Headroom", factors: true }, { id: "testSet", name: "Test set", factors: true }, { id: "recency", name: "Recency", factors: true },
   { id: "objectivity", name: "Grading", factors: true }, { id: "frontier", name: "New models", factors: true }, { id: "size", name: "Size", factors: true },
   { id: "efforts", name: "Efforts", factors: true }, { id: "breadth", name: "Breadth", factors: true },
@@ -24,7 +26,7 @@ export const naturalDir = (sort: DirectorySort): SortDir => sort === "name" || s
 
 /** What the two directions are called for a sort, natural one first. */
 export const dirNames = (sort: DirectorySort): [string, string] =>
-  sort === "name" || sort === "leader" ? ["A to Z", "Z to A"] : sort === "updated" || sort === "recency" ? ["Newest first", "Oldest first"] : sort === "recommended" ? ["Best first", "Worst first"] : ["Highest first", "Lowest first"];
+  sort === "name" || sort === "leader" ? ["A to Z", "Z to A"] : sort === "newest" || sort === "updated" || sort === "recency" ? ["Newest first", "Oldest first"] : sort === "recommended" ? ["Best first", "Worst first"] : ["Highest first", "Lowest first"];
 
 const factor = (x: SortableBenchmark, id: QualityFactorId) => x.factors[id] ?? -1;
 const byFactor = (id: QualityFactorId) => (a: SortableBenchmark, b: SortableBenchmark) => factor(b, id) - factor(a, id) || b.quality - a.quality;
@@ -35,6 +37,7 @@ const COMPARE: Record<DirectorySort, (a: SortableBenchmark, b: SortableBenchmark
   stars: (a, b) => b.stars - a.stars || recommendedScore(b) - recommendedScore(a),
   quality: (a, b) => b.quality - a.quality,
   models: (a, b) => b.models - a.models,
+  newest: (a, b) => (b.released ?? "").localeCompare(a.released ?? "") || b.quality - a.quality,
   updated: (a, b) => (b.lastUpdated ?? "").localeCompare(a.lastUpdated ?? ""),
   name: (a, b) => a.name.localeCompare(b.name),
   leader: (a, b) => (a.leader?.name ?? "").localeCompare(b.leader?.name ?? "") || b.quality - a.quality,
@@ -42,8 +45,8 @@ const COMPARE: Record<DirectorySort, (a: SortableBenchmark, b: SortableBenchmark
   frontier: byFactor("frontier"), size: byFactor("size"), efforts: byFactor("efforts"), breadth: byFactor("breadth"),
 };
 
-/** Boards without the value (no top model, no update date) go last whichever way the column runs. */
-const missing = (x: SortableBenchmark, sort: DirectorySort) => sort === "leader" ? !x.leader : sort === "updated" ? !x.lastUpdated : false;
+/** Boards without the value (no top model, no update or release date) go last whichever way the column runs. */
+const missing = (x: SortableBenchmark, sort: DirectorySort) => sort === "leader" ? !x.leader : sort === "updated" ? !x.lastUpdated : sort === "newest" ? !x.released : false;
 
 /** A sorted copy. */
 export function sortDirectory<T extends SortableBenchmark>(items: readonly T[], sort: DirectorySort, dir: SortDir = naturalDir(sort)): T[] {

@@ -181,7 +181,7 @@ try {
       assert.equal(await phone.locator(".ranking-list [data-k]").count(), 10, "a phone shows the top 10 until asked for more");
       await phone.getByRole("button", { name: /^Show all/ }).first().click();
       assert.ok(await phone.locator(".ranking-list [data-k]").count() > 10, "Show all expands the ranking");
-      assert.ok((await phone.locator(".builder-header").evaluate((el) => el.getBoundingClientRect().height)) < 110, "the header stays short");
+      assert.ok((await phone.locator(".builder-header").evaluate((el) => el.getBoundingClientRect().height)) < 125, "the header stays short"); // two rows: wordmark with share and sign-in, then the five-icon site nav
       assert.equal(await phone.getByText(/^Data as of/).isVisible(), false, "the date moved out of the header");
       const widths = await phone.evaluate(() => [innerWidth, document.documentElement.scrollWidth]);
       assert.ok(widths[1] <= widths[0], `no sideways scroll, ${widths}`);
@@ -1762,7 +1762,7 @@ try {
       assert.equal(await shown(), "hidden", "tooltip waits before appearing");
       await c.waitForFunction((el) => getComputedStyle(el, "::after").visibility === "visible", await tip.elementHandle(), { timeout: 2000 });
       assert.match(await tip.getAttribute("data-bench-tip"), /Quality \d+ of 100/);
-      await c.getByRole("link", { name: "How scores work", exact: true }).click();
+      await c.locator("main").getByRole("link", { name: "How scores work", exact: true }).click(); // the footer has one too
       await c.getByRole("heading", { name: "How benchmark scores work" }).waitFor({ timeout: 30000 });
       assert.ok(await c.getByText(/quality \+ 12 × log2/).isVisible());
     } finally { await c.context().close(); }

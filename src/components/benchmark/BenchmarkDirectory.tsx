@@ -208,7 +208,7 @@ function Head({ id, order, onClick, text, end, children }: { id: DirectorySort; 
   </Tip>;
 }
 
-/** The funnel: every sort, including the ones with no column (Recommended, Recently updated), and the direction. On narrow screens, where the column labels are hidden, it is the only sort control. */
+/** The funnel: every sort, including the ones with no column (Recommended, Newest, Recently updated), and the direction. On narrow screens, where the column labels are hidden, it is the only sort control. */
 function SortMenu({ sort, dir, searching, onChange }: { sort: DirectorySort; dir: SortDir; searching: boolean; onChange: (o: { sort: DirectorySort; dir: SortDir }) => void }) {
   const [at, setAt] = useState<{ top: number; left: number } | null>(null);
   const root = useRef<HTMLButtonElement>(null), menu = useRef<HTMLDivElement>(null);

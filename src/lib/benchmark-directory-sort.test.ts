@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { clickColumn, DIRECTORY_SORTS, naturalDir, sortDirectory, withQualityAdjustments, type SortableBenchmark } from "./benchmark-directory-sort";
+import { clickColumn, DIRECTORY_SORTS, dirNames, naturalDir, sortDirectory, withQualityAdjustments, type SortableBenchmark } from "./benchmark-directory-sort";
 
 const b = (name: string, extra: Partial<SortableBenchmark> = {}): SortableBenchmark => ({ name, models: 10, quality: 50, uses: 0, stars: 0, factors: {}, ...extra });
 const names = (xs: SortableBenchmark[]) => xs.map((x) => x.name);
@@ -43,5 +43,14 @@ describe("benchmark directory sorting", () => {
     expect(names(sortDirectory(withQualityAdjustments(rows, true), "quality"))).toEqual(["Boosted", "Plain", "Penalized"]);
     expect(names(sortDirectory(withQualityAdjustments(rows, false), "quality"))).toEqual(["Penalized", "Plain", "Boosted"]);
     expect(withQualityAdjustments(rows, false).map((r) => r.quality)).toEqual([70, 78, 80]);
+  });
+  it("sorts by newest release, not latest results: undated boards last either way", () => {
+    const row = (name: string, released?: string, lastUpdated?: string) => ({ name, models: 1, quality: 50, uses: 0, stars: 0, factors: {}, ...(released ? { released } : {}), ...(lastUpdated ? { lastUpdated } : {}) });
+    const items = [row("old, updated today", "2024-03-01", "2026-11-27"), row("new", "2026-11-25", "2026-11-25"), row("undated", undefined, "2026-11-26"), row("mid", "2026-06-01")];
+    expect(sortDirectory(items, "newest").map((x) => x.name)).toEqual(["new", "mid", "old, updated today", "undated"]);
+    expect(sortDirectory(items, "newest", "asc").map((x) => x.name)).toEqual(["old, updated today", "mid", "new", "undated"]);
+    expect(sortDirectory(items, "updated")[0].name).toBe("old, updated today");
+    expect(dirNames("newest")).toEqual(["Newest first", "Oldest first"]);
+    expect(DIRECTORY_SORTS.find((x) => x.id === "newest")?.name).toBe("Newest");
   });
 });
