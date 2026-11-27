@@ -28,6 +28,7 @@ import { useScatterView } from "./chart/ScoreScatter";
 import { Wordmark } from "./Wordmark";
 import { SiteFooter } from "./SiteFooter";
 import { SiteNav } from "./SiteNav";
+import { MixMenu } from "./MixMenu";
 import { IndexTabs } from "./IndexTabs";
 import { REFERENCE_ID, REFERENCE_LABEL, indexNote, isAAWeights, isPristineDefault, restorable, withoutPristineDefault } from "@/lib/default-index";
 import { CalculationSettings } from "./CalculationSettings";
@@ -222,7 +223,7 @@ export function Builder({ snapshot: base, initialIndices }: { snapshot: Snapshot
     <ChartPaletteContext.Provider value={palette}>
     <div className="builder min-h-dvh">
       <header className="builder-header grid grid-cols-[auto_minmax(0,1fr)_auto] lg:flex items-center gap-x-4 gap-y-2 px-4 sm:px-8 py-2 lg:py-0 lg:h-14 border-b hairline lg:sticky top-0 bg-bone z-40">
-        <div className="shrink-0 flex items-center gap-5"><Wordmark transitionTypes={["nav-back"]} /><span className="max-sm:hidden"><SiteNav current="builder" /></span></div>
+        <div className="shrink-0 flex items-center gap-5"><Wordmark transitionTypes={["nav-back"]} /><span className="max-sm:hidden"><SiteNav current="builder" compactSearch /></span></div>
         <div className="min-w-0 flex-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden max-sm:col-span-3 max-sm:row-start-2 empty:hidden">
           {(mixOpen || indices.length > 1) && <IndexTabs indices={indices} activeId={active.id} onSelect={setActiveId} onRename={(id, name) => update({ ...indices.find((i) => i.id === id)!, name })} onAdd={add} onRemove={remove} />}
         </div>
@@ -256,7 +257,7 @@ export function Builder({ snapshot: base, initialIndices }: { snapshot: Snapshot
         {/* Keep the assistant clearance inside this column so the sidebar stays below the header at the page bottom. */}
         <section className="builder-charts grid gap-10 min-w-0 content-start pb-20 [&>div]:min-w-0">
           <div className="builder-rank">
-            <Rankings anchor="rankings" imageTitle={active.name} fresh={fresh} empty={mixEmpty ? "Your mix is empty. Add a benchmark to rank models." : undefined} limit={phone ? 10 : 20} title={<h1 className="text-[26px] leading-tight">{active.name}</h1>} subtitle={<>
+            <Rankings anchor="rankings" imageTitle={active.name} fresh={fresh} empty={mixEmpty ? "Your mix is empty. Add a benchmark to rank models." : undefined} limit={phone ? 10 : 20} title={<h1 className="text-[26px] leading-tight"><MixMenu indices={indices} activeId={active.id} onSelect={setActiveId} onAdd={add} onRename={(id, name) => update({ ...indices.find((i) => i.id === id)!, name })} onRemove={remove} /></h1>} subtitle={<>
               <p className="cap">{isAAWeights(active) ? <>Scores as published by <Link href={benchmarkPath(latestAAIndex(snapshot)?.id ?? "") as "/"} className="underline underline-offset-2 hover:text-ink" transitionTypes={["nav-forward"]}>Artificial Analysis</Link></> : "Ranked by your mix"} · <span className="whitespace-nowrap">data as of {snapshot.date}</span></p>
               {!mixOpen && <p className="cap mt-1">Want your own ranking? <Link href="/rank" className="underline underline-offset-2 hover:text-ink" transitionTypes={["nav-forward"]}>Rank models</Link> or <button type="button" className="underline underline-offset-2 hover:text-ink" onClick={openMix}>change the mix</button>.</p>}</>} actions={<ChartSettings label="Ranking" efforts={{ value: active.rankingEfforts ?? [...EFFORT_CHOICES], onChange: (rankingEfforts) => update({ ...active, rankingEfforts }), withMode: true }} mode={rankingMode} onChange={(rankingVariants) => update({ ...active, rankingVariants })} {...releaseProps} {...modelPicker} />} onSelect={(r) => { if (r) router.push(`/models/${r.model.id}${isAAWeights(active) ? "?r=aa" : ""}` as "/", { transitionTypes: ["nav-forward"] }); }} ranked={rankingRows} labs={snapshot.labs} showEffort={rankingMode === "all"} />
           </div>

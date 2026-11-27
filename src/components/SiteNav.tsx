@@ -3,18 +3,22 @@ import Link from "next/link";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { SITE_PLACES, type SiteId as Id } from "./site-places";
+import { openSiteSearch, SiteSearchButton } from "./SiteSearch";
+import { IconSearch } from "@tabler/icons-react";
 
 /**
  * Site-level links beside the wordmark: the data, the model and benchmark directories, published pages, and the ranking onboarding (always at /rank).
  * Each has an icon (from 1024px; narrower desktop headers have no room) and the page you are on is filled. `mobile` is the phone row under the header: five icons with short labels, which slides
  * away while you scroll down and comes back as soon as you scroll up, without going back to the top (`useHeadroom`).
  */
-export function SiteNav({ current, mobile = false }: { current?: Id; mobile?: boolean }) {
+export function SiteNav({ current, mobile = false, compactSearch = false }: { current?: Id; mobile?: boolean; /** Search as an icon at every width (the Builder, whose header also holds the mix tabs). */ compactSearch?: boolean }) {
   if (mobile) return <PhoneNav current={current} />;
   return <nav aria-label="Site" className="flex items-center gap-0.5">
     {SITE_PLACES.map((p) => <Link key={p.id} href={p.href} title={p.title} aria-current={current === p.id ? "page" : undefined}
       className={`inline-flex items-center gap-1.5 px-1.5 lg:px-2.5 py-1.5 rounded-md text-[13px] whitespace-nowrap no-underline ${current === p.id ? "text-ink bg-hair-2" : "text-ink-2 hover:text-ink hover:bg-hair-2/60"}`}>
       <p.icon size={16} stroke={1.6} aria-hidden="true" className="max-lg:hidden" />{p.label}</Link>)}
+    {/* Universal search: a field from 1280px, an icon below that. */}
+    {compactSearch ? <span className="ml-1"><SiteSearchButton /></span> : <><span className="ml-1 xl:hidden"><SiteSearchButton /></span><span className="ml-3 max-xl:hidden"><SiteSearchButton wide /></span></>}
   </nav>;
 }
 
@@ -49,10 +53,11 @@ function PhoneNav({ current }: { current?: Id }) {
   const pinned = mode !== "flow";
   return <div ref={spot} className="sm:hidden" style={pinned && height ? { height } : undefined}>
     <nav ref={bar} aria-label="Site"
-      className={`grid grid-cols-5 ${pinned ? `fixed top-0 inset-x-0 z-40 px-4 bg-bone/95 backdrop-blur border-b hairline transition-transform duration-200 motion-reduce:transition-none ${mode === "hidden" ? "-translate-y-full" : "translate-y-0"}` : "-mx-1"}`}>
+      className={`grid grid-cols-6 ${pinned ? `fixed top-0 inset-x-0 z-40 px-4 bg-bone/95 backdrop-blur border-b hairline transition-transform duration-200 motion-reduce:transition-none ${mode === "hidden" ? "-translate-y-full" : "translate-y-0"}` : "-mx-1"}`}>
       {SITE_PLACES.map((p) => <Link key={p.id} href={p.href} aria-current={current === p.id ? "page" : undefined}
         className={`grid justify-items-center gap-0.5 py-1.5 text-[11px] no-underline ${current === p.id ? "text-ink" : "text-ink-2"}`}>
         <p.icon size={19} stroke={current === p.id ? 2 : 1.6} aria-hidden="true" />{p.short}</Link>)}
+      <button type="button" onClick={openSiteSearch} className="grid justify-items-center gap-0.5 py-1.5 text-[11px] text-ink-2"><IconSearch size={19} stroke={1.6} aria-hidden="true" />Search</button>
     </nav>
   </div>;
 }
