@@ -227,7 +227,7 @@ export function Builder({ snapshot: base, initialIndices }: { snapshot: Snapshot
           {(mixOpen || indices.length > 1) && <IndexTabs indices={indices} activeId={active.id} onSelect={setActiveId} onRename={(id, name) => update({ ...indices.find((i) => i.id === id)!, name })} onAdd={add} onRemove={remove} />}
         </div>
         <div className="col-span-3 row-start-2 lg:w-auto lg:ml-auto flex flex-wrap items-center gap-2 shrink-0">
-          <span className="sm:hidden mr-auto"><SiteNav current="builder" /></span>
+          <span className="sm:hidden w-full order-last"><SiteNav current="builder" mobile /></span>
           <span className="ml-auto flex items-center gap-2"><ShareCards indices={indices} active={active} top={topNames} hint={shareHint} onOpen={() => setShareHint(false)} /><HeaderAuth indices={indices} canPublish={!pristine} /></span>
         </div>
         <div className="col-start-3 row-start-1 shrink-0"><SettingsButton /></div>

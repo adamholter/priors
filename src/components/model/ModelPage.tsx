@@ -56,7 +56,7 @@ export function ModelPage({ view, summary, availability, othersUrl, options, cur
   return (
     <main className="min-h-screen">
       {probe}
-      <header className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 sm:px-8 py-2 sm:h-14 border-b hairline"><div className="flex items-center gap-5"><Wordmark /><Link href={view.builderHref as "/builder"} prefetch={false} className="max-sm:hidden text-grey text-[13px] hover:text-ink">Builder</Link><Link href="/models" prefetch={false} className="max-sm:hidden text-grey text-[13px] hover:text-ink">All models</Link></div><span className="ml-auto flex items-center gap-2"><HeaderAccount /><SettingsButton /></span><span className="sm:hidden w-full"><SiteNav /></span></header>
+      <header className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 sm:px-8 py-2 sm:min-h-14 border-b hairline"><div className="flex items-center gap-5"><Wordmark /><Link href={view.builderHref as "/builder"} prefetch={false} className="max-sm:hidden text-grey text-[13px] hover:text-ink">Builder</Link><Link href="/models" prefetch={false} className="max-sm:hidden text-grey text-[13px] hover:text-ink">All models</Link></div><span className="ml-auto flex items-center gap-2"><HeaderAccount /><SettingsButton /></span><span className="sm:hidden w-full"><SiteNav mobile /></span></header>
       <div className="max-w-[1100px] mx-auto px-5 sm:px-8 py-10 grid gap-12">
         <section className="grid gap-5 sm:grid-cols-[1fr_auto] items-end">
           <div>

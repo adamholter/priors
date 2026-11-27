@@ -45,14 +45,18 @@ try {
     }
   });
 
-  await check("footer: six links, and Tools is the one door to the skill, the CLI and MCP server, import and export", async () => {
+  await check("footer: the header's five places, then every other page in groups with Support in color, and Tools is the one door to the skill, the CLI and MCP server, import and export", async () => {
     const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
     const p = await context.newPage();
     try {
       await p.goto(`${BASE}/tools`, { waitUntil: "domcontentloaded" });
-      const foot = p.getByRole("navigation", { name: "Footer" });
-      assert.deepEqual(await foot.getByRole("link").evaluateAll((links) => links.map((a) => a.getAttribute("href"))), ["/support", "/privacy", "/models", "/benchmarks", "/tools", "/request"]);
-      assert.deepEqual(await foot.getByRole("link").evaluateAll((links) => links.slice(1).map((a) => a.textContent)), ["Privacy", "Models", "Benchmarks", "Tools", "Report or request"]);
+      const foot = p.getByRole("navigation", { name: "Footer", exact: true });
+      assert.deepEqual(await foot.getByRole("link").evaluateAll((links) => links.map((a) => a.getAttribute("href"))), ["/builder", "/models", "/benchmarks", "/explore", "/rank"]);
+      const footer = p.locator("footer").last();
+      for (const href of ["/subsidies", "/history", "/compare", "/tools", "/cli", "/methods/scoring", "/request", "/privacy"]) assert.equal(await footer.locator(`a[href="${href}"]`).count(), 1, `the footer links ${href}`);
+      const support = footer.locator('a[href="/support"]');
+      assert.equal(await support.innerText(), "Support Priors");
+      assert.notEqual(await support.evaluate((a) => getComputedStyle(a).color), await footer.locator('a[href="/privacy"]').evaluate((a) => getComputedStyle(a).color), "Support stands out in color");
       const main = p.locator("main");
       for (const id of ["skill", "mcp", "cli", "import", "export"]) assert.equal(await main.locator(`section#${id} h2`).count(), 1, `/tools has a ${id} section`);
       for (const href of ["/skill", "/cli#mcp", "/cli#cli", "/import", "/request?kind=benchmark"]) assert.ok(await main.locator(`section a[href="${href}"]`).count(), `/tools links to ${href}`);
@@ -67,7 +71,7 @@ try {
       await p.goto(`${BASE}/benchmarks`, { waitUntil: "load" });
       await Promise.all([
         p.waitForURL(/\/request$/, { waitUntil: "commit", timeout: 30000 }),
-        p.getByRole("navigation", { name: "Footer" }).getByRole("link", { name: "Report or request" }).click(),
+        p.locator("footer").last().getByRole("link", { name: "Report or request" }).click(),
       ]);
       await p.getByRole("button", { name: "Send", exact: true }).waitFor({ timeout: 30000 });
     } finally { await context.close(); }
@@ -603,7 +607,7 @@ try {
     try {
       await c.goto(`${BASE}/benchmarks`, { waitUntil: "domcontentloaded" });
       assert.equal(await c.getByRole("navigation", { name: "Site" }).first().getByRole("link", { name: "Models", exact: true }).getAttribute("href"), "/models", "the site nav links the model directory");
-      assert.equal(await c.getByRole("navigation", { name: "Footer" }).getByRole("link", { name: "Models", exact: true }).count(), 1, "so does the footer");
+      assert.equal(await c.getByRole("navigation", { name: "Footer", exact: true }).getByRole("link", { name: "Models", exact: true }).count(), 1, "so does the footer");
       await c.goto(`${BASE}/models`, { waitUntil: "networkidle" });
       const ranks = await c.locator(".bench-row").evaluateAll((rows) => rows.slice(0, 10).map((r) => Number(r.querySelector(".bench-num .num")?.textContent.replace("#", ""))));
       assert.deepEqual(ranks, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], `ranked best first by default: ${ranks}`);

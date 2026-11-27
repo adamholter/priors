@@ -20,10 +20,10 @@ export default async function ModelFinderPage({ searchParams }: { searchParams: 
   const [snapshot, params] = await Promise.all([loadSnapshot(), searchParams]);
   const budget = typeof params.budget === "string" ? Number(params.budget) : 100;
   return <main className="min-h-dvh">
-    <header className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 sm:px-8 py-2 sm:h-14 border-b hairline">
+    <header className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 sm:px-8 py-2 sm:min-h-14 border-b hairline">
       <div className="flex items-center gap-5"><Wordmark /><span className="max-sm:hidden"><SiteNav /></span></div>
       <span className="ml-auto flex items-center gap-2"><HeaderAccount /><SettingsButton /></span>
-      <span className="sm:hidden w-full"><SiteNav /></span>
+      <span className="sm:hidden w-full"><SiteNav mobile /></span>
     </header>
     {snapshot ? <ModelFinder data={buildModelFinder(snapshot)} initialGroup={typeof params.use === "string" ? params.use : "overall"} initialBudget={Number.isFinite(budget) ? Math.round(Math.max(0, Math.min(100, budget))) : 100} initialMix={typeof params.mix === "string" ? params.mix : undefined} /> : <p className="p-8 text-ink-2">Model data is temporarily unavailable.</p>}
     <SiteFooter />

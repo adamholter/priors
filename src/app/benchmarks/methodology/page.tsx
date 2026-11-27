@@ -20,7 +20,7 @@ export default async function Page() {
   const names = new Map(snapshot?.benchmarks.map((b) => [b.id, b.name]));
   return (
     <main className="min-h-screen">
-      <header className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 sm:px-8 py-2 sm:h-14 border-b hairline"><div className="flex items-center gap-5"><Wordmark /><span className="max-sm:hidden"><SiteNav current="benchmarks" /></span></div><span className="ml-auto flex items-center gap-2"><HeaderAccount /><SettingsButton /></span></header>
+      <header className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 sm:px-8 py-2 sm:min-h-14 border-b hairline"><div className="flex items-center gap-5"><Wordmark /><span className="max-sm:hidden"><SiteNav current="benchmarks" /></span></div><span className="ml-auto flex items-center gap-2"><HeaderAccount /><SettingsButton /></span><span className="sm:hidden w-full"><SiteNav current="benchmarks" mobile /></span></header>
       <article className="max-w-[720px] mx-auto px-5 sm:px-8 py-12 grid gap-8 text-[15px] leading-[1.7] text-ink-2">
         <div className="grid gap-2">
           <Link href="/benchmarks" className="cap hover:text-ink">Benchmarks</Link>
