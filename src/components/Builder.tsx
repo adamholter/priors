@@ -223,16 +223,16 @@ export function Builder({ snapshot: base, initialIndices }: { snapshot: Snapshot
     <div className="builder min-h-dvh">
       <header className="builder-header grid grid-cols-[auto_minmax(0,1fr)_auto] lg:flex items-center gap-x-4 gap-y-2 px-4 sm:px-8 py-2 lg:py-0 lg:h-14 border-b hairline lg:sticky top-0 bg-bone z-40">
         <div className="shrink-0 flex items-center gap-5"><Wordmark transitionTypes={["nav-back"]} /><span className="max-sm:hidden"><SiteNav current="builder" /></span></div>
-        <div className="min-w-0 flex-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden max-sm:col-span-3 max-sm:row-start-3 empty:hidden">
+        <div className="min-w-0 flex-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden max-sm:col-span-3 max-sm:row-start-2 empty:hidden">
           {(mixOpen || indices.length > 1) && <IndexTabs indices={indices} activeId={active.id} onSelect={setActiveId} onRename={(id, name) => update({ ...indices.find((i) => i.id === id)!, name })} onAdd={add} onRemove={remove} />}
         </div>
-        {/* Phones: share and sign-in sit beside the wordmark, the five-icon site nav is the second row, index tabs (when there are any) the third. */}
-        <span className="sm:hidden col-span-3 row-start-2"><SiteNav current="builder" mobile /></span>
+        {/* Phones: share and sign-in sit beside the wordmark and index tabs (when there are any) take the second row; the five-icon site nav is just under the header. */}
         <div className="col-span-3 row-start-2 max-sm:col-span-1 max-sm:col-start-2 max-sm:row-start-1 max-sm:justify-self-end lg:w-auto lg:ml-auto flex flex-wrap items-center gap-2 shrink-0">
           <span className="ml-auto flex items-center gap-2"><ShareCards indices={indices} active={active} top={topNames} hint={shareHint} onOpen={() => setShareHint(false)} /><HeaderAuth indices={indices} canPublish={!pristine} /></span>
         </div>
         <div className="col-start-3 row-start-1 shrink-0"><SettingsButton /></div>
       </header>
+      <div className="sm:hidden px-4 border-b hairline"><SiteNav current="builder" mobile /></div>
 
       <HighlightContext.Provider value={highlightState}><ScoreAxisContext.Provider value={scoreAxis}>
       <main className={`builder-main grid grid-cols-1 ${mixOpen ? "lg:grid-cols-[360px_minmax(0,1fr)]" : "mix-closed"} gap-10 px-4 sm:px-8 pt-5 lg:pt-8 pb-8 max-w-[1500px] items-start`}>
