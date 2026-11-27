@@ -845,7 +845,8 @@ try {
       assert.ok(defaults.length, "the lab's default plans are marked");
       assert.deepEqual(defaults.filter((d) => /\((peak|mixed)\)/.test(d)), [], `no model defaults to a peak or mixed option: ${defaults}`);
       const svgBefore = await svg(), rankBefore = await rank();
-      assert.ok(await labelX("Gemini 4 Hydrogen") != null, "the cost chart labels Gemini 4 Hydrogen");
+      // Neon, not Hydrogen: Hydrogen's cost per task comes and goes with how many T3 turns record an effort (27 November 2026).
+      assert.ok(await labelX("Gemini 4 Neon") != null, "the cost chart labels Gemini 4 Neon");
       // Pixels are no measure here: a free model adds a "free" column and rescales the axis. Read the cost off the mark's card instead.
       const point = c.getByRole("status", { name: "Selected model" });
       const costOf = async (name) => {
@@ -868,15 +869,15 @@ try {
       // The regular plan the student offer discounts, then the offer itself: the models it leaves out keep the regular price.
       await pick(/^Google AI Pro$/);
       await c.waitForTimeout(900);
-      const hydrogenRegular = await costOf("Gemini 4 Hydrogen");
-      assert.match(hydrogenRegular ?? "", /per task[\s\S]*Google AI Pro/, `Hydrogen's card shows its cost on Google AI Pro: ${hydrogenRegular}`);
+      const neonRegular = await costOf("Gemini 4 Neon");
+      assert.match(neonRegular ?? "", /per task[\s\S]*Google AI Pro/, `Neon's card shows its cost on Google AI Pro: ${neonRegular}`);
       await pick(/^Google AI Pro \(Student\)/);
       const card = menu.getByLabel("Student offer");
       await card.waitFor();
       assert.match(await card.innerText(), /Free for 12 months, then \$19.99\/mo[\s\S]*Students at a US college/);
       assert.match(await card.locator("a").getAttribute("href"), /^https:\/\/(gemini\.google|blog\.google)\//, "links the official page");
       await c.waitForTimeout(900);
-      assert.equal(await costOf("Gemini 4 Hydrogen"), hydrogenRegular, "Hydrogen keeps its paid price (not in the free trial)");
+      assert.equal(await costOf("Gemini 4 Neon"), neonRegular, "Neon keeps its paid price (not in the free trial)");
       assert.match(await costOf("Gemini 3.8 Flash") ?? "", /free[\s\S]*Google AI Pro \(Student\)/, "Gemini 3.8 Flash is free on the student plan");
       assert.equal(await rank(), rankBefore, "the ranking is unchanged");
       await reopen();
