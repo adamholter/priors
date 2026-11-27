@@ -13,6 +13,10 @@ import type { PlanResetEvent, Snapshot } from "./types";
  *   a week (x = time since the week started, as a fraction of 7 days) is worth 1 - x of an allowance: a reset two days
  *   after the last one adds 0.71, one that lands 6 days in adds 0.14. The week's start is the previous reset, then a
  *   7-day clock from it, so this is worked out from the real reset times.
+ * - **Google** (Antigravity's Gemini quota): each subscriber's weekly window starts at their own first use, and a reset
+ *   restarts it (measured 2026-11-26: the weekly quota went to 0% used at the reset and the next reset date moved to 7 days
+ *   after the next use). A reset restarts the week like OpenAI's, but everyone's week runs on its own clock, so the reset lands
+ *   at a random point in each one: worth 0.5 of an allowance on average.
  * Both assume the premise the plan prices already make ("at full use"): the subscriber spends each allowance.
  *
  * Banked resets (granted once, applied whenever the subscriber chooses within a month) count too, each once, on the day it was
@@ -39,8 +43,9 @@ export const MAX_FABLE_RESETS = 3;
 export const isFableModel = (modelId: string) => /^claude-fable-/.test(modelId);
 
 /** How a lab's reset treats the weekly clock. Labs not listed keep their clock (a reset is a bonus). */
-export type ResetClock = "fixed" | "restart";
-export const RESET_CLOCKS: Record<string, ResetClock> = { openai: "restart", anthropic: "fixed" };
+/** "rolling": the reset restarts a week that each subscriber started at their own first use, so it is worth half an allowance on average. */
+export type ResetClock = "fixed" | "restart" | "rolling";
+export const RESET_CLOCKS: Record<string, ResetClock> = { openai: "restart", anthropic: "fixed", google: "rolling" };
 
 /** A reset that refills everyone on the plan, whatever the lab calls it. */
 const counts = (e: PlanResetEvent) => !/affected/i.test(e.scope ?? "");
@@ -71,6 +76,7 @@ export function extraWeeks(events: PlanResetEvent[], asOf: number, clock: ResetC
   let total = 0;
   for (const t of clockTimes.filter(inWindow)) {
     if (clock === "fixed") { total += 1; continue; }
+    if (clock === "rolling") { total += 0.5; continue; }
     const before = clockTimes.filter((u) => u < t).at(-1);
     // The first reset on record has no earlier week to measure from: take the average landing point.
     const x = before === undefined ? 0.5 : (((t - before) / DAY_MS) % WEEK_DAYS) / WEEK_DAYS;
@@ -134,7 +140,7 @@ export function hasFableGrant(snapshot: Snapshot): boolean {
   return [...planResetBoosts(snapshot).values()].some((b) => b.fableResets > 0);
 }
 
-const LAB_NAMES: Record<string, string> = { openai: "OpenAI", anthropic: "Anthropic" };
+const LAB_NAMES: Record<string, string> = { openai: "OpenAI", anthropic: "Anthropic", google: "Google" };
 const x = (n: number) => `${n.toFixed(2).replace(/\.?0+$/, "")}×`;
 /** Per lab, what is being counted: for the settings panel. */
 export function planResetRows(snapshot: Snapshot, opts: Pick<ResetOptions, "fableResets"> = {}): { lab: string; text: string }[] {
@@ -145,5 +151,5 @@ export function planResetRows(snapshot: Snapshot, opts: Pick<ResetOptions, "fabl
 export function planResetNote(snapshot: Snapshot, opts: Pick<ResetOptions, "fableResets"> = {}): string | undefined {
   const rows = planResetRows(snapshot, opts);
   if (!rows.length) return undefined;
-  return `${rows.map((r) => `${r.lab}: ${r.text}`).join(" · ")}. Banked resets count once, when granted. A Claude reset is a bonus on top of its weekly limits; an OpenAI reset restarts the week, so it adds less the later in the week it lands (a banked one counts as half). A Claude Fable grant restores Fable's half of the week, so it adds a whole allowance for Fable 5.2 and half of one for other Claude models.`;
+  return `${rows.map((r) => `${r.lab}: ${r.text}`).join(" · ")}. Banked resets count once, when granted. A Claude reset is a bonus on top of its weekly limits; an OpenAI reset restarts the week, so it adds less the later in the week it lands (a banked one counts as half). A Google (Antigravity) reset restarts each subscriber's own week, so it counts as half an allowance. A Claude Fable grant restores Fable's half of the week, so it adds a whole allowance for Fable 5.2 and half of one for other Claude models.`;
 }

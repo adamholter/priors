@@ -3,6 +3,18 @@ import type { PlanResetEvent, PlanResets, ScrapeContext } from "../../src/data/t
 export const CODEX_RESETS_URL = "https://opentherank.com/codex-reset";
 export const CLAUDE_RESETS_URL = "https://claude-resets.com/data/resets.json";
 
+/**
+ * Antigravity's Gemini quota resets, kept by hand: no public tracker covers them (claude-resets.com has Claude and Codex only). Add each
+ * all-user reset Google announces, with the post. Times are when the quota refilled, checked against a weekly-quota log where there is one.
+ * 2026-11-26 Thanksgiving: Varun Mohan (Antigravity lead) at 07:19 UTC, "Resetting Gemini quota for all Antigravity users"; the
+ * weekly Gemini quota refilled at 07:17 UTC. A second post that day (x.com/ckbrox13/status/2125942944742138131, 13:21 UTC) quotes his and
+ * refilled nothing further, so it is the same reset.
+ */
+export const GEMINI_RESETS_URL = "https://x.com/_mohansolo/status/2125851902009311306";
+export const GEMINI_RESETS: PlanResetEvent[] = [
+  { at: "2026-11-26T07:17:00.000Z", kind: "reset", scope: "all", url: GEMINI_RESETS_URL },
+];
+
 const attr = (tag: string, name: string) => new RegExp(`\\b${name}="([^"]*)"`).exec(tag)?.[1];
 
 /**
@@ -43,13 +55,15 @@ export async function fetchPlanResets(ctx: ScrapeContext): Promise<{ resets: Pla
   const resets: PlanResets[] = [], failed: string[] = [], raw: Record<string, string> = {};
   const jobs: { labId: string; plan: string; source: string; url: string; run: () => Promise<PlanResetEvent[]> }[] = [
     { labId: "openai", plan: "ChatGPT / Codex", source: "OpenTheRank Codex reset tracker", url: CODEX_RESETS_URL, run: async () => { const html = await ctx.fetchText(CODEX_RESETS_URL); raw["codex-reset.html"] = html; return parseCodexResets(html); } },
+    { labId: "google", plan: "Google AI (Antigravity)", source: "Antigravity's announcements on X", url: GEMINI_RESETS_URL, run: async () => GEMINI_RESETS },
     { labId: "anthropic", plan: "Claude", source: "claude-resets.com", url: CLAUDE_RESETS_URL, run: async () => { const text = await ctx.fetchText(CLAUDE_RESETS_URL); raw["claude-resets.json"] = text; return parseClaudeResets(JSON.parse(text) as ClaudeResetsFile); } },
   ];
   await Promise.all(jobs.map(async ({ run, ...meta }) => {
     try { resets.push({ ...meta, events: await run() }); }
     catch (e) { failed.push(meta.labId); ctx.log(`${meta.source}: ${e instanceof Error ? e.message : String(e)}`); }
   }));
-  if (!resets.length) throw new Error("no reset history could be read");
+  // Google's list is in the code; only the fetched trackers say whether anything could be read.
+  if (resets.every((r) => r.events === GEMINI_RESETS)) throw new Error("no reset history could be read");
   for (const r of resets) ctx.log(`${r.labId}: ${r.events.length} resets (${r.events.filter((e) => e.kind !== "banked").length} regular), latest ${r.events.at(-1)?.at}`);
   return { resets: resets.sort((a, b) => a.labId.localeCompare(b.labId)), failed, raw };
 }

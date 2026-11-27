@@ -240,6 +240,8 @@ describe("plan limit resets", () => {
     expect(extraWeeks(daily, Date.parse("2026-09-05T00:00:00Z"), "fixed")).toBe(12);
     // A reset a whole number of weeks after the last lands as a week begins anyway: it replaces nothing, so it adds a whole allowance.
     expect(extraWeeks([ev("2026-07-20T00:00:00Z"), ev("2026-08-10T00:00:00Z")], Date.parse("2026-09-05T00:00:00Z"), "restart")).toBeCloseTo(1, 9);
+    // Google: each subscriber's week starts at their own first use, so a reset is worth half an allowance however close the last one was.
+    expect(extraWeeks([ev("2026-11-20T00:00:00Z"), ev("2026-11-26T07:17:00Z")], Date.parse("2026-11-27T00:00:00Z"), "rolling")).toBeCloseTo(1, 9);
   });
 
   it("when turned on, makes the lab's plan cheaper by that factor, and leaves other labs, API pricing and the default alone", () => {
