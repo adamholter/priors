@@ -5,6 +5,7 @@ import "./globals.css";
 import { Providers } from "./providers";
 import { NavProgress } from "@/components/NavProgress";
 import { SiteSearchHost } from "@/components/SiteSearch";
+import { RANK_AB_SCRIPT } from "@/lib/ab-rank";
 import { THEME_SCRIPT } from "@/components/Theme";
 import { DOM_GUARD_SCRIPT } from "@/lib/dom-guard";
 import { THEME_CRITICAL_CSS } from "@/lib/theme-critical";
@@ -44,7 +45,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className={`${newsreader.variable} ${newsreaderItalic.variable} ${inter.variable} ${jetbrains.variable} ${switzer.variable} ${dmSans.variable} ${sourceSerif.variable} ${geist.variable} ${geistMono.variable} ${plexMono.variable} ${outfit.variable} ${poppins.variable} ${lora.variable} ${excalifont.variable} ${comicShanns.variable} h-full antialiased`} suppressHydrationWarning>
-      <head><style dangerouslySetInnerHTML={{ __html: THEME_CRITICAL_CSS }} /><script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} suppressHydrationWarning /><script dangerouslySetInnerHTML={{ __html: DOM_GUARD_SCRIPT }} suppressHydrationWarning /></head>
+      <head><style dangerouslySetInnerHTML={{ __html: THEME_CRITICAL_CSS }} /><script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} suppressHydrationWarning /><script dangerouslySetInnerHTML={{ __html: DOM_GUARD_SCRIPT }} suppressHydrationWarning /><script dangerouslySetInnerHTML={{ __html: RANK_AB_SCRIPT }} suppressHydrationWarning /></head>
       <body className="min-h-full flex flex-col">
         <NavProgress /><Providers>{children}<SiteSearchHost /></Providers>
       </body>

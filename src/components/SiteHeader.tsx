@@ -5,6 +5,7 @@ import { SiteSearchButton } from "./SiteSearch";
 import { HeaderAccount } from "./AccountMenu";
 import { SettingsButton } from "./SiteSettings";
 import type { SiteId } from "./site-places";
+import { RankFloat } from "./RankFloat";
 
 /**
  * The header every page of the site shares, so its height, spacing and contents match everywhere: the wordmark, the five places, the
@@ -18,5 +19,6 @@ export function SiteHeader({ current, actions, account = true }: { current?: Sit
     <div className="max-lg:hidden flex-1 min-w-[150px] max-w-[340px]"><SiteSearchButton wide /></div>
     <span className="ml-auto flex items-center gap-2"><span className="max-sm:hidden lg:hidden"><SiteSearchButton /></span>{actions}{account && <HeaderAccount />}<SettingsButton /></span>
     <span className="sm:hidden w-full"><SiteNav current={current} mobile /></span>
+    {current !== "rank" && <RankFloat />}
   </header>;
 }

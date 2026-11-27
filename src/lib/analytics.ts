@@ -6,7 +6,7 @@ export type AnalyticsEvent =
   | "chart_exported" | "custom_theme_added" | "share_card_opened" | "share_card_shared"
   | "onboarding_started" | "onboarding_bracket_done" | "onboarding_compare_more" | "onboarding_skipped" | "onboarding_fit_started" | "publish_clicked"
   | "share_menu_opened" | "remix_clicked" | "explore_x_clicked"
-  | "dom_guarded" | "support_clicked" | "site_search_opened" | "compare_opened" | "compare_link_copied" | "compare_changed" | "request_sent" | "version_notice" | "benchmark_star";
+  | "dom_guarded" | "support_clicked" | "site_search_opened" | "rank_cta_clicked" | "compare_opened" | "compare_link_copied" | "compare_changed" | "request_sent" | "version_notice" | "benchmark_star";
 
 const key = process.env.NEXT_PUBLIC_POSTHOG_KEY?.trim();
 
@@ -38,6 +38,9 @@ export function startAnalytics(): Promise<PostHog> | null {
       capture_exceptions: true,
       before_send: (event) => (event?.event === "$exception" && isNoiseException(event.properties) ? null : event),
     });
+    // The Rank models A/B test (src/lib/ab-rank.ts): every event says which placement this visitor sees.
+    const place = document.documentElement.dataset.rankPlace;
+    if (place === "header" || place === "corner") posthog.register({ rank_placement: place });
     // The page-translation guard (DOM_GUARD_SCRIPT) stepped in: count it, with the languages, once per page.
     let guarded = false;
     window.addEventListener("priors:dom-guard", () => {

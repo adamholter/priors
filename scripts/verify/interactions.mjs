@@ -602,6 +602,25 @@ try {
     } finally { await c.context().close(); }
   });
 
+  await check("Rank models A/B: the header arm has the header link and no floating button; the corner arm the reverse, and it sticks", async () => {
+    const c = await (await browser.newContext({ viewport: { width: 1440, height: 1000 } })).newPage();
+    try {
+      await c.goto(`${BASE}/models`, { waitUntil: "domcontentloaded" });
+      assert.equal(await c.evaluate(() => document.documentElement.dataset.rankPlace), "header", "an automated browser gets the header arm");
+      assert.equal(await c.locator(".site-header nav[aria-label=Site] a.rank-in-header").first().isVisible(), true, "header link shown");
+      assert.equal(await c.locator(".rank-float").isVisible(), false, "no floating button");
+      await c.goto(`${BASE}/models?rankplace=corner`, { waitUntil: "domcontentloaded" });
+      assert.equal(await c.locator(".site-header nav[aria-label=Site] a.rank-in-header").first().isVisible(), false, "header link hidden");
+      const float = c.locator(".rank-float");
+      assert.equal(await float.isVisible(), true, "floating button shown");
+      assert.equal(await float.getAttribute("href"), "/rank");
+      const box = await float.boundingBox();
+      assert.ok(box.x + box.width > 1440 - 40 && box.y + box.height > 1000 - 40, `bottom right: ${JSON.stringify(box)}`);
+      await c.goto(`${BASE}/benchmarks`, { waitUntil: "domcontentloaded" });
+      assert.equal(await c.locator(".rank-float").isVisible(), true, "the arm sticks without the parameter");
+    } finally { await c.context().close(); }
+  });
+
   await check("model directory: linked from the site nav and every model page, ranked by default, searchable, filtered by lab, rows open the model", async () => {
     const c = await (await browser.newContext({ viewport: { width: 1440, height: 1000 } })).newPage();
     try {

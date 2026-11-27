@@ -487,3 +487,13 @@ select:not([multiple], .rl-m-compare select) { appearance: none; text-overflow: 
 /* A lab's logo beside a model name (LabLogo.tsx). */
 .lab-logo{flex:none;display:inline-grid;place-items:center;border-radius:4px;object-fit:contain}
 .lab-letter{color:#fff;font:600 10px/1 var(--font-sans)}
+
+/* Rank models A/B test (src/lib/ab-rank.ts). "header": the header links, no floating button. "corner": a floating button bottom right,
+   no header links. Beside the assistant's round button when the page has one; hidden while its panel is open. */
+html[data-rank-place="corner"] .rank-in-header { display: none !important; }
+.rank-float { display: none; }
+html[data-rank-place="corner"] .rank-float { position: fixed; right: 20px; bottom: 20px; z-index: 44; display: inline-flex; align-items: center; gap: 8px; height: 48px; padding: 0 18px 0 16px; border-radius: 999px; background: var(--ink); color: var(--white); font-size: 14px; font-weight: 500; text-decoration: none; box-shadow: 0 10px 28px -10px var(--shadow, rgba(0,0,0,.35)); }
+html[data-rank-place="corner"] .rank-float:hover { filter: brightness(1.15); }
+html[data-rank-place="corner"] body:has(.assistant-fab) .rank-float { right: 80px; }
+html[data-rank-place="corner"] body:has(.assistant-panel) .rank-float { display: none; }
+@media print { .rank-float { display: none !important; } }

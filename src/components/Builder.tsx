@@ -54,6 +54,7 @@ import { leaving } from "./nav-progress";
 import { VersionNotices, type BuilderNotices } from "./VersionNotices";
 import { ownSavedIndices, upgradeIndex } from "@/lib/version-notices";
 import { SiteSearchButton } from "./SiteSearch";
+import { RankFloat } from "./RankFloat";
 
 /** In the builder, version notices also cover the signed-in user's own page. */
 const OWN_PAGE = {};
@@ -233,7 +234,7 @@ export function Builder({ snapshot: base, initialIndices }: { snapshot: Snapshot
           <span className="ml-auto flex items-center gap-2"><ShareCards indices={indices} active={active} top={topNames} hint={shareHint} onOpen={() => setShareHint(false)} /><HeaderAuth indices={indices} canPublish={!pristine} /></span>
         </div>
         <div className="col-start-3 row-start-1 shrink-0"><SettingsButton /></div>
-      </header>
+      <RankFloat /></header>
       <div className="sm:hidden px-4 border-b hairline"><SiteNav current="builder" mobile /></div>
 
       <HighlightContext.Provider value={highlightState}><ScoreAxisContext.Provider value={scoreAxis}>

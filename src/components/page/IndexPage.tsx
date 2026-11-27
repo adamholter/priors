@@ -54,6 +54,7 @@ import { VIA_KEY } from "@/lib/share";
 import { useNewModels } from "@/lib/seen-models";
 import { avatarSrc } from "@/lib/avatar";
 import { SiteSearchButton } from "../SiteSearch";
+import { RankFloat } from "../RankFloat";
 
 /** Stored shapes come from the Convex validators, so the page and the database can't disagree. */
 export type { Section };
@@ -291,7 +292,7 @@ export function IndexPage({ profile, snapshot: base, edit, tab: linkedTab, linke
             {isOwner && <button type="button" className="btn-quiet text-center" onClick={openSettings}>Page settings</button>}
           </MobileMenu>
         </div>
-      </header>
+      </header><RankFloat />
       {authEnabled && <OwnerProbe handle={p.handle} onOwner={onOwner} />}
       {editing && <Autosave profile={p} onState={setSaveState} />}
       {editing && <div className="edit-bar" role="region" aria-label="Editing your page">
