@@ -281,6 +281,8 @@ const OVERRIDES: Record<string, BenchmarkSize | null> = {
   "polytopia-bench": { tasks: 1, runs: 5, url: "https://github.com/kevinz917/superhuman-polytopia-bot/blob/main/benchmark/INDEX.md" },
   // 12 prompts in three rounds, one clip per model and prompt (the site's data.json, 144 clips).
   spectrobench: { tasks: 12, runs: 1, url: "https://spectrobench.ssh.codes" },
+  // 76 daily games of seven prompts each, one play per model (the site's data.json).
+  krillionbench: { tasks: 532, runs: 1, url: "https://krillion.infinite.games" },
   // Added 2026-11-27: 544 prompts in 136 families of four; each family is scored as a whole (family pass^4).
   hfe: { tasks: 544, url: "https://www.kaggle.com/benchmarks/deepmind/hfe" },
   // The board's own vote count on 2026-11-23 (its page data, `metadata.totalVotes`).
