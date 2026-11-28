@@ -227,8 +227,8 @@ export function Builder({ snapshot: base, initialIndices }: { snapshot: Snapshot
     <div className="builder min-h-dvh">
       <header className="builder-header grid grid-cols-[auto_minmax(0,1fr)_auto] lg:flex items-center gap-x-4 gap-y-2 px-4 sm:px-8 py-2 lg:py-0 lg:h-14 border-b hairline lg:sticky top-0 bg-bone z-40">
         <div className="shrink-0 flex items-center gap-5"><Wordmark transitionTypes={["nav-back"]} /><span className="max-sm:hidden"><SiteNav current="builder" /></span><span className="max-xl:hidden w-[220px]"><SiteSearchButton wide /></span><span className="max-sm:hidden xl:hidden"><SiteSearchButton /></span></div>
-        {/* Phones: share and sign-in sit beside the wordmark; the five-icon site nav is just under the header. */}
-        <div className="col-span-3 row-start-2 max-sm:col-span-1 max-sm:col-start-2 max-sm:row-start-1 max-sm:justify-self-end lg:w-auto lg:ml-auto flex flex-wrap items-center gap-2 shrink-0">
+        {/* Share and sign-in sit in the header's one row from 880px (the index tabs that once shared a second row are the mix menu now); between phone and that they take a second row; on phones the five-icon site nav is just under the header. */}
+        <div className="col-span-3 row-start-2 max-sm:col-span-1 max-sm:col-start-2 max-sm:row-start-1 max-sm:justify-self-end min-[880px]:col-span-1 min-[880px]:col-start-2 min-[880px]:row-start-1 min-[880px]:justify-self-end lg:w-auto lg:ml-auto flex flex-wrap items-center gap-2 shrink-0">
           <span className="ml-auto flex items-center gap-2"><ShareCards indices={indices} active={active} top={topNames} hint={shareHint} onOpen={() => setShareHint(false)} /><HeaderAuth indices={indices} canPublish={!pristine} /></span>
         </div>
         <div className="col-start-3 row-start-1 shrink-0"><SettingsButton /></div>

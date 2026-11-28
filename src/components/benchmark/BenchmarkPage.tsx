@@ -137,7 +137,7 @@ export function BenchmarkPage({ snapshot: base, benchmarkId, models, relatives, 
           </section>)}
 
           {(metrics.standard.length > 0 || metrics.details.length > 0) && <section className="grid">
-            <div className="flex items-baseline justify-between gap-x-4 border-b-2 border-ink pb-2"><h2 className="text-[22px] sm:text-[26px]">More from this benchmark</h2><span className="cap">{metrics.standard.length + metrics.details.length} published measures</span></div>
+            <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b-2 border-ink pb-2"><h2 className="text-[22px] sm:text-[26px]">More from this benchmark</h2><span className="cap whitespace-nowrap">{metrics.standard.length + metrics.details.length} published measures</span></div>
             {metrics.standard.map((m, i) => <Panel key={m.id} anchor={`metric-${m.id}`} title={m.label} desc={`${m.values.size} results · lower is better`} defaultOpen={i === 0} tools={<StandardTools metric={m} ranked={plotted} labs={snapshot.labs} />}>
               <GalleryChart id={`bench-${m.id}`} anchor={`metric-${m.id}`} title={m.label} chart={metricChartOf(m, b.name)} ranked={plotted} defaultMode="all" labs={snapshot.labs} settings={gallerySettings} inputs={inputs} />
             </Panel>)}

@@ -68,7 +68,7 @@ export function UsageStream({ snapshot, labs, extra }: { snapshot: Snapshot; lab
     <div className="usage-stream @container">
       <div className="flex flex-wrap items-center justify-between gap-2 mb-2 max-sm:px-4">
         <p className="cap">daily {view === "share" ? "share of turns" : "turns"}{window ? ` · ${window}` : ""} · via Slopalytics</p>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <div className="seg whitespace-nowrap" role="group" aria-label="Usage view">
             <button type="button" aria-pressed={view === "share"} onClick={() => setView("share")}>Share</button>
             <button type="button" aria-pressed={view === "volume"} onClick={() => setView("volume")}>Volume</button>

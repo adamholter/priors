@@ -1,6 +1,7 @@
 import type { Effort } from "../../src/data/types";
 import { normalizeLabel } from "../../src/data/normalize";
 import { isBaselineVariant } from "../../src/data/variant-identity";
+import { aaCreatorLab } from "../../src/data/lab-identity";
 
 export interface AAModelRecord {
   id?: unknown;
@@ -63,7 +64,8 @@ const labId = (creator: unknown): string => {
     minimax: "minimax", xiaomi: "xiaomi", cognition: "cognition",
     tencent: "tencent", cursor: "cursor",
   };
-  return aliases[slug] ?? "other";
+  // Any other creator AA credits a model to (IBM, Liquid AI, Upstage) is that lab when we list it, so its logo shows; an unlisted one stays `other`.
+  return aliases[slug] ?? aaCreatorLab(slug) ?? "other";
 };
 
 function explicitEffort(value: unknown): Effort | undefined {

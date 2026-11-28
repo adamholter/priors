@@ -21,7 +21,11 @@ The flag is measured when a logo is added (share of near-black pixels), then rev
 
 ## Chart colors
 
-Every lab in LABS has a chart color, and a dark-page color in `DARK_LAB_COLORS` (`src/components/chart/palette.ts`). New colors are the logo's brand color, nudged only where it sat within OKLab distance 6 of an existing lab. `SpaceXAI` and `Google Cloud` use xAI's and Google's colors: the same companies. `load.ts` applies `LABS` to a snapshot saved before a lab was named or colored, so an old snapshot reads like today's.
+Every lab in LABS has a chart color, and a dark-page color in `DARK_LAB_COLORS` (`src/components/chart/palette.ts`). New colors are the logo's brand color, nudged only where it sat within OKLab distance 6 of an existing lab (the labs added from `other` are held to at least 4.7 in light and 3.2 in dark: with 80 labs the brand colors crowd, and a logo, not a color, is what names a lab). `SpaceXAI` and `Google Cloud` use xAI's and Google's colors: the same companies. `load.ts` applies `LABS` to a snapshot saved before a lab was named or colored, so an old snapshot reads like today's.
+
+## Labs hiding in `other`
+
+A model the family patterns cannot place is filed `aa-<slug>`; its lab was `other` unless Artificial Analysis's creator was one of twenty. Now every AA creator that is a lab in `lab-logos.ts` is that lab (`aaCreatorLab` in `src/data/lab-identity.ts`): the scraper does it (`aa-identity.ts`), and `withLabIdentity` does it for snapshots saved before (Granite to IBM, LFM to Liquid AI, Solar to Upstage, Nova to Amazon, Phi to Microsoft). AA files Nova under AWS and Phi under Azure, so those two are mapped by hand. Only `other` ever moves, a provider or plan seller is never a model's lab, and a model nobody credits (AlephProver, Aristotle) stays `other` with its `?` tile. `model-labels.ts` and `normalize.ts` carry the same labs for the spellings other boards use (`ibm-granite/granite-4.0-h-small`, `Command A`).
 
 ## Adding a lab
 

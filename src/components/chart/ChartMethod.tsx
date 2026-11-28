@@ -20,6 +20,9 @@ export function ChartMethod({ name, children, href }: { name: string; children: 
       if (over > 0) el.style.left = `${-Math.min(over, r.left - 12)}px`;
     };
     fit();
+    // Opened low on a phone, the popover runs under the browser's bottom bar: scroll it up into view (never past the page top bar).
+    const r = el.getBoundingClientRect(), over = r.bottom - (window.innerHeight - 96), room = r.top - 72;
+    if (over > 0 && room > 0) window.scrollBy({ top: Math.min(over, room), behavior: "instant" });
     window.addEventListener("resize", fit);
     return () => window.removeEventListener("resize", fit);
   }, [open]);

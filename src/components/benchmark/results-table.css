@@ -64,6 +64,8 @@
 .results-row:focus-visible, .results-prow:focus-visible { box-shadow: inset 0 0 0 2px var(--indigo); }
 .results-who { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .results-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+/* a phone's tap area: 40px tall, laid out as before (overflow clips a ::before, so the box itself grows) */
+@media (pointer: coarse) { .results-name { padding-block: 9px; margin-block: -9px; } }
 .results-name:hover { text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--hair-3); }
 .results-launch { display: inline-grid; flex: none; color: var(--grey); }
 .results-rank { display: flex; align-items: center; justify-content: flex-end; gap: 2px; }

@@ -8,6 +8,8 @@
 .bench-top-nowrap{white-space:nowrap}
 .bench-top-title-end{display:inline-flex;align-items:center;vertical-align:middle;gap:2px;margin-left:8px;white-space:nowrap;position:relative;top:-2px}
 @media (min-width:640px){.bench-top-title-end{top:-5px}}
+/* the last word and the star never wrap apart, so on the narrowest phones the title steps down until a long last word (AutomationBench-AA) fits the 320px column */
+@media (max-width:400px){.bench-top h1{font-size:30px}}
 .bench-top .bench-star.bench-top-starbtn{border:0;padding:6px;gap:5px;border-radius:6px;font-size:13px;line-height:1;color:var(--grey);background:none}
 .bench-top .bench-star.bench-top-starbtn svg{width:19px;height:19px}
 .bench-top .bench-star.bench-top-starbtn:hover{color:var(--ink);background:var(--hair-2)}

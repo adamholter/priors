@@ -136,16 +136,6 @@ details.gallery-panel > summary::-webkit-details-marker { display: none; }
 .account-popover { z-index: 70; max-width: calc(100vw - 32px); }
 header:has(.account-menu > [aria-expanded="true"]) { z-index: 60; }
 .chart-toolbar:has(details[open]) { position: relative; z-index: 30; }
-/* Zoom history: sized from the row's spare width only (inline-size containment), so it can never wrap the toolbar. Older levels, then the word, drop as room runs out. */
-.chart-toolbar > :last-child:has(> .zoom-trail) { flex: 1 1 auto; justify-content: flex-end; }
-.zoom-trail { container-type: inline-size; flex: 1 1 0; min-width: 0; }
-.zoom-trail nav { display: flex; align-items: center; justify-content: flex-end; gap: 4px; padding: 0 10px 0 4px; white-space: nowrap; overflow: hidden; }
-.zoom-trail[data-depth="5"] .zoom-mid { display: none; }
-@container (max-width: 149px) { .zoom-trail[data-depth="2"] .zoom-mid { display: none; } }
-@container (max-width: 204px) { .zoom-trail[data-depth="3"] .zoom-mid { display: none; } }
-@container (max-width: 259px) { .zoom-trail[data-depth="4"] .zoom-mid { display: none; } }
-@container (max-width: 94px) { .zoom-word { display: none; } }
-@container (max-width: 56px) { .zoom-trail nav { visibility: hidden; } }
 .chart-toolbar:has(details[open] > .chart-settings-menu) { z-index: 60; }
 
 .handle-input:focus-visible { outline: none; }

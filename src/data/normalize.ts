@@ -49,6 +49,43 @@ export const LABS: Lab[] = [
   { id: "lm-provers", name: "LM Provers", color: "#393B5D" },
   { id: "inworld", name: "Inworld", color: "#678192" },
   { id: "reson8", name: "Reson8", color: "#737CDB" },
+  // Labs Artificial Analysis credits models to (they sat under `other`): the logo's brand color, nudged until it is at least ΔE 4.7 (OKLab) from every lab above.
+  { id: "sk-telecom", name: "SK Telecom", color: "#E1002A" },
+  { id: "agnes-ai", name: "Agnes AI", color: "#1521A9" },
+  { id: "swiss-ai", name: "Swiss AI Initiative", color: "#CC3D36" },
+  { id: "apodex", name: "Apodex", color: "#32C2B6" },
+  { id: "servicenow", name: "ServiceNow", color: "#62A88F" },
+  { id: "snowflake", name: "Snowflake", color: "#2EB8EB" },
+  { id: "celeris", name: "Celeris", color: "#FF8A75" },
+  { id: "deep-cogito", name: "Deep Cogito", color: "#4F84FF" },
+  { id: "databricks", name: "Databricks", color: "#E4462F" },
+  { id: "lg-ai-research", name: "LG AI Research", color: "#C00C3F" },
+  { id: "tii", name: "TII", color: "#8545FA" },
+  { id: "ai9stars", name: "AI9Stars", color: "#7661C3" },
+  { id: "ibm", name: "IBM", color: "#1A5CDC" },
+  { id: "naver", name: "Naver", color: "#03C75A" },
+  { id: "multiverse-computing", name: "Multiverse Computing", color: "#E23A56" },
+  { id: "prime-intellect", name: "Prime Intellect", color: "#4D5A4D" },
+  { id: "ai21", name: "AI21 Labs", color: "#C74667" },
+  { id: "joy-ai", name: "Joy Future Academy", color: "#F15862" },
+  { id: "china-mobile", name: "China Mobile", color: "#0F91DF" },
+  { id: "ifm", name: "Institute of Foundation Models", color: "#0461C0" },
+  { id: "kuaishou", name: "Kuaishou", color: "#FF4906" },
+  { id: "liquid-ai", name: "Liquid AI", color: "#7632E6" },
+  { id: "korea-telecom", name: "Korea Telecom", color: "#B30716" },
+  { id: "ai2", name: "Allen AI", color: "#F0529C" },
+  { id: "motif-technologies", name: "Motif Technologies", color: "#849FEC" },
+  { id: "nanbeige", name: "Nanbeige", color: "#023C3E" },
+  { id: "amazon", name: "Amazon", color: "#FF9900" },
+  { id: "openchat", name: "OpenChat", color: "#5463D0" },
+  { id: "perplexity", name: "Perplexity", color: "#0C8F99" },
+  { id: "reflection", name: "Reflection", color: "#195428" },
+  { id: "reka", name: "Reka", color: "#3F5C8A" },
+  { id: "sarvam", name: "Sarvam AI", color: "#9D9B96" },
+  { id: "upstage", name: "Upstage", color: "#8C60FD" },
+  { id: "trillion-labs", name: "Trillion Labs", color: "#333A37" },
+  { id: "arcee", name: "Arcee AI", color: "#207E79" },
+  { id: "nex-agi", name: "Nex AGI", color: "#0840BE" },
   // The same companies as xai and google: SpaceXAI is xAI's new name, Google Cloud serves Google's models.
   { id: "spacexai", name: "SpaceXAI", color: "#7B4FD8" },
   { id: "google-cloud", name: "Google Cloud", color: "#3B78D8" },
@@ -75,7 +112,7 @@ const FAMILIES: { re: RegExp; id: (m: RegExpMatchArray) => string; name: (m: Reg
   { re: /\bgpt[\s-]*4[\s-]*turbo\b/, id: () => "gpt-4-turbo", name: () => "GPT-4 Turbo", lab: "openai" },
   { re: /\bdeepseek[\s-]*v?(\d+(?:\.\d+)?)[\s-]*flash[\s-]*vision\b/, id: (m) => `deepseek-v${m[1]}-flash-vision`, name: (m) => `DeepSeek V${m[1]} Flash Vision`, lab: "deepseek", reasoning: true },
   { re: /\bqwen[\s-]*(\d+(?:\.\d+)?)[\s-]*coder[\s-]*plus\b/, id: (m) => `qwen-${m[1]}-coder-plus`, name: (m) => `Qwen ${m[1]} Coder Plus`, lab: "alibaba" },
-  { re: /\bnex[\s-]*n2[\s-]*pro\b/, id: () => "nex-n2-pro", name: () => "Nex-N2-Pro", lab: "other", reasoning: true },
+  { re: /\bnex[\s-]*n2[\s-]*pro\b/, id: () => "nex-n2-pro", name: () => "Nex-N2-Pro", lab: "nex-agi", reasoning: true },
   // Anthropic
   // The older "Claude <version> <tier>" order. Claude 3.5 Sonnet is left out: it names two models, told apart in `normalizeLabel`.
   { re: /\bclaude[\s-]*(3|3\.7|4|4\.1|4\.5)[\s-]*(opus|sonnet|haiku)\b|\bclaude[\s-]*(3\.5)[\s-]*(opus|haiku)\b/, id: (m) => `claude-${m[2] ?? m[4]}-${m[1] ?? m[3]}`, name: (m) => `${cap(m[2] ?? m[4])} ${m[1] ?? m[3]}`, lab: "anthropic", reasoning: true },
@@ -245,13 +282,13 @@ const VALS_PUBLISHED_MODELS: Record<string, { id: string; name: string; lab: str
   "wonder full": { id: "aa-muse-wonder-full", name: "Muse Wonder Full", lab: "meta", reasoning: true },
   "claude 3.7 sonnet nonthinking": { id: "claude-sonnet-3.7", name: "Sonnet 3.7", lab: "anthropic", reasoning: true },
   "claude 3.5 haiku latest": { id: "claude-haiku-3.5", name: "Haiku 3.5", lab: "anthropic", reasoning: true },
-  "command a": { id: "aa-command-a", name: "Command A", lab: "other", reasoning: true },
-  "command r": { id: "aa-command-r-03-2024", name: "Command-R (Mar '24)", lab: "other", reasoning: true },
-  "command r+": { id: "aa-command-r-plus-04-2024", name: "Command-R+ (Apr '24)", lab: "other", reasoning: true },
-  "jamba 1.5 large": { id: "aa-jamba-1-5-large", name: "Jamba 1.5 Large", lab: "other", reasoning: true },
-  "jamba 1.5 mini": { id: "aa-jamba-1-5-mini", name: "Jamba 1.5 Mini", lab: "other", reasoning: true },
-  "jamba 1.6 large": { id: "aa-jamba-1-6-large", name: "Jamba 1.6 Large", lab: "other", reasoning: true },
-  "jamba 1.6 mini": { id: "aa-jamba-1-6-mini", name: "Jamba 1.6 Mini", lab: "other", reasoning: true },
+  "command a": { id: "aa-command-a", name: "Command A", lab: "cohere", reasoning: true },
+  "command r": { id: "aa-command-r-03-2024", name: "Command-R (Mar '24)", lab: "cohere", reasoning: true },
+  "command r+": { id: "aa-command-r-plus-04-2024", name: "Command-R+ (Apr '24)", lab: "cohere", reasoning: true },
+  "jamba 1.5 large": { id: "aa-jamba-1-5-large", name: "Jamba 1.5 Large", lab: "ai21", reasoning: true },
+  "jamba 1.5 mini": { id: "aa-jamba-1-5-mini", name: "Jamba 1.5 Mini", lab: "ai21", reasoning: true },
+  "jamba 1.6 large": { id: "aa-jamba-1-6-large", name: "Jamba 1.6 Large", lab: "ai21", reasoning: true },
+  "jamba 1.6 mini": { id: "aa-jamba-1-6-mini", name: "Jamba 1.6 Mini", lab: "ai21", reasoning: true },
   "gemma 2 9b": { id: "gemma-2-9b", name: "Gemma 2 9B", lab: "google", reasoning: true },
   "gemma 2 27b": { id: "gemma-2-27b", name: "Gemma 2 27B", lab: "google", reasoning: true },
   "mixtral 8x7b": { id: "aa-mixtral-8x7b-instruct", name: "Mixtral 8x7B Instruct", lab: "mistral", reasoning: true },
@@ -348,8 +385,8 @@ export function normalizeLabel(label: string, effortHint?: string): Normalized |
   // Kimi K2 Thinking is its own release (Nov 2025), not K2 in a thinking mode; "thinking" is stripped as noise below, so it is caught here.
   if (/\bkimi[\s-]*k2[\s-]*thinking\b/.test(cleaned)) return { ok: true, modelId: "kimi-k2-thinking", modelName: "Kimi K2 Thinking", labId: "moonshot", effort, reasoningFamily: true, cleaned };
   if (/\bo1[\s-]*preview\b/.test(cleaned)) return { ok: true, modelId: "o1-preview", modelName: "o1-preview", labId: "openai", effort, reasoningFamily: true, cleaned };
-  // StepFun's Step 5 Preview keeps the id Artificial Analysis gave it (no StepFun lab entry yet), so other boards join AA's rows.
-  if (/\bstep[\s-]*5[\s-]*preview\b/.test(cleaned)) return { ok: true, modelId: "aa-step-5", modelName: "Step 5 Preview", labId: "other", effort, reasoningFamily: true, cleaned };
+  // StepFun's Step 5 Preview keeps the id Artificial Analysis gave it, so other boards join AA's rows.
+  if (/\bstep[\s-]*5[\s-]*preview\b/.test(cleaned)) return { ok: true, modelId: "aa-step-5", modelName: "Step 5 Preview", labId: "stepfun", effort, reasoningFamily: true, cleaned };
   // Not one released model, so never filed under one. A router ("gpt-6-auto (astra+luna)") sends each task to Astra or Luna: without this it read as a
   // bare GPT-6. An "Early" build ("Qwen-4-27B-Early") is an unreleased checkpoint: without this it took the id the release will get, and its scores with it.
   if (/\bgpt[\s-]*\d+(?:\.\d+)?[\s-]*auto\b(?![\s-]*(?:reasoning|thinking|effort))/.test(cleaned) || /\bearly\b/.test(cleaned)) return { ok: false, cleaned };

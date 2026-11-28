@@ -58,6 +58,12 @@ describe("resolveAAIdentity", () => {
     expect(identity.variantId).toContain("~aa-future-model-v9-special-12345678");
   });
 
+  it("files an unplaced model under the lab AA credits it to when the lab is listed, so its logo shows", () => {
+    for (const [slug, lab] of [["ibm", "ibm"], ["liquidai", "liquid-ai"], ["aws", "amazon"], ["azure", "microsoft"], ["upstage", "upstage"], ["ai21-labs", "ai21"]])
+      expect(resolveAAIdentity(aa({ id: `${slug}-uuid`, slug: `${slug}-future-1`, name: `Future ${slug} 1`, creator: { slug } })), slug).toMatchObject({ modelId: `aa-${slug}-future-1`, labId: lab });
+    expect(resolveAAIdentity(aa({ id: "g-uuid", slug: "groq-future", name: "Groq Future", creator: { slug: "groq" } })).labId).toBe("other");
+  });
+
   it("reports true source-record collisions", () => {
     const first = resolveAAIdentity(aa({ id: "same-source", slug: "gpt-6-astra" }));
     expect(findAAIdentityCollisions([first, { ...first, sourceModelId: "other-source" }])).toEqual([{

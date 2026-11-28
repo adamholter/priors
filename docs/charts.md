@@ -77,7 +77,7 @@ Embeds inline the same rules.
 
 ## Drag to zoom
 
-Every scatter (not the bare copy in the screenshot editor) zooms by dragging a box on the plot (`ChartZoom.tsx`, math in `chart-zoom.ts`). The axes glide to the box, marks outside it leave, and the frontier and effort lines still come from every mark, clipped at the plot's edge. Dragging again nests a level; the trail in the toolbar (All > Zoom 1 > Zoom 2) jumps back. Double-click or Escape steps back one level. Escape during a drag cancels the box. With several charts zoomed, Escape acts on the latest one on screen, and an open menu, dialog or text field keeps its own Escape; an expanded chart steps its zoom back first and closes on the next press. On touch, hold a moment, then drag; a quick swipe scrolls.
+Every scatter (not the bare copy in the screenshot editor) zooms by dragging a box on the plot (`ChartZoom.tsx`, math in `chart-zoom.ts`). The axes glide to the box, marks outside it leave, and the frontier and effort lines still come from every mark, clipped at the plot's edge. Dragging again nests a level; the trail (All > Zoom 1 > Zoom 2) in the zoom line under the plot jumps back (the header is too full to hold it at laptop widths). Double-click or Escape steps back one level. Escape during a drag cancels the box. With several charts zoomed, Escape acts on the latest one on screen, and an open menu, dialog or text field keeps its own Escape; an expanded chart steps its zoom back first and closes on the next press. On touch, hold a moment, then drag; a quick swipe scrolls.
 
 ## Colors
 

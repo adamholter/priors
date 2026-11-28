@@ -5,8 +5,8 @@ import { MIN_DRAG, lerpBox, logTicks, padBox, pixelBoxToDomain, unionBox, type R
 import type { ChartPalette } from "./theme-tokens";
 
 /**
- * Drag-to-zoom on scatter charts: drag a box on the plot and the axes glide to it. Each drag nests a level; the trail in the
- * toolbar jumps back, and double-click or Escape steps back one. Escape during a drag cancels the box.
+ * Drag-to-zoom on scatter charts: drag a box on the plot and the axes glide to it. Each drag nests a level; the trail under
+ * the plot jumps back, and double-click or Escape steps back one. Escape during a drag cancels the box.
  */
 type Point = { x: number; y: number };
 type Frame = { grid: Rect; x: Range; y: Range; height: number };
@@ -176,14 +176,15 @@ export function useChartZoom({ handle, host, scale, bare, pal }: { handle: RefOb
     return <div aria-hidden="true" data-zoom-band="" style={{ ...tint, left: x0, top: y0, width: Math.max(1, x1 - x0), height: Math.max(1, y1 - y0) }} />;
   })() : null;
 
-  // The trail takes only the toolbar's spare width (zoom-trail in globals.css), so zooming never wraps the toolbar and moves the chart. Tight, it shortens.
+  // The trail sits in the zoom line under the plot (ScoreScatter), not in the toolbar: the header is full (title, stars, key, share), so a
+  // trail there had no room at laptop widths, and a line under the chart never wraps the toolbar or moves the chart.
   const level = (i: number) => {
-    const word = i ? <><span className="zoom-word">Zoom </span>{i}</> : "All";
-    return i === stack.length ? <span className="text-ink" aria-current="step" aria-label={i ? `Zoom ${i}` : undefined}>{word}</span> : <button type="button" className="hover:text-ink" aria-label={i ? `Zoom ${i}` : undefined} onClick={() => toLevel(i)}>{word}</button>;
+    const word = i ? `Zoom ${i}` : "All";
+    return i === stack.length ? <span className="text-ink" aria-current="step">{word}</span> : <button type="button" className="hover:text-ink" onClick={() => toLevel(i)}>{word}</button>;
   };
-  const controls: ReactNode = enabled && !!stack.length && <div className="zoom-trail" data-depth={Math.min(stack.length, 5)}><nav aria-label="Zoom levels" title="Esc steps back" className="cap">
-    {level(0)}{stack.map((_, n) => <span key={n} className={`flex items-center gap-1 ${n + 1 < stack.length ? "zoom-mid" : ""}`}><span aria-hidden="true">›</span>{level(n + 1)}</span>)}
-  </nav></div>;
+  const controls: ReactNode = enabled && !!stack.length && <nav aria-label="Zoom levels" title="Esc steps back" className="cap flex flex-wrap items-center gap-x-1">
+    {level(0)}{stack.map((_, n) => <span key={n} className="flex items-center gap-1"><span aria-hidden="true">›</span>{level(n + 1)}</span>)}
+  </nav>;
 
   // Where a drag can start, the chart takes text selection and the long-press callout out of the way.
   const surface: CSSProperties | undefined = enabled ? { userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none" } : undefined;

@@ -33,6 +33,9 @@
 .cmp-opt-text { display: grid; min-width: 0; flex: 1; }
 .cmp-opt-text > :first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cmp-on { color: var(--indigo); }
+.cmp-fallback { font-size: 14px; line-height: 1.5; color: var(--ink-2); margin-bottom: 16px; }
+.cmp-fallback a { text-decoration: underline; text-underline-offset: 2px; }
+.cmp-fallback a:hover { color: var(--ink); }
 .cmp-note { font-size: 13px; color: var(--ink-2); padding: 4px 6px; }
 .cmp-rank-cta { justify-self: start; margin: 6px; }
 .cmp-error { color: var(--danger); padding: 0 6px; }

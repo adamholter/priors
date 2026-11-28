@@ -97,10 +97,12 @@ function History({ dates, series }: { dates: string[]; series: BoardSeries[] }) 
   const pal = useChartPalette();
   const colors = useMemo(() => seriesColors(series, pal), [series, pal]);
   const t = textSize(pal);
+  /** Day labels a fortnight apart touch on a phone's narrow plot, so they sit a month apart there. */
+  const every = typeof window !== "undefined" && window.innerWidth < 480 ? 28 : 14;
   const option = useMemo<EChartsOption>(() => ({
     animation: false,
     grid: { left: 44 * t, right: 112 * t, top: 12, bottom: 26 * t },
-    xAxis: { type: "category", boundaryGap: false, data: dates.map(dayLabel), axisLabel: { interval: (i: number) => i === 0 || i === dates.length - 1 || (dates.length - 1 - i) % 14 === 0, hideOverlap: true } },
+    xAxis: { type: "category", boundaryGap: false, data: dates.map(dayLabel), axisLabel: { interval: (i: number) => (dates.length - 1 - i) % every === 0 || (i === 0 && (dates.length - 1) % every >= every / 2), hideOverlap: true } },
     yAxis: { type: "value", scale: true, splitNumber: 4 },
     tooltip: {
       trigger: "axis", confine: true, axisPointer: { type: "line", lineStyle: { color: pal.grey, type: "dashed" } },
@@ -114,7 +116,7 @@ function History({ dates, series }: { dates: string[]; series: BoardSeries[] }) 
       type: "line", name: s.name, data: s.values, symbol: "none", connectNulls: false, lineStyle: { width: 2, color: colors[n] }, itemStyle: { color: colors[n] },
       endLabel: { show: true, formatter: "{a}", color: pal.ink, fontSize: 11 * t, distance: 6 }, labelLayout: { moveOverlap: "shiftY" }, emphasis: { focus: "series" },
     })),
-  }), [dates, series, colors, pal, t]);
+  }), [dates, series, colors, pal, t, every]);
   const { ref } = useEChart(option, [option]);
   return <div ref={ref} role="img" aria-label={`Ratings by day for the top ${series.length} models.`} className="w-full h-[340px] sm:h-[420px]" />;
 }
@@ -146,7 +148,7 @@ function HeadToHead({ h2h }: { h2h: BoardData["h2h"] }) {
     <section aria-labelledby="h2h" className="grid gap-3 min-w-0">
       <h2 id="h2h" className="font-serif text-[26px] leading-tight text-ink">Head to head</h2>
       <p className="cap min-h-[17px]" aria-live="polite">{tip}</p>
-      <div className="h2h" style={{ gridTemplateColumns: `minmax(92px,150px) repeat(${n}, minmax(24px, 46px))` }} onMouseLeave={() => setHover(null)}>
+      <div className="h2h" style={{ gridTemplateColumns: `minmax(70px,150px) repeat(${n}, minmax(22px, 46px))` }} onMouseLeave={() => setHover(null)}>
         <span />
         {h2h.models.map((m, j) => <span key={m.id} className={`h2h-col ${hover?.[1] === j ? "text-ink" : ""}`} title={m.name}><LabLogo lab={m.labId} name={m.labId} color={m.color} size={14} /></span>)}
         {h2h.models.map((row, i) => [

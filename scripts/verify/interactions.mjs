@@ -22,10 +22,13 @@ const [SHARD_I, SHARD_N] = (process.env.SHARD ?? "0/1").split("/").map(Number);
 let sharedPage = false, dealt = 0;
 const inShard = () => SHARD_N <= 1 || (sharedPage ? SHARD_I === 0 : (dealt++ % (SHARD_N - 1)) + 1 === SHARD_I);
 // ONLY="part of a check's name" runs just the matching checks while working on one.
-const check = async (name, fn) => { if (!inShard()) return; if (process.env.ONLY && !name.includes(process.env.ONLY)) return; try { await fn(); checks.push(name); } catch (e) { failures.push(`${name}: ${e.message}`); console.error(`FAIL ${name}: ${e.message}`); } };
+const check = async (name, fn) => { if (!inShard()) return; if (process.env.ONLY && !process.env.ONLY.split("||").some((o) => name.includes(o))) return; try { await fn(); checks.push(name); } catch (e) { failures.push(`${name}: ${e.message}`); console.error(`FAIL ${name}: ${e.message}`); } };
 // The ranking title's menu holds "Change the mix" (and Rank models, new, rename, close); `opts` is passed to both clicks.
 const mixTitle = (p) => p.locator(".builder-rank h1 button[aria-haspopup=menu]");
 const changeTheMix = async (p, opts) => { await mixTitle(p).click(opts); await p.getByRole("menuitem", { name: "Change the mix" }).click(opts); };
+// A click on server-drawn markup before React owns it does nothing (the model page's ranking picker was a native select, which works
+// before hydration; the menu does not): wait until React has attached to the element, then use it.
+const hydrated = async (loc, timeout = 30000) => { await loc.waitFor({ timeout }); await loc.evaluate((el) => new Promise((ok) => { const t = () => (Object.keys(el).some((k) => k.startsWith("__reactProps$")) ? ok() : setTimeout(t, 50)); t(); })); return loc; };
 // A chart header's share controls: Copy link, Copy image, the brush and a chevron whose menu holds Download PNG and the data.
 const shareOf = (p, name) => p.locator(`[role="group"][aria-label="Share ${name}"]`).first();
 const downloadPng = async (p, group) => { await group.locator(".chart-share-more").click(); return p.getByRole("menuitem", { name: "Download PNG", exact: true }); };
@@ -448,14 +451,23 @@ try {
       assert.equal(await p.locator(".chart-method-pop a").getAttribute("href"), "/benchmarks/methodology#cost");
       await p.locator("body").click({ position: { x: 5, y: 5 } });
       assert.equal(await p.locator(".chart-method-pop").count(), 0, "a click elsewhere closes it");
-      // A metric's description is behind its own icon, and opening it leaves the panel as it was.
-      const panel = p.locator("details.gallery-panel", { has: p.locator(".gallery-title", { hasText: "Release date" }) }).first();
-      await panel.scrollIntoViewIfNeeded();
-      assert.equal(await panel.locator("summary .cap").count(), 0, "no description beside the title");
-      const open = await panel.evaluate((d) => d.open);
-      await panel.getByRole("button", { name: "How release date is worked out" }).click();
-      assert.match(await panel.locator(".chart-method-pop").textContent(), /When each model shipped\./);
-      assert.equal(await panel.evaluate((d) => d.open), open, "the icon does not open or close the panel");
+      // More metrics is a contact sheet: a metric's description is behind its own icon, shown in flow (not a popover) and never printed on the card.
+      const card = p.locator(".cs-card", { has: p.locator(".cs-ct", { hasText: /^Release date$/ }) }).first();
+      await card.scrollIntoViewIfNeeded();
+      assert.equal(await p.locator(".cs-desc[data-open='true']").count(), 0, "no description printed until asked for");
+      await card.getByRole("button", { name: "How release date is worked out" }).click();
+      const desc = p.locator(".cs-desc[data-open='true']");
+      await desc.waitFor({ state: "visible", timeout: 5000 });
+      assert.match(await desc.textContent(), /When each model shipped\./);
+      assert.equal(await p.locator(".chart-method-pop").count(), 0, "the description is in flow, not a popover");
+      // The icon in the opened chart's header toggles the text and leaves the chart open.
+      const id = await card.locator("[data-info]").getAttribute("data-info");
+      const detail = p.locator(".cs-detail", { has: p.locator(`#cs-d-${id}`) });
+      const info = detail.locator(`[data-info="${id}"]`);
+      assert.equal(await info.getAttribute("aria-expanded"), "true");
+      await info.click();
+      assert.equal(await info.getAttribute("aria-expanded"), "false", "the icon closes the description");
+      assert.equal(await detail.locator(".cs-close").getAttribute("aria-expanded"), "true", "the chart stays open");
     } finally { await context.close(); }
   });
 
@@ -559,7 +571,10 @@ try {
       assert.ok(Math.abs(Math.min(100, Math.max(0, sum)) - score) <= 1.5, `the lines add up to the score (${sum.toFixed(1)} vs ${score})`);
       const star = c.locator("[data-benchmark-star='aa-hle-diamond']").first();
       assert.equal(await star.getAttribute("href"), "/sign-in", "signed out, the star leads to sign-in");
-      assert.match(await star.innerText(), /Star/);
+      // The star is an icon beside the title (no word); its name for assistive tech and its hover title still say what it does.
+      assert.match(await star.getAttribute("aria-label"), /^Sign in to star HLE-Diamond/, "the star names what it does and the benchmark");
+      assert.match(await star.getAttribute("title"), /Sign in to star/);
+      assert.ok(await star.locator("svg").first().isVisible(), "the star draws its icon");
     } finally { await c.context().close(); }
   });
 
@@ -1119,10 +1134,11 @@ try {
   });
 
   await check("usage chart switches between share and volume without squashing the axis", async () => {
-    const row = page.getByText("Usage", { exact: true }).first();
+    // More metrics is a contact sheet: the card's whole face is one button named for the metric and its leader ("Usage, Opus 5.5 xhigh 57% of turns"); its thumbnail sits over most of it, so the click lands in the card's own margin.
+    const row = page.locator('.cs-hit[data-row="usage"]');
     await row.scrollIntoViewIfNeeded();
     const stream = page.locator(".usage-stream");
-    for (let tries = 0; tries < 5 && !(await stream.isVisible().catch(() => false)); tries++) { await row.click(); await page.waitForTimeout(500); }
+    for (let tries = 0; tries < 5 && !(await stream.isVisible().catch(() => false)); tries++) { if ((await row.getAttribute("aria-expanded")) !== "true") await row.click({ position: { x: 4, y: 4 } }); await page.waitForTimeout(500); }
     await stream.waitFor({ timeout: 10000 });
     await stream.getByRole("button", { name: "Volume", exact: true }).click();
     await page.waitForTimeout(600);
@@ -1236,21 +1252,24 @@ try {
     const item = await downloadPng(page, group);
     const [dl] = await Promise.all([page.waitForEvent("download"), item.click()]);
     const buf = await (await import("node:fs/promises")).readFile(await dl.path());
-    const width = buf.readUInt32BE(16), plot = await page.locator('[role="img"][aria-label*="time per task" i]').first().boundingBox().catch(() => null);
+    const width = buf.readUInt32BE(16), plot = await page.locator('#time-per-task [role="img"]').first().boundingBox().catch(() => null);
     assert.ok(width > 0 && (!plot || width / 3 < plot.width + 64 + 8), `exported width ${width / 3} is no wider than the plot ${plot?.width} plus the frame`);
   });
 
   await check("Copy image puts a PNG on the clipboard and says so, and the keys C and L work on the focused plot", async () => {
     await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+    // The clipboard is only written by a focused document: an earlier check's second tab can still hold the focus.
+    await page.bringToFront();
     const group = shareOf(page, "Time per task");
     await group.scrollIntoViewIfNeeded();
     await group.getByRole("button", { name: /^Copy .* as an image$/ }).click();
-    await group.locator(".chart-share-label[data-on]").waitFor({ timeout: 15000 });
+    // An earlier check's "PNG saved" can still be showing: wait for this click's own words.
+    await group.locator(".chart-share-label[data-on]", { hasText: /^(Image copied|Saved a PNG instead)$/ }).waitFor({ timeout: 15000 });
     assert.equal(await group.locator(".chart-share-label").innerText(), "Image copied", "it says the image was copied");
     const types = await page.evaluate(async () => (await navigator.clipboard.read()).flatMap((i) => i.types));
     assert.ok(types.includes("image/png"), `the clipboard holds a PNG (${types})`);
     await page.evaluate(() => navigator.clipboard.writeText(""));
-    await page.locator('[role="img"][aria-label*="time per task" i]').first().focus();
+    await page.locator('#time-per-task [role="img"]').first().focus();
     await page.keyboard.press("l");
     let link = "";
     for (let i = 0; i < 40 && !link; i++) { link = await page.evaluate(() => navigator.clipboard.readText()); if (!link) await page.waitForTimeout(150); }
@@ -1260,9 +1279,9 @@ try {
   await check("a letter in the right-click menu runs once (X after a pointer open expands, not toggles twice)", async () => {
     const plot = page.locator('[role="img"][aria-label*="cost per task"]').first();
     await plot.scrollIntoViewIfNeeded();
-    const box = await plot.boundingBox();
     await plot.click({ position: { x: 4, y: 4 } });
-    await page.mouse.click(box.x + 40, box.y + 40, { button: "right" });
+    // The locator re-measures the plot when it clicks, so a page that is still settling from the last check (a link that scrolls to the top) cannot leave the pointer over the header.
+    await plot.click({ position: { x: 40, y: 40 }, button: "right" });
     await page.locator(".chart-context-menu").waitFor({ timeout: 3000 });
     await page.keyboard.press("x");
     await page.waitForTimeout(500);
@@ -1459,13 +1478,23 @@ try {
     } finally { await c.context().close(); }
   });
   await check("builder: the title menu adds a named copy, closes it, and resets a lone custom mix", async () => {
+    // The untouched default is judged on a fresh visit: the shared page has had its efforts, pricing basis and hidden models changed by the checks above, so its lone mix is rightly a custom one.
+    const fresh = await (await browser.newContext({ viewport: { width: 1440, height: 1000 } })).newPage();
+    try {
+      await fresh.goto(`${BASE}/builder`, { waitUntil: "domcontentloaded" });
+      await fresh.locator(".ranking-list [data-k]").first().waitFor({ timeout: 30000 });
+      await mixTitle(fresh).click();
+      const freshMenu = fresh.getByRole("menu", { name: "Mixes" });
+      await freshMenu.waitFor();
+      assert.equal(await freshMenu.getByRole("menuitem", { name: "Close this mix" }).count(), 0, "the only mix cannot be closed");
+      assert.equal(await freshMenu.getByRole("menuitem", { name: "Reset to the default mix" }).count(), 0, "the untouched default has nothing to reset");
+    } finally { await fresh.context().close(); }
     await changeTheMix(page);
     const menu = page.getByRole("menu", { name: "Mixes" }), radios = menu.getByRole("menuitemradio");
     const open = async () => { await mixTitle(page).click(); await menu.waitFor(); };
     await open();
     const before = await radios.count();
     assert.equal(await menu.getByRole("menuitem", { name: "Close this mix" }).count(), 0, "the only mix cannot be closed");
-    assert.equal(await menu.getByRole("menuitem", { name: "Reset to the default mix" }).count(), 0, "the untouched default has nothing to reset");
     await menu.getByRole("menuitem", { name: "New mix" }).click();
     assert.match(await page.getByRole("textbox", { name: "Mix name" }).inputValue(), /^My mix/, "a copy is named for what it holds, not 'copy'");
     await page.keyboard.press("Enter");
@@ -1658,7 +1687,7 @@ try {
     try {
       await c.goto(`${BASE}/models/claude-opus-5.5`, { waitUntil: "domcontentloaded" });
       const pick = c.getByRole("button", { name: /^Ranking to place this model in/ });
-      await pick.waitFor({ timeout: 30000 });
+      await hydrated(pick);
       await pick.click();
       await c.getByRole("menuitemradio", { name: /Artificial Analysis/ }).click();
       await c.locator("button[aria-haspopup=menu][aria-busy=false]", { hasText: "Artificial Analysis" }).waitFor({ timeout: 30000 });
@@ -1672,7 +1701,7 @@ try {
     try {
       await c.goto(`${BASE}/models/gpt-3.5?r=own`, { waitUntil: "domcontentloaded" });
       const pick = c.getByRole("button", { name: /^Ranking to place this model in/ });
-      await pick.waitFor({ timeout: 30000 });
+      await hydrated(pick);
       assert.match(await pick.innerText(), /This model's benchmarks/);
       await c.getByText(/Not ranked in /).first().waitFor({ timeout: 10000 });
       await pick.focus();
@@ -1777,8 +1806,13 @@ try {
       await all.locator("summary").click();
       await all.locator("article").first().waitFor({ timeout: 10000 });
       assert.equal(data(), 0, "opening the list downloads the dataset");
-      // A benchmark's details do need the dataset.
-      await c.getByRole("button", { name: /^About / }).first().click();
+      // The header's own "About this score" icon is server drawn: it opens its note with the mix link and needs no dataset.
+      await c.getByRole("button", { name: "About this score" }).click();
+      await c.getByRole("link", { name: "See the mix in the builder" }).waitFor({ timeout: 5000 });
+      assert.equal(data(), 0, "the score's note downloads the dataset");
+      await c.keyboard.press("Escape");
+      // A benchmark's details do need the dataset (a benchmark's "About <name>" button, not the page's own notes: the header's score and ranking, the efforts' best value).
+      await c.getByRole("button", { name: /^About (?!(this (score|ranking)|best value)$)/ }).first().click();
       await c.locator("dialog.bench-dialog[open] h3", { hasText: "Top models" }).waitFor({ timeout: 30000 });
       assert.equal(data(), 1, "the details load the dataset once");
       await c.keyboard.press("Escape");
@@ -2307,15 +2341,17 @@ try {
       assert.equal(await v.locator("[data-zoom-band]").count(), 0, "Escape removes the band");
       await v.mouse.up(); await v.waitForTimeout(500);
       assert.equal(await zoomed(), "false", "a cancelled drag does not zoom"); assert.equal(v.url(), url, "a cancelled drag highlights nothing");
-      const top = (await chart.boundingBox()).y;
+      const top = (await chart.boundingBox()).y, barHeight = Math.round((await v.locator(".chart-toolbar").first().boundingBox()).height);
       await box(at); const one = await count();
       assert.equal((await chart.boundingBox()).y, top, "zooming does not move the chart");
       assert.equal(await zoomed(), "true"); assert.ok(one < all && one > 0, `marks outside the box leave (${all} -> ${one})`);
       await box(at); const two = await count(), trail = v.getByRole("navigation", { name: "Zoom levels" }).first();
       assert.match(await trail.textContent(), /All.*Zoom 1.*Zoom 2/); assert.ok(two <= one);
-      // The trail keeps clear of the scatter/bars switch.
-      const gap = await trail.evaluate((n) => n.parentElement.nextElementSibling.getBoundingClientRect().left - n.lastElementChild.getBoundingClientRect().right);
-      assert.ok(gap >= 8, `trail to the next control is ${gap}px`);
+      // The trail is in the zoom line under the plot (the header is full at laptop widths), so it is on screen and the toolbar did not wrap.
+      const bar = v.locator(".chart-toolbar").first(), room = await trail.boundingBox();
+      assert.ok(room && room.width > 40 && room.x >= 0 && room.x + room.width <= 1440, `the trail is drawn on screen (${JSON.stringify(room)})`);
+      assert.ok(room.y >= (await chart.boundingBox()).y + (await chart.boundingBox()).height - 1, "the trail is under the plot");
+      assert.equal(Math.round((await bar.boundingBox()).height), barHeight, "zooming does not wrap the toolbar");
       // An open menu keeps its Escape.
       await v.locator(".chart-toolbar").first().getByRole("button", { name: /^Download / }).click();
       await esc(); assert.equal(await count(), two, "Escape with a menu open leaves the zoom alone");
@@ -2521,12 +2557,15 @@ try {
     p.on("pageerror", (e) => errors.push(`${p.url()}: ${e.message}`));
     try {
       await p.goto(`${BASE}/subsidies`, { waitUntil: "domcontentloaded" });
-      const rows = p.locator(".sub-root button[aria-expanded]");
+      // Company rows only: an opened company also holds a "more plans" disclosure, and a closed one keeps its (inert, clipped) grid in the page.
+      const rows = p.locator(".sub-seller > .sub-row > button[aria-expanded]");
       await rows.first().waitFor({ timeout: 30000 });
+      // A click before hydration does nothing (and the loop below counts toggles): wait until React owns the row.
+      await p.waitForFunction(() => { const b = document.querySelector(".sub-seller > .sub-row > button[aria-expanded]"); return !!b && Object.keys(b).some((k) => k.startsWith("__reactProps$")); }, null, { timeout: 30000 });
       const stops = (t) => t.locator('[role=cell][tabindex="0"]').count();
       for (let i = 0, n = await rows.count(); i < n; i++) {
         await rows.nth(i).click();
-        const table = p.locator(".sub-matrix").first();
+        const table = p.locator('.sub-seller[data-expanded="true"] .sub-matrix').first();
         if (!(await table.isVisible().catch(() => false))) { await rows.nth(i).click(); continue; }
         for (let h = 0, heads = await table.locator('button[role=columnheader]').count(); h < heads; h++) {
           await table.locator('button[role=columnheader]').nth(h).click();
@@ -2535,7 +2574,7 @@ try {
         await rows.nth(i).click();
       }
       await rows.first().click();
-      const cell = p.locator('.sub-matrix [role=cell][data-k]').first();
+      const cell = p.locator('.sub-seller[data-expanded="true"] .sub-matrix [role=cell][data-k]').first();
       await cell.waitFor({ timeout: 10000 });
       await cell.focus(); await p.keyboard.press("Enter");
       assert.equal(await cell.getAttribute("data-flip"), "", "Enter flips the cell to its other reading");

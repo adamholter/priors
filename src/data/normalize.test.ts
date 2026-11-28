@@ -104,7 +104,7 @@ describe("normalizeLabel", () => {
     expect(normalizeLabel("GPT-5 (minimal)")).toMatchObject({ effort: "minimal" });
     expect(normalizeLabel("Qwen3.6 35B-A3B")).toMatchObject({ modelId: "qwen-3.6-35b-a3b" });
     expect(normalizeLabel("Qwen3.6 27B")).toMatchObject({ modelId: "qwen-3.6-27b" });
-    expect(normalizeLabel("Step 5 Preview")).toMatchObject({ modelId: "aa-step-5", modelName: "Step 5 Preview", labId: "other" });
+    expect(normalizeLabel("Step 5 Preview")).toMatchObject({ modelId: "aa-step-5", modelName: "Step 5 Preview", labId: "stepfun" });
     expect(normalizeLabel("Qwen3 VL 235B A22B (Reasoning)")).toMatchObject({ modelId: "qwen-3-vl-235b-a22b", modelName: "Qwen 3 VL 235B-A22B" });
     expect(normalizeLabel("Qwen3 Omni 30B A3B Instruct")).toMatchObject({ modelId: "qwen-3-omni-30b-a3b" });
     expect(normalizeLabel("Qwen3 Next 80B A3B (Reasoning)")).toMatchObject({ modelId: "qwen-3-next-80b-a3b", modelName: "Qwen 3 Next 80B-A3B" });
@@ -221,5 +221,19 @@ describe("a tier named in the label is its own model", () => {
     expect(id("GLM-5.3 FlashX")).toBe("glm-5.3-flashx");
     expect(id("GLM-5.3 Flash")).toBe("glm-5.3-flash");
     expect(id("GLM-5.3")).toBe("glm-5.3");
+  });
+});
+
+describe("labs hiding in other", () => {
+  it("files Cohere's Command and AI21's Jamba under their labs, with the ids Artificial Analysis gave them", () => {
+    for (const [label, id, lab] of [["Command A", "aa-command-a", "cohere"], ["Command R", "aa-command-r-03-2024", "cohere"], ["Command R+", "aa-command-r-plus-04-2024", "cohere"], ["Jamba 1.5 Large", "aa-jamba-1-5-large", "ai21"], ["Jamba 1.6 Mini", "aa-jamba-1-6-mini", "ai21"]])
+      expect(normalizeLabel(label), label).toMatchObject({ modelId: id, labId: lab });
+  });
+  it("files Nex-N2-Pro under Nex AGI and Step 5 under StepFun", () => {
+    expect(normalizeLabel("Nex-N2-Pro")).toMatchObject({ modelId: "nex-n2-pro", labId: "nex-agi" });
+    expect(normalizeLabel("Step 5 Preview")).toMatchObject({ labId: "stepfun" });
+  });
+  it("leaves a model nobody can place under other, never a guessed lab", () => {
+    for (const label of ["AlephProver", "Aristotle"]) expect(normalizeLabel(label), label).toMatchObject({ ok: true, labId: "other" });
   });
 });
