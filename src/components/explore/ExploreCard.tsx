@@ -1,77 +1,109 @@
 "use client";
 import Link from "next/link";
-import { avatarSrc } from "@/lib/avatar";
-import type { CSSProperties } from "react";
-import { markColor, paletteFor } from "@/components/chart/theme-tokens";
+import { memo, useMemo, useState, type CSSProperties, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
+import { IconArrowsLeftRight, IconBrandX, IconStack2, IconUser } from "@tabler/icons-react";
+import { LabLogo } from "@/components/LabLogo";
 import { useTheme } from "@/components/Theme";
 import { track } from "@/lib/analytics";
+import { avatarSrc } from "@/lib/avatar";
+import type { ExploreCardData, ExploreLead, ExploreMixPart, FeaturedMixData } from "@/lib/explore-cards";
+import { mixSegments, plural, pct } from "@/lib/explore-find";
 import { presetStyle, resolveAccent, resolvePreset } from "@/lib/page-presets";
 import "./explore-card.css";
 
-export interface FeaturedMixData { name: string; href: string; count: number; top: ExploreCardData["top"]; mix: ExploreCardData["mix"] }
+const effortOf = (m: ExploreLead) => (m.effort === "default" ? "" : m.effort);
 
-/** A starting point on Explore: a ranking anyone can open in the builder and change. */
-export function FeaturedMixCard({ c }: { c: FeaturedMixData }) {
+/** Arrow keys walk a row of small buttons that share one tab stop. */
+function rove(e: KeyboardEvent<HTMLElement>) {
+  if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+  const btns = Array.from(e.currentTarget.querySelectorAll<HTMLButtonElement>("button")), i = btns.indexOf(document.activeElement as HTMLButtonElement);
+  if (i < 0) return;
+  e.preventDefault();
+  btns[(i + (e.key === "ArrowRight" ? 1 : -1) + btns.length) % btns.length]?.focus();
+}
+
+/** A card wears its owner's page theme: Priors Light and Dark pages (and the paired Analysis and Slop) follow the visitor's mode unless the owner fixed one; single-mode themes stay as picked. */
+function useCardTheme(theme: ExploreCardData["theme"]) {
   const { dark } = useTheme();
-  const preset = resolvePreset(undefined, dark), pal = paletteFor(preset);
-  const lead = c.top[0]?.score || 1, low = c.top[c.top.length - 1]?.score ?? lead, floor = lead - Math.max(10, (lead - low) * 2);
-  return <li className="ex-card ex-featured" style={presetStyle(preset, resolveAccent(undefined, preset)) as CSSProperties} data-theme-preset={preset.id}>
-    <Link className="ex-stretch" href={c.href as "/builder"} aria-label={`Open ${c.name} in the builder`} />
-    <div className="ex-index">{c.name}</div>
-    <ol className="ex-rows">{c.top.map((m, i) => <li key={m.name}>
-      <span className="ex-row-line"><span className="cap">{i + 1}</span><span className="ex-row-name" title={m.name}>{m.name}</span><span className="num">{m.score.toFixed(1)}</span></span>
-      <span className="ex-row-bar"><b style={{ width: `${Math.max(8, (m.score - floor) / (lead - floor || 1) * 100)}%`, background: markColor(m.base, pal, m.labId), opacity: i === 0 ? 1 : 0.55 }} /></span>
-    </li>)}</ol>
-    <p className="cap ex-mix" title={c.mix.map((b) => `${b.name} ${b.share}%`).join(", ")}>{c.count} benchmark{c.count === 1 ? "" : "s"} · {c.mix.slice(0, 3).map((b) => `${b.name} ${b.share}%`).join(", ")}</p>
+  return useMemo(() => { const preset = resolvePreset(theme, dark); return { id: preset.id, dark: preset.dark, style: presetStyle(preset, resolveAccent(theme, preset)) as CSSProperties }; }, [theme, dark]);
+}
+
+function Shell({ href, label, theme, className = "", children }: { href: string; label: string; theme: ExploreCardData["theme"]; className?: string; children: ReactNode }) {
+  const t = useCardTheme(theme);
+  return <li className={`ex-card ${className}`} style={t.style} data-theme-preset={t.id} data-card-dark={t.dark ? "" : undefined}>
+    <Link className="ex-stretch" href={href as "/"} prefetch={false} aria-label={label} />
+    {children}
   </li>;
 }
 
-export interface ExploreCardData {
-  handle: string; name: string; avatarUrl?: string; when: string; index: string; others: string[]; more: number; count: number;
-  top: { name: string; score: number; labId: string; base: string }[]; mix: { name: string; share: number }[];
-  theme?: { preset?: string; accent?: string; surface?: "bone" | "white"; mode?: "auto" | "fixed" };
-  /** X handle, from the page's links. */ x?: string;
-  pageHref: string; remixHref: string; compareHref: string;
+/** The top three: rank, lab logo, full name, effort and score. The number carries the gap: close scores would draw as three equal bars. */
+function Rows({ leads }: { leads: ExploreLead[] }) {
+  return <ol className="ex-rows">{leads.map((m, i) => <li key={m.id} className="ex-row">
+    <span className="cap">{i + 1}</span>
+    <LabLogo lab={m.lab} name={m.labName} color={m.base} size={16} />
+    <span className="ex-row-name" title={`${m.name} ${effortOf(m)}`.trim()}><span>{m.name}</span>{effortOf(m) && <span className="cap">{effortOf(m)}</span>}</span>
+    <span className="num ex-row-score">{m.score.toFixed(1)}</span>
+  </li>)}</ol>;
 }
 
-const Icon = ({ d, size = 13 }: { d: string; size?: number }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={d} /></svg>;
-const FORK = "M6 3v6a3 3 0 0 0 3 3h6a3 3 0 0 1 3 3v6M6 3a2 2 0 1 0 0 .01M18 21a2 2 0 1 0 0-.01M6 21a2 2 0 1 0 0-.01M6 9v12";
-const COMPARE = "M7 4 3 8l4 4M3 8h14M17 20l4-4-4-4M21 16H7";
-const OPEN = "M14 4h6v6M20 4l-8 8M18 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4";
+function IndexName({ c }: { c: ExploreCardData }) {
+  const also = c.more > 0 ? `Also ${c.others.join(", ")}${c.more > c.others.length ? ` and ${c.more - c.others.length} more` : ""}` : "";
+  return <div className="ex-index-row">
+    <div className="ex-index" title={c.index}>{c.index}</div>
+    {c.more > 0 && <span className="cap ex-tabs" title={also} role="img" aria-label={also}><IconStack2 size={14} stroke={1.5} aria-hidden />+{c.more}</span>}
+  </div>;
+}
 
 /**
- * A published page on Explore, drawn in its owner's page theme: Priors Light and Dark pages (and the
- * paired Analysis and Slop) follow the visitor's mode unless the owner fixed one; single-mode themes stay as picked.
+ * The stacked weight bar and its caption: one segment per heavy benchmark. Hover, focus or tap a segment and the caption names it; nothing overlays the card.
+ * `children` receives the caption when the caller places it itself (in a footer row). `via` is the benchmark a search matched.
  */
-export function ExploreCard({ c }: { c: ExploreCardData }) {
-  const { dark } = useTheme();
-  const preset = resolvePreset(c.theme, dark), pal = paletteFor(preset);
-  const style = presetStyle(preset, resolveAccent(c.theme, preset)) as CSSProperties;
-  const lead = c.top[0]?.score || 1, low = c.top[c.top.length - 1]?.score ?? lead, floor = lead - Math.max(10, (lead - low) * 2);
-  // Zoomed to the top three: scores sit close together, so a 0-100 bar would show no difference.
-  const frac = (v: number) => Math.max(0.12, (v - floor) / (lead - floor || 1));
-  return <li className="ex-card" style={style} data-theme-preset={preset.id}>
-    <Link className="ex-stretch" href={c.pageHref as "/"} aria-label={`Open ${c.name}'s page`} />
+function MixBar({ parts, via, children }: { parts: ExploreMixPart[]; via?: ExploreMixPart; children?: (caption: string) => ReactNode }) {
+  const segs = useMemo(() => mixSegments(parts), [parts]);
+  const [hot, setHot] = useState<number | null>(null);
+  const at = (e: PointerEvent<HTMLDivElement>) => {
+    const r = e.currentTarget.getBoundingClientRect(), x = e.clientX - r.left, total = segs.reduce((t, s) => t + s.share, 0) || 1;
+    let acc = 0;
+    for (let i = 0; i < segs.length; i++) { acc += (segs[i].share / total) * r.width; if (x <= acc) return i; }
+    return segs.length - 1;
+  };
+  const caption = hot != null && segs[hot] ? segs[hot].label : via ? `${via.name} ${pct(via.share)}` : plural(parts.length, "benchmark");
+  return <div className="ex-mix">
+    <div className="ex-mixbar" style={{ height: 8 }} onPointerMove={(e) => e.pointerType === "mouse" && setHot(at(e))} onPointerDown={(e) => setHot(at(e))} onPointerLeave={(e) => e.pointerType === "mouse" && setHot(null)} role="group" aria-label="Benchmark weights" onKeyDown={rove}>
+      {segs.map((s, i) => <button key={i} type="button" className={`ex-seg${s.tone < 0 ? " ex-seg-rest" : ""}`} data-on={hot === i || undefined} tabIndex={i === 0 ? 0 : -1} aria-label={s.label} style={{ flexGrow: Math.max(s.share, 0.8), background: s.tone < 0 ? "var(--hair-3)" : `color-mix(in srgb, var(--indigo) ${Math.round(s.tone * 100)}%, transparent)` }} onFocus={() => setHot(i)} onBlur={() => setHot(null)} />)}
+    </div>
+    {children ? children(caption) : <p className="cap ex-mixcap" title={caption}>{caption}</p>}
+  </div>;
+}
+
+/** A starting point on Explore: a ranking anyone can open in the builder and change. */
+export function FeaturedMixCard({ c }: { c: FeaturedMixData }) {
+  return <Shell href={c.href} label={`Open ${c.name} in the builder`} theme={undefined}>
+    <div className="ex-index-row"><div className="ex-index" title={c.name}>{c.name}</div></div>
+    <Rows leads={c.podium} />
+    <MixBar parts={c.mix} />
+  </Shell>;
+}
+
+/** A published page on Explore: who and when, its title, the top three, and its mix as one bar with Compare and Remix beside the caption. */
+export const ExploreCard = memo(function ExploreCard({ c, via }: { c: ExploreCardData; via?: ExploreMixPart }) {
+  return <Shell href={c.pageHref} label={`Open ${c.name}'s page`} theme={c.theme}>
     <div className="ex-head">
       {c.avatarUrl
         // eslint-disable-next-line @next/next/no-img-element
         ? <img src={avatarSrc(c.avatarUrl, 36)} alt="" width={36} height={36} loading="lazy" decoding="async" className="ex-avatar" style={{ width: 36, height: 36 }} />
-        : <span aria-hidden="true" className="ex-avatar ex-avatar-ph" style={{ width: 36, height: 36 }}>{c.name.slice(0, 1).toUpperCase()}</span>}
-      <div className="ex-who"><div className="ex-name">{c.name}</div><div className="cap ex-sub">@{c.handle} · {c.when}</div></div>
-      {c.x && <a className="ex-chip" href={`https://x.com/${c.x}`} target="_blank" rel="noreferrer" onClick={() => track("explore_x_clicked", { handle: c.handle })} aria-label={`${c.name} on X`}><svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" /></svg>@{c.x}</a>}
+        : <span aria-hidden="true" className="ex-avatar ex-avatar-ph" style={{ width: 36, height: 36 }}><IconUser size={19} stroke={1.5} /></span>}
+      <div className="ex-who"><div className="ex-name" title={c.name}>{c.name}</div><div className="cap ex-sub" title={`@${c.handle}`}><span className="ex-sub-handle">@{c.handle}</span><span className="ex-sub-when">· {c.when}</span></div></div>
+      {c.x && <a className="ex-x hit" href={`https://x.com/${c.x}`} target="_blank" rel="noreferrer" onClick={() => track("explore_x_clicked", { handle: c.handle })} aria-label={`${c.name} on X`} title={`@${c.x} on X`}><IconBrandX size={14} stroke={1.5} aria-hidden /></a>}
     </div>
-    <div className="ex-index">{c.index}</div>
-    {c.more > 0 && <p className="cap ex-also" title={c.others.join(", ")}>Also {c.others.join(", ")}{c.more > c.others.length ? ` and ${c.more - c.others.length} more` : ""}</p>}
-    {c.top.length ? <div className="ex-cols">{c.top.map((m, i) => <div key={m.name} className="ex-col">
-      <span className="num ex-col-score">{m.score.toFixed(1)}</span>
-      <div className="ex-col-bar"><b style={{ height: `${Math.max(14, frac(m.score) * 100)}%`, background: markColor(m.base, pal, m.labId), opacity: i === 0 ? 1 : 0.55 }} /></div>
-      <span className="ex-col-name" title={m.name}><span className="cap">{i + 1}</span> {m.name}</span>
-    </div>)}</div> : <p className="cap">No ranked models on today&apos;s data.</p>}
-    {c.count > 0 && <p className="cap ex-mix">{c.count} benchmark{c.count === 1 ? "" : "s"} · {c.mix.slice(0, 3).map((b) => `${b.name} ${b.share}%`).join(", ")}</p>}
-    <div className="ex-foot">
-      <Link href={c.pageHref as "/"}><Icon d={OPEN} />View page</Link>
-      <Link href={c.compareHref as "/compare"} onClick={() => track("compare_opened", { from: "explore", handle: c.handle })} title={`Compare your ranking with @${c.handle}'s`}><Icon d={COMPARE} />Compare</Link>
-      <Link href={c.remixHref as "/builder"} onClick={() => track("remix_clicked", { from: "explore", handle: c.handle })} title={`Open @${c.handle}'s mix in the builder as your own copy`}><Icon d={FORK} />Remix</Link>
-    </div>
-  </li>;
-}
+    <IndexName c={c} />
+    {c.kind === "dead" ? <p className="cap ex-dead">Not ranked on today&apos;s data</p> : <>
+      <Rows leads={c.podium} />
+      <MixBar parts={c.mix} via={via}>{(cap) => <div className="ex-foot">
+        <p className="cap ex-footcap" title={cap}>{cap}</p>
+        <Link className="ex-ico hit" href={c.compareHref as "/compare"} prefetch={false} onClick={() => track("compare_opened", { from: "explore", handle: c.handle })} aria-label={`Compare with @${c.handle}`} title={`Compare your ranking with @${c.handle}'s`}><IconArrowsLeftRight size={16} stroke={1.5} aria-hidden /></Link>
+        <Link className="ex-remix hit" href={c.remixHref as "/builder"} prefetch={false} onClick={() => track("remix_clicked", { from: "explore", handle: c.handle })} aria-label={`Remix @${c.handle}`} title={`Open @${c.handle}'s mix in the builder as your own copy`}>Remix</Link>
+      </div>}</MixBar>
+    </>}
+  </Shell>;
+});

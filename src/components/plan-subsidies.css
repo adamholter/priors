@@ -1,23 +1,78 @@
-/* Opening a company or a plan: the height eases open, then its rows and bars arrive in order. */
+/* Opening a company: the height eases open, then its rows and bars arrive in order. */
+.sub-root{--sub-ease:cubic-bezier(.16,1,.3,1)}
 .sub-collapse{--sub-open:320ms;display:grid;grid-template-rows:0fr;transition:grid-template-rows 200ms cubic-bezier(.4,0,.2,1)}
 .sub-collapse[data-open=true]{grid-template-rows:1fr;transition:grid-template-rows var(--sub-open) cubic-bezier(.16,1,.3,1)}
-@starting-style{.sub-collapse[data-open=true]:not([data-eager]){grid-template-rows:0fr}}
+@starting-style{.sub-collapse[data-open=true]{grid-template-rows:0fr}}
 .sub-clip{min-height:0;min-width:0;margin-inline:-8px;padding-inline:8px;overflow:hidden}
-/* Clipped only while moving, so a dot's card can leave the row once it is open. */
+/* Clipped only while moving, so a hover label can leave the row once it is open. */
 .sub-collapse[data-open=true]>.sub-clip{overflow:visible;animation:sub-clip var(--sub-open)}
 @keyframes sub-clip{from,to{overflow:hidden}}
-
-.sub-seller[data-expanded=true]>.sub-collapse[data-open=true]>.sub-clip>.sub-plans>*,
-.sub-seller[data-expanded=true] .sub-collapse[data-open=true]>.sub-clip>.sub-models>li{animation:sub-row 300ms cubic-bezier(.16,1,.3,1) both;animation-delay:calc(min(var(--i),10)*22ms)}
-.sub-seller[data-expanded=true] .sub-collapse[data-open=true]>.sub-clip>.sub-models>li .sub-bar{transform-origin:left;animation:sub-bar 520ms cubic-bezier(.16,1,.3,1) both;animation-delay:calc(60ms + min(var(--i),10)*22ms)}
+.sub-collapse[data-open=true] .sub-anim{animation:sub-row 300ms var(--sub-ease) both;animation-delay:calc(min(var(--i,0),10)*22ms)}
+.sub-collapse[data-open=true] .sub-grow{transform-origin:left;animation:sub-bar 520ms var(--sub-ease) both;animation-delay:calc(60ms + min(var(--i,0),10)*22ms)}
 @keyframes sub-row{from{opacity:0;transform:translateY(-4px)}}
 @keyframes sub-bar{from{transform:scaleX(0)}}
+@keyframes sub-fade{from{opacity:0}}
 
 /* Results appear at once while typing. */
 .sub-root[data-searching] .sub-collapse{transition:none}
 .sub-root[data-searching] .sub-collapse *{animation:none!important}
-
 @media (prefers-reduced-motion:reduce){
-  .sub-collapse{transition:none!important}
-  .sub-collapse *{animation:none!important}
+  .sub-root *,.sub-root *::before,.sub-root *::after{animation:none!important;transition:none!important}
+}
+
+.sub-strip:focus-visible,.sub-focus:focus-visible{outline:2px solid var(--indigo);outline-offset:3px;border-radius:3px}
+.sub-row-hover{transition:background-color 150ms}
+@media (hover:hover){.sub-row-hover:hover{background:var(--hair-2)}}
+.sub-root .disclosure[aria-expanded=true]::after{transform:rotate(180deg)}
+
+/* Company rows and the axis row: name cell, bar cell, median cell. A phone puts the bar under the name line. */
+.sub-row{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"left med" "cell cell";align-items:center;column-gap:16px;row-gap:2px}
+.sub-row>.sub-left{grid-area:left}.sub-row>.sub-cell{grid-area:cell}.sub-row>.sub-med{grid-area:med}
+@media (min-width:640px){.sub-row{grid-template-columns:minmax(0,330px) minmax(0,1fr) 52px;grid-template-areas:"left cell med";row-gap:0}}
+@media (max-width:639px){.sub-row>.sub-med{align-self:start;padding-top:8px;line-height:24px}}
+/* Sticky rows sit under the phone nav while it is pinned (SiteNav sets --site-nav-inset). */
+.sub-stick{position:sticky;top:var(--site-nav-inset,0px);transition:top 200ms cubic-bezier(.4,0,.2,1)}
+.sub-stick2{position:sticky;top:calc(var(--site-nav-inset,0px) + 28px);transition:top 200ms cubic-bezier(.4,0,.2,1)}
+.sub-fill{transition:width 260ms var(--sub-ease)}
+.sub-mark{animation:sub-fade 120ms both}
+
+/* A single plan's models as bars: the same three columns as the company rows (330px | 1fr | 52px), gridlines in the middle one. */
+.sub-lines{position:absolute;inset:0;pointer-events:none}
+.sub-lines>i{position:absolute;top:0;bottom:0;width:1px;background:var(--hair-2)}
+@media (min-width:640px){.sub-lines{left:346px;right:68px}}
+.sub-bar-row{display:grid;grid-template-columns:minmax(0,1fr);align-items:center;row-gap:4px;padding-block:5px}
+.sub-bar-src{grid-column:1/-1}
+@media (min-width:640px){.sub-bar-row{grid-template-columns:minmax(0,330px) minmax(0,1fr) 52px;column-gap:16px}}
+
+/* The plan-by-model grid: a name column the width of the company rows' name cell, then one column per plan. */
+.sub-mrow{display:grid;grid-template-columns:104px repeat(var(--n),minmax(0,1fr));column-gap:6px;align-items:center}
+@media (min-width:640px){.sub-mrow{grid-template-columns:330px repeat(var(--n),minmax(0,1fr));column-gap:16px}}
+.sub-mhead{padding-block:6px;align-items:start}
+.sub-mh{transition:color 150ms;color:var(--ink-2)}
+.sub-mh:hover,.sub-mh[aria-sort=descending]{color:var(--ink)}
+.sub-mline{min-height:34px;border-radius:3px;transition:background-color 120ms}
+@media (hover:hover){.sub-mline:has(.sub-mcell:hover){background:var(--hair-2)}}
+.sub-mcell{position:relative;display:grid;grid-template-columns:minmax(0,1fr) 40px;align-items:center;column-gap:4px;min-width:0;padding-block:6px}
+.sub-matrix[data-flag] .sub-mcell{grid-template-columns:minmax(0,1fr) 14px 40px}
+.sub-mcell:focus-visible{outline-offset:1px}
+.sub-mbar{position:relative;display:block;height:8px;border-radius:2px;background:var(--hair-2);min-width:0}
+.sub-mbar>i{position:absolute;inset:0 auto 0 0;border-radius:2px;transition:width 320ms var(--sub-ease)}
+.sub-mcell:not([data-best]) .sub-mbar>i{opacity:.45}
+.sub-mnum{min-width:40px;text-align:right;font-size:12px;color:var(--ink)}
+.sub-mcell:not([data-best]) .sub-mnum{color:var(--ink-2)}
+/* The other reading (multiple or dollars) replaces a figure under the pointer, or after a tap or Enter. */
+.sub-mnum>b{font-weight:inherit}
+.sub-mnum>b+b{display:none}
+.sub-mcell[data-flip] .sub-mnum>b:first-child:not(:only-child){display:none}
+.sub-mcell[data-flip] .sub-mnum>b+b{display:inline}
+@media (hover:hover){.sub-mcell:hover .sub-mnum>b:first-child:not(:only-child){display:none}.sub-mcell:hover .sub-mnum>b+b{display:inline}}
+.sub-mflag{display:flex;justify-content:center}
+.sub-msrc{display:block;padding-bottom:6px}
+@media (max-width:639px){
+  .sub-mcell,.sub-matrix[data-flag] .sub-mcell{grid-template-columns:minmax(0,1fr);row-gap:3px;padding-block:5px;min-height:40px;align-content:center}
+  .sub-mbar{height:3px;order:2}
+  .sub-mnum{order:1;text-align:left;font-size:11.5px;min-width:0}
+  .sub-mflag{position:absolute;right:0;top:0;display:block}
+  .sub-mhead .cap{font-size:10.5px}
+  .sub-mh{min-height:40px}
 }

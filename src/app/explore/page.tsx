@@ -3,53 +3,29 @@ import Link from "next/link";
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "../../../convex/_generated/api";
 import { loadSnapshot } from "@/data/load";
-import { computeIndex, PAGE_VIEW, rankingRows, type IndexConfig } from "@/engine";
-import type { Snapshot } from "@/data/types";
 import { SiteFooter } from "@/components/SiteFooter";
-import { encodeIndices, prettyQuery } from "@/lib/url";
-import { rankedCount } from "@/lib/ranked-count";
-import { ExploreCard, FeaturedMixCard, type ExploreCardData, type FeaturedMixData } from "@/components/explore/ExploreCard";
-import { featuredMixes } from "@/lib/featured-mixes";
+import { buildCards, featuredCards, type PublishedPage } from "@/lib/explore-cards";
+import { EXPLORE_LIMIT } from "@/lib/explore-find";
+import { FeaturedMixCard } from "@/components/explore/ExploreCard";
+import { PublishedGrid } from "@/components/explore/PublishedGrid";
 import { pageMeta } from "@/lib/site-meta";
 import { SiteHeader } from "@/components/SiteHeader";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = pageMeta({ title: "Explore rankings", description: "AI model rankings people have built and published on Priors.", path: "/explore" });
 
-/** `indices` holds the main index only; the page's other tabs come as names. */
-type Published = { handle: string; displayName: string; bio?: string; avatarUrl?: string; theme?: ExploreCardData["theme"]; socials?: { label: string; url: string }[]; updatedAt: number; indices: IndexConfig[]; others: string[]; more: number };
+const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
 
-/** Leaders and biggest weights of a page's first index, computed against the current snapshot. */
-function summary(snapshot: Snapshot, index: IndexConfig) {
-  try {
-    const r = computeIndex(snapshot, { ...index, variants: "all" }, PAGE_VIEW);
-    const top = rankingRows(r.ranked, index).slice(0, 3);
-    const benches = [...r.benchmarks].sort((a, b) => b.share - a.share);
-    return { top, benches: benches.slice(0, 3), count: benches.length };
-  } catch {
-    return { top: [], benches: [], count: 0 };
-  }
-}
-
-const ago = (t: number) => {
-  const d = Math.floor((Date.now() - t) / 86_400_000);
-  return d <= 0 ? "today" : d === 1 ? "yesterday" : d < 30 ? `${d} days ago` : new Date(t).toISOString().slice(0, 10);
-};
-
-export default async function Explore() {
+export default async function Explore({ searchParams }: PageProps<"/explore">) {
+  const sp = await searchParams;
   const url = process.env.NEXT_PUBLIC_CONVEX_URL;
-  const [snapshot, pages, ranked] = await Promise.all([
+  let failed = false;
+  const [snapshot, pages] = await Promise.all([
     loadSnapshot(),
-    url ? new ConvexHttpClient(url).query(api.profiles.explore, {}).catch(() => [] as Published[]) : Promise.resolve([] as Published[]),
-    rankedCount(),
+    url ? new ConvexHttpClient(url).query(api.profiles.explore, {}).catch(() => { failed = true; return [] as PublishedPage[]; }) : Promise.resolve([] as PublishedPage[]),
   ]);
-  const colors = new Map(snapshot?.labs.map((l) => [l.id, l.color]) ?? []);
-  const cardTop = (s: ReturnType<typeof summary>) => s.top.map((r) => ({ name: r.model.name, score: r.score, labId: r.model.labId, base: colors.get(r.model.labId) ?? "#A3A39B" }));
-  const cardMix = (s: ReturnType<typeof summary>) => s.benches.map((b) => ({ name: b.benchmark.shortName ?? b.benchmark.name, share: Math.round(b.share) }));
-  const featured = snapshot ? featuredMixes(snapshot).flatMap((index): FeaturedMixData[] => {
-    const s = summary(snapshot, index);
-    return s.top.length ? [{ name: index.name, href: `/builder?${prettyQuery(encodeIndices([index]))}`, count: s.count, top: cardTop(s), mix: cardMix(s) }] : [];
-  }) : [];
+  const featured = featuredCards(snapshot);
+  const cards = buildCards(snapshot, pages);
 
   return <main className="min-h-dvh">
     <SiteHeader current="explore" />
@@ -58,7 +34,6 @@ export default async function Explore() {
         <div>
           <h1 className="text-[36px] leading-tight">Explore</h1>
           <p className="text-ink-2 text-[14px] mt-1">Rankings people have built and published. Open one to see the full page and every chart, or start from it and make it yours.</p>
-          {ranked > 20 && <p className="cap mt-2">{ranked.toLocaleString()}{ranked >= 1000 ? "+" : ""} rankings made · {pages.length} published</p>}
         </div>
         <div className="flex flex-wrap gap-2">
           <Link href="/rank" className="btn">Rank models · 1 min</Link>
@@ -71,20 +46,7 @@ export default async function Explore() {
         <h2 id="featured-mixes" className="text-[22px] mb-3">Featured</h2>
         <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">{featured.map((c) => <FeaturedMixCard key={c.name} c={c} />)}</ul>
       </section>}
-      {!pages.length ? <p className="cap py-16 text-center">No published pages yet. Build an index and claim your page to be the first.</p> :
-      <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {pages.map((p) => {
-          const index = p.indices[0];
-          const s = snapshot && index ? summary(snapshot, index) : null;
-          if (!index) return null;
-          const x = p.socials?.map((l) => l.url.match(/^https?:\/\/(?:www\.)?(?:x|twitter)\.com\/@?([A-Za-z0-9_]{1,15})\/?(?:[?#].*)?$/)?.[1]).find(Boolean);
-          return <ExploreCard key={p.handle} c={{
-            handle: p.handle, name: p.displayName, avatarUrl: p.avatarUrl, when: ago(p.updatedAt), index: index.name ?? "Rankings", others: p.others, more: p.more,
-            count: s?.count ?? 0, mix: s ? cardMix(s) : [], top: s ? cardTop(s) : [],
-            theme: p.theme, x, pageHref: `/${p.handle}`, compareHref: `/compare?a=me&b=@${p.handle}`, remixHref: `/builder?${prettyQuery(encodeIndices([{ ...index, name: `From @${p.handle}` }]))}`,
-          }} />;
-        })}
-      </ul>}
+      <PublishedGrid cards={cards} failed={failed} capped={pages.length >= EXPLORE_LIMIT} initial={{ q: one(sp.q), sort: one(sp.sort), all: one(sp.all) }} />
     </div>
     <SiteFooter />
   </main>;

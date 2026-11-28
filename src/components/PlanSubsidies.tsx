@@ -1,106 +1,143 @@
 "use client";
-import { PlanCaveatSources } from "@/components/PlanCaveatSources";
-import Link from "next/link";
-import { useMemo, useState, type CSSProperties, type MouseEvent, type ReactNode } from "react";
-import { IconChevronRight, IconSearch } from "@tabler/icons-react";
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type KeyboardEvent, type PointerEvent as ReactPointerEvent, type RefObject } from "react";
+import { IconChevronRight, IconMinus, IconSearch } from "@tabler/icons-react";
 import type { PlanSubsidy, SubsidySeller } from "@/lib/model-availability";
+import { TICKS, dollarScale, feeText, logShare, mainLab, measured, nearestMark, rowPlanOf, scaleHigh, searchSellers, shortOf, times, trackMarks, type Hit, type Scale } from "@/lib/plan-subsidies";
+import { labLogo } from "@/data/lab-logos";
+import { LabLogo } from "./LabLogo";
 import { useChartPalette } from "./chart/palette-context";
 import { markColor } from "./chart/theme-tokens";
+import { PlanGrid, type GridCtx } from "./PlanSubsidyGrid";
+import { Collapse } from "./PlanSubsidyParts";
 import "./plan-subsidies.css";
 
-type Model = PlanSubsidy["models"][number];
-type Measured = Model & { multiple: number };
-const measured = (models: Model[]) => models.filter((m): m is Measured => m.multiple != null);
-type Scale = { pct: (m: number) => string; share: (m: number) => number; color: (lab: string) => string };
-const times = (m: number) => `${m >= 10 ? Math.round(m) : m.toFixed(1)}x`;
-const fee = (v?: number) => (v == null ? "" : `$${Number.isInteger(v) ? v : v.toFixed(2)}/mo`);
-const dollars = (v: number) => `$${v >= 100 ? Math.round(v).toLocaleString() : v.toFixed(v >= 10 ? 0 : 2)}`;
-const medianText = (p: PlanSubsidy) => (p.median ? times(p.median) : "");
-const TICKS = [1, 3, 10, 30, 100];
-/** How close the pointer must be to a dot, and how close dots must be to share one card. */
-const REACH_PX = 16, SAME_SPOT_PX = 7;
-const GRID = "grid gap-x-4 sm:grid-cols-[minmax(0,330px)_minmax(0,1fr)_52px]";
+const DOLLARS_KEY = "priors:subsidies-dollars";
+/** How close a mouse must be to a mark to name it, and a finger. */
+const REACH_PX = 16, TOUCH_REACH_PX = 20;
+const PHONE = "(max-width:639px)";
+const watchPhone = (cb: () => void) => { const mq = window.matchMedia(PHONE); mq.addEventListener("change", cb); return () => mq.removeEventListener("change", cb); };
+const usePhone = () => useSyncExternalStore(watchPhone, () => window.matchMedia(PHONE).matches, () => false);
 
-/** One plan's models as dots on the shared log scale, with a card for the dot under the pointer. */
-function PlanStrip({ plan, scale }: { plan: PlanSubsidy; scale: Scale }) {
-  const [hover, setHover] = useState<{ at: number; width: number; models: Measured[] } | null>(null), dots = measured(plan.models);
-  const move = (e: MouseEvent<HTMLElement>) => {
-    const box = e.currentTarget.getBoundingClientRect(), x = e.clientX - box.left, px = (m: Measured) => scale.share(m.multiple) * box.width;
-    const near = dots.reduce<Measured | null>((a, m) => (!a || Math.abs(px(m) - x) < Math.abs(px(a) - x) ? m : a), null);
-    if (!near || Math.abs(px(near) - x) > REACH_PX) return setHover(null);
-    setHover({ at: px(near), width: box.width, models: dots.filter((m) => Math.abs(px(m) - px(near)) <= SAME_SPOT_PX) });
+/** The grid's dollar switch, kept for the visitor's next visit. */
+function useDollars(): [boolean, () => void] {
+  const [on, setOn] = useState(() => { try { return localStorage.getItem(DOLLARS_KEY) === "1"; } catch { return false; } });
+  const now = useRef(on);
+  const toggle = useCallback(() => {
+    now.current = !now.current;
+    setOn(now.current);
+    try { localStorage.setItem(DOLLARS_KEY, now.current ? "1" : "0"); } catch { /* storage blocked */ }
+  }, []);
+  return [on, toggle];
+}
+
+/** The width of an element, measured before paint and kept current. */
+function useWidth<T extends HTMLElement>() {
+  const ref = useRef<T>(null), [width, setWidth] = useState(0);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    setWidth(el.getBoundingClientRect().width);
+    const ro = new ResizeObserver((e) => setWidth(e[0].contentRect.width));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  return [ref, width] as const;
+}
+
+/** A tap anywhere outside `[data-hold]` puts a touch pick down. */
+function useTapAway(active: boolean, clear: () => void) {
+  useEffect(() => {
+    if (!active) return;
+    const on = (e: PointerEvent) => { if (e.pointerType === "touch" && !(e.target as Element | null)?.closest?.("[data-hold]")) clear(); };
+    document.addEventListener("pointerdown", on);
+    return () => document.removeEventListener("pointerdown", on);
+  }, [active, clear]);
+}
+
+/** Pointer handling for a strip: a mouse hovers to the nearest mark within 16px; a finger selects and scrubs within 20px and leaves the pick up. */
+function useScrub<G extends { x: number }>(ref: RefObject<HTMLElement | null>, marks: G[], pick: (g: G | null) => void) {
+  const down = useRef(false);
+  const at = (e: ReactPointerEvent<HTMLElement>, reach: number) => pick(nearestMark(marks, e.clientX - (ref.current ?? e.currentTarget).getBoundingClientRect().left, reach));
+  return {
+    onPointerMove: (e: ReactPointerEvent<HTMLElement>) => { if (e.pointerType === "touch") { if (down.current) at(e, TOUCH_REACH_PX); } else at(e, REACH_PX); },
+    onPointerLeave: (e: ReactPointerEvent<HTMLElement>) => { if (e.pointerType !== "touch") pick(null); },
+    onPointerDown: (e: ReactPointerEvent<HTMLElement>) => { if (e.pointerType === "touch") { down.current = true; at(e, TOUCH_REACH_PX); } },
+    onPointerUp: () => { down.current = false; },
+    onPointerCancel: () => { down.current = false; },
   };
-  if (!dots.length) return <span className="cap block leading-[21px]">not measured</span>;
-  return <span className="relative block h-[21px]" aria-hidden="true" onMouseMove={move} onMouseLeave={() => setHover(null)}>
-    <i className="absolute left-0 right-0 top-[10px] h-px bg-hair" />
-    {dots.map((m) => <i key={m.id} className="absolute top-[6px] -ml-[4.5px] w-[9px] h-[9px] rounded-full transition-transform" style={{ left: scale.pct(m.multiple), background: scale.color(m.lab), boxShadow: "0 0 0 1px var(--bone)", transform: hover?.models.includes(m) ? "scale(1.45)" : undefined }} />)}
-    {hover && <span className="absolute bottom-[calc(100%+6px)] z-20 w-[230px] grid gap-1 rounded-[4px] border hairline px-2.5 py-2 pointer-events-none shadow-lg" style={{ left: Math.max(0, Math.min(hover.at - 115, hover.width - 230)), background: "var(--white)" }}>
-      {hover.models.slice(0, 5).map((m) => <span key={m.id} className="grid grid-cols-[8px_minmax(0,1fr)_auto] items-center gap-2 text-[12.5px]"><i className="w-2 h-2 rounded-full" style={{ background: scale.color(m.lab) }} /><span className="truncate">{m.name}</span><span className="num">{times(m.multiple)}</span></span>)}
-      {hover.models.length === 1 && plan.feeUsd != null && <span className="cap">{dollars(plan.feeUsd * hover.models[0].multiple)} of API use for {dollars(plan.feeUsd)}</span>}
-    </span>}
-  </span>;
 }
 
-/** Keeps what it opened, so closing can animate too. `eager` content is there from the start and only animates when it is switched. */
-function Collapse({ open, eager, children }: { open: boolean; eager?: boolean; children: ReactNode }) {
-  const [seen, setSeen] = useState(open || !!eager);
-  if (open && !seen) setSeen(true);
-  return <div className="sub-collapse" data-open={open} data-eager={eager || undefined} inert={!open}><div className="sub-clip">{seen && children}</div></div>;
-}
-const order = (i: number) => ({ "--i": i }) as CSSProperties;
-
-function ModelBars({ models, scale }: { models: Model[]; scale: Scale }) {
-  return <ul className="sub-models pb-3 pt-1">{models.map((m, i) => <li key={m.id} style={order(i)} className={`${GRID} items-center gap-y-1 py-[5px] text-[13px]`}>
-    <span className="min-w-0 flex items-baseline gap-2 pl-[42px]"><Link href={`/models/${encodeURIComponent(m.id)}` as "/"} prefetch={false} className="truncate hover:underline" title={m.name}>{m.name}</Link>{m.preliminary ? <span className="cap shrink-0" title={`${m.preliminary.short} ${m.preliminary.note}`}>{m.preliminary.label.toLowerCase()}</span> : m.assumed && <span className="cap shrink-0">assumed</span>}{m.multiple != null && <span className="num ml-auto shrink-0 sm:hidden">{times(m.multiple)}</span>}</span>
-    {m.multiple != null ? <span className="relative block h-[7px] max-sm:ml-[42px] rounded-[2px] bg-hair-2" aria-hidden="true"><i className="sub-bar absolute inset-y-0 left-0 rounded-[2px]" style={{ width: `max(3px, ${scale.pct(m.multiple)})`, background: scale.color(m.lab) }} /></span> : <span className="cap max-sm:ml-[42px]">not measured</span>}
-    <span className="num text-right max-sm:hidden">{m.multiple != null ? times(m.multiple) : ""}</span>
-    <PlanCaveatSources caveat={m.preliminary} className="col-span-full pl-[42px]" />
-  </li>)}</ul>;
-}
-
+/** The seller's logo: its id is a lab or seller id in `data/lab-logos.ts`; an unlisted plan name is tried by its first word ("Perplexity Max"). */
 function Logo({ seller }: { seller: SubsidySeller }) {
-  // eslint-disable-next-line @next/next/no-img-element
-  return seller.logo ? <img src={`/logos/${seller.id}.png`} alt="" width={20} height={20} loading="lazy" className="w-5 h-5 shrink-0 rounded-[4px] border hairline object-contain" /> : <span aria-hidden="true" className="w-5 h-5 shrink-0 rounded-[4px] border hairline grid place-items-center text-[11px] text-grey">{seller.name.slice(0, 1)}</span>;
+  const first = seller.name.split(/\s+/)[0];
+  return <LabLogo lab={labLogo(seller.id) ? seller.id : first} name={seller.name} size={20} />;
 }
 
-/** Plans by the company selling them. A row shows the company's default plan on one log scale of API value per dollar; opening it shows every plan it sells. */
+/** Plans by the company selling them. A row is one bar to the median of the company's default plan, with a tick at its best model, on one log scale of API value per dollar; opening it shows every plan beside every model. */
 export function PlanSubsidies({ sellers, labColors }: { sellers: SubsidySeller[]; labColors: Record<string, string | undefined> }) {
-  const pal = useChartPalette();
-  const [query, setQuery] = useState(""), [open, setOpen] = useState<Record<string, boolean>>({}), [picked, setPicked] = useState<Record<string, string>>({});
-  const high = Math.max(100, ...sellers.flatMap((s) => s.plans.flatMap((p) => measured(p.models).map((m) => m.multiple))));
-  const scale: Scale = useMemo(() => { const share = (m: number) => Math.log(Math.max(m, 1)) / Math.log(high); return { share, pct: (m) => `${(share(m) * 100).toFixed(2)}%`, color: (lab) => markColor(labColors[lab], pal, lab) }; }, [high, labColors, pal]);
-  const words = query.toLowerCase().split(/\s+/).filter(Boolean), has = (text: string) => words.every((w) => text.toLowerCase().includes(w));
-  /** What a search found in a seller: every plan when its name matched, else the plans and models that did. */
-  const found = (s: SubsidySeller) => {
-    if (!words.length || has(s.name)) return { plans: s.plans, models: null as Set<string> | null, deep: false };
-    const models = new Set(s.plans.flatMap((p) => p.models.filter((m) => has(m.name)).map((m) => m.id))), plans = s.plans.filter((p) => has(`${s.name} ${p.plan}`) || p.models.some((m) => models.has(m.id)));
-    return { plans, models: models.size ? models : null, deep: true };
-  };
-  const shown = sellers.map((s) => ({ s, hit: found(s) })).filter(({ hit }) => hit.plans.length);
-  return <div className="sub-root grid gap-5" data-searching={words.length ? "" : undefined}>
+  const pal = useChartPalette(), phone = usePhone(), [dollars, toggleDollars] = useDollars();
+  const [query, setQuery] = useState(""), [open, setOpen] = useState<Record<string, boolean>>({});
+  const high = useMemo(() => scaleHigh(sellers), [sellers]), dscale = useMemo(() => dollarScale(sellers), [sellers]);
+  const scale: Scale = useMemo(() => ({ high, ticks: TICKS.filter((t) => t <= high), share: (m) => logShare(m, high), pct: (m) => `${(logShare(m, high) * 100).toFixed(2)}%`, color: (lab) => markColor(labColors[lab], pal, lab) }), [high, labColors, pal]);
+  const ctx: GridCtx = useMemo(() => ({ scale, dscale, dollars, phone }), [scale, dscale, dollars, phone]);
+  const shown = useMemo(() => searchSellers(sellers, query), [sellers, query]);
+  const toggle = useCallback((id: string, deep: boolean) => setOpen((v) => ({ ...v, [id]: !(v[id] ?? deep) })), []);
+  const searching = query.trim() !== "";
+  return <div className="sub-root grid gap-5" data-searching={searching ? "" : undefined}>
     <label className="relative block max-w-[420px]"><IconSearch size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-grey" aria-hidden="true" /><input className="inp !pl-9 h-[44px] !text-[14px]" value={query} placeholder="Search companies, plans or models" aria-label="Search companies, plans or models" onChange={(e) => setQuery(e.target.value)} /></label>
     <div>
-      <div className={`${GRID} max-sm:hidden pb-1 border-b hairline`}><span /><div className="relative h-4">{TICKS.filter((t) => t <= high).map((t, i) => <span key={t} className={`cap absolute ${i === 0 ? "" : "-translate-x-1/2"}`} style={{ left: scale.pct(t) }}>{t}x</span>)}</div><span className="cap text-right">median</span></div>
+      <AxisRow scale={scale} />
       {!shown.length && <p className="cap py-10 text-center">Nothing matches.</p>}
-      {shown.map(({ s, hit }) => {
-        const main = hit.deep ? hit.plans[0] : s.plans[0], expanded = open[s.id] ?? hit.deep, choice = hit.plans.find((p) => p.plan === picked[s.id]) ?? main;
-        const modelsOf = (p: PlanSubsidy) => hit.models ? p.models.filter((m) => hit.models!.has(m.id)) : p.models;
-        return <section key={s.id} className="sub-seller border-b hairline" data-seller={s.id} data-expanded={expanded}>
-          <button type="button" aria-expanded={expanded} onClick={() => setOpen((v) => ({ ...v, [s.id]: !expanded }))} className={`${GRID} -mx-2 w-[calc(100%+16px)] px-2 text-left items-center gap-y-1 py-2 min-h-[48px] rounded-[3px] transition-colors duration-150 [@media(hover:hover)]:hover:bg-hair-2`}>
-            <span className="min-w-0 flex items-center gap-2 text-[14px]"><IconChevronRight size={14} className={`shrink-0 text-grey transition-transform duration-200 ${expanded ? "rotate-90" : ""}`} aria-hidden="true" /><Logo seller={s} /><span className="shrink-0">{s.name}</span><span className="cap truncate" title={main.plan}>{main.plan}</span><span className="cap shrink-0">{fee(main.feeUsd)}</span><span className="num text-[13px] ml-auto sm:hidden">{medianText(main)}</span></span>
-            <PlanStrip plan={main} scale={scale} />
-            <span className="num text-[13px] text-right max-sm:hidden">{medianText(main)}</span>
-          </button>
-          <Collapse open={expanded}>{hit.plans.length === 1 ? <ModelBars models={modelsOf(choice)} scale={scale} /> : <div className="sub-plans pb-2">{hit.plans.map((p, i) => { const on = p.plan === choice.plan; return <div key={p.plan} style={order(i)}>
-            <button type="button" aria-pressed={on} onClick={() => setPicked((v) => ({ ...v, [s.id]: p.plan }))} className={`${GRID} -mx-2 w-[calc(100%+16px)] px-2 text-left items-center gap-y-1 py-1.5 min-h-[40px] max-sm:min-h-[48px] rounded-[3px] transition-colors duration-150 [@media(hover:hover)]:hover:bg-hair-2 ${on ? "bg-hair-2" : ""}`}>
-              <span className="min-w-0 flex items-baseline gap-2 pl-[42px] text-[13px]"><span className={`truncate transition-colors duration-150 ${on ? "text-indigo" : ""}`} title={p.plan}>{p.plan}</span><span className="cap shrink-0">{fee(p.feeUsd)}</span>{p === s.plans[0] && <span className="cap shrink-0">default</span>}<span className="num ml-auto sm:hidden">{medianText(p)}</span></span>
-              <PlanStrip plan={p} scale={scale} />
-              <span className="num text-[13px] text-right max-sm:hidden">{medianText(p)}</span>
-            </button>
-            <Collapse open={on} eager><ModelBars models={modelsOf(p)} scale={scale} /></Collapse>
-          </div>; })}</div>}</Collapse>
-        </section>;
-      })}
+      {shown.map((hit) => <Seller key={hit.s.id} hit={hit} expanded={open[hit.s.id] ?? hit.deep} toggle={toggle} ctx={ctx} toggleDollars={toggleDollars} />)}
     </div>
+  </div>;
+}
+
+/** The axis over the bars: 1x, 10x and 100x, sticky under the phone nav. */
+function AxisRow({ scale }: { scale: Scale }) {
+  return <div className="sub-row sub-stick z-30 h-7 bg-bone border-b hairline" aria-hidden="true">
+    <span className="sub-left" /><div className="sub-cell relative h-full">{[1, 10, 100].filter((t) => t <= scale.high).map((t, i, a) => <span key={t} className={`cap absolute top-1/2 -translate-y-1/2 ${i === 0 ? "" : i === a.length - 1 ? "-translate-x-full" : "-translate-x-1/2"}`} style={{ left: scale.pct(t) }}>{t}x</span>)}</div><span className="sub-med cap max-sm:hidden">median</span>
+  </div>;
+}
+
+const Seller = memo(function Seller({ hit, expanded, toggle, ctx, toggleDollars }: { hit: Hit; expanded: boolean; toggle: (id: string, deep: boolean) => void; ctx: GridCtx; toggleDollars: () => void }) {
+  const { s } = hit, short = shortOf(s), main = rowPlanOf(hit.plans), flip = () => toggle(s.id, hit.deep);
+  return <section className="sub-seller border-b hairline" data-seller={s.id} data-expanded={expanded}>
+    <div className="sub-row sub-row-hover -mx-2 px-2 min-h-[56px] max-sm:pb-1 cursor-pointer" onClick={(e) => { if (!(e.target as Element).closest(".sub-cell")) flip(); }}>
+      <button type="button" aria-expanded={expanded} onClick={(e) => { e.stopPropagation(); flip(); }} className="sub-left min-w-0 flex items-center gap-2 text-[14px] text-left py-2 max-sm:pb-0 max-sm:min-h-10">
+        <IconChevronRight size={14} className={`shrink-0 text-grey transition-transform duration-200 ${expanded ? "rotate-90" : ""}`} aria-hidden="true" /><Logo seller={s} /><span className="shrink-0">{s.name}</span><span className="cap min-w-0 break-words line-clamp-2 leading-[13px]" title={main.plan}>{short(main.plan)}</span><span className="cap shrink-0">{feeText(main.feeUsd)}</span>
+      </button>
+      <Track plan={main} scale={ctx.scale} label={`${s.name} ${short(main.plan)}`} />
+      <span className="sub-med num text-[13px] text-right">{main.median ? times(main.median) : ""}</span>
+    </div>
+    <Collapse open={expanded}><PlanGrid hit={hit} ctx={ctx} toggleDollars={toggleDollars} /></Collapse>
+  </section>;
+});
+
+/** A bar from 1x to the plan's median with one tick at its best model. Hover, a tap or the arrow keys name the bar's end or the tick under the bar. */
+function Track({ plan, scale, label }: { plan: PlanSubsidy; scale: Scale; label: string }) {
+  const ms = useMemo(() => measured(plan.models), [plan]), [ref, width] = useWidth<HTMLDivElement>();
+  const marks = useMemo(() => trackMarks(plan, scale.share, width), [plan, scale, width]);
+  const color = useMemo(() => scale.color(mainLab(plan)), [plan, scale]);
+  const [on, setOn] = useState<string | null>(null), [kb, setKb] = useState(-1);
+  const clear = useCallback(() => setOn(null), []);
+  useTapAway(!!on, clear);
+  const bind = useScrub(ref, marks, (g) => setOn(g?.k ?? null));
+  if (!ms.length) return <span className="sub-cell cap inline-flex items-center gap-1 leading-[21px]"><IconMinus size={12} aria-hidden="true" />not measured</span>;
+  const shown = kb >= 0 ? marks[kb] : marks.find((m) => m.k === on), room = (shown?.text.length ?? 0) * 6.6, flip = !!shown && shown.x + room > width;
+  const key = (e: KeyboardEvent) => {
+    if (e.key === "Escape") return setKb(-1);
+    const d = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
+    if (!d) return;
+    e.preventDefault();
+    setKb(Math.max(0, Math.min(marks.length - 1, kb < 0 ? (d > 0 ? 0 : marks.length - 1) : kb + d)));
+  };
+  const best = marks[1];
+  return <div ref={ref} className="sub-cell sub-strip hit relative h-10 touch-pan-y" role="group" tabIndex={0} aria-label={`${label}: median ${times(plan.median)}, best ${ms[0].name} ${times(ms[0].multiple)}`} data-hold="" {...bind} onKeyDown={key} onBlur={() => setKb(-1)}>
+    <span className="absolute left-0 right-0 top-[16px] h-[7px] rounded-[2px] bg-hair-2" aria-hidden="true" />
+    <i className="sub-fill absolute left-0 top-[16px] h-[7px] rounded-[2px]" style={{ width: `max(3px, ${scale.pct(plan.median)})`, background: color }} aria-hidden="true" />
+    {ms.length > 1 && <i className="absolute top-[13px] h-[13px] w-[2px] -ml-[1px] rounded-[1px] bg-ink" style={{ left: best.x, opacity: shown && shown.k !== "best" ? 0.4 : 1 }} aria-hidden="true" />}
+    {shown && <span className="sub-mark cap absolute top-[28px] whitespace-nowrap text-ink-2" style={flip ? { right: Math.max(0, width - shown.x - 4) } : { left: Math.max(0, shown.x - 4) }} aria-hidden="true">{shown.text}</span>}
+    <span className="sr-only" aria-live="polite">{shown?.text}</span>
   </div>;
 }
