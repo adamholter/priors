@@ -53,7 +53,7 @@ Each file's origin. `lobehub` is `https://cdn.jsdelivr.net/npm/@lobehub/icons-st
 | alibaba | Alibaba | alibaba.svg | lobehub alibaba-color.svg |
 | moonshot | Moonshot AI | moonshot.svg | lobehub kimi-color.svg |
 | mistral | Mistral | mistral.svg | lobehub mistral-color.svg |
-| zhipu | Zhipu | zhipu.svg | lobehub zhipu-color.svg |
+| zhipu | Zhipu | zhipu.svg | lobehub zai.svg (the Z.ai mark GLM ships under; the old Zhipu swirl was retired) |
 | minimax | MiniMax | minimax.svg | lobehub minimax-color.svg |
 | xiaomi | Xiaomi | xiaomi.svg | aa xiaomi.svg |
 | cognition | Cognition | cognition.svg | lobehub devin-color.svg |

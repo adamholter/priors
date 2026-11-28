@@ -27,7 +27,7 @@ export const LAB_LOGOS: LabLogoEntry[] = [
   { id: "alibaba", name: "Alibaba", file: "alibaba.svg", aliases: ["alibaba-cloud", "alibabacloud", "alibaba-group", "alibaba-qwen", "qwen", "qwen-team", "tongyi"] },
   { id: "moonshot", name: "Moonshot AI", file: "moonshot.svg", dark: "flip", aliases: ["kimi", "moonshotai", "moonshot-ai"] },
   { id: "mistral", name: "Mistral", file: "mistral.svg", aliases: ["mistral-ai", "mistralai"] },
-  { id: "zhipu", name: "Zhipu", file: "zhipu.svg", aliases: ["z-ai", "zai", "zhipu-ai", "zhipuai", "z-ai-org", "glm", "chatglm", "thudm", "z-ai-labs"] },
+  { id: "zhipu", name: "Zhipu", file: "zhipu.svg", dark: "flip", aliases: ["z-ai", "zai", "zhipu-ai", "zhipuai", "z-ai-org", "glm", "chatglm", "thudm", "z-ai-labs"] },
   { id: "minimax", name: "MiniMax", file: "minimax.svg", aliases: ["minimax-ai", "hailuo"] },
   { id: "xiaomi", name: "Xiaomi", file: "xiaomi.svg", aliases: ["mimo", "xiaomi-mimo", "xiaomimimo"] },
   { id: "cognition", name: "Cognition", file: "cognition.svg", aliases: ["devin", "cognition-labs", "cognition-ai", "swe-1"] },
