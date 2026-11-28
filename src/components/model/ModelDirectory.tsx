@@ -1,141 +1,105 @@
 "use client";
-import Link from "next/link";
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { IconArrowDown, IconArrowUp, IconBuilding, IconCube, IconHistory, IconLockOpen, IconSearch, IconStack2 } from "@tabler/icons-react";
-import { MODEL_SORTS, searchModels, sortModels, type ModelItem, type ModelSort, type SortDir } from "@/lib/model-directory";
-import { useLabColor } from "@/components/chart/echarts";
-import "../benchmark/benchmarks.css";
+import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { IconHistory, IconLockOpen, IconReceipt, IconStack2 } from "@tabler/icons-react";
+import { labsOf, modelView, nextOrder, NO_FILTERS, RANK_ORDER, type Facet, type Filters, type LabInfo, type ModelItem, type ModelSort, type Order } from "@/lib/model-list";
+import { Count, DateButton, Empty, IconBtn, LabList, LabMark, SearchField, Sheet, SortButton, useSlash } from "./directory-ui";
+import { ModelTable } from "./ModelTable";
 import "./models.css";
 
-const plural = (n: number, one: string, many = `${one}s`) => `${n.toLocaleString("en-US")} ${n === 1 ? one : many}`;
-const sortOf = (id: ModelSort) => MODEL_SORTS.find((s) => s.id === id)!;
-const usd = (v: number) => `$${v.toFixed(v >= 0.1 ? 2 : 3)}`;
-const params = (b: number) => b >= 1000 ? `${(b / 1000).toFixed(b >= 10000 ? 0 : 1)}T params` : `${b >= 10 ? Math.round(b) : b}B params`;
+const NONE: Facet = { ranked: 0, total: 0 };
 
-/** Every model Priors ranks, searchable, filtered by lab and sorted by any column; each row opens the model's own page. */
-export function ModelDirectory({ items, indexName }: { items: ModelItem[]; indexName: string }) {
-  const TIP = {
-    rank: `Rank and score on ${indexName}, Priors' default ranking, at the model's best reasoning effort. An older version shows its score without a rank, as rankings leave it out; blank when too little is measured to rank.`,
-    released: "When the lab released it.",
-    benchmarks: "How many benchmarks publish a result for it, any reasoning effort. Priors' estimates don't count.",
-    price: "API price in USD per million tokens, blended 3 input : 1 output, from Artificial Analysis. Its cheapest effort.",
-    name: "The model's name. Click to sort A to Z, again for Z to A.",
-  };
-  const [q, setQ] = useState("");
-  const [lab, setLab] = useState("all");
-  const [order, setOrder] = useState<{ sort: ModelSort; dir: SortDir }>({ sort: "rank", dir: "asc" });
-  const [older, setOlder] = useState(false);
-  const [open, setOpen] = useState(false);
-  const input = useRef<HTMLInputElement>(null);
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === "/" && !(e.target as HTMLElement)?.closest("input,textarea,select")) { e.preventDefault(); input.current?.focus(); } };
-    addEventListener("keydown", onKey); return () => removeEventListener("keydown", onKey);
-  }, []);
-  const searching = q.trim().length > 0;
-  // Searching looks at older versions too: an old model is often exactly what someone typed.
-  const base = useMemo(() => items.filter((x) => (older || searching || !x.superseded) && (!open || x.openWeights)), [items, older, open, searching]);
-  const labs = useMemo(() => {
-    const count = new Map<string, { id: string; name: string; color: string; n: number }>();
-    for (const x of base) { const c = count.get(x.labId) ?? count.set(x.labId, { id: x.labId, name: x.labName, color: x.labColor, n: 0 }).get(x.labId)!; c.n++; }
-    return [...count.values()].sort((a, b) => b.n - a.n || a.name.localeCompare(b.name));
-  }, [base]);
-  const found = useMemo(() => {
-    const inLab = base.filter((x) => lab === "all" || x.labId === lab);
-    const sorted = sortModels(inLab, order.sort, order.dir);
-    // While searching, the default order means best match first; a column picked by hand orders the matches.
-    return searching ? (order.sort === "rank" && order.dir === "asc" ? searchModels(sortModels(inLab, "rank", "asc"), q) : sortModels(searchModels(inLab, q), order.sort, order.dir)) : sorted;
-  }, [base, lab, order, q, searching]);
-  const column = (id: ModelSort) => setOrder((o) => o.sort === id ? { sort: id, dir: o.dir === "asc" ? "desc" : "asc" } : { sort: id, dir: sortOf(id).natural });
-  const totals = useMemo(() => ({ labs: new Set(base.map((x) => x.labId)).size, open: base.filter((x) => x.openWeights).length }), [base]);
-
+const RailRow = memo(function RailRow({ l, c, on, onPick }: { l: LabInfo; c: Facet; on: boolean; onPick: (id: string) => void }) {
   return (
-    <div className="bench-dir model-dir grid gap-8">
-      <div className="bench-totals" aria-label="Directory totals">
-        <span><IconCube size={16} stroke={1.5} aria-hidden />{plural(base.length, "model")}</span>
-        <span><IconBuilding size={16} stroke={1.5} aria-hidden />{plural(totals.labs, "lab")}</span>
-        <span><IconLockOpen size={16} stroke={1.5} aria-hidden />{totals.open.toLocaleString("en-US")} with open weights</span>
-      </div>
-      <div className="bench-layout">
-        <nav className="bench-rail model-rail" aria-label="Labs">
-          <button type="button" aria-pressed={lab === "all"} onClick={() => setLab("all")}><IconStack2 size={17} stroke={1.5} aria-hidden /><span>All labs</span><span className="cap">{base.length}</span></button>
-          {labs.map((l) => <LabButton key={l.id} l={l} on={lab === l.id} onClick={() => setLab(l.id)} />)}
-        </nav>
-        <div className="grid gap-5 content-start min-w-0">
-          <div className="grid gap-3">
-            <div className="relative">
-              <IconSearch size={18} stroke={1.5} className="absolute left-4 top-1/2 -translate-y-1/2 text-grey pointer-events-none" aria-hidden />
-              <input ref={input} type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by model or lab: Opus, Gemini Neon, DeepSeek…" aria-label="Search models" className="inp !text-[16px] !py-3 !pl-11 !pr-12 w-full" autoComplete="off" spellCheck={false} />
-              <kbd className="absolute right-3 top-1/2 -translate-y-1/2 cap border hairline rounded px-1.5 max-sm:hidden" aria-hidden="true">/</kbd>
-            </div>
-            <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
-              <label className="cap flex items-center gap-2">Sort
-                <select className="model-sort-select normal-case" aria-label="Sort models" value={`${order.sort}:${order.dir}`} onChange={(e) => { const [sort, dir] = e.target.value.split(":") as [ModelSort, SortDir]; setOrder({ sort, dir }); }}>
-                  {MODEL_SORTS.flatMap((s) => [s.natural, s.natural === "asc" ? "desc" : "asc"].map((d, i) => <option key={`${s.id}:${d}`} value={`${s.id}:${d}`}>{s.name}: {s.names[i]}</option>))}
-                </select>
-              </label>
-              {!searching && <label className="cap flex items-center gap-2 cursor-pointer" title="Earlier versions of a model line that has a newer one, which rankings hide by default"><input type="checkbox" data-older checked={older} onChange={(e) => setOlder(e.target.checked)} />Older versions</label>}
-              <label className="cap flex items-center gap-2 cursor-pointer"><input type="checkbox" data-open-weights checked={open} onChange={(e) => setOpen(e.target.checked)} />Open weights only</label>
-              <span className="cap ml-auto" role="status">{searching ? plural(found.length, "match", "matches") : plural(found.length, "model")}</span>
-            </div>
-          </div>
-          {found.length ? <div className="min-w-0">
-            <div className="bench-head cap" role="toolbar" aria-label="Sort by column">
-              <Head id="name" order={order} onClick={column} text={TIP.name}>Model</Head>
-              <Head id="rank" order={order} onClick={column} text={TIP.rank} end>Priors rank</Head>
-              <Head id="released" order={order} onClick={column} text={TIP.released} end>Released</Head>
-              <Head id="benchmarks" order={order} onClick={column} text={TIP.benchmarks} end>Benchmarks</Head>
-              <Head id="price" order={order} onClick={column} text={TIP.price} end>API price</Head>
-            </div>
-            <ul className="grid">{found.map((x) => <Row key={x.id} x={x} showLab={lab === "all"} tip={TIP} />)}</ul>
-          </div> : <p className="cap py-6">{searching ? <>Nothing matches &ldquo;{q}&rdquo;. Try a lab or a shorter name.</> : "No models here with these filters."}</p>}
-        </div>
-      </div>
-    </div>
+    <button type="button" aria-pressed={on} data-dim={c.total === 0 || undefined} onClick={() => onPick(on ? "all" : l.id)}>
+      <LabMark l={l} size={18} /><span className="md-trunc">{l.name}</span><Count c={c} />
+    </button>
+  );
+});
+
+/** Labs with a logo and ranked over total, in an order that does not move. Counts follow search and filters; a lab with nothing left dims in place. Labs with no ranked model wait behind "More labs". */
+function Rail({ labs, counts, total, value, onPick }: { labs: LabInfo[]; counts: Map<string, Facet>; total: Facet; value: string; onPick: (id: string) => void }) {
+  const [more, setMore] = useState(false);
+  const main = useMemo(() => labs.filter((l) => l.ranked > 0), [labs]), rest = useMemo(() => labs.filter((l) => l.ranked === 0), [labs]);
+  const shown = more || rest.some((l) => l.id === value);
+  return (
+    <nav className="md-rail" aria-label="Labs">
+      <button type="button" aria-pressed={value === "all"} onClick={() => onPick("all")}>
+        <IconStack2 size={18} stroke={1.5} aria-hidden /><span>All labs</span><Count c={total} />
+      </button>
+      {main.map((l) => <RailRow key={l.id} l={l} c={counts.get(l.id) ?? NONE} on={value === l.id} onPick={onPick} />)}
+      {rest.length > 0 && <button type="button" className="disclosure md-disc" aria-expanded={shown} onClick={() => setMore((m) => !m)}><span>More labs</span><span className="md-count">{rest.length}</span></button>}
+      {shown && rest.map((l) => <RailRow key={l.id} l={l} c={counts.get(l.id) ?? NONE} on={value === l.id} onPick={onPick} />)}
+    </nav>
   );
 }
 
-function LabButton({ l, on, onClick }: { l: { id: string; name: string; color: string; n: number }; on: boolean; onClick: () => void }) {
-  const color = useLabColor();
-  return <button type="button" aria-pressed={on} onClick={onClick}><i className="model-dot" style={{ background: color(l.id, l.color) }} aria-hidden="true" /><span className="model-lab-name">{l.name}</span><span className="cap">{l.n}</span></button>;
+/** Restarts a short fade on `el` whenever `key` changes, without remounting the rows under it. */
+function useFade(el: RefObject<HTMLElement | null>, key: string) {
+  const first = useRef(true);
+  useEffect(() => {
+    if (first.current) { first.current = false; return; }
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    el.current?.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 160, easing: "ease-out" });
+  }, [el, key]);
 }
 
-function Tip({ text, end, children, className = "" }: { text: string; end?: boolean; children: ReactNode; className?: string }) {
-  return <span className={`bench-tip ${end ? "bench-tip-end" : ""} ${className}`} data-bench-tip={text}>{children}</span>;
-}
+/**
+ * Every model Priors has results for, as a leaderboard: ranked by default with a score bar that carries the reasoning-effort ladder, a plain word where a model
+ * has no rank, and counts that follow the search. Filtered by lab, open weights and release date, sorted by any column; each row opens the model's own page.
+ */
+export function ModelDirectory({ items, indexName }: { items: ModelItem[]; indexName: string }) {
+  const [f, setF] = useState<Filters>(NO_FILTERS);
+  const [order, setOrder] = useState<Order>(RANK_ORDER);
+  const [costOn, setCostOn] = useState(false);
+  const [sheet, setSheet] = useState(false);
+  const input = useRef<HTMLInputElement>(null), list = useRef<HTMLUListElement>(null), body = useRef<HTMLDivElement>(null), labbar = useRef<HTMLButtonElement>(null);
+  const patch = useCallback((p: Partial<Filters>) => setF((s) => ({ ...s, ...p })), []);
+  const reset = useCallback(() => setF(NO_FILTERS), []);
+  const onSort = useCallback((id: ModelSort) => setOrder((o) => nextOrder(o, id)), []);
+  const back = useCallback(() => input.current?.focus(), []);
+  const closeSheet = useCallback(() => setSheet(false), []);
+  const pickLab = useCallback((id: string) => { patch({ lab: id }); setSheet(false); }, [patch]);
+  useSlash(input);
 
-function Head({ id, order, onClick, text, end, children }: { id: ModelSort; order: { sort: ModelSort; dir: SortDir }; onClick: (id: ModelSort) => void; text: string; end?: boolean; children: ReactNode }) {
-  const on = order.sort === id, s = sortOf(id), now = on ? s.names[order.dir === s.natural ? 0 : 1] : undefined;
-  const Arrow = on && order.dir === "asc" ? IconArrowUp : IconArrowDown;
-  const arrow = <Arrow size={12} stroke={2} className="bench-sort-arrow" aria-hidden />;
-  return <Tip text={text} end={end}>
-    <button type="button" className="bench-sort" data-sort={id} data-on={on || undefined} aria-pressed={on} aria-label={`Sort by ${s.name}${now ? `, ${now.toLowerCase()}` : ""}`} onClick={() => onClick(id)}>
-      {end && arrow}{children}{!end && arrow}
-    </button>
-  </Tip>;
-}
+  const labs = useMemo(() => labsOf(items), [items]);
+  // Typing stays instant; the list catches up a frame later.
+  const q = useDeferredValue(f.q);
+  const view = useMemo(() => modelView(items, { q, lab: f.lab, open: f.open, since: f.since, tier: f.tier, older: f.older }, order), [items, q, f.lab, f.open, f.since, f.tier, f.older, order]);
+  const { rows, counts, total, searching } = view;
+  const lab = f.lab === "all" ? undefined : labs.find((l) => l.id === f.lab);
+  const showCost = costOn || order.sort === "cost";
+  useFade(body, `${f.lab}|${f.tier}|${f.open}|${f.since}|${f.older}|${searching}`);
+  const empty = f.tier === "ranked" && !searching && view.allN > 0 ? { text: "No ranked models here", action: `Show all ${view.allN}`, run: () => patch({ tier: "all" }) } : { text: searching ? "No match" : "No models here", action: "Clear", run: reset };
+  const labCount = lab ? counts.get(lab.id) ?? NONE : total;
 
-function Row({ x, showLab, tip }: { x: ModelItem; showLab: boolean; tip: Record<"rank" | "released" | "benchmarks" | "price", string> }) {
-  const color = useLabColor();
-  const sub = [showLab ? x.labName : undefined, x.paramsB ? params(x.paramsB) : undefined, x.reasoning ? "reasoning" : undefined].filter(Boolean).join(" · ");
   return (
-    <li className="bench-li border-b hairline last:border-b-0">
-      <Link href={`/models/${encodeURIComponent(x.id)}` as "/"} prefetch={false} className="bench-row group" data-model={x.id}>
-        <span className="bench-main">
-          <i className="model-dot model-dot-row" style={{ background: color(x.labId, x.labColor) }} aria-hidden="true" />
-          <span className="min-w-0">
-            <span className="flex flex-wrap items-center gap-x-2">
-              <span className="text-[15px] group-hover:underline decoration-dotted underline-offset-2">{x.name}</span>
-              {x.openWeights && <span className="cap inline-flex items-center gap-1 model-open"><IconLockOpen size={12} stroke={1.6} aria-hidden />open weights</span>}
-              {x.superseded && <span className="cap inline-flex items-center gap-1"><IconHistory size={12} stroke={1.6} aria-hidden />older version</span>}
-            </span>
-            {sub && <span className="block text-[13px] text-ink-2 truncate">{sub}</span>}
-          </span>
-        </span>
-        <span className={`bench-cell bench-num ${x.score == null ? "bench-none" : ""}`}><Tip text={tip.rank} end><span className="bench-word">Priors rank </span>{x.score != null ? <>{x.rank != null && <span className="num">#{x.rank}</span>}<span className="text-grey num model-score">{x.score.toFixed(1)}</span></> : <span className="num" aria-hidden="true">–</span>}</Tip></span>
-        <span className={`bench-cell bench-num ${x.releaseDate ? "" : "bench-none"}`}><Tip text={tip.released} end><span className="bench-word">Released </span><span className="num">{x.releaseDate ?? "–"}</span></Tip></span>
-        <span className="bench-cell bench-num"><Tip text={tip.benchmarks} end><span className="num">{x.benchmarks}</span><span className="bench-word"> {x.benchmarks === 1 ? "benchmark" : "benchmarks"}</span></Tip></span>
-        <span className={`bench-cell bench-num ${x.priceUsd != null ? "" : "bench-none"}`}><Tip text={tip.price} end><span className="num">{x.priceUsd != null ? usd(x.priceUsd) : "–"}</span><span className="bench-word"> per 1M tokens</span></Tip></span>
-      </Link>
-    </li>
+    <div className="model-dir md-layout">
+      <button type="button" ref={labbar} className="md-labbar" onClick={() => setSheet(true)} aria-haspopup="dialog">
+        {lab ? <LabMark l={lab} size={22} /> : <IconStack2 size={22} stroke={1.5} aria-hidden />}
+        <span className="md-trunc">{lab ? lab.name : "All labs"}</span><Count c={labCount} />
+      </button>
+      <Sheet open={sheet} onClose={closeSheet} title="Labs" opener={labbar}><LabList labs={labs} counts={counts} total={total} value={f.lab} onPick={pickLab} /></Sheet>
+      <Rail labs={labs} counts={counts} total={total} value={f.lab} onPick={pickLab} />
+      <div className="md-main">
+        <SearchField q={f.q} setQ={(v) => patch({ q: v })} inputRef={input} onDown={() => list.current?.querySelector<HTMLElement>("a[data-model]")?.focus()} />
+        <div className="md-tools">
+          {!searching && view.rankedN !== view.allN && (
+            <div className="seg md-segtext" role="group" aria-label="Show">
+              <button type="button" aria-pressed={f.tier === "ranked"} onClick={() => patch({ tier: "ranked" })}>Ranked<span className="num">{view.rankedN}</span></button>
+              <button type="button" aria-pressed={f.tier === "all"} onClick={() => patch({ tier: "all" })}>All<span className="num">{view.allN}</span></button>
+            </div>
+          )}
+          <IconBtn label="Open weights only" pressed={f.open} onClick={() => patch({ open: !f.open })}><IconLockOpen size={18} stroke={1.5} aria-hidden /></IconBtn>
+          <DateButton since={f.since} onChange={(since) => patch({ since })} />
+          <IconBtn label={searching ? "Older versions are included while searching" : "Older versions"} pressed={f.older || searching} disabled={searching} onClick={() => patch({ older: !f.older })}><IconHistory size={18} stroke={1.5} aria-hidden /></IconBtn>
+          <IconBtn className="md-costbtn" label="Cost per task" pressed={showCost} disabled={order.sort === "cost"} onClick={() => setCostOn((v) => !v)}><IconReceipt size={18} stroke={1.5} aria-hidden /></IconBtn>
+          <SortButton order={order} onChange={setOrder} />
+          <span className={searching ? "cap md-matches" : "md-sr"} role="status" aria-live="polite">{rows.length.toLocaleString("en-US")} {searching ? (rows.length === 1 ? "match" : "matches") : rows.length === 1 ? "model" : "models"}</span>
+        </div>
+        {rows.length ? (
+          <div ref={body}><ModelTable rows={rows} showLab={f.lab === "all"} order={order} onSort={onSort} onBack={back} listRef={list} cost={showCost} indexName={indexName} /></div>
+        ) : <div ref={body}><Empty text={empty.text} action={empty.action} onAction={() => { empty.run(); back(); }} /></div>}
+      </div>
+    </div>
   );
 }

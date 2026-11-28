@@ -1,0 +1,62 @@
+/* Reasoning efforts on a model page: the section's ladder and the effort list under each benchmark card. */
+.eff { position: relative; min-width: 0; }
+.eff[data-stale] { opacity: .6; transition: opacity .15s; }
+.eff-nil { color: var(--grey); }
+.eff-word { font-family: var(--font-mono); font-size: 12.5px; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.eff-word[data-best="true"] { color: var(--indigo); }
+
+/* the best-value note opens in the flow under the heading and pushes the rows down */
+.eff-note { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .18s ease; }
+.eff-note[data-open="true"] { grid-template-rows: 1fr; }
+.eff-note > div { overflow: hidden; min-height: 0; }
+.eff-note p { margin: 0; padding: 10px 0 2px; max-width: 64ch; color: var(--ink-2); font: 13px/1.5 var(--font-sans); }
+
+/* icon column heads */
+.eff-head { display: inline-grid; place-items: center; color: var(--grey); vertical-align: middle; }
+
+/* bars grow from the left on mount, staggered */
+@keyframes eff-grow { from { transform: scaleX(0); } }
+.eff-track { display: block; height: 10px; background: var(--hair-2); border-radius: 2px; overflow: hidden; }
+.eff-fill { display: block; height: 100%; border-radius: 2px; transform-origin: left; animation: eff-grow .22s ease-out backwards; animation-delay: calc(var(--i, 0) * 30ms); }
+
+/* the ladder: one row per effort */
+.eff-ladder { display: grid; }
+.eff-cap, .eff-row { display: grid; grid-template-columns: var(--cols); column-gap: 16px; align-items: center; margin: 0 -8px; padding: 0 8px; }
+.eff-cap { height: 28px; }
+.eff-cap > span { text-align: right; }
+.eff-row { min-height: 36px; border-radius: 4px; transition: background .12s; width: calc(100% + 16px); text-align: left; }
+.eff-row:hover { background: var(--hair-2); }
+.eff-row .num { font-size: 12.5px; text-align: right; color: var(--ink-2); }
+.eff-scorecell { display: grid; grid-template-columns: 52px 44px; justify-content: end; column-gap: 8px; align-items: baseline; }
+.eff-row .eff-score { font-size: 14px; color: var(--ink); }
+.eff-row .eff-step { font-size: 11.5px; color: var(--grey); }
+.eff-row[data-best="true"] .eff-score { color: var(--indigo); }
+.eff-sub { display: none; }
+@media (max-width: 639px) {
+  .eff-cap { display: none; }
+  .eff-row { grid-template-columns: var(--cols-m); column-gap: 10px; min-height: 44px; }
+  .eff-row[role="button"] { cursor: pointer; }
+  .eff-row[role="button"]:focus-visible { outline: 2px solid var(--indigo); outline-offset: -2px; }
+  .eff-scorecell { grid-template-columns: 1fr; }
+  .eff-opt { display: none !important; }
+  .eff-sub { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .18s ease; }
+  .eff-sub > div { overflow: hidden; min-height: 0; }
+  .eff-sub p { padding: 0 0 8px; }
+  .eff-sub[data-open="true"] { grid-template-rows: 1fr; }
+}
+
+/* the effort list under a benchmark card */
+.eff-card { display: grid; gap: 2px; }
+.eff-crow { display: grid; grid-template-columns: 56px minmax(0, 1fr) 60px 44px; column-gap: 12px; align-items: center; min-height: 24px; margin: 0 -8px; padding: 0 8px; border-radius: 4px; transition: background .12s; }
+.eff-crow:hover { background: var(--hair-2); }
+.eff-crow .num { font-size: 12.5px; text-align: right; color: var(--ink); }
+.eff-crow .cap { text-align: right; }
+.eff-crow[data-top="true"] .eff-word, .eff-crow[data-top="true"] .num { font-weight: 600; color: var(--ink); }
+.eff-crow[data-top="true"] .eff-word[data-best="true"] { color: var(--indigo); }
+.eff-place { display: block; height: 6px; background: var(--hair-2); border-radius: 2px; overflow: hidden; }
+.eff-place > i { display: block; height: 100%; border-radius: 2px; transform-origin: left; animation: eff-grow .22s ease-out backwards; animation-delay: calc(var(--i, 0) * 30ms); }
+
+@media (prefers-reduced-motion: reduce) {
+  .eff-note, .eff-sub { transition: none; }
+  .eff-fill, .eff-place > i { animation: none; }
+}

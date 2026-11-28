@@ -1,0 +1,25 @@
+/* The model page's header: the score, its place, and the ranking picker. */
+.model-head-fade { transition: opacity .16s ease-out; }
+.model-head-dim { opacity: .4; }
+.model-head-spin { animation: model-head-spin .9s linear infinite; }
+@keyframes model-head-spin { to { transform: rotate(360deg); } }
+.model-head-pop { animation: model-head-pop .14s ease-out backwards; }
+@keyframes model-head-pop { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+.model-head-in { animation: model-head-in .2s ease-out backwards; }
+@keyframes model-head-in { from { opacity: 0; } to { opacity: 1; } }
+/* The picker's face: the ranking's name in serif, underlined, with a chevron. */
+.model-head-trig { cursor: pointer; }
+.model-head-trig:focus-visible { outline: 2px solid var(--indigo); outline-offset: 2px; }
+.model-head-trig-text { text-decoration: underline; text-decoration-color: var(--hair-3); text-underline-offset: 3px; transition: text-decoration-color .12s; }
+.model-head-trig:hover .model-head-trig-text, .model-head-trig[aria-expanded="true"] .model-head-trig-text { text-decoration-color: var(--ink); }
+.model-head-chev { transition: transform .18s ease; }
+.model-head-trig[aria-expanded="true"] .model-head-chev { transform: rotate(180deg); }
+.model-head-trig:hover .model-head-chev { color: var(--ink); }
+.model-head-link { text-decoration: underline; text-decoration-color: var(--hair-3); text-underline-offset: 3px; cursor: pointer; }
+.model-head-link:hover { text-decoration-color: var(--ink); color: var(--ink); }
+.model-head-row:hover, .model-head-row:focus-visible { background: var(--hair-2); }
+.model-head-row:focus-visible { outline: none; }
+@media (prefers-reduced-motion: reduce) {
+  .model-head-spin, .model-head-pop, .model-head-in { animation: none; }
+  .model-head-chev, .model-head-trig-text, .model-head-fade { transition: none; }
+}

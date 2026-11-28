@@ -1,15 +1,17 @@
 "use client";
 import { categoryName } from "@/data/categories";
 import { SiteFooter } from "@/components/SiteFooter";
-import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { EChartsOption } from "echarts";
 import type { Benchmark, Snapshot } from "@/data/types";
 import { benchRows, type BenchRow as Row, type ModelView, type ViewBenchmark, type ViewField } from "@/lib/model-view";
 import type { ModelAvailability } from "@/lib/model-availability";
-import { rankParam, type RankingOption } from "@/lib/model-ranking-param";
+import type { RankingOption } from "@/lib/model-ranking-param";
+import type { RankSummary } from "@/lib/model-rank-text";
+import type { OwnRanking } from "@/lib/model-ranks";
 import { CONTAIN_AXIS_LABELS, insideLabels, markColor, useChartPalette, useEChart } from "../chart/echarts";
 import { BenchmarkInfo, InfoIcon } from "../BenchmarkInfo";
+import { ModelHeader } from "./ModelHeader";
 import { ModelStrengths } from "./ModelStrengths";
 import { ModelDomains } from "./ModelDomains";
 import { FieldStrip, type StripPoint } from "./FieldStrip";
@@ -18,6 +20,8 @@ import { ModelAvailabilitySection } from "./ModelAvailability";
 import { escapeSvg as esc } from "../chart/export-frame";
 import { useNearView } from "../use-near-view";
 import { SiteHeader } from "@/components/SiteHeader";
+import { buildEfforts } from "@/lib/model-efforts";
+import { BestEffortContext, EffortRows, ModelEfforts } from "./ModelEfforts";
 
 type Bench = Pick<Benchmark, "unit" | "higherIsBetter" | "name" | "effortBasis">;
 
@@ -33,6 +37,10 @@ interface Props {
   /** Where a server-drawn page gets the rest of its benchmarks. */
   othersUrl: string;
   options: RankingOption[]; current: string; onPick: (param: string) => void;
+  /** Where the model stands in each ranking the picker lists, and the ranking made from its own benchmarks when no standard ranking places it. */
+  ranks: Record<string, RankSummary | undefined>; own?: OwnRanking;
+  /** The ranking picker opened or closed. */
+  onMenu: (open: boolean) => void;
   /** The chosen ranking is still downloading, or could not. */
   pending: boolean; error: string; retry: () => void;
   /** `null` while on-demand benchmark details are loading. */
@@ -40,80 +48,61 @@ interface Props {
   probe: ReactNode;
 }
 
-export function ModelPage({ view, summary, availability, othersUrl, options, current, onPick, pending, error, retry, infoSnapshot, info, onInfo, probe }: Props) {
-  const { model, lab, mine, field, others, strengths, cost, loose, place, models, total, measured, weighted } = view;
+export function ModelPage({ view, summary, availability, othersUrl, options, current, onPick, ranks, own, onMenu, pending, error, retry, infoSnapshot, info, onInfo, probe }: Props) {
+  const { model, lab, mine, field, others, strengths, cost, measured, weighted } = view;
   const pal = useChartPalette();
   const labC = markColor(lab?.color ?? "#2F4FB0", pal, lab?.id);
   const color = useMemo(() => ({ lab: labC, name: (id: string) => field.names[id] ?? id }), [labC, field.names]);
   const inMix = field.benchmarks;
-  const [showAll, setShowAll] = useState(false);
-  const top = mine[0];
+  // A ranking that leaves the model out has only the full list to show, so it starts open (and opens again when a pick leaves the model out).
+  const unranked = mine.length === 0;
+  const [showAll, setShowAll] = useState(unranked), [wasUnranked, setWasUnranked] = useState(unranked);
+  if (unranked !== wasUnranked) { setWasUnranked(unranked); if (unranked) setShowAll(true); }
+  const all = useRef<HTMLDetailsElement>(null);
+  const openAll = useCallback(() => {
+    setShowAll(true);
+    requestAnimationFrame(() => all.current?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" }));
+  }, []);
+  // Against the field median only: the leader's outline makes a model with no place a speck at the centre.
+  const domains = useMemo(() => (view.domains && unranked ? { ...view.domains, leader: undefined } : view.domains), [view.domains, unranked]);
   const modelId = model.id;
+  const efforts = useMemo(() => buildEfforts(view), [view]);
+  const bestEffort = efforts.list.find((r) => r.best)?.effort ?? null;
 
   return (
     <main className="min-h-screen">
       {probe}
       <SiteHeader current="models" />
+      <BestEffortContext.Provider value={bestEffort}>
       <div className="max-w-[1100px] mx-auto px-5 sm:px-8 py-10 grid gap-12">
-        <section className="grid gap-5 sm:grid-cols-[1fr_auto] items-end">
-          <div>
-            <p className="cap flex items-center gap-2"><i className="inline-block w-2.5 h-2.5 rounded-full" style={{ background: labC }} />{lab?.name}{model.releaseDate && ` · released ${model.releaseDate}`}</p>
-            <h1 className="text-[44px] leading-[1.05] mt-2">{model.name}</h1>
-            {summary && <p className="text-[13.5px] text-ink-2 mt-2 max-w-[70ch]">{summary}</p>}
-            <p className="text-[13.5px] text-ink-2 mt-2">Measured on {measured} benchmarks{mine.length > 1 ? ` across ${mine.length} reasoning efforts` : ""}.</p>
-            <Link href={`/models/${encodeURIComponent(modelId)}/compare` as "/"} prefetch={false} className="btn-quiet inline-flex items-center mt-3 max-sm:min-h-[44px]">Compare</Link>
-          </div>
-          <div className="sm:text-right">
-            <label className="cap inline-flex items-center gap-2">Ranked in
-              <select className="inp !w-auto !py-1 !text-[12px] max-w-[220px] normal-case" value={current} aria-busy={pending} onChange={(e) => onPick(e.target.value)} aria-label="Ranking to place this model in">
-                {[...new Set(options.map((o) => o.group))].map((g) => <optgroup key={g} label={g}>{options.filter((o) => o.group === g).map((o) => <option key={o.key} value={rankParam(o)}>{o.label}</option>)}</optgroup>)}
-              </select>
-            </label>
-            {pending && <p role="status" className="cap mt-1">Loading this ranking…</p>}
-            {error && <p role="status" className="cap mt-1">{error} <button type="button" className="underline" onClick={retry}>Retry</button></p>}
-            {top ? <><p className="num text-[52px] leading-none mt-1" style={{ color: "var(--indigo)" }}>{top.score.toFixed(1)}</p><p className="text-[13px] text-ink-2 mt-1">#{place + 1} of {models} models{top.effort !== "default" ? ` · best at ${top.effort}` : ""}</p>{loose && <p className="cap mt-1 max-w-[30ch] sm:ml-auto">includes estimates: {Math.round(top.measuredShare * 100)}% of the mix is measured for this model</p>}</>
-              : <p className="text-[13px] text-ink-2 mt-2 max-w-[28ch]">Not ranked in this one: too little measured data for its benchmarks. Pick another ranking above.</p>}
-          </div>
-        </section>
+        <ModelHeader view={view} summary={summary} labC={labC} options={options} current={current} onPick={onPick} ranks={ranks} own={own} pending={pending} error={error} retry={retry} onMenu={onMenu} onShowAll={openAll} />
 
-        {mine.length > 1 && <section className="border-t-2 border-ink pt-3">
-          <h2 className="text-[20px] mb-2">Reasoning efforts in this ranking</h2>
-          <div className="grid gap-[5px]">{mine.map((r) => <EffortRow key={r.id} r={r} rank={r.rank} total={total} max={mine[0].score} color={labC} />)}</div>
-        </section>}
+        <ModelEfforts data={efforts} color={labC} pending={pending} />
 
         {strengths && <ModelStrengths data={strengths} labColors={view.labColors} onInfo={onInfo} />}
 
-        {view.domains && <ModelDomains data={view.domains} name={model.name} labId={lab?.id} labColors={view.labColors} />}
+        {domains && <ModelDomains data={domains} name={model.name} labId={lab?.id} labColors={view.labColors} />}
 
         {mine.length > 0 && <ModelCostSpeed data={cost} modelId={modelId} name={model.name} color={labC} />}
 
         {availability && <ModelAvailabilitySection data={availability} />}
 
-        <section className="grid gap-4">
+        {inMix.length > 0 && <section className="grid gap-4">
           <div className="flex items-baseline justify-between border-b hairline pb-2"><h2 className="text-[26px]">This ranking&rsquo;s benchmarks</h2><span className="cap">{inMix.length} of {weighted} measured</span></div>
           {view.costBasis === "subscription" && <p className="cap -mt-2">Cost per task is what a subscriber pays: the model&rsquo;s plan price, a share of API price. Models no plan sells are at API price.</p>}
-          {inMix.length ? <div className="grid gap-8 lg:grid-cols-2">{inMix.map((b) => <BenchCard key={b.id} b={b} view={field} modelId={modelId} color={color} plan={view.costBasis === "subscription"} onInfo={() => onInfo(b.id)} />)}</div>
-            : <p className="cap">This model has no results on this ranking&rsquo;s benchmarks.</p>}
-        </section>
+          <div className="grid gap-8 lg:grid-cols-2">{inMix.map((b) => <BenchCard key={b.id} b={b} view={field} modelId={modelId} color={color} plan={view.costBasis === "subscription"} onInfo={() => onInfo(b.id)} />)}</div>
+        </section>}
 
-        {others > 0 && <details className="group border-t hairline pt-4" onToggle={(e) => setShowAll(e.currentTarget.open)}>
+        {others > 0 && <details ref={all} open={showAll} className="group border-t hairline pt-4" onToggle={(e) => setShowAll(e.currentTarget.open)}>
           <summary className="disclosure items-baseline"><h2 className="text-[22px]">All {measured} benchmarks</h2><span className="cap ml-auto group-open:hidden">show {others} more</span><span className="cap ml-auto hidden group-open:inline">hide</span></summary>
           {showAll && <LazyCards data={view.otherField} url={othersUrl} modelId={modelId} lab={labC} plan={view.costBasis === "subscription"} onInfo={onInfo} />}
         </details>}
       </div>
+      </BestEffortContext.Provider>
       <BenchmarkInfo snapshot={infoSnapshot} benchmarkId={info} onClose={() => onInfo(null)} />
       <SiteFooter />
     </main>
   );
-}
-
-function EffortRow({ r, rank, total, max, color }: { r: ModelView["mine"][number]; rank: number; total: number; max: number; color?: string }) {
-  return <div className="grid grid-cols-[64px_minmax(0,1fr)_56px_90px] items-center gap-3 h-[26px] text-[12.5px]">
-    <span className="mono">{r.effort}</span>
-    <span className="h-[9px] bg-hair-2 rounded-[2px] overflow-hidden"><i className="block h-full rounded-[2px]" style={{ width: `${Math.max(3, r.score / Math.max(1, max) * 100)}%`, background: color }} /></span>
-    <span className="num text-right">{r.score.toFixed(1)}</span>
-    <span className="cap text-right">#{rank} of {total}</span>
-  </div>;
 }
 
 /** A chart that only exists while it is near the screen; the same height either way, so nothing jumps. */
@@ -141,20 +130,14 @@ function LazyCards({ data, url, modelId, lab, plan, onInfo }: { data?: ViewField
 /** One benchmark: this model's efforts highlighted on score-vs-cost (others ghosted), or on the field's spread when cost is unknown, plus placements. */
 function BenchCard({ b, view, modelId, color, plan = false, onInfo }: { b: ViewBenchmark; view: Pick<ViewField, "variants">; modelId: string; color: { lab: string; name: (id: string) => string }; plan?: boolean; onInfo: () => void }) {
   const rows = useMemo(() => benchRows(view, b), [view, b]);
-  const mine = rows.filter((r) => r.modelId === modelId);
+  const mine = useMemo(() => rows.filter((r) => r.modelId === modelId), [rows, modelId]);
   const withCost = rows.filter((r) => r.cost && r.cost > 0);
   return (
     <article className="grid gap-3 content-start">
       <div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="cap">{categoryName(b.category)}</p><h3 className="text-[19px] leading-tight flex items-center gap-1.5">{b.name}<InfoIcon name={b.name} onClick={onInfo} /></h3></div><span className="cap shrink-0 pt-4">{rows.length} results</span></div>
       {withCost.length >= 3 && mine.some((r) => r.cost) ? <NearView height={230}><BenchScatter b={b} rows={withCost} modelId={modelId} color={color} plan={plan} /></NearView>
         : rows.length >= 3 && <NearView height={150}><BenchStrip b={b} rows={rows} modelId={modelId} color={color} /></NearView>}
-      <ol className="grid gap-[4px]">
-        {mine.map((r) => <li key={r.variantId} className="grid grid-cols-[52px_minmax(0,1fr)_70px] items-center gap-3 text-[12.5px] h-[24px]">
-          <span className="num text-[15px]" style={{ color: "var(--indigo)" }}>#{r.rank}</span>
-          <span className="truncate">{b.effortBasis ? "best measured setting" : r.effort === "default" ? "default" : r.effort} <span className="cap">of {rows.length}</span></span>
-          <span className="num text-right">{fmt(b, r.value)}</span>
-        </li>)}
-      </ol>
+      <EffortRows b={b} mine={mine} of={rows.length} color={color.lab} fmt={fmt} />
       <p className="cap">Leader: {rows[0]?.modelId === modelId ? "this model" : color.name(rows[0]?.modelId ?? "")} · {rows[0] ? fmt(b, rows[0].value) : ""}</p>
     </article>
   );

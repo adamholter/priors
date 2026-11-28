@@ -1,92 +1,34 @@
 "use client";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
-import { IconArrowsLeftRight, IconChevronDown, IconSearch, IconX } from "@tabler/icons-react";
+import { useMemo, useState } from "react";
+import { IconArrowsLeftRight, IconChevronDown } from "@tabler/icons-react";
 import { categoryName } from "@/data/categories";
-import { money } from "@/lib/metrics";
-import type { CompareBench, CompareOption, CompareSide, ModelCompareView } from "@/lib/model-view";
+import { fmtCost, fmtScore, secs } from "@/lib/compare-chooser";
+import type { CompareBench, CompareSide, ModelCompareView } from "@/lib/model-view";
 import { Radar, RadarSwatch } from "../chart/Radar";
 import type { RadarSeries } from "../chart/radar-view";
 import { useChartPalette } from "../chart/palette-context";
 import { markColor } from "../chart/theme-tokens";
 import { SiteFooter } from "../SiteFooter";
+import { ChooserDialog, CompareChooser } from "./CompareChooser";
 import "../chart/radar.css";
 import { SiteHeader } from "@/components/SiteHeader";
 
-const FIRST_BENCHMARKS = 12, FIRST_PER_LAB = 5, NEAR = 3, MAX_RESULTS = 40;
-const secs = (v: number) => (v >= 60 ? `${(v / 60).toFixed(v >= 600 ? 0 : 1)} min` : `${v.toFixed(v >= 10 ? 0 : 1)}s`);
+const FIRST_BENCHMARKS = 12;
 const count = (v: number) => (v >= 1000 ? `${(v / 1000).toFixed(v >= 10000 ? 0 : 1)}k` : `${Math.round(v)}`);
 const value = (b: Pick<CompareBench, "unit">, v: number) => b.unit === "percent" ? `${v.toFixed(1)}%` : b.unit === "usd" ? `$${v.toFixed(2)}` : b.unit === "seconds" ? secs(v) : Math.abs(v) >= 100 ? v.toFixed(0) : v.toFixed(1);
 const href = (a: string, b?: string) => `/models/${encodeURIComponent(a)}/compare${b ? `?with=${encodeURIComponent(b)}` : ""}`;
 const modelHref = (id: string) => `/models/${encodeURIComponent(id)}`;
 
 const METRICS: { label: string; better: "higher" | "lower"; of: (s: CompareSide) => number | undefined; fmt: (v: number) => string }[] = [
-  { label: "Score", better: "higher", of: (s) => s.score, fmt: (v) => v.toFixed(1) },
-  { label: "Cost per task", better: "lower", of: (s) => s.costUsd, fmt: (v) => (v === 0 ? "free" : money(v)) },
+  { label: "Score", better: "higher", of: (s) => s.score, fmt: fmtScore },
+  { label: "Cost per task", better: "lower", of: (s) => s.costUsd, fmt: fmtCost },
   { label: "Time per task", better: "lower", of: (s) => s.tpt, fmt: secs },
   { label: "Output speed", better: "higher", of: (s) => s.speed, fmt: (v) => `${Math.round(v)} tok/s` },
   { label: "Time to first token", better: "lower", of: (s) => s.latency, fmt: secs },
   { label: "Output tokens per task", better: "lower", of: (s) => s.tokens, fmt: count },
 ];
-
-function OptionRow({ o, active, lab, onPick }: { o: CompareOption; active?: boolean; lab?: boolean; onPick: (id: string) => void }) {
-  return <button type="button" data-active={active || undefined} onClick={() => onPick(o.id)} className={`w-full min-h-[34px] max-sm:min-h-[44px] flex items-baseline gap-2 rounded-[3px] px-2 py-1.5 text-left text-[13.5px] hover:bg-hair-2 focus-visible:bg-hair-2 ${active ? "bg-hair-2" : ""}`}>
-    <span className="truncate" title={o.name}>{o.name}</span>{lab && <span className="cap truncate">{o.labName}</span>}<span className="cap ml-auto shrink-0">{o.rank ? `#${o.rank}` : ""}</span>
-  </button>;
-}
-
-/** Find a model: type to search everything, or browse the ranked models by lab with the ones ranked nearby first. */
-function ModelChooser({ options, near, autoFocus, onPick, labColors }: { options: CompareOption[]; near?: number; autoFocus?: boolean; onPick: (id: string) => void; labColors: ModelCompareView["labColors"] }) {
-  const pal = useChartPalette();
-  const [query, setQuery] = useState(""), [active, setActive] = useState(0), [open, setOpen] = useState<Record<string, boolean>>({});
-  const list = useRef<HTMLDivElement>(null);
-  const terms = query.toLowerCase().trim();
-  const results = useMemo(() => {
-    const words = terms.split(/\s+/).filter(Boolean);
-    if (!words.length) return [];
-    const score = (o: CompareOption) => (o.name.toLowerCase().startsWith(words[0]) ? 0 : 1) * 1000 + (o.rank ?? 999);
-    return options.filter((o) => words.every((w) => `${o.name} ${o.labName}`.toLowerCase().includes(w))).sort((a, b) => score(a) - score(b)).slice(0, MAX_RESULTS);
-  }, [options, terms]);
-  const labs = useMemo(() => {
-    const by = new Map<string, CompareOption[]>();
-    for (const o of options) by.set(o.labId, [...(by.get(o.labId) ?? []), o]);
-    return [...by.values()].filter((l) => l.some((o) => o.rank)).sort((a, b) => (a[0].rank ?? 999) - (b[0].rank ?? 999));
-  }, [options]);
-  const nearby = near ? options.filter((o) => o.rank && Math.abs(o.rank - near) <= NEAR) : [];
-  const key = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); setActive((i) => Math.max(0, Math.min(results.length - 1, i + (e.key === "ArrowDown" ? 1 : -1)))); }
-    if (e.key === "Enter" && results[active]) onPick(results[active].id);
-  };
-  useEffect(() => { list.current?.querySelector("[data-active]")?.scrollIntoView({ block: "nearest" }); }, [active]);
-  return <div className="grid gap-4">
-    <label className="relative block"><IconSearch size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-grey" aria-hidden="true" /><input autoFocus={autoFocus} className="inp !pl-9 h-[44px] !text-[15px]" value={query} placeholder="Search models or labs" aria-label="Search models or labs" onChange={(e) => { setQuery(e.target.value); setActive(0); }} onKeyDown={key} /></label>
-    <div ref={list}>
-      {terms ? (results.length ? <div className="grid sm:grid-cols-2 gap-x-6">{results.map((o, i) => <OptionRow key={o.id} o={o} lab active={i === active} onPick={onPick} />)}</div> : <p className="cap py-6 text-center">No model matches.</p>) : <div className="grid gap-6">
-        {nearby.length > 0 && <section><h3 className="cap mb-1 px-2">Ranked nearby</h3><div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-x-6">{nearby.map((o) => <OptionRow key={o.id} o={o} lab onPick={onPick} />)}</div></section>}
-        <div className="columns-1 sm:columns-2 lg:columns-3 gap-x-6">{labs.map((models) => {
-          const lab = models[0], all = open[lab.labId], shown = all ? models : models.filter((o) => o.rank).slice(0, FIRST_PER_LAB), more = models.length - shown.length;
-          return <section key={lab.labId} className="break-inside-avoid mb-5">
-            <h3 className="flex items-center gap-2 px-2 mb-1 text-[13px] text-ink-2"><i className="w-2 h-2 rounded-full shrink-0" style={{ background: markColor(labColors[lab.labId], pal, lab.labId) }} />{lab.labName}</h3>
-            {shown.map((o) => <OptionRow key={o.id} o={o} onPick={onPick} />)}
-            {more > 0 && <button type="button" className="cap px-2 py-1.5 max-sm:min-h-[44px] hover:text-ink" onClick={() => setOpen((s) => ({ ...s, [lab.labId]: true }))}>{more} more</button>}
-          </section>;
-        })}</div>
-      </div>}
-    </div>
-  </div>;
-}
-
-function ChooserDialog({ title, options, near, labColors, onPick, onClose }: { title: string; options: CompareOption[]; near?: number; labColors: ModelCompareView["labColors"]; onPick: (id: string) => void; onClose: () => void }) {
-  const ref = useRef<HTMLDialogElement>(null);
-  useEffect(() => { const d = ref.current; if (d && !d.open) d.showModal(); }, []);
-  return <dialog ref={ref} aria-label={title} onClose={onClose} onClick={(e) => { if (e.target === ref.current) ref.current?.close(); }} className="m-auto w-[min(920px,calc(100vw-20px))] max-h-[min(780px,calc(100dvh-20px))] rounded-[6px] border hairline p-0 text-ink backdrop:bg-black/55" style={{ background: "var(--white)" }}>
-    <div className="p-4 sm:p-5 grid gap-3">
-      <div className="flex items-center justify-between"><h2 className="text-[22px]">{title}</h2><button type="button" aria-label="Close" className="w-[44px] h-[44px] -mr-2 grid place-items-center text-grey hover:text-ink" onClick={() => ref.current?.close()}><IconX size={18} /></button></div>
-      <ModelChooser options={options} near={near} autoFocus labColors={labColors} onPick={onPick} />
-    </div>
-  </dialog>;
-}
 
 /** Two models side by side. With only one chosen, the page is a place to find the other. */
 export function ModelCompare({ view }: { view: ModelCompareView }) {
@@ -105,7 +47,7 @@ export function ModelCompare({ view }: { view: ModelCompareView }) {
     <div className="max-w-[1100px] mx-auto px-5 sm:px-8 py-10 grid gap-12">
       {!b ? <section className="grid gap-6">
         <h1 className="text-[36px] sm:text-[44px] leading-[1.05]">Compare <Link className="hover:underline decoration-1 underline-offset-[6px]" href={modelHref(a.id) as "/"} prefetch={false}>{a.name}</Link></h1>
-        <ModelChooser options={without(a.id)} near={a.rank} autoFocus labColors={labColors} onPick={(id) => go(a.id, id)} />
+        <CompareChooser options={without(a.id)} kept={a} labColors={labColors} costBasis={view.costBasis} autoFocus onPick={(id) => go(a.id, id)} />
       </section> : <>
         <section className="flex flex-wrap items-center gap-x-4 gap-y-2">
           <h1 className="text-[32px] sm:text-[44px] leading-[1.1]">{nameButton(a, "a")} <span className="text-grey">vs</span> {nameButton(b, "b")}</h1>
@@ -150,7 +92,7 @@ export function ModelCompare({ view }: { view: ModelCompareView }) {
         </section>
       </>}
     </div>
-    {b && choosing && <ChooserDialog title={`Replace ${choosing === "a" ? a.name : b.name}`} options={without(a.id, b.id)} near={(choosing === "a" ? b : a).rank} labColors={labColors} onClose={() => setChoosing(null)} onPick={(id) => choosing === "a" ? go(id, b.id) : go(a.id, id)} />}
+    {b && choosing && <ChooserDialog title={`Replace ${choosing === "a" ? a.name : b.name}`} options={without(a.id, b.id)} kept={choosing === "a" ? b : a} labColors={labColors} costBasis={view.costBasis} onClose={() => setChoosing(null)} onPick={(id) => choosing === "a" ? go(id, b.id) : go(a.id, id)} />}
     <SiteFooter />
   </main>;
 }

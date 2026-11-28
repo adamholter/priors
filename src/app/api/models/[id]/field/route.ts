@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { defaultConfig } from "@/engine";
 import { loadSnapshot } from "@/data/load";
 import { otherField, presetConfig } from "@/lib/model-view";
+import { OWN_PARAM } from "@/lib/model-ranking-param";
+import { ownRanking } from "@/lib/model-ranks";
 import { DATA_TAG_HEADER } from "@/lib/data-cache-tag";
 
 export const runtime = "nodejs";
@@ -13,5 +15,6 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   const snapshot = await loadSnapshot();
   if (!snapshot?.models.some((m) => m.id === id)) return NextResponse.json({ error: "Model not found." }, { status: 404 });
   const r = new URL(req.url).searchParams.get("r");
-  return NextResponse.json(otherField(snapshot, id, presetConfig(snapshot, r === "aa" ? "preset:aa" : "preset:general"), defaultConfig(snapshot)), { headers: { "Cache-Control": "public, max-age=0, s-maxage=60, stale-while-revalidate=300", ...DATA_TAG_HEADER } });
+  const mix = (r === OWN_PARAM ? ownRanking(snapshot, id)?.config : undefined) ?? presetConfig(snapshot, r === "aa" ? "preset:aa" : "preset:general");
+  return NextResponse.json(otherField(snapshot, id, mix, defaultConfig(snapshot)), { headers: { "Cache-Control": "public, max-age=0, s-maxage=60, stale-while-revalidate=300", ...DATA_TAG_HEADER } });
 }

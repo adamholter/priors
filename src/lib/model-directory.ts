@@ -1,26 +1,29 @@
-import { computeIndex, defaultConfig, PAGE_VIEW, selectVariants } from "@/engine";
+import { computeIndex, defaultConfig, defaultReleasedAfter, PAGE_VIEW, selectVariants } from "@/engine";
 import type { Snapshot } from "@/data/types";
+import { squash, type Effort, type ModelItem, type NotRanked } from "./model-list";
 
-/** One row of the model directory: who made it, when, how it ranks on the default index, how much it has been measured, what it costs. */
-export interface ModelItem {
-  id: string; name: string; labId: string; labName: string; labColor: string;
-  releaseDate?: string; openWeights?: boolean; paramsB?: number; reasoning: boolean;
-  /** Distinct benchmarks with a published result for any of its efforts (proxies such as prices and speeds left out). */
-  benchmarks: number;
-  /** Rank and score on the default index (`defaultConfig`), best effort, as the default ranking shows it. An older version keeps its score without a rank; both unset when too little is measured to rank. */
-  rank?: number; score?: number;
-  /** Artificial Analysis' blended API price, USD per 1M tokens (3 input : 1 output), its cheapest effort. */
-  priceUsd?: number;
-  /** An older version of a line that has a newer one: hidden until asked for, as rankings hide it. */
-  superseded?: boolean;
-  /** Lowercase names it is also known by, for search. */
-  aliases: string[];
-}
-
+export type { ModelItem } from "./model-list";
 export interface ModelDirectory { items: ModelItem[]; indexName: string }
 
 const PRICE = "aa-price-blended";
 const cache = new WeakMap<Snapshot, ModelDirectory>();
+
+/** Labs the snapshot names by their id: how they are written. */
+const LAB_NAMES: Record<string, string> = { bytedance: "ByteDance", mbzuai: "MBZUAI", opengvlab: "OpenGVLab", "dots-studio": "dots.studio", "lm-provers": "LM Provers", "google-cloud": "Google Cloud", stepfun: "StepFun", openbmb: "OpenBMB", spacexai: "SpaceXAI", elevenlabs: "ElevenLabs", assemblyai: "AssemblyAI" };
+const labName = (id: string, name: string) => (name !== id ? name : LAB_NAMES[id] ?? name.charAt(0).toUpperCase() + name.slice(1));
+
+/** Two ids for one model (a board's spelling and Priors' own): the ranked row stays, else the one measured on more benchmarks, and the other's id becomes an alias so search still finds it. */
+function collapseTwins(items: ModelItem[]): ModelItem[] {
+  const keep = new Map<string, ModelItem>();
+  for (const x of items) {
+    const k = `${x.labId}|${squash(x.name)}`, was = keep.get(k);
+    if (!was) { keep.set(k, x); continue; }
+    const better = (x.rank != null ? 1 : 0) - (was.rank != null ? 1 : 0) || x.benchmarks - was.benchmarks;
+    const [win, lose] = better > 0 ? [x, was] : [was, x];
+    keep.set(k, { ...win, aliases: [...new Set([...win.aliases, ...lose.aliases, lose.id])].slice(0, 12) });
+  }
+  return keep.size === items.length ? items : [...keep.values()];
+}
 
 export function modelDirectory(snapshot: Snapshot): ModelDirectory {
   const hit = cache.get(snapshot);
@@ -30,62 +33,46 @@ export function modelDirectory(snapshot: Snapshot): ModelDirectory {
   const superseded = new Set(page.autoHidden);
   const best = new Map<string, { rank?: number; score: number }>(selectVariants(page.ranked, "best").map((r, i) => [r.model.id, { rank: i + 1, score: r.score }]));
   for (const r of selectVariants(all.ranked, "best")) if (superseded.has(r.model.id)) best.set(r.model.id, { score: r.score });
+  // Every effort of every model: its ladder of scores, and what a task costs at the best one.
+  const efforts = new Map<string, Effort[]>(), cost = new Map<string, number>(), top = new Map<string, number>();
+  for (const r of [...computeIndex(snapshot, { ...config, variants: "all" }).ranked].sort((a, b) => a.score - b.score)) {
+    const list = efforts.get(r.model.id) ?? efforts.set(r.model.id, []).get(r.model.id)!;
+    if (!list.some((e) => e.effort === r.variant.effort)) list.push({ effort: r.variant.effort, score: +r.score.toFixed(1) });
+    if (r.score >= (top.get(r.model.id) ?? -Infinity)) { top.set(r.model.id, r.score); if (r.costUsd != null && r.costUsd >= 0) cost.set(r.model.id, r.costUsd); else cost.delete(r.model.id); }
+  }
+  const estimated = new Set(page.estimated.map((r) => r.model.id)), coverage = new Map(page.excluded.map((e) => [e.model.id, e.measuredShare]));
+  const models = new Map(snapshot.models.map((m) => [m.id, m])), after = defaultReleasedAfter(snapshot.date);
+  const whyNot = (id: string): { why: NotRanked; share?: number } => {
+    if (estimated.has(id)) return { why: "estimated" };
+    if (coverage.has(id)) return { why: "coverage", share: +coverage.get(id)!.toFixed(2) };
+    const d = models.get(id)?.releaseDate;
+    return { why: !d || d < after ? "window" : "thin" };
+  };
   const proxy = new Set(snapshot.benchmarks.filter((b) => b.proxy || b.id === PRICE).map((b) => b.id));
+  // A variant id can itself contain "~" (a board's own suffix), so it is looked up whole before it is cut.
   const modelOf = new Map(snapshot.variants.map((v) => [v.id, v.modelId]));
-  const measured = new Map<string, Set<string>>(), price = new Map<string, number>();
+  const measured = new Map<string, Set<string>>();
   for (const o of snapshot.observations) {
-    const model = modelOf.get(o.variantId.split("~")[0]);
-    if (!model) continue;
-    if (o.benchmarkId === PRICE) { if (o.value > 0 && !(o.value >= (price.get(model) ?? Infinity))) price.set(model, o.value); continue; }
-    if (proxy.has(o.benchmarkId)) continue;
+    const model = modelOf.get(o.variantId) ?? modelOf.get(o.variantId.split("~")[0]);
+    if (!model || proxy.has(o.benchmarkId)) continue;
     (measured.get(model) ?? measured.set(model, new Set()).get(model)!).add(o.benchmarkId);
   }
   const labs = new Map(snapshot.labs.map((l) => [l.id, l]));
+  const nvidia = labs.get("nvidia");
   const items = snapshot.models.filter((m) => m.kind === "llm" && measured.has(m.id)).map((m): ModelItem => {
-    const lab = labs.get(m.labId), at = best.get(m.id);
+    // Nemotron is NVIDIA's even where a board files it under Other.
+    const lab = m.labId === "other" && /nemotron|nvidia/i.test(m.name) && nvidia ? nvidia : labs.get(m.labId), labId = lab?.id ?? m.labId, at = best.get(m.id), ladder = efforts.get(m.id);
     return {
-      id: m.id, name: m.name, labId: m.labId, labName: lab?.name ?? m.labId, labColor: lab?.color ?? "#888",
+      id: m.id, name: m.name, labId, labName: labName(labId, lab?.name ?? labId), labColor: lab?.color ?? "var(--grey)",
       ...(m.releaseDate ? { releaseDate: m.releaseDate } : {}), ...(m.openWeights != null ? { openWeights: m.openWeights } : {}), ...(m.paramsB ? { paramsB: m.paramsB } : {}),
       reasoning: m.reasoning, benchmarks: measured.get(m.id)!.size,
-      ...(at?.rank ? { rank: at.rank } : {}), ...(at ? { score: +at.score.toFixed(1) } : {}), ...(price.has(m.id) ? { priceUsd: +price.get(m.id)!.toFixed(3) } : {}),
-      ...(superseded.has(m.id) ? { superseded: true } : {}), aliases: m.aliases.slice(0, 12),
+      ...(at?.rank ? { rank: at.rank } : {}), ...(at ? { score: +at.score.toFixed(1) } : {}),
+      ...(at?.rank && ladder && ladder.length > 1 ? { efforts: ladder } : {}),
+      ...(cost.has(m.id) ? { costUsd: cost.get(m.id)! } : {}),
+      ...(superseded.has(m.id) ? { superseded: true } : at?.rank ? {} : whyNot(m.id)), aliases: m.aliases.slice(0, 12),
     };
   });
-  const out = { items, indexName: config.name };
+  const out = { items: collapseTwins(items), indexName: config.name };
   cache.set(snapshot, out);
   return out;
-}
-
-export type ModelSort = "rank" | "name" | "released" | "benchmarks" | "price";
-export type SortDir = "asc" | "desc";
-export const MODEL_SORTS: { id: ModelSort; name: string; natural: SortDir; names: [string, string] }[] = [
-  { id: "rank", name: "Priors rank", natural: "asc", names: ["Best first", "Worst first"] },
-  { id: "released", name: "Release date", natural: "desc", names: ["Newest first", "Oldest first"] },
-  { id: "benchmarks", name: "Benchmarks", natural: "desc", names: ["Most first", "Fewest first"] },
-  { id: "price", name: "API price", natural: "asc", names: ["Cheapest first", "Priciest first"] },
-  { id: "name", name: "Name", natural: "asc", names: ["A to Z", "Z to A"] },
-];
-
-/** Sorted rows. Missing values (unranked, no price, no date) go last in either direction, then by name. */
-export function sortModels(items: ModelItem[], sort: ModelSort, dir: SortDir): ModelItem[] {
-  // Older versions have a score but no rank: they follow the ranked models, best score first.
-  const key = (x: ModelItem): number | string | undefined => sort === "rank" ? x.rank ?? (x.score != null ? 1e6 - x.score : undefined) : sort === "released" ? x.releaseDate : sort === "benchmarks" ? x.benchmarks : sort === "price" ? x.priceUsd : x.name.toLowerCase();
-  const sign = dir === "asc" ? 1 : -1;
-  return [...items].sort((a, b) => {
-    const ka = key(a), kb = key(b);
-    if (ka == null || kb == null) return ka == null && kb == null ? a.name.localeCompare(b.name) : ka == null ? 1 : -1;
-    const c = typeof ka === "number" && typeof kb === "number" ? ka - kb : String(ka).localeCompare(String(kb));
-    return c * sign || a.name.localeCompare(b.name);
-  });
-}
-
-const squash = (s: string) => s.toLowerCase().replace(/[^a-z0-9.]+/g, " ").trim();
-
-/** Every word typed must start a word of the name, lab or an alias ("opus 5", "gemini neon", "deepseek"); best matches first: name, then lab, then alias. */
-export function searchModels(items: ModelItem[], q: string): ModelItem[] {
-  const words = squash(q).split(" ").filter(Boolean);
-  if (!words.length) return items;
-  const fits = (text: string) => { const parts = squash(text).split(" "); return words.every((w) => parts.some((p) => p.startsWith(w))); };
-  const score = (x: ModelItem) => fits(x.name) ? 3 : fits(`${x.labName} ${x.name}`) ? 2 : x.aliases.some(fits) || fits(`${x.labName} ${x.aliases.join(" ")}`) ? 1 : 0;
-  return items.map((x) => [x, score(x)] as const).filter(([, s]) => s > 0).sort((a, b) => b[1] - a[1]).map(([x]) => x);
 }

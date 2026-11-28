@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { findRanking, rankParam } from "./model-ranking-param";
+import { findRanking, OWN_KEY, OWN_PARAM, rankingOptions, rankParam } from "./model-ranking-param";
 
 const options = [
   { key: "page:0", label: "AA-II (your page)" }, { key: "page:1", label: "WebDev Index" },
@@ -18,5 +18,17 @@ describe("ranking in the model page address", () => {
     expect(findRanking(options, "page-aa-ii")?.key).toBe("page:0");
     expect(findRanking(options, "nope")).toBeUndefined();
     expect(findRanking(options, null)).toBeUndefined();
+  });
+});
+
+describe("a model's own ranking in the picker", () => {
+  it("comes last, only when the model needs one, and has a plain address", () => {
+    expect(rankingOptions(null, []).map((o) => o.key)).toEqual(["preset:general", "preset:aa"]);
+    const own = { id: "its", name: "x", weights: { a: 1 }, required: [], strictness: 50, cutoff: 0, estimateMissing: true, variants: "all" as const };
+    const withOwn = rankingOptions(null, [], own);
+    expect(withOwn.map((o) => o.key)).toEqual(["preset:general", "preset:aa", OWN_KEY]);
+    expect(withOwn[2].config).toBe(own);
+    expect(rankParam(withOwn[2])).toBe(OWN_PARAM);
+    expect(findRanking(withOwn, "own")?.key).toBe(OWN_KEY);
   });
 });

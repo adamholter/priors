@@ -7,10 +7,13 @@ import type { Benchmark, Snapshot } from "@/data/types";
 import { freeFloor, metricPanels } from "@/lib/metrics";
 import { encodeIndices, prettyQuery } from "@/lib/url";
 import { mergeImports } from "@/lib/import-merge";
+import { otherNames } from "@/lib/compare-chooser";
 import { categoriesOf, categoryBlurb, categoryName, categoryOrder } from "@/data/categories";
 import { radarModelsFor, radarRows } from "@/components/chart/radar-view";
 import type { RadarAxis, RadarModel, RadarPoint } from "@/components/chart/radar-data";
 import type { RankingOption } from "@/lib/model-ranking-param";
+import { whyUnranked } from "@/lib/model-ranks";
+import type { Unranked } from "@/lib/model-rank-text";
 
 /**
  * Everything a model page shows, as data. The server builds it for the standard rankings and sends it with the page,
@@ -30,6 +33,10 @@ export interface ModelView {
   /** Too little measured data at the ranking's strictness, so it ranks with estimates. */
   loose: boolean;
   weighted: number;
+  /** The score is out of 100 (an open-ended scale, like Epoch's ECI, has no ceiling). */
+  outOf100: boolean;
+  /** Why this ranking leaves the model out, when it does (`mine` is empty). */
+  unranked?: Unranked;
   /** This ranking's benchmarks. */
   field: ViewField;
   /** How many other benchmarks measured this model, and their cards' data when it came along. On a page from the server the (much longer) rest loads when the visitor opens that list. */
@@ -61,7 +68,7 @@ export function benchRows(view: Pick<ViewField, "variants">, b: Pick<ViewBenchma
   return b.v.map((v, i) => { const x = view.variants[v]; return { variantId: x.id, modelId: x.modelId, effort: x.effort, value: b.value[i], cost: x.cost, rank: i + 1 }; });
 }
 
-interface Shared { result: IndexResult; perBench: Map<string, BenchRow[]>; standing?: Standing; loose?: IndexResult; panels?: ReturnType<typeof panelValues>; loosePanels?: ReturnType<typeof panelValues>; radar?: ReturnType<typeof radarModelsFor>; options?: CompareOption[] }
+interface Shared { result: IndexResult; perBench: Map<string, BenchRow[]>; standing?: Standing; loose?: IndexResult; panels?: ReturnType<typeof panelValues>; loosePanels?: ReturnType<typeof panelValues>; radar?: ReturnType<typeof radarModelsFor>; options?: CompareOption[]; rows?: { byVariant: Map<string, RankedVariant>; byModel: Map<string, RankedVariant> } }
 const shared = new WeakMap<Snapshot, Map<string, Shared>>();
 
 /** What every model page on one ranking has in common. A snapshot is immutable, so it is worked out once per snapshot and goes away with it. */
@@ -223,6 +230,8 @@ export function modelView(snapshot: Snapshot, modelId: string, mix: IndexConfig,
     total: shown.ranked.length, models: best.length, place: best.findIndex((r) => r.model.id === modelId),
     loose: !strict,
     weighted: Object.values(mix.weights).filter((w) => w > 0).length,
+    outOf100: mix.scoring !== "eci",
+    unranked: mine.length ? undefined : whyUnranked(mix, inMix.map((b) => b.id), model.releaseDate, snapshot.date),
     field: fieldOf(snapshot, inMix, perBench),
     others: others.length, otherField: inlineOthers ? fieldOf(snapshot, others, perBench) : undefined,
     strengths: mine.length ? strengths(modelId, mix.name, radar()) : undefined,
@@ -235,7 +244,8 @@ export function modelView(snapshot: Snapshot, modelId: string, mix: IndexConfig,
 export interface CompareSide { id: string; name: string; lab?: { id: string; name: string; color?: string }; releaseDate?: string; rank?: number; score?: number; effort?: string; costUsd?: number; tpt?: number; speed?: number; latency?: number; tokens?: number }
 /** A current benchmark both models took, each at its best setting. A place runs from 1 (first of the models measured) to 0 (last). */
 export interface CompareBench extends Pick<Benchmark, "id" | "name" | "category" | "unit" | "higherIsBetter"> { a: number; b: number; aRank: number; bRank: number; aPlace: number; bPlace: number; of: number }
-export interface CompareOption { id: string; name: string; labId: string; labName: string; rank?: number }
+/** One model the chooser can pick, with what its rows show: score and cost per task and time per task as the Compare page works them out, the release month, and other names it goes by (for search). */
+export interface CompareOption { id: string; name: string; labId: string; labName: string; rank?: number; score?: number; cost?: number; tpt?: number; date?: string; aka?: string[] }
 export interface ModelCompareView { mixName: string; models: number; costBasis: CostBasis; a: CompareSide; b?: CompareSide; domains?: ModelDomains; benches: CompareBench[]; options: CompareOption[]; labColors: ModelView["labColors"] }
 
 const bestPerModel = (ranked: RankedVariant[]) => { const seen = new Set<string>(); return ranked.filter((r) => !seen.has(r.model.id) && !!seen.add(r.model.id)); };
@@ -245,9 +255,11 @@ export function compareView(snapshot: Snapshot, aId: string, bId: string | undef
   const shared = field(snapshot, mix, costConfig), { result, perBench } = shared;
   const loose = shared.loose ??= computeIndex(snapshot, { ...mix, variants: "all", strictness: 0 }), panels = shared.loosePanels ??= panelValues(snapshot, loose.ranked, mix);
   const best = bestPerModel(result.ranked), models = new Map(snapshot.models.map((m) => [m.id, m])), labs = new Map(snapshot.labs.map((l) => [l.id, l]));
+  const rowOf = shared.rows ??= (() => { const byVariant = new Map<string, RankedVariant>(), byModel = new Map<string, RankedVariant>(); for (const r of loose.ranked) { if (!byVariant.has(r.variant.id)) byVariant.set(r.variant.id, r); if (!byModel.has(r.model.id)) byModel.set(r.model.id, r); } return { byVariant, byModel }; })();
+  const rankAt = new Map(best.map((r, i) => [r.model.id, i]));
   const side = (id: string): CompareSide => {
-    const m = models.get(id)!, lab = labs.get(m.labId), at = best.findIndex((r) => r.model.id === id), ranked = at >= 0 ? best[at] : undefined;
-    const row = (ranked && loose.ranked.find((r) => r.variant.id === ranked.variant.id)) ?? loose.ranked.find((r) => r.model.id === id);
+    const m = models.get(id)!, lab = labs.get(m.labId), at = rankAt.get(id) ?? -1, ranked = at >= 0 ? best[at] : undefined;
+    const row = (ranked && rowOf.byVariant.get(ranked.variant.id)) ?? rowOf.byModel.get(id);
     return { id, name: m.name, ...(lab ? { lab: { id: lab.id, name: lab.name, color: lab.color } } : {}), releaseDate: m.releaseDate, ...(ranked ? { rank: at + 1, score: ranked.score, effort: ranked.variant.effort } : {}), ...(row ? { costUsd: row.costUsd != null && row.costUsd >= 0 ? row.costUsd : undefined, speed: row.speed && row.speed > 0 ? row.speed : undefined, tpt: panels.tpt(row), latency: panels.latency(row), tokens: panels.tokens(row) } : {}) };
   };
   const a = side(aId), b = bId ? side(bId) : undefined, table = bId ? standing(snapshot, perBench, new Set([...best.map((r) => r.model.id), aId, bId])) : undefined;
@@ -262,9 +274,14 @@ export function compareView(snapshot: Snapshot, aId: string, bId: string | undef
   }).sort((p, q) => Math.abs(q.aPlace - q.bPlace) - Math.abs(p.aPlace - p.bPlace) || p.name.localeCompare(q.name));
   if (!shared.options) {
     const counts = new Map<string, number>(); for (const rows of perBench.values()) for (const id of new Set(rows.map((r) => r.modelId))) counts.set(id, (counts.get(id) ?? 0) + 1);
-    const ranked = new Set(best.map((r) => r.model.id)), rest = snapshot.models.filter((m) => !ranked.has(m.id) && (counts.get(m.id) ?? 0) >= 10).sort((p, q) => p.name.localeCompare(q.name));
+    const ranked = new Set(best.map((r) => r.model.id)), rest = snapshot.models.filter((m) => !ranked.has(m.id) && (counts.get(m.id) ?? 0) >= 10).sort((p, q) => (q.releaseDate ?? "").localeCompare(p.releaseDate ?? "") || p.name.localeCompare(q.name));
     const lab = (id: string) => ({ labId: id, labName: labs.get(id)?.name ?? id });
-    shared.options = [...best.map((r, i) => ({ id: r.model.id, name: r.model.name, ...lab(r.model.labId), rank: i + 1 })), ...rest.map((m) => ({ id: m.id, name: m.name, ...lab(m.labId) }))];
+    // Rounded for the wire: a row shows one decimal of score, four digits of cost and the time to the second.
+    const present = (id: string): Omit<CompareOption, "id" | "name" | "labId" | "labName" | "rank"> => {
+      const s = side(id), m = models.get(id)!, aka = otherNames(m.name, m.aliases);
+      return { ...(s.score != null ? { score: +s.score.toFixed(1) } : {}), ...(s.costUsd != null ? { cost: +s.costUsd.toPrecision(4) } : {}), ...(s.tpt != null ? { tpt: +s.tpt.toFixed(1) } : {}), ...(m.releaseDate ? { date: m.releaseDate } : {}), ...(aka.length ? { aka } : {}) };
+    };
+    shared.options = [...best.map((r, i) => ({ id: r.model.id, name: r.model.name, ...lab(r.model.labId), rank: i + 1, ...present(r.model.id) })), ...rest.map((m) => ({ id: m.id, name: m.name, ...lab(m.labId), ...present(m.id) }))];
   }
   const known = new Set(shared.options.map((o) => o.id)), extra = [a, ...(b ? [b] : [])].filter((s) => !known.has(s.id)).map((s) => ({ id: s.id, name: s.name, labId: s.lab?.id ?? "", labName: s.lab?.name ?? "" }));
   return { mixName: mix.name, models: best.length, costBasis: effectiveBasis(costConfig.costBasis, hasSubscriptionPrices(snapshot)), a, b, domains: table && b ? domains(aId, table, { id: b.id, name: b.name, labId: b.lab?.id ?? "" }, best.length) : undefined, benches, options: [...shared.options, ...extra], labColors: Object.fromEntries(snapshot.labs.map((l) => [l.id, l.color])) };
