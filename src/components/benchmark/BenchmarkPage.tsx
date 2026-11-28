@@ -1,45 +1,43 @@
 "use client";
-import { categoryNames } from "@/data/categories";
-import { breaksFor } from "@/data/series-breaks";
 import { planResetsProps, usePlanResetsOn, withResetsPref } from "@/lib/plan-resets-pref";
 import { planPicker, useAdjustedSnapshot, useSubscriptionPlansPref, withPlansPref } from "@/lib/subscription-plans-pref";
-import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { Benchmark, Observation, Snapshot } from "@/data/types";
+import type { Snapshot } from "@/data/types";
 import { chartVariantMode, computeIndex, DEFAULT_EFFORTS, EFFORT_CHOICES, filterEfforts, rankingRows as rankingRowsOf, type IndexConfig, type RankedVariant } from "@/engine";
 import { hasSubscriptionPrices } from "@/data/task-metrics";
 import { effectiveBasis, planReadingSettings, type CostBasis } from "@/data/subscription";
-import { subscriptionShare } from "@/engine";
 import { hiddenIds, toggleVisibility, SHOW_ALL, type Vis } from "@/lib/model-visibility";
 import { formulaInputs } from "@/lib/metrics";
 import { formatBenchValue } from "@/lib/benchmark-format";
 import { benchmarkIndex, benchmarkView, hasOwnCost } from "@/lib/benchmark-page";
 import { SiteFooter } from "../SiteFooter";
-import { BenchmarkStar, BenchmarkStars } from "./BenchmarkStar";
+import { BenchmarkStars } from "./BenchmarkStar";
+import { BenchmarkHeader } from "./BenchmarkHeader";
 import { QualityPanel, type QualityView } from "./QualityPanel";
-import { IconRosetteDiscountCheck } from "@tabler/icons-react";
-import { RECOMMENDED_NAME, RECOMMENDED_TIP } from "@/onboarding/quality";
 import { Rankings } from "../Rankings";
 import { ParetoChart } from "../chart/ParetoChart";
 import { freeTierSettings } from "@/data/free-tier";
 import { ChartSettings } from "../chart/ChartSettings";
 import { useScatterView } from "../chart/ScoreScatter";
-import { HighlightContext } from "../chart/highlight";
+import { HighlightContext, type HighlightModel } from "../chart/highlight";
+import { STAR_CAP } from "../chart/star-menu";
 import { markColor, useChartPalette } from "../chart/echarts";
 import { GalleryChart, Panel } from "../page/MetricGallery";
 import { INDEX_SCORE_AXIS, ScoreAxisContext, type ScoreAxis } from "../chart/score-axis";
-import { BreakdownTable, Relatives, SeriesChart } from "./BenchmarkExtras";
+import { BreakdownTable, SeriesChart } from "./BenchmarkExtras";
+import { ResultsTable } from "./ResultsTable";
+import { ExplorePanel, StandardTools } from "./SlicePickers";
+import type { SlicePeers } from "@/lib/benchmark-slices";
 import { metricChartOf } from "@/lib/benchmark-chart";
-import { benchmarkMetrics, benchmarkSeries, formatMetric, type BenchMetric } from "@/lib/benchmark-metrics";
+import { benchmarkMetrics, benchmarkSeries } from "@/lib/benchmark-metrics";
 import { SiteHeader } from "@/components/SiteHeader";
-import { CreatorBlocks, CreatorByline, CreatorPageProvider, type CreatorPage } from "./CreatorBlocks";
+import { CreatorBlocks, CreatorPageProvider, type CreatorPage } from "./CreatorBlocks";
 import type { EmbedRow } from "@/lib/benchmark-embed";
 
 const fmt = formatBenchValue;
-const usd = (v: number) => v === 0 ? "free" : `$${v >= 10 ? v.toFixed(0) : v >= 1 ? v.toFixed(2) : v.toFixed(v >= 0.1 ? 2 : 3)}`;
 
 /** One benchmark on its own: who leads it, and what each result costs, priced the way a subscriber pays when the lab has a plan. */
-export function BenchmarkPage({ snapshot: base, benchmarkId, models, relatives, initial, quality, creator }: { snapshot: Snapshot; benchmarkId: string; models: number; relatives: { family: { id: string; label: string }[]; familyLabel?: string; versions: { id: string; label: string }[] }; /** Settings from a copied link. */ initial?: IndexConfig; /** The benchmark's quality score, its parts and its stars, from the server. Absent for token-price proxies. */ quality?: QualityView; /** Its verified creators and what they added, from the server. */ creator?: CreatorPage | null }) {
+export function BenchmarkPage({ snapshot: base, benchmarkId, models, relatives, initial, quality, creator }: { snapshot: Snapshot; benchmarkId: string; models: number; relatives: { family: { id: string; label: string }[]; familyLabel?: string; versions: { id: string; label: string }[]; /** Who leads each of those boards, worked out by the server. */ peers?: SlicePeers }; /** Settings from a copied link. */ initial?: IndexConfig; /** The benchmark's quality score, its parts and its stars, from the server. Absent for token-price proxies. */ quality?: QualityView; /** Its verified creators and what they added, from the server. */ creator?: CreatorPage | null }) {
   const snapshot = useAdjustedSnapshot(base);
   const b = snapshot.benchmarks.find((x) => x.id === benchmarkId)!;
   const [config, setConfig] = useState<IndexConfig>(() => initial ?? benchmarkIndex(snapshot, benchmarkId));
@@ -55,25 +53,25 @@ export function BenchmarkPage({ snapshot: base, benchmarkId, models, relatives, 
   const basis = effectiveBasis(config.costBasis, plans);
   const apiObs = useMemo(() => new Map(snapshot.observations.filter((o) => o.benchmarkId === benchmarkId).map((o) => [o.variantId, o])), [snapshot, benchmarkId]);
   const [paretoView, setParetoView] = useScatterView("benchmark-pareto");
-  const [allRows, setAllRows] = useState(false);
   const [highlight, setHighlight] = useState<string[]>(() => initial?.highlight ?? []);
   // Every model with a result, ranked first, then the ones hidden, so a hidden model can be shown again.
   const pickerModels = useMemo(() => {
-    const col = new Map(snapshot.labs.map((l) => [l.id, markColor(l.color, pal, l.id)]));
-    const seen = new Map<string, { id: string; name: string; color?: string; open?: boolean }>();
-    const add = (id: string) => { if (!seen.has(id)) { const m = snapshot.models.find((x) => x.id === id); if (m) seen.set(id, { id, name: m.name, color: col.get(m.labId), open: m.openWeights }); } };
-    for (const r of result.ranked) if (!seen.has(r.model.id)) seen.set(r.model.id, { id: r.model.id, name: r.model.name, color: col.get(r.model.labId), open: r.model.openWeights });
+    const col = new Map(snapshot.labs.map((l) => [l.id, markColor(l.color, pal, l.id)])), labName = new Map(snapshot.labs.map((l) => [l.id, l.name]));
+    const seen = new Map<string, HighlightModel>();
+    const add = (id: string) => { if (!seen.has(id)) { const m = snapshot.models.find((x) => x.id === id); if (m) seen.set(id, { id, name: m.name, color: col.get(m.labId), open: m.openWeights, lab: labName.get(m.labId), labId: m.labId }); } };
+    for (const r of result.ranked) if (!seen.has(r.model.id)) seen.set(r.model.id, { id: r.model.id, name: r.model.name, color: col.get(r.model.labId), open: r.model.openWeights, lab: labName.get(r.model.labId), labId: r.model.labId });
     for (const id of result.candidateModelIds) add(id);
     for (const id of config.excludeModels ?? []) add(id);
     return [...seen.values()];
   }, [result, config.excludeModels, snapshot, pal]);
+  const rankedCount = useMemo(() => new Set(result.ranked.map((r) => r.model.id)).size, [result.ranked]);
   const pickerIds = useMemo(() => pickerModels.map((m) => m.id), [pickerModels]);
   const excludedIds = useMemo(() => hiddenIds(config, pickerIds, result.autoHidden), [config, pickerIds, result.autoHidden]);
   const setVisibility = useCallback((vis: Vis) => setConfig((c) => ({ ...c, ...vis })), []);
   const toggleModel = useCallback((id: string) => setConfig((c) => ({ ...c, ...toggleVisibility(c, id, pickerIds, result.autoHidden) })), [pickerIds, result.autoHidden]);
   const modelPicker = { models: pickerModels, excluded: excludedIds, onToggleModel: toggleModel, onShowAllModels: () => setVisibility(SHOW_ALL), onHideAllModels: () => setVisibility({ excludeModels: pickerIds, onlyModels: undefined }), onShowOnly: (ids: string[]) => setVisibility({ excludeModels: pickerIds.filter((id) => !ids.includes(id)), onlyModels: undefined }) };
   const releaseProps = { releasedAfter: config.releasedAfter, onChangeReleased: (v: string) => patch({ releasedAfter: v }) };
-  const highlightState = useMemo(() => ({ items: highlight, set: setHighlight, models: pickerModels, linkIndices: [{ ...config, highlight: highlight.length ? highlight : undefined }], curated: config.excludeModels !== undefined || config.onlyModels !== undefined }), [highlight, pickerModels, config]);
+  const highlightState = useMemo(() => ({ items: highlight, set: (h: string[]) => setHighlight(h.slice(0, STAR_CAP)), models: pickerModels, ranked: rankedCount, linkIndices: [{ ...config, highlight: highlight.length ? highlight : undefined }], curated: config.excludeModels !== undefined || config.onlyModels !== undefined }), [highlight, pickerModels, rankedCount, config]);
   const host = (() => { try { return new URL(b.url).hostname.replace(/^www\./, ""); } catch { return ""; } })();
   const table = result.ranked; // best first; scores already account for direction
   const effortProps = { efforts: { value: config.efforts ?? DEFAULT_EFFORTS, onChange: (efforts: string[]) => patch({ efforts }) } };
@@ -87,7 +85,7 @@ export function BenchmarkPage({ snapshot: base, benchmarkId, models, relatives, 
     const frame = requestAnimationFrame(() => { const id = new URL(window.location.href).searchParams.get("bm"); if (id && metrics.details.some((m) => m.id === id)) setExplore(id); });
     return () => cancelAnimationFrame(frame);
   }, [metrics]);
-  const pickExplore = (id: string) => { setExplore(id); const url = new URL(window.location.href); url.searchParams.set("bm", id); window.history.replaceState(window.history.state, "", url); };
+  const pickExplore = useCallback((id: string) => { setExplore(id); const url = new URL(window.location.href); url.searchParams.set("bm", id); window.history.replaceState(window.history.state, "", url); }, []);
   const exploring = metrics.details.find((m) => m.id === explore) ?? metrics.details[0];
   const inputs = useMemo(() => formulaInputs(snapshot, result.ranked, config.timeSource), [snapshot, result.ranked, config.timeSource]);
   // Charts plot the benchmark's published value (a dollar balance, an Elo), not Priors' 0 to 100 index score, when
@@ -114,23 +112,7 @@ export function BenchmarkPage({ snapshot: base, benchmarkId, models, relatives, 
       <SiteHeader current="benchmarks" />
       <CreatorPageProvider page={creator ?? null} benchmark={embedBenchmark} rows={embedRows}><BenchmarkStars><HighlightContext.Provider value={highlightState}><ScoreAxisContext.Provider value={plotRaw ? axis : { ...INDEX_SCORE_AXIS, name: "Score (Priors scale)" }}>
         <div className="max-w-[1100px] mx-auto px-5 sm:px-8 py-10 grid gap-12">
-          <section className="grid gap-2">
-            <p className="cap"><Link href={"/benchmarks" as "/"} className="hover:text-ink">Benchmarks</Link> · {categoryNames(b)}</p>
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-2"><h1 className="text-[34px] sm:text-[44px] leading-[1.05]">{b.name}</h1>{quality && <BenchmarkStar id={benchmarkId} name={b.name} count={quality.stars} label />}</div>
-            {quality?.quality.preferred && <p data-recommended className="text-[13px] inline-flex items-center gap-1.5 text-ink-2"><span className="inline-flex items-center gap-1 font-medium" style={{ color: "var(--indigo)" }}><IconRosetteDiscountCheck size={16} stroke={1.6} aria-hidden="true" />{RECOMMENDED_NAME}</span>{RECOMMENDED_TIP.replace("this benchmark", "it")}</p>}
-            <p className="text-[15px] text-ink-2 max-w-[68ch]">{b.description}</p>
-            <CreatorByline />
-            {breaksFor([benchmarkId]).map((x) => <p key={x.date} data-series-break={x.date} className="text-[13px] text-ink-2 max-w-[68ch]">{x.note} <a href={x.url} target="_blank" rel="noreferrer" className="underline underline-offset-2 hover:text-ink">Their method</a></p>)}
-            {b.stoppedPublishing && <p data-stopped-publishing className="text-[13px] text-ink-2 max-w-[68ch]">Not current: the last update was {b.stoppedPublishing}, while the publisher&rsquo;s other boards kept updating.</p>}
-            {b.notice && <p data-benchmark-notice className="text-[13px] text-ink-2 max-w-[68ch]">{b.notice}</p>}
-            {b.effortBasis && <p data-effort-basis className="text-[13px] text-ink-2 max-w-[68ch]">Each row is the model&rsquo;s best measured setting, not one reasoning effort: the publisher keeps each model&rsquo;s best score across settings.</p>}
-            <div className="mt-2"><Relatives current={benchmarkId} family={relatives.family} familyLabel={relatives.familyLabel} versions={relatives.versions} /></div>
-            {quality && <p className="text-[13px] text-ink-2" data-quality-summary><a href="#quality" className="underline decoration-dotted underline-offset-2 hover:text-ink">Quality {quality.quality.score} of 100</a>{quality.quality.adjustments.length > 0 && <span> ({quality.quality.baseScore} before bonuses and penalties)</span>}{quality.quality.factors.filter((f) => f.id === "testSet" || f.id === "frontier").map((f) => <span key={f.id}> · {f.detail.split(". ")[0].replace(/\.$/, "")}</span>)}</p>}
-            <p className="cap">{models} models · {result.ranked.length} results{b.lastUpdated ? ` · updated ${b.lastUpdated}` : ` · data as of ${snapshot.date}`}{host && <> · <a href={b.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 hover:text-ink underline decoration-dotted">{b.sourceId === "gamefeel" && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src="/logos/gamefeel.png" alt="" width={14} height={14} className="w-[14px] h-[14px] rounded-[3px] shrink-0" />
-            )}{host} ↗</a></>}</p>
-          </section>
+          <BenchmarkHeader b={b} benchmarkId={benchmarkId} quality={quality} relatives={relatives} models={models} results={result.ranked.length} date={snapshot.date} host={host} />
 
           <CreatorBlocks placement="above" />
           <section className="chart-panel">
@@ -155,29 +137,20 @@ export function BenchmarkPage({ snapshot: base, benchmarkId, models, relatives, 
           </section>)}
 
           {(metrics.standard.length > 0 || metrics.details.length > 0) && <section className="grid">
-            <div className="flex items-baseline justify-between border-b-2 border-ink pb-2"><h2 className="text-[22px] sm:text-[26px]">More from this benchmark</h2><span className="cap">{metrics.standard.length + metrics.details.length} published measures</span></div>
-            {metrics.standard.map((m, i) => <Panel key={m.id} anchor={`metric-${m.id}`} title={m.label} desc={`${m.values.size} results · lower is better`} defaultOpen={i === 0}>
+            <div className="flex items-baseline justify-between gap-x-4 border-b-2 border-ink pb-2"><h2 className="text-[22px] sm:text-[26px]">More from this benchmark</h2><span className="cap">{metrics.standard.length + metrics.details.length} published measures</span></div>
+            {metrics.standard.map((m, i) => <Panel key={m.id} anchor={`metric-${m.id}`} title={m.label} desc={`${m.values.size} results · lower is better`} defaultOpen={i === 0} tools={<StandardTools metric={m} ranked={plotted} labs={snapshot.labs} />}>
               <GalleryChart id={`bench-${m.id}`} anchor={`metric-${m.id}`} title={m.label} chart={metricChartOf(m, b.name)} ranked={plotted} defaultMode="all" labs={snapshot.labs} settings={gallerySettings} inputs={inputs} />
             </Panel>)}
-            {exploring && <Panel anchor="metric-explore" title="Score vs any published measure" desc={`${metrics.details.length} measures: sub-scores, splits, counts`} defaultOpen={!metrics.standard.length}
-              tools={<span onClick={(e) => e.stopPropagation()}><select aria-label="Measure" className="inp !w-auto !py-0.5 !text-[12px] max-w-[260px]" value={exploring.id} onChange={(e) => pickExplore(e.target.value)}>{metrics.details.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}</select></span>}>
-              <GalleryChart key={exploring.id} id={`bench-explore`} anchor="metric-explore" title={exploring.label} chart={metricChartOf(exploring, b.name)} ranked={plotted} defaultMode="all" labs={snapshot.labs} settings={gallerySettings} inputs={inputs} />
-            </Panel>}
+            {exploring && <ExplorePanel details={metrics.details} exploring={exploring} pick={pickExplore} defaultOpen={!metrics.standard.length} ranked={plotted} labs={snapshot.labs}
+              chart={<GalleryChart key={exploring.id} id={`bench-explore`} anchor="metric-explore" title={exploring.label} chart={metricChartOf(exploring, b.name)} ranked={plotted} defaultMode="all" labs={snapshot.labs} settings={gallerySettings} inputs={inputs} />} />}
           </section>}
 
           {metrics.groups.length > 0 && <section className="grid gap-3">
-            <div className="flex items-baseline justify-between border-b hairline pb-2"><h2 className="text-[22px] sm:text-[26px]">Breakdown</h2><span className="cap">darker is better within each column · click a column to sort</span></div>
+            <div className="flex items-baseline justify-between gap-x-4 border-b hairline pb-2"><h2 className="text-[22px] sm:text-[26px]">Breakdown</h2><span className="cap">darker is better within each column · click a column to sort</span></div>
             <BreakdownTable groups={metrics.groups} ranked={rows} />
           </section>}
 
-          <section className="grid gap-3">
-            <div className="flex items-baseline justify-between border-b hairline pb-2"><h2 className="text-[22px] sm:text-[26px]">All results</h2><span className="cap">{table.length} rows</span></div>
-            <div className="overflow-x-auto"><table className="w-full text-[13px] min-w-[560px]">
-              <thead><tr className="cap text-left"><th className="py-1.5 pr-3 font-normal w-10">#</th><th className="py-1.5 pr-3 font-normal">Model</th><th className="py-1.5 pr-3 font-normal">Effort</th><th className="py-1.5 pr-3 font-normal text-right">{b.name.length > 24 ? "Score" : b.name}</th>{hasCost && <th className="py-1.5 pr-3 font-normal text-right">{basis === "subscription" ? "Subscription $ / task" : "$ / task"}</th>}{hasCost && basis === "subscription" && <th className="py-1.5 pr-3 font-normal text-right">API $ / task</th>}{metrics.standard.map((m) => <th key={m.id} className="py-1.5 pr-3 font-normal text-right">{m.label.replace(" per task", "")}</th>)}{harness && <th className="py-1.5 font-normal">Harness</th>}</tr></thead>
-              <tbody>{(allRows ? table : table.slice(0, 30)).map((r, i) => <Row key={r.variant.id} r={r} i={i} b={b} hasCost={hasCost} basis={basis} obs={apiObs.get(r.variant.id)} ci={ci} standard={metrics.standard} harness={harness} />)}</tbody>
-            </table></div>
-            {table.length > 30 && <button type="button" className="btn-quiet justify-self-start" onClick={() => setAllRows((v) => !v)}>{allRows ? "Show fewer" : `Show all ${table.length}`}</button>}
-          </section>
+          <ResultsTable table={table} b={b} hasCost={hasCost} basis={basis} apiObs={apiObs} ci={ci} harness={harness} standard={metrics.standard} labs={snapshot.labs} />
         </div>
       </ScoreAxisContext.Provider></HighlightContext.Provider></BenchmarkStars></CreatorPageProvider>
       <SiteFooter />
@@ -185,17 +158,3 @@ export function BenchmarkPage({ snapshot: base, benchmarkId, models, relatives, 
   );
 }
 
-function Row({ r, i, b, hasCost, basis, obs, ci, standard, harness }: { r: RankedVariant; i: number; b: Benchmark; hasCost: boolean; basis: CostBasis; obs?: Observation; ci: boolean; standard: BenchMetric[]; harness: boolean }) {
-  const raw = r.values[0]?.raw, api = obs?.costUsd;
-  const half = ci && obs?.ci ? (obs.ci[1] - obs.ci[0]) / 2 : undefined;
-  return <tr className="border-t hairline">
-    <td className="py-1.5 pr-3 num text-grey">{i + 1}</td>
-    <td className="py-1.5 pr-3"><Link href={`/models/${r.model.id}` as "/"} className="hover:text-ink">{r.model.name}</Link></td>
-    <td className="py-1.5 pr-3 mono text-ink-2">{b.effortBasis ? "best measured setting" : r.variant.effort === "default" ? "" : r.variant.effort}</td>
-    <td className="py-1.5 pr-3 num text-right" title={obs?.ci ? `interval ${fmt(b, obs.ci[0])} to ${fmt(b, obs.ci[1])}` : obs?.note}>{raw != null ? fmt(b, raw) : r.score.toFixed(1)}{half != null && <span className="text-grey"> ±{fmt(b, half).replace("%", "")}</span>}{obs?.details?.launchClaim != null && <span className="text-grey text-[11px] ml-1" data-launch-claim>launch</span>}</td>
-    {hasCost && <td className="py-1.5 pr-3 num text-right" title={r.costPlan ? `${r.costPlan.plan}: ${subscriptionShare(r.costPlan.ratio)} of API price${r.costPlan.preliminary ? `. ${r.costPlan.preliminary.label}: ${r.costPlan.preliminary.short}` : ""}` : undefined}>{r.costUsd != null ? usd(r.costUsd) : ""}</td>}
-    {hasCost && basis === "subscription" && <td className="py-1.5 pr-3 num text-right text-grey">{api != null ? usd(api) : ""}</td>}
-    {standard.map((m) => { const v = m.values.get(r.variant.id); return <td key={m.id} className="py-1.5 pr-3 num text-right text-ink-2">{v != null ? formatMetric(m.kind, v) : ""}</td>; })}
-    {harness && <td className="py-1.5 text-ink-2 truncate max-w-[160px]">{obs?.harness ?? ""}</td>}
-  </tr>;
-}

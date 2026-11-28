@@ -14,6 +14,7 @@ import { decodeIndices } from "@/lib/url";
 import { framedSize, linkFrame } from "@/lib/og-chart";
 import type { Benchmark, Snapshot } from "@/data/types";
 import { benchmarkDescription, benchmarkStanding } from "@/lib/og-benchmark";
+import { slicePeers } from "@/lib/slice-peers";
 
 export const dynamic = "force-dynamic";
 
@@ -77,5 +78,7 @@ export default async function Page({ params, searchParams }: { params: Promise<{
   // The quality score needs the full data (every benchmark's rows and the default lineup), so it is worked out here.
   const [community, creator] = await Promise.all([benchmarkCommunity(starIds(snapshot)), creatorPage(b.id)]);
   const quality = qualityView(snapshot, b.id, community);
-  return <BenchmarkPage snapshot={small} benchmarkId={b.id} models={count} relatives={benchmarkRelatives(snapshot, b)} initial={initial} quality={b.proxy ? undefined : quality} creator={creator} />;
+  // The pickers name who leads every other category and version, ranked once per snapshot.
+  const siblings = benchmarkRelatives(snapshot, b), relatives = { ...siblings, peers: slicePeers(snapshot, siblings) };
+  return <BenchmarkPage snapshot={small} benchmarkId={b.id} models={count} relatives={relatives} initial={initial} quality={b.proxy ? undefined : quality} creator={creator} />;
 }

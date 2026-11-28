@@ -31,6 +31,12 @@ describe("benchmarkMetrics", () => {
     expect(m.groups.map((g) => g.label)).toEqual(expect.arrayContaining(["Tiers", "Breakdown"]));
   });
 
+  it("reads violations and fallbacks as lower is better, and completion as higher", () => {
+    const rows = [1, 2, 3].map((i) => obs("auto", `m${i}@default`, 40 + i, { details: { violationsTotal: 5 * i, fallbackServedTaskCount: i, completion: 50 + 7 * i } }));
+    const m = benchmarkMetrics(snap(rows, [bench("auto")]), bench("auto"));
+    expect(m.details.map((x) => [x.key, x.better])).toEqual([["violationsTotal", "lower"], ["fallbackServedTaskCount", "lower"], ["completion", "higher"]]);
+  });
+
   it("names top-level subsets from the benchmark's advanced list (Vals categories)", () => {
     const s = snap([1, 2, 3].map((i) => obs("vals-mgsm", `m${i}@default`, 80 + i, { details: { mgsm_en: 90 + i, mgsm_ja: 70 + 2 * i } })), [bench("vals-mgsm", { advanced: [{ id: "mgsm_en", name: "English" }, { id: "mgsm_ja", name: "Japanese" }] })]);
     const m = benchmarkMetrics(s, s.benchmarks[0]);

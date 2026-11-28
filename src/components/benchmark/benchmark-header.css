@@ -1,0 +1,88 @@
+/* Header of a benchmark's page. Tokens only; one accent, indigo. */
+.bench-top{--bench-top-down:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");display:grid;grid-template-columns:minmax(0,1fr);min-width:0;align-content:start}
+.bench-top a{text-underline-offset:2px}
+
+/* crumb and title: the star rides the last word */
+.bench-top-crumb{line-height:1.55;min-width:0}
+.bench-top-title{margin-top:8px}
+.bench-top-nowrap{white-space:nowrap}
+.bench-top-title-end{display:inline-flex;align-items:center;vertical-align:middle;gap:2px;margin-left:8px;white-space:nowrap;position:relative;top:-2px}
+@media (min-width:640px){.bench-top-title-end{top:-5px}}
+.bench-top .bench-star.bench-top-starbtn{border:0;padding:6px;gap:5px;border-radius:6px;font-size:13px;line-height:1;color:var(--grey);background:none}
+.bench-top .bench-star.bench-top-starbtn svg{width:19px;height:19px}
+.bench-top .bench-star.bench-top-starbtn:hover{color:var(--ink);background:var(--hair-2)}
+.bench-top .bench-star.bench-top-starbtn.is-on{color:var(--indigo)}
+.bench-top .bench-star.bench-top-starbtn:focus-visible{outline:2px solid var(--indigo);outline-offset:1px}
+@media (max-width:640px){.bench-top .bench-star.bench-top-starbtn svg{width:20px;height:20px}}
+
+/* description: closed to a sentence, a chevron trails its last word */
+.bench-top-clamp{margin-top:12px;max-width:68ch}
+.bench-top-desc{font-size:15px;line-height:1.55;color:var(--ink-2)}
+.bench-top-glue{white-space:nowrap}
+
+/* the one drawn chevron, the same mask the disclosures use */
+.bench-top-chev{display:inline-grid;place-items:center;flex:none;width:24px;height:22px;margin:-2px 0 -2px 2px;vertical-align:-5px;padding:0;border:0;border-radius:6px;background:none;color:var(--grey);cursor:pointer}
+.bench-top-chev i{display:block;width:16px;height:16px;background:currentColor;-webkit-mask:var(--bench-top-down) center/contain no-repeat;mask:var(--bench-top-down) center/contain no-repeat;transition:transform .18s ease}
+.bench-top-chev:hover{color:var(--ink)}
+.bench-top-chev:focus-visible{outline:2px solid var(--indigo);outline-offset:1px}
+.bench-top-chev.is-open i{transform:rotate(180deg)}
+
+/* the warnings: short sentences with an icon, nothing boxed */
+.bench-top-notes{display:grid;gap:2px;max-width:72ch;margin-top:16px}
+.bench-top-note{display:flex;align-items:flex-start;gap:10px;padding:2px 0}
+.bench-top-note-icon{flex:none;margin-top:4px;color:var(--indigo)}
+.bench-top-note p{flex:1;min-width:0;font-size:14px;line-height:1.5;color:var(--ink-2)}
+.bench-top-note p b{font-weight:500;color:var(--ink)}
+.bench-top-link{color:var(--ink-2);text-decoration:underline;white-space:nowrap}
+.bench-top-link:hover{color:var(--ink)}
+.bench-top-link svg{display:inline-block;vertical-align:-2px;margin-left:3px;color:var(--grey)}
+
+/* the other boards of this benchmark keep their own component; only the slot spacing is ours */
+.bench-top-rel{margin-top:16px}
+
+/* ring */
+.bench-top-ring{position:relative;display:inline-grid;place-items:center;flex:none}
+.bench-top-ring svg{position:absolute;inset:0}
+.bench-top-ring-track,.bench-top-ring-arc{fill:none}
+.bench-top-ring-track{stroke:var(--hair)}
+.bench-top-ring-arc{stroke:var(--indigo);stroke-linecap:round;transition:stroke-dasharray .6s cubic-bezier(.2,.7,.2,1)}
+.bench-top-ring b{position:relative;font-weight:400;color:var(--ink);line-height:1}
+
+/* facts: an icon and its value, 24px apart */
+.bench-top-facts{display:flex;flex-wrap:wrap;align-items:center;gap:0 24px;margin-top:20px;font-size:14px;line-height:1;color:var(--ink-2)}
+.bench-top-fact{display:inline-flex;align-items:center;gap:8px;min-height:32px;white-space:nowrap;color:var(--ink-2);border-radius:4px}
+.bench-top-fact svg{flex:none;color:var(--grey)}
+.bench-top-fact:focus-visible{outline:2px solid var(--indigo);outline-offset:2px}
+.bench-top-fact b.num{font-weight:500;color:var(--ink)}
+.bench-top-fact.is-thin b.num{color:var(--indigo)}
+.bench-top-rec,.bench-top-rec svg{color:var(--indigo)}
+.bench-top-rec{font-weight:500}
+.bench-top-q-link{display:inline-flex;align-items:center;gap:8px;min-height:32px;color:var(--ink);text-decoration:none;border-radius:4px}
+.bench-top-q-link:hover .bench-top-q-word{color:var(--ink)}
+.bench-top-q-link:focus-visible{outline:2px solid var(--indigo);outline-offset:2px}
+.bench-top-q-word{color:var(--ink-2)}
+.bench-top-source{display:inline-flex;align-items:center;gap:8px;min-height:32px;max-width:100%;color:var(--ink-2);text-decoration:none;white-space:nowrap;border-radius:4px}
+.bench-top-source-host{overflow:hidden;text-overflow:ellipsis;min-width:0}
+.bench-top-source svg{flex:none;color:var(--grey)}
+.bench-top-source:hover{color:var(--ink)}
+.bench-top-source:hover .bench-top-source-host{text-decoration:underline dotted;text-underline-offset:3px}
+.bench-top-source:focus-visible{outline:2px solid var(--indigo);outline-offset:2px}
+.bench-top-fav{width:16px;height:16px;border-radius:3px;flex:none}
+
+/* tip: drawn in the window, so it never leaves the screen */
+.bench-top-tip{position:fixed;z-index:60;width:max-content;max-width:min(260px,calc(100vw - 16px));padding:6px 9px;border-radius:5px;background:var(--ink);color:var(--bone);font:500 12px/1.4 var(--font-sans);letter-spacing:0;text-transform:none;text-align:left;white-space:normal;pointer-events:none}
+
+/* a card in the quality panel, outlined for a moment after a jump */
+@keyframes bench-top-pulse{0%,60%{outline-color:var(--indigo)}100%{outline-color:transparent}}
+.bench-top-pulse{outline:2px solid var(--indigo);outline-offset:3px;border-radius:6px;animation:bench-top-pulse 1.1s ease-out forwards}
+
+/* a finger needs 40px */
+@media (pointer:coarse){
+  .bench-top .bench-top-fact,.bench-top .bench-top-source,.bench-top .bench-top-q-link{min-height:40px}
+  .bench-top .bench-top-crumb p a{display:inline-block;padding:13px 0;margin:-13px 0}
+}
+
+@media (prefers-reduced-motion:reduce){
+  .bench-top-ring-arc,.bench-top-chev i{transition:none!important}
+  .bench-top-pulse{animation:none}
+}

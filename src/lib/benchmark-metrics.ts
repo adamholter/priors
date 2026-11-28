@@ -24,7 +24,7 @@ const MIN_ROWS = 3;
 const MAX_DEPTH = 4;
 /** Run settings and bookkeeping, not results. */
 const SKIP = /^(temperature|top_?p|max_output_tokens|tie_breaker_score|neverSentinel|lower95ci|upper95ci|ci95|.*_sem|.*_std|stderr|standardErrorPercentagePoints|ratingDeviation|confidence|promptCoverage|coveredPrompts|activePrompts|numTasks|num_epochs|num_final_values|n|released|builtAt|completedAt|pageUpdated)$/i;
-const LOWER = /cost|price|usd|latency|duration|time|seconds|token|steps?$|turns?|tool.?calls?|calls$|hallucinat|inconsisten|refus|wrong|loss|error|missed|deviation|minutes/i;
+const LOWER = /cost|price|usd|latency|duration|time|seconds|token|steps?$|turns?|tool.?calls?|calls$|hallucinat|inconsisten|refus|wrong|loss|error|missed|deviation|minutes|violation|fallback/i;
 
 const humanize = (key: string) => {
   const s = key.replace(/_/g, " ").replace(/([a-z0-9])([A-Z])/g, "$1 $2").replace(/\s+/g, " ").trim();

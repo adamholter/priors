@@ -1,26 +1,18 @@
 "use client";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import type { EChartsOption } from "echarts";
 import type { Lab } from "@/data/types";
 import type { RankedVariant } from "@/engine";
 import { chartLabel } from "@/lib/metrics";
 import { formatMetric, type BenchMetric, type BenchSeries, type MetricGroup } from "@/lib/benchmark-metrics";
 import { valueFor } from "@/lib/benchmark-chart";
-import { benchmarkPath } from "@/lib/benchmark-slug";
+import { groupSet, shadeOf } from "@/lib/benchmark-slices";
 import { markColor, useChartPalette, useEChart } from "../chart/echarts";
 import { escapeSvg as esc } from "../chart/export-frame";
+import { GroupPicker } from "./SlicePickers";
 
-/** Category splits (buttons, or a menu when there are many) and versions (always a menu, newest first): other boards of this benchmark. */
-export function Relatives({ current, family, familyLabel = "Category", versions }: { current: string; family: { id: string; label: string }[]; familyLabel?: string; versions: { id: string; label: string }[] }) {
-  const router = useRouter();
-  const row = (label: string, list: { id: string; label: string }[], select = false) => !list.length ? null : select || list.length > 6
-    ? <label className="cap flex items-center gap-2">{label}<select className="inp !w-auto !py-1 !text-[12.5px] normal-case" value={list.some((x) => x.id === current) ? current : list[0].id} onChange={(e) => router.push(benchmarkPath(e.target.value) as "/")}>{list.map((x) => <option key={x.id} value={x.id}>{x.label}</option>)}</select></label>
-    : <div className="flex flex-wrap items-center gap-2"><span className="cap">{label}</span><div className="seg" role="group" aria-label={label}>{list.map((x) => <Link key={x.id} href={benchmarkPath(x.id) as "/"} aria-current={x.id === current ? "page" : undefined} aria-pressed={x.id === current} className="!text-[12.5px] !px-2.5">{x.label}</Link>)}</div></div>;
-  if (!family.length && !versions.length) return null;
-  return <div className="flex flex-wrap items-center gap-x-6 gap-y-3">{row(familyLabel, family)}{row("Version", versions, true)}</div>;
-}
+export { Relatives } from "./SlicePickers"; // the category and version pickers
 
 /** Models down the side, a group's columns across, each cell shaded by where it sits in its column (better is darker). Click a column to sort by it. */
 export function BreakdownTable({ groups, ranked }: { groups: MetricGroup[]; ranked: RankedVariant[] }) {
@@ -28,6 +20,8 @@ export function BreakdownTable({ groups, ranked }: { groups: MetricGroup[]; rank
   const [sort, setSort] = useState<string | null>(null);
   const [all, setAll] = useState(false);
   const group = groups.find((g) => g.id === gid) ?? groups[0];
+  const set = useMemo(() => groupSet(groups), [groups]);
+  const pickGroup = useCallback((id: string) => { setGid(id); setSort(null); }, []);
   const rows = useMemo(() => {
     if (!group) return [];
     const has = ranked.filter((r) => group.metrics.some((m) => valueFor(m, r) != null));
@@ -40,13 +34,12 @@ export function BreakdownTable({ groups, ranked }: { groups: MetricGroup[]; rank
   if (!group) return null;
   const shade = (m: BenchMetric, v: number) => {
     const [lo, hi] = range.get(m.id) ?? [0, 0];
-    const t = hi > lo ? (v - lo) / (hi - lo) : 0.5;
-    return `color-mix(in oklab, var(--indigo) ${Math.round(6 + 44 * (m.better === "lower" ? 1 - t : t))}%, transparent)`;
+    return shadeOf(hi > lo ? (v - lo) / (hi - lo) : 0.5, m.better === "lower");
   };
   const shown = all ? rows : rows.slice(0, 25);
   return (
     <div className="grid gap-3">
-      {groups.length > 1 && <label className="cap flex items-center gap-2">Breakdown<select className="inp !w-auto !py-1 !text-[12.5px] normal-case" value={group.id} onChange={(e) => { setGid(e.target.value); setSort(null); }}>{groups.map((g) => <option key={g.id} value={g.id}>{g.label} · {g.metrics.length}</option>)}</select></label>}
+      {groups.length > 1 && <GroupPicker set={set} groups={groups} ranked={ranked} value={group.id} onPick={pickGroup} />}
       <div className="overflow-x-auto">
         <table className="text-[12.5px] border-separate border-spacing-0">
           <thead><tr>
