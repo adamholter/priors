@@ -1,23 +1,24 @@
 "use client";
-import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type RefObject, type ReactNode, type MouseEvent as ReactMouseEvent, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type RefObject, type MouseEvent as ReactMouseEvent, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { createPortal } from "react-dom";
-import { IconX, IconTrash, IconStar, IconStarFilled, IconArrowBackUp, IconCaretRightFilled } from "@tabler/icons-react";
+import { useRouter } from "next/navigation";
+import { IconExternalLink, IconEyeOff, IconStar, IconStarFilled } from "@tabler/icons-react";
 import type { ECharts } from "echarts";
 import { useChartPalette } from "./echarts";
 import { featuredPoints, type ScatterPoint } from "./scatter-option";
 import { chartLabel } from "@/lib/metrics";
 import { useHighlight, togglePoint } from "./highlight";
+import { LabLogo } from "@/components/LabLogo";
 import { EMPTY_HIDDEN, hideChartPoint, visiblePoints, readChartHidden, setChartHidden, type ChartHidden } from "./chart-visibility";
 import { chartUndo, listenForChartUndo } from "./chart-undo";
-import { ChartDownloadIcon, ChartExpandIcon, ChartLinkIcon } from "./ChartIcons";
-import type { ChartExportHandle } from "./ChartExport";
+import { menuPlace, undoLabel, type ChartShareHandle } from "./chart-share";
 import type { ChartLinkParams } from "./ChartLink";
+import { ChartRows, UndoRow, letterKeys, splitKeys, type Acts } from "./share-rows";
+import { menuKeys, usePresence } from "./share-ui";
 import { chartLinkUrl } from "@/lib/highlight-link";
+import "./chart-share.css";
 
-export type ChartMenuDesign = "plain" | "icons" | "grouped";
-export const ChartMenuDesignContext = createContext<ChartMenuDesign>("icons");
 type MenuState = { x: number; y: number; point?: ScatterPoint };
-type Action = { id: string; label: string; run: () => void; group: "point" | "chart" };
 
 const VISIBILITY_EVENT = "priors:chart-visibility";
 function subscribeVisibility(change: () => void) {
@@ -52,6 +53,12 @@ export function useChartVisibility(allPoints: ScatterPoint[], anchor: string, pa
       setUndoCount(n => n + 1);
     },
     undo: () => { if (!chartUndo.undo(owner.current)) persistVisibility(anchor, EMPTY_HIDDEN); },
+    /** Bring models or efforts back (the chart key's list). One step on the undo stack, like a removal. */
+    restore: (next: ChartHidden | ((now: ChartHidden) => ChartHidden)) => {
+      // Read the URL, not the render: a restore can run a moment after the click that asked for it.
+      const now = readChartHidden(new URL(window.location.href).searchParams, anchor);
+      chartUndo.record(owner.current, () => persistVisibility(anchor, now)); persistVisibility(anchor, typeof next === "function" ? next(now) : next); setUndoCount(0);
+    },
   };
 }
 
@@ -75,96 +82,128 @@ export function useChartContextMenu() {
   };
 }
 
+/** What each chart's menu hid last (by chart name), so Undo can say what it brings back. */
+const lastHidden = new Map<string, string>();
+
+/** The right-click, Context Menu key and long-press menu: the dot's own actions first, then the chart's (the same ones as the toolbar, each with its letter). */
 export function ChartContextMenu({ state, close, name, points, visibility, chart, wrap, expanded, anchor, exportControl }: {
   state: MenuState | null; close: () => void; name: string; points: ScatterPoint[];
   visibility: ReturnType<typeof useChartVisibility>; chart: RefObject<ECharts | null>;
   wrap: RefObject<HTMLDivElement | null>; expanded: boolean; anchor?: string;
-  exportControl: RefObject<ChartExportHandle | null>;
+  exportControl: RefObject<ChartShareHandle | null>;
 }) {
+  const pal = useChartPalette(), hl = useHighlight(), router = useRouter();
+  // Keep the last menu while it fades out.
+  const [last, setLast] = useState<MenuState | null>(state);
+  if (state && state !== last) setLast(state);
+  const { mounted, shown } = usePresence(!!state, 90);
+  const menu = state ?? last;
   const root = useRef<HTMLDivElement>(null);
   const returnFocus = useRef<HTMLElement | null>(null);
-  const [position, setPosition] = useState({ left: 0, top: 0 });
-  const [error, setError] = useState("");
-  const [disclosure, setDisclosure] = useState<MenuState | null>(null);
-  const formatsOpen = !!state && disclosure === state;
-  const design = useContext(ChartMenuDesignContext), pal = useChartPalette(), hl = useHighlight();
+  const [pos, setPos] = useState({ left: 0, top: 0 });
   const closeRef = useRef(close);
   useEffect(() => { closeRef.current = close; });
+  // Once nothing is hidden the remembered name is stale: a later hide through the chart key must not borrow it.
+  useEffect(() => { if (!visibility.hiddenCount) lastHidden.delete(name); }, [visibility.hiddenCount, name]);
+
+  useLayoutEffect(() => {
+    const el = root.current;
+    if (!state || !el) return;
+    // Measure at rest: the entry transform shrinks the box and would leave it past the gutter.
+    el.style.transform = "none";
+    const r = el.getBoundingClientRect(), vw = document.documentElement.clientWidth;
+    el.style.removeProperty("transform");
+    setPos(menuPlace(state.x, state.y, r.width, r.height, vw, innerHeight));
+  }, [state]);
   useLayoutEffect(() => {
     if (!state || !root.current) return;
-    const r = root.current.getBoundingClientRect();
-    setPosition({ left: Math.max(8, Math.min(state.x, document.documentElement.clientWidth - r.width - 8)), top: Math.max(8, Math.min(state.y, innerHeight - r.height - 8)) });
-  }, [state, formatsOpen]);
-  useLayoutEffect(() => {
-    if (!state || !root.current) return;
-    returnFocus.current = document.activeElement as HTMLElement;
-    root.current.querySelector<HTMLButtonElement>('button[role="menuitem"]')?.focus({ preventScroll: true });
+    const from = document.activeElement as HTMLElement | null;
+    returnFocus.current = from;
     chart.current?.dispatchAction({ type: "hideTip" });
+    // Opened from the keyboard: focus the first row. A pointer open leaves focus alone, so no ring appears.
+    if (from?.matches?.(":focus-visible")) root.current.querySelector<HTMLElement>('[role="menuitem"]:not(:disabled)')?.focus({ preventScroll: true });
   }, [state, chart]);
   useEffect(() => {
     if (!state) return;
     const dismiss = () => closeRef.current();
     const pointer = (e: PointerEvent) => { if (!root.current?.contains(e.target as Node)) dismiss(); };
     const scroll = (e: Event) => { if (!root.current?.contains(e.target as Node)) dismiss(); };
+    // A pointer open keeps focus on the chart: arrows, letters and Escape still work.
+    const key = (e: KeyboardEvent) => {
+      if (root.current?.contains(document.activeElement)) return;
+      // Stop the key here: the chart's own single-key listener would run the same action a second time.
+      if (e.key === "Escape") { e.stopPropagation(); dismiss(); }
+      else if (e.key.length === 1 && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        const row = root.current?.querySelector<HTMLButtonElement>(`[data-key="${e.key.toLowerCase()}"]:not(:disabled)`);
+        if (row) { e.preventDefault(); e.stopPropagation(); row.click(); }
+      } else if (["ArrowDown", "ArrowUp", "Home", "End"].includes(e.key)) { e.preventDefault(); e.stopPropagation(); const items = root.current?.querySelectorAll<HTMLElement>('[role="menuitem"]:not(:disabled)'); (e.key === "ArrowUp" || e.key === "End" ? items?.[items.length - 1] : items?.[0])?.focus(); }
+    };
+    document.addEventListener("keydown", key, true);
     document.addEventListener("pointerdown", pointer, true);
     window.addEventListener("scroll", scroll, true);
     window.addEventListener("resize", dismiss);
-    return () => { document.removeEventListener("pointerdown", pointer, true); window.removeEventListener("scroll", scroll, true); window.removeEventListener("resize", dismiss); };
+    return () => { document.removeEventListener("keydown", key, true); document.removeEventListener("pointerdown", pointer, true); window.removeEventListener("scroll", scroll, true); window.removeEventListener("resize", dismiss); };
   }, [state]);
-  if (!state) return null;
-  const clickControl = (label: string) => {
-    const button = [...(wrap.current?.querySelectorAll<HTMLButtonElement>("button[aria-label]") ?? [])].find(b => b.getAttribute("aria-label") === label);
-    button?.click();
+
+  // Long-press opens the same menu on touch screens (iOS has no contextmenu event): a synthetic one, so the chart's own handler decides dot or chart.
+  useEffect(() => {
+    const el = wrap.current;
+    if (!el) return;
+    let timer = 0, sx = 0, sy = 0;
+    const cancel = () => clearTimeout(timer);
+    const down = (e: PointerEvent) => {
+      if (e.pointerType !== "touch" || !(e.target as Element).closest('[role="img"]')) return;
+      sx = e.clientX; sy = e.clientY; clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        navigator.vibrate?.(6);
+        const target = document.elementFromPoint(sx, sy) ?? el;
+        target.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: sx, clientY: sy, button: 2 }));
+      }, 450);
+    };
+    const move = (e: PointerEvent) => { if (Math.hypot(e.clientX - sx, e.clientY - sy) > 8) cancel(); };
+    el.addEventListener("pointerdown", down); el.addEventListener("pointermove", move); el.addEventListener("pointerup", cancel); el.addEventListener("pointercancel", cancel);
+    return () => { cancel(); el.removeEventListener("pointerdown", down); el.removeEventListener("pointermove", move); el.removeEventListener("pointerup", cancel); el.removeEventListener("pointercancel", cancel); };
+  }, [wrap]);
+
+  if (!menu || !mounted) return null;
+  const handle = exportControl.current, point = menu.point, hidden = visibility.hiddenCount, rows = handle?.rows() ?? -1;
+  const starred = !!point && !!hl && featuredPoints(points, hl.items).some((p) => p.r.variant.id === point.r.variant.id);
+  const acts: Acts = {
+    native: !!handle?.native, empty: rows === 0, rows, formats: handle?.formats ?? ["png", "svg"],
+    copyImage: () => { void handle?.copyImage(); },
+    copyLink: anchor ? () => { void handle?.copyLink(); } : undefined,
+    download: (f) => { void handle?.download(f); },
+    edit: handle?.edit,
+    expand: () => wrap.current?.querySelector<HTMLButtonElement>("button[data-chart-expand]")?.click(),
+    expanded,
+    undo: visibility.canUndo ? { run: visibility.undo, label: undoLabel(hidden, lastHidden.get(name)) } : undefined,
+    done: close,
   };
-  const point = state.point;
-  const starred = point && !!hl && featuredPoints(points, hl.items).some(p => p.r.variant.id === point.r.variant.id);
-  const actions: Action[] = [];
-  if (point) {
-    actions.push({ id: "remove", label: "Remove", group: "point", run: () => visibility.hide(point) });
-    actions.push({ id: "remove-model", label: "Remove model", group: "point", run: () => visibility.hide(point, true) });
-    if (hl) actions.push({ id: "star", label: starred ? "Unstar" : "Star", group: "point", run: () => hl.set(togglePoint(hl.items, points, point)) });
+  const ic = { size: 16, stroke: 1.6, "aria-hidden": true as const };
+  const style = { ...pos, "--white": pal.tipBg, "--ink": pal.ink, "--ink-2": pal.ink2, "--hair": pal.tipBorder, "--grey": pal.grey, "--bone": pal.bg } as CSSProperties;
+  const hide = (wholeModel: boolean) => { if (!point) return; lastHidden.set(name, wholeModel ? point.r.model.name : chartLabel(point.r)); visibility.hide(point, wholeModel); };
+
+  function keyDown(e: ReactKeyboardEvent<HTMLElement>) {
+    if (e.key === "Escape" || e.key === "Tab") { e.preventDefault(); e.stopPropagation(); close(); returnFocus.current?.focus(); return; }
+    if (splitKeys(e) || letterKeys(e, root.current)) return;
+    menuKeys(e, root.current);
   }
-  if (visibility.canUndo) actions.push({ id: "undo", label: "Undo", group: "chart", run: visibility.undo });
-  actions.push({ id: "export", label: "Export PNG", group: "chart", run: () => { void exportControl.current?.download("png"); } });
-  if (anchor) actions.push({ id: "copy", label: "Copy chart link", group: "chart", run: () => clickControl(`Copy link to ${name}`) });
-  actions.push({ id: "expand", label: expanded ? "Close expanded chart" : "Expand chart", group: "chart", run: () => clickControl(expanded ? `Close expanded ${name}` : `Expand ${name}`) });
-  const iconProps = { size: 18, stroke: 1.6, "aria-hidden": true as const };
-  const icon: Record<string, ReactNode> = {
-    remove: <IconX {...iconProps} />, "remove-model": <IconTrash {...iconProps} />,
-    star: starred ? <IconStarFilled size={18} aria-hidden="true" /> : <IconStar {...iconProps} />,
-    undo: <IconArrowBackUp {...iconProps} />, export: <ChartDownloadIcon size={18} />,
-    copy: <ChartLinkIcon size={18} />, expand: expanded ? <IconX {...iconProps} /> : <ChartExpandIcon size={18} />,
-  };
-  const style = { ...position, "--white": pal.tipBg, "--ink": pal.ink, "--ink-2": pal.ink2, "--hair": pal.tipBorder, "--grey": pal.grey, "--bone": pal.bg } as CSSProperties;
-  function keyDown(event: ReactKeyboardEvent) {
-    if (event.key === "Escape" || event.key === "Tab") { event.preventDefault(); event.stopPropagation(); close(); returnFocus.current?.focus(); return; }
-    if (event.key === "ArrowRight" && (document.activeElement?.hasAttribute("data-export-disclosure") || document.activeElement?.hasAttribute("data-export-png"))) {
-      event.preventDefault(); setDisclosure(state);
-      requestAnimationFrame(() => root.current?.querySelector<HTMLButtonElement>('[data-export-format]')?.focus());
-      return;
-    }
-    if (event.key === "ArrowLeft" && formatsOpen) {
-      event.preventDefault(); setDisclosure(null);
-      root.current?.querySelector<HTMLButtonElement>('[data-export-disclosure]')?.focus(); return;
-    }
-    if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
-    event.preventDefault();
-    const items = [...root.current!.querySelectorAll<HTMLButtonElement>('button[role="menuitem"]')], at = items.indexOf(document.activeElement as HTMLButtonElement);
-    const next = event.key === "Home" ? 0 : event.key === "End" ? items.length - 1 : (at + (event.key === "ArrowDown" ? 1 : -1) + items.length) % items.length;
-    items[next]?.focus();
-  }
-  return createPortal(<div ref={root} role="menu" aria-label={`${name} chart actions`} className={`chart-context-menu menu-${design}`} style={style} onKeyDown={keyDown} onContextMenu={e => e.preventDefault()}>
-    <div className="chart-context-title">{point ? chartLabel(point.r) : name}</div>
-    {actions.map((action, i) => <div key={action.id} className={i && actions[i - 1].group !== action.group ? "chart-context-section" : undefined}>
-      {design === "grouped" && (i === 0 || actions[i - 1].group !== action.group) && <span className="chart-context-group">{action.group === "point" ? "Selection" : "Chart"}</span>}
-      <div className={action.id === "export" ? "chart-context-export-row" : undefined}>
-        <button role="menuitem" type="button" data-export-png={action.id === "export" || undefined} aria-keyshortcuts={action.id === "undo" ? "Control+Z Meta+Z" : undefined} onClick={() => { try { action.run(); close(); setError(""); } catch { setError("Action unavailable. Try again."); } }}>{design !== "plain" && <span className="chart-context-icon" aria-hidden="true">{icon[action.id]}</span>}<span>{action.label}</span>{action.id === "undo" && <kbd>Ctrl/⌘ Z</kbd>}</button>
-        {action.id === "export" && <button role="menuitem" type="button" className="chart-context-disclosure" data-export-disclosure aria-label="Export formats" aria-haspopup="menu" aria-expanded={formatsOpen} onClick={() => setDisclosure(formatsOpen ? null : state)}><IconCaretRightFilled size={12} aria-hidden="true" /></button>}
-      </div>
-      {action.id === "export" && formatsOpen && <div role="menu" aria-label="Export formats" className="chart-context-formats">
-        {exportControl.current?.formats.filter(format => format !== "png").map(format => <button key={format} role="menuitem" type="button" data-export-format={format} onClick={() => { void exportControl.current?.download(format); close(); }}>{format.toUpperCase()}</button>)}
-      </div>}
-    </div>)}
-    {error && <p role="alert">{error}</p>}
+
+  const title = point
+    ? <div className="chart-context-title chart-context-title-dot"><LabLogo lab={point.r.model.labId} name={point.r.model.name} color={hl?.models.find((m) => m.id === point.r.model.id)?.color} size={14} /><span>{chartLabel(point.r)}</span></div>
+    : <div className="chart-context-title"><span>{name}</span></div>;
+
+  return createPortal(<div ref={root} role="menu" aria-label={`${name} chart actions`} className="chart-context-menu" data-shown={shown || undefined} style={style} onKeyDown={keyDown} onContextMenu={(e) => e.preventDefault()}>
+    {title}
+    {point && <>
+      {hl && <button role="menuitem" type="button" className="chart-context-row" onClick={() => { close(); hl.set(togglePoint(hl.items, points, point)); }}>
+        {starred ? <IconStarFilled size={16} aria-hidden="true" /> : <IconStar {...ic} />}<span className="chart-context-label">{starred ? "Remove highlight" : "Highlight"}</span>
+      </button>}
+      <button role="menuitem" type="button" className="chart-context-row" onClick={() => { close(); hide(false); }}><IconEyeOff {...ic} /><span className="chart-context-label">Hide effort</span></button>
+      <button role="menuitem" type="button" className="chart-context-row" onClick={() => { close(); hide(true); }}><IconEyeOff {...ic} /><span className="chart-context-label">Hide model</span></button>
+      <button role="menuitem" type="button" className="chart-context-row" onClick={() => { close(); router.push(`/models/${point.r.model.id}`); }}><IconExternalLink {...ic} /><span className="chart-context-label">Open model</span></button>
+    </>}
+    {acts.undo && <div className={point ? "chart-context-section" : undefined}><UndoRow a={acts} /></div>}
+    <div className={point || acts.undo ? "chart-context-section" : undefined}><ChartRows a={acts} /></div>
   </div>, document.body);
 }

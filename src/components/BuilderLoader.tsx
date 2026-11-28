@@ -7,6 +7,7 @@ import { Builder } from "./Builder";
 import { useEffect } from "react";
 import { loadECharts } from "./chart/echarts";
 import { useCoreSnapshot } from "./use-core-snapshot";
+import { ChartSkeleton } from "./chart/ChartSkeleton";
 import "./builder.css";
 
 /** The top of the default ranking, drawn from the server's HTML so the page has data before its scripts and dataset arrive. */
@@ -16,7 +17,7 @@ function Preview({ name, rows }: RankingPreview) {
   const max = Math.max(...rows.map((r) => r.score), 1);
   return <section className="builder-rank min-w-0" data-ranking-preview>
     <h1 className="text-[26px] leading-tight mb-1 min-h-8">{name}</h1>
-    <p className="cap mb-3">Scores as published by Artificial Analysis</p>
+    <div className="source-line mb-3 min-h-7">Artificial Analysis</div>
     <ol>{rows.map((r, i) => <li key={r.rank} className={`grid grid-cols-[28px_minmax(0,140px)_minmax(0,1fr)_48px] sm:grid-cols-[28px_minmax(120px,210px)_minmax(0,1fr)_48px] items-center gap-x-3 h-[30px] xl:h-[33px] text-[14px] ${i >= 10 ? "max-lg:hidden" : ""}`}>
       <span className="cap text-right">{r.rank}</span><span className="truncate">{r.name}</span>
       <span className="h-[12px] rounded-[2px] bg-hair-2 overflow-hidden"><i className="block h-full rounded-[2px]" style={{ width: `${(r.score / max * 100).toFixed(2)}%`, background: r.color }} /></span>
@@ -34,7 +35,7 @@ export function BuilderLoader({ initialIndices, preview }: { initialIndices: Ind
   if (preview && !error) return <div className="builder min-h-screen">
     <header className="builder-header flex items-center gap-5 px-4 sm:px-8 h-14 border-b hairline"><Wordmark /><span className="max-sm:hidden"><SiteNav current="builder" /></span><span className="ml-auto"><SettingsButton /></span></header>
     <main className="builder-main mix-closed grid grid-cols-1 gap-10 px-4 sm:px-8 pt-5 lg:pt-8 pb-8 max-w-[1500px] items-start" aria-busy="true">
-      <div className="builder-charts grid gap-10 min-w-0 content-start"><Preview {...preview} /><div className="load-bar w-full h-[620px] max-lg:hidden" /></div>
+      <div className="builder-charts grid gap-10 min-w-0 content-start"><Preview {...preview} /><ChartSkeleton /></div>
     </main>
     <div role="status" className="sr-only">Loading benchmark data…</div>
   </div>;

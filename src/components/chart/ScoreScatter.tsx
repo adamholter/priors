@@ -1,7 +1,8 @@
 "use client";
 import { INDEX_SCORE_AXIS, useScoreAxis } from "./score-axis";
 import { scoreRange } from "./score-scale";
-import { ChartExport, type ExportRow, type ChartExportHandle } from "./ChartExport";
+import { ChartShare, type ExportRow, type ChartShareHandle } from "./ChartShare";
+import { ChartKeyEmpty, ChartKeyPlot, ChartKeyProvider, ChartKeyToolbar, type KeyChart } from "./ChartKey";
 import { decodeEditor, encodeEditor, type EditorState } from "@/lib/export-editor";
 import { chartLinkUrl } from "@/lib/highlight-link";
 import type { ECharts, EChartsOption } from "echarts";
@@ -11,9 +12,12 @@ import { flushSync } from "react-dom";
 import type { Lab } from "@/data/types";
 import { DARK_PALETTE, LIGHT_PALETTE, markColor, useChartPalette, useEChart } from "./echarts";
 import { useChartGrid } from "@/lib/chart-grid-pref";
-import { HighlightList, HighlightMenu, togglePoint, useHighlight } from "./highlight";
+import { useHighlight } from "./highlight";
+import { StarCardButton, StarList, StarMenu, StarScope } from "./StarMenu";
+import { hotPick, starGuides, starTags } from "./star-menu";
+import { toggleStar, useHotStar } from "./star-state";
 import { scatterHtml, unitOf } from "./embed";
-import { ChartLink, type ChartLinkParams } from "./ChartLink";
+import type { ChartLinkParams } from "./ChartLink";
 import { useChartExpand } from "./ChartExpand";
 import { chartLabel, modelLabel } from "@/lib/metrics";
 import { speedTierNote } from "@/data/speed-tiers";
@@ -144,7 +148,7 @@ function PointCard({ history = [], previous, point, labs, pal, onFrontier, forma
   useKeepOnScreen(card, 48, mark);
   return <div ref={card} role="status" aria-label="Selected model" className="absolute right-3 bottom-12 z-10 w-[min(300px,calc(100%-24px))] rounded-[4px] border text-[12px] leading-[1.45] pointer-events-none" style={{ background: pal.tipBg, borderColor: pal.tipBorder, color: pal.ink }}>
     <div className="px-3 pt-2.5 pb-2">
-      <div className="flex items-start justify-between gap-3"><div className="min-w-0"><span className="font-semibold">{modelLabel(r)}</span>{effort && <span style={{ color: pal.grey }}> {effort}</span>}{setup && <span style={{ color: pal.grey }}>, {setup}</span>}</div>{onClose && <button type="button" aria-label="Close selection" className="pointer-events-auto -mr-1 -mt-0.5 p-0.5" style={{ color: pal.grey }} onClick={onClose}><IconX size={13} aria-hidden="true" /></button>}</div>
+      <div className="flex items-start justify-between gap-3"><div className="min-w-0"><span className="font-semibold">{modelLabel(r)}</span>{effort && <span style={{ color: pal.grey }}> {effort}</span>}{setup && <span style={{ color: pal.grey }}>, {setup}</span>}</div>{onClose && <StarCardButton point={point} grey={pal.grey} />}{onClose && <button type="button" aria-label="Close selection" className="pointer-events-auto -mr-1 -mt-0.5 p-0.5" style={{ color: pal.grey }} onClick={onClose}><IconX size={13} aria-hidden="true" /></button>}</div>
       <div style={{ color: pal.grey, fontSize: 11 }}>{lab}{onFrontier ? " · on the frontier" : ""}</div>
     </div>
     <div className="grid border-t" style={{ borderColor: pal.hair, gridTemplateColumns: speed ? "1fr 1.2fr 1fr" : "1fr 1.2fr" }}>
@@ -171,7 +175,7 @@ type ScatterProps = {
   scale?: "linear" | "log" | "time"; formatX: (x: number) => string; formatValue?: (x: number) => string;
   height?: number; aria: string; title?: ReactNode; actions?: ReactNode; view: ScatterView; exportName: string;
   extraRows?: (p: ScatterPoint) => ExportRow; tooltipExtra?: (p: ScatterPoint) => string; anchor?: string; linkParams?: ChartLinkParams;
-  /** The screenshot editor's own copy: the plot only, no toolbar or link, sized by its container. */ bare?: boolean; chartRef?: { current: ECharts | null };
+  /** The screenshot editor's own copy: the plot only, no toolbar or link, sized by its container. */ bare?: boolean; chartRef?: { current: ECharts | null }; /** Lets the chart change its own view (show every model) without a trip to settings. */ onView?: (view: ScatterView, persist?: boolean) => void;
 };
 
 export function ScoreScatter(props: ScatterProps) {
@@ -184,17 +188,16 @@ export function ScoreScatter(props: ScatterProps) {
   const [plotW, setPlotW] = useState(0), [plotH, setPlotH] = useState(height);
   // Before anyone picks models, a Pareto chart shows its frontier and the current flagships only (src/lib/chart-focus.ts); "All models" in its settings shows the rest.
   const hl = useHighlight();
-  const trimmed = defaultScale !== "time" && !view.allModels && !hl?.curated;
+  const canTrim = defaultScale !== "time" && !hl?.curated, trimmed = canTrim && !view.allModels;
   const keepKey = (hl?.items ?? []).join(",");
   const allPoints = useMemo(() => trimmed ? focusPoints(chartPoints, better, keepKey ? keepKey.split(",") : []) : chartPoints, [trimmed, chartPoints, better, keepKey]);
-  const trimmedModels = trimmed ? new Set(chartPoints.map((p) => p.r.model.id)).size - new Set(allPoints.map((p) => p.r.model.id)).size : 0;
   const grid = useChartGrid(useChartPalette());
   const effectiveLinkParams = { ...linkParams, ls: Math.round(labelScale(view.labelScale) * 100), extra: { ...linkParams?.extra, cf: view.allModels ? "all" : undefined, xs: undefined, xv: viewParam({ ...view, grid }) } };
   const visibility = useChartVisibility(allPoints, anchor ?? exportName, effectiveLinkParams);
   // "Only Pareto-optimal models": the frontier of what the chart shows, at its current pricing, and nothing else.
   const pts = useMemo(() => view.paretoOnly ? frontierOf(visibility.points, better) : visibility.points, [view.paretoOnly, visibility.points, better]);
   const context = useChartContextMenu();
-  const exportControl = useRef<ChartExportHandle>(null);
+  const exportControl = useRef<ChartShareHandle>(null);
   const contextPick = useRef(context.pointMenu);
   useEffect(() => { contextPick.current = context.pointMenu; });
   const narrow = plotW > 0 && plotW < 560;
@@ -226,7 +229,8 @@ export function ScoreScatter(props: ScatterProps) {
     try { return placed.map((p) => { const [x, y] = c.convertToPixel({ xAxisIndex: 0, yAxisIndex: 0 }, [p.x, p.r.score]) as number[]; return { x, y }; }); } catch { return undefined; }
   }, [placed]);
   const hlItems = hl?.items;
-  const highlight = useMemo<Highlight | undefined>(() => hlItems?.length ? { items: hlItems, guides: view.guides !== false } : undefined, [hlItems, view.guides]);
+  const highlight = useMemo<Highlight | undefined>(() => hlItems?.length ? starTags({ items: hlItems, guides: view.guides !== false }) : undefined, [hlItems, view.guides]);
+  const starHot = useHotStar();
   // Easter egg (Konami code): marks off the frontier drop to the x-axis. See GravityLayer.
   const gravity = useGravity() && !!view.frontier;
   const fallen = useMemo(() => { if (!gravity) return undefined; const on = new Set(frontier.map((p) => p.r.variant.id)); return new Set(pts.filter((p) => !on.has(p.r.variant.id)).map((p) => p.r.variant.id)); }, [gravity, pts, frontier]);
@@ -243,7 +247,8 @@ export function ScoreScatter(props: ScatterProps) {
   const [hover, setHover] = useState<ScatterPoint | null>(null), [pinned, setPinned] = useState<ScatterPoint | null>(null);
   // Clicking a mark toggles that exact effort's highlight (several efforts per model are allowed).
   const pick = useRef<(p: ScatterPoint) => void>(() => {});
-  useEffect(() => { pick.current = (p) => { setPinned((cur) => (cur?.r.variant.id === p.r.variant.id ? null : p)); if (hl) hl.set(togglePoint(hl.items, pts, p)); }; }, [hl, pts]);
+  // A touch screen reads the card on the first tap and stars on the second (or from the card's own star); a mouse click stars at once.
+  useEffect(() => { pick.current = (p) => { setPinned((cur) => (cur?.r.variant.id === p.r.variant.id ? null : p)); if (hl && (!window.matchMedia("(pointer: coarse)").matches || pinned?.r.variant.id === p.r.variant.id)) toggleStar(hl, pts, p); }; }, [hl, pts, pinned]);
   // Rebuild series so mark traversal follows the new label priority after slider/filter changes.
   // Merge mode retains the previous graphic order even when the data array is reordered.
   const { ref, chart } = useEChart(option, [option], (c) => {
@@ -307,9 +312,9 @@ export function ScoreScatter(props: ScatterProps) {
   // scale (log, linear, time) and carry value badges on the axes. Part of the SVG, so exports include them.
   // The point under the cursor, or the one a click pinned (a tap on touch screens), is drawn with crosshair guides and described in a corner card.
   const focus = useMemo(() => {
-    const pick = hover ?? pinned;
+    const pick = hover ?? pinned ?? hotPick(shown, starHot);
     return pick ? shown.find((p) => p.r.variant.id === pick.r.variant.id) ?? null : null;
-  }, [hover, pinned, shown]);
+  }, [hover, pinned, shown, starHot]);
   const zoomable = zoom.enabled;
   const pathLayer = useRef<SVGSVGElement>(null), pathId = useId().replace(/\W/g, "");
   const { lineage, lineageIdle, lineageOnCard } = props;
@@ -349,7 +354,7 @@ export function ScoreScatter(props: ScatterProps) {
     for (const label of labels) { const b = (label as SVGGraphicsElement).getBBox(); label.before(make("rect", { class: "model-path-mark", x: b.x - 3, y: b.y - 1, width: b.width + 6, height: b.height + 2, rx: 2, fill: pal.bg })); }
   }, [pathFocus, steps, zoom.dragging, zoomRange, plotW, plotH, labs, pal, pathId, chart]);
   const guides = useMemo(() => {
-    const base = guidePoints(shown, highlight);
+    const base = guidePoints(shown, starGuides(highlight));
     return focus && !base.some((p) => p.r.variant.id === focus.r.variant.id) ? [...base, focus] : base;
   }, [shown, highlight, focus]);
   useEffect(() => {
@@ -551,36 +556,36 @@ export function ScoreScatter(props: ScatterProps) {
       }) : [],
     });
   };
+  const keyChart: KeyChart = { bare: !!bare, anchor, exportName, labs, pal, better, pts, shown, chartPoints, allPoints, canTrim, trimmed, visibility, view, onView: props.onView, hl, frontier, plotW, plotH, chart, wrap: wrapRef, labelAt, hover, pinned };
   return (
-    <>{expand.backdrop}<div ref={wrapRef} id={bare ? undefined : anchor} className={`${bare ? "" : "max-sm:-mx-4 "}scroll-mt-20 ${expand.expanded ? "chart-expanded" : ""}`} role={expand.expanded ? "dialog" : undefined} aria-modal={expand.expanded || undefined} aria-label={expand.expanded ? exportName : undefined}>
+    <ChartKeyProvider chart={keyChart}>{expand.backdrop}<div ref={wrapRef} id={bare ? undefined : anchor} className={`${bare ? "" : "max-sm:-mx-4 "}scroll-mt-20 ${expand.expanded ? "chart-expanded" : ""}`} role={expand.expanded ? "dialog" : undefined} aria-modal={expand.expanded || undefined} aria-label={expand.expanded ? exportName : undefined}>
       {/* Untitled charts (gallery panels) float their controls over the plot's empty top margin. */}
-      {!bare && <div className={`chart-toolbar flex flex-wrap items-center justify-between gap-x-4 gap-y-1 max-sm:px-4 min-h-8 ${title || expand.expanded ? "mb-1" : "-mb-8 relative z-10 pointer-events-none"}`}>
-        <div className="min-w-0">{title ?? (expand.expanded && <h2 className="text-[22px]">{exportName}</h2>)}<HighlightList /></div>
+      {!bare && <StarScope pts={pts} drawn={shown} better={better} xName={xShort ?? xName}><div className={`chart-toolbar flex flex-wrap items-center justify-between gap-x-4 gap-y-1 max-sm:px-4 min-h-8 ${title || expand.expanded ? "mb-1" : "-mb-8 relative z-10 pointer-events-none"}`}>
+        <div className="min-w-0">{title ?? (expand.expanded && <h2 className="text-[22px]">{exportName}</h2>)}<StarList /></div>
         <div className="flex items-center gap-1 ml-auto pointer-events-auto">
-          <HighlightMenu label={exportName} />
-          {visibility.canUndo && <button type="button" className="cap hover:text-ink" onClick={visibility.undo} aria-label="Undo chart removal">Undo</button>}
+          <StarMenu label={exportName} />
+          <ChartKeyToolbar />
           {zoom.controls}
           {actions}
-          {anchor && <ChartLink id={anchor} name={exportName} params={{ ...effectiveLinkParams, hidden: visibility.hidden }} />}
-          <ChartExport ref={exportControl} name={exportName} frame onEdit={anchor ? openEditor : undefined} getHtml={getHtml} getSvg={() => chart.current?.renderToSVGString()} getRows={() => pts.map((p) => ({ rank: p.r.rank, model: p.r.model.name, effort: p.r.variant.effort, score: +p.r.score.toFixed(2), lab: p.r.model.labId, [xName]: +(p.raw ?? p.x).toFixed(4), on_frontier: onFrontierIds.has(p.r.variant.id), ...extraRows?.(p) }))} />
+          <ChartShare ref={exportControl} link={anchor ? { id: anchor, name: exportName, params: { ...effectiveLinkParams, hidden: visibility.hidden } } : undefined} name={exportName} frame onEdit={anchor ? openEditor : undefined} getHtml={getHtml} getSvg={() => chart.current?.renderToSVGString()} getRows={() => pts.map((p) => ({ rank: p.r.rank, model: p.r.model.name, effort: p.r.variant.effort, score: +p.r.score.toFixed(2), lab: p.r.model.labId, [xName]: +(p.raw ?? p.x).toFixed(4), on_frontier: onFrontierIds.has(p.r.variant.id), ...extraRows?.(p) }))} />
           {expand.button}
         </div>
-      </div>}
+      </div></StarScope>}
       <div className={`relative ${expand.expanded ? "flex-1 min-h-0" : ""}`} style={zoom.surface}>
         <div ref={ref} role="img" aria-label={aria} data-points={shown.map((p) => p.r.variant.id).sort().join(",")} data-zoomed={zoom.enabled ? String(zoom.zoomed) : undefined} tabIndex={0} onContextMenu={onContextMenu} onKeyDown={context.onKeyDown} style={{ width: "100%", height: expand.expanded ? "100%" : bare ? height : Math.round(height * (pal.size?.height ?? 1)), overflow: "hidden", position: "relative", isolation: "isolate" }} />
         {scaleMorph && <ScaleMorphLayer key={scaleMorph.run} {...scaleMorph} onDone={() => setScaleMorph(null)} />}
         {fall && !!fallen?.size && <GravityLayer key={fall.run} dots={fall.dots} width={fall.width} height={fall.height} floor={fall.floor} left={fall.left} right={fall.right} stroke={pal.bg} />}
-        {!pts.length && <p className="cap absolute inset-0 grid place-items-center">No model in this view has this metric.</p>}
+        <ChartKeyEmpty empty={!pts.length} />
+        <ChartKeyPlot />
         <svg ref={pathLayer} aria-hidden="true" className="absolute inset-0 z-[5] pointer-events-none" width="100%" height="100%" />
         {zoom.overlay}
         {focus && !zoom.dragging && <PointCard history={lineageOnCard ? steps : undefined} previous={lineageOnCard && steps.at(-1)?.r.variant.effort === focus.r.variant.effort ? steps.at(-1) : undefined} mark={() => { try { const [x, y] = chart.current?.convertToPixel({ xAxisIndex: 0, yAxisIndex: 0 }, [focus.x, focus.r.score]) as number[]; return Number.isFinite(x) && Number.isFinite(y) ? { x, y } : undefined; } catch { return undefined; } }} point={focus} labs={labs} pal={pal} onFrontier={view.frontier && onFrontierIds.has(focus.r.variant.id)} format={formatValue ?? formatX} unit={xUnit} extra={[tooltipExtra?.(focus), focus.r.speedTier ? ` · ${speedTierNote(focus.r)}` : ""].filter(Boolean).join("") || undefined} xLabel={xShort ?? xName} onClose={pinned && !hover ? () => setPinned(null) : undefined} />}
       </div>
-      {!bare && trimmedModels > 0 && <p className="cap mt-1 max-sm:px-4 pr-16">{trimmedModels} more models under All models in settings.</p>}
       {!bare && zoom.box && <p className="cap mt-1 max-sm:px-4 pr-16" role="status">Zoomed to {formatX(zoom.box.x[0])} to {formatX(zoom.box.x[1])}, {axis.name.toLowerCase()} {axis.format(zoom.box.y[0])} to {axis.format(zoom.box.y[1])}: {new Set(shown.map((p) => p.r.model.id)).size} of {new Set(pts.map((p) => p.r.model.id)).size} models. <button type="button" className="underline hover:text-ink" onClick={zoom.reset}>Show all</button></p>}
       {!bare && <ChartContextMenu exportControl={exportControl} state={context.menu} close={context.close} name={exportName} points={pts} visibility={visibility} chart={chart} wrap={wrapRef} expanded={expand.expanded} anchor={anchor} />}
       {editor && <ExportEditor name={exportName} initial={editor} viewOnly={editor.viewOnly} defaultScale={defaultScale === "log" ? "log" : "linear"} base={view} showScale={defaultScale !== "time"} onClose={closeEditor}
         link={(xe) => chartLinkUrl(window.location.href, anchor ?? exportName, { ...effectiveLinkParams, hidden: visibility.hidden, extra: { ...effectiveLinkParams.extra, xe: encodeEditor(xe) } }, hl ?? undefined).toString()}
         plot={(v, h, ref) => <ScoreScatter {...props} bare view={v} height={h} chartRef={ref} />} />}
-    </div></>
+    </div></ChartKeyProvider>
   );
 }

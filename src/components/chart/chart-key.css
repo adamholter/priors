@@ -1,0 +1,57 @@
+/* Chart key and left-out models (ChartKey.tsx). Tokens only; every motion is off under reduced motion. */
+
+/* Undo as an icon in a slot that opens from nothing, so the controls beside it glide */
+.chart-undo-slot { display: inline-grid; grid-template-columns: 0fr; transition: grid-template-columns .16s cubic-bezier(.16, 1, .3, 1); }
+.chart-undo-slot[data-open="true"] { grid-template-columns: 1fr; }
+.chart-undo-slot > .chart-undo { min-width: 0; overflow: hidden; }
+.chart-undo { display: inline-grid; place-items: center; height: 28px; width: 28px; padding: 0; border: 0; border-radius: 4px; background: none; color: var(--grey); cursor: pointer; }
+.chart-undo-slot[data-open="false"] > .chart-undo { visibility: hidden; transition: visibility 0s .16s; }
+.chart-undo:hover { color: var(--ink); }
+.chart-undo:focus-visible { outline: 2px solid var(--indigo); outline-offset: -2px; }
+
+/* Empty plot: opaque over the chart's ghost ticks, never in the way of the chart's own right-click menu */
+.chart-empty { background: var(--bone); }
+.chart-empty-in { max-width: min(320px, 86%); text-align: center; }
+
+/* The lab key: not on the chart until someone looks, in the emptiest corner, never takes the pointer */
+.chart-key { position: absolute; width: 132px; pointer-events: none; transition: opacity .14s ease-out; }
+.chart-key[data-on="false"] { opacity: 0; }
+.chart-key-row { display: flex; align-items: center; gap: 7px; height: 18px; }
+.chart-key-text { font: 11px/1 var(--font-mono); color: var(--ink-2); -webkit-text-stroke: 3px var(--bone); paint-order: stroke fill; white-space: nowrap; }
+
+/* The eye: what the chart leaves out. A phone toolbar has no room for a digit beside it, so there it rides on the icon's corner. */
+.chart-eye { position: relative; }
+@media (max-width: 420px) { .chart-eye { padding: 5px 3px; } .chart-eye-count { position: absolute; top: 0; right: -2px; font-size: 9px; line-height: 1; } }
+/* Finger taps: the eye's and Undo's 40px zones would overlap by 11px; a gap before an open Undo splits them. */
+@media (pointer: coarse) { .chart-undo-slot[data-open="true"] { margin-left: 8px; } }
+.chart-eye-count { display: inline-block; animation: chart-eye-pop .3s cubic-bezier(.16, 1, .3, 1) both; }
+.chart-left-out .chart-left-row { display: grid; grid-template-rows: 1fr; transition: grid-template-rows .16s ease, opacity .16s ease; }
+.chart-left-out .chart-left-row[data-leaving] { grid-template-rows: 0fr; opacity: 0; }
+.chart-left-row-in { display: flex; align-items: center; gap: 8px; min-height: 32px; padding: 0 2px 0 8px; overflow: hidden; font: 13px/1.3 var(--font-sans); color: var(--ink); border-radius: 3px; }
+.chart-left-row:hover .chart-left-row-in { background: var(--bone); }
+.chart-left-btn { display: inline-grid; place-items: center; width: 28px; height: 28px; margin-left: auto; padding: 0; border: 0; border-radius: 4px; background: none; color: var(--grey); cursor: pointer; flex: none; }
+.chart-left-btn:hover { color: var(--ink); }
+.chart-left-btn:focus-visible { outline: 2px solid var(--indigo); outline-offset: -2px; }
+
+/* The info popover holds the reading key above the methodology prose; it scrolls inside itself before it runs off a short screen */
+.chart-method-pop:has(.chart-reading) { max-height: min(72dvh, 620px); overflow-y: auto; overscroll-behavior: contain; }
+
+/* Previews of left-out models on the plot */
+.chart-ghost-ring, .chart-ghost-mark { animation: chart-key-fade .12s both; }
+
+/* The cost chart's place on the page while the dataset loads */
+.chart-skeleton-btn { display: block; width: 28px; height: 28px; border-radius: 4px; background: var(--hair-2); }
+.chart-skeleton-plot { position: relative; height: calc(100% - 64px); }
+.chart-skeleton-title { display: block; width: min(300px, 60%); height: 22px; border-radius: 4px; }
+.chart-sketch { display: block; animation: load-pulse 1.4s ease-in-out infinite; }
+.chart-sketch[data-still] { animation: none; opacity: .6; }
+.chart-sketch[data-fill] { position: absolute; inset: 0; }
+
+.chart-key-toast { width: max-content; max-width: calc(100vw - 32px); }
+
+@keyframes chart-key-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes chart-eye-pop { from { opacity: 0; transform: scale(.55); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .chart-undo-slot, .chart-key, .chart-left-out .chart-left-row { transition: none; }
+  .chart-eye-count, .chart-ghost-ring, .chart-ghost-mark, .chart-sketch { animation: none; }
+}

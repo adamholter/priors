@@ -11,7 +11,7 @@ export function useChartExpand(name: string) {
   const trigger = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     if (!expanded) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape" && !document.querySelector('details[name="chart-settings"][open], .chart-context-menu')) close(); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape" && !document.querySelector('details[name="chart-settings"][open], .chart-context-menu, .star-panel, .star-sheet-root')) close(); };
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     window.addEventListener("keydown", onKey);
@@ -19,7 +19,7 @@ export function useChartExpand(name: string) {
   }, [expanded]);
   function close() { setExpanded(false); requestAnimationFrame(() => trigger.current?.focus()); }
   const button = (
-    <button ref={trigger} type="button" className="p-1.5 text-grey hover:text-ink rounded-sm focus-visible:outline-indigo" aria-label={expanded ? `Close expanded ${name}` : `Expand ${name}`} title={expanded ? "Close (Esc)" : "Expand"} aria-expanded={expanded} onClick={() => (expanded ? close() : setExpanded(true))}>
+    <button ref={trigger} type="button" data-chart-expand className="p-1.5 pointer-coarse:p-3 text-grey hover:text-ink rounded-sm focus-visible:outline-indigo" aria-label={expanded ? `Close expanded ${name}` : `Expand ${name}`} title={expanded ? "Close (Esc)" : "Expand"} aria-expanded={expanded} onClick={() => (expanded ? close() : setExpanded(true))}>
       {expanded
         ? <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg>
         : <ChartExpandIcon />}

@@ -41,6 +41,7 @@ Read the one for the area you are changing. Update it in the same change when be
 - `docs/onboarding.md`: the matchups, the review list, the weight search and its scoring.
 - `docs/assistant.md`: mix assistant, edit solver, spend caps, the agent API and skill.
 - `docs/design.md`: tokens, type, light and dark, copy and style rules.
+- `docs/logos.md`: lab logos (`public/logos`, `src/data/lab-logos.ts`), their dark-mode rule, lab chart colors, sources, adding a lab.
 - `docs/operations.md`: environments, checks and deploys, the scrape job, sign-in, analytics, browser storage.
 
 ## Rules that must hold

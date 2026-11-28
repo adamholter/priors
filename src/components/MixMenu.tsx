@@ -1,51 +1,118 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
-import { IconCheck, IconChevronDown, IconPencil, IconPlus, IconX } from "@tabler/icons-react";
+import Link from "next/link";
+import { useDeferredValue, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type RefObject } from "react";
+import { IconArrowsSort, IconChartPie, IconCheck, IconChevronDown, IconPencil, IconPlus, IconRestore, IconX } from "@tabler/icons-react";
+import type { Snapshot } from "@/data/types";
+import { computeIndex, PAGE_VIEW, rankingRows, type IndexConfig } from "@/engine";
+import { isPristineDefault } from "@/lib/default-index";
+import { usePlanResetsOn, withResetsPref } from "@/lib/plan-resets-pref";
+import { useSubscriptionPlansPref, withPlansPref } from "@/lib/subscription-plans-pref";
+import { LabLogo } from "./LabLogo";
+import { useDismiss, useKeepOnScreen } from "./use-popover";
+import "./mix-menu.css";
+
+type Top = { labId: string; name: string };
+const NO_MIXES: IndexConfig[] = [];
+
+/** The three leading labs of each mix, worked out after the menu has opened and only when there is more than one mix to compare. */
+function useTopThree(snapshot: Snapshot, indices: IndexConfig[]) {
+  const resetsOn = usePlanResetsOn(), plansPref = useSubscriptionPlansPref();
+  const configs = useDeferredValue(indices.length > 1 ? indices : NO_MIXES, NO_MIXES);
+  return useMemo(() => {
+    const out: Record<string, Top[]> = {};
+    for (const cfg of configs) {
+      out[cfg.id] = [];
+      if (!Object.values(cfg.weights).some((w) => w > 0)) continue;
+      try {
+        const r = computeIndex(snapshot, { ...withPlansPref(withResetsPref(cfg, resetsOn), plansPref), variants: "all" }, PAGE_VIEW);
+        out[cfg.id] = rankingRows(r.ranked, cfg).slice(0, 3).map((x) => ({ labId: x.model.labId, name: x.model.name }));
+      } catch { /* a mix that cannot be scored has no leaders to show */ }
+    }
+    return out;
+  }, [snapshot, configs, resetsOn, plansPref]);
+}
+
+type MenuProps = {
+  snapshot: Snapshot; indices: IndexConfig[]; active: IndexConfig; mixOpen: boolean; openMix: () => void;
+  onSelect: (id: string) => void; onRename: (id: string, name: string) => void; onRemove: (id: string) => void;
+  /** Adds a copy of the active mix, named from its benchmarks, selects it and returns it. */
+  onAdd: () => { id: string; name: string };
+};
+
+function MixPanel({ snapshot, indices, active, mixOpen, openMix, onSelect, onAdd, onRename, onRemove, onClose, anchor }: MenuProps & { onClose: (restoreFocus: boolean) => void; anchor: RefObject<HTMLElement | null> }) {
+  const [renaming, setRenaming] = useState(false), [draft, setDraft] = useState("");
+  const panel = useRef<HTMLDivElement>(null), input = useRef<HTMLInputElement>(null);
+  const tops = useTopThree(snapshot, indices);
+  // Leaders say something only where the mixes disagree about them: the same three logos on every row would be noise.
+  const leaders = (id: string) => (tops[id] ?? []).map((t) => t.labId).join();
+  const varied = indices.length > 1 && new Set(indices.map((i) => leaders(i.id))).size > 1;
+  useDismiss(true, [panel, anchor], () => onClose(false), () => onClose(true));
+  useKeepOnScreen(true, panel);
+  useEffect(() => {
+    const first = panel.current?.querySelector<HTMLElement>('[aria-checked="true"]') ?? panel.current?.querySelector<HTMLElement>('[role^="menuitem"]');
+    first?.focus({ preventScroll: true });
+  }, []);
+  useEffect(() => { if (renaming) input.current?.select(); }, [renaming]);
+  const close = (restore = false) => { setRenaming(false); onClose(restore); };
+  const commit = (restore = false) => { const name = draft.trim(); if (name && name !== active.name) onRename(active.id, name); close(restore); };
+  const lone = indices.length === 1;
+  // Arrow keys, Home and End move through the rows; a letter jumps to the next row that starts with it; Tab leaves the menu.
+  const keys = (e: ReactKeyboardEvent) => {
+    const items = [...(panel.current?.querySelectorAll<HTMLElement>('[role^="menuitem"]') ?? [])];
+    if (!items.length || (e.target as HTMLElement).tagName === "INPUT") return;
+    const at = items.indexOf(document.activeElement as HTMLElement);
+    const go = (i: number) => { e.preventDefault(); items[(i + items.length) % items.length].focus(); };
+    if (e.key === "ArrowDown") go(at + 1);
+    else if (e.key === "ArrowUp") go(at < 0 ? items.length - 1 : at - 1);
+    else if (e.key === "Home") go(0);
+    else if (e.key === "End") go(items.length - 1);
+    else if (e.key === "Tab") onClose(false);
+    else if (e.key.length === 1 && /\S/.test(e.key) && !e.metaKey && !e.ctrlKey) {
+      const k = e.key.toLowerCase();
+      for (let o = 1; o <= items.length; o++) { const el = items[(at + o) % items.length]; if (el.textContent?.trim().toLowerCase().startsWith(k)) { el.focus(); break; } }
+    }
+  };
+  const icon = { size: 16, stroke: 1.75, "aria-hidden": true } as const;
+  return <div ref={panel} role="menu" aria-label="Mixes" className="mix-menu-panel" onKeyDown={keys}>
+    <div className="mix-menu-list">
+      {indices.map((i) => i.id === active.id && renaming
+        ? <form key={i.id} className="mix-menu-rename" onSubmit={(e) => { e.preventDefault(); commit(true); }}>
+          <input ref={input} autoFocus value={draft} onChange={(e) => setDraft(e.target.value)} onBlur={() => commit()} aria-label="Mix name" maxLength={80} />
+        </form>
+        : <button key={i.id} type="button" role="menuitemradio" aria-checked={i.id === active.id} tabIndex={-1} title={i.name} onClick={() => { onSelect(i.id); close(true); }} className="mix-menu-item">
+          <span className="mix-menu-name">{i.name}</span>
+          {varied && <span className="mix-menu-tops" role="img" aria-label={tops[i.id]?.length ? `Top 3: ${tops[i.id].map((t) => t.name).join(", ")}` : "No ranking"}>
+            {(tops[i.id] ?? []).map((t, k) => { const lab = snapshot.labs.find((l) => l.id === t.labId); return <LabLogo key={k} lab={t.labId} name={lab?.name ?? t.labId} color={lab?.color} size={14} />; })}
+          </span>}
+          <span className="mix-menu-check">{i.id === active.id && <IconCheck size={16} stroke={2} aria-hidden="true" />}</span>
+        </button>)}
+    </div>
+    <div className="mix-menu-sep" role="separator" />
+    <button type="button" role="menuitem" tabIndex={-1} className="mix-menu-item" onClick={() => { const n = onAdd(); setDraft(n.name); setRenaming(true); }}><IconPlus {...icon} />New mix</button>
+    <button type="button" role="menuitem" tabIndex={-1} className="mix-menu-item" onClick={() => { setDraft(active.name); setRenaming(true); }}><IconPencil {...icon} />Rename this mix</button>
+    {!lone && <button type="button" role="menuitem" tabIndex={-1} className="mix-menu-item" onClick={() => { onRemove(active.id); close(true); }}><IconX {...icon} />Close this mix</button>}
+    {lone && !isPristineDefault(active) && <button type="button" role="menuitem" tabIndex={-1} className="mix-menu-item" onClick={() => { onRemove(active.id); close(true); }}><IconRestore {...icon} />Reset to the default mix</button>}
+    <div className="mix-menu-sep" role="separator" />
+    <Link href="/rank" role="menuitem" tabIndex={-1} className="mix-menu-item" transitionTypes={["nav-forward"]}><IconArrowsSort {...icon} />Rank models</Link>
+    {!mixOpen && <button type="button" role="menuitem" tabIndex={-1} className="mix-menu-item" onClick={() => { openMix(); close(false); }}><IconChartPie {...icon} />Change the mix</button>}
+  </div>;
+}
 
 /**
- * The ranking's title is the mix's name; clicking it opens the mixes you have open (switch by clicking one), a new mix (a copy of this
- * one, as the tabs' + makes), renaming this one in place, and closing it. From Faye Quepeerzade's header mockups (November 2026).
+ * The ranking's title is the mix's name; clicking it opens the mixes you have open (switch by clicking one), a new mix (a copy of this one),
+ * renaming this one in place, closing it (or resetting the only one), and the two ways to make your own: Rank models and Change the mix.
+ * From Faye Quepeerzade's header mockups (November 2026).
  */
-export function MixMenu({ indices, activeId, onSelect, onAdd, onRename, onRemove }: {
-  indices: { id: string; name: string }[]; activeId: string;
-  onSelect: (id: string) => void; onAdd: () => { id: string; name: string }; onRename: (id: string, name: string) => void; onRemove: (id: string) => void;
-}) {
-  const [open, setOpen] = useState(false), [renaming, setRenaming] = useState(false), [draft, setDraft] = useState("");
-  const box = useRef<HTMLDivElement>(null), input = useRef<HTMLInputElement>(null), trigger = useRef<HTMLButtonElement>(null);
-  const active = indices.find((i) => i.id === activeId) ?? indices[0];
-  const close = () => { setOpen(false); setRenaming(false); };
-  const cut = active.name.lastIndexOf(" ") + 1, head = active.name.slice(0, cut), tail = active.name.slice(cut);
-  useEffect(() => {
-    if (!open) return;
-    const away = (e: MouseEvent) => { if (!box.current?.contains(e.target as Node)) close(); };
-    const key = (e: KeyboardEvent) => { if (e.key === "Escape") { close(); trigger.current?.focus(); } };
-    document.addEventListener("mousedown", away); document.addEventListener("keydown", key);
-    return () => { document.removeEventListener("mousedown", away); document.removeEventListener("keydown", key); };
-  }, [open]);
-  useEffect(() => { if (renaming) input.current?.select(); }, [renaming]);
-  const startRename = (name: string) => { setDraft(name); setRenaming(true); };
-  const commit = () => { const name = draft.trim(); if (name && name !== active.name) onRename(active.id, name); close(); };
-  const item = "flex w-full items-center gap-2.5 px-3 py-2 rounded text-left text-[13.5px] text-ink-2 hover:bg-hair-2 hover:text-ink";
+export function MixMenu(props: MenuProps) {
+  const [open, setOpen] = useState(false);
+  const box = useRef<HTMLDivElement>(null), trigger = useRef<HTMLButtonElement>(null);
+  const name = props.active.name, cut = name.lastIndexOf(" ") + 1, head = name.slice(0, cut), tail = name.slice(cut);
   return <div ref={box} className="relative inline-block max-w-full">
-    <button ref={trigger} type="button" aria-haspopup="menu" aria-expanded={open} onClick={() => (open ? close() : setOpen(true))}
+    <button ref={trigger} type="button" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)}
       className="mix-menu-trigger -mx-2 px-2 py-0.5 rounded-md hover:bg-hair-2 text-left" title="Switch, rename or add a mix">
       {/* The chevron stays on the line with the name's last word, however the title wraps. */}
       {head}<span className="whitespace-nowrap">{tail}<IconChevronDown size={18} stroke={1.75} aria-hidden="true" className="ml-1.5 text-grey" style={{ display: "inline-block", verticalAlign: "middle" }} /></span>
     </button>
-    {open && <div role="menu" aria-label="Mixes" className="absolute left-0 top-full mt-2 z-50 w-[min(340px,calc(100vw-32px))] grid gap-0.5 p-1.5 bg-white border hairline rounded-lg shadow-[0_18px_40px_-18px_var(--shadow)] font-sans">
-      <p className="cap px-3 pt-1.5 pb-1">Open mixes</p>
-      {indices.map((i) => i.id === active.id && renaming
-        ? <form key={i.id} className="px-1.5 py-1" onSubmit={(e) => { e.preventDefault(); commit(); }}>
-          <input ref={input} value={draft} onChange={(e) => setDraft(e.target.value)} onBlur={commit} aria-label="Mix name" maxLength={80}
-            className="w-full h-9 px-2.5 rounded-md border border-ink bg-white text-[14px] text-ink outline-none" />
-        </form>
-        : <button key={i.id} type="button" role="menuitemradio" aria-checked={i.id === active.id} onClick={() => { onSelect(i.id); close(); }} className={`${item} ${i.id === active.id ? "text-ink" : ""}`}>
-          <span className="min-w-0 flex-1 truncate font-serif text-[15px]">{i.name}</span>{i.id === active.id && <IconCheck size={16} stroke={2} aria-hidden="true" className="text-indigo" />}
-        </button>)}
-      <div className="h-px bg-hair my-1" role="separator" />
-      <button type="button" role="menuitem" className={item} onClick={() => { const n = onAdd(); setDraft(n.name); setRenaming(true); }}><IconPlus size={16} stroke={1.75} aria-hidden="true" />New mix</button>
-      <button type="button" role="menuitem" className={item} onClick={() => startRename(active.name)}><IconPencil size={16} stroke={1.75} aria-hidden="true" />Rename this mix</button>
-      {indices.length > 1 && <button type="button" role="menuitem" className={item} onClick={() => { onRemove(active.id); close(); }}><IconX size={16} stroke={1.75} aria-hidden="true" />Close this mix</button>}
-    </div>}
+    {open && <MixPanel {...props} anchor={box} onClose={(restore) => { setOpen(false); if (restore) trigger.current?.focus(); }} />}
   </div>;
 }

@@ -1,0 +1,33 @@
+/* The star in a chart's header and the starred names under its title. The picker itself is star-panel.css, loaded on first open. Tokens only. */
+
+.star-menu { position: relative; flex: none; }
+.star-trigger { position: relative; display: inline-flex; align-items: center; gap: 3px; height: 28px; min-width: 28px; justify-content: center; padding: 0 6px; border: 0; border-radius: 4px; background: transparent; color: var(--grey); cursor: pointer; }
+.star-trigger:hover { color: var(--ink); }
+.star-trigger[data-on="true"] { color: var(--indigo); }
+.star-trigger:focus-visible, .star-x:focus-visible, .star-more:focus-visible { outline: 2px solid var(--indigo); outline-offset: 1px; }
+.star-n { font-family: var(--font-mono); font-size: 11px; font-variant-numeric: tabular-nums; line-height: 1; }
+.star-n[data-pulse] { animation: star-bump 260ms ease-out; }
+@keyframes star-bump { 0% { transform: scale(1); } 35% { transform: scale(1.5); } 100% { transform: scale(1); } }
+.chart-toolbar:has(.star-panel) { position: relative; z-index: 60; }
+
+/* The names line: one row that folds open under the title and never grows. */
+.star-listwrap { display: grid; grid-template-rows: 0fr; pointer-events: auto; width: 0; min-width: 100%; }
+.star-listwrap[data-solo] { width: auto; min-width: 0; }
+.star-listwrap[data-anim="true"] { transition: grid-template-rows 140ms ease-in; }
+.star-listwrap[data-open="true"] { grid-template-rows: 1fr; }
+.star-listwrap[data-anim="true"][data-open="true"] { transition: grid-template-rows 180ms ease-out; }
+.star-listclip { overflow: hidden; min-height: 0; }
+.star-listwrap[data-solo] .star-names { margin-top: 0; }
+.star-names { display: flex; align-items: center; gap: 4px 12px; height: 24px; margin-top: 4px; font-size: 12.5px; white-space: nowrap; overflow: hidden; }
+.star-name { display: inline-flex; align-items: center; gap: 6px; min-width: 0; flex: 0 1 auto; max-width: 226px; }
+.star-name > i { width: 7px; height: 7px; border-radius: 50%; flex: none; background: var(--grey); }
+.star-name > .lab-logo { flex: none; }
+.star-name-t { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.star-x { display: inline-grid; place-items: center; width: 24px; height: 24px; margin-left: -4px; flex: none; border: 0; background: transparent; color: var(--grey); border-radius: 3px; cursor: pointer; }
+.star-x:hover { color: var(--ink); }
+.star-more { position: relative; font-family: var(--font-mono); font-size: 11px; color: var(--grey); background: none; border: 0; padding: 0 4px; min-width: 24px; height: 24px; cursor: pointer; flex: none; }
+.star-more:hover { color: var(--ink); }
+.star-delta { display: inline-flex; align-items: center; gap: 5px; flex: none; margin-left: 4px; color: var(--grey); white-space: nowrap; }
+.star-delta > i { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+.star-delta .num { color: var(--ink); font-size: 11.5px; }
+@media (prefers-reduced-motion: reduce) { .star-n[data-pulse] { animation: none; } .star-listwrap[data-anim="true"], .star-listwrap[data-anim="true"][data-open="true"] { transition: none; } }

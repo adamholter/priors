@@ -1,0 +1,98 @@
+/* Chart header share controls (ChartShare.tsx) and the right-click menu (ChartContextMenu.tsx). Tokens only. */
+.chart-share, .chart-context-menu { --share-chev: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E"); }
+.chart-share { position: relative; display: inline-flex; align-items: center; gap: 4px; color: var(--ink-2); font-family: var(--font-sans); }
+.chart-share :where(button), .chart-context-menu :where(button) { font: inherit; color: inherit; background: none; border: 0; padding: 0; margin: 0; cursor: pointer; text-align: inherit; }
+.chart-share button:disabled, .chart-context-menu button:disabled { cursor: not-allowed; opacity: .45; }
+.chart-share :focus-visible, .chart-context-menu :focus-visible { outline: 2px solid var(--indigo); outline-offset: -2px; }
+/* A phone header with several controls wraps its right-hand group instead of scrolling sideways. */
+.chart-toolbar > div:has(> .chart-share) { flex-wrap: wrap; justify-content: flex-end; max-width: 100%; }
+/* A raised toolbar keeps its open menu above the charts that follow. */
+.chart-toolbar:has(.chart-share-pop) { position: relative; z-index: 30; }
+
+/* Icon cell: the same 28px as the Expand button beside it. */
+.chart-share-icon { position: relative; display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 4px; color: var(--grey); transition: color .12s ease; }
+.chart-share-icon:hover:not(:disabled) { color: var(--ink); }
+
+/* Crossfade between a glyph and the drawn check. */
+.chart-share-swap { display: inline-grid; place-items: center; }
+.chart-share-swap > span { grid-area: 1 / 1; display: inline-grid; place-items: center; transition: opacity .12s ease; }
+.chart-share-swap-b { opacity: 0; color: var(--indigo); pointer-events: none; }
+.chart-share-swap[data-on] > .chart-share-swap-a { opacity: 0; }
+.chart-share-swap[data-on] > .chart-share-swap-b { opacity: 1; }
+.chart-share-check { stroke-dasharray: 1; stroke-dashoffset: 0; animation: chart-share-draw .22s ease-out both; }
+.chart-share-alert { color: var(--danger); }
+@keyframes chart-share-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+.chart-share-ring { display: inline-block; box-sizing: border-box; border: 1.5px solid var(--hair-3); border-top-color: var(--indigo); border-radius: 50%; animation: chart-share-spin .7s linear infinite; }
+@keyframes chart-share-spin { to { transform: rotate(360deg); } }
+.chart-share-chev { display: block; width: 14px; height: 14px; background: currentColor; -webkit-mask: var(--share-chev) center / contain no-repeat; mask: var(--share-chev) center / contain no-repeat; transition: transform .16s ease; }
+[aria-expanded="true"] > .chart-share-chev { transform: rotate(180deg); }
+
+/* Confirmation and hover names. They hang off the cluster, so nothing moves. */
+.chart-share-label { position: absolute; top: calc(100% + 4px); right: 0; z-index: 45; width: max-content; max-width: min(260px, calc(100vw - 32px)); padding: 3px 7px; border-radius: 4px; font: 11px/1.5 var(--font-mono); background: var(--ink); color: var(--bone); pointer-events: none; opacity: 0; transform: translateY(-2px); transition: opacity .14s ease, transform .14s ease; }
+.chart-share-label[data-on] { opacity: 1; transform: none; }
+.chart-share-label[data-tone="err"] { background: var(--white); color: var(--danger); border: 1px solid var(--hair); box-shadow: 0 5px 24px var(--shadow); }
+
+/* Menu under the chevron: fades and slides in over 140ms from its corner, out over 90ms. */
+.chart-share-pop { position: absolute; right: 0; top: calc(100% + 4px); z-index: 60; background: var(--white); border: 1px solid var(--hair); border-radius: 5px; box-shadow: 0 5px 24px var(--shadow); color: var(--ink); font-size: 12.5px; opacity: 0; transform: translateX(var(--share-shift, 0px)) translateY(-4px) scale(.98); transform-origin: top right; transition: opacity .09s ease, transform .09s ease; }
+.chart-share-pop[data-shown] { opacity: 1; transform: translateX(var(--share-shift, 0px)); transition: opacity .14s ease, transform .14s cubic-bezier(.2, .8, .2, 1); }
+.chart-share-pop[data-up] { top: auto; bottom: calc(100% + 4px); transform: translateX(var(--share-shift, 0px)) translateY(4px) scale(.98); transform-origin: bottom right; }
+.chart-share-pop[data-up][data-shown] { transform: translateX(var(--share-shift, 0px)); }
+.chart-share-hint { margin-left: auto; padding-left: 14px; font: 11px var(--font-mono); font-variant-numeric: tabular-nums; color: var(--grey); white-space: nowrap; }
+.chart-share-list { width: 252px; max-width: calc(100vw - 24px); padding: 4px; }
+.chart-share-row { display: flex; align-items: center; gap: 10px; width: 100%; height: 34px; padding: 0 10px; border-radius: 3px; color: var(--ink); white-space: nowrap; }
+.chart-share-row > span:not(.chart-share-hint) { flex: none; }
+.chart-share-row svg { flex: none; color: var(--ink-2); }
+.chart-share-row:hover:not(:disabled), .chart-share-row:focus-visible { background: var(--bone); }
+
+/* The cluster: one bordered box of equal-height cells. Every cell has its width from the first paint, so hover moves nothing. */
+.chart-share-split { display: inline-flex; align-items: stretch; height: 28px; border: 1px solid var(--hair); border-radius: 4px; transition: border-color .12s ease; }
+.chart-share-split:hover, .chart-share-split[data-open] { border-color: var(--ink); }
+.chart-share-cell { display: grid; place-items: center; width: 24px; color: var(--grey); border-left: 1px solid var(--hair); transition: color .12s ease; }
+.chart-share-copy { width: 30px; border-left: 0; border-radius: 3px 0 0 3px; color: var(--ink-2); }
+.chart-share-copy:hover:not(:disabled) { color: var(--ink); }
+.chart-share-copy[data-dragging] { color: var(--indigo); }
+.chart-share-more { width: 20px; border-radius: 0 3px 3px 0; }
+.chart-share-split:hover .chart-share-cell, .chart-share-split[data-open] .chart-share-cell, .chart-share-cell:focus-visible { color: var(--ink); }
+.chart-share-ghost { position: fixed; left: -9999px; top: 0; width: 220px; height: auto; border: 1px solid var(--hair); border-radius: 4px; opacity: .9; pointer-events: none; }
+
+@media (pointer: coarse) {
+  .chart-share-icon { width: 40px; height: 40px; }
+  .chart-share-split { height: 40px; }
+  .chart-share-cell { width: 40px; }
+  .chart-share-copy { width: 44px; }
+  .chart-share-more { width: 36px; }
+  .chart-share-list { width: 256px; }
+  .chart-share-row { height: 44px; }
+}
+
+/* Right-click, Context Menu key and long-press menu. It slides up like a native menu rather than flipping. */
+.chart-context-menu { position: fixed; z-index: 80; width: 240px; max-width: calc(100vw - 16px); max-height: calc(100dvh - 16px); overflow-y: auto; background: var(--white); color: var(--ink); border: 1px solid var(--hair); border-radius: 5px; box-shadow: 0 5px 24px var(--shadow); padding: 5px; font: 12.5px var(--font-sans); opacity: 0; transform: translateY(-4px) scale(.98); transform-origin: top left; transition: opacity .09s ease, transform .09s ease; }
+.chart-context-menu[data-shown] { opacity: 1; transform: none; transition: opacity .14s ease, transform .14s cubic-bezier(.2, .8, .2, 1); }
+.chart-context-title { display: flex; align-items: center; gap: 7px; padding: 7px 9px 9px; font-size: 11px; line-height: 1.4; color: var(--grey); }
+.chart-context-title > span { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; min-width: 0; }
+.chart-context-title-dot { color: var(--ink-2); }
+.chart-context-title .lab-logo { flex: none; border-radius: 3px; }
+.chart-context-section { margin-top: 4px; padding-top: 4px; border-top: 1px solid var(--hair); }
+.chart-context-row { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 36px; padding: 0 10px; border-radius: 3px; color: var(--ink); white-space: nowrap; }
+.chart-context-row svg { flex: none; color: var(--ink-2); }
+.chart-context-row:hover:not(:disabled), .chart-context-row:focus-visible, .chart-context-chev:hover, .chart-context-chev:focus-visible { background: var(--bone); }
+.chart-context-label { flex: 1; min-width: 0; }
+.chart-context-sub { padding-left: 36px; min-height: 34px; }
+.chart-context-split { display: flex; align-items: stretch; }
+.chart-context-split > .chart-context-row:first-child { flex: 1; min-width: 0; }
+.chart-context-chev { flex: none; display: grid; place-items: center; width: 34px; border-radius: 3px; color: var(--grey); }
+.chart-context-chev:hover { color: var(--ink); }
+.chart-context-fold { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .16s ease; }
+.chart-context-fold[data-open] { grid-template-rows: 1fr; }
+.chart-context-fold > div { overflow: hidden; min-height: 0; }
+.chart-context-kbd { margin-left: auto; padding-left: 10px; font: 11px var(--font-mono); color: var(--grey); white-space: nowrap; opacity: 0; transition: opacity .12s ease; }
+.chart-context-row:hover .chart-context-kbd, .chart-context-row:focus-visible .chart-context-kbd, .chart-context-kbd[data-always] { opacity: 1; }
+@media (pointer: coarse) { .chart-context-kbd:not([data-always]) { display: none; } .chart-context-row, .chart-context-sub { min-height: 44px; } }
+
+/* Reduced motion: nothing slides, fades or spins. */
+@media (prefers-reduced-motion: reduce) {
+  .chart-share-swap > span, .chart-share-label, .chart-share-pop, .chart-share-pop[data-shown], .chart-share-chev, .chart-share-icon, .chart-share-split, .chart-share-cell,
+  .chart-context-menu, .chart-context-menu[data-shown], .chart-context-fold, .chart-context-kbd { transition: none; animation: none; }
+  .chart-share-check { animation: none; }
+  .chart-share-ring { animation: none; border-color: var(--indigo); border-left-color: var(--hair-3); }
+}

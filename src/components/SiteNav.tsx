@@ -51,6 +51,12 @@ function useHeadroom() {
 function PhoneNav({ current }: { current?: Id }) {
   const { spot, bar, mode, height } = useHeadroom();
   const pinned = mode !== "flow";
+  // Sticky rows on a page sit under the bar while it is shown (`top: var(--site-nav-inset)`).
+  useEffect(() => {
+    const root = document.documentElement;
+    root.style.setProperty("--site-nav-inset", mode === "shown" && bar.current ? `${bar.current.offsetHeight}px` : "0px");
+    return () => { root.style.removeProperty("--site-nav-inset"); };
+  }, [mode, bar]);
   return <div ref={spot} className="sm:hidden" style={pinned && height ? { height } : undefined}>
     <nav ref={bar} aria-label="Site"
       className={`flex [&>*]:flex-1 ${pinned ? `fixed top-0 inset-x-0 z-40 px-4 bg-bone/95 backdrop-blur border-b hairline transition-transform duration-200 motion-reduce:transition-none ${mode === "hidden" ? "-translate-y-full" : "translate-y-0"}` : "-mx-1"}`}>

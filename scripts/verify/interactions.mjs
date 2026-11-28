@@ -23,6 +23,12 @@ let sharedPage = false, dealt = 0;
 const inShard = () => SHARD_N <= 1 || (sharedPage ? SHARD_I === 0 : (dealt++ % (SHARD_N - 1)) + 1 === SHARD_I);
 // ONLY="part of a check's name" runs just the matching checks while working on one.
 const check = async (name, fn) => { if (!inShard()) return; if (process.env.ONLY && !name.includes(process.env.ONLY)) return; try { await fn(); checks.push(name); } catch (e) { failures.push(`${name}: ${e.message}`); console.error(`FAIL ${name}: ${e.message}`); } };
+// The ranking title's menu holds "Change the mix" (and Rank models, new, rename, close); `opts` is passed to both clicks.
+const mixTitle = (p) => p.locator(".builder-rank h1 button[aria-haspopup=menu]");
+const changeTheMix = async (p, opts) => { await mixTitle(p).click(opts); await p.getByRole("menuitem", { name: "Change the mix" }).click(opts); };
+// A chart header's share controls: Copy link, Copy image, the brush and a chevron whose menu holds Download PNG and the data.
+const shareOf = (p, name) => p.locator(`[role="group"][aria-label="Share ${name}"]`).first();
+const downloadPng = async (p, group) => { await group.locator(".chart-share-more").click(); return p.getByRole("menuitem", { name: "Download PNG", exact: true }); };
 
 try {
   const page = await (await browser.newContext({ viewport: { width: 1440, height: 1000 } })).newPage();
@@ -173,7 +179,7 @@ try {
       await phone.locator(".ranking-list [data-k]").first().waitFor({ timeout: 30000 });
       const y = (sel) => phone.locator(sel).first().evaluate((el) => el.getBoundingClientRect().top + scrollY);
       assert.equal(await phone.locator("#mix input[aria-label$=weight]").count(), 0, "the mix starts closed");
-      await phone.getByRole("button", { name: "change the mix" }).click();
+      await changeTheMix(phone);
       await phone.locator("#mix input[aria-label$=weight]").first().waitFor();
       assert.ok(await y(".builder-rank") < await y("#mix"), "the ranking sits above the mix");
       assert.ok(await y("#mix") < await y(".builder-cost"), "the mix sits above the other charts");
@@ -250,7 +256,7 @@ try {
       await p.goto(`${BASE}/builder`, { waitUntil: "domcontentloaded" });
       await p.locator(".ranking-list [data-k]").first().waitFor({ timeout: 30000 });
       assert.equal(await p.getByRole("button", { name: "Undo", exact: true }).count(), 0, "nothing to undo on arrival");
-      await p.getByRole("button", { name: "change the mix" }).click();
+      await changeTheMix(p);
       await p.locator("#mix input[aria-label$=weight]").first().waitFor();
       const sliders = await p.locator("#mix input[aria-label$=weight]").count();
       assert.ok(sliders > 0);
@@ -336,6 +342,43 @@ try {
     } finally { await context.close(); }
   });
 
+  await check("the star picker lists the ranked models by lab, stars one into the names line and the link, and Escape closes only the picker (a bottom sheet on a phone)", async () => {
+    let phoneContext;
+    const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+    const p = await context.newPage();
+    try {
+      await p.goto(`${BASE}/builder`, { waitUntil: "domcontentloaded" });
+      await p.locator(".ranking-list [data-k]").first().waitFor({ timeout: 30000 });
+      const ranked = Number((await p.getByText(/^Show all \d+ models$/).first().innerText()).match(/\d+/)[0]);
+      await p.locator(".star-trigger").first().click();
+      const panel = p.locator(".star-panel");
+      await panel.waitFor({ timeout: 10000 });
+      assert.equal(Number(await panel.locator(".star-lh > span > span").last().innerText()), ranked, "the picker counts the models the ranking shows, not older versions");
+      assert.ok(await panel.locator(".star-lrow").count() > 3, "one row per lab");
+      await panel.locator(".star-lrow[aria-expanded]").first().click();
+      await panel.locator(".star-mrow").first().click();
+      await p.locator(".star-trigger").first().getByText("1", { exact: true }).waitFor();
+      await p.waitForURL(/hl=/, { timeout: 5000 });
+      assert.ok(await p.locator(".star-name-t:visible").count() >= 1, "the starred name sits under the chart title");
+      await p.keyboard.press("Escape");
+      assert.equal(await panel.count(), 0, "Escape closes the picker");
+      assert.equal(await p.locator(".star-trigger").first().evaluate((el) => el === document.activeElement), true, "and puts focus back on the star");
+      await p.locator(".star-x:visible").first().click();
+      await p.waitForFunction(() => !location.search.includes("hl="), null, { timeout: 5000 });
+      phoneContext = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+      const phone = await phoneContext.newPage();
+      await phone.goto(`${BASE}/builder`, { waitUntil: "domcontentloaded" });
+      await phone.locator(".ranking-list [data-k]").first().waitFor({ timeout: 30000 });
+      await phone.locator(".star-trigger").first().evaluate((el) => el.click());
+      const sheet = phone.locator(".star-sheet");
+      await sheet.waitFor({ timeout: 10000 });
+      const box = await sheet.boundingBox();
+      assert.ok(box.x >= 0 && box.x + box.width <= 390, "the sheet fits the screen");
+      await phone.keyboard.press("Escape");
+      assert.equal(await sheet.count(), 0, "Escape closes the sheet");
+    } finally { await context.close(); await phoneContext?.close(); }
+  });
+
   await check("a link answers at once while its page is on the way", async () => {
     const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
     const p = await context.newPage();
@@ -400,7 +443,8 @@ try {
       assert.equal(await p.getByRole("group", { name: "X-axis mode" }).count(), 0, "Log and Linear are in Display settings only");
       await button.click();
       assert.match(await p.locator(".chart-method-pop").textContent(), /best common plan/);
-      assert.match(await p.locator(".chart-method-pop").textContent(), /Heavy line: best score at each price/);
+      // The key is drawn: the labs, then a sample of the heavy line, above the pricing prose.
+      assert.match(await p.locator(".chart-method-pop .chart-reading").textContent(), /Anthropic[\s\S]*Best score at each price/);
       assert.equal(await p.locator(".chart-method-pop a").getAttribute("href"), "/benchmarks/methodology#cost");
       await p.locator("body").click({ position: { x: 5, y: 5 } });
       assert.equal(await p.locator(".chart-method-pop").count(), 0, "a click elsewhere closes it");
@@ -621,25 +665,29 @@ try {
     } finally { await c.context().close(); }
   });
 
-  await check("model directory: linked from the site nav and every model page, ranked by default, searchable, filtered by lab, rows open the model", async () => {
+  await check("model directory: linked from the site nav and every model page, a ranked leaderboard by default, searchable with counts that follow, filtered by lab, rows open the model", async () => {
     const c = await (await browser.newContext({ viewport: { width: 1440, height: 1000 } })).newPage();
     try {
       await c.goto(`${BASE}/benchmarks`, { waitUntil: "domcontentloaded" });
       assert.equal(await c.getByRole("navigation", { name: "Site" }).first().getByRole("link", { name: "Models", exact: true }).getAttribute("href"), "/models", "the site nav links the model directory");
       assert.equal(await c.getByRole("navigation", { name: "Footer", exact: true }).getByRole("link", { name: "Models", exact: true }).count(), 1, "so does the footer");
       await c.goto(`${BASE}/models`, { waitUntil: "networkidle" });
-      const ranks = await c.locator(".bench-row").evaluateAll((rows) => rows.slice(0, 10).map((r) => Number(r.querySelector(".bench-num .num")?.textContent.replace("#", ""))));
-      assert.deepEqual(ranks, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], `ranked best first by default: ${ranks}`);
+      const ranks = await c.locator(".md-row").evaluateAll((rows) => rows.map((r) => Number(r.querySelector(".md-c-rank")?.textContent)));
+      assert.ok(ranks.length > 20, `ranked models listed by default: ${ranks.length}`);
+      assert.deepEqual(ranks, ranks.map((_, i) => i + 1), `ranked best first with no gaps: ${ranks.slice(0, 12)}`);
+      assert.ok((await c.locator(".md-row").first().locator(".md-barwrap").count()) === 1, "a ranked row carries a score bar");
+      const total = await c.locator(".md-rail button[aria-pressed=true] .md-count").innerText();
       const search = c.getByRole("searchbox", { name: "Search models" });
       for (let tries = 0; tries < 20 && !/match/.test(await c.locator(".model-dir [role=status]").innerText()); tries++) { await search.fill(""); await search.fill("opus"); await c.waitForTimeout(250); }
-      const names = await c.locator(".bench-main .text-\\[15px\\]").allInnerTexts();
+      const names = await c.locator(".md-title-text").allInnerTexts();
       assert.ok(names.length > 0 && names.every((n) => /opus/i.test(n)), `search keeps Opus models: ${names.slice(0, 5)}`);
+      assert.notEqual(await c.locator(".md-rail button[aria-pressed=true] .md-count").innerText(), total, "the lab counts follow the search");
       await search.fill("");
-      await c.locator(".model-rail button", { hasText: "Anthropic" }).click();
+      await c.locator(".md-rail button", { hasText: "Anthropic" }).click();
       await c.waitForTimeout(250);
-      const labs = await c.locator(".model-rail button[aria-pressed=true]").innerText();
+      const labs = await c.locator(".md-rail button[aria-pressed=true]").innerText();
       assert.match(labs, /Anthropic/);
-      const first = c.locator(".bench-row").first(), id = await first.getAttribute("data-model");
+      const first = c.locator(".md-row").first(), id = await first.getAttribute("data-model");
       assert.match(id, /^claude-/, `the Anthropic filter shows Claude models: ${id}`);
       await first.click();
       await c.waitForURL(new RegExp(`/models/${id.replace(/\./g, "\\.")}$`));
@@ -1105,10 +1153,8 @@ try {
   });
 
   await check("screenshot editor: brush opens it, a shape resizes the image, the title moves, and the link opens the image full screen with Edit reopening the editor", async () => {
-    const group = page.locator('[role="group"][aria-label="Export Time per task"]').first();
+    const group = shareOf(page, "Time per task");
     await group.scrollIntoViewIfNeeded();
-    await group.hover();
-    await page.waitForTimeout(250); // The brush slides open.
     await group.getByRole("button", { name: /Edit .* screenshot/ }).click();
     const card = page.locator("dialog.xs .xs-card");
     await page.getByTestId("xe-box").waitFor({ timeout: 10000 });
@@ -1153,18 +1199,16 @@ try {
     await other.keyboard.press("Escape");
     await other.waitForTimeout(400);
     assert.ok(!other.url().includes("xe="), "closing drops the editor from the address");
-    assert.equal(await other.locator('[role="group"][aria-label="Export Time per task"]').count(), 1, "the page is still there");
+    assert.equal(await other.locator('[role="group"][aria-label="Share Time per task"]').count(), 1, "the page is still there");
     await other.close();
     await page.keyboard.press("Escape"); // First Escape drops the selection, the second closes.
     await page.keyboard.press("Escape");
     await page.locator("dialog.xs").waitFor({ state: "detached", timeout: 5000 });
   });
 
-  await check("screenshot editor on the leaderboard: the brush opens it with a short animation, and a taller image holds more models", async () => {
-    const group = page.locator('[role="group"][aria-label="Export Rankings"]').first();
+  await check("screenshot editor on the leaderboard: the brush opens it with a short rise, and a taller image holds more models", async () => {
+    const group = shareOf(page, "Rankings");
     await group.scrollIntoViewIfNeeded();
-    await group.hover();
-    await page.waitForTimeout(250); // The brush slides open.
     await group.getByRole("button", { name: "Edit Rankings screenshot" }).click();
     const shot = page.getByTestId("rankings-shot");
     await shot.waitFor({ timeout: 10000 });
@@ -1178,7 +1222,8 @@ try {
     assert.ok(few >= 1 && many > few, `a taller image shows more models (${few} then ${many})`);
     const size = await shot.locator("svg").evaluate((el) => [el.getAttribute("width"), el.getAttribute("height")]);
     assert.ok((await page.locator("dialog.xs .xs-title").innerText()).length > 0, "the image carries the leaderboard's name");
-    const [dl] = await Promise.all([page.waitForEvent("download"), page.locator("dialog.xs .xs-actions").getByRole("button", { name: /Download .* as PNG/ }).click()]);
+    const png0 = await downloadPng(page, page.locator("dialog.xs .xs-actions"));
+    const [dl] = await Promise.all([page.waitForEvent("download"), png0.click()]);
     const png = await (await import("node:fs/promises")).readFile(await dl.path());
     assert.equal(png.readUInt32BE(16), (Number(size[0]) + 64) * 3, "the PNG is the image plus its frame, at 3x");
     await page.keyboard.press("Escape");
@@ -1186,12 +1231,43 @@ try {
   });
 
   await check("PNG export crops blank space off the right", async () => {
-    const group = page.locator('[role="group"][aria-label="Export Time per task"]').first();
+    const group = shareOf(page, "Time per task");
     await group.scrollIntoViewIfNeeded();
-    const [dl] = await Promise.all([page.waitForEvent("download"), group.getByRole("button", { name: /Download .* as PNG/ }).click()]);
+    const item = await downloadPng(page, group);
+    const [dl] = await Promise.all([page.waitForEvent("download"), item.click()]);
     const buf = await (await import("node:fs/promises")).readFile(await dl.path());
     const width = buf.readUInt32BE(16), plot = await page.locator('[role="img"][aria-label*="time per task" i]').first().boundingBox().catch(() => null);
     assert.ok(width > 0 && (!plot || width / 3 < plot.width + 64 + 8), `exported width ${width / 3} is no wider than the plot ${plot?.width} plus the frame`);
+  });
+
+  await check("Copy image puts a PNG on the clipboard and says so, and the keys C and L work on the focused plot", async () => {
+    await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+    const group = shareOf(page, "Time per task");
+    await group.scrollIntoViewIfNeeded();
+    await group.getByRole("button", { name: /^Copy .* as an image$/ }).click();
+    await group.locator(".chart-share-label[data-on]").waitFor({ timeout: 15000 });
+    assert.equal(await group.locator(".chart-share-label").innerText(), "Image copied", "it says the image was copied");
+    const types = await page.evaluate(async () => (await navigator.clipboard.read()).flatMap((i) => i.types));
+    assert.ok(types.includes("image/png"), `the clipboard holds a PNG (${types})`);
+    await page.evaluate(() => navigator.clipboard.writeText(""));
+    await page.locator('[role="img"][aria-label*="time per task" i]').first().focus();
+    await page.keyboard.press("l");
+    let link = "";
+    for (let i = 0; i < 40 && !link; i++) { link = await page.evaluate(() => navigator.clipboard.readText()); if (!link) await page.waitForTimeout(150); }
+    assert.ok(link.includes("c=time-per-task") || /\/s\/[A-Za-z0-9]+$/.test(link), `L copies the chart's link (${link})`);
+  });
+
+  await check("a letter in the right-click menu runs once (X after a pointer open expands, not toggles twice)", async () => {
+    const plot = page.locator('[role="img"][aria-label*="cost per task"]').first();
+    await plot.scrollIntoViewIfNeeded();
+    const box = await plot.boundingBox();
+    await plot.click({ position: { x: 4, y: 4 } });
+    await page.mouse.click(box.x + 40, box.y + 40, { button: "right" });
+    await page.locator(".chart-context-menu").waitFor({ timeout: 3000 });
+    await page.keyboard.press("x");
+    await page.waitForTimeout(500);
+    assert.ok(await page.locator(".chart-expanded").count(), "the chart is expanded after one X");
+    await page.keyboard.press("Escape");
   });
 
   await check("moving off a mark removes every crosshair guide", async () => {
@@ -1351,29 +1427,71 @@ try {
       assert.equal(await c.locator(".cmp-wide .cmp-line[data-state=on]").count() >= 0, true);
     } finally { await c.context().close(); }
   });
-  await check("builder: every index tab has a visible delete, and the last one resets instead of vanishing", async () => {
-    await page.getByRole("button", { name: "change the mix" }).click();
-    const tabs = page.locator('[aria-label="Your indices"] .index-tabs-scroll > span');
-    const removes = page.locator("[data-remove-index]");
-    const before = await tabs.count();
-    await page.getByRole("button", { name: "Copy this index as a new index" }).click();
+  await check("compare chooser: type, arrow, enter picks; esc clears; the highlight holds while older matches load", async () => {
+    const c = await (await browser.newContext({ viewport: { width: 1280, height: 900 } })).newPage();
+    c.on("pageerror", (e) => errors.push(`${c.url()}: ${e.message}`));
+    try {
+      await c.goto(`${BASE}/models/claude-fable-5.2/compare`, { waitUntil: "domcontentloaded" });
+      const search = c.getByRole("combobox", { name: "Search models or labs" });
+      await search.waitFor({ timeout: 30000 });
+      await search.fill("gem");
+      assert.match(await c.locator(".chooser .cap[role=status]").first().innerText(), /\d+ match/, "the match count shows");
+      await search.press("Escape");
+      assert.equal(await search.inputValue(), "", "Esc clears the query first");
+      await search.fill("gem");
+      await search.press("ArrowDown");
+      await search.press("Enter");
+      await c.waitForURL(/[?&]with=/, { timeout: 30000 });
+      // A broad query has more older matches than it first shows: arrowing down loads them, and the highlight keeps going.
+      await c.goto(`${BASE}/models/claude-fable-5.2/compare`, { waitUntil: "domcontentloaded" });
+      await search.waitFor({ timeout: 30000 });
+      await search.fill("a");
+      const index = () => c.evaluate(() => [...document.querySelectorAll(".chooser [role=option]")].findIndex((r) => r.hasAttribute("data-active")));
+      const rows = () => c.locator(".chooser [role=option]").count();
+      const before = await rows();
+      let last = await index();
+      for (let n = 0; n < 90; n++) {
+        await search.press("ArrowDown");
+        if (n % 10 === 9) { const now = await index(); assert.ok(now > last, `the highlight keeps moving down (${last} to ${now} after ${n + 1} presses)`); last = now; }
+      }
+      assert.ok(await rows() > before, "older matches loaded while arrowing");
+      assert.ok(last >= 80, `the highlight did not jump back (row ${last})`);
+    } finally { await c.context().close(); }
+  });
+  await check("builder: the title menu adds a named copy, closes it, and resets a lone custom mix", async () => {
+    await changeTheMix(page);
+    const menu = page.getByRole("menu", { name: "Mixes" }), radios = menu.getByRole("menuitemradio");
+    const open = async () => { await mixTitle(page).click(); await menu.waitFor(); };
+    await open();
+    const before = await radios.count();
+    assert.equal(await menu.getByRole("menuitem", { name: "Close this mix" }).count(), 0, "the only mix cannot be closed");
+    assert.equal(await menu.getByRole("menuitem", { name: "Reset to the default mix" }).count(), 0, "the untouched default has nothing to reset");
+    await menu.getByRole("menuitem", { name: "New mix" }).click();
+    assert.match(await page.getByRole("textbox", { name: "Mix name" }).inputValue(), /^My mix/, "a copy is named for what it holds, not 'copy'");
+    await page.keyboard.press("Enter");
+    await open();
+    assert.equal(await radios.count(), before + 1, "New mix added a mix");
+    // Close the copy: the other mix is open again.
+    await menu.getByRole("menuitem", { name: "Close this mix" }).click();
+    await open();
+    assert.equal(await radios.count(), before, "Close this mix removed it");
+    assert.equal(await menu.locator('[aria-checked="true"]').count(), 1, "one mix stays open");
+    // A lone custom mix offers a reset, which puts the default back instead of leaving the builder with no mix.
+    await menu.getByRole("menuitem", { name: "New mix" }).click();
+    await page.keyboard.press("Enter");
+    await open();
+    await radios.first().click();
+    await open();
+    await menu.getByRole("menuitem", { name: "Close this mix" }).click();
+    await open();
+    assert.equal(await radios.count(), 1);
+    await menu.getByRole("menuitem", { name: "Reset to the default mix" }).click();
+    await open();
+    assert.equal(await radios.count(), 1, "the builder never has zero mixes");
+    assert.match(await radios.first().innerText(), /^Artificial Analysis/, "the default is back");
     await page.keyboard.press("Escape");
-    assert.equal(await tabs.count(), before + 1, "the + added an index");
-    assert.equal(await removes.count(), before + 1, "each tab has its own ×");
-    for (const handle of await removes.all()) assert.ok(await handle.isVisible(), "× is visible without hovering");
-    // Delete a tab that is not the open one.
-    const open = await page.locator('[aria-label="Your indices"] [aria-pressed=true]').first().innerText();
-    await removes.first().click();
-    assert.equal(await tabs.count(), before, "the × removed its index");
-    assert.ok(await page.locator('[aria-label="Your indices"] [aria-pressed=true]').count() === 1, "one index stays open");
-    void open;
-    // Down to one, the × resets rather than deleting the last index.
-    while ((await tabs.count()) > 1) await removes.first().click();
-    await removes.first().click();
-    assert.equal(await tabs.count(), 1, "the builder never has zero indices");
     await page.locator(".ranking-list [data-k]").first().waitFor({ timeout: 30000 });
   });
-
   sharedPage = false;
 
   await check("compare: a phone gets the matched table, not the slope", async () => {
@@ -1409,8 +1527,14 @@ try {
       await h.waitForTimeout(400);
       assert.equal(new URL(h.url()).search, "", "the address stays clean on the default");
       assert.equal(await h.getByRole("link", { name: "Rank models", exact: true }).last().getAttribute("href"), "/rank");
+      // Under the title one line says whose scores these are and how old; making your own is in the title's menu.
+      await h.locator(".builder-rank .source-line time").waitFor({ timeout: 30000 });
+      assert.match(await h.locator(".builder-rank .source-line").innerText(), /^Artificial Analysis, updated /, "the source line");
+      await mixTitle(h).click();
+      assert.equal(await h.getByRole("menuitem", { name: "Rank models" }).getAttribute("href"), "/rank", "Rank models is in the title menu");
+      await h.keyboard.press("Escape");
       // Opening the mix shows one row; hiding a model does not count as changing the mix.
-      await h.getByRole("button", { name: "change the mix" }).click();
+      await changeTheMix(h);
       assert.equal(await h.locator("#mix input[aria-label$=weight]").count(), 1, "one benchmark at 100%");
       await h.getByRole("button", { name: "Hide", exact: true }).click();
       assert.equal(await h.locator("#mix input[aria-label$=weight]").count(), 0, "the mix closes again");
@@ -1533,10 +1657,36 @@ try {
     c.on("pageerror", (e) => errors.push(`${c.url()}: ${e.message}`));
     try {
       await c.goto(`${BASE}/models/claude-opus-5.5`, { waitUntil: "domcontentloaded" });
-      const pick = c.getByLabel("Ranking to place this model in");
+      const pick = c.getByRole("button", { name: /^Ranking to place this model in/ });
       await pick.waitFor({ timeout: 30000 });
-      await pick.selectOption({ label: "Artificial Analysis" });
+      await pick.click();
+      await c.getByRole("menuitemradio", { name: /Artificial Analysis/ }).click();
+      await c.locator("button[aria-haspopup=menu][aria-busy=false]", { hasText: "Artificial Analysis" }).waitFor({ timeout: 30000 });
       await c.getByText(/#\d+ of \d+ models/).waitFor({ timeout: 30000 });
+    } finally { await c.context().close(); }
+  });
+
+  await check("model page: an unranked model is placed in its own benchmarks, the menu closes on Tab, and a link to another ranking switches", async () => {
+    const c = await (await browser.newContext({ viewport: { width: 1280, height: 900 } })).newPage();
+    c.on("pageerror", (e) => errors.push(`${c.url()}: ${e.message}`));
+    try {
+      await c.goto(`${BASE}/models/gpt-3.5?r=own`, { waitUntil: "domcontentloaded" });
+      const pick = c.getByRole("button", { name: /^Ranking to place this model in/ });
+      await pick.waitFor({ timeout: 30000 });
+      assert.match(await pick.innerText(), /This model's benchmarks/);
+      await c.getByText(/Not ranked in /).first().waitFor({ timeout: 10000 });
+      await pick.focus();
+      await c.keyboard.press("ArrowDown");
+      await c.getByRole("menu").waitFor({ timeout: 5000 });
+      await c.keyboard.press("Tab");
+      assert.equal(await c.getByRole("menu").count(), 0, "Tab leaves the menu open");
+      await c.getByRole("button", { name: "About this ranking" }).focus();
+      await c.keyboard.press("Escape");
+      assert.equal(await c.locator(".model-head-pop").count(), 0, "Escape leaves the note open");
+      await c.goto(`${BASE}/models/aa-palm-2`, { waitUntil: "domcontentloaded" });
+      await c.getByText("Not ranked", { exact: true }).first().waitFor({ timeout: 10000 });
+      await c.getByRole("button", { name: /^See its \d+ benchmarks/ }).click();
+      await c.locator("details[open] article").first().waitFor({ timeout: 10000 });
     } finally { await c.context().close(); }
   });
 
@@ -1618,7 +1768,7 @@ try {
       c.on("request", (r) => seen.push(r.url()));
       const html = await (await c.goto(`${BASE}/models/claude-opus-5.5`, { waitUntil: "domcontentloaded" })).text();
       assert.match(html, /of (<!-- -->)?\d+(<!-- -->)? models/, "the first HTML carries the ranking");
-      assert.match(html, /Reasoning efforts in this ranking/, "and the efforts");
+      assert.match(html, /Reasoning effort/, "and the efforts");
       await c.waitForLoadState("networkidle");
       const data = () => seen.filter((u) => /\/api\/snapshot/.test(u)).length;
       assert.equal(data(), 0, "a plain visit downloads the dataset");
@@ -1633,14 +1783,15 @@ try {
       assert.equal(data(), 1, "the details load the dataset once");
       await c.keyboard.press("Escape");
       // The other standard ranking draws the same page from the dataset, and a link to it is drawn by the server.
-      await c.getByLabel("Ranking to place this model in").selectOption("aa");
-      await c.locator("select[aria-label='Ranking to place this model in'][aria-busy='false']").waitFor({ timeout: 30000 });
+      await c.getByRole("button", { name: /^Ranking to place this model in/ }).click();
+      await c.getByRole("menuitemradio", { name: /Artificial Analysis/ }).click();
+      await c.locator("button[aria-haspopup=menu][aria-busy=false]", { hasText: "Artificial Analysis" }).waitFor({ timeout: 30000 });
       const fromBrowser = await c.locator("main").first().innerText();
       assert.match(c.url(), /r=aa/);
       await c.goto(`${BASE}/models/claude-opus-5.5?r=aa`, { waitUntil: "networkidle" });
       const fromServer = await c.locator("main").first().innerText();
       assert.equal(fromServer.split("\n").slice(0, 30).join("\n"), fromBrowser.split("\n").slice(0, 30).join("\n"), "server and browser draw the same ranking");
-      assert.equal(await c.locator("select[aria-label='Ranking to place this model in']").inputValue(), "aa");
+      assert.match(await c.locator("button[aria-haspopup=menu]").first().innerText(), /Artificial Analysis/);
     } finally { await context.close(); }
   });
 
@@ -1717,18 +1868,19 @@ try {
     } finally { await c.context().close(); }
   });
 
-  await check("builder: with many indices the + stays reachable", async () => {
+  await check("builder: with many mixes the title menu stays on screen", async () => {
     const c = await (await browser.newContext({ viewport: { width: 1100, height: 800 } })).newPage();
     c.on("pageerror", (e) => errors.push(`${c.url()}: ${e.message}`));
     try {
       await c.goto(`${BASE}/builder`, { waitUntil: "domcontentloaded" });
-      await c.getByRole("button", { name: "change the mix" }).click({ timeout: 30000 });
-      const plus = c.getByRole("button", { name: "Copy this index as a new index" });
-      await plus.waitFor({ timeout: 30000 });
-      for (let i = 0; i < 5; i++) { await plus.click(); await c.keyboard.press("Enter"); }
-      const box = await plus.boundingBox();
-      assert.ok(box && box.x + box.width <= 1100 && box.x >= 0, "the + is inside the viewport");
-      await plus.click({ timeout: 5000 });
+      const menu = c.getByRole("menu", { name: "Mixes" });
+      await mixTitle(c).click({ timeout: 30000 });
+      for (let i = 0; i < 5; i++) { await menu.getByRole("menuitem", { name: "New mix" }).click(); await c.keyboard.press("Enter"); await mixTitle(c).click(); }
+      assert.equal(await menu.getByRole("menuitemradio").count(), 6, "five new mixes beside the first");
+      const names = await menu.getByRole("menuitemradio").allInnerTexts();
+      assert.equal(new Set(names).size, 6, "each copy has its own name");
+      const box = await menu.boundingBox();
+      assert.ok(box && box.x >= 0 && box.x + box.width <= 1100, "the menu is inside the viewport");
     } finally { await c.context().close(); }
   });
 
@@ -1737,7 +1889,7 @@ try {
     c.on("pageerror", (e) => errors.push(`${c.url()}: ${e.message}`));
     try {
       await c.goto(`${BASE}/builder`, { waitUntil: "domcontentloaded" });
-      await c.getByRole("button", { name: "change the mix" }).click({ timeout: 30000 });
+      await changeTheMix(c, { timeout: 30000 });
       await c.getByRole("button", { name: "Browse all benchmarks" }).click({ timeout: 30000 });
       const sheet = c.getByLabel("Benchmarks", { exact: true });
       await sheet.waitFor();
@@ -1752,7 +1904,7 @@ try {
     const c = await (await browser.newContext({ viewport: { width: 1360, height: 900 } })).newPage();
     try {
       await c.goto(`${BASE}/builder`, { waitUntil: "domcontentloaded" });
-      await c.getByRole("button", { name: "change the mix" }).click({ timeout: 30000 });
+      await changeTheMix(c, { timeout: 30000 });
       await c.getByRole("searchbox", { name: "Add a benchmark" }).click({ timeout: 30000 });
       const link = c.getByLabel("Benchmarks", { exact: true }).getByRole("link", { name: "Explore benchmarks" });
       await link.waitFor();
@@ -1827,11 +1979,37 @@ try {
     } finally { await c.close(); }
   });
 
+  await check("benchmark page: all results opens a model's efforts, sorts, and searches", async () => {
+    const c = await browser.newPage({ viewport: { width: 1200, height: 1000 } });
+    try {
+      await c.goto(`${BASE}/benchmarks/deepswe-1`, { waitUntil: "networkidle" });
+      const names = () => c.locator(".results-row .results-name").allInnerTexts();
+      const rank = await names();
+      await c.locator(".results-row .results-xp").first().click();
+      await c.locator(".results-fold[data-open] .results-subrow").nth(1).waitFor({ timeout: 5000 });
+      assert.ok(await c.locator(".results-fold[data-open] .results-subrow").count() >= 2, "opening a model lists each of its efforts");
+      await c.locator(".results").getByRole("button", { name: "Sort", exact: true }).click();
+      await c.locator(".results").getByRole("menuitemradio", { name: "Steps" }).click();
+      await c.waitForTimeout(700);
+      assert.notDeepEqual((await names()).slice(0, 5), rank.slice(0, 5), "sorting by steps reorders the models");
+      await c.locator(".results").getByRole("button", { name: "Sort", exact: true }).click();
+      await c.locator(".results").getByRole("menuitemradio", { name: "Score" }).click();
+      await c.waitForTimeout(700);
+      assert.deepEqual((await names()).slice(0, 5), rank.slice(0, 5), "choosing Score returns to rank order");
+      await c.locator(".results").getByLabel("Search results").fill("xhigh");
+      await c.waitForTimeout(600);
+      assert.ok((await c.locator(".results-count").innerText()).includes(" of "), "an effort search narrows the count");
+      assert.ok(await c.locator(".results-fold[data-open]").count() >= 1, "an effort match opens that model");
+      await c.locator(".results").getByLabel("Search results").fill("zzzz");
+      await c.locator(".results .results-empty").waitFor({ timeout: 5000 });
+    } finally { await c.close(); }
+  });
+
   await check("benchmark page: hide a model, switch pricing and scale, cost chart follows", async () => {
     const c = await browser.newPage({ viewport: { width: 1200, height: 1000 } });
     try {
       await c.goto(`${BASE}/benchmarks/frontiercode-1.1-main`, { waitUntil: "networkidle" });
-      const first = () => c.locator("table tbody tr td").nth(1).innerText();
+      const first = () => c.locator(".results-row .results-name").first().innerText();
       const leader = await first();
       await c.getByLabel("Ranking settings", { exact: true }).click();
       await c.getByRole("checkbox", { name: new RegExp(`^${leader}`) }).first().uncheck();
@@ -1847,6 +2025,39 @@ try {
       await c.locator("button", { hasText: /^Linear$/ }).last().click();
       assert.ok(await c.locator("button", { hasText: /^Linear$/ }).last().getAttribute("aria-pressed") === "true", "scale switches to linear");
     } finally { await c.close(); }
+  });
+
+  await check("chart key: the eye lists what the cost chart leaves out and gives a model back, K shows the labs, and a link that hides a model says so", async () => {
+    const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+    const p = await context.newPage();
+    try {
+      await p.goto(`${BASE}/builder`, { waitUntil: "domcontentloaded" });
+      await p.locator(".ranking-list [data-k]").first().waitFor({ timeout: 30000 });
+      const chart = p.locator("#cost"), eye = chart.locator("details[data-chart-left-out] > summary");
+      await eye.scrollIntoViewIfNeeded();
+      const count = Number((await eye.textContent()).trim());
+      assert.ok(count > 0, "the default view leaves older models out, and the eye counts them");
+      await eye.click();
+      const rows = chart.locator(".chart-left-row");
+      assert.equal(await rows.count(), count, "one row per model left out");
+      await rows.first().locator("button").click();
+      await p.waitForFunction((n) => { const t = document.querySelector("#cost details[data-chart-left-out] summary .chart-eye-count")?.textContent; return !t || Number(t) < n; }, count, { timeout: 5000 });
+      // K shows the lab key over the plot and a second K takes it away (the mouse is off the chart, where a rest would also show it).
+      await p.mouse.move(5, 5);
+      await p.locator("#cost [role=img]").focus();
+      await p.keyboard.press("k");
+      await chart.locator('.chart-key[data-on="true"] .chart-key-row').first().waitFor({ timeout: 3000 });
+      assert.ok(await chart.locator(".chart-key-row").count() > 1, "one row per lab");
+      await p.keyboard.press("k");
+      await chart.locator('.chart-key[data-on="false"]').waitFor({ timeout: 3000 });
+      // A copied link that hides a model says so once, and Show puts it back.
+      await p.goto(`${BASE}/builder?ch=${encodeURIComponent(JSON.stringify(["cost", ["claude-fable-5.2"], []]))}`, { waitUntil: "domcontentloaded" });
+      const toast = p.locator(".assistant-toast");
+      await toast.getByText(/^This link hides Fable 5\.2\.$/).waitFor({ timeout: 15000 });
+      await toast.getByRole("button", { name: "Show", exact: true }).click();
+      await p.waitForFunction(() => !new URL(location.href).searchParams.has("ch"), null, { timeout: 5000 });
+      assert.equal(await p.locator(".assistant-toast").count(), 0, "the notice goes once it is answered");
+    } finally { await context.close(); }
   });
 
   await check("a chart link's preview image is card-shaped, whatever ratio it was copied at", async () => {
@@ -1895,8 +2106,13 @@ try {
       await c.goto(`${BASE}/benchmarks/epoch-eci`, { waitUntil: "domcontentloaded" });
       const note = c.locator('[data-series-break="2026-11-04"]');
       await note.waitFor({ timeout: 30000 });
-      assert.match(await note.innerText(), /Bayesian/);
+      assert.match(await note.innerText(), /Method changed Nov 4/, "the header says it in one short sentence");
+      assert.equal(await note.getByRole("link").count(), 0, "the link to their method waits behind the chevron");
+      await c.getByRole("button", { name: "Show details" }).click();
+      assert.match(await note.innerText(), /Bayesian/, "the chevron opens the full wording");
       assert.equal(await note.getByRole("link").getAttribute("href"), "https://epoch.ai/publications/eci-bayesian-methodology");
+      await c.getByRole("button", { name: "Hide details" }).click();
+      assert.doesNotMatch(await note.innerText(), /Bayesian/, "and closes it again");
     } finally { await c.context().close(); }
   });
 
@@ -1904,7 +2120,7 @@ try {
     const c = await browser.newPage({ viewport: { width: 1280, height: 900 } });
     try {
       await c.goto(`${BASE}/builder`, { waitUntil: "networkidle" });
-      await c.getByRole("button", { name: "change the mix" }).click({ timeout: 30000 });
+      await changeTheMix(c, { timeout: 30000 });
       await c.getByRole("button", { name: /^About / }).first().click();
       // Signed out, the star is there and leads to sign-in, like the one on the benchmark's page.
       const star = c.getByRole("dialog").locator("[data-benchmark-star]");
@@ -1974,11 +2190,40 @@ try {
     try {
       await c.goto(`${BASE}/benchmarks/deepswe-1.1`, { waitUntil: "networkidle" });
       assert.ok(await c.getByText("Agent steps per task", { exact: true }).first().isVisible(), "DeepSWE's agent steps get their own chart");
-      const versions = c.locator("label", { hasText: "Version" }).locator("select");
-      assert.ok((await versions.locator("option").allInnerTexts()).some((t) => /v1$|DeepSWE v1\b/.test(t)), "the version menu lists the older version");
+      await c.getByRole("button", { name: /^Version/ }).click();
+      assert.ok((await c.getByRole("option").allInnerTexts()).some((t) => t.trim() === "DeepSWE v1"), "the version picker lists the older version");
+      await c.keyboard.press("Escape");
       await c.goto(`${BASE}/benchmarks/vals-mmlu-pro`, { waitUntil: "networkidle" });
       assert.ok(await c.getByRole("heading", { name: "Breakdown" }).isVisible(), "category splits show as a breakdown");
       assert.deepEqual(consoleErrors, [], "no hydration mismatch");
+    } finally { await c.close(); }
+  });
+
+  await check("benchmark pickers: category previews and picks, measure search sets ?bm=, Escape returns focus, group picker redraws the table", async () => {
+    const c = await browser.newPage({ viewport: { width: 1280, height: 1000 } });
+    try {
+      await c.goto(`${BASE}/benchmarks/arena-text-coding`, { waitUntil: "networkidle" });
+      const cat = c.getByRole("button", { name: /^Category/ });
+      assert.ok(/Coding/.test(await cat.innerText()), "the closed picker names the category");
+      await cat.click();
+      assert.ok(await c.getByRole("dialog", { name: "Category" }).locator(".pk-top5 li").count() >= 3, "the palette previews the highlighted row's top models");
+      await c.keyboard.press("Escape");
+      assert.equal(await c.evaluate(() => document.activeElement?.getAttribute("aria-haspopup")), "dialog", "Escape returns focus to the picker");
+      await cat.click();
+      await c.getByRole("combobox", { name: "Search" }).fill("math");
+      await c.keyboard.press("Enter");
+      await c.waitForURL(/arena-text-math/, { timeout: 15000 });
+      await c.goto(`${BASE}/benchmarks/aa-automationbench-aa`, { waitUntil: "networkidle" });
+      const measure = c.locator(".pk-tools .pk-trig");
+      await measure.click();
+      await c.getByRole("combobox", { name: "Search" }).fill("completion");
+      await c.getByRole("option").first().click();
+      await c.waitForFunction(() => new URL(location.href).searchParams.has("bm"));
+      const group = c.locator(".pk-fields .pk-trig", { hasText: "Breakdown" });
+      const before = await c.locator("table").last().locator("th").count();
+      await group.click();
+      await c.getByRole("option", { name: /Breakdown · counts/ }).click();
+      await c.waitForFunction((n) => document.querySelectorAll("table")[document.querySelectorAll("table").length - 1].querySelectorAll("th").length !== n, before);
     } finally { await c.close(); }
   });
 
@@ -2072,9 +2317,9 @@ try {
       const gap = await trail.evaluate((n) => n.parentElement.nextElementSibling.getBoundingClientRect().left - n.lastElementChild.getBoundingClientRect().right);
       assert.ok(gap >= 8, `trail to the next control is ${gap}px`);
       // An open menu keeps its Escape.
-      await v.locator(".chart-toolbar").first().getByRole("button", { name: /More export formats/ }).click();
+      await v.locator(".chart-toolbar").first().getByRole("button", { name: /^Download / }).click();
       await esc(); assert.equal(await count(), two, "Escape with a menu open leaves the zoom alone");
-      await v.locator('button[aria-label="Close export menu"]').click();
+      assert.equal(await v.locator(".chart-share-pop").count(), 0, "that Escape closed the menu");
       await esc(); assert.equal(await count(), one, "Escape steps back one level");
       await esc(); assert.equal(await zoomed(), "false", "Escape steps back to the whole chart"); assert.equal(await count(), all);
       await box(at); await v.mouse.dblclick(at(.5, .5).x, at(.5, .5).y); await v.waitForTimeout(800); assert.equal(await zoomed(), "false", "double-click steps back");
@@ -2083,12 +2328,14 @@ try {
       await box(at); assert.equal(await zoomed(), "true", "an expanded chart zooms");
       await esc(); assert.equal(await zoomed(), "false"); assert.equal(await v.locator(".chart-expanded").count(), 1, "the first Escape only unzooms");
       await esc(); assert.equal(await v.locator(".chart-expanded").count(), 0, "the next Escape closes it");
-      // The brush beside PNG slides open rather than popping in.
-      const split = v.locator(".chart-toolbar .export-split").first(), brush = split.locator(".export-edit");
+      // The brush is always there, and hovering the cluster moves nothing (a control that slid under the cursor opened the editor by mistake).
+      const split = v.locator(".chart-toolbar .chart-share-split").first(), cells = split.locator(".chart-share-cell");
+      const lefts = () => cells.evaluateAll((n) => n.map((e) => Math.round(e.getBoundingClientRect().left)));
       await v.mouse.move(0, 0); await v.waitForTimeout(300);
-      assert.equal((await brush.boundingBox())?.width ?? 0, 0, "the brush is closed at rest");
-      assert.equal(await brush.evaluate((n) => getComputedStyle(n).transitionProperty.includes("width") && parseFloat(getComputedStyle(n).transitionDuration) > 0), true, "the brush animates");
-      await split.hover(); await v.waitForTimeout(350); assert.equal((await brush.boundingBox()).width, 26, "the brush opens on hover");
+      const rest = await lefts();
+      assert.equal(rest.length, 3, "copy, brush and download are all there at rest");
+      await split.hover(); await v.waitForTimeout(350);
+      assert.deepEqual(await lefts(), rest, "hovering the cluster moves no control");
     } finally { await ctx.close(); }
   });
 
@@ -2265,6 +2512,35 @@ try {
       const joined = await read();
       assert.equal(joined.at(-1).at, 50, "the new benchmark sits in the middle of its slider");
       assert.deepEqual(joined.slice(0, -1).map((r) => r.at), last.map((r) => r.at), "adding one moved no thumb");
+    } finally { await ctx.close(); }
+  });
+
+  await check("subsidies grid: a company opens to a plan-by-model grid, Enter flips a cell to dollars, and every sort leaves exactly one tab stop", async () => {
+    const ctx = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+    const p = await ctx.newPage();
+    p.on("pageerror", (e) => errors.push(`${p.url()}: ${e.message}`));
+    try {
+      await p.goto(`${BASE}/subsidies`, { waitUntil: "domcontentloaded" });
+      const rows = p.locator(".sub-root button[aria-expanded]");
+      await rows.first().waitFor({ timeout: 30000 });
+      const stops = (t) => t.locator('[role=cell][tabindex="0"]').count();
+      for (let i = 0, n = await rows.count(); i < n; i++) {
+        await rows.nth(i).click();
+        const table = p.locator(".sub-matrix").first();
+        if (!(await table.isVisible().catch(() => false))) { await rows.nth(i).click(); continue; }
+        for (let h = 0, heads = await table.locator('button[role=columnheader]').count(); h < heads; h++) {
+          await table.locator('button[role=columnheader]').nth(h).click();
+          assert.equal(await stops(table), 1, `one tab stop after sorting column ${h} of company ${i}`);
+        }
+        await rows.nth(i).click();
+      }
+      await rows.first().click();
+      const cell = p.locator('.sub-matrix [role=cell][data-k]').first();
+      await cell.waitFor({ timeout: 10000 });
+      await cell.focus(); await p.keyboard.press("Enter");
+      assert.equal(await cell.getAttribute("data-flip"), "", "Enter flips the cell to its other reading");
+      await p.keyboard.press("Escape");
+      assert.equal(await cell.getAttribute("data-flip"), null, "Escape flips it back");
     } finally { await ctx.close(); }
   });
 

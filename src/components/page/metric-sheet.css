@@ -1,0 +1,90 @@
+/* More metrics (MetricSheet.tsx): a grid of small real charts, the opened chart in a row beneath, answer rows on a phone. Tokens only. */
+.cs-sheet { position: relative; min-width: 0; }
+.cs-sheet button { font: inherit; color: inherit; }
+
+/* ---- reveal: height glides, the chart mounts behind a skeleton ---- */
+.cs-reveal { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: 0fr; transition: grid-template-rows var(--cs-ms, 220ms) ease-out; }
+.cs-reveal[data-open="true"] { grid-template-rows: 1fr; }
+.cs-reveal[data-gone="true"] { display: none; }
+.cs-reveal > .cs-reveal-in { min-height: 0; overflow: hidden; }
+.cs-reveal[data-open="false"] > .cs-reveal-in { visibility: hidden; transition: visibility 0s linear var(--cs-ms, 220ms); }
+.cs-reveal[data-open="true"][data-settled="true"] > .cs-reveal-in { overflow: visible; }
+.cs-body { position: relative; padding-bottom: 24px; }
+.cs-skel { position: absolute; inset: 4px 0 28px; border-radius: 6px; opacity: .55; }
+.cs-body[data-ready="false"] { min-height: 460px; }
+@media (max-width: 639px) { .cs-body[data-ready="false"] { min-height: 322px; } }
+.cs-body[data-ready="false"] > .cs-body-in { opacity: 0; }
+.cs-body[data-ready="true"] > .cs-body-in { animation: cs-in 160ms ease-out; }
+@keyframes cs-in { from { opacity: 0; } }
+
+/* ---- shared parts ---- */
+.cs-info { display: inline-grid; place-items: center; width: 18px; height: 18px; flex: none; color: var(--grey); border-radius: 50%; cursor: pointer; pointer-events: auto; position: relative; z-index: 2; background: none; border: 0; padding: 0; }
+.cs-info:hover, .cs-info[aria-expanded="true"] { color: var(--indigo); }
+.cs-info:focus-visible, .cs-close:focus-visible { outline: 2px solid var(--indigo); outline-offset: 2px; }
+.cs-desc { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: 0fr; transition: grid-template-rows 180ms ease-out; }
+.cs-desc[data-open="true"] { grid-template-rows: 1fr; }
+.cs-desc > div { min-height: 0; overflow: hidden; }
+.cs-desc p { margin: 0; padding: 0 0 14px; max-width: 64ch; font: 13px/1.5 var(--font-sans); color: var(--ink-2); }
+.cs-hit { position: absolute; inset: 0; z-index: 0; background: none; border: 0; padding: 0; cursor: pointer; border-radius: 4px; }
+.cs-hit:focus-visible { outline: 2px solid var(--indigo); outline-offset: -2px; }
+.cs-axt { font: 10px var(--font-mono); fill: var(--grey); }
+.cs-thumb-svg { display: block; overflow: visible; }
+
+/* ---- the grid ---- */
+.cs-grid { display: grid; column-gap: 24px; row-gap: 32px; margin-top: 32px; align-items: start; }
+.cs-sheet > .cs-detail[data-hero="true"] { grid-column: 1 / -1; margin-top: 0; }
+.cs-grid[data-hero="false"] { margin-top: 24px; }
+.cs-detail { grid-column: 1 / -1; min-width: 0; }
+.cs-detail:has(> .cs-reveal[data-gone="true"]) { display: none; }
+.cs-detail[data-rule="true"] > .cs-reveal > .cs-reveal-in > .cs-body { border-top: 1px solid var(--hair); }
+.cs-detail .cs-body { padding-bottom: 8px; }
+.cs-dh { position: relative; display: flex; align-items: center; gap: 6px; min-height: 56px; scroll-margin-top: 72px; }
+.cs-t { font-size: 15px; font-weight: 500; white-space: nowrap; color: var(--ink); }
+.cs-close { margin-left: auto; display: grid; place-items: center; width: 24px; height: 24px; background: none; border: 0; padding: 0; cursor: pointer; border-radius: 4px; color: var(--grey); }
+.cs-close:hover { color: var(--ink); }
+
+.cs-card { position: relative; min-width: 0; display: grid; grid-template-rows: 24px 104px 20px; row-gap: 8px; cursor: pointer; }
+.cs-card[data-radar="true"] { grid-template-rows: 24px 132px; }
+.cs-card > .cs-hit { inset: -8px; border-radius: 8px; }
+.cs-card > .cs-hit:focus-visible { outline-offset: 0; }
+.cs-ch { position: relative; z-index: 1; display: flex; align-items: center; gap: 6px; min-width: 0; pointer-events: none; }
+.cs-ct { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--ink); min-width: 0; }
+.cs-cv { margin-left: auto; display: inline-flex; align-items: baseline; gap: 6px; font-size: 13px; color: var(--ink); white-space: nowrap; flex: none; }
+.cs-thumb { position: relative; z-index: 1; min-width: 0; }
+.cs-thumb::after { content: ""; position: absolute; left: 0; right: 0; bottom: -5px; height: 2px; background: var(--indigo); transform: scaleX(0); transform-origin: left; transition: transform 160ms ease-out; }
+.cs-card[data-open="true"] .cs-thumb::after { transform: scaleX(1); }
+.cs-card:hover .cs-thumb-svg circle, .cs-card:hover .cs-thumb-svg rect { fill-opacity: .72; }
+.cs-cf { position: relative; z-index: 1; display: flex; align-items: center; gap: 7px; min-width: 0; pointer-events: none; }
+.cs-cn { font: 13px/1.2 var(--font-sans); color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+
+/* Strengths: the top three models over each other, named beside the radar. */
+.cs-radar { display: flex; align-items: center; gap: 16px; min-width: 0; height: 132px; }
+.cs-radar > svg { flex: none; }
+.cs-key { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; flex: 1; min-width: 0; }
+.cs-key li { display: flex; align-items: center; gap: 8px; height: 28px; min-width: 0; font: 13px/1.2 var(--font-sans); color: var(--ink-2); }
+.cs-key li[data-on="true"] { color: var(--ink); }
+.cs-key li > svg { flex: none; }
+.cs-key li > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+
+/* ---- phone: answer rows ---- */
+.cs-row { position: relative; }
+.cs-sum { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) 24px; grid-template-areas: "title chev" "ans ans"; row-gap: 4px; align-content: center; min-height: 64px; padding: 10px 0 11px; scroll-margin-top: 72px; user-select: none; }
+.cs-title { grid-area: title; position: relative; z-index: 1; display: inline-flex; align-items: center; gap: 6px; pointer-events: none; min-width: 0; }
+.cs-chev { grid-area: chev; align-self: center; justify-self: end; position: relative; z-index: 1; display: grid; color: var(--grey); pointer-events: none; }
+.cs-sum:hover .cs-chev { color: var(--ink); }
+.cs-ans { grid-area: ans; display: flex; align-items: center; gap: 16px; min-width: 0; }
+.cs-lead, .cs-spark, .cs-val { position: relative; z-index: 1; min-width: 0; pointer-events: none; transition: opacity 120ms ease-out; }
+.cs-row[data-open="true"] .cs-lead, .cs-row[data-open="true"] .cs-spark, .cs-row[data-open="true"] .cs-val { opacity: 0; }
+.cs-lead { flex: 1 1 0; display: flex; align-items: center; gap: 8px; }
+.cs-lead > .lab-logo { flex: none; }
+.cs-aname { font: 400 13.5px/1.2 var(--font-sans); color: var(--ink-2); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cs-aval { font-size: 13px; color: var(--ink); flex: none; }
+.cs-spark { flex: none; display: block; height: 28px; width: 56px; }
+.cs-spark .cs-thumb-svg { overflow: visible; }
+.cs-val { flex: none; display: flex; align-items: baseline; justify-content: flex-end; gap: 6px; white-space: nowrap; }
+.cs-ld { display: block; width: 120px; height: 10px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .cs-reveal, .cs-desc, .cs-thumb::after, .cs-lead, .cs-spark, .cs-val, .cs-thumb-svg circle, .cs-thumb-svg rect { transition: none !important; }
+  .cs-body[data-ready="true"] > .cs-body-in { animation: none; }
+}

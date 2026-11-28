@@ -40,7 +40,7 @@
 .xs[data-dragging] .xs-tag { opacity: 1; }
 .xs-lab, .xs-actions { position: absolute; top: 12px; display: flex; align-items: center; gap: 8px; background: var(--hair-2); }
 .xs-lab { left: 12px; } .xs-actions { right: 12px; }
-.xs-lab .seg, .xs-actions .export-split, .xs-actions .xe-copy { background: var(--white); }
+.xs-lab .seg, .xs-actions .chart-share-split, .xs-actions .xe-copy { background: var(--white); }
 .xs-lab .seg > button { padding: 5px 10px; font-size: 12.5px; white-space: nowrap; }
 .xs-close { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 4px; color: var(--ink-2); }
 .xs-close:hover { background: var(--hair); color: var(--ink); }

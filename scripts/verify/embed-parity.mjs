@@ -4,7 +4,7 @@
  *
  * Each sample opens a random page and scatter chart in a random site scheme, applies random chart settings
  * (scale, All models, a model hidden through the context menu or the model picker, a highlighted mark), then runs one flow:
- *   toolbar: "Copy link to <chart>" and the toolbar PNG
+ *   toolbar: "Copy link to <chart>" and the toolbar's Download PNG
  *   editor:  the screenshot editor with a random ratio, theme, title and toggles, its "Copy link" and its PNG
  * It fetches the copied link as Twitterbot, reads og:image, fetches that image from BASE and scores it against the PNG:
  *   aspect  |ln(aspect_export / aspect_embed)|, about the relative aspect difference
@@ -144,13 +144,13 @@ function droppedParams(link, image) {
 async function waitCharts(page) {
   await retry(async (i) => {
     if (i) await page.reload({ waitUntil: "domcontentloaded" });
-    await page.locator(".chart-toolbar .export-edit").first().waitFor({ state: "attached", timeout: 45000 });
+    await page.locator(".chart-toolbar .chart-share-brush").first().waitFor({ state: "attached", timeout: 45000 });
   }, 4, 3000);
   await page.waitForTimeout(1500);
 }
 async function scatterAnchors(page) {
   // The leaderboard has a screenshot editor too, but it is not a scatter: only chart toolbars count here.
-  return page.evaluate(() => [...document.querySelectorAll(".chart-toolbar .export-edit")].map((b) => b.closest("[id]")?.id).filter(Boolean));
+  return page.evaluate(() => [...document.querySelectorAll(".chart-toolbar .chart-share-brush")].map((b) => b.closest("[id]")?.id).filter(Boolean));
 }
 /** Open a random collapsed gallery panel so its chart joins the pool. */
 async function openRandomPanel(page, prefer) {
@@ -229,7 +229,7 @@ async function contextHide(page, anchor, applied) {
   if (!marks.length) return;
   const m = pick(marks);
   await page.mouse.click(m.x, m.y, { button: "right" });
-  const item = page.getByRole("menuitem", { name: chance(0.5) ? "Remove model" : "Remove", exact: true });
+  const item = page.getByRole("menuitem", { name: chance(0.5) ? "Hide model" : "Hide effort", exact: true });
   if (await item.first().isVisible({ timeout: 1500 }).catch(() => false)) { await item.first().click(); applied.contextRemoved = (applied.contextRemoved ?? 0) + 1; await page.waitForTimeout(600); }
   else await page.keyboard.press("Escape");
 }
@@ -246,6 +246,11 @@ async function highlightMark(page, anchor, applied) {
 
 async function readClipboard(page) { return page.evaluate(() => navigator.clipboard.readText()).catch(() => ""); }
 
+/** The chevron's Download PNG item, opened the way a person does. */
+async function pngItem(page, scope) {
+  await scope.locator(".chart-share-more").first().click();
+  return page.getByRole("menuitem", { name: "Download PNG", exact: true });
+}
 async function download(page, button) {
   const [dl] = await Promise.all([page.waitForEvent("download", { timeout: 30000 }), button.click()]);
   const file = await dl.path();
@@ -253,10 +258,7 @@ async function download(page, button) {
 }
 
 async function runEditor(page, wrap, name, applied) {
-  // The brush shows on hover of the PNG split button, as for a person.
-  await wrap.locator(".export-split").first().hover();
-  await page.waitForTimeout(250); // It slides open.
-  await wrap.locator(".export-edit").first().click();
+  await wrap.locator(".chart-share-brush").first().click();
   const dialog = page.locator("dialog.xe[open]");
   await dialog.waitFor({ timeout: 15000 });
   await page.waitForTimeout(800);
@@ -282,7 +284,7 @@ async function runEditor(page, wrap, name, applied) {
   await page.waitForTimeout(400);
   let link = await readClipboard(page);
   if (!link) link = page.url();
-  const png = await download(page, dialog.getByRole("button", { name: `Download ${name} as PNG` }));
+  const png = await download(page, await pngItem(page, dialog));
   return { link, png };
 }
 
@@ -291,7 +293,7 @@ async function runToolbar(page, wrap, name) {
   await page.waitForTimeout(400);
   let link = await readClipboard(page);
   if (!link) link = page.url();
-  const png = await download(page, wrap.getByRole("button", { name: `Download ${name} as PNG`, exact: true }));
+  const png = await download(page, await pngItem(page, wrap));
   return { link, png };
 }
 
@@ -329,15 +331,16 @@ try {
       if (pg.explore && chance(0.6)) {
         const t = await openRandomPanel(page, "Score vs any published measure");
         applied.panel = t;
-        const measure = page.locator('select[aria-label="Measure"]');
+        const measure = page.locator(".pk-tools .pk-trig");
         if (t === "Score vs any published measure" && await measure.count()) {
-          const opts = await measure.locator("option").evaluateAll((os) => os.map((o) => [o.value, o.textContent]));
-          const [v, label] = pick(opts); await measure.selectOption(v); applied.measure = label; await page.waitForTimeout(1500);
+          await measure.click();
+          const opts = await page.getByRole("option").evaluateAll((os) => os.map((o) => [o.getAttribute("data-opt"), o.textContent]));
+          const [v, label] = pick(opts); await page.locator(`[role="option"][data-opt="${v}"]`).click(); applied.measure = label; await page.waitForTimeout(1500);
         }
       } else if (chance(0.35)) applied.panel = await openRandomPanel(page) ?? undefined;
       const anchors = await scatterAnchors(page);
       // Prefer the chart in the panel just opened, when it is a scatter.
-      const inPanel = applied.panel ? await page.evaluate((t) => [...document.querySelectorAll("details.gallery-panel[open]")].filter((d) => d.querySelector(".gallery-title")?.textContent === t).flatMap((d) => [...d.querySelectorAll(".export-edit")].map((b) => b.closest("[id]")?.id)).filter(Boolean), applied.panel) : [];
+      const inPanel = applied.panel ? await page.evaluate((t) => [...document.querySelectorAll("details.gallery-panel[open]")].filter((d) => d.querySelector(".gallery-title")?.textContent === t).flatMap((d) => [...d.querySelectorAll(".chart-share-brush")].map((b) => b.closest("[id]")?.id)).filter(Boolean), applied.panel) : [];
       if (!anchors.length) throw new Error("no scatter chart on the page");
       const anchor = inPanel.length && chance(0.8) ? pick(inPanel) : pick(anchors);
       rec.chart = anchor;

@@ -6,15 +6,15 @@ import { MixAssistant } from "./MixAssistant";
 import { SharedChart } from "./SharedChart";
 import { track } from "@/lib/analytics";
 import { everyVersion } from "@/lib/model-lineage";
-import { HighlightContext } from "./chart/highlight";
+import { HighlightContext, type HighlightModel } from "./chart/highlight";
+import { STAR_CAP } from "./chart/star-menu";
 import { SettingsButton } from "./SiteSettings";
 import type { Snapshot } from "@/data/types";
 import { chartVariantMode, computeIndex, PAGE_VIEW, DEFAULT_EFFORTS, EFFORT_CHOICES, filterEfforts, rankingRows as rankingRowsOf, type IndexConfig } from "@/engine";
 import { ShareCards } from "./ShareCards";
 import { encodeIndex, encodeIndices, decodeIndices, prettyQuery } from "@/lib/url";
 import { aaIndexMix, PRIORS_MIX_COOKIE } from "@/onboarding/defaults";
-import { compositeParts, latestAAIndex } from "@/data/aa-index";
-import { benchmarkPath } from "@/lib/benchmark-slug";
+import { compositeParts } from "@/data/aa-index";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { hiddenIds, toggleVisibility, SHOW_ALL, type Vis } from "@/lib/model-visibility";
@@ -29,7 +29,8 @@ import { Wordmark } from "./Wordmark";
 import { SiteFooter } from "./SiteFooter";
 import { SiteNav } from "./SiteNav";
 import { MixMenu } from "./MixMenu";
-import { IndexTabs } from "./IndexTabs";
+import { SourceLine } from "./SourceLine";
+import { derivedMixName } from "@/lib/mix-name";
 import { REFERENCE_ID, REFERENCE_LABEL, indexNote, isAAWeights, isPristineDefault, restorable, withoutPristineDefault } from "@/lib/default-index";
 import { CalculationSettings } from "./CalculationSettings";
 import { methodScoreAxis, ScoreAxisContext } from "./chart/score-axis";
@@ -124,13 +125,15 @@ export function Builder({ snapshot: base, initialIndices }: { snapshot: Snapshot
   const palette = useMemo(() => ({ ...basePalette, size }), [basePalette, size]);
   const pickerModels = useMemo(() => {
     const col = new Map(snapshot.labs.map((l) => [l.id, labColor(l.id, l.color)])), labName = new Map(snapshot.labs.map((l) => [l.id, l.name]));
-    const seen = new Map<string, { id: string; name: string; color?: string; open?: boolean; lab?: string }>();
-    const add = (id: string) => { if (!seen.has(id)) { const m = snapshot.models.find((x) => x.id === id); if (m) seen.set(id, { id, name: m.name, color: col.get(m.labId), open: m.openWeights, lab: labName.get(m.labId) }); } };
-    for (const r of result.ranked) if (!seen.has(r.model.id)) seen.set(r.model.id, { id: r.model.id, name: r.model.name, color: col.get(r.model.labId), open: r.model.openWeights, lab: labName.get(r.model.labId) });
+    const seen = new Map<string, HighlightModel>();
+    const add = (id: string) => { if (!seen.has(id)) { const m = snapshot.models.find((x) => x.id === id); if (m) seen.set(id, { id, name: m.name, color: col.get(m.labId), open: m.openWeights, lab: labName.get(m.labId), labId: m.labId }); } };
+    for (const r of result.ranked) if (!seen.has(r.model.id)) seen.set(r.model.id, { id: r.model.id, name: r.model.name, color: col.get(r.model.labId), open: r.model.openWeights, lab: labName.get(r.model.labId), labId: r.model.labId });
     for (const id of result.candidateModelIds) add(id);
     for (const id of active.excludeModels ?? []) add(id);
     return [...seen.values()];
   }, [result, active.excludeModels, snapshot, labColor]);
+  // The first of them are the ranked models, in rank order: the star picker lists those (plus anything starred), not the older versions after them.
+  const rankedCount = useMemo(() => new Set(result.ranked.map((r) => r.model.id)).size, [result.ranked]);
   const pickerIds = useMemo(() => pickerModels.map((m) => m.id), [pickerModels]);
   const excludedIds = useMemo(() => hiddenIds(active, pickerIds, result.autoHidden), [active, pickerIds, result.autoHidden]);
   // The index on screen, not `activeId`: a mix restored from this browser comes back with new ids ("i0"), and `active` falls back to the
@@ -206,13 +209,11 @@ export function Builder({ snapshot: base, initialIndices }: { snapshot: Snapshot
   const phone = usePhone(), fresh = useNewModels(snapshot.models);
   const scoreAxis = useMemo(() => methodScoreAxis(active.scoring), [active.scoring]);
   const mixEmpty = !Object.values(active.weights).some((w) => w > 0);
-  const highlightState = useMemo(() => ({ items: active.highlight ?? [], set: (h: string[]) => update({ ...active, highlight: h.length ? h : undefined }), models: pickerModels, linkIndices: [active, ...indices.filter((i) => i.id !== active.id)], curated: active.excludeModels !== undefined || active.onlyModels !== undefined }), [active, indices, update, pickerModels]);
-  // The + copies the index you are viewing (weights, filters, highlights), so a variation never starts from a blank mix.
+  const highlightState = useMemo(() => ({ items: active.highlight ?? [], set: (h: string[]) => update({ ...active, highlight: h.length ? h.slice(0, STAR_CAP) : undefined }), models: pickerModels, ranked: rankedCount, linkIndices: [active, ...indices.filter((i) => i.id !== active.id)], curated: active.excludeModels !== undefined || active.onlyModels !== undefined }), [active, indices, update, pickerModels, rankedCount]);
+  // New mix copies the index you are viewing (weights, filters, highlights), so a variation never starts from a blank mix. It is named for what it holds.
   const add = () => {
     const id = `i${Date.now().toString(36)}`;
-    const base = active.name.replace(/ copy( \d+)?$/, ""), taken = new Set(indices.map((i) => i.name));
-    let name = `${base} copy`;
-    for (let n = 2; taken.has(name); n++) name = `${base} copy ${n}`;
+    const name = derivedMixName(snapshot, active, indices.map((i) => i.name));
     setIndices((l) => [...l, { ...structuredClone(active), id, name }]);
     setActiveId(id);
     return { id, name };
@@ -226,10 +227,7 @@ export function Builder({ snapshot: base, initialIndices }: { snapshot: Snapshot
     <div className="builder min-h-dvh">
       <header className="builder-header grid grid-cols-[auto_minmax(0,1fr)_auto] lg:flex items-center gap-x-4 gap-y-2 px-4 sm:px-8 py-2 lg:py-0 lg:h-14 border-b hairline lg:sticky top-0 bg-bone z-40">
         <div className="shrink-0 flex items-center gap-5"><Wordmark transitionTypes={["nav-back"]} /><span className="max-sm:hidden"><SiteNav current="builder" /></span><span className="max-xl:hidden w-[220px]"><SiteSearchButton wide /></span><span className="max-sm:hidden xl:hidden"><SiteSearchButton /></span></div>
-        <div className="min-w-0 flex-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden max-sm:col-span-3 max-sm:row-start-2 empty:hidden">
-          {(mixOpen || indices.length > 1) && <IndexTabs indices={indices} activeId={active.id} onSelect={setActiveId} onRename={(id, name) => update({ ...indices.find((i) => i.id === id)!, name })} onAdd={add} onRemove={remove} />}
-        </div>
-        {/* Phones: share and sign-in sit beside the wordmark and index tabs (when there are any) take the second row; the five-icon site nav is just under the header. */}
+        {/* Phones: share and sign-in sit beside the wordmark; the five-icon site nav is just under the header. */}
         <div className="col-span-3 row-start-2 max-sm:col-span-1 max-sm:col-start-2 max-sm:row-start-1 max-sm:justify-self-end lg:w-auto lg:ml-auto flex flex-wrap items-center gap-2 shrink-0">
           <span className="ml-auto flex items-center gap-2"><ShareCards indices={indices} active={active} top={topNames} hint={shareHint} onOpen={() => setShareHint(false)} /><HeaderAuth indices={indices} canPublish={!pristine} /></span>
         </div>
@@ -259,9 +257,7 @@ export function Builder({ snapshot: base, initialIndices }: { snapshot: Snapshot
         {/* Keep the assistant clearance inside this column so the sidebar stays below the header at the page bottom. */}
         <section className="builder-charts grid gap-10 min-w-0 content-start pb-20 [&>div]:min-w-0">
           <div className="builder-rank">
-            <Rankings anchor="rankings" imageTitle={active.name} fresh={fresh} empty={mixEmpty ? "Your mix is empty. Add a benchmark to rank models." : undefined} limit={phone ? 10 : 20} title={<h1 className="text-[26px] leading-tight"><MixMenu indices={indices} activeId={active.id} onSelect={setActiveId} onAdd={add} onRename={(id, name) => update({ ...indices.find((i) => i.id === id)!, name })} onRemove={remove} /></h1>} subtitle={<>
-              <p className="cap">{isAAWeights(active) ? <>Scores as published by <Link href={benchmarkPath(latestAAIndex(snapshot)?.id ?? "") as "/"} className="underline underline-offset-2 hover:text-ink" transitionTypes={["nav-forward"]}>Artificial Analysis</Link></> : "Ranked by your mix"} · <span className="whitespace-nowrap">data as of {snapshot.date}</span></p>
-              {!mixOpen && <p className="cap mt-1">Want your own ranking? <Link href="/rank" className="underline underline-offset-2 hover:text-ink" transitionTypes={["nav-forward"]}>Rank models</Link> or <button type="button" className="underline underline-offset-2 hover:text-ink" onClick={openMix}>change the mix</button>.</p>}</>} actions={<ChartSettings label="Ranking" efforts={{ value: active.rankingEfforts ?? [...EFFORT_CHOICES], onChange: (rankingEfforts) => update({ ...active, rankingEfforts }), withMode: true }} mode={rankingMode} onChange={(rankingVariants) => update({ ...active, rankingVariants })} {...releaseProps} {...modelPicker} />} onSelect={(r) => { if (r) router.push(`/models/${r.model.id}${isAAWeights(active) ? "?r=aa" : ""}` as "/", { transitionTypes: ["nav-forward"] }); }} ranked={rankingRows} labs={snapshot.labs} showEffort={rankingMode === "all"} />
+            <Rankings anchor="rankings" imageTitle={active.name} fresh={fresh} empty={mixEmpty ? "Your mix is empty. Add a benchmark to rank models." : undefined} limit={phone ? 10 : 20} title={<h1 className="text-[26px] leading-tight"><MixMenu snapshot={snapshot} indices={indices} active={active} mixOpen={mixOpen} openMix={openMix} onSelect={setActiveId} onAdd={add} onRename={(id, name) => update({ ...indices.find((i) => i.id === id)!, name })} onRemove={remove} /></h1>} subtitle={<SourceLine snapshot={snapshot} config={active} />} actions={<ChartSettings label="Ranking" efforts={{ value: active.rankingEfforts ?? [...EFFORT_CHOICES], onChange: (rankingEfforts) => update({ ...active, rankingEfforts }), withMode: true }} mode={rankingMode} onChange={(rankingVariants) => update({ ...active, rankingVariants })} {...releaseProps} {...modelPicker} />} onSelect={(r) => { if (r) router.push(`/models/${r.model.id}${isAAWeights(active) ? "?r=aa" : ""}` as "/", { transitionTypes: ["nav-forward"] }); }} ranked={rankingRows} labs={snapshot.labs} showEffort={rankingMode === "all"} />
           </div>
           <div className="builder-cost">
             <ParetoChart everyVersion={versions} formulaInputs={formulaInputs(snapshot, result.ranked, active.timeSource)} basis={effectiveBasis(active.costBasis, hasSubscriptionPrices(snapshot))} description={costDescription(costSourceOf(snapshot, active.costSource), effectiveBasis(active.costBasis, hasSubscriptionPrices(snapshot)))} anchor="cost" ranked={costRanked} mode={paretoMode} labs={snapshot.labs} view={paretoView} onView={setParetoView} height={phone ? undefined : 620} title={<h2 className="text-[22px]">{effectiveBasis(active.costBasis, hasSubscriptionPrices(snapshot)) === "subscription" ? "Score vs subscription cost per task" : "Score vs cost per task"}</h2>}

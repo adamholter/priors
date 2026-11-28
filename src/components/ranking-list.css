@@ -1,0 +1,43 @@
+/* The leaderboard's rows (RankingList.tsx). Tokens only. --t is the builder's row scale (1, 1.1, 1.2) and is 1 on every other page.
+   Rows are absolutely placed: --i is a row's index, --n the row count, --rp the pitch the chart palette asks for. */
+.rl-list { --u: var(--t, 1); --pitch: var(--rp, 30px); --rgap: 4px; --sc: calc(48px * var(--u)); font-size: calc(12.5px * var(--u)); line-height: 1.3; height: calc(var(--n) * var(--pitch) - var(--rgap)); contain: layout paint; transition: height 450ms cubic-bezier(.2, .7, .2, 1); }
+.rl-list[data-fmt] { --sc: calc(72px * var(--u)); }
+.rl-list button { font: inherit; color: inherit; }
+
+.rl-row { position: absolute; top: 0; left: 0; width: 100%; height: calc(var(--pitch) - 4px); transform: translateY(calc(var(--i) * var(--pitch))); display: grid; grid-template-columns: calc(28px * var(--u)) calc(16px * var(--u)) minmax(120px, calc(210px * var(--u))) minmax(0, 1fr) var(--sc); align-items: center; gap: calc(10px * var(--u)); padding: 0 4px; border: 0; border-radius: 2px; background: transparent; text-align: left; cursor: pointer; transition: transform 450ms cubic-bezier(.2, .7, .2, 1), height 450ms cubic-bezier(.2, .7, .2, 1), background-color 120ms ease; }
+.rl-list[data-eff] .rl-row { grid-template-columns: calc(28px * var(--u)) calc(16px * var(--u)) minmax(120px, calc(210px * var(--u))) calc(44px * var(--u)) minmax(0, 1fr) var(--sc); }
+.rl-row:focus-visible { outline-offset: -2px; }
+.rl-row[data-selected] { background: var(--white); }
+@media (hover: hover) {
+  .rl-row:hover { background: var(--hair-2); }
+  .rl-row:hover .rl-track { background: var(--hair); }
+  .rl-row:hover .rl-rk { color: var(--ink); }
+}
+
+.rl-rk { text-align: right; white-space: nowrap; transition: color 120ms ease; }
+.rl-row > .lab-logo { justify-self: start; }
+.rl-name { display: flex; align-items: baseline; min-width: 0; }
+.rl-nm { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rl-list .rl-eff { margin-left: 6px; }
+.rl-list .rl-new { margin-left: 6px; flex: none; color: var(--indigo); }
+.rl-effcol { text-align: right; white-space: nowrap; }
+.rl-track { display: block; height: calc(12px * var(--u) * var(--u)); border-radius: 2px; background: var(--hair-2); overflow: hidden; transition: background-color 120ms ease; }
+.rl-fill { display: block; height: 100%; border-radius: 2px; }
+.rl-sc { text-align: right; white-space: nowrap; }
+@media (min-width: 1024px) { .rl-list .rl-sc { font-size: calc(13px * var(--u)); } }
+
+/* Touch or a narrow window: a 40px pitch with no gap, names that wrap to two lines instead of clipping, and tighter columns. */
+@media (pointer: coarse), (max-width: 639.98px) {
+  .rl-list { --pitch: 40px; --rgap: 0px; --sc: 40px; }
+  .rl-list[data-fmt] { --sc: 64px; }
+  .rl-row { height: var(--pitch); gap: 8px; grid-template-columns: 22px 18px minmax(0, 1.4fr) minmax(72px, 1fr) var(--sc); }
+  .rl-list[data-eff] .rl-row { grid-template-columns: 22px 18px minmax(0, 1.4fr) 40px minmax(64px, 1fr) var(--sc); }
+  /* The logo's size is inline (LabLogo), so the phone's slightly larger mark needs !important. */
+  .rl-row > .lab-logo { width: 18px !important; height: 18px !important; font-size: 10px !important; }
+  .rl-name { align-items: center; }
+  .rl-nm { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.15; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rl-list, .rl-list *, .rl-list *::before, .rl-list *::after { transition: none !important; }
+}

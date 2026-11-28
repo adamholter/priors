@@ -9,8 +9,9 @@ import { chartLink } from "@/lib/answer-chart";
 import { useTheme } from "./Theme";
 import { SITE_THEME_KEY } from "@/lib/site-theme";
 import { ChartExpandIcon } from "./chart/ChartIcons";
-import { ChartExport } from "./chart/ChartExport";
-import { HighlightContext, HighlightMenu, toggleModel, type HighlightState } from "./chart/highlight";
+import { ChartShare } from "./chart/ChartShare";
+import { HighlightContext, toggleModel, type HighlightState } from "./chart/highlight";
+import { StarMenu } from "./chart/StarMenu";
 import { copyLink } from "@/lib/short-link";
 
 /** The active index's highlights, which answer charts show and their expanded view edits. */
@@ -99,7 +100,7 @@ export function ExpandedChart({ chart, highlight, onClose }: { chart: AnswerChar
   }));
   useEffect(() => {
     close.current?.focus();
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape" && !document.querySelector('details[name="chart-settings"][open]')) onClose(); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape" && !document.querySelector('details[name="chart-settings"][open], .star-panel, .star-sheet-root')) onClose(); };
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     // Capture, so an open highlight menu is still open here and its Escape closes only the menu.
@@ -109,16 +110,16 @@ export function ExpandedChart({ chart, highlight, onClose }: { chart: AnswerChar
   const state = useMemo<HighlightState | null>(() => {
     if (!highlight) return null;
     const marks = chart.kind === "bar" ? chart.items : chart.kind === "grouped" ? chart.groups : chart.kind === "lines" ? chart.lines : chart.points;
-    const models = [...new Map(marks.map((m) => [m.modelId, { id: m.modelId, name: m.label, color: markColor(m.color, pal, m.labId) }])).values()];
+    const models = [...new Map(marks.map((m) => [m.modelId, { id: m.modelId, name: m.label, color: markColor(m.color, pal, m.labId), labId: m.labId }])).values()];
     return { ...highlight, models };
   }, [chart, highlight, pal]);
   return <>
     <div className="chart-expand-backdrop" aria-hidden="true" onClick={onClose} />
     <div className="chart-expanded" role="dialog" aria-modal="true" aria-label={chart.title}>
       <div className="flex flex-wrap items-center gap-1 mb-2"><h2 className="text-[22px] min-w-0 mr-auto">{chart.title}</h2><Key chart={chart} />
-        <HighlightContext.Provider value={state}><HighlightMenu label={chart.title} /></HighlightContext.Provider>
+        <HighlightContext.Provider value={state}><StarMenu label={chart.title} /></HighlightContext.Provider>
         <ChartLinkButton chart={chart} className="p-1.5 text-grey hover:text-ink rounded-sm focus-visible:outline-indigo" />
-        <ChartExport name={chart.title} frame getSvg={() => instance.current?.renderToSVGString()} getRows={() => answerRows(chart)} />
+        <ChartShare name={chart.title} frame getSvg={() => instance.current?.renderToSVGString()} getRows={() => answerRows(chart)} />
         <button ref={close} type="button" className="p-1.5 text-grey hover:text-ink rounded-sm focus-visible:outline-indigo" aria-label={`Close expanded ${chart.title}`} title="Close (Esc)" onClick={onClose}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg></button>
       </div>
       <div ref={box} className="flex-1 min-h-0"><div ref={ref} role="img" aria-label={chart.title} style={{ width: "100%", height: "100%" }} /></div>

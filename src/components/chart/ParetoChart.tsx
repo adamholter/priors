@@ -9,6 +9,7 @@ import { costChartFor, pickPoints, type FormulaInputs } from "@/lib/metrics";
 import { linkedFormula, useFormulaChart, type FormulaSettings } from "./formula-chart";
 import type { CostBasis } from "@/data/subscription";
 import { speedTierLegend } from "@/data/speed-tiers";
+import { ChartKeyReading } from "./ChartKey";
 import { useBarModelVisibility, type BarModelPicker } from "./bar-model-visibility";
 
 import { linkedLabelScale } from "./label-size";
@@ -83,17 +84,17 @@ export function ParetoChart({ everyVersion, ranked, mode = "all", labs, height =
   }, [anchor, bars, view.scale, formula.link.cf, formula.link.cb]); // eslint-disable-line react-hooks/exhaustive-deps
   // How to read the chart sits behind the info icon with the method, so the chart itself carries no caption.
   const tierLegend = speedTierLegend(pts.map((p) => p.r), "cost");
-  const reading = !bars && !formula.custom && <><span>Heavy line: best score at each price. Thin lines join one model&rsquo;s effort levels.</span>{tierLegend && subscription && <span>{tierLegend}</span>}</>;
+  const reading = !bars && !formula.custom && <><ChartKeyReading />{tierLegend && subscription && <span>{tierLegend}</span>}</>;
   const method = (description || reading) && <ChartMethod name="this cost" href="/benchmarks/methodology#cost">{description && <span>{description}.</span>}{subscription && <span>Each model uses its best common plan until you pick one in this chart&rsquo;s settings. Models with no plan data use API price.</span>}{reading}</ChartMethod>;
   const heading = <div className="flex items-center gap-1.5 min-w-0">{bars ? <h2 className="text-[22px]">{subscription ? "Subscription cost per task" : "Cost per task"}</h2> : title}{method}</div>;
   if (formula.custom) {
     const source = formula.custom.source, customHeading = <div><h2 className="text-[22px] break-words">{bars ? source : `Score vs ${source}`}</h2><p className="cap mt-1">{formula.caption}</p></div>;
     if (bars) return <MetricBars bestFirst labelScale={view.labelScale} pts={barVisibility.points} labs={labs} better={costChart.better} xName={costChart.xName} formatValue={costChart.formatX} height={height} aria={`By model: ${source}`} title={customHeading} actions={controls} anchor={anchor} linkParams={linkParams} exportName="Custom formula" />;
-    return <ScoreScatter pts={pts} labs={labs} better={costChart.better} xName={costChart.xName} scale={costChart.scale} formatX={costChart.formatX} height={height} aria={costChart.aria} title={customHeading} actions={controls} linkParams={linkParams} view={view} anchor={anchor} exportName="Score vs custom formula"
+    return <ScoreScatter pts={pts} labs={labs} better={costChart.better} xName={costChart.xName} scale={costChart.scale} formatX={costChart.formatX} height={height} aria={costChart.aria} title={customHeading} actions={controls} linkParams={linkParams} view={view} onView={onView} anchor={anchor} exportName="Score vs custom formula"
       extraRows={(p) => ({ cost_per_task_usd: p.r.costUsd ?? null, speed_toks: p.r.speed ?? null, coverage: p.r.coverage })} />;
   }
   if (bars) return <MetricBars labelScale={view.labelScale} pts={barVisibility.points} labs={labs} better={costChart.better} xName={subscription ? "Subscription cost per task ($)" : "Cost per task ($)"} formatValue={costChart.formatX} height={height} aria={subscription ? "Subscription cost per task by model" : "Cost per task by model"} title={heading} actions={controls} anchor={anchor} linkParams={linkParams} exportName={subscription ? "Subscription cost per task" : "Cost per task"} />;
-  return <ScoreScatter lineage={lineage} lineageIdle={pathsOn} lineageOnCard={shiftHeld} pts={pts} labs={labs} better={costChart.better} xName={costChart.xName} xShort={costChart.xShort} scale={costChart.scale} formatX={costChart.formatX} formatValue={costChart.formatValue} height={height} aria={costChart.aria} title={heading} actions={controls} linkParams={linkParams} view={view} anchor={anchor} exportName={subscription ? "Score vs subscription cost per task" : "Score vs cost per task"}
+  return <ScoreScatter lineage={lineage} lineageIdle={pathsOn} lineageOnCard={shiftHeld} pts={pts} labs={labs} better={costChart.better} xName={costChart.xName} xShort={costChart.xShort} scale={costChart.scale} formatX={costChart.formatX} formatValue={costChart.formatValue} height={height} aria={costChart.aria} title={heading} actions={controls} linkParams={linkParams} view={view} onView={onView} anchor={anchor} exportName={subscription ? "Score vs subscription cost per task" : "Score vs cost per task"}
     tooltipExtra={(p) => `${p.r.speed ? ` · ${Math.round(p.r.speed)} tok/s` : ""}${subscription ? ` · ${p.r.costPlan ? p.r.costPlan.ratio === 0 ? p.r.costPlan.plan : `${p.r.costPlan.plan}, ${subscriptionShare(p.r.costPlan.ratio)} of API price${p.r.costPlan.preliminary ? `. ${p.r.costPlan.preliminary.label}: ${p.r.costPlan.preliminary.short}` : ""}` : p.r.speedTier?.apiRates ? "billed at API rates, no plan covers this tier" : "API price, no plan data"}` : ""}`}
     extraRows={(p) => ({ speed_toks: p.r.speed ?? null, coverage: p.r.coverage, ...(subscription ? { subscription_plan: p.r.costPlan?.plan ?? null, share_of_api_price: p.r.costPlan?.ratio ?? null } : {}) })} />;
 }

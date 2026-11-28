@@ -16,9 +16,6 @@
     & .builder-rank :is(h1, h2) { font-size: calc(30px * var(--t)); }
     & .builder-charts .cap { font-size: calc(11px * var(--t)); }
     & .builder-charts .gallery-title { font-size: calc(15px * var(--t)); }
-    & .ranking-list .row-move { font-size: calc(12.5px * var(--t)); grid-template-columns: calc(28px * var(--t)) minmax(120px, calc(220px * var(--t))) minmax(0, 1fr) calc(52px * var(--t)); gap: calc(12px * var(--t)); }
-    & .ranking-list .row-move > span:nth-child(3) { height: calc(12px * var(--t) * var(--t)); }
-    & .ranking-list .row-move > .num { font-size: calc(13px * var(--t)); }
     /* Dialogs and the benchmark sheet undo the sidebar's zoom, so their viewport-based sizes still fit the
        screen. The sheet opens beside the sidebar. */
     & .builder-aside :is(dialog, .bench-sheet) { zoom: calc(1 / var(--t)); }

@@ -20,6 +20,8 @@ import { radarReady, StrengthsRadar } from "../chart/StrengthsRadar";
 import { UsageStream } from "../chart/UsageStream";
 import { usageData } from "@/lib/usage-stream";
 import { anchorOf, useHashTarget } from "../chart/ChartLink";
+import { contendersOf, metricSummary, strengthsSummary, type Summary } from "@/lib/metric-summary";
+import { MetricSheet, type MetricRow } from "./MetricSheet";
 
 import { linkedLabelScale } from "../chart/label-size";
 
@@ -34,41 +36,60 @@ export function MetricGallery({ tiers, ranked, estimated, mode = "all", snapshot
   const timeSource = timeSourceOf(snapshot, chosenTimeSource);
   const metricList = useMemo(() => metricPanels(snapshot, ranked, timeSource, estimated), [snapshot, ranked, timeSource, estimated]);
   const inputs = formulaInputs(snapshot, ranked, timeSource, metricList);
-  const radar = strengths ?? (benchmarks && config ? { ranked, benchmarks, config } : undefined), radarBenchmarks = radar?.benchmarks;
+  const radar = useMemo(() => strengths ?? (benchmarks && config ? { ranked, benchmarks, config } : undefined), [strengths, benchmarks, config, ranked]), radarBenchmarks = radar?.benchmarks;
   const hasStrengths = !!(radarBenchmarks && radarReady(radarBenchmarks));
   const all = useMemo(() => {
     const list: { id: string; title: string; desc: string; open?: boolean }[] = metricList.map((p) => ({ id: p.id, title: p.title, desc: p.desc, open: p.open }));
     if (hasStrengths) { const at = list.findIndex((p) => p.id === "tpt") + 1; list.splice(at, 0, { id: "strengths", title: "Strengths", desc: `each model's shape across the ${radarBenchmarks!.length} benchmarks in this index` }); }
     return list;
   }, [metricList, hasStrengths, radarBenchmarks]);
+  // What each card shows, from the same points its chart draws: built once per data change, not per render. The owner's edit view lists Panels and needs none.
+  const summaries = useMemo(() => {
+    if (editing) return null;
+    const contenders = contendersOf(ranked), map = new Map<string, Summary>();
+    for (const m of metricList) {
+      const s = metricSummary({ id: m.id, title: m.title, chart: m.chart, speed: m.speed, rows: (tierable(m.id, m.speed, timeSource) && tiers?.ranked) || ranked }, mode, snapshot, contenders);
+      if (s) map.set(m.id, s);
+    }
+    const strong = hasStrengths && radar ? strengthsSummary(radar, snapshot) : null;
+    if (strong) map.set("strengths", strong);
+    return map;
+  }, [editing, metricList, ranked, tiers?.ranked, timeSource, mode, snapshot, hasStrengths, radar]);
   const arranged = arrangeMetrics(all, layout);
   if (!arranged.length) return null;
   const current = (): GalleryMetric[] => arranged.map((p) => ({ id: p.id, ...(p.hidden ? { hidden: true } : {}), ...(p.entry?.open !== undefined || p.open !== !!all.find((x) => x.id === p.id)?.open ? { open: p.open } : {}), ...(p.entry?.view ? { view: p.entry.view } : {}) }));
   const patch = (id: string, change: Partial<GalleryMetric>) => onLayout?.(current().map((e) => e.id === id ? { ...e, ...change } : e));
   const move = (id: string, d: number) => { const l = current(), i = l.findIndex((e) => e.id === id), j = i + d; if (j < 0 || j >= l.length) return; [l[i], l[j]] = [l[j], l[i]]; onLayout?.(l); };
   const shown = editing ? arranged : arranged.filter((p) => !p.hidden);
-  return (
+  const rows = shown.map((p, i) => {
+    const anchor = `${anchorPrefix}${anchorOf(p.title)}`;
+    const chart = metricList.find((m) => m.id === p.id);
+    const tools = editing && <span className="metric-tools" onClick={(e) => e.preventDefault()}>
+      <button type="button" className="edit-btn" aria-pressed={p.open} disabled={p.hidden} title="Whether visitors see this chart expanded" onClick={() => patch(p.id, { open: !p.open })}>{p.open ? <IconSquareCheck size={15} /> : <IconSquare size={15} />}Starts open</button>
+      <button type="button" className="edit-btn" onClick={() => patch(p.id, { hidden: !p.hidden })}>{p.hidden ? <IconEye size={15} /> : <IconEyeOff size={15} />}{p.hidden ? "Show" : "Hide"}</button>
+      <button type="button" className="edit-icon" aria-label={`Move ${p.title} up`} title="Move up" disabled={i === 0} onClick={() => move(p.id, -1)}><IconArrowUp size={16} /></button>
+      <button type="button" className="edit-icon" aria-label={`Move ${p.title} down`} title="Move down" disabled={i === shown.length - 1} onClick={() => move(p.id, 1)}><IconArrowDown size={16} /></button>
+    </span>;
+    const scatterBody = p.id === "strengths"
+      ? <div id={anchor} className="scroll-mt-20"><StrengthsRadar ranked={radar!.ranked} benchmarks={radar!.benchmarks} labs={labs} snapshot={snapshot} config={radar!.config} /></div>
+      : chart && <GalleryChart speedTiers={tierable(p.id, chart.speed, timeSource) ? tiers?.settings : undefined} tiered={tierable(p.id, chart.speed, timeSource) ? tiers?.ranked : undefined} inputs={inputs} id={p.id} anchor={anchor} title={p.title} chart={chart.chart} speed={chart.speed} ranked={ranked} defaultMode={mode} labs={labs} settings={settings} owner={p.entry?.view} onOwner={editing ? (view) => patch(p.id, { view }) : undefined} dataSource={p.id === "tpt" && onTimeSourceChange ? { value: timeSource, options: taskMetricOptions(snapshot, "time"), onChange: onTimeSourceChange } : undefined} />;
+    // Usage opens as daily share over time (the Slopalytics view); the score-against-usage chart stays one click away.
+    const body = p.id === "usage" && usageData(snapshot) ? <UsageGallery snapshot={snapshot} labs={labs} scatter={scatterBody} /> : scatterBody;
+    const tierLegend = chart && tierable(p.id, chart.speed, timeSource) && tiers ? speedTierLegend(tiers.ranked, "speed") : "";
+    return { p, tools, body, anchor, desc: tierLegend ? `${p.desc}. ${tierLegend}` : p.desc, key: `${p.id}-${editing ? "edit" : p.open}` };
+  });
+  // The owner's edit view stays a list of Panels: each row carries its show, hide, order and starts-open controls.
+  if (editing) return (
     <div className="border-t hairline">
-      {editing && <p className="cap py-2.5">Choose which metrics show, their order, and which start open. Chart settings you change here become the page default.</p>}
-      {shown.map((p, i) => {
-        const anchor = `${anchorPrefix}${anchorOf(p.title)}`;
-        const chart = metricList.find((m) => m.id === p.id);
-        const tools = editing && <span className="metric-tools" onClick={(e) => e.preventDefault()}>
-          <button type="button" className="edit-btn" aria-pressed={p.open} disabled={p.hidden} title="Whether visitors see this chart expanded" onClick={() => patch(p.id, { open: !p.open })}>{p.open ? <IconSquareCheck size={15} /> : <IconSquare size={15} />}Starts open</button>
-          <button type="button" className="edit-btn" onClick={() => patch(p.id, { hidden: !p.hidden })}>{p.hidden ? <IconEye size={15} /> : <IconEyeOff size={15} />}{p.hidden ? "Show" : "Hide"}</button>
-          <button type="button" className="edit-icon" aria-label={`Move ${p.title} up`} title="Move up" disabled={i === 0} onClick={() => move(p.id, -1)}><IconArrowUp size={16} /></button>
-          <button type="button" className="edit-icon" aria-label={`Move ${p.title} down`} title="Move down" disabled={i === shown.length - 1} onClick={() => move(p.id, 1)}><IconArrowDown size={16} /></button>
-        </span>;
-        const scatterBody = p.id === "strengths"
-          ? <div id={anchor} className="scroll-mt-20"><StrengthsRadar ranked={radar!.ranked} benchmarks={radar!.benchmarks} labs={labs} snapshot={snapshot} config={radar!.config} /></div>
-          : chart && <GalleryChart speedTiers={tierable(p.id, chart.speed, timeSource) ? tiers?.settings : undefined} tiered={tierable(p.id, chart.speed, timeSource) ? tiers?.ranked : undefined} inputs={inputs} id={p.id} anchor={anchor} title={p.title} chart={chart.chart} speed={chart.speed} ranked={ranked} defaultMode={mode} labs={labs} settings={settings} owner={p.entry?.view} onOwner={editing ? (view) => patch(p.id, { view }) : undefined} dataSource={p.id === "tpt" && onTimeSourceChange ? { value: timeSource, options: taskMetricOptions(snapshot, "time"), onChange: onTimeSourceChange } : undefined} />;
-        // Usage opens as daily share over time (the Slopalytics view); the score-against-usage chart stays one click away.
-        const body = p.id === "usage" && usageData(snapshot) ? <UsageGallery snapshot={snapshot} labs={labs} scatter={scatterBody} /> : scatterBody;
-        const tierLegend = chart && tierable(p.id, chart.speed, timeSource) && tiers ? speedTierLegend(tiers.ranked, "speed") : "";
-        return <Panel key={`${p.id}-${editing ? "edit" : p.open}`} anchor={anchor} title={p.title} desc={tierLegend ? `${p.desc}. ${tierLegend}` : p.desc} defaultOpen={p.open && !p.hidden} dim={editing && p.hidden} tools={tools}>{body}</Panel>;
-      })}
+      <p className="cap py-2.5">Choose which metrics show, their order, and which start open. Chart settings you change here become the page default.</p>
+      {rows.map((r) => <Panel key={r.key} anchor={r.anchor} title={r.p.title} desc={r.desc} defaultOpen={r.p.open && !r.p.hidden} dim={r.p.hidden} tools={r.tools}>{r.body}</Panel>)}
     </div>
   );
+  const sheet: MetricRow[] = rows.map((r) => ({ key: r.key, id: r.p.id, title: r.p.title, desc: r.desc, anchor: r.anchor, defaultOpen: !!r.p.open, body: r.body }));
+  // A metric with no summary has nothing to show (Strengths with too few axes): leave it out rather than hold a skeleton.
+  const live = sheet.filter((r) => summaries!.has(r.id));
+  if (!live.length) return null;
+  return <MetricSheet rows={live} summaries={summaries!} snapshot={snapshot} labs={labs} />;
 }
 
 /** The panels a speed tier changes: output speed, and time per task where it is tokens over speed (a harness's measured run also holds tool time). */

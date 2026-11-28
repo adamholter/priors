@@ -6,7 +6,7 @@ import { PAGE_PRESETS, THEME_CHOICES, themeById } from "@/lib/page-presets";
 import { EDITOR_MAX, EDITOR_MIN, EDITOR_RATIOS, clampSize, ratioOf, sizeForRatio, type EditorState, type EditorView } from "@/lib/export-editor";
 import { labelScale } from "./label-size";
 import { ChartPaletteContext, paletteFor, useChartPalette } from "./echarts";
-import { ChartExport } from "./ChartExport";
+import { ChartShare } from "./ChartShare";
 import type { ScatterView } from "./scatter-option";
 import { copyLink } from "@/lib/short-link";
 import CanvasEditor from "./CanvasEditor";
@@ -99,7 +99,7 @@ function ClassicEditor({ name, initial, base, showScale, onClose, link, plot, vi
     <div className="xe-viewer-bar">
       <span className="cap">{heading}</span>
       <span className="flex items-center gap-2">
-        <ChartPaletteContext.Provider value={pal}><ChartExport name={name} title={heading} frame trim={false} place={place} getSvg={getSvg} /></ChartPaletteContext.Provider>
+        <ChartPaletteContext.Provider value={pal}><ChartShare name={name} title={heading} frame trim={false} place={place} getSvg={getSvg} /></ChartPaletteContext.Provider>
         <button type="button" className="xe-copy" onClick={() => onEditCanvas ? onEditCanvas() : setViewing(false)}>Edit</button>
         <button type="button" className="xe-copy" onClick={onClose} aria-label="Close">Close</button>
       </span>
@@ -138,7 +138,7 @@ function ClassicEditor({ name, initial, base, showScale, onClose, link, plot, vi
         <label className="xe-field">Label size <span>{Math.round(labelScale(view.labelScale) * 100)}%</span><input type="range" min={75} max={175} step={5} value={Math.round(labelScale(view.labelScale) * 100)} onChange={(e) => set({ labelScale: Number(e.target.value) / 100 })} /></label>
       </section>
       <footer>
-        <ChartPaletteContext.Provider value={pal}><ChartExport name={name} title={heading} frame trim={false} getSvg={getSvg} /></ChartPaletteContext.Provider>
+        <ChartPaletteContext.Provider value={pal}><ChartShare name={name} title={heading} frame trim={false} getSvg={getSvg} /></ChartPaletteContext.Provider>
         {link && <button type="button" className="xe-copy" onClick={copy}>{copied ? <IconCheck size={14} aria-hidden="true" /> : <IconLink size={14} aria-hidden="true" />}{copied ? "Link copied" : "Copy link"}</button>}
       </footer>
     </aside>

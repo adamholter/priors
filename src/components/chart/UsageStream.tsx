@@ -63,7 +63,7 @@ export function UsageStream({ snapshot, labs, extra }: { snapshot: Snapshot; lab
   // Replace rather than merge: Share pins the axis at 100 with an interval, which would otherwise survive the switch to Volume and squash the turns into two blocks.
   const { ref } = useEChart(option, [option], undefined, true);
   if (!data || !stack) return <>{extra}</>;
-  const window = data.window?.replace(" to ", " – ");
+  const window = data.window;
   return (
     <div className="usage-stream @container">
       <div className="flex flex-wrap items-center justify-between gap-2 mb-2 max-sm:px-4">

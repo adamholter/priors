@@ -17,7 +17,7 @@ export interface ScatterView { labelScale?: number; /** Lab: dot and line size m
  * (desaturated, faint, unlabeled); chosen models keep full color, featured efforts carry name labels
  * (other efforts get effort tags) and — with `guides` — dashed lines to both axes with value badges.
  */
-export interface Highlight { items: string[]; guides: boolean }
+export interface Highlight { items: string[]; guides: boolean; /** `false`: a highlighted model's other efforts show their tag only on hover (many stars, see `starTags`). */ tags?: boolean }
 /** The featured marks: one per item (a variant id, or a model's best effort), in item order. */
 export function featuredPoints(pts: ScatterPoint[], items: string[]): ScatterPoint[] {
   const out: ScatterPoint[] = [], seen = new Set<string>();
@@ -150,8 +150,8 @@ export function scatterOption({ pts, labs, better, xName, xShort, xUnit = "", sc
     const isBest = featured.has(p.r.variant.id);
     const label = isBest
       ? { show: true, fontWeight: 600, color: pal.ink }
-      : { show: p.r.variant.effort !== "default", formatter: p.r.variant.effort.toUpperCase(), fontSize: 9 * fontScale, color: pal.grey, backgroundColor: "transparent", textBorderColor: pal.bg, textBorderWidth: 3, distance: 5 };
-    return { itemStyle: { color: est ? pal.bg : c && markFill(c, pal, "dot"), borderColor: est ? c : pal.ink, borderWidth: est ? 2.2 : isBest ? 1.8 : 1.2, opacity: 1 }, symbolSize: (isBest ? 12 : 9) * m, label, z: 10 };
+      : { show: highlight?.tags !== false && p.r.variant.effort !== "default", formatter: p.r.variant.effort.toUpperCase(), fontSize: 9 * fontScale, color: pal.grey, backgroundColor: "transparent", textBorderColor: pal.bg, textBorderWidth: 3, distance: 5 };
+    return { itemStyle: { color: est ? pal.bg : c && markFill(c, pal, "dot"), borderColor: est ? c : pal.ink, borderWidth: est ? 2.2 : isBest ? 1.8 : 1.2, opacity: 1 }, symbolSize: (isBest ? 12 : 9) * m, label, z: 10, ...(!isBest && highlight?.tags === false && p.r.variant.effort !== "default" ? { emphasis: { label: { show: true } } } : {}) };
   };
   // Chosen marks draw last so they sit on top and win label overlap.
   const drawOrder = on ? [...ordered].sort((a, b) => Number(hl.has(a.r.model.id)) - Number(hl.has(b.r.model.id))) : ordered;

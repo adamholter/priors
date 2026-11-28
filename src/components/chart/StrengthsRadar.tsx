@@ -9,8 +9,7 @@ import { benchmarkBlurb } from "@/lib/benchmark-blurb";
 import { useLightDismiss } from "@/lib/useLightDismiss";
 import { BenchmarkInfo } from "../BenchmarkInfo";
 import { DARK_PALETTE, LIGHT_PALETTE, markColor, useChartPalette, useLabColor } from "./echarts";
-import { ChartExport } from "./ChartExport";
-import { ChartLink } from "./ChartLink";
+import { ChartShare } from "./ChartShare";
 import { useChartExpand } from "./ChartExpand";
 import { radarHtml } from "./embed";
 import { Radar, RadarSwatch } from "./Radar";
@@ -132,8 +131,7 @@ export function StrengthsRadar({ ranked, benchmarks, labs, snapshot, config, anc
         </div>
         <RadarSettingsMenu view={view} topN={view === "bars" ? BARS_TOP : RADAR_TOP} models={models} series={series} selected={selected} onToggle={toggle} onTop={() => setAll(undefined)} onNone={() => setAll([])} labColor={colorOfLab}
           norm={norm} onNorm={(n) => update({ norm: n })} colorMode={colors} onColorMode={(c) => update({ colors: c })} showMedian={showMedian} onShowMedian={(v) => update({ median: v })} compare={compare} onCompare={(c) => update({ compare: c })} spokes={spokes} canGroup={canGroup} onSpokes={(s) => update({ spokes: s })} />
-        <ChartLink id={anchor} name="Strengths" params={{ extra: params }} />
-        <ChartExport name="Strengths" frame getSvg={() => view === "bars" ? benchSheetSvg(axes, sheets.current, RADAR_PALETTES[pal.dark ? "dark" : "light"], title) : staticSvg(pal.dark)} getRows={exportRows} getHtml={view === "radar" ? () => radarHtml({ title, date: snapshot.date, light: staticSvg(false), dark: staticSvg(true) }) : undefined} />
+        <ChartShare link={{ id: anchor, name: "Strengths", params: { extra: params } }} name="Strengths" frame getSvg={() => view === "bars" ? benchSheetSvg(axes, sheets.current, RADAR_PALETTES[pal.dark ? "dark" : "light"], title) : staticSvg(pal.dark)} getRows={exportRows} getHtml={view === "radar" ? () => radarHtml({ title, date: snapshot.date, light: staticSvg(false), dark: staticSvg(true) }) : undefined} />
         {expand.button}
       </div>
     </div>

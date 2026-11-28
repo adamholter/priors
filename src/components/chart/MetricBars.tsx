@@ -1,20 +1,23 @@
 "use client";
 import { useScoreAxis } from "./score-axis";
-import { ChartExport, type ChartExportHandle } from "./ChartExport";
+import { ChartShare, type ChartShareHandle } from "./ChartShare";
 import type { EChartsOption } from "echarts";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Lab } from "@/data/types";
 import { DARK_PALETTE, LIGHT_PALETTE, markColor, useChartPalette, useEChart } from "./echarts";
-import { HighlightList, HighlightMenu, togglePoint, useHighlight } from "./highlight";
+import { useHighlight } from "./highlight";
+import { StarList, StarMenu, StarScope } from "./StarMenu";
+import { toggleStar } from "./star-state";
 import { chartLabel, type ScatterPoint } from "./ScoreScatter";
 import { useChartGrid } from "@/lib/chart-grid-pref";
 import { barsOption, compact, selectBars } from "./bars-option";
 import { barsHtml, unitOf } from "./embed";
-import { ChartLink, type ChartLinkParams } from "./ChartLink";
+import type { ChartLinkParams } from "./ChartLink";
 import { useChartExpand } from "./ChartExpand";
 import { dimColor } from "./theme-tokens";
 import { featuredPoints, highlightedModels } from "./scatter-option";
 import { ChartContextMenu, useChartContextMenu, useChartVisibility } from "./ChartContextMenu";
+import { ChartUndo } from "./ChartKey";
 
 import { labelScale as normalizeLabelScale } from "./label-size";
 
@@ -38,7 +41,7 @@ export function MetricBars({ pts: allPoints, labs, better, xName, formatValue, h
   const effectiveLinkParams = { ...linkParams, ls: Math.round(fontScale * 100) };
   const visibility = useChartVisibility(allPoints, anchor ?? exportName, effectiveLinkParams), pts = visibility.points;
   const context = useChartContextMenu();
-  const exportControl = useRef<ChartExportHandle>(null);
+  const exportControl = useRef<ChartShareHandle>(null);
   const contextPick = useRef(context.pointMenu);
   useEffect(() => { contextPick.current = context.pointMenu; });
   const [width, setWidth] = useState<number>(), narrow = width !== undefined && width < 560;
@@ -51,7 +54,7 @@ export function MetricBars({ pts: allPoints, labs, better, xName, formatValue, h
   const bars = useMemo(() => { const ordered = selectBars(pts, better, cap, highlight); return bestFirst && better === "higher" ? ordered.reverse() : ordered; }, [pts, better, cap, highlight, bestFirst]);
   const option = useMemo<EChartsOption>(() => barsOption({ axis, bars, labs, xName, formatValue, pal, narrow, highlight, labelScale: fontScale, zoomAxis, width, height: Math.round(height * (pal.size?.height ?? 1)) }), [axis, bars, labs, xName, formatValue, narrow, pal, highlight, fontScale, width, height, zoomAxis]);
   const pick = useRef<(p: ScatterPoint) => void>(() => {});
-  useEffect(() => { pick.current = (p) => { if (hl) hl.set(togglePoint(hl.items, pts, p)); }; }, [hl, pts]);
+  useEffect(() => { pick.current = (p) => { if (hl) toggleStar(hl, pts, p); }; }, [hl, pts]);
   const { ref, chart } = useEChart(option, [option], (c) => {
     c.on("click", (e) => { const d = (e.data as { extra?: ScatterPoint } | undefined)?.extra; if (d) pick.current(d); });
     c.on("contextmenu", (e) => {
@@ -78,7 +81,7 @@ export function MetricBars({ pts: allPoints, labs, better, xName, formatValue, h
   };
   return (
     <>{expand.backdrop}<div ref={wrap} id={anchor} className={`max-sm:-mx-4 scroll-mt-20 ${expand.expanded ? "chart-expanded" : ""}`} role={expand.expanded ? "dialog" : undefined} aria-modal={expand.expanded || undefined} aria-label={expand.expanded ? exportName : undefined}>
-      <div className={`chart-toolbar flex flex-wrap items-center justify-end gap-1 max-sm:px-4 min-h-8 ${title || expand.expanded ? "mb-1" : "-mb-8 relative z-10 pointer-events-none"}`}>{(title || expand.expanded) ? <div className="min-w-0 mr-auto">{title ?? <h2 className="text-[22px]">{exportName}</h2>}<HighlightList /></div> : <div className="min-w-0 mr-auto"><HighlightList /></div>}<div className="flex items-center gap-1 pointer-events-auto"><HighlightMenu label={exportName} />{visibility.canUndo && <button type="button" className="cap hover:text-ink" onClick={visibility.undo} aria-label="Undo chart removal">Undo</button>}{actions}{anchor && <ChartLink id={anchor} name={exportName} params={{ ...effectiveLinkParams, hidden: visibility.hidden }} />}<ChartExport ref={exportControl} name={exportName} frame getHtml={getHtml} getSvg={() => chart.current?.renderToSVGString()} getRows={() => bars.map((p, i) => ({ rank: i + 1, model: p.r.model.name, effort: p.r.variant.effort, [xName]: +value(p).toFixed(4), index_score: +p.r.score.toFixed(2) }))} />{expand.button}</div></div>
+      <StarScope pts={pts} better={better}><div className={`chart-toolbar flex flex-wrap items-center justify-end gap-1 max-sm:px-4 min-h-8 ${title || expand.expanded ? "mb-1" : "-mb-8 relative z-10 pointer-events-none"}`}>{(title || expand.expanded) ? <div className="min-w-0 mr-auto">{title ?? <h2 className="text-[22px]">{exportName}</h2>}<StarList /></div> : <div className="min-w-0 mr-auto"><StarList /></div>}<div className="flex items-center gap-1 pointer-events-auto"><StarMenu label={exportName} /><ChartUndo visibility={visibility} />{actions}<ChartShare ref={exportControl} link={anchor ? { id: anchor, name: exportName, params: { ...effectiveLinkParams, hidden: visibility.hidden } } : undefined} name={exportName} frame getHtml={getHtml} getSvg={() => chart.current?.renderToSVGString()} getRows={() => bars.map((p, i) => ({ rank: i + 1, model: p.r.model.name, effort: p.r.variant.effort, [xName]: +value(p).toFixed(4), index_score: +p.r.score.toFixed(2) }))} />{expand.button}</div></div></StarScope>
       <div className={expand.expanded ? "flex-1 min-h-0" : undefined}><div ref={ref} role="img" aria-label={aria} tabIndex={0} onContextMenu={context.onContextMenu} onKeyDown={context.onKeyDown} style={{ width: "100%", height: expand.expanded ? "100%" : Math.round(height * (pal.size?.height ?? 1)), overflow: "hidden", position: "relative", isolation: "isolate" }} /></div>
       <ChartContextMenu exportControl={exportControl} state={context.menu} close={context.close} name={exportName} points={bars} visibility={visibility} chart={chart} wrap={wrap} expanded={expand.expanded} anchor={anchor} />
     </div></>

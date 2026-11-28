@@ -39,7 +39,7 @@ function escapeTarget() {
 }
 /** A field being typed in, or an open menu or dialog, keeps its own Escape. */
 const escapeTaken = (target: EventTarget | null) => (target instanceof Element && !!target.closest('input:not([type="range"], [type="checkbox"], [type="radio"]), textarea, select, [contenteditable="true"]'))
-  || !!document.querySelector('details[name="chart-settings"][open], .chart-context-menu, .export-menu, [role="menu"], dialog[open], [role="dialog"]:not(dialog, .chart-expanded)');
+  || !!document.querySelector('details[name="chart-settings"][open], .chart-context-menu, [role="menu"], dialog[open], [role="dialog"]:not(dialog, .chart-expanded)');
 
 export function useChartZoom({ handle, host, scale, bare, pal }: { handle: RefObject<ECharts | null>; host: RefObject<HTMLDivElement | null>; scale: ZoomScale; bare?: boolean; pal: ChartPalette }) {
   const enabled = !bare;

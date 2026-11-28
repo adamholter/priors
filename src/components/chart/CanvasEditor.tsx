@@ -10,7 +10,7 @@ import { copyLink } from "@/lib/short-link";
 import { FRAME_H, FRAME_W, placeGeometry, type ImagePlace } from "./export-frame";
 import { labelScale } from "./label-size";
 import { ChartPaletteContext, paletteFor, useChartPalette } from "./echarts";
-import { ChartExport } from "./ChartExport";
+import { ChartShare } from "./ChartShare";
 import type { ScatterView } from "./scatter-option";
 import "./canvas-editor.css";
 
@@ -196,7 +196,7 @@ export default function CanvasEditor({ name, initial, base, showScale, onClose, 
       <div ref={selEl} className="xs-sel" data-kind={kind}>{handles.map((h) => <button key={h} type="button" data-ui data-handle={h} aria-label={`Resize ${kind} from ${h}`} onPointerDown={(e) => startHandle(e, h)} />)}</div>
       <div ref={tagEl} className="xs-tag" aria-hidden="true" />
       {labBar && <div className="xs-lab">{labBar}</div>}
-      <div className="xs-actions"><ChartPaletteContext.Provider value={pal}><ChartExport name={name} title={heading} frame trim={false} place={cleanedPlace} getSvg={getSvg} /></ChartPaletteContext.Provider>{link && <button type="button" className="xe-copy" onClick={copy}>{copied ? <IconCheck size={14} aria-hidden="true" /> : <IconLink size={14} aria-hidden="true" />}{copied ? "Copied" : "Copy link"}</button>}<button type="button" className="xs-close" onClick={onClose} aria-label="Close editor"><IconX size={17} aria-hidden="true" /></button></div>
+      <div className="xs-actions"><ChartPaletteContext.Provider value={pal}><ChartShare name={name} title={heading} frame trim={false} place={cleanedPlace} getSvg={getSvg} /></ChartPaletteContext.Provider>{link && <button type="button" className="xe-copy" onClick={copy}>{copied ? <IconCheck size={14} aria-hidden="true" /> : <IconLink size={14} aria-hidden="true" />}{copied ? "Copied" : "Copy link"}</button>}<button type="button" className="xs-close" onClick={onClose} aria-label="Close editor"><IconX size={17} aria-hidden="true" /></button></div>
       <div className="xs-under" data-ui><div className="xs-shapes" role="group" aria-label="Image shape">{EDITOR_RATIOS.map((r) => <button key={r.id} type="button" aria-pressed={ratio === r.id} onClick={() => pickRatio(r.id)}><i style={r.r ? { width: r.r >= 1 ? 18 : 18 * r.r, height: r.r >= 1 ? 18 / r.r : 18 } : undefined} data-free={r.r ? undefined : ""} />{r.label}</button>)}</div><div className="xs-bar">{bar}</div></div>
     </div>
   </dialog>;

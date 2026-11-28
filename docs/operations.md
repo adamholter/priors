@@ -123,7 +123,9 @@ All keys are prefixed `priors:`.
 | `share-hint`, `assistant-mode`, `assistant-hint`, `assistant-size` | Small UI state |
 | `assistant-chat:<userId>` | The assistant conversation (last 40 turns, no Undo), so it survives reloads; Clear removes it |
 | `resume` | Google account id for silent re-sign-in |
+| `chart-key-hint` (`sessionStorage`) | The chart's lab key was shown once this session, so the first mouse entry teaches it only once |
 | `chart-grid` | The viewer's Background grid choice, for every chart. Unset, charts follow the theme. |
+| `subsidies-dollars` | `/subsidies` grid shows dollars of API use instead of multiples (`1`) |
 | `version-notices`, `version-notices-dismissed` | Benchmark version notices turned off (`off`), and the notices dismissed or acted on. See `docs/pages-and-sharing.md` |
 
 `localStorage`, not `sessionStorage`, for anything that must survive sign-in: the OAuth round trip leaves the origin.

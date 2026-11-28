@@ -121,7 +121,7 @@ export function metricPanels(snapshot: Snapshot, ranked: RankedVariant[], timeSo
   if (has(usage)) {
     const pct = (x: number) => `${x >= 10 ? x.toFixed(0) : x >= 0.1 ? x.toFixed(1) : x.toFixed(2)}%`;
     const window = snapshot.observations.find((o) => o.benchmarkId === "t3-usage-share")?.details?.window;
-    panels.push({ id: "usage", title: "Usage", desc: `share of turns in T3 Code${typeof window === "string" ? `, ${window.replace(" to ", " – ")}` : ""} · via Slopalytics`, chart: { better: "higher", points: usage, xLabel: "%", xName: "Share of T3 Code turns (%)", scale: "log", formatX: pct, formatValue: pct, aria: "Index score versus T3 Code usage share", defaultKind: "bars" } });
+    panels.push({ id: "usage", title: "Usage", desc: `share of turns in T3 Code${typeof window === "string" ? `, ${window}` : ""} · via Slopalytics`, chart: { better: "higher", points: usage, xLabel: "%", xName: "Share of T3 Code turns (%)", scale: "log", formatX: pct, formatValue: pct, aria: "Index score versus T3 Code usage share", defaultKind: "bars" } });
   }
   return panels;
 }

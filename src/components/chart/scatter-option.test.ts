@@ -131,3 +131,13 @@ it("scales ordinary, mobile and highlighted effort labels without changing densi
   }
   expect(restoreScatterView("scatter", true, { ...DEFAULT_VIEW, labelScale: 1.25 }).labelScale).toBe(1.25);
 });
+
+it("shows a highlighted model's other efforts as tags, or only on hover when the highlight turns tags off", () => {
+  const pts = [point("alpha", 1, 80), { ...point("alpha", 2, 60), r: { ...point("alpha", 2, 60).r, variant: { id: "alpha@low", effort: "low" } } } as ScatterPoint];
+  const marks = (tags?: boolean) => (scatterOption({ pts, labs: [], better: "lower", xName: "Cost", formatX: String, view: DEFAULT_VIEW, pal: LIGHT_PALETTE, narrow: false, highlight: { items: ["alpha"], guides: false, tags } }).series as { id: string; data: { id: string; label: { show?: boolean }; emphasis?: { label: { show: boolean } } }[] }[]).find((s) => s.id === "marks")!.data.find((p) => p.id === "alpha@low")!;
+  expect(marks().label.show).toBe(true);
+  expect(marks(true).label.show).toBe(true);
+  expect(marks(false).label.show).toBe(false);
+  expect(marks(false).emphasis?.label.show).toBe(true);
+  expect(marks().emphasis).toBeUndefined();
+});
