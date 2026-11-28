@@ -72,7 +72,9 @@ describe("frame messages", () => {
   it("opens only model, benchmark and compare pages on Priors", () => {
     expect(safeInternalPath("/models/gpt-6.2-astra")).toBe("/models/gpt-6.2-astra");
     expect(safeInternalPath("/benchmarks/spectrobench")).toBe("/benchmarks/spectrobench");
-    for (const bad of ["//evil.com", "https://evil.com", "javascript:alert(1)", "/\\evil.com", "models/x", "/sign-in", "/adamholter?edit=1", "/api/agent"]) expect(safeInternalPath(bad)).toBeNull();
+    expect(safeInternalPath("/compare?a=gpt-6.2-astra&b=claude-fable-5.2")).toBe("/compare?a=gpt-6.2-astra&b=claude-fable-5.2");
+    for (const bad of ["//evil.com", "https://evil.com", "javascript:alert(1)", "/\\evil.com", "models/x", "/sign-in", "/adamholter?edit=1", "/api/agent",
+      "/models/../sign-in", "/models/%2e%2e/sign-in", "/benchmarks/./x/../../api", "/compare-evil", "/compare/../sign-in", "/models/a/b", "/models/x#y z"]) expect(safeInternalPath(bad), bad).toBeNull();
   });
   it("opens only http and https links", () => {
     expect(safeExternalUrl("https://spectrobench.ssh.codes/a")).toBe("https://spectrobench.ssh.codes/a");

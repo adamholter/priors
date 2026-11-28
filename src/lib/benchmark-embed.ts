@@ -42,11 +42,17 @@ export function isFrameMessage(x: unknown): x is FrameMessage {
   return (m.type === "height" && typeof m.height === "number" && Number.isFinite(m.height)) || (m.type === "rows" && typeof m.id === "number") || (m.type === "open" && typeof m.path === "string") || (m.type === "link" && typeof m.url === "string");
 }
 
-/** Pages on Priors an embed may send the tab to: a model, a benchmark, a comparison. Never another host or a script URL. */
-const OPEN_PREFIXES = ["/models/", "/benchmarks/", "/compare"];
+/**
+ * Pages on Priors an embed may send the tab to: a model, a benchmark, a comparison. The path is parsed first and the parsed form is what
+ * is checked and returned, so `..`, encoded dots or another host cannot slip past a prefix.
+ */
+const OPEN_PAGES = [/^\/models\/[A-Za-z0-9._:-]+$/, /^\/benchmarks\/[A-Za-z0-9._:-]+$/, /^\/compare$/];
 export function safeInternalPath(path: string): string | null {
-  if (!/^\/(?!\/)[^\s\\]*$/.test(path) || path.length > 500) return null;
-  return OPEN_PREFIXES.some((p) => path.startsWith(p)) ? path : null;
+  if (path.length > 500 || !path.startsWith("/") || /[\\\s]|%2e|(^|\/)\.\.?(\/|$)/i.test(path)) return null;
+  let u: URL;
+  try { u = new URL(path, "https://mypriors.com"); } catch { return null; }
+  if (u.origin !== "https://mypriors.com" || !OPEN_PAGES.some((re) => re.test(u.pathname)) || u.pathname.split("/").some((seg) => seg === "." || seg === "..")) return null;
+  return u.pathname + u.search;
 }
 
 /** A web address an embed's link may open in a new tab: http or https only. */
