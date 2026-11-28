@@ -3,6 +3,7 @@ import { indexConfig, profileTheme, section, storableIndex } from "./validators"
 import { ConvexError, v } from "convex/values";
 import type { IndexConfig } from "../src/engine";
 import type { Id } from "./_generated/dataModel";
+import { profileByToken, sha256 } from "./agentToken";
 
 const HANDLE = /^[a-z0-9][a-z0-9-]{1,29}$/;
 const RESERVED = new Set(["sign-in", "sign-up", "api", "skill", "cli", "mcp", "install", "import", "me", "og", "about", "admin", "priors", "u", "settings", "privacy", "terms", "builder", "claim", "models", "explore", "rank", "compare", "3d", "support", "lab", "history", "model-finder", "ingest", "tools", "request", "benchmarks"]);
@@ -147,6 +148,8 @@ export const remove = mutation({
       if (await ctx.db.system.get(r.storageId)) await ctx.storage.delete(r.storageId);
       await ctx.db.delete(r._id);
     }
+    // Creator grants belong to this page; a later page on the same handle starts with none.
+    for (const g of await ctx.db.query("benchmarkCreators").withIndex("by_profile", (q) => q.eq("profileId", m.profile!._id)).collect()) await ctx.db.delete(g._id);
     await ctx.db.delete(m.profile._id);
     return { handle: m.profile.handle };
   },
@@ -208,10 +211,6 @@ export const myImports = query({
 
 /* ---------------- agent access (skill) ---------------- */
 
-async function sha256(s: string) {
-  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s));
-  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
-}
 
 /** Owner mints a token; we store only its hash. Token is shown once. */
 export const mintAgentToken = mutation({
@@ -234,8 +233,7 @@ export const agentApply = mutation({
     payload: v.optional(v.any()),
   },
   handler: async (ctx, { token, action, payload }) => {
-    const hash = await sha256(token);
-    const p = await ctx.db.query("profiles").withIndex("by_token", (q) => q.eq("agentTokenHash", hash)).unique();
+    const p = await profileByToken(ctx, token);
     if (!p) throw new Error("Invalid token");
     if (action === "whoami") return { handle: p.handle, displayName: p.displayName, indices: p.indices, sections: p.sections, socials: p.socials ?? [], bio: p.bio ?? "", theme: p.theme ?? {} };
     if (action === "import") {

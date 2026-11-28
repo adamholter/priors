@@ -1,6 +1,6 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
-import { indexConfig, profileTheme, request, requestFile, section } from "./validators";
+import { benchmarkBlock, indexConfig, profileTheme, request, requestFile, section } from "./validators";
 
 
 
@@ -67,6 +67,11 @@ export default defineSchema({
   benchmarkStars: defineTable({ userId: v.string(), benchmarkId: v.string(), createdAt: v.number() }).index("by_user", ["userId", "benchmarkId"]).index("by_benchmark", ["benchmarkId"]),
   /** Stars per benchmark, kept in step by the toggle so the directory reads a few hundred small rows, not every star. */
   benchmarkStarCounts: defineTable({ benchmarkId: v.string(), count: v.number() }).index("by_benchmark", ["benchmarkId"]),
+
+  /** Who may edit a benchmark's page: verified creators, granted by Adam with `benchmarkPages:grant` (no public way in). By page, so a renamed handle keeps its grants. */
+  benchmarkCreators: defineTable({ benchmarkId: v.string(), profileId: v.id("profiles"), grantedAt: v.number(), note: v.optional(v.string()) }).index("by_benchmark", ["benchmarkId"]).index("by_profile", ["profileId"]),
+  /** What a benchmark's creators added to its page (benchmarkPages.ts): an ordered list of blocks. */
+  benchmarkPages: defineTable({ benchmarkId: v.string(), blocks: v.array(benchmarkBlock), updatedAt: v.number(), updatedBy: v.id("profiles") }).index("by_benchmark", ["benchmarkId"]),
 
   /** Requests for a benchmark or a feature, sent from `/request` and read only with `REQUESTS_TOKEN` (requests.ts). */
   requests: defineTable(request).index("by_created", ["createdAt"]).index("by_client", ["client", "createdAt"]),

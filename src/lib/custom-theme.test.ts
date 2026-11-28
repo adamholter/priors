@@ -118,7 +118,7 @@ describe("custom themes", () => {
   it("every skill file the main one points at exists, and its description stays short", () => {
     const dir = path.join(process.cwd(), "public/skill"), main = readFileSync(path.join(dir, "SKILL.md"), "utf8");
     const linked = [...main.matchAll(/https:\/\/mypriors\.com\/skill\/([a-z-]+\.md)/g)].map((m) => m[1]);
-    expect(new Set(linked)).toEqual(new Set(["data.md", "benchmark.md", "page.md"]));
+    expect(new Set(linked)).toEqual(new Set(["data.md", "benchmark.md", "page.md", "benchmark-page.md"]));
     for (const f of linked) expect(existsSync(path.join(dir, f)), f).toBe(true);
     // The description is loaded into an agent's context on every turn, whether or not the skill runs.
     expect(main.match(/^description: (.+)$/m)![1].split(/\s+/).length).toBeLessThanOrEqual(30);

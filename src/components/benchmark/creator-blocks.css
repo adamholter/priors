@@ -1,0 +1,5 @@
+/* Blocks a benchmark's verified creators add (CreatorBlocks.tsx). The frame follows its content's height. */
+.creator-embed{width:100%;min-height:60px;transition:height .18s ease}
+@media (prefers-reduced-motion:reduce){.creator-embed{transition:none}}
+/* A hidden block, shown only to its creators: framed so it cannot be mistaken for what visitors see. */
+.creator-hidden-block{outline:1.5px dashed var(--hair-3);outline-offset:10px;border-radius:2px}

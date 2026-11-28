@@ -121,3 +121,24 @@ export function storableIndex(c: IndexConfig): IndexConfig {
   for (const k of INDEX_CONFIG_FIELDS) if (c[k] !== undefined) out[k] = c[k];
   return out as unknown as IndexConfig;
 }
+
+/**
+ * One block a benchmark's verified creator puts on its page (`benchmarkPages`). An embed is a full HTML document fragment that runs in
+ * a sandboxed frame with the Priors bridge (`src/lib/benchmark-embed.ts`); a text block is plain text. Limits: `benchmarkPageRules.ts`.
+ */
+export const benchmarkBlock = v.object({
+  id: v.string(),
+  kind: v.union(v.literal("embed"), v.literal("text")),
+  title: v.optional(v.string()),
+  /** text: the words, shown with line breaks kept. */
+  body: v.optional(v.string()),
+  /** embed: the HTML. */
+  html: v.optional(v.string()),
+  /** embed: a fixed height in pixels. Without it the frame takes the height its document reports. */
+  height: v.optional(v.number()),
+  /** Above or below the leaderboard; below by default. */
+  placement: v.optional(v.union(v.literal("above"), v.literal("below"))),
+  /** Shown only to the benchmark's creators while signed in, to check a block before visitors see it. */
+  hidden: v.optional(v.boolean()),
+});
+export type BenchmarkBlock = Infer<typeof benchmarkBlock>;

@@ -37,7 +37,7 @@ Read the one for the area you are changing. Update it in the same change when be
 
 - `docs/data.md`: data contract, model identity, scrapers, index math, URL and stored configs.
 - `docs/charts.md`: rankings, chart kinds and settings, highlights, the no-clipping rule, exports.
-- `docs/pages-and-sharing.md`: routes, profile pages and editing, themes, share cards, link previews, labs.
+- `docs/pages-and-sharing.md`: routes, profile pages and editing, benchmark pages by their verified creators (embeds), themes, share cards, link previews, labs.
 - `docs/onboarding.md`: the matchups, the review list, the weight search and its scoring.
 - `docs/assistant.md`: mix assistant, edit solver, spend caps, the agent API and skill.
 - `docs/design.md`: tokens, type, light and dark, copy and style rules.

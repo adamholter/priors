@@ -15,6 +15,11 @@ import { encodeIndex, encodeIndices, prettyQuery } from "@/lib/url";
 import { THEME_CHOICES } from "@/lib/page-presets";
 import type { Snapshot } from "@/data/types";
 import { INDEX_PARAM, ToolError, convex, publicPage, resolveIndex } from "./index-ref";
+import { loadSnapshot } from "@/data/load";
+import { benchmarkIndex, benchmarkSnapshot, benchmarkView } from "@/lib/benchmark-page";
+import { benchmarkPath } from "@/lib/benchmark-slug";
+import { embedPreviewDocument, type EmbedBenchmark, type EmbedRow } from "@/lib/benchmark-embed";
+import { BLOCK_LIMITS } from "../../convex/benchmarkPageRules";
 
 export interface ToolEnv { token?: string; origin: string }
 export interface Tool {
@@ -284,11 +289,47 @@ const readTools: Tool[] = [
     },
   },
   {
+    name: "get_benchmark_page", description: "What a benchmark's verified creators added to its page on Priors: who they are and the blocks visitors see (embeds and text), in order.",
+    inputSchema: obj({ benchmark: str("Benchmark id or name.") }, ["benchmark"]),
+    async run(a, env) {
+      const b = benchOf(await snapshotNow(), a.benchmark);
+      const page = await convex().query(api.benchmarkPages.byBenchmark, { benchmarkId: b.id });
+      return { benchmark: b.id, url: `${env.origin}${benchmarkPath(b.id)}`, creators: (page?.creators ?? []).map((c) => ({ ...c, url: `${env.origin}/${c.handle}` })), blocks: page?.blocks ?? [] };
+    },
+  },
+  {
+    name: "preview_benchmark_embed", description: "Check an embed before publishing it: returns a complete HTML file that runs your embed HTML in the same sandbox and bridge as the benchmark page, with that benchmark's real leaderboard rows and a light/dark switch. Save it and open it in a browser (or screenshot it). Publishes nothing and needs no token. Embed contract: https://mypriors.com/skill/benchmark-page.md",
+    inputSchema: obj({ benchmark: str("Benchmark id or name."), html: str("The embed's HTML: a fragment or a full document."), mode: { type: "string", enum: ["light", "dark"], description: "Theme to open in (default light)." } }, ["benchmark", "html"]),
+    async run(a) {
+      if (typeof a.html !== "string" || !a.html.trim()) throw new ToolError("html is required.");
+      if (a.html.length > BLOCK_LIMITS.html) throw new ToolError(`html is ${a.html.length} characters; an embed may be at most ${BLOCK_LIMITS.html}.`);
+      const s = await snapshotNow(), b = benchOf(s, a.benchmark);
+      return { benchmark: b.id, rows: embedRowsOf(s, b.id).length, document: embedPreviewDocument(a.html, { benchmark: embedBenchmarkOf(b), rows: embedRowsOf(s, b.id), mode: a.mode === "dark" ? "dark" : "light" }) };
+    },
+  },
+  {
     name: "theme_presets", description: "Page themes a page can use (`preset` in set_theme), with their light or dark mode.",
     inputSchema: obj({}),
     async run() { return THEME_CHOICES.map((t) => ({ id: t.id, name: t.name, dark: t.dark, pair: t.pair ?? null })); },
   },
 ];
+
+async function snapshotNow() {
+  const s = await loadSnapshot();
+  if (!s) throw new ToolError("Benchmark data is unavailable.", 503);
+  return s;
+}
+const embedBenchmarkOf = (b: Snapshot["benchmarks"][number]): EmbedBenchmark => ({ id: b.id, name: b.name, unit: b.unit, higherIsBetter: b.higherIsBetter !== false, url: b.url });
+/** The rows an embed gets from `priors.rows()` on the benchmark's page with its default settings. */
+function embedRowsOf(s: Snapshot, benchmarkId: string): EmbedRow[] {
+  const small = benchmarkSnapshot(s, benchmarkId), config = benchmarkIndex(small, benchmarkId);
+  const res = computeIndex(small, { ...config, variants: "all" }, benchmarkView(small, benchmarkId));
+  const obs = new Map(small.observations.filter((o) => o.benchmarkId === benchmarkId).map((o) => [o.variantId, o]));
+  return rankingRows(res.ranked, config).map((r) => {
+    const lab = small.labs.find((l) => l.id === r.model.labId);
+    return { rank: r.rank, model: r.model.name, modelId: r.model.id, lab: lab?.name ?? r.model.labId, color: lab?.color, effort: r.variant.effort, value: r.values[0]?.raw ?? null, score: round(r.score) ?? 0, ci: obs.get(r.variant.id)?.ci, costUsd: r.costUsd ?? undefined, released: r.model.releaseDate, url: `/models/${encodeURIComponent(r.model.id)}` };
+  });
+}
 
 /* ---------------- write tools: act as the page's owner ---------------- */
 
@@ -409,7 +450,78 @@ const writeTools: Tool[] = [
   },
 ];
 
-export const TOOLS: Tool[] = [...readTools, ...reusedTools, ...writeTools];
+/* ---------------- creator tools: a verified creator edits their benchmark's page ---------------- */
+
+type Block = { id: string; kind: "embed" | "text"; title?: string; body?: string; html?: string; height?: number; placement?: "above" | "below"; hidden?: boolean };
+async function creatorApply(env: ToolEnv, action: "mine" | "get" | "set", benchmarkId?: string, blocks?: Block[]) {
+  if (!env.token) throw new ToolError("This tool changes a benchmark's page, so it needs your agent token (pri_...). Mint one on your page under Edit page, Agent access.", 401);
+  try { return await convex().mutation(api.benchmarkPages.agentApply, { token: env.token, action, benchmarkId, blocks }); }
+  catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (/Server Error/.test(msg) && !/Uncaught|ConvexError/.test(msg)) throw new ToolError("The server refused this. The usual cause is a token that was replaced or revoked: mint a new one on your page under Edit page, Agent access.", 401);
+    throw new ToolError(msg.replace(/^[\s\S]*(Uncaught|ConvexError):\s*/, "").split("\n")[0], /Invalid token/.test(msg) ? 401 : /not a verified creator/.test(msg) ? 403 : 400);
+  }
+}
+const blockList = (blocks: Block[]) => blocks.map((b) => `${b.id}:${b.kind}${b.placement === "above" ? " (above)" : ""}${b.hidden ? " (hidden)" : ""}`);
+const BLOCK_SCHEMA = {
+  type: "object", additionalProperties: false, required: ["id", "kind"],
+  description: `A block: { id, kind: "embed" | "text", title?, html? (embed, at most ${BLOCK_LIMITS.html} characters), body? (text), height? (embed: fixed pixels ${BLOCK_LIMITS.minHeight} to ${BLOCK_LIMITS.maxHeight}; leave out to fit the content), placement?: "above" | "below" the leaderboard (default below), hidden? (only you see it, signed in) }.`,
+  properties: { id: str("Lowercase letters, digits and dashes, like \"player\"."), kind: { type: "string", enum: ["embed", "text"] }, title: str("Heading over the block."), html: str("embed: the HTML (fragment or full document)."), body: str("text: the words."), height: num("embed: fixed height in pixels."), placement: { type: "string", enum: ["above", "below"] }, hidden: { type: "boolean" } },
+};
+
+const creatorTools: Tool[] = [
+  {
+    name: "my_benchmarks", write: true, description: "Benchmarks you are a verified creator of, with each page's blocks (hidden ones too). Verification is done by Adam: a creator who is not listed asks at https://mypriors.com/request with their handle.",
+    inputSchema: obj({}),
+    async run(_a, env) {
+      const r = await creatorApply(env, "mine") as { handle: string; benchmarks: { benchmarkId: string; blocks: Block[] }[] };
+      const s = await loadSnapshot();
+      return { handle: r.handle, benchmarks: r.benchmarks.map((x) => ({ id: x.benchmarkId, name: s?.benchmarks.find((b) => b.id === x.benchmarkId)?.name ?? x.benchmarkId, url: `${env.origin}${benchmarkPath(x.benchmarkId)}`, blocks: blockList(x.blocks), sizes: x.blocks.map((b) => (b.html ?? b.body ?? "").length) })) };
+    },
+  },
+  {
+    name: "get_benchmark_blocks", write: true, description: "A benchmark page's blocks in full (html and text included, hidden ones too), as you would edit them. Only for benchmarks you are a verified creator of.",
+    inputSchema: obj({ benchmark: str("Benchmark id or name.") }, ["benchmark"]),
+    async run(a, env) { const b = benchOf(await snapshotNow(), a.benchmark); return creatorApply(env, "get", b.id); },
+  },
+  {
+    name: "upsert_benchmark_block", write: true, description: "Add a block to a benchmark's page or replace the one with the same id (fields you leave out keep their value). An embed is HTML that runs sandboxed on the page with the Priors bridge: theme colors as CSS variables, priors.rows() for the leaderboard, and its height followed automatically. Read https://mypriors.com/skill/benchmark-page.md first, and check it with preview_benchmark_embed. Live on save unless hidden.",
+    inputSchema: obj({ benchmark: str("Benchmark id or name."), block: BLOCK_SCHEMA, position: num("Where in the order (0 is first). Default: the end, or where it already is.") }, ["benchmark", "block"]),
+    async run(a, env) {
+      const b = benchOf(await snapshotNow(), a.benchmark);
+      const cur = ((await creatorApply(env, "get", b.id)) as { blocks: Block[] }).blocks, next = a.block as Block;
+      if (!next || typeof next !== "object" || typeof next.id !== "string") throw new ToolError("block must be an object with an id.");
+      const list = [...cur], at = list.findIndex((x) => x.id === next.id);
+      const merged = at >= 0 ? { ...list[at], ...next } : next;
+      if (at >= 0) list.splice(at, 1);
+      const pos = typeof a.position === "number" ? Math.max(0, Math.min(list.length, Math.round(a.position))) : at >= 0 ? at : list.length;
+      list.splice(pos, 0, merged);
+      const r = await creatorApply(env, "set", b.id, list) as object;
+      return { ...r, url: `${env.origin}${benchmarkPath(b.id)}${merged.hidden ? "" : `#creator-${merged.id}`}` };
+    },
+  },
+  {
+    name: "remove_benchmark_block", write: true, description: "Remove a block from a benchmark's page by id.",
+    inputSchema: obj({ benchmark: str("Benchmark id or name."), id: str("Block id.") }, ["benchmark", "id"]),
+    async run(a, env) {
+      const b = benchOf(await snapshotNow(), a.benchmark);
+      const cur = ((await creatorApply(env, "get", b.id)) as { blocks: Block[] }).blocks, list = cur.filter((x) => x.id !== a.id);
+      if (list.length === cur.length) throw new ToolError(`No block "${a.id}". The page has: ${cur.map((x) => x.id).join(", ") || "none"}.`, 404);
+      return { ...(await creatorApply(env, "set", b.id, list) as object), url: `${env.origin}${benchmarkPath(b.id)}` };
+    },
+  },
+  {
+    name: "set_benchmark_blocks", write: true, description: `Replace all of a benchmark page's blocks at once (also how to reorder them). At most ${BLOCK_LIMITS.blocks} blocks and about ${Math.round(BLOCK_LIMITS.total / 1000)} KB in all; an empty list clears the page.`,
+    inputSchema: obj({ benchmark: str("Benchmark id or name."), blocks: { type: "array", items: BLOCK_SCHEMA } }, ["benchmark", "blocks"]),
+    async run(a, env) {
+      if (!Array.isArray(a.blocks)) throw new ToolError("blocks must be an array.");
+      const b = benchOf(await snapshotNow(), a.benchmark);
+      return { ...(await creatorApply(env, "set", b.id, a.blocks as Block[]) as object), url: `${env.origin}${benchmarkPath(b.id)}` };
+    },
+  },
+];
+
+export const TOOLS: Tool[] = [...readTools, ...reusedTools, ...writeTools, ...creatorTools];
 export const toolByName = (name: string) => TOOLS.find((t) => t.name === name);
 
 /** One entry point for the MCP endpoint and the REST route: runs a tool and reports failures as { error }. */

@@ -22,7 +22,7 @@ export default async function SkillPage() {
           <p><span className="text-ink">Install:</span> save as <code className="mono">.claude/skills/priors/SKILL.md</code> (Claude Code), <code className="mono">.codex/skills/priors/SKILL.md</code> (Codex), or <code className="mono">.agents/skills/priors/SKILL.md</code>. Raw file: <a href="/skill/SKILL.md" className="text-indigo">/skill/SKILL.md</a></p>
           <p><span className="text-ink">Prefer tools to a skill?</span> The <Link href="/cli" className="underline">CLI and MCP server</Link> do all of this and more, with no instructions to paste.</p>
           <p><span className="text-ink">Token:</span> on your page, Edit page → Agent access → Mint token. The agent needs it to write to your page.</p>
-          <p><span className="text-ink">Then say things like:</span> “Add Vending-Bench 2 to my agentic index.” · “Export the Arena WebDev leaderboard as a CSV.” · “Rewrite my bio and put the coding index first.” · “Make the accent color terracotta.”</p>
+          <p><span className="text-ink">Then say things like:</span> “Add Vending-Bench 2 to my agentic index.” · “Export the Arena WebDev leaderboard as a CSV.” · “Rewrite my bio and put the coding index first.” · “Make the accent color terracotta.” · Made a benchmark? “Add a player for my clips to my benchmark&rsquo;s page.”</p>
         </div>
         <details className="border-t hairline pt-6"><summary className="disclosure disclosure-inline text-[14px] text-ink-2">Read the skill</summary><pre className="mt-4 text-[12.5px] leading-relaxed whitespace-pre-wrap bg-white border hairline rounded-md p-5 mono">{md}</pre></details>
       </div>

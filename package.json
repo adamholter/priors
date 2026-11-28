@@ -5,6 +5,7 @@
   "license": "MIT",
   "scripts": {
     "dev": "next dev",
+    "creators": "tsx scripts/ops/creators.mts",
     "prebuild": "tsx scripts/scrape/history-archive.ts",
     "build": "next build",
     "start": "next start",

@@ -32,12 +32,14 @@ import { BreakdownTable, Relatives, SeriesChart } from "./BenchmarkExtras";
 import { metricChartOf } from "@/lib/benchmark-chart";
 import { benchmarkMetrics, benchmarkSeries, formatMetric, type BenchMetric } from "@/lib/benchmark-metrics";
 import { SiteHeader } from "@/components/SiteHeader";
+import { CreatorBlocks, CreatorByline, CreatorPageProvider, type CreatorPage } from "./CreatorBlocks";
+import type { EmbedRow } from "@/lib/benchmark-embed";
 
 const fmt = formatBenchValue;
 const usd = (v: number) => v === 0 ? "free" : `$${v >= 10 ? v.toFixed(0) : v >= 1 ? v.toFixed(2) : v.toFixed(v >= 0.1 ? 2 : 3)}`;
 
 /** One benchmark on its own: who leads it, and what each result costs, priced the way a subscriber pays when the lab has a plan. */
-export function BenchmarkPage({ snapshot: base, benchmarkId, models, relatives, initial, quality }: { snapshot: Snapshot; benchmarkId: string; models: number; relatives: { family: { id: string; label: string }[]; familyLabel?: string; versions: { id: string; label: string }[] }; /** Settings from a copied link. */ initial?: IndexConfig; /** The benchmark's quality score, its parts and its stars, from the server. Absent for token-price proxies. */ quality?: QualityView }) {
+export function BenchmarkPage({ snapshot: base, benchmarkId, models, relatives, initial, quality, creator }: { snapshot: Snapshot; benchmarkId: string; models: number; relatives: { family: { id: string; label: string }[]; familyLabel?: string; versions: { id: string; label: string }[] }; /** Settings from a copied link. */ initial?: IndexConfig; /** The benchmark's quality score, its parts and its stars, from the server. Absent for token-price proxies. */ quality?: QualityView; /** Its verified creators and what they added, from the server. */ creator?: CreatorPage | null }) {
   const snapshot = useAdjustedSnapshot(base);
   const b = snapshot.benchmarks.find((x) => x.id === benchmarkId)!;
   const [config, setConfig] = useState<IndexConfig>(() => initial ?? benchmarkIndex(snapshot, benchmarkId));
@@ -97,17 +99,27 @@ export function BenchmarkPage({ snapshot: base, benchmarkId, models, relatives, 
   const plotted = useMemo(() => asPublished(metricRanked), [asPublished, metricRanked]);
   const gallerySettings = { ...releaseProps, ...effortProps, ...modelPicker };
   const ci = result.ranked.some((r) => apiObs.get(r.variant.id)?.ci), harness = result.ranked.some((r) => apiObs.get(r.variant.id)?.harness);
+  // What a creator's embed reads with `priors.rows()`: the leaderboard as it stands under the visitor's settings.
+  const embedRows = useMemo<EmbedRow[]>(() => {
+    const labs = new Map(snapshot.labs.map((l) => [l.id, l]));
+    return rows.map((r) => {
+      const lab = labs.get(r.model.labId), o = apiObs.get(r.variant.id);
+      return { rank: r.rank, model: r.model.name, modelId: r.model.id, lab: lab?.name ?? r.model.labId, color: lab ? markColor(lab.color, pal, lab.id) : undefined, effort: r.variant.effort, value: r.values[0]?.raw ?? null, score: r.score, ci: o?.ci, costUsd: r.costUsd ?? undefined, released: r.model.releaseDate, url: `/models/${encodeURIComponent(r.model.id)}` };
+    });
+  }, [rows, snapshot.labs, apiObs, pal]);
+  const embedBenchmark = { id: b.id, name: b.name, unit: b.unit, higherIsBetter: b.higherIsBetter !== false, url: b.url };
 
   return (
     <main className="min-h-screen">
       <SiteHeader current="benchmarks" />
-      <BenchmarkStars><HighlightContext.Provider value={highlightState}><ScoreAxisContext.Provider value={plotRaw ? axis : { ...INDEX_SCORE_AXIS, name: "Score (Priors scale)" }}>
+      <CreatorPageProvider page={creator ?? null} benchmark={embedBenchmark} rows={embedRows}><BenchmarkStars><HighlightContext.Provider value={highlightState}><ScoreAxisContext.Provider value={plotRaw ? axis : { ...INDEX_SCORE_AXIS, name: "Score (Priors scale)" }}>
         <div className="max-w-[1100px] mx-auto px-5 sm:px-8 py-10 grid gap-12">
           <section className="grid gap-2">
             <p className="cap"><Link href={"/benchmarks" as "/"} className="hover:text-ink">Benchmarks</Link> · {categoryNames(b)}</p>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2"><h1 className="text-[34px] sm:text-[44px] leading-[1.05]">{b.name}</h1>{quality && <BenchmarkStar id={benchmarkId} name={b.name} count={quality.stars} label />}</div>
             {quality?.quality.preferred && <p data-recommended className="text-[13px] inline-flex items-center gap-1.5 text-ink-2"><span className="inline-flex items-center gap-1 font-medium" style={{ color: "var(--indigo)" }}><IconRosetteDiscountCheck size={16} stroke={1.6} aria-hidden="true" />{RECOMMENDED_NAME}</span>{RECOMMENDED_TIP.replace("this benchmark", "it")}</p>}
             <p className="text-[15px] text-ink-2 max-w-[68ch]">{b.description}</p>
+            <CreatorByline />
             {breaksFor([benchmarkId]).map((x) => <p key={x.date} data-series-break={x.date} className="text-[13px] text-ink-2 max-w-[68ch]">{x.note} <a href={x.url} target="_blank" rel="noreferrer" className="underline underline-offset-2 hover:text-ink">Their method</a></p>)}
             {b.stoppedPublishing && <p data-stopped-publishing className="text-[13px] text-ink-2 max-w-[68ch]">Not current: the last update was {b.stoppedPublishing}, while the publisher&rsquo;s other boards kept updating.</p>}
             {b.notice && <p data-benchmark-notice className="text-[13px] text-ink-2 max-w-[68ch]">{b.notice}</p>}
@@ -120,11 +132,13 @@ export function BenchmarkPage({ snapshot: base, benchmarkId, models, relatives, 
             )}{host} ↗</a></>}</p>
           </section>
 
+          <CreatorBlocks placement="above" />
           <section className="chart-panel">
             <Rankings anchor="rankings" imageTitle={b.name} format={(r) => { const v = published(r); return v != null ? fmt(b, v) : r.score.toFixed(1); }} title={title("Leaderboard")} ranked={rows} labs={snapshot.labs} showEffort={rankingMode === "all" && !b.effortBasis} limit={25}
               actions={<ChartSettings label="Ranking" efforts={{ value: config.rankingEfforts ?? [...EFFORT_CHOICES], onChange: (rankingEfforts) => patch({ rankingEfforts }), withMode: true }} mode={rankingMode} onChange={(rankingVariants) => patch({ rankingVariants })} {...releaseProps} {...modelPicker} />} />
           </section>
 
+          <CreatorBlocks placement="below" />
           {quality && <QualityPanel view={quality} />}
 
           {hasCost && <section className="chart-panel">
@@ -165,7 +179,7 @@ export function BenchmarkPage({ snapshot: base, benchmarkId, models, relatives, 
             {table.length > 30 && <button type="button" className="btn-quiet justify-self-start" onClick={() => setAllRows((v) => !v)}>{allRows ? "Show fewer" : `Show all ${table.length}`}</button>}
           </section>
         </div>
-      </ScoreAxisContext.Provider></HighlightContext.Provider></BenchmarkStars>
+      </ScoreAxisContext.Provider></HighlightContext.Provider></BenchmarkStars></CreatorPageProvider>
       <SiteFooter />
     </main>
   );

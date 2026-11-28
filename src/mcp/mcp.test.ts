@@ -24,6 +24,7 @@ describe("MCP server", () => {
     for (const t of tools) expect(t.inputSchema.type).toBe("object");
     const write = TOOLS.filter((t) => t.write).map((t) => t.name);
     expect(write).toEqual(expect.arrayContaining(["whoami", "update_page", "upsert_index", "delete_index", "upsert_section", "remove_section", "set_theme", "import_benchmark"]));
+    expect(write).toEqual(expect.arrayContaining(["my_benchmarks", "get_benchmark_blocks", "upsert_benchmark_block", "remove_benchmark_block", "set_benchmark_blocks"]));
     for (const t of tools) expect(t.annotations.readOnlyHint).toBe(!write.includes(t.name));
     // Every tool that ranks under an index takes one.
     for (const n of ["rank_models", "get_mix", "explain_model", "compare_models", "try_mix", "solve_edit", "fit_ranking", "query_data", "make_chart", "get_model", "index_history", "index_link"]) expect(tools.find((t) => t.name === n)!.inputSchema.properties).toHaveProperty("index");

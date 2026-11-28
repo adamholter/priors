@@ -9,6 +9,9 @@
  */
 
 import type * as agentBudget from "../agentBudget.js";
+import type * as agentToken from "../agentToken.js";
+import type * as benchmarkPageRules from "../benchmarkPageRules.js";
+import type * as benchmarkPages from "../benchmarkPages.js";
 import type * as benchmarkStars from "../benchmarkStars.js";
 import type * as crons from "../crons.js";
 import type * as dev from "../dev.js";
@@ -29,6 +32,9 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   agentBudget: typeof agentBudget;
+  agentToken: typeof agentToken;
+  benchmarkPageRules: typeof benchmarkPageRules;
+  benchmarkPages: typeof benchmarkPages;
   benchmarkStars: typeof benchmarkStars;
   crons: typeof crons;
   dev: typeof dev;
