@@ -17,6 +17,8 @@ export const FAMILIES: Record<string, { mainLabel: string; variants: Record<stri
   "arena-agent": { mainLabel: "Net improvement", variants: {} },
   "arena-text": { mainLabel: "Overall", variants: { "arena-text-multi-turn": "Multi-turn" } },
   // The scraper marks these too; listed for the picker's and the page's labels. Without reasoning is the author's suggested main ranking.
+  // GDPx: the scraper marks its partial-credit score and its 11 domains (sources/gdpx.ts).
+  gdpx: { mainLabel: "All domains", switchLabel: "View", variants: {} },
   lisanbench: { mainLabel: "Without reasoning", switchLabel: "Ranking", variants: { "lisanbench-all-runs": "All runs, reasoning on" } },
 };
 const BY_VARIANT = new Map(Object.entries(FAMILIES).flatMap(([main, f]) => Object.entries(f.variants).map(([id, label]) => [id, { main, label }] as const)));
