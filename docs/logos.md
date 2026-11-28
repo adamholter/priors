@@ -29,7 +29,7 @@ A model the family patterns cannot place is filed `aa-<slug>`; its lab was `othe
 
 ## Adding a lab
 
-`lab-logos.test.ts` fails when a lab in LABS or in the latest snapshot has neither a logo entry nor a `letter` reason, when a listed file is missing, when a file in `public/logos` is listed by no lab, or when a lab has no chart color.
+`lab-logos.test.ts` fails when a lab in LABS has neither a logo entry nor a `letter` reason, when a listed file is missing, when a file in `public/logos` is listed by no lab, or when a lab in LABS has no chart color. A lab that only a scrape added (in the latest snapshot but not in LABS) never fails the test, because a data push must not block a deploy: the test warns, the app shows its letter tile, and the fix is a logo entry plus a LABS color.
 
 1. Find the mark: Artificial Analysis serves creator logos at `artificialanalysis.ai/img/logos/<creator>.svg` (48px tiles: strip the background rectangle); lobehub icons (`@lobehub/icons-static-svg`, `<name>.svg` is mono, `<name>-color.svg` colored); the lab's brand page or GitHub org avatar.
 2. Look at it. Trim to the mark, make the background transparent, no scripts or external references.

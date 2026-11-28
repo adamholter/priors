@@ -11,13 +11,19 @@ const LOGO_DIR = "public/logos";
 /** Files in public/logos that are not lab logos: a benchmark site's mark (BenchmarkPage, BenchmarkDirectory). */
 const NOT_LAB_LOGOS = new Set(["gamefeel.png"]);
 const snapshotLabs = (JSON.parse(gunzipSync(readFileSync("data/snapshots/latest.json.gz")).toString("utf8")) as { labs: Lab[]; models: { labId: string }[] });
-const labIds = [...new Set([...LABS.map((l) => l.id), ...snapshotLabs.labs.map((l) => l.id), ...snapshotLabs.models.map((m) => m.labId)])];
+// LABS is code, so a missing logo there fails the build. The snapshot is data the scrape rewrites every two hours: a lab it adds
+// must never block a deploy (it shows the letter tile until someone adds the logo), so snapshot-only labs warn instead.
+const codeLabIds = [...new Set(LABS.map((l) => l.id))];
+const snapshotOnlyIds = [...new Set([...snapshotLabs.labs.map((l) => l.id), ...snapshotLabs.models.map((m) => m.labId)])].filter((id) => !codeLabIds.includes(id));
+const labIds = codeLabIds;
+const warnSnapshotLabs = (what: string, ids: string[]) => { if (ids.length) console.warn(`[lab-logos] the latest snapshot has labs with ${what}: ${ids.join(", ")}. Add them (docs/logos.md); until then they show a letter tile.`); };
 
 describe("lab logos", () => {
-  it("covers every lab in LABS and the latest snapshot with a logo file or an explicit letter-only decision", () => {
+  it("covers every lab in LABS with a logo file or an explicit letter-only decision, and warns about snapshot-only labs", () => {
     const missing = labIds.filter((id) => !labLogo(id));
     expect(missing, `add these to src/data/lab-logos.ts and public/logos (docs/logos.md): ${missing.join(", ")}`).toEqual([]);
     for (const id of labIds) { const e = labLogo(id)!; expect(Boolean(e.file) !== Boolean(e.letter), `${id} needs either a file or a letter reason`).toBe(true); }
+    warnSnapshotLabs("no logo entry", snapshotOnlyIds.filter((id) => !labLogo(id)));
   });
 
   it("points every entry at a file that exists, and every file at an entry", () => {
@@ -66,8 +72,10 @@ describe("lab logos", () => {
     for (const e of LAB_LOGOS) if (e.dark) expect(e.file, `${e.id} has a dark treatment but no file`).toBeTruthy();
   });
 
-  it("gives every lab in LABS and the snapshot a chart color (and a dark one), except Other", () => {
-    const labs = [...LABS, ...snapshotLabs.labs].map(labIdentity);
+  it("gives every lab in LABS a chart color (and a dark one), except Other, and warns about snapshot-only labs without one", () => {
+    const snapLabs = snapshotLabs.labs.filter((l) => !codeLabIds.includes(l.id)).map(labIdentity);
+    warnSnapshotLabs("no chart color", snapLabs.filter((l) => l.id !== "other" && (!l.color || l.color.toUpperCase() === "#A3A39B" || !DARK_LAB_COLORS[l.id])).map((l) => l.id));
+    const labs = LABS.map(labIdentity);
     const grey = labs.filter((l) => l.id !== "other" && (!l.color || l.color.toUpperCase() === "#A3A39B")).map((l) => l.id);
     expect(grey, "labs with no chart color: add them to LABS in src/data/normalize.ts and DARK_LAB_COLORS in src/components/chart/palette.ts").toEqual([]);
     const noDark = labs.filter((l) => l.id !== "other" && !DARK_LAB_COLORS[l.id]).map((l) => l.id);
