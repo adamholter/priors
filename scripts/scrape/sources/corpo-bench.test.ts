@@ -46,4 +46,11 @@ describe("Corpo-Bench", () => {
     expect(normalizeLabel("Tencent Hy4 Flash", "Tencent")).toMatchObject({ modelId: "hy-4-flash", labId: "tencent" });
     expect(normalizeLabel("Tencent Hy4", "Tencent")).toMatchObject({ modelId: "hy-4" });
   });
+
+  it("leaves out a role the site still marks as an estimate, and keeps the index roles", () => {
+    const m = parseCorpoModel(fixture("glm-5-4-zcode.html"), "z-ai-glm-5-4-zcode");
+    expect(m.roles.Solo?.value).toBe(66);
+    expect(m.roles.Orchestrator?.value).toBe(59.5);
+    expect(m.roles.Worker).toBeUndefined();
+  });
 });

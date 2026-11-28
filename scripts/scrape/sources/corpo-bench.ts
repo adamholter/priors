@@ -57,6 +57,8 @@ export function parseCorpoModel(html: string, slug: string): CorpoModel {
     const role = ROLES.find(([r]) => r === row[1].trim())?.[0];
     if (!role) continue;
     const cells = [...row[2].matchAll(/<td[^>]*>([\s\S]*?)<\/td>/g)].map((c) => text(c[1]));
+    // A role still running shows an estimate ("~67.1 (estimate)", 5 of 14 tasks): partial, so it is left out. A missing Solo or Orchestrator then fails below.
+    if (/^~|\(estimate\)/.test(cells[0] ?? "")) continue;
     const value = num(cells[0]?.match(/^-?[\d.]+/)?.[0]);
     if (value === undefined || !Number.isFinite(value)) throw new Error(`Corpo-Bench: ${slug} ${role} score unreadable`);
     const [own, partner] = (cells[1] ?? "").split("+");

@@ -60,8 +60,10 @@ const source: Source = {
   id: "aa-robotics", name: "AA-Robotics · Artificial Analysis", url: PAGE,
   async scrape(ctx): Promise<ScrapeResult> {
     const html = await ctx.fetchText(PAGE);
-    // Page-specific client chunks are listed in the RSC payload; the results live in one of them.
-    const chunks = [...new Set([...html.matchAll(/static\/chunks\/[^"\\\s]*?page-[a-f0-9]+\.js/g)].map((m) => m[0]))];
+    // The results live in one of the page's client chunks. Builds named them "static/chunks/...page-<hash>.js" until late November 2026,
+    // then "static/immutable/chunks/<hash>.js" with no page marker, so every chunk is a candidate: old-style page chunks first, then the rest.
+    const all = [...new Set([...html.matchAll(/static\/(?:immutable\/)?chunks\/[^"\\\s]*?\.js/g)].map((m) => m[0]))];
+    const chunks = [...all.filter((c) => /page-[a-f0-9]+\.js$/.test(c)), ...all.filter((c) => !/page-[a-f0-9]+\.js$/.test(c))];
     const raw: Record<string, string> = { "article.html": html };
     let lastError: unknown = new Error("no page chunks found on the AA-Robotics article");
     const text = html.replace(/<[^>]+>/g, " ").replace(/\\"/g, '"');
