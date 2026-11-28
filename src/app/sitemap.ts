@@ -1,4 +1,6 @@
 import type { MetadataRoute } from "next";
+import { labDirectory } from "@/lib/lab-page";
+import { labPath } from "@/lib/lab-path";
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "../../convex/_generated/api";
 import { loadSnapshot } from "@/data/load";
@@ -16,9 +18,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   ]);
   const data = snapshot ? new Date(snapshot.generatedAt) : undefined;
   return [
-    ...[["/", 1], ["/rank", 0.9], ["/builder", 0.9], ["/explore", 0.8], ["/benchmarks", 0.7], ["/models", 0.7], ["/benchmarks/methodology", 0.4], ["/methods/scoring", 0.3], ["/compare", 0.6], ["/model-finder", 0.8], ["/tools", 0.5], ["/skill", 0.4], ["/cli", 0.4], ["/import", 0.3], ["/request", 0.3], ["/support", 0.2], ["/privacy", 0.2]].map(([path, priority]) => ({ url: `${SITE_URL}${path}`, lastModified: data, changeFrequency: "daily" as const, priority: priority as number })),
+    ...[["/", 1], ["/rank", 0.9], ["/builder", 0.9], ["/explore", 0.8], ["/benchmarks", 0.7], ["/models", 0.7], ["/labs", 0.6], ["/benchmarks/methodology", 0.4], ["/methods/scoring", 0.3], ["/compare", 0.6], ["/model-finder", 0.8], ["/tools", 0.5], ["/skill", 0.4], ["/cli", 0.4], ["/import", 0.3], ["/request", 0.3], ["/support", 0.2], ["/privacy", 0.2]].map(([path, priority]) => ({ url: `${SITE_URL}${path}`, lastModified: data, changeFrequency: "daily" as const, priority: priority as number })),
     ...pages.map((p) => ({ url: `${SITE_URL}/${p.handle}`, lastModified: new Date(p.updatedAt), changeFrequency: "daily" as const, priority: 0.7 })),
     ...(snapshot?.benchmarks ?? []).filter((b) => !b.proxy).map((b) => ({ url: `${SITE_URL}/benchmarks/${encodeURIComponent(b.id)}`, lastModified: data, changeFrequency: "daily" as const, priority: 0.5 })),
+    ...(snapshot ? labDirectory(snapshot).labs : []).map((l) => ({ url: `${SITE_URL}${labPath(l.id)}`, lastModified: data, changeFrequency: "daily" as const, priority: 0.5 })),
     ...(snapshot?.models ?? []).map((m) => ({ url: `${SITE_URL}/models/${encodeURIComponent(m.id)}`, lastModified: data, changeFrequency: "daily" as const, priority: 0.5 })),
   ];
 }

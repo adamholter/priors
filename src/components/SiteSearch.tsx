@@ -2,10 +2,11 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ComponentType } from "react";
 import {
-  IconArrowBackUp, IconArrowsLeftRight, IconArrowsSort, IconBox, IconChartBar, IconCoin, IconCompass, IconCube, IconHeart, IconListCheck, IconLock,
+  IconArrowBackUp, IconArrowsLeftRight, IconArrowsSort, IconBox, IconBuilding, IconChartBar, IconCoin, IconCompass, IconCube, IconHeart, IconListCheck, IconLock,
   IconMathFunction, IconMessageReport, IconMoon, IconScale, IconSearch, IconSparkles, IconSun, IconTerminal2, IconTimeline, IconTool, IconTrophy, IconUpload,
 } from "@tabler/icons-react";
 import { useTheme } from "./Theme";
+import { labPath } from "@/lib/lab-path";
 import { benchmarkPath } from "@/lib/benchmark-slug";
 import { track } from "@/lib/analytics";
 
@@ -18,11 +19,11 @@ const OPEN = "priors:search";
 export const openSiteSearch = () => window.dispatchEvent(new Event(OPEN));
 
 type Icon = ComponentType<{ size?: number; stroke?: number; className?: string; "aria-hidden"?: boolean | "true" }>;
-interface Hit { key: string; group: "Models" | "Benchmarks" | "Pages" | "Actions"; label: string; meta?: string; icon: Icon; run: () => void }
-interface Index { models: { id: string; name: string; lab: string; rank?: number; score?: number; old?: true; aka: string[] }[]; benchmarks: { id: string; name: string; short?: string; category: string }[] }
+interface Hit { key: string; group: "Models" | "Labs" | "Benchmarks" | "Pages" | "Actions"; label: string; meta?: string; icon: Icon; run: () => void }
+interface Index { models: { id: string; name: string; lab: string; rank?: number; score?: number; old?: true; aka: string[] }[]; benchmarks: { id: string; name: string; short?: string; category: string }[]; labs?: { id: string; name: string; rank?: number; aka: string[] }[] }
 
 const PAGES: { href: string; label: string; icon: Icon; aka?: string }[] = [
-  { href: "/builder", label: "Data", icon: IconChartBar, aka: "rankings charts" }, { href: "/models", label: "Models", icon: IconCube }, { href: "/benchmarks", label: "Benchmarks", icon: IconListCheck },
+  { href: "/builder", label: "Data", icon: IconChartBar, aka: "rankings charts" }, { href: "/models", label: "Models", icon: IconCube }, { href: "/labs", label: "Labs", icon: IconBuilding, aka: "companies makers" }, { href: "/benchmarks", label: "Benchmarks", icon: IconListCheck },
   { href: "/explore", label: "Explore", icon: IconCompass, aka: "published rankings" }, { href: "/rank", label: "Rank models", icon: IconArrowsSort, aka: "new mix priors" },
   { href: "/subsidies", label: "Plan subsidies", icon: IconCoin, aka: "subscription price" }, { href: "/history", label: "Rankings through time", icon: IconTimeline, aka: "history" },
   { href: "/compare", label: "Compare rankings", icon: IconArrowsLeftRight }, { href: "/model-finder", label: "Model finder", icon: IconSearch }, { href: "/priorsbench", label: "PriorsBench", icon: IconTrophy },
@@ -83,6 +84,7 @@ export function SiteSearchHost() {
     const ranked = <T,>(items: T[], score: (x: T) => number, tie: (a: T, b: T) => number) => items.map((x) => [x, score(x)] as const).filter(([, s]) => s > 0).sort((a, b) => b[1] - a[1] || tie(a[0], b[0])).map(([x]) => x);
     const models = index ? (query ? ranked(index.models, (m) => match(query, m.name, ...m.aka), (a, b) => (a.old ? 1 : 0) - (b.old ? 1 : 0) || (a.rank ?? 1e4) - (b.rank ?? 1e4)) : index.models.filter((m) => m.rank).sort((a, b) => a.rank! - b.rank!)).slice(0, query ? 6 : 4) : [];
     for (const m of models) out.push({ key: `m:${m.id}`, group: "Models", label: m.name, meta: m.score != null ? m.score.toFixed(1) : m.lab, icon: IconCube, run: go(`/models/${m.id}`) });
+    if (index?.labs && query) for (const l of ranked(index.labs, (l) => match(query, l.name, ...l.aka), (a, b) => (a.rank ?? 1e4) - (b.rank ?? 1e4)).slice(0, 3)) out.push({ key: `l:${l.id}`, group: "Labs", label: l.name, meta: l.rank ? `#${l.rank}` : undefined, icon: IconBuilding, run: go(labPath(l.id)) });
     if (index && query) for (const b of ranked(index.benchmarks, (b) => match(query, b.name, b.short, b.id), (a, b) => a.name.length - b.name.length).slice(0, 5)) out.push({ key: `b:${b.id}`, group: "Benchmarks", label: b.name, meta: b.category, icon: IconChartBar, run: go(benchmarkPath(b.id)) });
     for (const p of (query ? ranked(PAGES, (p) => match(query, p.label, p.aka), () => 0) : PAGES.slice(0, 5)).slice(0, query ? 4 : 5)) out.push({ key: `p:${p.href}`, group: "Pages", label: p.label, icon: p.icon, run: go(p.href) });
     const actions: Hit[] = [

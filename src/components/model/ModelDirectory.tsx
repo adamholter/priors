@@ -4,6 +4,8 @@ import { IconHistory, IconLockOpen, IconReceipt, IconStack2 } from "@tabler/icon
 import { labsOf, modelView, nextOrder, NO_FILTERS, RANK_ORDER, type Facet, type Filters, type LabInfo, type ModelItem, type ModelSort, type Order } from "@/lib/model-list";
 import { Count, DateButton, Empty, IconBtn, LabList, LabMark, SearchField, Sheet, SortButton, useSlash } from "./directory-ui";
 import { ModelTable } from "./ModelTable";
+import Link from "next/link";
+import { labPath } from "@/lib/lab-path";
 import "./models.css";
 
 const NONE: Facet = { ranked: 0, total: 0 };
@@ -94,6 +96,7 @@ export function ModelDirectory({ items, indexName }: { items: ModelItem[]; index
           <IconBtn label={searching ? "Older versions are included while searching" : "Older versions"} pressed={f.older || searching} disabled={searching} onClick={() => patch({ older: !f.older })}><IconHistory size={18} stroke={1.5} aria-hidden /></IconBtn>
           <IconBtn className="md-costbtn" label="Cost per task" pressed={showCost} disabled={order.sort === "cost"} onClick={() => setCostOn((v) => !v)}><IconReceipt size={18} stroke={1.5} aria-hidden /></IconBtn>
           <SortButton order={order} onChange={setOrder} />
+          {lab && lab.id !== "other" && <Link href={labPath(lab.id) as "/"} prefetch={false} className="cap md-labpage hover:text-ink">{lab.name}&apos;s page</Link>}
           <span className={searching ? "cap md-matches" : "md-sr"} role="status" aria-live="polite">{rows.length.toLocaleString("en-US")} {searching ? (rows.length === 1 ? "match" : "matches") : rows.length === 1 ? "model" : "models"}</span>
         </div>
         {rows.length ? (

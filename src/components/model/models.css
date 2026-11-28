@@ -166,3 +166,4 @@
   .md-bar > i, .md-pop, .md-sheet, .md-sheet-back { animation: none; }
   .md-rail button, .md-disc::after { transition: none; }
 }
+.md-labpage { margin-left: 6px; padding: 6px 4px; color: var(--ink-2); text-decoration: underline; text-underline-offset: 2px; white-space: nowrap; }

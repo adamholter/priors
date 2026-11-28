@@ -7,6 +7,7 @@ import type { OwnRanking } from "@/lib/model-ranks";
 import { usePhone } from "../builder-size";
 import { Computing, InfoPop, Score } from "./ModelHeaderParts";
 import { RankMenu } from "./RankMenu";
+import { labPath } from "@/lib/lab-path";
 
 export interface ModelHeaderProps {
   view: ModelView; summary?: string; labC: string;
@@ -41,7 +42,7 @@ export function ModelHeader({ view, summary, labC, options, current, onPick, ran
       {/* On a phone the score comes before Compare, so it is on the first screen. */}
       <div className="max-sm:contents">
         <div className="min-w-0">
-          <p className="cap flex items-center gap-2"><i className="inline-block w-2.5 h-2.5 rounded-full" style={{ background: labC }} />{lab?.name}{model.releaseDate && ` · released ${model.releaseDate}`}</p>
+          <p className="cap flex items-center gap-2"><i className="inline-block w-2.5 h-2.5 rounded-full" style={{ background: labC }} />{lab ? <Link href={labPath(lab.id) as "/"} prefetch={false} className="hover:text-ink">{lab.name}</Link> : null}{model.releaseDate && ` · released ${model.releaseDate}`}</p>
           <h1 className="text-[44px] leading-[1.05] mt-2">{model.name}</h1>
           {summary && <p className="text-[13.5px] text-ink-2 mt-2 max-w-[70ch]">{summary}</p>}
           <p className="text-[13.5px] text-ink-2 mt-2">Measured on {measured} benchmarks{mine.length > 1 ? ` across ${mine.length} reasoning efforts` : ""}.</p>
