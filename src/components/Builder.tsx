@@ -29,6 +29,8 @@ import { Wordmark } from "./Wordmark";
 import { SiteFooter } from "./SiteFooter";
 import { SiteNav } from "./SiteNav";
 import { MixMenu } from "./MixMenu";
+import { usePageMixes } from "./use-page-mixes";
+import { openCopyOf, openedFromPage, tabPageKey } from "@/lib/page-mixes";
 import { SourceLine } from "./SourceLine";
 import { derivedMixName } from "@/lib/mix-name";
 import { REFERENCE_ID, REFERENCE_LABEL, indexNote, isAAWeights, isPristineDefault, restorable, withoutPristineDefault } from "@/lib/default-index";
@@ -220,6 +222,16 @@ export function Builder({ snapshot: base, initialIndices }: { snapshot: Snapshot
   };
   // AA's index is one click away, as a reference to compare against, but not a tab nobody asked for.
   const addReference = () => { setIndices((l) => (l.some((i) => i.id === REFERENCE_ID) ? l : [...l, { ...aaIndexMix(snapshot), id: REFERENCE_ID }])); setActiveId(REFERENCE_ID); };
+  // A mix from your page opens beside the others (or is switched to, when a copy is already open), tied to the page so saving updates it.
+  const page = usePageMixes();
+  const openPageMix = (mix: IndexConfig) => {
+    if (!page) return;
+    const key = tabPageKey(), have = openCopyOf(indices, page, mix, key);
+    if (have) { setActiveId(have.id); return; }
+    const next = openedFromPage(indices, page, mix, key);
+    setIndices((l) => [...l, next]);
+    setActiveId(next.id);
+  };
   const remove = (id: string) => { setIndices((l) => { const n = l.filter((i) => i.id !== id); if (!n.length) n.push(aaIndexMix(snapshot)); if (active.id === id) setActiveId(n[0].id); return n; }); };
 
   return (
@@ -257,7 +269,7 @@ export function Builder({ snapshot: base, initialIndices }: { snapshot: Snapshot
         {/* Keep the assistant clearance inside this column so the sidebar stays below the header at the page bottom. */}
         <section className="builder-charts grid gap-10 min-w-0 content-start pb-20 [&>div]:min-w-0">
           <div className="builder-rank">
-            <Rankings anchor="rankings" imageTitle={active.name} fresh={fresh} empty={mixEmpty ? "Your mix is empty. Add a benchmark to rank models." : undefined} limit={phone ? 10 : 20} title={<h1 className="text-[26px] leading-tight"><MixMenu snapshot={snapshot} indices={indices} active={active} mixOpen={mixOpen} openMix={openMix} onSelect={setActiveId} onAdd={add} onRename={(id, name) => update({ ...indices.find((i) => i.id === id)!, name })} onRemove={remove} /></h1>} subtitle={<SourceLine snapshot={snapshot} config={active} />} actions={<ChartSettings label="Ranking" efforts={{ value: active.rankingEfforts ?? [...EFFORT_CHOICES], onChange: (rankingEfforts) => update({ ...active, rankingEfforts }), withMode: true }} mode={rankingMode} onChange={(rankingVariants) => update({ ...active, rankingVariants })} {...releaseProps} {...modelPicker} />} onSelect={(r) => { if (r) router.push(`/models/${r.model.id}${isAAWeights(active) ? "?r=aa" : ""}` as "/", { transitionTypes: ["nav-forward"] }); }} ranked={rankingRows} labs={snapshot.labs} showEffort={rankingMode === "all"} />
+            <Rankings anchor="rankings" imageTitle={active.name} fresh={fresh} empty={mixEmpty ? "Your mix is empty. Add a benchmark to rank models." : undefined} limit={phone ? 10 : 20} title={<h1 className="text-[26px] leading-tight"><MixMenu snapshot={snapshot} indices={indices} active={active} mixOpen={mixOpen} openMix={openMix} onSelect={setActiveId} onAdd={add} onRename={(id, name) => update({ ...indices.find((i) => i.id === id)!, name })} onRemove={remove} page={page} onOpenPage={openPageMix} /></h1>} subtitle={<SourceLine snapshot={snapshot} config={active} />} actions={<ChartSettings label="Ranking" efforts={{ value: active.rankingEfforts ?? [...EFFORT_CHOICES], onChange: (rankingEfforts) => update({ ...active, rankingEfforts }), withMode: true }} mode={rankingMode} onChange={(rankingVariants) => update({ ...active, rankingVariants })} {...releaseProps} {...modelPicker} />} onSelect={(r) => { if (r) router.push(`/models/${r.model.id}${isAAWeights(active) ? "?r=aa" : ""}` as "/", { transitionTypes: ["nav-forward"] }); }} ranked={rankingRows} labs={snapshot.labs} showEffort={rankingMode === "all"} />
           </div>
           <div className="builder-cost">
             <ParetoChart everyVersion={versions} formulaInputs={formulaInputs(snapshot, result.ranked, active.timeSource)} basis={effectiveBasis(active.costBasis, hasSubscriptionPrices(snapshot))} description={costDescription(costSourceOf(snapshot, active.costSource), effectiveBasis(active.costBasis, hasSubscriptionPrices(snapshot)))} anchor="cost" ranked={costRanked} mode={paretoMode} labs={snapshot.labs} view={paretoView} onView={setParetoView} height={phone ? undefined : 620} title={<h2 className="text-[22px]">{effectiveBasis(active.costBasis, hasSubscriptionPrices(snapshot)) === "subscription" ? "Score vs subscription cost per task" : "Score vs cost per task"}</h2>}

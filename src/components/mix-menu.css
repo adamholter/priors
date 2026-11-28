@@ -10,6 +10,7 @@
 .mix-menu-tops { display: inline-flex; align-items: center; gap: 3px; flex: none; }
 .mix-menu-tops .lab-logo { border-radius: 3px; }
 .mix-menu-check { flex: none; width: 16px; display: inline-grid; place-items: center; color: var(--indigo); }
+.mix-menu-label { padding: 4px 12px 2px; font-size: 12px; color: var(--grey); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mix-menu-sep { height: 1px; background: var(--hair); margin: 4px 0; }
 .mix-menu-rename { padding: 4px 6px; }
 .mix-menu-rename input { width: 100%; height: 36px; padding: 0 10px; border: 1px solid var(--ink); border-radius: 6px; background: var(--white); font: inherit; font-size: 14px; color: var(--ink); outline: none; }

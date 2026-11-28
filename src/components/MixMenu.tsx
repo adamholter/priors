@@ -8,6 +8,7 @@ import { isPristineDefault } from "@/lib/default-index";
 import { usePlanResetsOn, withResetsPref } from "@/lib/plan-resets-pref";
 import { useSubscriptionPlansPref, withPlansPref } from "@/lib/subscription-plans-pref";
 import { LabLogo } from "./LabLogo";
+import { openCopyOf, tabPageKey, type PageMixes } from "@/lib/page-mixes";
 import { useDismiss, useKeepOnScreen } from "./use-popover";
 import "./mix-menu.css";
 
@@ -37,9 +38,11 @@ type MenuProps = {
   onSelect: (id: string) => void; onRename: (id: string, name: string) => void; onRemove: (id: string) => void;
   /** Adds a copy of the active mix, named from its benchmarks, selects it and returns it. */
   onAdd: () => { id: string; name: string };
+  /** The signed-in visitor's page: its mixes that are not open here are listed below the open ones, and picking one opens it. */
+  page?: PageMixes | null; onOpenPage?: (mix: IndexConfig) => void;
 };
 
-function MixPanel({ snapshot, indices, active, mixOpen, openMix, onSelect, onAdd, onRename, onRemove, onClose, anchor }: MenuProps & { onClose: (restoreFocus: boolean) => void; anchor: RefObject<HTMLElement | null> }) {
+function MixPanel({ snapshot, indices, active, mixOpen, openMix, onSelect, onAdd, onRename, onRemove, page, onOpenPage, onClose, anchor }: MenuProps & { onClose: (restoreFocus: boolean) => void; anchor: RefObject<HTMLElement | null> }) {
   const [renaming, setRenaming] = useState(false), [draft, setDraft] = useState("");
   const panel = useRef<HTMLDivElement>(null), input = useRef<HTMLInputElement>(null);
   const tops = useTopThree(snapshot, indices);
@@ -56,6 +59,8 @@ function MixPanel({ snapshot, indices, active, mixOpen, openMix, onSelect, onAdd
   const close = (restore = false) => { setRenaming(false); onClose(restore); };
   const commit = (restore = false) => { const name = draft.trim(); if (name && name !== active.name) onRename(active.id, name); close(restore); };
   const lone = indices.length === 1;
+  const [key] = useState(tabPageKey);
+  const onPage = page && onOpenPage ? page.indices.filter((m) => !openCopyOf(indices, page, m, key)) : [];
   // Arrow keys, Home and End move through the rows; a letter jumps to the next row that starts with it; Tab leaves the menu.
   const keys = (e: ReactKeyboardEvent) => {
     const items = [...(panel.current?.querySelectorAll<HTMLElement>('[role^="menuitem"]') ?? [])];
@@ -86,6 +91,13 @@ function MixPanel({ snapshot, indices, active, mixOpen, openMix, onSelect, onAdd
           </span>}
           <span className="mix-menu-check">{i.id === active.id && <IconCheck size={16} stroke={2} aria-hidden="true" />}</span>
         </button>)}
+      {onPage.length > 0 && <>
+        <div className="mix-menu-sep" role="separator" />
+        <div className="mix-menu-label" role="presentation">On @{page!.handle}</div>
+        {onPage.map((m) => <button key={m.id} type="button" role="menuitem" tabIndex={-1} title={`Open ${m.name}`} onClick={() => { onOpenPage!(m); close(true); }} className="mix-menu-item">
+          <span className="mix-menu-name">{m.name}</span>
+        </button>)}
+      </>}
     </div>
     <div className="mix-menu-sep" role="separator" />
     <button type="button" role="menuitem" tabIndex={-1} className="mix-menu-item" onClick={() => { const n = onAdd(); setDraft(n.name); setRenaming(true); }}><IconPlus {...icon} />New mix</button>
@@ -100,7 +112,7 @@ function MixPanel({ snapshot, indices, active, mixOpen, openMix, onSelect, onAdd
 
 /**
  * The ranking's title is the mix's name; clicking it opens the mixes you have open (switch by clicking one), a new mix (a copy of this one),
- * renaming this one in place, closing it (or resetting the only one), and the two ways to make your own: Rank models and Change the mix.
+ * the mixes saved on your page that are not open yet, renaming this one in place, closing it (or resetting the only one), and the two ways to make your own: Rank models and Change the mix.
  * From Faye Quepeerzade's header mockups (November 2026).
  */
 export function MixMenu(props: MenuProps) {
