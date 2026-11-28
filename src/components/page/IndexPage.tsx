@@ -94,7 +94,6 @@ export function IndexPage({ profile, snapshot: base, edit, tab: linkedTab, linke
   const palette = paletteFor(preset);
   const [origin, setOrigin] = useState("");
   useEffect(() => { const id = requestAnimationFrame(() => setOrigin(window.location.origin)); return () => cancelAnimationFrame(id); }, []);
-  const [selected, setSelected] = useState<string | null>(null);
   // A page with several indices shows one at a time; the tab is the index everything below describes.
   const [tab, setTab] = useState(() => findTab(profile.indices, linkedTab)?.id);
   const active = p.indices.find((i) => i.id === tab) ?? p.indices[0];
@@ -112,7 +111,7 @@ export function IndexPage({ profile, snapshot: base, edit, tab: linkedTab, linke
   }, [viewNow]);
   const activeResult = active ? results.get(active.id) : undefined;
   const openTab = (id: string) => {
-    setTab(id); setSelected(null);
+    setTab(id);
     const url = new URL(window.location.href);
     for (const key of ["hl", "hv", "c"]) url.searchParams.delete(key);
     const index = p.indices.find((i) => i.id === id);
@@ -245,7 +244,7 @@ export function IndexPage({ profile, snapshot: base, edit, tab: linkedTab, linke
           const settings = (label: string, mode: "all" | "best", key: "rankingVariants" | "paretoVariants") => <ChartSettings label={label} efforts={{ value: idx.rankingEfforts ?? [...EFFORT_CHOICES], onChange: (rankingEfforts) => updateIndex({ rankingEfforts }), withMode: true }} mode={mode} onChange={(v) => updateIndex({ [key]: v })} releasedAfter={idx.releasedAfter} onChangeReleased={(v) => updateIndex({ releasedAfter: v })} models={pickerModels} excluded={excludedIds} onToggleModel={toggleModel} onShowAllModels={() => updateIndex(SHOW_ALL)} onHideAllModels={() => updateIndex({ excludeModels: pickerIds, onlyModels: undefined })} onShowOnly={modelPicker.onShowOnly} />;
           if (s.kind === "rankings") return wrap(
             <section key={s.id} className="chart-panel">
-              <Rankings fresh={fresh} imageTitle={title} anchor={anchorOf(title)} title={heading(s, title, "text-[21px] sm:text-[24px]")} actions={settings("Ranking", rankingMode, "rankingVariants")} ranked={rankingRows(r.ranked, idx)} showEffort={rankingMode === "all"} labs={snapshot.labs} limit={25} selected={selected} onSelect={(x) => setSelected(x?.variant.id ?? null)} />
+              <Rankings fresh={fresh} imageTitle={title} anchor={anchorOf(title)} title={heading(s, title, "text-[21px] sm:text-[24px]")} actions={settings("Ranking", rankingMode, "rankingVariants")} ranked={rankingRows(r.ranked, idx)} showEffort={rankingMode === "all"} labs={snapshot.labs} limit={25} />
             </section>
           );
           if (s.kind === "pareto") return wrap(<section key={s.id} className="chart-panel"><WithView id={`pareto-${s.id}`} owner={s.view} onOwner={editing ? (view) => patchSection(s.id, { view }) : undefined}>{(paretoView, setParetoView) => <ParetoChart everyVersion={versions.get(idx.id)} formulaInputs={formulaInputs(snapshot, r.ranked, idx.timeSource)} basis={effectiveBasis(idx.costBasis, hasSubscriptionPrices(snapshot))} description={costDescription(costSourceOf(snapshot, idx.costSource), effectiveBasis(idx.costBasis, hasSubscriptionPrices(snapshot)))} anchor={anchorOf(title)} ranked={withSpeedTiers(metricRanked, snapshot, idx.speedTiers, tierPlans, { chart: "cost" })} mode={paretoMode} labs={snapshot.labs} height={440} view={paretoView} onView={setParetoView} title={heading(s, title, "text-[21px] sm:text-[24px]")} actions={(barModels) => {

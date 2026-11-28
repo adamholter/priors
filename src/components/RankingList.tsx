@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { memo, useCallback, useEffect, useMemo, useRef, type CSSProperties, type RefObject } from "react";
 import type { Lab } from "@/data/types";
 import { barShare, scoringNote, type RankedVariant } from "@/engine";
@@ -10,35 +11,37 @@ import "./ranking-list.css";
 
 type RowProps = {
   r: RankedVariant; index: number; showEffort: boolean; tie?: Tie; labName: string; labColor?: string; fill: string; logo: number;
-  share: number; text: string; fresh: boolean; selected: boolean; onPick: (r: RankedVariant) => void;
+  share: number; text: string; fresh: boolean; selected: boolean; onPick?: (r: RankedVariant) => void; href?: string;
 };
 
 /** One row: rank (`=2` when tied), the lab's logo, the name, the effort in its own column when efforts show, the bar and the score. Memoized: a list of 65+ rows re-renders only the rows that changed. */
-const Row = memo(function Row({ r, index, showEffort, tie, labName, labColor, fill, logo, share, text, fresh, selected, onPick }: RowProps) {
+const Row = memo(function Row({ r, index, showEffort, tie, labName, labColor, fill, logo, share, text, fresh, selected, onPick, href }: RowProps) {
   const base = r.variant.sourceModel?.name ?? variantLabel(r);
   const note = scoringNote(r);
   const title = `${base} · ${labName}${note ? ` · ${note}` : ""}${tie ? ` · Tied at ${tie.text}` : ""}`;
   const label = `${base}, ${labName}${fresh ? ", new" : ""}, ${text}${tie ? `, tied for rank ${tie.first}` : ""}`;
-  return (
-    <button type="button" className="rl-row" title={title} aria-label={label} data-k={r.variant.id} data-mixed={r.mixedEfforts || undefined} data-selected={selected || undefined}
-      onClick={() => onPick(r)} style={{ "--i": index } as CSSProperties}>
+  const attrs = { className: "rl-row", title, "aria-label": label, "data-k": r.variant.id, "data-mixed": r.mixedEfforts || undefined, "data-selected": selected || undefined, style: { "--i": index } as CSSProperties };
+  const body = <>
       <span className="cap rl-rk">{tieLabel(tie, r.rank)}</span>
       <LabLogo lab={r.model.labId} name={labName} color={labColor} size={logo} />
       <span className="rl-name"><span className="rl-nm">{r.model.name}</span>{fresh && <em className="not-italic cap rl-new" data-new-model>New</em>}</span>
       {showEffort && <span className="cap rl-effcol">{r.variant.effort !== "default" ? r.variant.effort : ""}</span>}
       <span className="rl-track"><i className="bar-fill rl-fill" style={{ width: `${(share * 100).toFixed(2)}%`, background: fill }} /></span>
       <span className="num rl-sc">{text}</span>
-    </button>
-  );
+  </>;
+  // A row that opens the model is a real link, so a click always lands (and a middle or Cmd click opens a tab); one that selects is a button.
+  return href && !onPick
+    ? <Link href={href as "/"} prefetch={false} transitionTypes={["nav-forward"]} {...attrs}>{body}</Link>
+    : <button type="button" onClick={() => onPick?.(r)} {...attrs}>{body}</button>;
 });
 
 /**
  * The leaderboard's rows and its Show all button. Rows are absolutely placed in a list whose height and pitch come from CSS,
  * so they slide when the order changes and a phone's 40px rows need no JS.
  */
-export function RankingList({ ranked, labs, rows, limit, expanded, onToggle, showEffort, format, fresh, onSelect, selected, listRef }: {
+export function RankingList({ ranked, labs, rows, limit, expanded, onToggle, showEffort, format, fresh, onSelect, selected, href, listRef }: {
   ranked: RankedVariant[]; labs: Lab[]; rows: RankedVariant[]; limit: number; expanded: boolean; onToggle: () => void; showEffort: boolean;
-  format?: (r: RankedVariant) => string; fresh?: Set<string>; onSelect?: (r: RankedVariant | null) => void; selected?: string | null; listRef: RefObject<HTMLDivElement | null>;
+  format?: (r: RankedVariant) => string; fresh?: Set<string>; onSelect?: (r: RankedVariant | null) => void; selected?: string | null; href?: (r: RankedVariant) => string; listRef: RefObject<HTMLDivElement | null>;
 }) {
   const pal = useChartPalette();
   const logo = Math.round(16 * (pal.size?.row ?? 1));
@@ -61,7 +64,7 @@ export function RankingList({ ranked, labs, rows, limit, expanded, onToggle, sho
         const lab = labById.get(r.model.labId);
         return <Row key={showEffort ? r.variant.id : r.model.id} r={r} index={i} showEffort={showEffort} tie={ties.get(r.variant.id)} labName={labTitle(lab?.name, r.model.labId)} labColor={lab?.color}
           fill={fills.get(r.model.labId) ?? plain} logo={logo} share={barShare({ score: shownScore(r.score, formatted), method: r.method }, topShown)} text={text(r)}
-          fresh={!!fresh?.has(r.model.id)} selected={selected === r.variant.id} onPick={pick} />;
+          fresh={!!fresh?.has(r.model.id)} selected={selected === r.variant.id} onPick={onSelect ? pick : undefined} href={onSelect ? undefined : href?.(r)} />;
       })}
       {rows[0] && <span className="sr-only">{variantLabel(rows[0])}</span>}
     </div>

@@ -6,6 +6,7 @@
 
 .rl-row { position: absolute; top: 0; left: 0; width: 100%; height: calc(var(--pitch) - 4px); transform: translateY(calc(var(--i) * var(--pitch))); display: grid; grid-template-columns: calc(28px * var(--u)) calc(16px * var(--u)) minmax(120px, calc(210px * var(--u))) minmax(0, 1fr) var(--sc); align-items: center; gap: calc(10px * var(--u)); padding: 0 4px; border: 0; border-radius: 2px; background: transparent; text-align: left; cursor: pointer; transition: transform 450ms cubic-bezier(.2, .7, .2, 1), height 450ms cubic-bezier(.2, .7, .2, 1), background-color 120ms ease; }
 .rl-list[data-eff] .rl-row { grid-template-columns: calc(28px * var(--u)) calc(16px * var(--u)) minmax(120px, calc(210px * var(--u))) calc(44px * var(--u)) minmax(0, 1fr) var(--sc); }
+a.rl-row { color: inherit; text-decoration: none; }
 .rl-row:focus-visible { outline-offset: -2px; }
 .rl-row[data-selected] { background: var(--white); }
 @media (hover: hover) {

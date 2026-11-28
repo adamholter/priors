@@ -3,6 +3,7 @@ import { escapeSvg } from "./chart/export-frame";
 import { ChartShare } from "./chart/ChartShare";
 import dynamic from "next/dynamic";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import type { Lab } from "@/data/types";
 import { barShare, scoringLabel, type RankedVariant } from "@/engine";
@@ -14,6 +15,7 @@ import { rankingHeightFor, rankingsImageSvg } from "./chart/rankings-image";
 import { labelScale } from "./chart/label-size";
 import type { EditorState } from "@/lib/export-editor";
 
+const modelHref = (r: RankedVariant) => `/models/${encodeURIComponent(r.model.id)}`;
 const ExportEditor = dynamic(() => import("./chart/ExportEditor"), { ssr: false });
 
 /**
@@ -42,7 +44,7 @@ function MethodLabel({ ranked }: { ranked: RankedVariant[] }) {
 const NO_ROWS = "No model has enough measured data for this index. Loosen a requirement, lower a weight, or reduce strictness.";
 
 /** Dense horizontal bars, color by lab, rows slide to their new position when the order changes. */
-type RankingsProps = { /** The heading a screenshot of this leaderboard starts with (default "Rankings"). */ imageTitle?: string; /** The number beside each bar; the index score by default. A benchmark page shows its published value. */ format?: (r: RankedVariant) => string; ranked: RankedVariant[]; labs: Lab[]; limit?: number; showEffort?: boolean; onSelect?: (r: RankedVariant | null) => void; selected?: string | null; title?: ReactNode; /** Beside the toolbar, under a heading that gets its own line (on phones it takes the width the toolbar leaves, so a one-line subtitle shares the row). */ subtitle?: ReactNode; actions?: ReactNode; anchor?: string; /** Models new to this visitor (`useNewModels`), labeled New. */ fresh?: Set<string>; /** What to say with no rows, when the usual advice does not fit. */ empty?: string };
+type RankingsProps = { /** The heading a screenshot of this leaderboard starts with (default "Rankings"). */ imageTitle?: string; /** The number beside each bar; the index score by default. A benchmark page shows its published value. */ format?: (r: RankedVariant) => string; ranked: RankedVariant[]; labs: Lab[]; limit?: number; showEffort?: boolean; onSelect?: (r: RankedVariant | null) => void; selected?: string | null; /** Where a row goes when clicked: the model's page by default. A leaderboard given `onSelect` selects instead. */ href?: (r: RankedVariant) => string; title?: ReactNode; /** Beside the toolbar, under a heading that gets its own line (on phones it takes the width the toolbar leaves, so a one-line subtitle shares the row). */ subtitle?: ReactNode; actions?: ReactNode; anchor?: string; /** Models new to this visitor (`useNewModels`), labeled New. */ fresh?: Set<string>; /** What to say with no rows, when the usual advice does not fit. */ empty?: string };
 
 /** Analysis-style themes draw the leaderboard as vertical columns; every other theme keeps the dense rows. */
 export function Rankings(props: RankingsProps) {
@@ -50,21 +52,24 @@ export function Rankings(props: RankingsProps) {
   return columns ? <RankingsColumns {...props} /> : <RankingsRows {...props} />;
 }
 
-function RankingsColumns({ ranked, labs, limit = 30, onSelect, selected, showEffort = true, title, subtitle, actions, anchor, fresh, empty }: RankingsProps) {
+function RankingsColumns({ ranked, labs, limit = 30, onSelect, selected, href = modelHref, showEffort = true, title, subtitle, actions, anchor, fresh, empty }: RankingsProps) {
   const [expanded, setExpanded] = useState(false);
   const cap = Math.min(limit, 20);
   const rows = expanded ? ranked : ranked.slice(0, cap);
   const svg = useRef<() => string | undefined>(() => undefined);
+  // The columns are drawn on a canvas, so a bar's click navigates in script when no selection is wanted.
+  const router = useRouter();
+  const pick = onSelect ?? ((r: RankedVariant | null) => { if (r) router.push(href(r) as "/", { transitionTypes: ["nav-forward"] }); });
   const head = <><div id={anchor} className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1 mb-3 min-h-8 scroll-mt-20">{subtitle ? <div className="w-full min-w-0">{title}</div> : <div className="min-w-0 max-w-full shrink-0">{title}</div>}{subtitle && <div className="min-w-0 flex-1 basis-[280px] max-sm:basis-0">{subtitle}</div>}<div className="flex items-center gap-1 ml-auto">{actions}<ChartShare link={anchor ? { id: anchor, name: "Rankings" } : undefined} name="Rankings" getSvg={() => svg.current()} getRows={() => ranked.map((r) => ({ rank: r.rank, model: r.model.name, effort: showEffort ? r.variant.effort : "best", score: +r.score.toFixed(2), lab: r.model.labId, cost_per_task_usd: r.costUsd ?? null, speed_toks: r.speed ?? null, coverage: r.coverage }))} /></div></div></>;
   if (!rows.length) return <>{head}<p className="cap py-6">{empty ?? NO_ROWS}</p></>;
   // Bars have no room for a label, so new models are named below them.
   const newNames = [...new Set(rows.filter((r) => fresh?.has(r.model.id)).map((r) => r.model.name))];
-  return <>{head}<MethodLabel ranked={ranked} /><RankingColumns rows={rows} labs={labs} showEffort={showEffort} selected={selected} onSelect={onSelect} getRef={(f) => { svg.current = f; }} />
+  return <>{head}<MethodLabel ranked={ranked} /><RankingColumns rows={rows} labs={labs} showEffort={showEffort} selected={selected} onSelect={pick} getRef={(f) => { svg.current = f; }} />
     {newNames.length > 0 && <p className="cap mt-2" data-new-models><span className="text-indigo">New to you:</span> {newNames.join(", ")}</p>}
     {ranked.length > cap && <button className="cap mt-3 hover:text-ink" onClick={() => setExpanded(!expanded)}>{expanded ? "Show fewer" : `Show all ${ranked.length} ${showEffort ? "variants" : "models"}`}</button>}</>;
 }
 
-function RankingsRows({ ranked, labs, limit = 30, onSelect, selected, showEffort = true, title, subtitle, actions, anchor, format, fresh, empty, imageTitle }: RankingsProps) {
+function RankingsRows({ ranked, labs, limit = 30, onSelect, selected, href = modelHref, showEffort = true, title, subtitle, actions, anchor, format, fresh, empty, imageTitle }: RankingsProps) {
   const list = useRef<HTMLDivElement>(null);
   const [editor, setEditor] = useState<EditorState | null>(null);
   const pal = useChartPalette();
@@ -87,7 +92,7 @@ function RankingsRows({ ranked, labs, limit = 30, onSelect, selected, showEffort
       }).join('')}</g></svg>`;
     }} />)}
     <MethodLabel ranked={ranked} />
-    <RankingList ranked={ranked} labs={labs} rows={rows} limit={limit} expanded={expanded} onToggle={toggle} showEffort={showEffort} format={format} fresh={fresh} onSelect={onSelect} selected={selected} listRef={list} />
+    <RankingList ranked={ranked} labs={labs} rows={rows} limit={limit} expanded={expanded} onToggle={toggle} showEffort={showEffort} format={format} fresh={fresh} onSelect={onSelect} selected={selected} href={href} listRef={list} />
     {editor && <ExportEditor name={imageTitle ?? "Rankings"} initial={editor} controls="rows" showScale={false} base={{ density: 1, frontier: false, links: false }} onClose={() => setEditor(null)}
       plot={(v, h, _chart, shot) => <RankingsShot ranked={ranked} labs={labs} showEffort={showEffort} format={format} width={shot.width} height={h} scale={labelScale(v.labelScale)} svgRef={shot.svg} />} />}
     </>
