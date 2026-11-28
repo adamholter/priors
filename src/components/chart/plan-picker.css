@@ -1,7 +1,5 @@
 /* Chart settings → Subscription plans: a row per lab with its plan's subsidy as a line, opening to every plan (PlanPicker.tsx). */
 .pp-rows{display:grid;margin-top:2px}
-.pp-logo{flex:none;width:18px;height:18px;border-radius:4px;object-fit:contain}
-.pp-letter{display:grid;place-items:center;border:1px solid var(--hair);font-size:10px;line-height:1;color:var(--grey)}
 .pp-head{display:grid;grid-template-columns:13px 18px minmax(0,1fr) 54px 34px;align-items:center;gap:8px;width:calc(100% + 12px);margin:0 -6px;padding:0 6px;min-height:34px;border-radius:4px;text-align:left;color:var(--ink);font-size:13px}
 .pp-head:hover{background:var(--hair-2)}
 .pp-chev{color:var(--grey);transition:transform .18s ease}

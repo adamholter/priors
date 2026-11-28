@@ -3,6 +3,7 @@ import { computeIndex, defaultConfig } from "@/engine";
 import { aaComponentWeights } from "@/data/aa-index";
 import { clientSnapshot } from "@/data/client-snapshot";
 import { loadSnapshot } from "@/data/load";
+import { labLogo } from "@/data/lab-logos";
 import { featuredMixes } from "./featured-mixes";
 import { existsSync } from "node:fs";
 import { modelAvailability, planSubsidies, plansOf, subsidySellers } from "./model-availability";
@@ -45,7 +46,7 @@ describe("on today's snapshot", async () => {
   it("groups every plan under its seller, with the plan most models use first and a logo for each", () => {
     const sellers = subsidySellers(snapshot), counted = sellers.flatMap((s) => s.plans.map((p) => p.plan)).sort();
     expect(counted).toEqual(planSubsidies(snapshot).map((p) => p.plan).sort());
-    for (const s of sellers) { expect(s.logo).toBe(true); expect(existsSync(`public/logos/${s.id}.png`)).toBe(true); }
+    for (const s of sellers) { const file = labLogo(s.id)?.file; expect(file, s.id).toBeTruthy(); expect(existsSync(`public/logos/${file}`)).toBe(true); }
     expect(sellers.find((s) => s.id === "anthropic")!.plans.every((p) => p.plan.startsWith("Claude"))).toBe(true);
     expect(sellers.map((s) => s.plans[0].median)).toEqual(sellers.map((s) => s.plans[0].median).sort((a, b) => b - a));
   });
@@ -120,6 +121,16 @@ describe("on today's snapshot", async () => {
   it("provider lists stay out of the browser's dataset", () => {
     const withLists = { ...snapshot, observations: snapshot.observations.map((o) => o.benchmarkId === "openrouter-providers" ? { ...o, details: { endpoints: [{ provider: "X", input: 1, output: 2 }] } } : o.benchmarkId === "aa-output-speed" ? { ...o, details: { providers: [{ provider: "X" }] } } : o) };
     for (const o of clientSnapshot(withLists).observations) { expect(o.details?.endpoints).toBeUndefined(); expect(o.details?.providers).toBeUndefined(); }
+  });
+
+  it("the chooser's numbers for a model are the numbers its own compare page shows", () => {
+    const base = compareView(snapshot, ids[0], undefined, config, config);
+    for (const id of [ids[0], ids[1], ids[2], base.options.filter((x) => x.rank == null)[0]?.id].filter((x): x is string => !!x)) {
+      const mine = compareView(snapshot, id, undefined, config, config).a, opt = base.options.find((x) => x.id === id)!;
+      expect(opt.score).toBe(mine.score != null ? +mine.score.toFixed(1) : undefined);
+      expect(opt.cost).toBe(mine.costUsd != null ? +mine.costUsd.toPrecision(4) : undefined);
+      expect(opt.tpt).toBe(mine.tpt != null ? +mine.tpt.toFixed(1) : undefined);
+    }
   });
 
   it("with no second model it offers the field and compares nothing", () => {

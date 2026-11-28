@@ -4,6 +4,7 @@ import { peakKind, studentBase, type PlanCaveat } from "@/data/subscription";
 import type { Snapshot } from "@/data/types";
 import { computeIndex, defaultConfig, selectVariants } from "@/engine";
 import { planPrices, soldAs, type PlanPriceModel, type PlanPrices } from "./plan-prices";
+import { isClosedPlan as closed } from "./plan-subsidies";
 
 const PLAN_LISTINGS_ID = "plan-listed-models";
 
@@ -11,7 +12,7 @@ const PLAN_LISTINGS_ID = "plan-listed-models";
 export interface PlanOffer { plan: string; feeUsd?: number; ratio?: number; free?: true; assumed?: true; preliminary?: PlanCaveat }
 export interface ModelAvailability extends ModelProviders { plans: PlanOffer[] }
 /** A company selling plans. `plans[0]` is its default: a current plan selling its best-ranked models, then the one most models are priced on. */
-export interface SubsidySeller { id: string; name: string; logo: boolean; plans: PlanSubsidy[] }
+export interface SubsidySeller { id: string; name: string; plans: PlanSubsidy[] }
 /** `multiple` is absent for a model the plan sells but no one has measured. */
 export interface PlanSubsidy { plan: string; feeUsd?: number; median: number; models: { id: string; name: string; lab: string; multiple?: number; assumed?: true; preliminary?: PlanCaveat }[] }
 
@@ -65,7 +66,7 @@ export function planSubsidies(snapshot: Snapshot): PlanSubsidy[] {
   return [...plans.values()].map((p) => ({ ...p, median: median(p.models.flatMap((m) => m.multiple ?? [])), models: p.models.sort((a, b) => (b.multiple ?? -1) - (a.multiple ?? -1) || a.name.localeCompare(b.name)) })).sort((a, b) => b.median - a.median || a.plan.localeCompare(b.plan));
 }
 
-/** Who sells a plan, read from its name, and whose models count as the seller's own. Logos are in `public/logos/<id>.png`. */
+/** Who sells a plan, read from its name, and whose models count as the seller's own. Logos are listed in `data/lab-logos.ts` under the seller id (or a lab id it is an alias of). */
 const SELLERS: { id: string; name: string; plans: RegExp; lab?: string }[] = [
   { id: "anthropic", name: "Anthropic", plans: /^Claude\b/, lab: "anthropic" }, { id: "openai", name: "OpenAI", plans: /^ChatGPT\b/, lab: "openai" }, { id: "google", name: "Google", plans: /^Google AI\b/, lab: "google" }, { id: "xai", name: "xAI", plans: /^(SuperGrok|X (Plus|Premium|Super|Ultra))\b/, lab: "xai" },
   { id: "cursor", name: "Cursor", plans: /^Cursor\b/, lab: "cursor" }, { id: "kimi", name: "Kimi", plans: /^Kimi\b/, lab: "moonshot" }, { id: "zhipu", name: "Z.ai", plans: /^GLM\b/, lab: "zhipu" }, { id: "minimax", name: "MiniMax", plans: /^MiniMax\b/, lab: "minimax" },
@@ -73,8 +74,6 @@ const SELLERS: { id: string; name: string; plans: RegExp; lab?: string }[] = [
   { id: "opencode", name: "OpenCode", plans: /^OpenCode\b/ }, { id: "commandcode", name: "Command Code", plans: /^Command Code\b/ }, { id: "factory", name: "Factory", plans: /^Droid\b/ }, { id: "ollama", name: "Ollama", plans: /^Ollama\b/ },
   { id: "devin", name: "Devin", plans: /^Devin\b/, lab: "cognition" }, { id: "deeprelay", name: "DeepRelay", plans: /^DeepRelay\b/ },
 ];
-/** Plans a new subscriber can no longer buy. */
-const closed = (plan: string) => /\blegacy\b|existing subscribers/i.test(plan);
 const earlier = (a: number[], b: number[]) => { for (let i = 0; i < Math.max(a.length, b.length); i++) { const d = (a[i] ?? Infinity) - (b[i] ?? Infinity); if (d) return d; } return 0; };
 
 const sellersCache = new WeakMap<Snapshot, SubsidySeller[]>();
@@ -88,7 +87,7 @@ export function subsidySellers(snapshot: Snapshot): SubsidySeller[] {
   const groups = new Map<string, { seller: SubsidySeller; lab?: string }>();
   for (const plan of planSubsidies(snapshot)) {
     const known = SELLERS.find((s) => s.plans.test(plan.plan)), id = known?.id ?? plan.plan;
-    (groups.get(id) ?? groups.set(id, { seller: { id, name: known?.name ?? plan.plan, logo: !!known, plans: [] }, lab: known?.lab }).get(id)!).seller.plans.push(plan);
+    (groups.get(id) ?? groups.set(id, { seller: { id, name: known?.name ?? plan.plan, plans: [] }, lab: known?.lab }).get(id)!).seller.plans.push(plan);
   }
   const out = [...groups.values()].map(({ seller, lab }) => {
     const ranks = (p: PlanSubsidy) => p.models.flatMap((m) => (m.lab === lab ? place.get(m.id) ?? [] : [])).sort((a, b) => a - b);

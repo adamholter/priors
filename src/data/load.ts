@@ -6,6 +6,7 @@ import { canonicalizeSnapshot } from "./canonical-snapshot";
 import { shareStrings } from "./share-strings";
 import { parseTopLevel } from "./parse-snapshot";
 import { withCatalog } from "./catalog";
+import { withLabIdentity } from "./lab-identity";
 import { decodeHistoryArchive, HISTORY_ARCHIVE, type HistoryArchive } from "../lib/history-archive";
 
 /**
@@ -98,7 +99,7 @@ function remoteCache<T>(parse: (raw: Buffer) => T) {
   };
 }
 /** A snapshot file, parsed, with its identities repaired and its repeated strings shared (40% less memory). */
-export const parseSnapshot = (raw: Buffer) => shareStrings(catalogued(canonicalizeSnapshot(parseTopLevel<Snapshot>(gunzipSync(raw)))));
+export const parseSnapshot = (raw: Buffer) => shareStrings(withLabIdentity(catalogued(canonicalizeSnapshot(parseTopLevel<Snapshot>(gunzipSync(raw))))));
 /** Today's descriptions and categories on every snapshot, so a day saved before they were written reads the same as the live one. */
 const catalogued = (s: Snapshot): Snapshot => ({ ...s, benchmarks: s.benchmarks.map(withCatalog) });
 const remoteSnapshot = remoteCache(parseSnapshot);

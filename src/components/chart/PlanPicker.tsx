@@ -4,6 +4,7 @@ import { IconChevronRight, IconInfoCircle } from "@tabler/icons-react";
 import { studentBase, studentOfferFor, type CostBasis } from "@/data/subscription";
 import { naturalPlanName } from "@/data/plan-defaults";
 import { studentSavingUsd, studentValueMultiple, todayIso, type StudentOffer } from "@/data/student-offers";
+import { LabLogo } from "../LabLogo";
 import styles from "./ChartSettings.module.css";
 import "./plan-picker.css";
 
@@ -19,11 +20,8 @@ const planStatus = ({ plans, basis }: Pick<Props, "plans" | "basis">) => basis.v
 const fee = (v?: number) => v == null ? "" : `$${Number.isInteger(v) ? v : v.toFixed(2)}/mo`;
 const times = (m: number) => `${m >= 10 ? Math.round(m) : m.toFixed(1)}x`;
 
-/** Model labs whose logo is in `public/logos` (under the id the subsidies page uses for the company). */
-const LOGO: Record<string, string> = { anthropic: "anthropic", openai: "openai", google: "google", xai: "xai", cursor: "cursor", moonshot: "kimi", zhipu: "zhipu", minimax: "minimax", xiaomi: "xiaomi", tencent: "tencent", alibaba: "alibaba", mistral: "mistral", cognition: "devin" };
 function Logo({ lab, name }: { lab: string; name: string }) {
-  // eslint-disable-next-line @next/next/no-img-element
-  return LOGO[lab] ? <img className="pp-logo" src={`/logos/${LOGO[lab]}.png`} alt="" width={18} height={18} loading="lazy" /> : <span className="pp-logo pp-letter" aria-hidden="true">{name.slice(0, 1)}</span>;
+  return <LabLogo lab={lab} name={name} size={18} />;
 }
 
 function Note({ plans, basis }: Pick<Props, "plans" | "basis">) {
