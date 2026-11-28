@@ -26,7 +26,7 @@ Workflow: write the HTML, run `preview_benchmark_embed`, save its `document` to 
 
 An embed's `html` is a fragment or a full HTML document. Priors runs it in a sandboxed frame the width of the page column, and puts its own head in front of yours:
 
-- **Sandbox.** Scripts, forms, popups, pointer lock, fullscreen, downloads and audio all work. The frame has no access to Priors: no cookies, no storage of the site, no reading the parent page, no navigating the tab. Links open in a new tab.
+- **Sandbox.** Scripts, forms, pointer lock, fullscreen, downloads and audio all work. The frame has no access to Priors: no cookies, no storage of the site, no reading the parent page, no navigating the tab. It cannot open windows or dialogs: `window.open`, `alert` and `confirm` do nothing. Plain `<a href="https://…">` links open in a new tab when clicked (the page opens them); from code, call `priors.openLink(url)` in a click handler.
 - **Network.** Load anything from your own host or a CDN: `<img>`, `<audio>`, `<video>`, `<script src>`, `<link rel=stylesheet>` work as on any page. `fetch()` and XHR go out with `Origin: null`, so the server must answer with `Access-Control-Allow-Origin: *`. Keep big files (audio, models, datasets) on your host rather than inlining them.
 - **Height.** With no `height`, the frame follows the height of your `<body>` as it changes. Do not size the root to `100vh` or `height: 100%` in that mode, since the frame takes its height from your content. For a canvas or game that wants a fixed box, set `height` (60 to 4000 px) and fill it with `100vh`.
 - **Theme.** Your document matches the page in light and dark, and follows it when the visitor switches. Use these CSS variables instead of fixed colors:
@@ -51,7 +51,8 @@ priors.onTheme(fn)          // fn(theme) on every switch (for canvas or chart co
 priors.rows()               // Promise of the leaderboard as the visitor sees it, in order:
                             //   [{ rank, model, modelId, lab, color, effort, value, score, ci, costUsd, released, url }]
                             //   value is the benchmark's own number, score is Priors' 0 to 100, color is the lab's chart color
-priors.open(row.url)        // send the tab to a page on Priors, such as a model's page
+priors.open(row.url)        // in a click handler: go to a model, benchmark or compare page on Priors
+priors.openLink(url)        // in a click handler: open an http(s) address in a new tab
 ```
 
   Match your own records to rows by `modelId` or a normalized name: Priors' names drop some prefixes ("Fable 5.2" for "Claude Fable 5.2").

@@ -13,7 +13,7 @@ import { api } from "../../../convex/_generated/api";
 import type { BenchmarkBlock } from "../../../convex/validators";
 import { authEnabled, convexEnabled } from "@/app/providers";
 import { useUser } from "@/lib/auth";
-import { clampHeight, DEFAULT_EMBED_HEIGHT, EMBED_ALLOW, EMBED_SANDBOX, embedDocument, isFrameMessage, readEmbedTheme, safeInternalPath, type EmbedBenchmark, type EmbedRow, type PageMessage } from "@/lib/benchmark-embed";
+import { clampHeight, DEFAULT_EMBED_HEIGHT, EMBED_ALLOW, EMBED_SANDBOX, embedDocument, hasUserActivation, isFrameMessage, readEmbedTheme, safeExternalUrl, safeInternalPath, type EmbedBenchmark, type EmbedRow, type PageMessage } from "@/lib/benchmark-embed";
 import "./creator-blocks.css";
 
 export interface Creator { handle: string; displayName: string; avatarUrl?: string }
@@ -86,7 +86,8 @@ export function CreatorBlocks({ placement }: { placement: "above" | "below" }) {
 
 /**
  * One embed. The document is built once on the client with the theme showing at that moment; later theme changes are sent as messages,
- * so a playing clip or a running game keeps its state. Messages are answered only when they come from this frame.
+ * so a playing clip or a running game keeps its state. Messages are answered only when they come from this frame, and the two that leave
+ * the page (open a Priors page, open a link) only right after a real click.
  */
 function EmbedFrame({ block, benchmark, rows }: { block: BenchmarkBlock; benchmark: EmbedBenchmark; rows: EmbedRow[] }) {
   const ref = useRef<HTMLIFrameElement>(null);
@@ -107,7 +108,8 @@ function EmbedFrame({ block, benchmark, rows }: { block: BenchmarkBlock; benchma
       const m = e.data;
       if (m.type === "height") setMeasured(clampHeight(m.height));
       else if (m.type === "rows") post({ priors: 1, type: "rows", id: m.id, rows: rowsRef.current });
-      else if (m.type === "open") { const path = safeInternalPath(m.path); if (path) router.push(path as "/"); }
+      else if (m.type === "open") { const path = safeInternalPath(m.path); if (path && hasUserActivation()) router.push(path as "/"); }
+      else if (m.type === "link") { const url = safeExternalUrl(m.url); if (url && hasUserActivation()) window.open(url, "_blank", "noopener,noreferrer"); }
     };
     addEventListener("message", onMessage);
     // The page's theme lives on <html>: light/dark, a site theme's inline tokens, a custom page theme.

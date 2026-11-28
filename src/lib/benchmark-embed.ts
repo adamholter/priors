@@ -2,7 +2,8 @@
  * Embeds on benchmark pages: HTML a benchmark's verified creator wrote (a spectrogram player, a search box, a little game), run in a
  * sandboxed frame. The frame has an opaque origin (no `allow-same-origin`), so its code cannot read Priors' cookies, storage or page,
  * and cannot navigate the tab. It talks to the page only through the bridge below, by `postMessage`, and the page answers only its own
- * frame. The contract creators and their agents write against is `public/skill/benchmark-page.md`.
+ * frame. It cannot open windows either: a link goes to the page, which opens it in a new tab with no handle back (`noopener`), and only
+ * right after a real click. The contract creators and their agents write against is `public/skill/benchmark-page.md`.
  */
 
 /** Priors' colors as the frame sees them: `--priors-<name>` on its root, and `priors.theme.colors.<name>`. Value: the site's own token. */
@@ -32,19 +33,32 @@ export interface EmbedRow {
 export const MIN_EMBED_HEIGHT = 60, MAX_EMBED_HEIGHT = 4000, DEFAULT_EMBED_HEIGHT = 320;
 
 /** Messages between page and frame. Every one carries `priors: 1`; the page checks `event.source` is its own frame. */
-export type FrameMessage = { priors: 1; type: "height"; height: number } | { priors: 1; type: "rows"; id: number } | { priors: 1; type: "open"; path: string };
+export type FrameMessage = { priors: 1; type: "height"; height: number } | { priors: 1; type: "rows"; id: number } | { priors: 1; type: "open"; path: string } | { priors: 1; type: "link"; url: string };
 export type PageMessage = { priors: 1; type: "theme"; theme: EmbedTheme } | { priors: 1; type: "rows"; id: number; rows: EmbedRow[] };
 
 export function isFrameMessage(x: unknown): x is FrameMessage {
   if (!x || typeof x !== "object" || (x as { priors?: unknown }).priors !== 1) return false;
   const m = x as Record<string, unknown>;
-  return (m.type === "height" && typeof m.height === "number" && Number.isFinite(m.height)) || (m.type === "rows" && typeof m.id === "number") || (m.type === "open" && typeof m.path === "string");
+  return (m.type === "height" && typeof m.height === "number" && Number.isFinite(m.height)) || (m.type === "rows" && typeof m.id === "number") || (m.type === "open" && typeof m.path === "string") || (m.type === "link" && typeof m.url === "string");
 }
 
-/** A path inside Priors the frame may send the tab to: same site only, never a script URL or another host. */
+/** Pages on Priors an embed may send the tab to: a model, a benchmark, a comparison. Never another host or a script URL. */
+const OPEN_PREFIXES = ["/models/", "/benchmarks/", "/compare"];
 export function safeInternalPath(path: string): string | null {
   if (!/^\/(?!\/)[^\s\\]*$/.test(path) || path.length > 500) return null;
-  return path;
+  return OPEN_PREFIXES.some((p) => path.startsWith(p)) ? path : null;
+}
+
+/** A web address an embed's link may open in a new tab: http or https only. */
+export function safeExternalUrl(url: string): string | null {
+  if (url.length > 2000) return null;
+  try { const u = new URL(url); return u.protocol === "https:" || u.protocol === "http:" ? u.href : null; } catch { return null; }
+}
+
+/** True right after a real click or key press on the page or inside one of its frames (activation reaches the page from its frames). */
+export function hasUserActivation(): boolean {
+  const ua = (navigator as Navigator & { userActivation?: { isActive: boolean } }).userActivation;
+  return ua ? ua.isActive : false;
 }
 
 export const clampHeight = (h: number) => Math.min(MAX_EMBED_HEIGHT, Math.max(MIN_EMBED_HEIGHT, Math.ceil(h)));
@@ -74,7 +88,8 @@ const BASE_CSS = `*,*::before,*::after{box-sizing:border-box}html{background:tra
  *   priors.theme              { mode, colors, fonts }, kept current; also the `--priors-*` CSS variables and `html[data-theme]`
  *   priors.onTheme(fn)        called on every theme change; returns an unsubscribe function
  *   priors.rows()             Promise of the leaderboard rows the page shows (EmbedRow[]), in its order
- *   priors.open(path)         sends the tab to a Priors path such as a row's `url`
+ *   priors.open(path)         sends the tab to a Priors model, benchmark or compare page (a row's `url`), after a click
+ *   priors.openLink(url)      opens a web address in a new tab, after a click (plain <a href> links do this by themselves)
  *   priors.resize()           re-measure now (the frame also follows its content's height by itself)
  * Opened on its own (no parent page), rows() answers an empty list; use `embedPreviewDocument` to test against real rows.
  */
@@ -85,13 +100,14 @@ var P=window.parent!==window?window.parent:null,themeFns=[],waiting={},seq=0,las
 var priors={benchmark:${json(benchmark)},theme:${json(theme)},
 onTheme:function(fn){themeFns.push(fn);return function(){themeFns=themeFns.filter(function(f){return f!==fn})}},
 rows:function(){if(!P)return Promise.resolve([]);var id=++seq;return new Promise(function(res){waiting[id]=res;P.postMessage({priors:1,type:"rows",id:id},"*")})},
-open:function(path){if(P)P.postMessage({priors:1,type:"open",path:String(path)},"*");else window.open(String(path),"_blank")},
+open:function(path){if(P)P.postMessage({priors:1,type:"open",path:String(path)},"*")},
+openLink:function(url){if(P)P.postMessage({priors:1,type:"link",url:String(url)},"*")},
 resize:measure};
 window.priors=priors;
 function applyTheme(t){priors.theme=t;var css=":root{",k;for(k in t.colors)css+="--priors-"+k+":"+String(t.colors[k]).replace(/[;{}<>]/g,"")+";";for(k in t.fonts)css+="--priors-font-"+k+":"+String(t.fonts[k]).replace(/[;{}<>]/g,"")+";";css+="color-scheme:"+t.mode+"}";var el=document.getElementById("priors-theme");if(el)el.textContent=css;document.documentElement.setAttribute("data-theme",t.mode);themeFns.slice().forEach(function(f){try{f(t)}catch(e){console.error(e)}});try{window.dispatchEvent(new CustomEvent("priors:theme",{detail:t}))}catch(e){}}
 function measure(){if(!P||!document.body)return;var h=Math.ceil(document.body.getBoundingClientRect().height);if(h!==last){last=h;P.postMessage({priors:1,type:"height",height:h},"*")}}
 window.addEventListener("message",function(e){if(e.source!==P)return;var m=e.data;if(!m||m.priors!==1)return;if(m.type==="theme")applyTheme(m.theme);else if(m.type==="rows"&&waiting[m.id]){waiting[m.id](m.rows);delete waiting[m.id]}});
-document.addEventListener("click",function(e){var a=e.target&&e.target.closest?e.target.closest("a[href^='#']"):null;if(!a)return;e.preventDefault();var t=document.getElementById(decodeURIComponent(a.getAttribute("href").slice(1)));if(t)t.scrollIntoView({behavior:"smooth"})});
+document.addEventListener("click",function(e){if(e.defaultPrevented)return;var a=e.target&&e.target.closest?e.target.closest("a[href]"):null;if(!a||a.hasAttribute("download"))return;var h=a.getAttribute("href");if(h.charAt(0)==="#"){e.preventDefault();var t=document.getElementById(decodeURIComponent(h.slice(1)));if(t)t.scrollIntoView({behavior:"smooth"});return}if(/^https?:/i.test(a.href)){e.preventDefault();priors.openLink(a.href)}});
 function start(){measure();if(window.ResizeObserver)new ResizeObserver(measure).observe(document.body);window.addEventListener("load",measure)}
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",start);else start();
 })();`;
@@ -103,7 +119,7 @@ if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",
  */
 export function embedDocument(html: string, opts: { benchmark: EmbedBenchmark; theme: EmbedTheme }): string {
   const head = [
-    `<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><base target="_blank">`,
+    `<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">`,
     `<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="${FONT_CSS}">`,
     `<style id="priors-theme">${themeCss(opts.theme)}</style><style id="priors-base">${BASE_CSS}</style>`,
     `<script>${bridgeScript(opts.benchmark, opts.theme)}</script>`,
@@ -114,8 +130,11 @@ export function embedDocument(html: string, opts: { benchmark: EmbedBenchmark; t
   return `<!doctype html><html lang="en" data-theme="${mode}"><head>${head}</head><body>${html}</body></html>`;
 }
 
-/** The frame's permissions. No `allow-same-origin` (that would hand the frame Priors' origin) and no top navigation. */
-export const EMBED_SANDBOX = "allow-scripts allow-popups allow-popups-to-escape-sandbox allow-forms allow-pointer-lock allow-modals allow-downloads";
+/**
+ * The frame's permissions. No `allow-same-origin` (that would hand the frame Priors' origin), no top navigation, no popups (a window it
+ * opened could reach back to this tab) and no dialogs. Links go through the page instead (`link` messages).
+ */
+export const EMBED_SANDBOX = "allow-scripts allow-forms allow-pointer-lock allow-downloads";
 export const EMBED_ALLOW = "fullscreen; autoplay; clipboard-write; gamepad; xr-spatial-tracking";
 
 /** The site's default light and dark tokens (`src/app/globals.css`, checked by a test), for previews made away from a page. */
@@ -143,5 +162,6 @@ document.getElementById("mode").onclick=function(){mode=mode==="light"?"dark":"l
 addEventListener("message",function(e){if(e.source!==f.contentWindow||!e.data||e.data.priors!==1)return;var m=e.data;
 if(m.type==="height"){var h=Math.min(${MAX_EMBED_HEIGHT},Math.max(${MIN_EMBED_HEIGHT},Math.ceil(m.height)));f.style.height=h+"px";document.getElementById("h").textContent="height "+h+"px"}
 else if(m.type==="rows")f.contentWindow.postMessage({priors:1,type:"rows",id:m.id,rows:rows},"*");
-else if(m.type==="open")document.getElementById("h").textContent="would open https://mypriors.com"+m.path});</script></body></html>`;
+else if(m.type==="open")document.getElementById("h").textContent="would open https://mypriors.com"+m.path;
+else if(m.type==="link"&&/^https?:/i.test(m.url))window.open(m.url,"_blank","noopener,noreferrer")});</script></body></html>`;
 }

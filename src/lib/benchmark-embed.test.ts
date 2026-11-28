@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { BLOCK_LIMITS, checkBlocks } from "../../convex/benchmarkPageRules";
-import { clampHeight, DEFAULT_EMBED_THEMES, EMBED_COLORS, EMBED_SANDBOX, embedDocument, embedPreviewDocument, isFrameMessage, safeInternalPath, themeCss } from "./benchmark-embed";
+import { clampHeight, DEFAULT_EMBED_THEMES, EMBED_COLORS, EMBED_SANDBOX, embedDocument, embedPreviewDocument, isFrameMessage, safeExternalUrl, safeInternalPath, themeCss } from "./benchmark-embed";
 
 const benchmark = { id: "spectrobench", name: "SpectroBench", unit: "score", higherIsBetter: true, url: "https://spectrobench.ssh.codes" };
 const theme = DEFAULT_EMBED_THEMES.light;
@@ -52,7 +52,7 @@ describe("embedDocument", () => {
   });
   it("never grants the frame Priors' origin or top navigation", () => {
     expect(EMBED_SANDBOX).toContain("allow-scripts");
-    expect(EMBED_SANDBOX).not.toMatch(/allow-same-origin|allow-top-navigation/);
+    expect(EMBED_SANDBOX).not.toMatch(/allow-same-origin|allow-top-navigation|allow-popups|allow-modals/);
   });
   it("makes a standalone preview that runs the same bridge against real rows", () => {
     const doc = embedPreviewDocument("<p>hi</p>", { benchmark, rows: [{ rank: 1, model: "M", modelId: "m", lab: "L", value: 71.4, score: 100, url: "/models/m" }], mode: "dark" });
@@ -69,9 +69,15 @@ describe("frame messages", () => {
     expect(isFrameMessage({ type: "height", height: 3 })).toBe(false);
     expect(isFrameMessage({ priors: 1, type: "eval", code: "x" })).toBe(false);
   });
-  it("opens only paths on Priors", () => {
+  it("opens only model, benchmark and compare pages on Priors", () => {
     expect(safeInternalPath("/models/gpt-6.2-astra")).toBe("/models/gpt-6.2-astra");
-    for (const bad of ["//evil.com", "https://evil.com", "javascript:alert(1)", "/\\evil.com", "models/x"]) expect(safeInternalPath(bad)).toBeNull();
+    expect(safeInternalPath("/benchmarks/spectrobench")).toBe("/benchmarks/spectrobench");
+    for (const bad of ["//evil.com", "https://evil.com", "javascript:alert(1)", "/\\evil.com", "models/x", "/sign-in", "/adamholter?edit=1", "/api/agent"]) expect(safeInternalPath(bad)).toBeNull();
+  });
+  it("opens only http and https links", () => {
+    expect(safeExternalUrl("https://spectrobench.ssh.codes/a")).toBe("https://spectrobench.ssh.codes/a");
+    for (const bad of ["javascript:alert(1)", "data:text/html,x", "file:///etc/passwd", "not a url"]) expect(safeExternalUrl(bad)).toBeNull();
+    expect(isFrameMessage({ priors: 1, type: "link", url: "https://x.y" })).toBe(true);
   });
   it("clamps heights", () => {
     expect(clampHeight(10)).toBe(60);
