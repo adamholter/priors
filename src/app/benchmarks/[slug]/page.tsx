@@ -59,6 +59,14 @@ export async function generateMetadata({ params, searchParams }: { params: Promi
   });
 }
 
+/** A source that has failed for half a day or more: its page says its results are the last Priors read. A run or two failing is routine and passes unmentioned. */
+function stuckSince(snapshot: Snapshot, b: Benchmark): string | undefined {
+  const run = snapshot.sources.find((r) => r.sourceId === b.sourceId);
+  if (run?.status !== "failed") return undefined;
+  const since = run.failingSince;
+  return since && Date.parse(run.fetchedAt) - Date.parse(since) >= 12 * 3_600_000 ? since : undefined;
+}
+
 export default async function Page({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Search }) {
   const { slug } = await params;
   const found = await resolve(slug);
@@ -80,5 +88,5 @@ export default async function Page({ params, searchParams }: { params: Promise<{
   const quality = qualityView(snapshot, b.id, community);
   // The pickers name who leads every other category and version, ranked once per snapshot.
   const siblings = benchmarkRelatives(snapshot, b), relatives = { ...siblings, peers: slicePeers(snapshot, siblings) };
-  return <BenchmarkPage snapshot={small} benchmarkId={b.id} models={count} relatives={relatives} initial={initial} quality={b.proxy ? undefined : quality} creator={creator} />;
+  return <BenchmarkPage snapshot={small} benchmarkId={b.id} models={count} relatives={relatives} initial={initial} quality={b.proxy ? undefined : quality} creator={creator} failingSince={stuckSince(snapshot, b)} />;
 }

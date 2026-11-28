@@ -14,7 +14,7 @@ import { closeBrowser, makeContext, saveRaw, sleep } from "./harness";
 import { buildLibrary } from "./library";
 import { writeHistoryArchive } from "./history-archive";
 import { canonicalizeSnapshot } from "../../src/data/canonical-snapshot";
-import { firstCarry, remapCarriedBySource, remapMovedRows, retainCatalog, splitHy4Preview } from "./retain-catalog";
+import { failingSince, firstCarry, remapCarriedBySource, remapMovedRows, retainCatalog, splitHy4Preview } from "./retain-catalog";
 import { fetchPlanResets } from "./plan-resets";
 import { fetchSpeedTiers } from "./speed-tiers";
 import { labelCollisions, swallowedTiers } from "./label-collisions";
@@ -276,6 +276,7 @@ async function main() {
     if (only) snap.sources.push(...unselected);
     for (const r of retained) {
       const prevRun = prev.sources.find((p) => p.sourceId === r.sourceId);
+      if (r.status === "failed" && runs.includes(r)) r.failingSince = failingSince(r, prevRun, prev);
       if (!prevRun) continue;
       const prevBench = prev.benchmarks.filter((b) => b.sourceId === r.sourceId);
       prevBench.forEach((b) => snap.benchmarks.push(b));

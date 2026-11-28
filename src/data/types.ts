@@ -176,6 +176,8 @@ export interface SourceRun {
   unknownLabels: string[]; // labels that could not be normalized; excluded from ranking
   rawPath: string; // local path of raw artifact for audit/reparse
   error?: string;
+  /** A failed source: when it first failed in the current run of failures (ISO date or datetime). Its benchmarks show the last results it gave, and their pages say since when. */
+  failingSince?: string;
 }
 
 export interface Snapshot {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { Model, Variant } from "../../src/data/types";
-import { firstCarry, remapCarriedBySource, remapMovedRows, retainCatalog, splitHy4Preview } from "./retain-catalog";
+import type { Model, Snapshot, SourceRun, Variant } from "../../src/data/types";
+import { failingSince, firstCarry, remapCarriedBySource, remapMovedRows, retainCatalog, splitHy4Preview } from "./retain-catalog";
 
 const model: Model = {
   id: "gpt-6-astra", name: "GPT-6 Astra", labId: "openai", kind: "llm", reasoning: true,
@@ -131,5 +131,17 @@ describe("a merge that has been undone", () => {
       { variantId: "hy-4-preview@high", sourceModelId: "tencent/hy4", value: 40 },
     ]);
     expect(rows.map((r) => r.variantId)).toEqual(["hy-4@high", "hy-4-preview@high", "hy-4-preview@high"]);
+  });
+});
+
+describe("failingSince", () => {
+  const run = (status: SourceRun["status"], fetchedAt: string, since?: string): SourceRun => ({ sourceId: "gdpx", status, fetchedAt, rowCount: 0, unknownLabels: [], rawPath: "", ...(since ? { failingSince: since } : {}) });
+  const prev = { benchmarks: [{ id: "gdpx", sourceId: "gdpx" }], observations: [{ benchmarkId: "gdpx", note: "Reasoning Max; carried from 2026-11-25" }] } as unknown as Pick<Snapshot, "benchmarks" | "observations">;
+  it("starts at this run after a good one, then keeps its first date", () => {
+    expect(failingSince(run("failed", "2026-11-28T10:00:00Z"), run("ok", "2026-11-28T09:45:00Z"), prev)).toBe("2026-11-28T10:00:00Z");
+    expect(failingSince(run("failed", "2026-11-28T10:00:00Z"), run("failed", "2026-11-28T09:45:00Z", "2026-11-26T01:00:00Z"), prev)).toBe("2026-11-26T01:00:00Z");
+  });
+  it("reads the first carry date from snapshots made before it was recorded", () => {
+    expect(failingSince(run("failed", "2026-11-28T10:00:00Z"), run("failed", "2026-11-28T09:45:00Z"), prev)).toBe("2026-11-25");
   });
 });

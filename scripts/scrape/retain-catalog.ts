@@ -1,5 +1,5 @@
 import { normalizeLabel } from "../../src/data/normalize";
-import type { Model, Variant } from "../../src/data/types";
+import type { Model, Snapshot, SourceRun, Variant } from "../../src/data/types";
 
 /**
  * Until 2026-11-04 Hy4 preview was stored as `hy-4`. Reads an older snapshot under the id it has now, so final Hy4 inherits
@@ -94,4 +94,15 @@ export function firstCarry(note: string | undefined): string | undefined {
   if (!note) return note;
   let seen = false;
   return note.split("; ").filter((part) => !/^carried from \d{4}-\d{2}-\d{2}$/.test(part) || (!seen && (seen = true))).join("; ");
+}
+
+/**
+ * When a failing source began failing: kept from the last snapshot while it keeps failing, so a benchmark page can say how long its
+ * results have been stuck. Snapshots from before this was recorded give the first "carried from" date on its scores, else that run.
+ */
+export function failingSince(run: SourceRun, prevRun: SourceRun | undefined, prev: Pick<Snapshot, "benchmarks" | "observations">): string {
+  if (prevRun?.status !== "failed") return run.fetchedAt;
+  if (prevRun.failingSince) return prevRun.failingSince;
+  const ids = new Set(prev.benchmarks.filter((b) => b.sourceId === run.sourceId).map((b) => b.id));
+  return prev.observations.map((o) => (ids.has(o.benchmarkId) ? o.note?.match(/carried from (\d{4}-\d{2}-\d{2})/)?.[1] : undefined)).find(Boolean) ?? prevRun.fetchedAt;
 }

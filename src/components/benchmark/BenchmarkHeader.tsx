@@ -54,13 +54,18 @@ interface Facts {
 }
 
 /** Everything the header says, worked out once from the page's data. */
-function useFacts({ b, benchmarkId, quality: view, relatives, models, results, date }: { b: Benchmark; benchmarkId: string; quality?: QualityView; relatives: RelativeBoards; models: number; results: number; date: string }): Facts {
+function useFacts({ b, benchmarkId, quality: view, relatives, models, results, date, failingSince }: { b: Benchmark; benchmarkId: string; quality?: QualityView; relatives: RelativeBoards; models: number; results: number; date: string; failingSince?: string }): Facts {
   return useMemo<Facts>(() => {
     const q = view?.quality;
     const tf = q?.factors.find((f) => f.id === "testSet");
     const state = (q?.testSet ?? "unknown") as TestState;
     const thin = models < THIN_BOARD;
     const caveats: Caveat[] = [];
+    if (failingSince) {
+      const day = shortDay(failingSince.slice(0, 10), date);
+      caveats.push({ id: "fetch-failed", icon: IconAlertTriangle, short: <><b>Not refreshed since {day}.</b> Priors can&rsquo;t read the source right now.</>, more: true, attr: { "data-fetch-failed": true },
+        full: <>Priors hasn&rsquo;t been able to read new results from this benchmark&rsquo;s site since {failingSince.slice(0, 10)}, so these are the results it last read. Newer models the publisher has added since are missing until it reads the site again.</> });
+    }
     if (b.stoppedPublishing) {
       const day = shortDay(b.stoppedPublishing, date);
       caveats.push({ id: "stopped", icon: IconAlertTriangle, short: <><b>Not current.</b> Last update {day}.</>, more: true, attr: { "data-stopped-publishing": true },
@@ -103,7 +108,7 @@ function useFacts({ b, benchmarkId, quality: view, relatives, models, results, d
       effort: !!b.effortBasis,
       caveats,
     };
-  }, [b, benchmarkId, view, relatives, models, results, date]);
+  }, [b, benchmarkId, view, relatives, models, results, date, failingSince]);
 }
 
 /** The description, closed to a sentence or so. A chevron trails the last word and opens the rest in place. Text that already fits gets none. */
@@ -172,6 +177,8 @@ function FactRow({ f, b, host }: { f: Facts; b: Benchmark; host: string }) {
 export interface BenchmarkHeaderProps {
   b: Benchmark;
   benchmarkId: string;
+  /** Priors has failed to read this benchmark's source since this date (ISO), so the results shown are the last it read. */
+  failingSince?: string;
   /** The server's quality view. Absent for token-price proxies. */
   quality?: QualityView;
   relatives: RelativeBoards;

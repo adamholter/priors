@@ -37,7 +37,7 @@ import type { EmbedRow } from "@/lib/benchmark-embed";
 const fmt = formatBenchValue;
 
 /** One benchmark on its own: who leads it, and what each result costs, priced the way a subscriber pays when the lab has a plan. */
-export function BenchmarkPage({ snapshot: base, benchmarkId, models, relatives, initial, quality, creator }: { snapshot: Snapshot; benchmarkId: string; models: number; relatives: { family: { id: string; label: string }[]; familyLabel?: string; versions: { id: string; label: string }[]; /** Who leads each of those boards, worked out by the server. */ peers?: SlicePeers }; /** Settings from a copied link. */ initial?: IndexConfig; /** The benchmark's quality score, its parts and its stars, from the server. Absent for token-price proxies. */ quality?: QualityView; /** Its verified creators and what they added, from the server. */ creator?: CreatorPage | null }) {
+export function BenchmarkPage({ snapshot: base, benchmarkId, models, relatives, initial, quality, creator, failingSince }: { /** Since when its source has failed to scrape (see `SourceRun.failingSince`). */ failingSince?: string; snapshot: Snapshot; benchmarkId: string; models: number; relatives: { family: { id: string; label: string }[]; familyLabel?: string; versions: { id: string; label: string }[]; /** Who leads each of those boards, worked out by the server. */ peers?: SlicePeers }; /** Settings from a copied link. */ initial?: IndexConfig; /** The benchmark's quality score, its parts and its stars, from the server. Absent for token-price proxies. */ quality?: QualityView; /** Its verified creators and what they added, from the server. */ creator?: CreatorPage | null }) {
   const snapshot = useAdjustedSnapshot(base);
   const b = snapshot.benchmarks.find((x) => x.id === benchmarkId)!;
   const [config, setConfig] = useState<IndexConfig>(() => initial ?? benchmarkIndex(snapshot, benchmarkId));
@@ -112,7 +112,7 @@ export function BenchmarkPage({ snapshot: base, benchmarkId, models, relatives, 
       <SiteHeader current="benchmarks" />
       <CreatorPageProvider page={creator ?? null} benchmark={embedBenchmark} rows={embedRows}><BenchmarkStars><HighlightContext.Provider value={highlightState}><ScoreAxisContext.Provider value={plotRaw ? axis : { ...INDEX_SCORE_AXIS, name: "Score (Priors scale)" }}>
         <div className="max-w-[1100px] mx-auto px-5 sm:px-8 py-10 grid gap-12">
-          <BenchmarkHeader b={b} benchmarkId={benchmarkId} quality={quality} relatives={relatives} models={models} results={result.ranked.length} date={snapshot.date} host={host} />
+          <BenchmarkHeader b={b} benchmarkId={benchmarkId} quality={quality} relatives={relatives} models={models} results={result.ranked.length} date={snapshot.date} host={host} failingSince={failingSince} />
 
           <CreatorBlocks placement="above" />
           <section className="chart-panel">
